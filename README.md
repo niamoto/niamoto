@@ -11,7 +11,7 @@
 - [Initial Configuration](#initial-configuration)
 - [Available Commands](#available-commands)
   - [`niamoto init [--reset]`](#niamoto-init---reset)
-  - [`niamoto import_data <csvfile> <table_name>`](#niamoto-import_data-csvfile-table_name)
+  - [`niamoto import_data <csvfile>`](#niamoto-import_data-csvfile)
   - [`niamoto generate_static_site`](#niamoto-generate_static_site)
 - [Development Environment Configuration](#development-environment-configuration)
 - [CSV File Format for Import](#csv-file-format-for-import)
@@ -46,7 +46,7 @@ This command will create the default configuration necessary for Niamoto to oper
 ### `niamoto init [--reset]`
 Initializes or resets the Niamoto environment.
 
-### `niamoto import_data <csvfile> <table_name>`
+### `niamoto import_data <csvfile>`
 Imports data from a CSV file into the specified table in the database.
 
 ### `niamoto generate_static_site`
