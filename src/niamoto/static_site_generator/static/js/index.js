@@ -2,7 +2,7 @@ function loadCharts(taxon) {
     
             // Make sure the frequencies object contains data for DBH
 
-            var frequencies = JSON.parse(taxon.frequencies);
+            var frequencies = taxon.frequencies;
 
             if (frequencies && frequencies.dbh) {
                 // Data for DBH chart
@@ -414,7 +414,7 @@ function createTree(container, taxonomyData) {
 function initMap() {
     
 
-    var geoPoints = JSON.parse(taxon.geo_pts_pn);
+    var geoPoints = taxon.geo_pts_pn;
 
     const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
                 layers: '0',
