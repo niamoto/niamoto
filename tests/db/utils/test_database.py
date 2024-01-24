@@ -8,7 +8,7 @@ and the ability to add and commit instances to the database.
 
 import pytest
 from typing import Any
-from sqlalchemy.exc import InvalidRequestError, OperationalError
+from sqlalchemy.exc import InvalidRequestError, ProgrammingError
 from sqlalchemy.sql import text
 from sqlalchemy.orm import scoped_session
 
@@ -16,8 +16,8 @@ from sqlalchemy.orm import scoped_session
 from niamoto.db.models.models import Base, Taxon
 from niamoto.db.utils.database import Database
 
-# Assuming you're using an in-memory SQLite database for testing
-TEST_DATABASE_URI = "sqlite:///:memory:"
+# Assuming you're using an in-memory DuckDB database for testing
+TEST_DATABASE_URI = "duckdb:///:memory:"
 
 
 @pytest.fixture  # type: ignore
@@ -94,7 +94,7 @@ def test_access_nonexistent_column(test_database: Any) -> None:
     # Make sure the session is rolled back in case of prior tests affecting the state
     test_database.session.rollback()
 
-    with pytest.raises(OperationalError):
+    with pytest.raises(ProgrammingError):
         # Use raw SQL to bypass Python attribute checks
         test_database.session.execute(
             text("SELECT nonexistent_column FROM taxon")
@@ -106,7 +106,7 @@ def test_use_incorrect_table_name_in_query(test_database: Any) -> None:
     Use an incorrect table name in a query.
     This should raise a ProgrammingError.
     """
-    with pytest.raises(OperationalError):
+    with pytest.raises(ProgrammingError):
         # Directly using SQL expression to simulate incorrect table name
         result = test_database.session.execute(text("SELECT * FROM non_existent_table"))
         result.fetchall()

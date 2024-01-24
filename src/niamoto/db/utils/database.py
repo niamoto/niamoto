@@ -1,14 +1,15 @@
 """
-This module provides a Database class for connecting to and interacting with a SQLite database.
+This module provides a Database class for connecting to and interacting with a DuckDB database.
 
 The Database class offers methods to establish a connection, get new sessions, 
 add instances to the database, and close sessions.
 """
-from typing import Any, Optional
-import traceback
-from sqlalchemy import create_engine, event, exc
-from sqlalchemy.orm import scoped_session, sessionmaker
-from sqlalchemy.pool import QueuePool
+from typing import TypeVar, Any, Optional, List
+from sqlalchemy import create_engine, exc
+from sqlalchemy.orm import scoped_session, sessionmaker, Query
+import duckdb
+
+T = TypeVar("T")
 
 
 class Database:
@@ -29,49 +30,20 @@ class Database:
     def __init__(
         self,
         db_path: str,
-        pool_size: Optional[int] = 5,
-        max_overflow: Optional[int] = 10,
-        pool_recycle: Optional[int] = 3600,
     ) -> None:
         """
         Initialize the Database class with given parameters.
 
-        :param db_name: Name of the database.
-        :param pool_size: Number of connections to keep in the connection pool.
-        :param max_overflow: Maximum number of connections to create beyond the pool_size.
-        :param pool_recycle: Time, in seconds, to recycle connections.
+        :param db_path: Path to the database file.
         """
 
-        self.engine = create_engine(
-            f"sqlite:///{db_path}",
-            poolclass=QueuePool,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_recycle=pool_recycle,
-            pool_pre_ping=True,  # Added to test the connection before using it
-        )
-
-        @event.listens_for(self.engine, "connect")
-        def enable_spatialite_extension(dbapi_connection: Any, _: Any) -> None:
-            """
-            Enable the spatialite extension for the given dbapi_connection.
-
-            :param dbapi_connection: The connection to enable the spatialite extension on.
-            """
-            # pylint: disable=broad-except
-            try:
-                dbapi_connection.enable_load_extension(True)
-                # load_extension = "SELECT load_extension('/opt/homebrew/lib/mod_spatialite.dylib')"
-                # dbapi_connection.execute(load_extension)
-                """ dbapi_connection.load_extension(
-                    "/opt/homebrew/lib/mod_spatialite.dylib"
-                ) """
-                # dbapi_connection.execute("SELECT InitSpatialMetadata(1)")
-            except Exception:
-                # Here we print the full stack trace instead of just the exception message
-                traceback.print_exc()
-
-        self.session = scoped_session(sessionmaker(bind=self.engine))
+        try:
+            self.engine = create_engine(f"duckdb:///{db_path}")
+            self.session = scoped_session(sessionmaker(bind=self.engine))
+        except exc.SQLAlchemyError as e:
+            raise Exception(
+                f"SQLAlchemy error during database initialization: {e}"
+            ) from e
 
     def get_new_session(self) -> scoped_session[Any]:
         """
@@ -93,6 +65,42 @@ class Database:
         except exc.SQLAlchemyError as e:
             self.session.rollback()
             print(f"Error while adding and committing: {e}")
+
+    def execute_query(self, query: Query[T]) -> Optional[List[Any]]:
+        """
+        Execute a given query and handle any database-related exceptions.
+
+        :param query: A SQLAlchemy query object.
+        :return: The result of the query if successful, None otherwise.
+        """
+        try:
+            return query.all()
+        except duckdb.duckdb.IOException as e:  # type: ignore
+            if "Resource temporarily unavailable" in str(e):
+                raise Exception(
+                    "Database is currently in use by another application. Please try again later."
+                ) from e
+            else:
+                raise Exception(f"Unexpected IO error with the database: {e}") from e
+        except exc.SQLAlchemyError as e:
+            raise Exception(f"SQLAlchemy error during database operation: {e}") from e
+
+    def commit_session(self) -> None:
+        """
+        Commit the current session to the database.
+        """
+        try:
+            self.session.commit()
+        except duckdb.duckdb.IOException as e:  # type: ignore
+            if "Resource temporarily unavailable" in str(e):
+                raise Exception(
+                    "Database is currently in use by another application. Please try again later."
+                ) from e
+            else:
+                raise Exception(f"Unexpected IO error with the database: {e}") from e
+        except exc.SQLAlchemyError as e:
+            self.session.rollback()
+            raise Exception(f"SQLAlchemy error during database operation: {e}") from e
 
     def close_db_session(self) -> None:
         """

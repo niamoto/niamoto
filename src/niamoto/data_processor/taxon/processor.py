@@ -40,14 +40,14 @@ class TaxonDataProcessor:
         self.generate_taxonomy_from_occurrences(data, taxonomy_config)
 
         # Commit the changes to ensure all taxons have been saved
-        self.db.session.commit()
+        self.db.commit_session()
 
         # Step 2: Execute necessary calculations on the data
         self.console.print("Performing calculations", style="italic blue")
         self.perform_calculations(data, taxonomy_config)
 
         # Commit any additional changes
-        self.db.session.commit()
+        self.db.commit_session()
 
         # Close the database session
         self.db.close_db_session()
@@ -72,10 +72,10 @@ class TaxonDataProcessor:
             by=["id_taxonref", "id_family", "id_genus", "id_species", "id_infra"]
         )
 
-        self.create_taxonomic_hierarchy(sorted_df, self.db.session, config)
+        self.create_taxonomic_hierarchy(sorted_df, self.db, config)
 
     def create_taxonomic_hierarchy(
-        self, data: Any, session: Any, taxonomy_config: Dict[str, Any]
+        self, data: Any, db: Any, taxonomy_config: Dict[str, Any]
     ) -> None:
         """
         Creates a taxonomic hierarchy based on a given configuration.
@@ -87,13 +87,13 @@ class TaxonDataProcessor:
 
         for rank in taxonomy_config:
             self.create_taxons_for_rank(
-                data, session, rank, taxonomy_config[rank], taxonomy_config
+                data, db, rank, taxonomy_config[rank], taxonomy_config
             )
 
     def create_taxons_for_rank(
         self,
         data: Any,
-        session: Any,
+        db: Any,
         rank_name: str,
         rank_config: Dict[str, Any],
         taxonomy_config: Dict[str, Any],
@@ -108,15 +108,26 @@ class TaxonDataProcessor:
         """
         ids = data[rank_config["field"]].dropna().unique()
         for id_ in track(ids, description=f"{rank_name}"):
-            taxon = session.query(Taxon).filter(Taxon.id_taxonref == id_).first()
+            id_native = int(id_) if pd.notna(id_) else None
+            query = db.session.query(Taxon).filter(Taxon.id_taxonref == id_native)
+            taxon_list = db.execute_query(query)
+            taxon = taxon_list[0] if taxon_list else None
             if not taxon:
                 row = data[data[rank_config["field"]] == id_].iloc[0]
                 # Extract and verify the identifiers for the different taxonomic ranks
                 taxon_ids = {
-                    "id_family": row.get("id_family"),
-                    "id_genus": row.get("id_genus"),
-                    "id_species": row.get("id_species"),
-                    "id_infra": row.get("id_infra"),
+                    "id_family": int(row.get("id_family"))
+                    if pd.notna(row.get("id_family"))
+                    else None,
+                    "id_genus": int(row.get("id_genus"))
+                    if pd.notna(row.get("id_genus"))
+                    else None,
+                    "id_species": int(row.get("id_species"))
+                    if pd.notna(row.get("id_species"))
+                    else None,
+                    "id_infra": int(row.get("id_infra"))
+                    if pd.notna(row.get("id_infra"))
+                    else None,
                 }
                 parent_id_field = (
                     taxonomy_config[rank_config["parent"]]["field"]
@@ -129,16 +140,17 @@ class TaxonDataProcessor:
                     else None
                 )
                 if parent_id:
-                    parent_taxon = (
-                        session.query(Taxon)
-                        .filter(Taxon.id_taxonref == parent_id)
-                        .first()
+                    query = db.session.query(Taxon).filter(
+                        Taxon.id_taxonref == parent_id
                     )
+
+                    parent_taxon_list = db.execute_query(query)
+                    parent_taxon = parent_taxon_list[0] if parent_taxon_list else None
                     parent_id = parent_taxon.id if parent_taxon else None
 
                 full_name = self.determine_full_name(row, rank_name)
                 taxon = Taxon(
-                    id_taxonref=int(id_),
+                    id_taxonref=id_native,
                     id_family=int(taxon_ids["id_family"])
                     if pd.notna(taxon_ids["id_family"])
                     else None,
@@ -157,8 +169,8 @@ class TaxonDataProcessor:
                     parent_id=parent_id,
                 )
 
-                session.add(taxon)
-        session.commit()
+                db.session.add(taxon)
+        db.commit_session()
 
     def determine_full_name(self, row: Any, rank_name: str) -> Any:
         """
@@ -195,7 +207,7 @@ class TaxonDataProcessor:
                 processed_ranks.add(rank)
 
         # Commit the changes to the database in one transaction
-        self.db.session.commit()
+        self.db.commit_session()
 
     def process_group(self, data: Any, group_by_rank: str, rank_name: str) -> None:
         """
@@ -298,7 +310,7 @@ class TaxonDataProcessor:
                 setattr(taxon, attr, round(value, 2))
 
             # Commit the changes to the database
-            self.db.session.commit()
+            self.db.commit_session()
         else:
             logger.error(f"Taxon with id {taxon_id} not found in the database.")
 

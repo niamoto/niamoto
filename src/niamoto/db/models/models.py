@@ -5,7 +5,7 @@ It uses SQLAlchemy as the ORM and geoalchemy2 for spatial features.
 # pylint: disable=too-few-public-methods
 
 
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, Text, Sequence
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -19,11 +19,18 @@ class Taxon(Base):
 
     __tablename__ = "taxon"
 
-    id = Column(Integer, primary_key=True)
+    """
+    Sequence and Column for an auto-incrementing primary key in DuckDB.
+
+    Attributes:
+        id_seq (Sequence): A sequence object named 'taxon_id_seq' used to generate unique identifiers for each record.
+        id (Column): An Integer column that serves as the primary key. It auto-increments using values from 'id_seq'.
+    """
+    id_seq = Sequence("taxon_id_seq")
+    id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     parent_id = Column(Integer, ForeignKey("taxon.id"), nullable=True)
     full_name = Column(String(255))
     rank_name = Column(String(50))
-    id_rank = Column(Integer)
     id_source = Column(Integer)
     id_taxonref = Column(Integer)
     id_family = Column(Integer)
@@ -73,7 +80,15 @@ class Plot(Base):
 
     __tablename__ = "plot"
 
-    id = Column(Integer, primary_key=True)
+    """
+    Sequence and Column for an auto-incrementing primary key in DuckDB.
+
+    Attributes:
+        id_seq (Sequence): A sequence object named 'taxon_id_seq' used to generate unique identifiers for each record.
+        id (Column): An Integer column that serves as the primary key. It auto-increments using values from 'id_seq'.
+    """
+    id_seq = Sequence("plot_id_seq")
+    id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     plot_name = Column(String, nullable=False)
     plot_type = Column(String)
     plot_area = Column(Float)
@@ -96,7 +111,15 @@ class Shape(Base):
 
     __tablename__ = "shape"
 
-    id = Column(Integer, primary_key=True)
+    """
+    Sequence and Column for an auto-incrementing primary key in DuckDB.
+
+    Attributes:
+        id_seq (Sequence): A sequence object named 'taxon_id_seq' used to generate unique identifiers for each record.
+        id (Column): An Integer column that serves as the primary key. It auto-increments using values from 'id_seq'.
+    """
+    id_seq = Sequence("shape_id_seq")
+    id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     name = Column(String, nullable=False)
     # geo = Column(Geometry(geometry_type="MULTIPOLYGON", srid=4326))
     area = Column(Float)
@@ -108,7 +131,15 @@ class Shape(Base):
 class MappingConfig(Base):
     __tablename__ = "mapping"
 
-    id = Column(Integer, primary_key=True)
+    """
+    Sequence and Column for an auto-incrementing primary key in DuckDB.
+
+    Attributes:
+        id_seq (Sequence): A sequence object named 'taxon_id_seq' used to generate unique identifiers for each record.
+        id (Column): An Integer column that serves as the primary key. It auto-increments using values from 'id_seq'.
+    """
+    id_seq = Sequence("config_id_seq")
+    id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     target_table_name = Column(String(255), nullable=False)
     target_field = Column(String(255), nullable=False)
     source_field = Column(String(255), nullable=False)

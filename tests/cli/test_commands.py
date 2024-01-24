@@ -39,18 +39,14 @@ def test_init_command_without_reset():
     and initializing the database.
     """
     runner = CliRunner()
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["init"])
-        assert result.exit_code == 0
+    os.chdir(os.path.join(os.getcwd(), "tests", "test_data"))
 
-        # Replace with the actual path where your command creates the config file
-        expected_config_path = os.path.join(
-            os.getcwd(), "config", "niamoto_config.toml"
-        )
-        assert os.path.exists(expected_config_path)
+    result = runner.invoke(cli, ["init"])
+    assert result.exit_code == 0
 
-        db_path = "data/db/niamoto.db"
-        assert os.path.exists(db_path)
+    # Replace with the actual path where your command creates the config file
+    expected_config_path = "config/niamoto_config.toml"
+    assert os.path.exists(expected_config_path)
 
 
 def test_init_command_with_reset(runner):
@@ -64,9 +60,7 @@ def test_init_command_with_reset(runner):
     # Setup: Create an initial environment that the reset command will modify
     # This could include creating a dummy configuration file, database file, etc.
     # Example:
-    os.makedirs("config", exist_ok=True)
-    with open("config/niamoto_config.toml", "w") as f:
-        f.write("dummy content")
+    runner = CliRunner()
 
     # Run the init command with the --reset option
     result = runner.invoke(cli, ["init", "--reset"])

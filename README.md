@@ -119,7 +119,6 @@ For data import, Niamoto expects structured CSV files with the following columns
 | `id_genus`      | Taxonomic genus identifier |
 | `id_species`    | Taxonomic species identifier |
 | `id_infra`      | Infraspecific taxonomic identifier |
-| `id_rank`       | Taxonomic rank identifier |
 | `geo_pt`        | Geographic point (coordinates) |
 | `plot`          | Plot identifier |
 

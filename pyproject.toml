@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "niamoto"
-version = "0.0.1a1"
+version = "0.0.1a2"
 description = ""
 authors = ["Julien Barbe <julien.barbe@me.com>"]
 readme = "README.md"
@@ -52,7 +52,6 @@ geoalchemy2 = "^0.14.2"
 
 # sqlite-utils - Utilities for manipulating SQLite databases.
 # Documentation: https://sqlite-utils.datasette.io/en/stable/
-sqlite-utils = "^3.35.2"
 
 # duckdb - In-process SQL OLAP Database Management System.
 # Documentation: https://duckdb.org/docs/api/python
@@ -94,6 +93,10 @@ shapely = "^2.0.2"
 # pandas - Essential library for data manipulation and analysis.
 # Documentation: https://pandas.pydata.org/
 pandas = "^2.1.3"
+
+# pyarrow - Python bindings for Apache Arrow. required by pandas.
+# Documentation: https://arrow.apache.org/docs/python/
+pyarrow = "^15.0.0"
 
 # numpy - Fundamental package for scientific computing in Python.
 # Documentation: https://numpy.org/

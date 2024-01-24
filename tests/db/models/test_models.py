@@ -1,30 +1,24 @@
 """
 This test module contains unit tests for the Taxon model.
 It tests the basic CRUD operations (Create, Read, Update, Delete)
-on the Taxon model using a SQLite in-memory database.
+on the Taxon model using a DuckDB in-memory database.
 """
 
 import pytest
 from typing import Any
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.engine import Engine
 from niamoto.db.models.models import Base, Taxon
 
 # Configure the connection URI for the test database here
-TEST_DATABASE_URI = "sqlite:///:memory:"  # or another test database URI
+TEST_DATABASE_URI = "duckdb:///:memory:"  # or another test database URI
 
 
 @pytest.fixture(scope="session")  # type: ignore
 def engine() -> Engine:
     """Creates a SQLAlchemy engine that will be used for test sessions."""
     engine = create_engine(TEST_DATABASE_URI, echo=True)
-
-    @event.listens_for(engine, "connect")  # type: ignore
-    def load_spatialite(dbapi_connection: Any, connection_record: Any) -> Any:
-        dbapi_connection.enable_load_extension(True)
-        # Remplacez ce chemin avec le chemin correct de votre extension SpatiaLite
-        dbapi_connection.load_extension("/opt/homebrew/lib/mod_spatialite.dylib")
 
     return engine
 
