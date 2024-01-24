@@ -1,5 +1,8 @@
 # Niamoto
 data/*
+tests/test_data/config/*
+tests/test_data/data/db/*
+tests/test_data/data/sources/raster/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

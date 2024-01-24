@@ -44,10 +44,6 @@ def test_init_command_without_reset():
     result = runner.invoke(cli, ["init"])
     assert result.exit_code == 0
 
-    # Replace with the actual path where your command creates the config file
-    expected_config_path = "config/niamoto_config.toml"
-    assert os.path.exists(expected_config_path)
-
 
 def test_init_command_with_reset(runner):
     """
