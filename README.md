@@ -9,12 +9,21 @@
 - [Introduction](#introduction)
 - [Installation](#installation)
 - [Initial Configuration](#initial-configuration)
-- [Available Commands](#available-commands)
-  - [`niamoto init [--reset]`](#niamoto-init---reset)
-  - [`niamoto import_data <csvfile>`](#niamoto-import_data-csvfile)
-  - [`niamoto generate_static_site`](#niamoto-generate_static_site)
 - [Development Environment Configuration](#development-environment-configuration)
 - [CSV File Format for Import](#csv-file-format-for-import)
+- [Niamoto CLI Command Examples](#niamoto-cli-command-examples)
+  - [Initialize or Reset the Environment](#1-initialize-or-reset-the-environment)
+  - [Import Taxonomy Data](#2-import-taxonomy-data)
+  - [Import Plot Data](#3-import-plot-data)
+  - [Import Occurrences Data](#4-import-occurrences-data)
+  - [Import Occurrence-Plot Links](#5-import-occurrence-plot-links)
+  - [Generate Mapping](#6-generate-mapping)
+  - [Calculate Statistics](#7-calculate-statistics)
+  - [Generate Static Site](#8-generate-static-site)
+- [Mapping Configuration](#mapping-configuration)
+  - [Structure of the Mapping](#structure-of-the-mapping)
+  - [Field Configuration](#field-configuration)
+  - [Special Fields](#special-fields)
 - [Static Type Checking and Testing with mypy and pytest](#static-type-checking-and-testing-with-mypy-and-pytest)
   - [Using mypy for Static Type Checking](#using-mypy-for-static-type-checking)
   - [Running Tests with pytest](#running-tests-with-pytest)
@@ -43,14 +52,18 @@ This command will create the default configuration necessary for Niamoto to oper
 
 ## Available Commands
 
-### `niamoto init [--reset]`
-Initializes or resets the Niamoto environment.
+| Command                 | Description                                                                                                             |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| init                    | Initialize or reset the Niamoto environment.                                                                            |
+| import-taxonomy         | Import taxonomy data from a CSV file into the database.                                                                 |
+| import-plots            | Import plot data from a GeoPackage file into the plot_ref table.                                                        |
+| import-occurrences      | Import occurrence data from a CSV file, analyze it to update the 'mapping' table, and link occurrences to their taxons. |
+| import-occurrence-plots | Import occurrence-plot links from a CSV file.                                                                           |
+| generate-mapping        | Generate a mapping from a CSV file based on the specified grouping criteria.                                            |
+| calculate-statistics    | Calculate statistics based on the mapping file specified in the configuration.                                          |
+| generate-static-site    | Generate static web pages for each taxon in the database.                                                               |
+| generate-taxonomy-stats | Generate a taxonomy tree, calculate statistics, and write the taxon table from a CSV file.                              |
 
-### `niamoto import_data <csvfile>`
-Imports data from a CSV file into the specified table in the database.
-
-### `niamoto generate_static_site`
-Generates static web pages for each taxon in the database.
 
 ## Development Environment Configuration
 
@@ -82,46 +95,166 @@ To set up a development environment for Niamoto, you must have `Poetry` installe
   poetry shell
   ```
 
-## CSV File Format for Import
+5. **Editable Installation**:
 
-For data import, Niamoto expects structured CSV files with the following columns:
+    If you want to install the project in editable mode (i.e., source code changes are immediately reflected without needing to reinstall the package), you can use the following command:
 
-| Column          | Description |
-|-----------------|-------------|
-| `id_source`     | Data source identifier |
-| `source`        | Data source name |
-| `original_name` | Original species name |
-| `family`        | Taxonomic family of the species |
-| `taxaname`      | Taxonomic name of the species |
-| `taxonref`      | Complete taxonomic reference of the species |
-| `rank`          | Taxonomic rank |
-| `dbh`           | Tree diameter at breast height |
-| `height`        | Tree height |
-| `flower`        | Presence of flowers (boolean value) |
-| `fruit`         | Presence of fruits (boolean value) |
-| `month_obs`     | Month of observation |
-| `wood_density`  | Wood density |
-| `leaf_sla`      | Specific leaf area |
-| `bark_thickness`| Bark thickness |
-| `leaf_area`     | Leaf area |
-| `leaf_thickness`| Leaf thickness |
-| `leaf_ldmc`     | Leaf dry matter content |
-| `strate`        | Vegetation stratum |
-| `elevation`     | Elevation |
-| `rainfall`      | Rainfall |
-| `holdridge`     | Holdridge life zone |
-| `province`      | Province |
-| `in_forest`     | Presence in a forest (boolean value) |
-| `in_um`         | Presence on ultramafic substrate (boolean value) |
-| `is_tree`       | Indicates if the organism is a tree (boolean value) |
-| `id_taxonref`   | Taxonomic reference identifier |
-| `id_family`     | Taxonomic family identifier |
-| `id_genus`      | Taxonomic genus identifier |
-| `id_species`    | Taxonomic species identifier |
-| `id_infra`      | Infraspecific taxonomic identifier |
-| `geo_pt`        | Geographic point (coordinates) |
-| `plot`          | Plot identifier |
+```console
+pip install -e .
+```
 
+## CSV File Format for Taxonomy Import
+
+To import taxonomic data into Niamoto, you must provide a structured CSV file with the following columns:
+
+| Column         | Description                                           |
+|----------------|-------------------------------------------------------|
+| `id_taxon`     | Unique identifier of the taxon                        |
+| `full_name`    | Full name of the taxon                                |
+| `rank_name`    | Taxonomic rank (e.g., family, genus, species)         |
+| `id_family`    | Identifier of the family to which the taxon belongs   |
+| `id_genus`     | Identifier of the genus to which the taxon belongs    |
+| `id_species`   | Identifier of the species to which the taxon belongs  |
+| `id_infra`     | Infraspecific identifier of the taxon                 |
+| `authors`      | Authors of the taxon name                             |
+
+
+### Niamoto CLI Command Examples
+
+This markdown summarizes the command-line interface (CLI) commands available in the Niamoto system, which helps users manage database operations and data imports without direct code interaction.
+
+#### 1. Initialize or Reset the Environment
+**Command:**
+```bash
+$ niamoto init [--reset]
+```
+**Explanation:**
+Initializes or resets the Niamoto environment. Use the `--reset` option to reset the environment if it already exists, clearing all data and configurations to start fresh.
+
+#### 2. Import Taxonomy Data
+**Command:**
+```bash
+$ niamoto import-taxonomy <csvfile> [--ranks <ranks>]
+```
+**Explanation:**
+Imports taxonomy data from a specified CSV file. The `--ranks` option allows specifying the order of taxonomic ranks as they appear in the CSV file.
+
+#### 3. Import Plot Data
+**Command:**
+```bash
+$ niamoto import-plots <gpkg_file>
+```
+**Explanation:**
+Imports plot data from a GeoPackage file into the database, which should contain plot geometries and associated attributes.
+
+#### 4. Import Occurrences Data
+**Command:**
+```bash
+$ niamoto import-occurrences <csvfile> --taxon-id-column <column_name>
+```
+**Explanation:**
+Imports occurrences data from a CSV file. The `--taxon-id-column` option specifies the CSV column containing the taxon IDs needed to link occurrences to taxons.
+
+#### 5. Import Occurrence-Plot Links
+**Command:**
+```bash
+$ niamoto import-occurrence-plots <csvfile>
+```
+**Explanation:**
+Imports links between occurrences and plots from a CSV file, establishing relational data within the database.
+
+#### 6. Generate Mapping
+**Command:**
+```bash
+$ niamoto generate-mapping --data-source <csv_file> --mapping-group <group> [--reference-table-name <table_name> --reference-data-path <path>]
+```
+**Explanation:**
+Generates mappings from a CSV file based on specified grouping criteria. Optional parameters allow linking to reference data for enhanced mapping accuracy.
+
+#### 7. Calculate Statistics
+**Command:**
+```bash
+$ niamoto calculate-statistics [--mapping-group <group> --csv-file <file>]
+```
+**Explanation:**
+Calculates statistics based on the provided mapping file and optional group or CSV file specifics.
+
+#### 8. Generate Static Site
+**Command:**
+```bash
+$ niamoto generate-static-site
+```
+**Explanation:**
+Generates a static website for each taxon in the database, providing a visual and informational representation of taxonomic data.
+
+
+### Mapping Configuration
+The mapping file defines the structure and transformations of data to be imported into the database. It is a YAML file that describes the different fields, their types, the transformations to apply, and visualization options.
+
+#### Structure of the Mapping
+The mapping consists of the following elements:
+
+- `group_by`: The field used to group the data (e.g., "taxon").
+- `identifier`: The unique identifier for each group (e.g., "id_taxonref").
+- `target_table_name`: The name of the target table in the database (e.g., "occurrences").
+- `reference_table_name`: The name of the reference table (e.g., "taxon_ref").
+- `reference_data_path`: The path to the reference data (can be null).
+- `fields`: A dictionary defining the different fields to import and their configurations.
+
+#### Field Configuration
+Each field in the `fields` dictionary is defined by the following elements:
+
+- `target_field`: The name of the target field in the occurrences table. Can be null for calculated fields.
+- `field_type`: The data type of the field (e.g., "INTEGER", "DOUBLE", "BOOLEAN", "GEOGRAPHY").
+- `label`: The label of the field.
+- `description`: A description of the field.
+- `transformations`: A list of transformations to apply to the field. Each transformation is defined by:
+  - `name`: The name of the transformation (e.g., "count", "mean", "max", "min", "coordinates").
+  - `chart_type`: The type of chart to generate (e.g., "text", "pie", "map", "gauge", "bar").
+  - `chart_options`: Specific options for the chart type (e.g., "max", "title", "label", "color", "indexAxis", "stacked").
+- `bins`: A dictionary defining the bins for the field. It contains:
+  - `values`: A list of values to discretize continuous data.
+  - `chart_type`: The type of chart to generate for the bins (e.g., "bar").
+  - `chart_options`: Specific options for the bin chart (e.g., "title", "color").
+- `is_identifier`: Indicates whether the field is an identifier (boolean value).
+- `display_order`: The display order of the field in the interface.
+
+#### Special Fields
+Some fields may have specific configurations depending on their `target_field` and `field_type`:
+- **Calculated field** (e.g., total number of occurrences):
+  - `target_field`: null
+  - `field_type`: "INTEGER"
+  - `transformations`: Must contain a "count" type transformation
+- **Boolean field** (e.g., occurrence on a particular substrate):
+  - `target_field`: The name of the boolean field in the occurrences table
+  - `field_type`: "BOOLEAN"
+  - `transformations`: May contain a "count" type transformation
+- **Geographical field** (e.g., location of the occurrence):
+  - `target_field`: The name of the geographical field in the occurrences table
+  - `field_type`: "GEOGRAPHY"
+  - `transformations`: May contain a "coordinates" type transformation
+
+#### Note: The transformations and bins can be defined using two equivalent notations:
+
+#### 1. **JSON Style Notation:**
+
+```yaml
+transformations:
+  - {"name": "max", "chart_type": "gauge", "chart_options": {"max": 40, "title": "Maximum", "label": "units"}}
+```
+#### 1. **Standard YAML Style Notation:**
+This format will display both YAML notations under a single Markdown box, keeping the explanation compact and the code examples clear and easy to compare.
+
+```yaml
+transformations:
+  - name: max
+    chart_type: gauge
+    chart_options:
+      max: 40
+      title: Maximum
+      label: units
+
+   ```
 
 ## Static Type Checking and Testing with mypy and pytest
 

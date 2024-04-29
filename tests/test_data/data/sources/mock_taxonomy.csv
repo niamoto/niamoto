@@ -1,0 +1,5 @@
+id_taxon,full_name,rank_name,id_family,id_genus,id_species,id_infra,authors
+1,Famille1,id_family,1,,,,
+2,Genre1,id_genus,1,2,,,Auteur1
+3,Espece1,id_species,1,2,3,,Auteur2
+4,Infra1,id_infra,1,2,3,4,Auteur3

@@ -102,4 +102,6 @@ dmypy.json
 # VS Code settings
 .vscode/
 *.code-workspace
-.timetracker
+
+# IntelliJ settings
+.idea/
