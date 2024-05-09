@@ -7,11 +7,11 @@ def analyze_csv_data_types(csv_file: str) -> List[Tuple[str, str]]:
     """
     Analyze the data types of columns in a CSV file.
 
-    Parameters:
-    csv_file (str): Path to the CSV file to be analyzed.
+    Args:
+        csv_file (str): Path to the CSV file to be analyzed.
 
     Returns:
-    List[Tuple[str, str]]: A list of tuples with column names and types.
+        List[Tuple[str, str]]: A list of tuples with column names and types.
     """
 
     try:
@@ -31,11 +31,11 @@ def is_duckdb_type_numeric(duckdb_type: str) -> bool:
     """
     Check if a DuckDB data type is numeric.
 
-    Parameters:
-    duckdb_type (str): The data type of the column in DuckDB.
+    Args:
+        duckdb_type (str): The data type of the column in DuckDB.
 
     Returns:
-    bool: True if the type is numeric, False otherwise.
+        bool: True if the type is numeric, False otherwise.
     """
     numeric_types = [
         "TINYINT",

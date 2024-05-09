@@ -6,7 +6,20 @@ from niamoto.common.database import Database
 
 
 class PlotImporter:
+    """
+    A class used to import plot data from a GeoPackage file into the database.
+
+    Attributes:
+        db (Database): The database connection.
+    """
+
     def __init__(self, db: Database):
+        """
+        Initializes the PlotImporter with the database connection.
+
+        Args:
+            db (Database): The database connection.
+        """
         self.db = db
 
     def import_from_gpkg(self, file_path: str) -> str:
@@ -14,10 +27,13 @@ class PlotImporter:
         Import plot data from a GeoPackage file.
 
         Args:
-            file_path:  The path to the GeoPackage file to be imported.
+            file_path (str): The path to the GeoPackage file to be imported.
 
         Returns:
+            str: A message indicating the success of the import operation.
 
+        Raises:
+            Exception: If an error occurs during the import operation.
         """
         plots_data = gpd.read_file(file_path)
 

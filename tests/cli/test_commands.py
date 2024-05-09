@@ -9,12 +9,22 @@ from niamoto.common.config import Config
 
 
 class TestCommands(unittest.TestCase):
+    """
+    The TestCommands class provides test cases for the commands in the CLI.
+    """
+
     def setUp(self):
+        """
+        Setup method for the test cases. It is automatically called before each test case.
+        """
         self.runner = CliRunner()
         self.temp_dir = tempfile.mkdtemp(prefix="niamoto_test_")
         os.environ["NIAMOTO_HOME"] = self.temp_dir
 
     def tearDown(self):
+        """
+        Teardown method for the test cases. It is automatically called after each test case.
+        """
         os.environ.pop("NIAMOTO_HOME", None)
         shutil.rmtree(self.temp_dir)
 
@@ -25,6 +35,15 @@ class TestCommands(unittest.TestCase):
     def test_init_new_environment(
         self, mock_list_commands, mock_config, mock_environment, mock_console
     ):
+        """
+        Test case for the 'init' command of the CLI.
+
+        Args:
+            mock_list_commands: A mock for the list_commands function.
+            mock_config: A mock for the Config class.
+            mock_environment: A mock for the Environment class.
+            mock_console: A mock for the Console class.
+        """
         # Create a temporary directory for the configuration file
         with tempfile.TemporaryDirectory() as temp_dir:
             # Configure the path of the configuration file in the temporary directory
@@ -59,6 +78,13 @@ class TestCommands(unittest.TestCase):
     @mock.patch("niamoto.cli.commands.Console")
     @mock.patch("niamoto.cli.commands.Table")
     def test_list_commands(self, mock_table, mock_console):
+        """
+        Test case for the 'list_commands' function of the CLI.
+
+        Args:
+            mock_table: A mock for the Table class.
+            mock_console: A mock for the Console class.
+        """
         # Create a mock group with two commands
         mock_group = mock.MagicMock()
         command1 = mock.MagicMock()
@@ -86,6 +112,13 @@ class TestCommands(unittest.TestCase):
     @mock.patch("niamoto.cli.commands.ApiImporter")
     @mock.patch("niamoto.cli.commands.Console")
     def test_import_occurrences(self, mock_console, mock_api_importer):
+        """
+        Test case for the 'import-occurrences' command of the CLI.
+
+        Args:
+            mock_console: A mock for the Console class.
+            mock_api_importer: A mock for the ApiImporter class.
+        """
         mock_result = mock.MagicMock()
         mock_result.__str__.side_effect = lambda: "Import successful"
         mock_api_importer.return_value.import_occurrences.return_value = mock_result
@@ -99,6 +132,12 @@ class TestCommands(unittest.TestCase):
 
     @mock.patch("niamoto.cli.commands.ApiImporter")
     def test_import_taxonomy(self, mock_api_importer):
+        """
+        Test case for the 'import-taxonomy' command of the CLI.
+
+        Args:
+            mock_api_importer: A mock for the ApiImporter class.
+        """
         mock_api_importer.return_value.import_taxononomy.return_value = (
             "Import successful"
         )
@@ -117,6 +156,12 @@ class TestCommands(unittest.TestCase):
 
     @mock.patch("niamoto.cli.commands.ApiImporter")
     def test_import_plots(self, mock_api_importer):
+        """
+        Test case for the 'import-plots' command of the CLI.
+
+        Args:
+            mock_api_importer: A mock for the ApiImporter class.
+        """
         mock_api_importer.return_value.import_plots.return_value = "Import successful"
 
         runner = CliRunner()
@@ -129,6 +174,12 @@ class TestCommands(unittest.TestCase):
 
     @mock.patch("niamoto.cli.commands.ApiMapper")
     def test_generate_mapping_add_new_field(self, mock_api_mapper):
+        """
+        Test case for the 'generate-mapping' command of the CLI.
+
+        Args:
+            mock_api_mapper: A mock for the ApiMapper class.
+        """
         mock_api_mapper.return_value.add_new_mapping.return_value = None
 
         runner = CliRunner()

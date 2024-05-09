@@ -11,6 +11,22 @@ from niamoto.core.services.mapper import MapperService
 
 
 class StatisticsCalculator(ABC):
+    """
+    An abstract base class for calculating statistics.
+
+    Attributes:
+        db (Database): The database connection.
+        con (duckdb.DuckDBPyConnection): The DuckDB connection.
+        mapper_service (MapperService): The mapper service.
+        occurrences (list[dict[Hashable, Any]]): The occurrences.
+        group_by (str): The group by field.
+        group_config (dict[str, Any]): The group configuration.
+        identifier (str): The identifier.
+        reference_table_name (str): The reference table name.
+        reference_data_path (str): The reference data path.
+        fields (dict[str, Any]): The fields.
+    """
+
     def __init__(
         self,
         db: Database,
@@ -18,6 +34,15 @@ class StatisticsCalculator(ABC):
         occurrences: list[dict[Hashable, Any]],
         group_by: str,
     ):
+        """
+        Initializes the StatisticsCalculator with the database connection, mapper service, occurrences, and group by field.
+
+        Args:
+            db (Database): The database connection.
+            mapper_service (MapperService): The mapper service.
+            occurrences (list[dict[Hashable, Any]]): The occurrences.
+            group_by (str): The group by field.
+        """
         self.db = db
         self.con = duckdb.connect(self.db.db_path)
         self.mapper_service = mapper_service
@@ -33,11 +58,31 @@ class StatisticsCalculator(ABC):
     def calculate_specific_stats(
         self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
+        """
+        Abstract method to calculate specific statistics for a group.
+
+        Args:
+            group_id (int): The group id.
+            group_occurrences (list[dict[Hashable, Any]]): The group occurrences.
+
+        Returns:
+            Dict[str, Any]: The specific statistics.
+        """
         pass
 
     def calculate_stats(
         self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
+        """
+        Calculate statistics for a group.
+
+        Args:
+            group_id (int): The group id.
+            group_occurrences (list[dict[Hashable, Any]]): The group occurrences.
+
+        Returns:
+            Dict[str, Any]: The statistics.
+        """
         stats: Dict[str, Union[int, Dict[str, Any], pd.Series[Any], float]] = {}
 
         # Convert occurrences to pandas DataFrame
@@ -112,6 +157,9 @@ class StatisticsCalculator(ABC):
         return stats
 
     def initialize_stats_table(self) -> None:
+        """
+        Initialize the statistics table.
+        """
         # Construct the name of the statistics table by appending "_stats" to the group name
         table_name = f"{self.group_by}_stats"
 
@@ -124,6 +172,13 @@ class StatisticsCalculator(ABC):
     def create_or_update_stats_entry(
         self, group_id: int, stats: Dict[str, Any]
     ) -> None:
+        """
+        Create or update a statistics entry.
+
+        Args:
+            group_id (int): The group id.
+            stats (Dict[str, Any]): The statistics.
+        """
         table_name = f"{self.group_by}_stats"
         # Check if the table exists, otherwise create it
         if not self.db.has_table(table_name):
@@ -154,6 +209,13 @@ class StatisticsCalculator(ABC):
                 self.db.execute_sql(insert_query)
 
     def create_stats_table(self, table_name: str, initialize: bool = False) -> None:
+        """
+        Create a statistics table.
+
+        Args:
+            table_name (str): The table name.
+            initialize (bool, optional): Whether to initialize the table. Defaults to False.
+        """
         if initialize:
             drop_query = f"DROP TABLE IF EXISTS {table_name}"
             self.con.execute(drop_query)
@@ -236,11 +298,11 @@ class StatisticsCalculator(ABC):
         """
         Extract unique geographic coordinates and their occurrence counts from the filtered data.
 
-        Parameters:
+        Args:
             filtered_data (pd.DataFrame): The DataFrame containing the filtered data.
 
         Returns:
-            list: A list of dictionaries containing unique coordinates and their occurrence counts.
+            List[Dict[str, int]]: A list of dictionaries containing unique coordinates and their occurrence counts.
         """
         coordinate_counts: defaultdict[Tuple[float, ...], int] = defaultdict(int)
 

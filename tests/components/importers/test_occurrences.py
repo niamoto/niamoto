@@ -4,7 +4,14 @@ from niamoto.core.components.importers.occurrences import OccurrenceImporter
 
 
 class TestOccurrenceImporter(unittest.TestCase):
+    """
+    The TestOccurrenceImporter class provides test cases for the OccurrenceImporter class.
+    """
+
     def setUp(self):
+        """
+        Setup method for the test cases. It is automatically called before each test case.
+        """
         self.db_path = "tests/test_data/data/db/test.db"
         self.importer = OccurrenceImporter(self.db_path)
         self.csv_file = "tests/test_data/data/sources/mock_occurrences.csv"
@@ -30,6 +37,9 @@ class TestOccurrenceImporter(unittest.TestCase):
         con.close()
 
     def tearDown(self):
+        """
+        Teardown method for the test cases. It is automatically called after each test case.
+        """
         # Delete the test database
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
@@ -39,10 +49,16 @@ class TestOccurrenceImporter(unittest.TestCase):
             os.remove(self.csv_file)
 
     def test_import_occurrences(self):
+        """
+        Test case for the import_occurrences method of the OccurrenceImporter class.
+        """
         result = self.importer.import_occurrences(self.csv_file, self.taxon_id_column)
         self.assertEqual(result, "Total occurrences imported: 1")
 
     def test_import_valid_occurrences(self):
+        """
+        Test case for the import_valid_occurrences method of the OccurrenceImporter class.
+        """
         result = self.importer.import_valid_occurrences(
             self.csv_file, self.taxon_id_column
         )

@@ -9,7 +9,14 @@ from niamoto.core.components.importers.taxonomy import TaxonomyImporter
 
 
 class TestTaxonomyImporter(unittest.TestCase):
+    """
+    The TestTaxonomyImporter class provides test cases for the TaxonomyImporter class.
+    """
+
     def setUp(self):
+        """
+        Setup method for the test cases. It is automatically called before each test case.
+        """
         self.db = MagicMock(spec=Database)
         self.importer = TaxonomyImporter(self.db)
         self.csv_file = "tests/test_data/data/sources/mock_taxonomy.csv"
@@ -27,11 +34,17 @@ class TestTaxonomyImporter(unittest.TestCase):
             f.write("4,Infra1,id_infra,1,2,3,4,Auteur3\n")
 
     def tearDown(self):
+        """
+        Teardown method for the test cases. It is automatically called after each test case.
+        """
         # Delete the test CSV file
         if os.path.exists(self.csv_file):
             os.remove(self.csv_file)
 
     def test_import_from_csv(self):
+        """
+        Test case for the import_from_csv method of the TaxonomyImporter class.
+        """
         with patch.object(
             self.importer, "_prepare_dataframe"
         ) as mock_prepare_dataframe, patch.object(
@@ -48,6 +61,9 @@ class TestTaxonomyImporter(unittest.TestCase):
             )
 
     def test_prepare_dataframe(self):
+        """
+        Test case for the _prepare_dataframe method of the TaxonomyImporter class.
+        """
         df = pd.read_csv(self.csv_file)
         result_df = self.importer._prepare_dataframe(df, self.ranks)
         expected_df = pd.DataFrame(
@@ -76,6 +92,9 @@ class TestTaxonomyImporter(unittest.TestCase):
         pd.testing.assert_frame_equal(result_df, expected_df, check_dtype=False)
 
     def test_get_rank(self):
+        """
+        Test case for the _get_rank method of the TaxonomyImporter class.
+        """
         row = {
             "id_taxon": 1,
             "id_family": 1,
@@ -113,6 +132,9 @@ class TestTaxonomyImporter(unittest.TestCase):
         self.assertEqual(self.importer._get_rank(row, self.ranks), "id_infra")
 
     def test_get_parent_id(self):
+        """
+        Test case for the _get_parent_id method of the TaxonomyImporter class.
+        """
         row = {
             "id_taxon": 1,
             "id_family": 1,

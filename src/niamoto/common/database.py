@@ -20,11 +20,6 @@ class Database:
     Attributes:
     - engine: The database engine connection.
     - session: A scoped session for creating new database sessions.
-
-    Methods:
-    - get_new_session: Returns a new session.
-    - add_instance_and_commit: Adds an instance to the session and commits it.
-    - close_db_session: Closes the database session.
     """
 
     def __init__(
@@ -34,7 +29,8 @@ class Database:
         """
         Initialize the Database class with given parameters.
 
-        :param db_path: Path to the database file.
+        Args:
+            db_path (str): Path to the database file.
         """
 
         try:
@@ -53,8 +49,11 @@ class Database:
         """
         Check if a table exists in the database.
 
-        :param table_name: The name of the table to check.
-        :return: True if the table exists, False otherwise.
+        Args:
+            table_name (str): The name of the table to check.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
         """
         inspector = inspect(self.engine)
         return table_name in inspector.get_table_names()
@@ -63,7 +62,8 @@ class Database:
         """
         Get a new session from the session factory.
 
-        :return: A new session.
+        Returns:
+            scoped_session[Session]: A new session.
         """
         return self.session
 
@@ -71,7 +71,8 @@ class Database:
         """
         Add an instance to the session and commit.
 
-        :param instance: The instance to be added.
+        Args:
+            instance (Any): The instance to be added.
         """
         try:
             self.session.add(instance)
@@ -85,8 +86,11 @@ class Database:
         """
         Execute a given query and handle any database-related exceptions.
 
-        :param query: A SQLAlchemy query object.
-        :return: The result of the query if successful, None otherwise.
+        Args:
+            query (Query[T]): A SQLAlchemy query object.
+
+        Returns:
+            Optional[List[Any]]: The result of the query if successful, None otherwise.
         """
         try:
             return query.all()
@@ -98,7 +102,11 @@ class Database:
         """
         Execute a SELECT query using the database engine.
 
-        :param sql: A string containing the SELECT query to be executed.
+        Args:
+            sql (str): A string containing the SELECT query to be executed.
+
+        Returns:
+            Optional[Any]: The result of the query if successful, None otherwise.
         """
         try:
             with self.engine.connect() as connection:
@@ -113,7 +121,11 @@ class Database:
         """
         Execute a raw SQL query using the database engine.
 
-        :param sql: A string containing the SQL query to be executed.
+        Args:
+            sql (str): A string containing the SQL query to be executed.
+
+        Returns:
+            Optional[Any]: The result of the query if successful, None otherwise.
         """
         try:
             with self.engine.connect() as connection:
@@ -198,8 +210,11 @@ class Database:
         """
         Private helper method to handle database-related errors.
 
-        :param error: The exception object that was raised.
-        :raises Exception: Raises an appropriate exception based on the error type.
+        Args:
+            error (Exception): The exception object that was raised.
+
+        Raises:
+            Exception: Raises an appropriate exception based on the error type.
         """
         if isinstance(error, duckdb.duckdb.IOException):  # type: ignore
             if "Resource temporarily unavailable" in str(error):

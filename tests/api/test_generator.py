@@ -6,12 +6,27 @@ from niamoto.api.generator import StaticContentGenerator
 
 @pytest.mark.usefixtures("niamoto_home")
 class TestStaticContentGenerator:
+    """
+    The TestStaticContentGenerator class provides test cases for the StaticContentGenerator class.
+    """
+
     @pytest.fixture(autouse=True)
     def setUp(self, niamoto_home):
-        # setUp logic is now handled by the niamoto_home fixture automatically.
+        """
+        Setup method for the test cases. It is automatically called before each test case.
+
+        Args:
+            niamoto_home: A pytest fixture that sets up a temporary NIAMOTO_HOME environment for testing.
+        """
         pass
 
     def test_generate_taxonomy_tree(self, mocker):
+        """
+        Test case for the generate_taxonomy_tree method of the StaticContentGenerator class.
+
+        Args:
+            mocker: A pytest fixture that provides a simple, powerful way to mock python objects.
+        """
         mock_page_generator = mocker.patch("niamoto.api.generator.PageGenerator")
         config = Config()
         static_content_generator = StaticContentGenerator(config)

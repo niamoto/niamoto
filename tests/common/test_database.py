@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy.exc import InvalidRequestError, ProgrammingError
 from sqlalchemy.sql import text
 from sqlalchemy.orm import scoped_session
-from niamoto.core.models import Base, Taxon
+from niamoto.core.models import Base, TaxonRef
 from niamoto.common.database import Database
 
 # Assuming you're using an in-memory DuckDB database for testing
@@ -61,9 +61,9 @@ def test_add_instance_and_commit(test_database: Any, session: scoped_session) ->
     Adds a dummy model instance to the database and commits it.
     Then it retrieves the instance to ensure it was properly added.
     """
-    dummy_instance = Taxon(full_name="test")
+    dummy_instance = TaxonRef(full_name="test")
     test_database.add_instance_and_commit(dummy_instance)
-    result = session.query(Taxon).filter_by(full_name="test").first()
+    result = session.query(TaxonRef).filter_by(full_name="test").first()
     assert result is not None
     assert result.full_name == "test"
 
@@ -75,7 +75,7 @@ def test_access_nonexistent_column(test_database: Any, session: scoped_session) 
     """
     with pytest.raises(ProgrammingError):
         # Use raw SQL to bypass Python attribute checks
-        session.execute(text("SELECT nonexistent_column FROM taxon")).fetchall()
+        session.execute(text("SELECT nonexistent_column FROM taxon_ref")).fetchall()
 
 
 def test_use_incorrect_table_name_in_query(
@@ -122,10 +122,10 @@ def test_execute_query(test_database: Any, session: scoped_session) -> None:
     """
     Test executing a query through the execute_query method.
     """
-    dummy_instance = Taxon(full_name="test_query")
+    dummy_instance = TaxonRef(full_name="test_query")
     test_database.add_instance_and_commit(dummy_instance)
 
-    query = session.query(Taxon).filter_by(full_name="test_query")
+    query = session.query(TaxonRef).filter_by(full_name="test_query")
 
     result = test_database.execute_query(query)
     assert result is not None
@@ -137,11 +137,11 @@ def test_commit_session(test_database: Any, session: scoped_session) -> None:
     """
     Test committing the session.
     """
-    dummy_instance = Taxon(full_name="test_commit")
+    dummy_instance = TaxonRef(full_name="test_commit")
     session.add(dummy_instance)
 
     test_database.commit_session()
 
-    result = session.query(Taxon).filter_by(full_name="test_commit").first()
+    result = session.query(TaxonRef).filter_by(full_name="test_commit").first()
     assert result is not None
     assert result.full_name == "test_commit"

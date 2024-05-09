@@ -46,6 +46,15 @@ class NiamotoRepository:
 
     @staticmethod
     def build_taxonomy_tree(taxons: Any) -> Any:
+        """
+        Builds a taxonomy tree from a list of taxons.
+
+        Args:
+            taxons (list): The list of taxons to build the tree from.
+
+        Returns:
+            list: A list of root nodes of the taxonomy tree.
+        """
         rank_order = {"Famille": 1, "Genus": 2, "Species": 3, "Variety": 4}
 
         sorted_taxons = sorted(taxons, key=lambda x: rank_order.get(x.rank_name, 5))
@@ -75,11 +84,19 @@ class NiamotoRepository:
     def __enter__(self) -> "NiamotoRepository":
         """
         Enters the context manager and opens the database session.
+
+        Returns:
+            NiamotoRepository: The current instance of the NiamotoRepository.
         """
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """
         Exits the context manager and closes the database session.
+
+        Args:
+            exc_type (Any): The type of the exception.
+            exc_val (Any): The value of the exception.
+            exc_tb (Any): The traceback of the exception.
         """
         self.close_session()

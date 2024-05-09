@@ -3,6 +3,9 @@ from niamoto.core.utils.csv_utils import analyze_csv_data_types, is_duckdb_type_
 
 
 def test_analyze_csv_data_types():
+    """
+    Tests that a Taxon instance can be deleted from the database.
+    """
     csv_file = "tests/test_data/data/sources/mock_taxonomy.csv"
     with open(csv_file, "w") as f:
         f.write(
@@ -28,6 +31,9 @@ def test_analyze_csv_data_types():
 
 
 def test_analyze_csv_data_types_invalid_file():
+    """
+    Test case for the analyze_csv_data_types function of the csv_utils module when provided with an invalid file.
+    """
     invalid_csv_file = "tests/test_data/data/sources/invalid.csv"
 
     with pytest.raises(ValueError) as e:
@@ -36,6 +42,9 @@ def test_analyze_csv_data_types_invalid_file():
 
 
 def test_is_duckdb_type_numeric():
+    """
+    Test case for the is_duckdb_type_numeric function of the csv_utils module.
+    """
     assert is_duckdb_type_numeric("INTEGER")
     assert is_duckdb_type_numeric("DOUBLE")
     assert not is_duckdb_type_numeric("VARCHAR")

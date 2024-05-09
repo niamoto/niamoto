@@ -21,10 +21,29 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 
 
 class Base(DeclarativeBase):
+    """
+    Base class for all other database models.
+    """
+
     pass
 
 
 class TaxonRef(Base):
+    """
+    A class used to represent a taxon reference.
+
+    Attributes:
+        id (BIGINT): The primary key. :no-index:
+        full_name (String): The full name of the taxon.
+        authors (String): The authors of the taxon.
+        rank_name (String): The rank name of the taxon.
+        lft (Integer): The left value for nested set model.
+        rght (Integer): The right value for nested set model.
+        level (Integer): The level value for nested set model.
+        parent_id (BIGINT): The parent taxon id.
+        children (List[TaxonRef]): The children of the taxon.
+    """
+
     __tablename__ = "taxon_ref"
 
     id_seq: Sequence = Sequence("taxon_id_seq")
@@ -48,6 +67,17 @@ class TaxonRef(Base):
 
 
 class PlotRef(Base):
+    """
+    A class used to represent a plot reference.
+
+    Attributes:
+        id (BIGINT): The primary key.
+        id_locality (BIGINT): The locality id.
+        locality (String): The locality of the plot.
+        substrat (String): The substrat of the plot.
+        geometry (String): The geometry of the plot.
+    """
+
     __tablename__ = "plot_ref"
 
     id_seq: Sequence = Sequence("plot_id_seq")
@@ -59,15 +89,27 @@ class PlotRef(Base):
 
 
 class Mapping(Base):
-    __tablename__ = "mapping"
-
     """
-    Sequence and Column for an auto-incrementing primary key in DuckDB.
+    A class used to represent a mapping.
 
     Attributes:
-        id_seq (Sequence): A sequence object named 'mapping_id_seq' used to generate unique identifiers for each record.
-        id (Column): An Integer column that serves as the primary key. It auto-increments using values from 'id_seq'.
+        id (Integer): The primary key.
+        target_table_name (String): The target table name.
+        target_field (String): The target field.
+        field_type (String): The field type.
+        group_by (String): The group by field.
+        reference_table_name (String): The reference table name.
+        reference_data_path (String): The reference data path.
+        is_identifier (Boolean): Whether the field is an identifier.
+        label (String): The label of the field.
+        description (String): The description of the field.
+        transformation (Text): The transformation of the field.
+        bins (Text): The bins of the field.
+        widgets (JSON): The widgets of the field.
     """
+
+    __tablename__ = "mapping"
+
     id_seq: Sequence = Sequence("mapping_id_seq")
     id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     target_table_name = Column(String(255))

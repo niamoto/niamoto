@@ -7,7 +7,20 @@ from niamoto.common.database import Database
 
 
 class Environment:
+    """
+    A class used to manage the environment for the Niamoto project.
+
+    Attributes:
+        config (Dict[str, Any]): The configuration settings for the Niamoto project.
+    """
+
     def __init__(self, config: Dict[str, Any]):
+        """
+        Initializes the Environment with the provided configuration.
+
+        Args:
+            config (Dict[str, Any]): The configuration settings for the Niamoto project.
+        """
         self.config = config
 
     def initialize(self) -> None:

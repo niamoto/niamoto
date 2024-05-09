@@ -16,9 +16,9 @@ class OccurrenceImporter:
     @staticmethod
     def analyze_data(csvfile: str) -> Any:
         """
-        Analyze the data types of columns in a CSV file.
+        Analyzes the data types of columns in a CSV file.
 
-        Parameters:
+        Args:
             csvfile (str): Path to the CSV file to be analyzed.
 
         Returns:
@@ -35,11 +35,14 @@ class OccurrenceImporter:
 
     def import_occurrences(self, csvfile: str, taxon_id_column: str) -> str:
         """
-        Create the 'occurrences' table based on the CSV file schema and import the data.
+        Creates the 'occurrences' table based on the CSV file schema and imports the data.
 
-        Parameters:
+        Args:
             csvfile (str): Path to the CSV file to be imported.
             taxon_id_column (str): Name of the column in the CSV that corresponds to the taxon ID.
+
+        Returns:
+            str: A message indicating the number of imported occurrences.
         """
         try:
             # Analyse the CSV file to get the schema
@@ -118,10 +121,13 @@ class OccurrenceImporter:
         """
         Import occurrences from a CSV file. Optionally, only import occurrences with existing taxons.
 
-        Parameters:
+        Args:
             csvfile (str): Path to the CSV file to be imported.
             taxon_id_column (str): Name of the column in the CSV that corresponds to the taxon ID.
             only_existing_taxons (bool): If True, only import occurrences for existing taxons.
+
+        Returns:
+            str: A message indicating the number of valid occurrences imported.
         """
         try:
             # Analyse the CSV file to get the schema

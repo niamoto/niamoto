@@ -50,39 +50,29 @@ niamoto init
 
 This command will create the default configuration necessary for Niamoto to operate. Use the `--reset` option to reset the environment if it already exists.
 
-## Available Commands
-
-| Command                 | Description                                                                                                             |
-|-------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| init                    | Initialize or reset the Niamoto environment.                                                                            |
-| import-taxonomy         | Import taxonomy data from a CSV file into the database.                                                                 |
-| import-plots            | Import plot data from a GeoPackage file into the plot_ref table.                                                        |
-| import-occurrences      | Import occurrence data from a CSV file, analyze it to update the 'mapping' table, and link occurrences to their taxons. |
-| import-occurrence-plots | Import occurrence-plot links from a CSV file.                                                                           |
-| generate-mapping        | Generate a mapping from a CSV file based on the specified grouping criteria.                                            |
-| calculate-statistics    | Calculate statistics based on the mapping file specified in the configuration.                                          |
-| generate-static-site    | Generate static web pages for each taxon in the database.                                                               |
-| generate-taxonomy-stats | Generate a taxonomy tree, calculate statistics, and write the taxon table from a CSV file.                              |
-
 
 ## Development Environment Configuration
 
 To set up a development environment for Niamoto, you must have `Poetry` installed on your system. Poetry is a dependency management and packaging tool for Python.
 
 1. **Poetry Installation**:
-   To install Poetry, run the following command:
-   ```bash
-   curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
-   ```
 
+  To install Poetry, run the following command:
+
+  ```bash
+  curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+  ```
 
 2. **Clone the Niamoto repository**:
+
   Clone the Niamoto repository on your system using `git`:
+
   ```bash
   git clone https://github.com/niamoto/niamoto.git
   ```
 
 3. **Configure the development environment with Poetry**:
+
   Move into the cloned directory and install the dependencies with Poetry:
   ```bash
   cd niamoto
@@ -90,6 +80,7 @@ To set up a development environment for Niamoto, you must have `Poetry` installe
   ```
 
 4. **Activate the virtual environment**:
+
   Activate the virtual environment created by Poetry:
   ```bash
   poetry shell
@@ -221,6 +212,7 @@ Each field in the `fields` dictionary is defined by the following elements:
 
 #### Special Fields
 Some fields may have specific configurations depending on their `target_field` and `field_type`:
+
 - **Calculated field** (e.g., total number of occurrences):
   - `target_field`: null
   - `field_type`: "INTEGER"
@@ -242,6 +234,7 @@ Some fields may have specific configurations depending on their `target_field` a
 transformations:
   - {"name": "max", "chart_type": "gauge", "chart_options": {"max": 40, "title": "Maximum", "label": "units"}}
 ```
+
 #### 1. **Standard YAML Style Notation:**
 This format will display both YAML notations under a single Markdown box, keeping the explanation compact and the code examples clear and easy to compare.
 

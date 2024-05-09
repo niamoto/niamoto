@@ -5,23 +5,31 @@ from niamoto.common.config import Config
 
 
 class ApiImporter:
+    """
+    A class used to import data for the Niamoto project.
+
+    Attributes:
+        config (Config): The configuration settings for the Niamoto project.
+        db_path (str): The path to the database.
+    """
+
     def __init__(self) -> None:
         """
-        Initialize the ImportAPI with the database path.
-
-        Parameters:
-        - db_path (str): The path to the database.
+        Initializes the ApiImporter with the database path.
         """
         self.config = Config()
         self.db_path = self.config.get("database", "path")
 
     def import_taxononomy(self, csvfile: str, ranks: Tuple[str, ...]) -> Any:
         """
-        Import taxonomu data using DataImportService.
+        Imports taxonomy data using DataImportService.
 
-        Parameters:
+        Args:
             csvfile (str): Path to the CSV file to be imported.
-            ranks (tuple): The ranks to be imported.
+            ranks (Tuple[str, ...]): The ranks to be imported.
+
+        Returns:
+            Any: The results of the import operation.
         """
         try:
             # Initialize the data import service
@@ -38,10 +46,13 @@ class ApiImporter:
 
     def import_plots(self, gpkg_path: str) -> Any:
         """
-        Import plot data from the provided GeoPackage file path.
+        Imports plot data from the provided GeoPackage file path.
 
-        Parameters:
-        - gpkg_path (str): Path to the GeoPackage file to be imported.
+        Args:
+            gpkg_path (str): Path to the GeoPackage file to be imported.
+
+        Returns:
+            Any: The results of the import operation.
         """
         try:
             # Initialize the data import service
@@ -58,11 +69,14 @@ class ApiImporter:
 
     def import_occurrences(self, csvfile: str, taxon_id_column: str) -> Any:
         """
-        Import occurrences data using DataImportService.
+        Imports occurrences data using DataImportService.
 
-        Parameters:
-            taxon_id_column: Name of the column in the CSV that corresponds to the taxon ID.
+        Args:
             csvfile (str): Path to the CSV file to be imported.
+            taxon_id_column (str): Name of the column in the CSV that corresponds to the taxon ID.
+
+        Returns:
+            Any: The results of the import operation.
         """
         try:
             # Initialize the data import service
@@ -81,10 +95,13 @@ class ApiImporter:
 
     def import_occurrence_plot_links(self, csvfile: str) -> Any:
         """
-        Import occurrence-plot links from a CSV file.
+        Imports occurrence-plot links from a CSV file.
 
-        Parameters:
-        - csvfile (str): Path to the CSV file to be imported.
+        Args:
+            csvfile (str): Path to the CSV file to be imported.
+
+        Returns:
+            Any: The results of the import operation.
         """
         try:
             # Initialize the data import service

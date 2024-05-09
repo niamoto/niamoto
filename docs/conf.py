@@ -13,9 +13,9 @@ sys.path.insert(0, os.path.abspath("../src/niamoto"))
 
 
 project = "niamoto"
-copyright = "2023, Julien Barbe"
+copyright = "2024, Julien Barbe"
 author = "Julien Barbe"
-release = "0.1"
+release = "0.0.2a1"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -23,7 +23,8 @@ release = "0.1"
 extensions = [
     "sphinx.ext.extlinks",
     "sphinx.ext.autodoc",
-    "sphinx_copybutton",
+    "sphinx.ext.napoleon",
+    "myst_parser",
 ]
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"

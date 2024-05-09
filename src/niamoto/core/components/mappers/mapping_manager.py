@@ -17,7 +17,20 @@ from niamoto.core.utils.csv_utils import analyze_csv_data_types, is_duckdb_type_
 
 
 class MappingManager:
+    """
+    A class used to manage the mapping of data.
+
+    Attributes:
+        db (Database): The database connection.
+    """
+
     def __init__(self, db: Database):
+        """
+        Initializes the MappingManager with the database connection.
+
+        Args:
+            db (Database): The database connection.
+        """
         self.db = db
 
     def generate_mapping(
@@ -27,6 +40,15 @@ class MappingManager:
         reference_table_name: Optional[str] = None,
         reference_data_path: Optional[str] = None,
     ) -> None:
+        """
+        Generate a mapping from a CSV file.
+
+        Args:
+            csvfile (str): The path to the CSV file.
+            group_by (str): The group by field.
+            reference_table_name (Optional[str], optional): The reference table name. Defaults to None.
+            reference_data_path (Optional[str], optional): The reference data path. Defaults to None.
+        """
         console = Console()
         try:
             con = duckdb.connect()
@@ -162,6 +184,15 @@ class MappingManager:
 
     @staticmethod
     def add_mapping(field: str) -> str:
+        """
+        Add a new field to the mapping.
+
+        Args:
+            field (str): The field to be added.
+
+        Returns:
+            str: A message indicating the field has been added.
+        """
         return f"Adding new field {field} to the mapping"
         # Implement the logic to add a new field to the existing mapping
 
@@ -177,6 +208,20 @@ class MappingManager:
         bins: Optional[Collection[str]] = None,
         is_identifier: bool = False,
     ) -> None:
+        """
+        Add a mapping entry.
+
+        Args:
+            session (Any): The session to use.
+            column_name (str): The column name.
+            column_schema (List[Tuple[str, str]]): The column schema.
+            group_by (str): The group by field.
+            reference_table_name (Optional[str]): The reference table name. Defaults to None.
+            reference_data_path (Optional[str]): The reference data path. Defaults to None.
+            transforms (Optional[List[Dict[str, str]]], optional): The transforms. Defaults to None.
+            bins (Optional[Collection[str]], optional): The bins. Defaults to None.
+            is_identifier (bool, optional): Whether the field is an identifier. Defaults to False.
+        """
         field_type = next((ct for cn, ct in column_schema if cn == column_name), None)
         mapping_entry = (
             session.query(Mapping)
@@ -217,6 +262,17 @@ class MappingManager:
     def get_transforms_and_bins(
         self, con: DuckDBPyConnection, column_name: str, column_type: Any
     ) -> tuple[list[dict[str, str]], Collection[str]]:
+        """
+        Get the transforms and bins for a column.
+
+        Args:
+            con (DuckDBPyConnection): The connection to use.
+            column_name (str): The column name.
+            column_type (Any): The column type.
+
+        Returns:
+            tuple[list[dict[str, str]], Collection[str]]: The transforms and bins.
+        """
         apply_transforms = self.custom_confirm(
             f"Apply transformations for [bold]{column_name}[/bold]?", default=True
         )
@@ -235,6 +291,16 @@ class MappingManager:
 
     @staticmethod
     def custom_confirm(question: str, default: bool = False) -> bool:
+        """
+        Custom confirm prompt.
+
+        Args:
+            question (str): The question to ask.
+            default (bool, optional): The default answer. Defaults to False.
+
+        Returns:
+            bool: The user's answer.
+        """
         console = Console()
         while True:
             console.print(question, end=" ")
@@ -252,6 +318,15 @@ class MappingManager:
 
     @staticmethod
     def determine_transformations(data_type: str) -> List[Dict[str, str]]:
+        """
+        Determine the transformations for a data type.
+
+        Args:
+            data_type (str): The data type.
+
+        Returns:
+            List[Dict[str, str]]: The transformations.
+        """
         if is_duckdb_type_numeric(data_type):
             return [
                 {"name": "mean"},
@@ -268,6 +343,18 @@ class MappingManager:
         column_type: str,
         num_intervals: int = 6,
     ) -> Dict[str, Any]:
+        """
+        Calculate the default bins for a column.
+
+        Args:
+            con (DuckDBPyConnection): The connection to use.
+            column_name (str): The column name.
+            column_type (str): The column type.
+            num_intervals (int, optional): The number of intervals. Defaults to 6.
+
+        Returns:
+            Dict[str, Any]: The default bins.
+        """
         if is_duckdb_type_numeric(column_type):
             if column_type == "BOOLEAN":
                 return {}
@@ -318,6 +405,12 @@ class MappingManager:
 
     @staticmethod
     def get_mapping() -> List[Dict[str, Any]]:
+        """
+        Get the mapping.
+
+        Returns:
+            List[Dict[str, Any]]: The mapping.
+        """
         mapping_path = os.path.join(os.getcwd(), "config", "mapping.yml")
         if os.path.exists(mapping_path):
             with open(mapping_path, "r") as mapping_file:
@@ -327,6 +420,15 @@ class MappingManager:
         return mapping_data
 
     def get_group_config(self, group_by: str) -> Dict[str, Any]:
+        """
+        Get the group config for a group.
+
+        Args:
+            group_by (str): The group by field.
+
+        Returns:
+            Dict[str, Any]: The group config.
+        """
         mapping_data = self.get_mapping()
         group_config = next(
             (entry for entry in mapping_data if entry["group_by"] == group_by), None
@@ -334,6 +436,15 @@ class MappingManager:
         return group_config if group_config is not None else {}
 
     def get_fields(self, group_by: str) -> Dict[str, Any]:
+        """
+        Get the fields for a group.
+
+        Args:
+            group_by (str): The group by field.
+
+        Returns:
+            Dict[str, Any]: The fields.
+        """
         group_config: Optional[Dict[str, Any]] = self.get_group_config(group_by)
         if group_config:
             fields: Dict[str, Any] = group_config["fields"]

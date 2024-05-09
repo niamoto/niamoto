@@ -11,6 +11,10 @@ from niamoto.common.config import Config
 
 
 class PageGenerator:
+    """
+    The PageGenerator class provides methods to generate static webpages for taxons.
+    """
+
     def __init__(self, config: Config) -> None:
         """
         Initializes the PageGenerator class with configuration settings.
@@ -45,7 +49,7 @@ class PageGenerator:
         Generates a webpage for a given taxon object.
 
         Args:
-            taxon (TaxonRef): The taxon object for which the webpage is generated.
+            taxon (niamoto.core.models.models.TaxonRef): The taxon object for which the webpage is generated.
             stats (dict, optional): A dictionary containing statistics for the taxon.
             mapping (dict): The mapping dictionary containing the configuration for generating the webpage.
 
@@ -65,6 +69,12 @@ class PageGenerator:
         return output_path
 
     def generate_taxonomy_tree_js(self, taxons: List[TaxonRef]) -> None:
+        """
+        Generates a JavaScript file containing the taxonomy tree data.
+
+        Args:
+            taxons (List[niamoto.core.models.models.TaxonRef]): A list of taxon objects.
+        """
         tree = self.build_taxonomy_tree(taxons)
         js_content = "const taxonomyData = " + json.dumps(tree, indent=4) + ";"
         minified_js = rjsmin.jsmin(js_content)
@@ -74,6 +84,15 @@ class PageGenerator:
             file.write(minified_js)
 
     def build_taxonomy_tree(self, taxons: List[TaxonRef]) -> List[Dict[Any, Any]]:
+        """
+        Builds a taxonomy tree from a list of taxon objects.
+
+        Args:
+            taxons (List[niamoto.core.models.models.TaxonRef]): A list of taxon objects.
+
+        Returns:
+            List[Dict[Any, Any]]: A list of dictionaries representing the taxonomy tree.
+        """
         taxons_by_id = {int(taxon.id): taxon for taxon in taxons}
         tree = []
 
@@ -86,6 +105,16 @@ class PageGenerator:
     def build_subtree(
         self, taxon: TaxonRef, taxons_by_id: Dict[int, TaxonRef]
     ) -> Dict[str, Any]:
+        """
+        Builds a subtree for a given taxon object.
+
+        Args:
+            taxon (niamoto.core.models.models.TaxonRef): The taxon object for which the subtree is built.
+            taxons_by_id (Dict[int, niamoto.core.models.models.TaxonRef]): A dictionary mapping taxon IDs to taxon objects.
+
+        Returns:
+            Dict[str, Any]: A dictionary representing the subtree.
+        """
         node: Dict[str, Any] = {
             "id": taxon.id,
             "name": taxon.full_name,
@@ -107,8 +136,6 @@ class PageGenerator:
     def copy_static_files(self) -> None:
         """
         Copies static files to the destination directory, overwriting existing files.
-
-        The destination directory is created if it doesn't exist.
         """
         # Create the destination directory if it does not exist
         os.makedirs(self.output_dir, exist_ok=True)
@@ -129,7 +156,7 @@ class PageGenerator:
         Converts a TaxonRef object and its associated statistics to a dictionary.
 
         Args:
-            taxon (TaxonRef): A TaxonRef object.
+            taxon (niamoto.core.models.models.TaxonRef): A TaxonRef object.
             stats (dict, optional): A dictionary containing statistics for the taxon.
 
         Returns:

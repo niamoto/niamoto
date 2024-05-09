@@ -10,11 +10,27 @@ from niamoto.core.components.statistics.plot_stats_calculator import PlotStatsCa
 
 
 class StatisticService:
+    """
+    The StatisticService class provides methods to calculate statistics.
+    """
+
     def __init__(self, db_path: str):
+        """
+        Initializes a new instance of the StatisticService with a given database path.
+
+        Args:
+            db_path (str): The path to the database file.
+        """
         self.db = Database(db_path)
         self.mapper_service = MapperService(db_path)
 
     def calculate_statistics(self, occurrences: list[dict[Hashable, Any]]) -> None:
+        """
+        Calculate statistics for a given list of occurrences.
+
+        Args:
+            occurrences (list[dict[Hashable, Any]]): The list of occurrences to calculate statistics for.
+        """
         mapping_data = self.mapper_service.get_mapping()
 
         for group_config in mapping_data:
@@ -34,6 +50,13 @@ class StatisticService:
     def calculate_group_statistics(
         self, occurrences: list[dict[Hashable, Any]], group_by: str
     ) -> None:
+        """
+        Calculate group statistics for a given list of occurrences and a group by parameter.
+
+        Args:
+            occurrences (list[dict[Hashable, Any]]): The list of occurrences to calculate statistics for.
+            group_by (str): The parameter to group the occurrences by.
+        """
         group_config = self.mapper_service.get_group_config(group_by)
 
         if group_config:

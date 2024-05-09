@@ -9,13 +9,31 @@ from niamoto.core.services.statistics import StatisticService
 
 
 class ApiStatistics:
+    """
+    A class used to calculate and retrieve statistics for the Niamoto project.
+
+    Attributes:
+        config (Config): The configuration settings for the Niamoto project.
+        db_path (str): The path to the database.
+    """
+
     def __init__(self) -> None:
+        """
+        Initializes the ApiStatistics with the database path.
+        """
         self.config = Config()
         self.db_path = self.config.get("database", "path")
 
     def calculate_group_statistics(
         self, group_by: str, csv_file: Optional[str] = None
     ) -> None:
+        """
+        Calculates group statistics using the StatisticService.
+
+        Args:
+            group_by (str): The type of grouping to calculate the statistics for (e.g., taxon, plot, commune).
+            csv_file (Optional[str]): Path to the CSV file to be used for calculating statistics.
+        """
         try:
             statistic_service = StatisticService(self.db_path)
             occurrences = self.get_occurrences(group_by, csv_file)
@@ -26,6 +44,12 @@ class ApiStatistics:
             )
 
     def calculate_all_statistics(self, csv_file: Optional[str] = None) -> None:
+        """
+        Calculates all statistics using the StatisticService.
+
+        Args:
+            csv_file (Optional[str]): Path to the CSV file to be used for calculating statistics.
+        """
         try:
             statistic_service = StatisticService(self.db_path)
             occurrences = self.get_occurrences(None, csv_file)
@@ -36,6 +60,16 @@ class ApiStatistics:
     def get_occurrences(
         self, group_by: Optional[str], csv_file: Optional[str]
     ) -> list[dict[Hashable, Any]]:
+        """
+        Retrieves occurrences either from a CSV file or from the database.
+
+        Args:
+            group_by (Optional[str]): The type of grouping to retrieve the occurrences for (e.g., taxon, plot, commune).
+            csv_file (Optional[str]): Path to the CSV file to be used for retrieving occurrences.
+
+        Returns:
+            list[dict[Hashable, Any]]: A list of occurrences.
+        """
         if csv_file:
             # Load occurrences from the specified CSV file
             occurrences = self.load_occurrences_from_csv(csv_file)
@@ -56,6 +90,15 @@ class ApiStatistics:
 
     @staticmethod
     def load_occurrences_from_csv(csv_file: str) -> list[dict[Hashable, Any]]:
+        """
+        Loads occurrences from a CSV file.
+
+        Args:
+            csv_file (str): Path to the CSV file to be loaded.
+
+        Returns:
+            list[dict[Hashable, Any]]: A list of occurrences.
+        """
         # Read the CSV file using pandas
         df = pd.read_csv(csv_file)
 
@@ -67,6 +110,15 @@ class ApiStatistics:
     def load_occurrences_from_database(
         self, table_name: Optional[Any]
     ) -> list[dict[Hashable, Any]]:
+        """
+        Loads occurrences from the database.
+
+        Args:
+            table_name (Optional[Any]): The name of the table in the database to load occurrences from.
+
+        Returns:
+            list[dict[Hashable, Any]]: A list of occurrences.
+        """
         # Create a connection to the database
         engine = sqlalchemy.create_engine(f"duckdb:///{self.db_path}")
 

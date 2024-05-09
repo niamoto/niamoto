@@ -7,12 +7,17 @@ from niamoto.core.services.mapper import MapperService
 
 
 class ApiMapper:
+    """
+    A class used to map data for the Niamoto project.
+
+    Attributes:
+        config (Config): The configuration settings for the Niamoto project.
+        db_path (str): The path to the database.
+    """
+
     def __init__(self) -> None:
         """
-        Initialize the ImportAPI with the database path.
-
-        Parameters:
-        - db_path (str): The path to the database.
+        Initializes the ApiMapper with the database path.
         """
         self.config = Config()
         self.db_path = self.config.get("database", "path")
@@ -25,17 +30,16 @@ class ApiMapper:
         reference_data_path: Optional[str],
     ) -> Any:
         """
-        Generate mapping from the CSV file.
+        Generates a mapping from a CSV file.
 
         Args:
-            csvfile: Path to the CSV file to generate mapping from.
-            group_by: The type of grouping to generate the mapping for (e.g., taxon, plot, commune).
-            reference_table_name: The name of the reference table in the database.
-            reference_data_path: The path to the reference table file (e.g., GeoPackage).
+            csvfile (str): Path to the CSV file to generate mapping from.
+            group_by (str): The type of grouping to generate the mapping for (e.g., taxon, plot, commune).
+            reference_table_name (Optional[str]): The name of the reference table in the database.
+            reference_data_path (Optional[str]): The path to the reference table file (e.g., GeoPackage).
 
         Returns:
-            str: Confirmation message.
-
+            Any: Confirmation message.
         """
         try:
             # Initialize the data import service
@@ -53,14 +57,13 @@ class ApiMapper:
 
     def add_new_mapping(self, field: str) -> Any:
         """
-        Add new mapping to the database.
+        Adds a new mapping to the database.
 
         Args:
-            field: New field to be added to the mapping.
+            field (str): New field to be added to the mapping.
 
         Returns:
-            str:
-
+            Any: Confirmation message.
         """
         try:
             # Initialize the data import service

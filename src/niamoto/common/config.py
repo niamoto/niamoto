@@ -21,6 +21,7 @@ class Config:
         Args:
             config_path (Optional[str]): Custom path to the configuration file.
                                          If None, default path is used.
+            create_default (bool): If True, creates a default configuration file if none exists.
         """
         niamoto_home = self.get_niamoto_home()
         self.config_path = config_path or os.path.join(niamoto_home, "config.yml")
@@ -28,38 +29,92 @@ class Config:
 
     @property
     def database_path(self) -> Any:
+        """
+        Retrieves the database path from the configuration.
+
+        Returns:
+            Any: The database path.
+        """
         return self.get("database", "path")
 
     @property
     def taxonomy_source(self) -> Any:
+        """
+        Retrieves the taxonomy source from the configuration.
+
+        Returns:
+            Any: The taxonomy source.
+        """
         return self.get("sources", "taxonomy")
 
     @property
     def plots_source(self) -> Any:
+        """
+        Retrieves the plots source from the configuration.
+
+        Returns:
+            Any: The plots source.
+        """
         return self.get("sources", "plots")
 
     @property
     def occurrences_source(self) -> Any:
+        """
+        Retrieves the occurrences source from the configuration.
+
+        Returns:
+            Any: The occurrences source.
+        """
         return self.get("sources", "occurrences")
 
     @property
     def occurrence_plots_source(self) -> Any:
+        """
+        Retrieves the occurrence-plots source from the configuration.
+
+        Returns:
+            Any: The occurrence-plots source.
+        """
         return self.get("sources", "occurrence-plots")
 
     @property
     def raster_source(self) -> Any:
+        """
+        Retrieves the raster source from the configuration.
+
+        Returns:
+            Any: The raster source.
+        """
         return self.get("sources", "raster")
 
     @property
     def static_pages_path(self) -> Any:
+        """
+        Retrieves the static pages path from the configuration.
+
+        Returns:
+            Any: The static pages path.
+        """
         return self.get("web", "static_pages")
 
     @property
     def api_path(self) -> Any:
+        """
+        Retrieves the API path from the configuration.
+
+        Returns:
+            Any: The API path.
+        """
         return self.get("web", "api")
 
     @property
     def logs_path(self) -> Any:
+        """
+        Retrieves the logs path from the configuration.
+
+        Returns:
+            Any: The logs path.
+        """
         return self.get("logs", "path")
 
     def get(self, section: str, key: Optional[str] = None) -> Any:
@@ -97,6 +152,9 @@ class Config:
     def create_default_config() -> Dict[Any, Any]:
         """
         Create a default configuration dictionary.
+
+        Returns:
+            Dict[Any, Any]: The default configuration dictionary.
         """
         return {
             "database": {"path": "data/db/niamoto.db"},
@@ -155,7 +213,7 @@ class Config:
         Validate the currently loaded configuration.
 
         Returns:
-            bool: True if the configuration is valid, False otherwise.
+            Optional[Dict[Any, Any]]: The validated configuration dictionary if the configuration is valid, None otherwise.
         """
         expected_keys = {
             "database": ["path"],
@@ -193,6 +251,9 @@ class Config:
         """
         Loads the configuration from the Yaml file. If the file does not exist,
         creates a default configuration file.
+
+        Args:
+            create_default (bool): If True, creates a default configuration file if none exists.
 
         Returns:
             Dict[str, Any]: Configuration dictionary.

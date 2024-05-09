@@ -11,7 +11,17 @@ from niamoto.core.models import TaxonRef
 
 
 class TaxonomyStatsCalculator(StatisticsCalculator):
+    """
+    A class used to calculate statistics for taxonomies.
+
+    Inherits from:
+        StatisticsCalculator
+    """
+
     def calculate_taxonomy_stats(self) -> None:
+        """
+        Calculate statistics for all taxonomies.
+        """
         start_time = time.time()
 
         # Retrieve all taxons from the TaxonRef table in the database
@@ -34,6 +44,12 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
         )
 
     def process_taxon(self, taxon: TaxonRef) -> None:
+        """
+        Process a taxon.
+
+        Args:
+            taxon (niamoto.core.models.models.TaxonRef): The taxon to process.
+        """
         # Extract the taxon ID value from the Column[int]
         taxon_id = self.db.session.execute(select(taxon.id)).scalar()
 
@@ -62,6 +78,15 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
         self.create_or_update_stats_entry(taxon_id, stats)
 
     def get_taxon_occurrences(self, taxon: TaxonRef) -> list[dict[Hashable, Any]]:
+        """
+        Get taxon occurrences.
+
+        Args:
+            taxon (niamoto.core.models.models.TaxonRef): The taxon to get occurrences for.
+
+        Returns:
+            list[dict[Hashable, Any]]: The taxon occurrences.
+        """
         # Retrieve the identifiers of the taxon and its descendants
         taxon_ids = self.get_taxon_and_descendant_ids(taxon)
 
@@ -74,6 +99,15 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
         return taxon_occurrences
 
     def get_taxon_and_descendant_ids(self, taxon: TaxonRef) -> List[int]:
+        """
+        Get taxon and descendant ids.
+
+        Args:
+            taxon (niamoto.core.models.models.TaxonRef): The taxon to get ids for.
+
+        Returns:
+            List[int]: The taxon and descendant ids.
+        """
         # Retrieve the identifiers of the taxon and its descendants using the lft and rght fields
         taxon_ids = (
             self.db.session.query(TaxonRef.id)
@@ -87,12 +121,32 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
     def calculate_specific_stats(
         self, taxon_id: int, taxon_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
+        """
+        Calculate specific statistics for a taxon.
+
+        Args:
+            taxon_id (int): The taxon id.
+            taxon_occurrences (list[dict[Hashable, Any]]): The taxon occurrences.
+
+        Returns:
+            Dict[str, Any]: The specific statistics.
+        """
         frequencies = self.calculate_frequencies(taxon_id, taxon_occurrences)
         return frequencies
 
     def calculate_frequencies(
         self, taxon_id: int, taxon_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
+        """
+        Calculate frequencies for a taxon.
+
+        Args:
+            taxon_id (int): The taxon id.
+            taxon_occurrences (list[dict[Hashable, Any]]): The taxon occurrences.
+
+        Returns:
+            Dict[str, Any]: The frequencies.
+        """
         frequencies: Dict[str, Any] = {}
 
         return frequencies

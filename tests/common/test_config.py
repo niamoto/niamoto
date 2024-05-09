@@ -6,6 +6,9 @@ from niamoto.common.config import Config
 
 
 def test_default_config():
+    """
+    Test case for the default configuration of the application.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         os.environ["NIAMOTO_HOME"] = temp_dir
         config = Config()
@@ -24,6 +27,12 @@ def test_default_config():
 
 
 def test_custom_config(tmp_path):
+    """
+    Test case for a custom configuration of the application.
+
+    Args:
+        tmp_path: A pytest fixture that provides a temporary directory unique to the test invocation.
+    """
     custom_config = {
         "database": {"path": "custom/db/path.db"},
         "sources": {
@@ -56,6 +65,9 @@ def test_custom_config(tmp_path):
 
 
 def test_get_method():
+    """
+    Test case for the get method of the Config class.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         os.environ["NIAMOTO_HOME"] = temp_dir
         config = Config()
@@ -65,6 +77,9 @@ def test_get_method():
 
 
 def test_valid_config():
+    """
+    Test case for validating a correct configuration of the application.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         os.environ["NIAMOTO_HOME"] = temp_dir
         config = Config()
@@ -72,6 +87,12 @@ def test_valid_config():
 
 
 def test_invalid_config(tmp_path):
+    """
+    Test case for validating an incorrect configuration of the application.
+
+    Args:
+        tmp_path: A pytest fixture that provides a temporary directory unique to the test invocation.
+    """
     invalid_config = {
         "database": {"path": ""},
         "sources": {

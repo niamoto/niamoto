@@ -24,13 +24,20 @@ class TaxonDataProcessor:
     """
 
     def __init__(self, db_path: str):
-        """Initialize the processor with a database name."""
+        """
+        Initialize the processor with a database name.
+
+        Args:
+            db_path (str): The path to the database file.
+        """
         self.db = Database(db_path)
         self.console = Console()
         self.config = Config()
 
     def process_and_write_taxon_data(self, data: Any) -> None:
-        """Process the provided taxon data and write it to the database."""
+        """
+        Process the provided taxon data and write it to the database.
+        """
         start_time = time.time()
         # Sort the DataFrame for easier processing
 
@@ -75,7 +82,7 @@ class TaxonDataProcessor:
         """
         Generate the taxonomy hierarchy from occurrence data.
 
-        Parameters:
+        Args:
             data: DataFrame containing the occurrence data.
             model: The SQLAlchemy model to use for the taxon hierarchy.
             config: Configuration defining the taxonomic ranks and their hierarchy.
@@ -92,12 +99,11 @@ class TaxonDataProcessor:
         """
         Creates a taxonomic hierarchy based on a given configuration.
 
-        Parameters:
+        Args:
             data: DataFrame containing the taxonomic data.
             session: Database session.
             model: The SQLAlchemy model to use for the taxonomic hierarchy.
             taxonomy_config: Configuration defining the taxonomic ranks and their hierarchy.
-
         """
 
         for rank in taxonomy_config:
@@ -117,7 +123,7 @@ class TaxonDataProcessor:
         """
         Creates taxons for a specific rank based on the configuration.
 
-        Parameters:
+        Args:
             data: DataFrame containing the taxonomic data.
             session: Database session.
             model: The SQLAlchemy model to use for the taxonomic hierarchy.
@@ -161,9 +167,7 @@ class TaxonDataProcessor:
                 )
                 if parent_id:
                     parent_taxon = (
-                        session.query(TaxonRef)
-                        .filter(TaxonRef.id == parent_id)
-                        .first()
+                        session.query(TaxonRef).filter(TaxonRef.id == parent_id).first()
                     )
                     parent_id = parent_taxon.id if parent_taxon else None
 
@@ -195,7 +199,7 @@ class TaxonDataProcessor:
         """
         Determine the full name for a given taxon rank.
 
-        Parameters:
+        Args:
             row (pd.Series): Data row containing taxon information.
             rank_name (str): The rank name of the taxon.
 
@@ -212,7 +216,7 @@ class TaxonDataProcessor:
         """
         Perform calculations for each taxonomic level and update the Taxon objects in the database.
 
-        Parameters:
+        Args:
             data (pd.DataFrame): The DataFrame containing occurrence data.
             taxonomy_config (dict): The configuration defining the taxonomic ranks and their hierarchy.
         """
@@ -233,7 +237,7 @@ class TaxonDataProcessor:
         """
         Process a group of data for a given taxonomic level and update the database.
 
-        Parameters:
+        Args:
             data (pd.DataFrame): The DataFrame containing the data to process.
             group_by_rank (str): The field to group the data by.
             rank_name (str): The name of the taxonomic rank to process.
@@ -297,16 +301,23 @@ class TaxonDataProcessor:
                 self.update_taxon(taxon_id, metrics)
 
             # Extract the coordinates from the filtered data
-            coordinates = self.extract_coordinates(filtered_data)
+            # coordinates = self.extract_coordinates(filtered_data)
 
-            geo_json = {"type": "MultiPoint", "coordinates": coordinates}
-
+            # geo_json = {"type": "MultiPoint", "coordinates": coordinates}
 
     def calculate_frequencies(
         self, taxon_id: int, group_data: Any
     ) -> dict[str, dict[str, float]]:
         """
         Calculate the frequencies for various measurements for a given taxon.
+
+        Args:
+            taxon_id (int): The identifier of the Taxon to be updated.
+            group_data (Any): The dataset containing the group data.
+
+        Returns:
+            dict[str, dict[str, float]]: A dictionary containing the frequencies of the field data categories as percentages.
+            The keys are the left endpoints of the intervals and the values are the percentages.
         """
         frequencies = {}
 
@@ -384,7 +395,7 @@ class TaxonDataProcessor:
         """
         Update a Taxon object in the database with provided data.
 
-        Parameters:
+        Args:
             taxon_id (int): The identifier of the Taxon to be updated.
             update_data (dict): The data to update the Taxon with.
         """
@@ -406,7 +417,7 @@ class TaxonDataProcessor:
         """
         Extract geographic coordinates from the filtered data.
 
-        Parameters:
+        Args:
             filtered_data (pd.DataFrame): The DataFrame containing the filtered data.
 
         Returns:
@@ -427,7 +438,7 @@ class TaxonDataProcessor:
         """
         Retrieve unique identifiers for a specified field from the database.
 
-        Parameters:
+        Args:
             field_name (str): The field name to retrieve unique identifiers for.
 
         Returns:
@@ -520,6 +531,17 @@ class TaxonDataProcessor:
     def calculate_direct_distribution(
         self, data: Any, value_bins: List[int]
     ) -> dict[str, float]:
+        """
+        Calculate the distribution of values directly from the data.
+
+        Args:
+            data (Any): The dataset containing the data.
+            value_bins (List[int]): The list of bins to categorize the data.
+
+        Returns:
+            dict[str, float]: A dictionary containing the distribution of values as percentages.
+            The keys are the left endpoints of the intervals and the values are the percentages.
+        """
         filtered_values = data.dropna().tolist()
 
         return self.calculate_distribution(filtered_values, value_bins)
@@ -527,6 +549,18 @@ class TaxonDataProcessor:
     def calculate_raster_distribution(
         self, geo_points: Any, value_bins: List[int], raster_path: str
     ) -> dict[str, float]:
+        """
+        Calculate the distribution of values from a raster file.
+
+        Args:
+            geo_points (Any): The geographic points to extract the values from.
+            value_bins (List[int]): The list of bins to categorize the data.
+            raster_path (str): The path to the raster file.
+
+        Returns:
+            dict[str, float]: A dictionary containing the distribution of values as percentages.
+            The keys are the left endpoints of the intervals and the values are the percentages.
+        """
         raster_values = self.extract_raster_values(geo_points, raster_path)
         filtered_values = [value for value in raster_values if value is not None]
 
@@ -535,6 +569,17 @@ class TaxonDataProcessor:
     def calculate_distribution(
         self, values: List[float], value_bins: List[int]
     ) -> dict[str, float]:
+        """
+        Calculate the distribution of values.
+
+        Args:
+            values (List[float]): The list of values.
+            value_bins (List[int]): The list of bins to categorize the values.
+
+        Returns:
+            dict[str, float]: A dictionary containing the distribution of values as percentages.
+            The keys are the left endpoints of the intervals and the values are the percentages.
+        """
         total_count = len(values)
         percentages_per_interval = {}
 
@@ -557,7 +602,16 @@ class TaxonDataProcessor:
 
     @staticmethod
     def extract_raster_values(geo_points: Any, raster_path: str) -> Any:
-        """Extract values for given geo points from a raster file."""
+        """
+        Extract values for given geo points from a raster file.
+
+        Args:
+            geo_points (Any): The geographic points to extract the values from.
+            raster_path (str): The path to the raster file.
+
+        Returns:
+            pd.Series: A pandas Series containing the extracted raster values.
+        """
         raster_values = pd.Series([None] * len(geo_points))
 
         try:

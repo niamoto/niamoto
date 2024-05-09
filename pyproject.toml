@@ -140,6 +140,8 @@ rjsmin = "^1.2.2"
 
 # prompt-toolkit - Library for building powerful interactive command line applications in Python.
 prompt-toolkit = "^3.0.43"
+sphinxcontrib-napoleon = "^0.7"
+myst-parser = "^3.0.1"
 
 
 [tool.poetry.group.dev.dependencies]
