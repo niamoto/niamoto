@@ -128,6 +128,9 @@ class OccurrenceImporter:
 
         Returns:
             str: A message indicating the number of valid occurrences imported.
+
+        Raises:
+            ValueError: If the specified taxon ID column is not found in the CSV file.
         """
         try:
             # Analyse the CSV file to get the schema
@@ -135,6 +138,12 @@ class OccurrenceImporter:
 
             # Check if 'id' column exists in the CSV schema
             id_column_exists = any(col_name == "id" for col_name, _ in column_schema)
+
+            # Verify that the taxon_id_column exists in the CSV schema
+            if not any(col_name == taxon_id_column for col_name, _ in column_schema):
+                raise ValueError(
+                    f"The specified taxon ID column '{taxon_id_column}' is not found in the CSV file."
+                )
 
             # Create the 'occurrences' table
             columns_sql = ", ".join(
@@ -195,6 +204,8 @@ class OccurrenceImporter:
 
             return f"Total valid occurrences imported: {imported_count}"
 
+        except ValueError as ve:
+            raise ve
         except Exception as e:
             raise e
 

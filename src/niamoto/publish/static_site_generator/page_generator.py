@@ -37,7 +37,7 @@ class PageGenerator:
         self.static_src_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "static"
         )
-        self.output_dir = self.config.get("web", "static_pages")
+        self.output_dir = self.config.get("outputs", "static_pages")
 
         template_loader = jinja2.FileSystemLoader(searchpath=self.template_dir)
         self.template_env = jinja2.Environment(loader=template_loader)

@@ -10,6 +10,7 @@ Welcome to Niamoto's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   overview
    modules
 
 Indices and tables

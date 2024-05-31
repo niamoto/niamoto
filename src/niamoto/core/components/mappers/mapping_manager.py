@@ -126,21 +126,20 @@ class MappingManager:
             self.db.commit_session()
             console.print(f"Mapping table updated for {csvfile}", style="italic green")
 
-            # Write the mapping data to the mapping file
-            mapping_path = os.path.join(os.getcwd(), "config", "mapping.yml")
+            # Load the existing configuration data
+            config_path = os.path.join(os.getcwd(), "config.yml")
+            with open(config_path, "r") as config_file:
+                config_data = yaml.safe_load(config_file) or {}
 
-            # Load the existing mapping data if the file exists
-            if os.path.exists(mapping_path):
-                with open(mapping_path, "r") as mapping_file:
-                    existing_mapping_data = yaml.safe_load(mapping_file) or []
-            else:
-                existing_mapping_data = []
+            # Ensure 'aggregations' section exists
+            if "aggregations" not in config_data:
+                config_data["aggregations"] = []
 
             # Check if an entry with the same 'group_by' value already exists
             existing_entry = next(
                 (
                     entry
-                    for entry in existing_mapping_data
+                    for entry in config_data["aggregations"]
                     if entry["group_by"] == group_by
                 ),
                 None,
@@ -162,18 +161,18 @@ class MappingManager:
                     "reference_data_path": reference_data_path,
                     "fields": mapping_data,
                 }
-                existing_mapping_data.append(new_mapping_entry)
+                config_data["aggregations"].append(new_mapping_entry)
 
-            # Write the updated mapping data to the file
-            with open(mapping_path, "w") as mapping_file:
+            # Write the updated configuration data to the file
+            with open(config_path, "w") as config_file:
                 yaml.safe_dump(
-                    existing_mapping_data,
-                    mapping_file,
+                    config_data,
+                    config_file,
                     default_flow_style=None,
                     sort_keys=False,
                 )
             console.print(
-                f"Mapping data written to {mapping_path}", style="italic green"
+                f"Mapping data written to {config_path}", style="italic green"
             )
 
         except Exception as e:
@@ -218,7 +217,7 @@ class MappingManager:
             group_by (str): The group by field.
             reference_table_name (Optional[str]): The reference table name. Defaults to None.
             reference_data_path (Optional[str]): The reference data path. Defaults to None.
-            transforms (Optional[List[Dict[str, str]]], optional): The transforms. Defaults to None.
+            transforms (Optional[List[Dict[str, str]]] optional): The transforms. Defaults to None.
             bins (Optional[Collection[str]], optional): The bins. Defaults to None.
             is_identifier (bool, optional): Whether the field is an identifier. Defaults to False.
         """
@@ -403,21 +402,20 @@ class MappingManager:
 
         return {}
 
-    @staticmethod
-    def get_mapping() -> List[Dict[str, Any]]:
+    def get_mapping(self) -> List[Dict[str, Any]]:
         """
         Get the mapping.
 
         Returns:
             List[Dict[str, Any]]: The mapping.
         """
-        mapping_path = os.path.join(os.getcwd(), "config", "mapping.yml")
-        if os.path.exists(mapping_path):
-            with open(mapping_path, "r") as mapping_file:
-                mapping_data = yaml.safe_load(mapping_file) or []
+        config_path = os.path.join(os.getcwd(), "config.yml")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as config_file:
+                config_data = yaml.safe_load(config_file) or {}
+                return config_data.get("aggregations", [])
         else:
-            mapping_data = []
-        return mapping_data
+            return []
 
     def get_group_config(self, group_by: str) -> Dict[str, Any]:
         """

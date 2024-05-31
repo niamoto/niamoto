@@ -1,6 +1,5 @@
 import os
 from typing import Any, Dict, Optional
-
 import yaml
 
 
@@ -9,7 +8,7 @@ class Config:
     Class to manage the configuration settings for Niamoto application.
 
     Attributes:
-        config (Dict[str, Any]): Configuration dictionary loaded from TOML file.
+        config (Dict[str, Any]): Configuration dictionary loaded from YAML file.
     """
 
     def __init__(
@@ -38,76 +37,6 @@ class Config:
         return self.get("database", "path")
 
     @property
-    def taxonomy_source(self) -> Any:
-        """
-        Retrieves the taxonomy source from the configuration.
-
-        Returns:
-            Any: The taxonomy source.
-        """
-        return self.get("sources", "taxonomy")
-
-    @property
-    def plots_source(self) -> Any:
-        """
-        Retrieves the plots source from the configuration.
-
-        Returns:
-            Any: The plots source.
-        """
-        return self.get("sources", "plots")
-
-    @property
-    def occurrences_source(self) -> Any:
-        """
-        Retrieves the occurrences source from the configuration.
-
-        Returns:
-            Any: The occurrences source.
-        """
-        return self.get("sources", "occurrences")
-
-    @property
-    def occurrence_plots_source(self) -> Any:
-        """
-        Retrieves the occurrence-plots source from the configuration.
-
-        Returns:
-            Any: The occurrence-plots source.
-        """
-        return self.get("sources", "occurrence-plots")
-
-    @property
-    def raster_source(self) -> Any:
-        """
-        Retrieves the raster source from the configuration.
-
-        Returns:
-            Any: The raster source.
-        """
-        return self.get("sources", "raster")
-
-    @property
-    def static_pages_path(self) -> Any:
-        """
-        Retrieves the static pages path from the configuration.
-
-        Returns:
-            Any: The static pages path.
-        """
-        return self.get("web", "static_pages")
-
-    @property
-    def api_path(self) -> Any:
-        """
-        Retrieves the API path from the configuration.
-
-        Returns:
-            Any: The API path.
-        """
-        return self.get("web", "api")
-
-    @property
     def logs_path(self) -> Any:
         """
         Retrieves the logs path from the configuration.
@@ -116,6 +45,38 @@ class Config:
             Any: The logs path.
         """
         return self.get("logs", "path")
+
+    @property
+    def data_sources(self) -> Dict[str, Any]:
+        """
+        Retrieves the data sources section from the configuration.
+
+        Returns:
+            Dict[str, Any]: The data sources section.
+        """
+        return self.get_section("sources")
+
+    @property
+    def output_paths(self) -> Dict[str, Any]:
+        """
+        Retrieves the output paths section from the configuration.
+
+        Returns:
+            Dict[str, Any]: The output paths section.
+        """
+        return self.get_section("outputs")
+
+    def get_section(self, section: str) -> Dict[str, Any]:
+        """
+        Retrieves a specific section from the configuration.
+
+        Args:
+            section (str): The configuration section to retrieve.
+
+        Returns:
+            Dict[str, Any]: The configuration section.
+        """
+        return self.config.get(section, {})
 
     def get(self, section: str, key: Optional[str] = None) -> Any:
         """
@@ -129,52 +90,45 @@ class Config:
         Returns:
             Any: The configuration value or section.
         """
+        section_data = self.get_section(section)
         if key:
-            return self.config[section].get(key)
-        else:
-            return self.config.get(section)
+            return section_data.get(key)
+        return section_data
 
     @staticmethod
-    def get_niamoto_home() -> str:
-        """
-        Get the Niamoto home directory.
-
-        Returns:
-            str: The Niamoto home directory.
-        """
-        niamoto_home = os.environ.get("NIAMOTO_HOME")
-        if niamoto_home:
-            return niamoto_home
-        else:
-            return os.path.join(os.getcwd(), "config")
-
-    @staticmethod
-    def create_default_config() -> Dict[Any, Any]:
+    def create_default_config() -> Dict[str, Any]:
         """
         Create a default configuration dictionary.
 
         Returns:
-            Dict[Any, Any]: The default configuration dictionary.
+            Dict[str, Any]: The default configuration dictionary.
         """
         return {
             "database": {"path": "data/db/niamoto.db"},
-            "sources": {
-                "taxonomy": "data/sources/taxonomy.csv",
-                "plots": "data/sources/plots.gpkg",
-                "occurrences": "data/sources/occurrences.csv",
-                "occurrence-plots": "data/sources/occurrence-plots.csv",
-                "raster": "data/sources/raster",
-            },
-            "web": {
-                "static_pages": "web/static",
-                "api": "web/api",
-            },
             "logs": {"path": "logs"},
+            "sources": {
+                "taxonomy": {
+                    "path": "data/sources/taxonomy.csv",
+                    "ranks": "id_family,id_genus,id_species,id_infra",
+                },
+                "plots": {"path": "data/sources/plots.gpkg"},
+                "occurrences": {
+                    "path": "data/sources/occurrences.csv",
+                    "taxon_identifier": "id_taxonref",
+                },
+                "occurrence-plots": {"path": "data/sources/occurrence-plots.csv"},
+                "raster": {"path": "data/sources/raster"},
+            },
+            "outputs": {
+                "static_pages": "outputs/static",
+                "api": "outputs/api",
+            },
+            "aggregations": [],
         }
 
     def create_config_file(self, config: Dict[str, Any]) -> None:
         """
-        Create or overwrite the TOML configuration file with the provided configuration.
+        Create or overwrite the YAML configuration file with the provided configuration.
 
         Args:
             config (Dict[str, Any]): Configuration to write to the file.
@@ -217,6 +171,7 @@ class Config:
         """
         expected_keys = {
             "database": ["path"],
+            "logs": ["path"],
             "sources": [
                 "taxonomy",
                 "plots",
@@ -224,8 +179,8 @@ class Config:
                 "occurrence-plots",
                 "raster",
             ],
-            "web": ["static_pages", "api"],
-            "logs": ["path"],
+            "outputs": ["static_pages", "api"],
+            "aggregations": [],
         }
 
         try:
@@ -249,7 +204,7 @@ class Config:
 
     def load_config(self, create_default: bool = True) -> Any:
         """
-        Loads the configuration from the Yaml file. If the file does not exist,
+        Loads the configuration from the YAML file. If the file does not exist,
         creates a default configuration file.
 
         Args:
@@ -270,3 +225,17 @@ class Config:
                 raise FileNotFoundError(
                     f"Configuration file not found: {self.config_path}"
                 )
+
+    @staticmethod
+    def get_niamoto_home() -> str:
+        """
+        Get the Niamoto home directory.
+
+        Returns:
+            str: The Niamoto home directory.
+        """
+        niamoto_home = os.environ.get("NIAMOTO_HOME")
+        if niamoto_home:
+            return niamoto_home
+        else:
+            return os.getcwd()

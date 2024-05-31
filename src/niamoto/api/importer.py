@@ -20,7 +20,7 @@ class ApiImporter:
         self.config = Config()
         self.db_path = self.config.get("database", "path")
 
-    def import_taxononomy(self, csvfile: str, ranks: Tuple[str, ...]) -> Any:
+    def import_taxonomy(self, csvfile: str, ranks: Tuple[str, ...]) -> Any:
         """
         Imports taxonomy data using DataImportService.
 
@@ -42,7 +42,7 @@ class ApiImporter:
             return import_tax_results
 
         except Exception as e:
-            logger.exception(f"Error importing 'occurrences' data: {e}")
+            logger.error(f"Error during taxonomy data import: {e}")
 
     def import_plots(self, gpkg_path: str) -> Any:
         """
@@ -91,7 +91,7 @@ class ApiImporter:
             return import_occ_result
 
         except Exception as e:
-            logger.exception(f"Error importing 'occurrences' data: {e}")
+            logger.error(f"Error during occurrences data import: {e}")
 
     def import_occurrence_plot_links(self, csvfile: str) -> Any:
         """
@@ -116,4 +116,4 @@ class ApiImporter:
             return import_opl_results
 
         except Exception as e:
-            logger.exception(f"Error importing 'occurrence-plot' links: {e}")
+            logger.error(f"Error during occurrence-plot data import: {e}")

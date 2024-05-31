@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "niamoto"
-version = "0.0.2a1"
+version = "0.0.3a1"
 description = ""
 authors = ["Julien Barbe <julien.barbe@me.com>"]
 readme = "README.md"
@@ -142,6 +142,7 @@ rjsmin = "^1.2.2"
 prompt-toolkit = "^3.0.43"
 sphinxcontrib-napoleon = "^0.7"
 myst-parser = "^3.0.1"
+sphinx-markdown-builder = "^0.6.6"
 
 
 [tool.poetry.group.dev.dependencies]

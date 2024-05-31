@@ -13,8 +13,9 @@ import time
 from typing import Optional, List
 
 import click
+import duckdb
 from loguru import logger
-from rich.console import Console
+from rich import Console
 from rich.progress import track
 from rich.table import Table
 from sqlalchemy import asc, text
@@ -22,8 +23,9 @@ from sqlalchemy import asc, text
 from niamoto.api import StaticContentGenerator, ApiImporter, ApiMapper
 from niamoto.api.statistics import ApiStatistics
 from niamoto.common.config import Config
+from niamoto.common.database import Database
 from niamoto.common.environment import Environment
-from niamoto.core.models import TaxonRef
+from niamoto.core.models import TaxonRef, Base
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
 from niamoto.core.services.mapper import MapperService
 
@@ -170,20 +172,20 @@ def init(reset: bool) -> None:
 
     if os.path.exists(config_path):
         config_manager = Config(config_path)
-        environment = Environment(config_manager.config)
+        environment = Environment(config_manager)
 
         if reset:
             click.secho("Resetting the Niamoto environment...", fg="red")
             environment.reset()
         else:
             click.secho(
-                "Niamoto environment already exists. Use --reset to remove existing files",
+                "Niamoto environment already exists. Use --reset to remove existing files.",
                 fg="yellow",
             )
             return
     else:
         config_manager = Config(config_path, create_default=True)
-        environment = Environment(config_manager.config)
+        environment = Environment(config_manager)
         environment.initialize()
 
     console.print("🌱 Niamoto initialized.", style="italic green")
@@ -239,7 +241,7 @@ def list_commands(group: click.Group) -> None:
 
 
 @cli.command(name="import-taxonomy")
-@click.argument("csvfile")
+@click.argument("csvfile", required=False)
 @click.option("--ranks", help="Comma-separated list of ranks in the hierarchy.")
 def import_taxonomy(csvfile: str, ranks: str) -> None:
     """
@@ -249,117 +251,160 @@ def import_taxonomy(csvfile: str, ranks: str) -> None:
     The CSV file should contain columns corresponding to the taxonomic ranks, such as family, genus, species, etc.
     The `--ranks` option allows you to specify the order of the ranks in the CSV file.
 
+    If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
+
     Args:
-        csvfile (str): Path to the CSV file containing the taxonomic data to be imported.
-        ranks (str): Comma-separated list of ranks in the hierarchy, in the order they appear in the CSV file.
-                     If not provided, the command will attempt to infer the ranks from the CSV file headers.
+        csvfile (str, optional): Path to the CSV file containing the taxonomic data to be imported.
+                                 If not provided, the path specified in the configuration file will be used.
+        ranks (str, optional): Comma-separated list of ranks in the hierarchy, in the order they appear in the CSV file.
+                               If not provided, the command will attempt to infer the ranks from the CSV file headers
+                               or use the ranks specified in the configuration file.
 
     Examples:
         $ niamoto import-taxonomy taxonomy.csv
         $ niamoto import-taxonomy taxonomy.csv --ranks=id_family,id_genus,id_species,id_infra
+        $ niamoto import-taxonomy
 
     Returns:
         None
 
     Raises:
-        FileNotFoundError: If the specified CSV file does not exist.
+        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
         ValueError: If the provided ranks do not match the columns in the CSV file.
 
     Note:
         The CSV file should have a header row specifying the column names.
         The column names should match the ranks specified in the `--ranks` option, if provided.
     """
+    config = Config()
+    taxonomy_config = config.get("sources", "taxonomy")
+    ranks_from_config = taxonomy_config.get("ranks")
+    default_csvfile = taxonomy_config.get("path")
+
+    if not csvfile and default_csvfile and os.path.exists(default_csvfile):
+        csvfile = default_csvfile
+
+    if not csvfile or not os.path.exists(csvfile):
+        raise FileNotFoundError("CSV file not specified or does not exist.")
+
+    ranks = ranks or ranks_from_config
     ranks_tuple = tuple(ranks.split(",")) if ranks else ()
+
     data_importer = ApiImporter()
-    import_tax_result = data_importer.import_taxononomy(csvfile, ranks_tuple)
+    import_tax_result = data_importer.import_taxonomy(csvfile, ranks_tuple)
     console = Console()
     console.print(import_tax_result, style="italic green")
 
 
 @cli.command(name="import-plots")
-@click.argument("gpkg_file")
-def import_plots(gpkg_file: str) -> None:
+@click.argument("csvfile", required=False)
+def import_plots(csvfile: str) -> None:
     """
-    Import plot data from a GeoPackage file into the plot_ref table.
+    Import plot data from a CSV file into the database.
 
-    This command reads plot data from the specified GeoPackage file and imports it into the plot_ref table in the database.
-    The GeoPackage file should contain a layer with plot geometries and associated attributes.
+    This command reads plot data from the specified CSV file and imports it into the database.
+    The CSV file should contain columns corresponding to the plot data.
+
+    If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
 
     Args:
-        gpkg_file (str): Path to the GeoPackage file containing the plot data.
+        csvfile (str, optional): Path to the CSV file containing the plot data to be imported.
+                                 If not provided, the path specified in the configuration file will be used.
 
     Examples:
-        $ niamoto import-plots plots.gpkg
+        $ niamoto import-plots plots.csv
+        $ niamoto import-plots
 
     Returns:
         None
 
     Raises:
-        FileNotFoundError: If the specified GeoPackage file does not exist.
-        ValueError: If the GeoPackage file does not contain a valid plot layer.
-        Exception: If an error occurs during the import process.
+        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
 
     Note:
-        The plot layer in the GeoPackage file should have a specific structure and attributes.
-        Refer to the documentation for the required structure of the plot layer.
+        The CSV file should have a header row specifying the column names.
     """
-    try:
-        api_importer = ApiImporter()
-        import_plot_results = api_importer.import_plots(gpkg_file)
-        console = Console()
-        console.print(import_plot_results, style="italic green")
-    except FileNotFoundError as e:
-        logger.exception(f"GeoPackage file not found: {e}")
-    except ValueError as e:
-        logger.exception(f"Invalid GeoPackage file: {e}")
-    except Exception as e:
-        logger.exception(f"Import failed: {e}")
+    config = Config()
+    plots_config = config.get("sources", "plots")
+    default_csvfile = plots_config.get("path")
+
+    if not csvfile and default_csvfile and os.path.exists(default_csvfile):
+        csvfile = default_csvfile
+
+    if not csvfile or not os.path.exists(csvfile):
+        raise FileNotFoundError("CSV file not specified or does not exist.")
+
+    data_importer = ApiImporter()
+    import_plots_result = data_importer.import_plots(csvfile)
+    console = Console()
+    console.print(import_plots_result, style="italic green")
 
 
 @cli.command(name="import-occurrences")
-@click.argument("csvfile")
+@click.argument("csvfile", required=False)
 @click.option(
-    "--taxon-id-column",
+    "--taxon-identifier",
     "-t",
-    required=True,
     help="Name of the column in the CSV that corresponds to the taxon ID.",
 )
-def import_occurrences(csvfile: str, taxon_id_column: str) -> None:
+def import_occurrences(csvfile: str, taxon_identifier: str) -> None:
     """
     Import occurrence data from a CSV file, analyze it to update the 'mapping' table, and link occurrences to their taxons.
 
     This command reads occurrence data from the specified CSV file, performs an analysis to update the 'mapping' table,
-    and establishes links between occurrences and their corresponding taxons based on the provided taxon ID column.
+    and establishes links between occurrences and their corresponding taxons based on the provided taxon identifier column.
+
+    If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
+    If the `--taxon-identifier` option is not provided, the command will use the taxon identifier specified in the configuration file.
 
     Args:
-        csvfile (str): Path to the CSV file containing the occurrence data to be imported and analyzed.
-        taxon_id_column (str): Name of the column in the CSV file that contains the taxon IDs.
+        csvfile (str, optional): Path to the CSV file containing the occurrence data to be imported and analyzed.
+                                 If not provided, the path specified in the configuration file will be used.
+        taxon_identifier (str, optional): Name of the column in the CSV file that contains the taxon IDs.
+                                          If not provided, the identifier specified in the configuration file will be used.
 
     Examples:
-        $ niamoto import-occurrences occurrences.csv --taxon-id-column=id_taxonref
-        $ niamoto import-occurrences occurrences.csv -t taxon_id
+        $ niamoto import-occurrences occurrences.csv --taxon-identifier=id_taxonref
+        $ niamoto import-occurrences occurrences.csv -t id_taxon
+        $ niamoto import-occurrences -t id_taxon
+        $ niamoto import-occurrences
 
     Returns:
         None
 
     Raises:
-        FileNotFoundError: If the specified CSV file does not exist.
-        ValueError: If the specified taxon ID column is not found in the CSV file.
+        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
+        ValueError: If the specified taxon identifier column is not found in the CSV file.
         Exception: If an error occurs during the import process.
 
     Note:
         - The CSV file should have a header row specifying the column names.
-        - The taxon ID column should contain valid taxon identifiers that match the taxons in the database.
+        - The taxon identifier column should contain valid taxon identifiers that match the taxons in the database.
         - The 'mapping' table will be updated based on the analysis of the occurrence data.
     """
+    config = Config()
+    occurrences_config = config.get("sources", "occurrences")
+    default_csvfile = occurrences_config.get("path")
+    default_taxon_identifier = occurrences_config.get("taxon_identifier")
+
+    if not csvfile and default_csvfile and os.path.exists(default_csvfile):
+        csvfile = default_csvfile
+
+    if not csvfile or not os.path.exists(csvfile):
+        raise FileNotFoundError("CSV file not specified or does not exist.")
+
+    taxon_identifier = taxon_identifier or default_taxon_identifier
+    if not taxon_identifier:
+        raise ValueError("Taxon identifier column not specified.")
+
     data_importer = ApiImporter()
-    import_occ_result = data_importer.import_occurrences(csvfile, taxon_id_column)
+    import_occ_result = data_importer.import_occurrences(csvfile, taxon_identifier)
     console = Console()
     console.print(import_occ_result, style="italic green")
 
 
 @cli.command(name="import-occurrence-plots")
-@click.argument("csvfile")
+@click.argument("csvfile", required=False)
 def import_occurrence_plot_links(csvfile: str) -> None:
     """
     Import occurrence-plot links from a CSV file.
@@ -367,17 +412,21 @@ def import_occurrence_plot_links(csvfile: str) -> None:
     This command reads occurrence-plot links from the specified CSV file and imports them into the database.
     The CSV file should contain columns representing the occurrence ID and the corresponding plot ID.
 
+    If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
+
     Args:
-        csvfile (str): Path to the CSV file containing the occurrence-plot links.
+        csvfile (str, optional): Path to the CSV file containing the occurrence-plot links.
+                                 If not provided, the path specified in the configuration file will be used.
 
     Examples:
         $ niamoto import-occurrence-plots occurrence_plots.csv
+        $ niamoto import-occurrence-plots
 
     Returns:
         None
 
     Raises:
-        FileNotFoundError: If the specified CSV file does not exist.
+        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
         ValueError: If the CSV file does not contain the required columns for occurrence-plot links.
         Exception: If an error occurs during the import process.
 
@@ -388,6 +437,16 @@ def import_occurrence_plot_links(csvfile: str) -> None:
             - 'plot_id': The ID of the plot associated with the occurrence.
         - The occurrence IDs and plot IDs should match the existing occurrences and plots in the database.
     """
+    config = Config()
+    occurrence_plots_config = config.get("sources", "occurrence-plots")
+    default_csvfile = occurrence_plots_config.get("path")
+
+    if not csvfile and default_csvfile and os.path.exists(default_csvfile):
+        csvfile = default_csvfile
+
+    if not csvfile or not os.path.exists(csvfile):
+        raise FileNotFoundError("CSV file not specified or does not exist.")
+
     try:
         api_importer = ApiImporter()
         import_occ_plot_results = api_importer.import_occurrence_plot_links(csvfile)
@@ -395,10 +454,125 @@ def import_occurrence_plot_links(csvfile: str) -> None:
         console.print(import_occ_plot_results, style="italic green")
     except FileNotFoundError as e:
         logger.exception(f"CSV file not found: {e}")
+        raise
     except ValueError as e:
         logger.exception(f"Invalid CSV file format: {e}")
+        raise
     except Exception as e:
         logger.exception(f"Import failed: {e}")
+        raise
+
+
+@cli.command(name="import-all")
+def import_all() -> None:
+    """
+    Import all data sources as specified in the configuration file.
+
+    This command reads the paths for taxonomy, plots, occurrences, and occurrence-plot links
+    from the configuration file, resets the relevant tables, and imports the data into the database.
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If any of the specified CSV files do not exist.
+        ValueError: If any required configurations are missing.
+    """
+    console = Console()
+    config = Config()
+    db_path = config.get("database", "path")
+
+    # Reset the tables
+    reset_tables(db_path)
+
+    # Import taxonomy
+    taxonomy_config = config.get("sources", "taxonomy")
+    taxonomy_csvfile = taxonomy_config.get("path")
+    taxonomy_ranks = taxonomy_config.get("ranks")
+    if not taxonomy_csvfile or not os.path.exists(taxonomy_csvfile):
+        raise FileNotFoundError(f"Taxonomy CSV file not found: {taxonomy_csvfile}")
+    data_importer = ApiImporter()
+    console.print(f"Importing taxonomy from {taxonomy_csvfile}", style="italic green")
+    data_importer.import_taxonomy(taxonomy_csvfile, tuple(taxonomy_ranks.split(",")))
+
+    # Import plots
+    plots_config = config.get("sources", "plots")
+    plots_csvfile = plots_config.get("path")
+    if not plots_csvfile or not os.path.exists(plots_csvfile):
+        raise FileNotFoundError(f"Plots CSV file not found: {plots_csvfile}")
+    console.print(f"Importing plots from {plots_csvfile}", style="italic green")
+    data_importer.import_plots(plots_csvfile)
+
+    # Import occurrences
+    occurrences_config = config.get("sources", "occurrences")
+    occurrences_csvfile = occurrences_config.get("path")
+    occurrences_taxon_identifier = occurrences_config.get("taxon_identifier")
+    if not occurrences_csvfile or not os.path.exists(occurrences_csvfile):
+        raise FileNotFoundError(
+            f"Occurrences CSV file not found: {occurrences_csvfile}"
+        )
+    console.print(
+        f"Importing occurrences from {occurrences_csvfile}", style="italic green"
+    )
+    data_importer.import_occurrences(occurrences_csvfile, occurrences_taxon_identifier)
+
+    # Import occurrence plots
+    occurrence_plots_config = config.get("sources", "occurrence-plots")
+    occurrence_plots_csvfile = occurrence_plots_config.get("path")
+    if not occurrence_plots_csvfile or not os.path.exists(occurrence_plots_csvfile):
+        raise FileNotFoundError(
+            f"Occurrence plots CSV file not found: {occurrence_plots_csvfile}"
+        )
+    console.print(
+        f"Importing occurrence plots from {occurrence_plots_csvfile}",
+        style="italic green",
+    )
+    data_importer.import_occurrence_plot_links(occurrence_plots_csvfile)
+
+    console.print("All data sources imported successfully.", style="bold green")
+
+
+def reset_tables(db_path: str) -> None:
+    """
+    Reset the tables using DuckDB and recreate them using SQLAlchemy models.
+
+    Args:
+        db_path (str): The path to the DuckDB database file.
+
+    Returns:
+        None
+
+    Raises:
+        Exception: If an error occurs during the reset process.
+    """
+    console = Console()
+    duckdb_connection = duckdb.connect(db_path)  # Connect directly to DuckDB
+
+    try:
+        console.print("Resetting tables...", style="bold yellow")
+
+        # Drop tables
+        duckdb_connection.execute("DROP TABLE IF EXISTS occurrences_plots")
+        duckdb_connection.execute("DROP TABLE IF EXISTS occurrences")
+        duckdb_connection.execute("DROP TABLE IF EXISTS plot_ref")
+        duckdb_connection.execute("DROP TABLE IF EXISTS taxon_ref")
+
+        console.print("Tables dropped successfully.", style="italic green")
+    except Exception as e:
+        console.print(f"Error resetting tables: {e}", style="bold red")
+        raise
+    finally:
+        duckdb_connection.close()
+
+    # Recreate tables using SQLAlchemy models
+    try:
+        db = Database(db_path)
+        engine = db.engine
+        Base.metadata.create_all(engine)
+        console.print("Tables recreated successfully.", style="italic green")
+    except Exception as e:
+        console.print(f"Error recreating tables: {e}", style="bold red")
+        raise
 
 
 @cli.command(name="generate-mapping")

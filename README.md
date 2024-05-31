@@ -122,7 +122,17 @@ $ niamoto init [--reset]
 **Explanation:**
 Initializes or resets the Niamoto environment. Use the `--reset` option to reset the environment if it already exists, clearing all data and configurations to start fresh.
 
-#### 2. Import Taxonomy Data
+#### 2. Import All Data
+**Command:**
+```bash
+$ niamoto import-all
+```
+
+**Explanation:**
+Imports all data from CSV files and GeoPackage files into the database. This command is a shortcut to import taxonomy, plot, occurrences, and occurrence-plot links data in one go.
+Assuming the following files are present in the current source directory and specified in the configuration file
+
+#### 3. Import Taxonomy Data
 **Command:**
 ```bash
 $ niamoto import-taxonomy <csvfile> [--ranks <ranks>]
@@ -130,7 +140,7 @@ $ niamoto import-taxonomy <csvfile> [--ranks <ranks>]
 **Explanation:**
 Imports taxonomy data from a specified CSV file. The `--ranks` option allows specifying the order of taxonomic ranks as they appear in the CSV file.
 
-#### 3. Import Plot Data
+#### 4. Import Plot Data
 **Command:**
 ```bash
 $ niamoto import-plots <gpkg_file>
@@ -138,7 +148,7 @@ $ niamoto import-plots <gpkg_file>
 **Explanation:**
 Imports plot data from a GeoPackage file into the database, which should contain plot geometries and associated attributes.
 
-#### 4. Import Occurrences Data
+#### 5. Import Occurrences Data
 **Command:**
 ```bash
 $ niamoto import-occurrences <csvfile> --taxon-id-column <column_name>
@@ -146,7 +156,7 @@ $ niamoto import-occurrences <csvfile> --taxon-id-column <column_name>
 **Explanation:**
 Imports occurrences data from a CSV file. The `--taxon-id-column` option specifies the CSV column containing the taxon IDs needed to link occurrences to taxons.
 
-#### 5. Import Occurrence-Plot Links
+#### 6. Import Occurrence-Plot Links
 **Command:**
 ```bash
 $ niamoto import-occurrence-plots <csvfile>
@@ -154,7 +164,7 @@ $ niamoto import-occurrence-plots <csvfile>
 **Explanation:**
 Imports links between occurrences and plots from a CSV file, establishing relational data within the database.
 
-#### 6. Generate Mapping
+#### 7. Generate Mapping
 **Command:**
 ```bash
 $ niamoto generate-mapping --data-source <csv_file> --mapping-group <group> [--reference-table-name <table_name> --reference-data-path <path>]
@@ -162,7 +172,7 @@ $ niamoto generate-mapping --data-source <csv_file> --mapping-group <group> [--r
 **Explanation:**
 Generates mappings from a CSV file based on specified grouping criteria. Optional parameters allow linking to reference data for enhanced mapping accuracy.
 
-#### 7. Calculate Statistics
+#### 8. Calculate Statistics
 **Command:**
 ```bash
 $ niamoto calculate-statistics [--mapping-group <group> --csv-file <file>]
@@ -170,7 +180,7 @@ $ niamoto calculate-statistics [--mapping-group <group> --csv-file <file>]
 **Explanation:**
 Calculates statistics based on the provided mapping file and optional group or CSV file specifics.
 
-#### 8. Generate Static Site
+#### 9. Generate Static Site
 **Command:**
 ```bash
 $ niamoto generate-static-site
