@@ -15,7 +15,7 @@ from typing import Optional, List
 import click
 import duckdb
 from loguru import logger
-from rich import Console
+from rich.console import Console
 from rich.progress import track
 from rich.table import Table
 from sqlalchemy import asc, text
