@@ -2,6 +2,7 @@ from typing import Any, Hashable
 
 
 from niamoto.common.database import Database
+from niamoto.core.components.statistics.shape_stats_calculator import ShapeStatsCalculator
 from niamoto.core.services.mapper import MapperService
 from niamoto.core.components.statistics.taxonomy_stats_calculator import (
     TaxonomyStatsCalculator,
@@ -35,17 +36,7 @@ class StatisticService:
 
         for group_config in mapping_data:
             group_by = group_config["group_by"]
-
-            if group_by == "taxon":
-                taxon_calculator = TaxonomyStatsCalculator(
-                    self.db, self.mapper_service, occurrences, group_by
-                )
-                taxon_calculator.calculate_taxonomy_stats()
-            elif group_by == "plot":
-                plot_calculator = PlotStatsCalculator(
-                    self.db, self.mapper_service, occurrences, group_by
-                )
-                plot_calculator.calculate_plot_stats()
+            self.calculate_group_statistics(occurrences, group_by)
 
     def calculate_group_statistics(
         self, occurrences: list[dict[Hashable, Any]], group_by: str
@@ -70,3 +61,8 @@ class StatisticService:
                     self.db, self.mapper_service, occurrences, group_by
                 )
                 plot_calculator.calculate_plot_stats()
+            elif group_by == "shape":
+                shape_calculator = ShapeStatsCalculator(
+                    self.db, self.mapper_service, occurrences, group_by
+                )
+                shape_calculator.calculate_shape_stats()

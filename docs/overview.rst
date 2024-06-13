@@ -268,7 +268,7 @@ The mapping consists of the following elements:
 -  ``group_by``: The field used to group the data (e.g., “taxon”).
 -  ``identifier``: The unique identifier for each group (e.g.,
    “id_taxonref”).
--  ``target_table_name``: The name of the target table in the database
+-  ``source_table_name``: The name of the target table in the database
    (e.g., “occurrences”).
 -  ``reference_table_name``: The name of the reference table (e.g.,
    “taxon_ref”).
@@ -283,7 +283,7 @@ Field Configuration
 Each field in the ``fields`` dictionary is defined by the following
 elements:
 
--  ``target_field``: The name of the target field in the occurrences
+-  ``source_field``: The name of the target field in the occurrences
    table. Can be null for calculated fields.
 -  ``field_type``: The data type of the field (e.g., “INTEGER”,
    “DOUBLE”, “BOOLEAN”, “GEOGRAPHY”).
@@ -315,24 +315,24 @@ Special Fields
 ^^^^^^^^^^^^^^
 
 Some fields may have specific configurations depending on their
-``target_field`` and ``field_type``:
+``source_field`` and ``field_type``:
 
 -  **Calculated field** (e.g., total number of occurrences):
 
-   -  ``target_field``: null
+   -  ``source_field``: null
    -  ``field_type``: “INTEGER”
    -  ``transformations``: Must contain a “count” type transformation
 
 -  **Boolean field** (e.g., occurrence on a particular substrate):
 
-   -  ``target_field``: The name of the boolean field in the occurrences
+   -  ``source_field``: The name of the boolean field in the occurrences
       table
    -  ``field_type``: “BOOLEAN”
    -  ``transformations``: May contain a “count” type transformation
 
 -  **Geographical field** (e.g., location of the occurrence):
 
-   -  ``target_field``: The name of the geographical field in the
+   -  ``source_field``: The name of the geographical field in the
       occurrences table
    -  ``field_type``: “GEOGRAPHY”
    -  ``transformations``: May contain a “coordinates” type

@@ -1,3 +1,3 @@
-__all__ = ["Base", "Mapping", "TaxonRef", "PlotRef"]
+__all__ = ["Base", "TaxonRef", "PlotRef", "ShapeRef"]
 
-from .models import Base, Mapping, TaxonRef, PlotRef
+from .models import Base, TaxonRef, PlotRef, ShapeRef

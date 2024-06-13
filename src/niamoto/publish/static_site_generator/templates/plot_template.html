@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Niamoto - Parcelle {{ plot.locality }}</title>
+    <link rel="stylesheet" href="../../js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
+    <link rel="stylesheet" href="../../js/vendor/leaflet/1.9.4_leaflet.css">
+    <script src="../../js/vendor/chart/4.4.2_chart.js"></script>
+    <script src="../../js/vendor/d3/7.8.5_d3.js"></script>
+    <script src="../../js/vendor/jquery/3.6.0_jquery.js"></script>
+    <script src="../../js/vendor/raphael/2.3.0_raphael.js"></script>
+    <script src="../../js/vendor/justgage/1.6.1_justgage.js"></script>
+    <script src="../../js/vendor/leaflet/1.9.4_leaflet.js"></script>
+
+    <style>
+        .gauge {
+            height: 349px;
+        }
+
+        ul {
+            list-style-type: none;
+        }
+
+        li {
+            margin-left: 20px;
+        }
+
+        #plotMap {
+            position: relative;
+            height: 400px;
+        }
+
+        .loader-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+{% include 'header.html' %}
+<div class="flex mt-16">
+    <!-- Container for the plot details -->
+    <div class="w-full">
+        <div class="rounded overflow-hidden shadow-lg mb-2">
+            <div class="px-6 py-4">
+                <div class="font-bold text-4xl mb-2">{{ plot.locality }}</div>
+                <p class="text-gray-700 text-base">
+                    Localité: {{ plot.locality }}<br>
+                    Substrat: {{ plot.substrat }}
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap -mx-2">
+            {% for field_key, field in mapping.fields.items() %}
+                {% if field.field_type == 'GEOGRAPHY' %}
+                    <div class="w-full px-2 mb-4">
+                        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                            <div class="px-6 pt-4 pb-2">
+                                <div id="plotMap" style="height: 400px; position: relative;">
+                                    <div class="loader-container" id="mapLoader">
+                                        <div class="loader"></div>
+                                    </div>
+                                    <!-- The Leaflet map will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="w-1/2 px-2 mb-4">
+                        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                            {% if field.bins and field.bins.values is defined %}
+                                <h2 class="font-bold text-xl mb-2">{{ field.bins.chart_options.title }}</h2>
+                                <canvas id="{{ field_key }}BinChart"></canvas>
+                            {% endif %}
+
+                            {% for transformation in field.transformations %}
+                                {% if transformation.chart_type == 'text' %}
+                                    <div class="w-full">
+                                        <h2 class="font-bold text-xl mb-2">{{ transformation.chart_options.title }}</h2>
+                                        <p id="{{ field_key }}Text"></p>
+                                    </div>
+                                {% elif transformation.chart_type == 'pie' %}
+                                    <h2 class="font-bold text-xl mb-2">{{ transformation.chart_options.title }}</h2>
+                                    <canvas id="{{ field_key }}PieChart"></canvas>
+                                {% elif transformation.chart_type == 'gauge' %}
+                                    <h2 class="font-bold text-xl mb-2">{{ transformation.chart_options.title }}</h2>
+                                    <div class="gauge" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge"></div>
+                                {% elif transformation.chart_type == 'bar' %}
+                                    <h2 class="font-bold text-xl mb-2">{{ transformation.chart_options.title }}</h2>
+                                    <canvas id="{{ field_key }}BarChart"></canvas>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% include 'footer.html' %}
+<script>
+    var plot = {{ plot | tojson | safe }};
+    var mapping = {{ mapping | tojson | safe }};
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadPlotCharts(plot, mapping);
+        setTimeout(initPlotMap, 0.5);
+    });
+
+    function loadPlotCharts(plot, mapping) {
+        var frequencies = plot.frequencies;
+
+        Object.entries(mapping.fields).forEach(function([field_key, field]) {
+            if (field.field_type !== 'GEOGRAPHY') {
+                // Chart for bins
+                if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field_key]) {
+                    var binData = {
+                        labels: Object.keys(frequencies[field_key]),
+                        datasets: [{
+                            label: field.label,
+                            data: Object.values(frequencies[field_key]),
+                            backgroundColor: field.bins.chart_options.color
+                        }]
+                    };
+
+                    var binConfig = {
+                        type: field.bins.chart_type,
+                        data: binData,
+                        options: field.bins.chart_options
+                    };
+
+                    var binCtx = document.getElementById(field_key + 'BinChart');
+                    if (binCtx) {
+                        binCtx = binCtx.getContext('2d');
+                        new Chart(binCtx, binConfig);
+                    }
+                }
+
+                // Charts for transformations
+                field.transformations.forEach(function(transformation) {
+                    if (transformation.chart_type == 'text') {
+                        var textElement = document.getElementById(field_key + 'Text');
+                        if (textElement) {
+                            textElement.textContent = plot[field_key];
+                        }
+                    } else if (transformation.chart_type == 'pie') {
+                        var pieData = {
+                            labels: ['True', 'False'],
+                            datasets: [{
+                                data: [
+                                    plot[field_key + '_true'] || 0,
+                                    plot[field_key + '_false'] || 0
+                                ],
+                                backgroundColor: ['#FF6384', '#36A2EB']
+                            }]
+                        };
+
+                        var pieConfig = {
+                            type: 'pie',
+                            data: pieData,
+                            options: {
+                                title: {
+                                    display: true,
+                                    text: transformation.chart_options.title
+                                }
+                            }
+                        };
+
+                        var pieCtx = document.getElementById(field_key + 'PieChart');
+                        if (pieCtx) {
+                            pieCtx = pieCtx.getContext('2d');
+                            new Chart(pieCtx, pieConfig);
+                        }
+                    } else if (transformation.chart_type == 'gauge') {
+                        var transformationName = transformation.name ? transformation.name : '';
+                        var valueKey = transformation.name ? field_key + '_' + transformationName : field_key;
+                        console.log(plot);
+                        var gaugeOptions = {
+                            id: field_key + transformationName + 'Gauge',
+                            value: parseFloat(plot[valueKey]),
+                            min: 0,
+                            max: transformation.chart_options.max,
+                            title: transformation.chart_options.title,
+                            label: transformation.chart_options.label
+                        };
+
+                        createGauge(gaugeOptions);
+                    } else if (transformation.chart_type == 'bar') {
+                        var barData = {
+                            labels: Object.keys(plot[field_key] || {}),
+                            datasets: [{
+                                label: field.label,
+                                data: Object.values(plot[field_key] || {}),
+                                backgroundColor: getColor(0).background,
+                                borderColor: getColor(0).border,
+                                borderWidth: 1
+                            }]
+                        };
+
+                        var barConfig = {
+                            type: 'bar',
+                            data: barData,
+                            options: transformation.chart_options
+                        };
+
+                        var barCtx = document.getElementById(field_key + 'BarChart');
+                        if (barCtx) {
+                            barCtx = barCtx.getContext('2d');
+                            new Chart(barCtx, barConfig);
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    function createGauge(options) {
+        new JustGage({
+            id: options.id,
+            value: options.value || 0,
+            min: options.min || 0,
+            max: options.max,
+            title: options.title,
+            label: options.label,
+            pointer: true,
+            pointerOptions: {
+                toplength: 10,
+                bottomlength: 10,
+                bottomwidth: 2,
+                color: '#8e8e93',
+                stroke: '#ffffff',
+                stroke_width: 3,
+                stroke_linecap: 'round'
+            },
+            gaugeWidthScale: 0.6,
+            counter: true,
+            donut: true,
+            relativeGaugeSize: true,
+            donutStartAngle: 270,
+            hideInnerShadow: true,
+            customSectors: [{
+                color: "#ff0000",
+                lo: 0,
+                hi: options.max * 0.33
+            }, {
+                color: "#ffff00",
+                lo: options.max * 0.33,
+                hi: options.max * 0.66
+            }, {
+                color: "#00ff00",
+                lo: options.max * 0.66,
+                hi: options.max
+            }],
+            humanFriendly: true,
+            formatNumber: true,
+            textRenderer: function (val) {
+                return parseFloat(val).toFixed(2); // Ensure value is displayed with 2 decimal places
+            }
+        });
+    }
+
+    function initPlotMap() {
+        var geometry = plot.geometry;
+
+        const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        });
+        const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        });
+        const map = L.map('plotMap', {
+            center: [-21.291237, 165.516418],
+            minZoom: 6,
+            maxZoom: 18,
+            layers: [carte, satellite],
+            scrollWheelZoom: false
+        });
+        map.attributionControl.setPrefix(false); // Pour supprimer complètement le préfixe "Powered by Leaflet"
+        map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
+
+        const baseMaps = {
+            "Carte": carte,
+            "Satellite": satellite,
+        };
+
+        L.control.layers(baseMaps).addTo(map);
+
+        map.on('load', function () {
+            document.getElementById('mapLoader').style.display = 'none';
+        });
+
+        if (geometry) {
+            const geoJsonLayer = L.geoJSON(geometry).addTo(map);
+            map.fitBounds(geoJsonLayer.getBounds());
+        } else {
+            console.warn("No geographic coordinates found.");
+        }
+    }
+
+    // Function to get a color based on the index
+    function getColor(index) {
+        var colors = [
+            {background: 'rgba(54, 162, 235, 0.6)', border: 'rgba(54, 162, 235, 1)'},
+            {background: 'rgba(75, 192, 192, 0.6)', border: 'rgba(75, 192, 192, 1)'},
+            {background: 'rgba(255, 99, 132, 0.6)', border: 'rgba(255, 99, 132, 1)'}
+            // Add more colors if necessary
+        ];
+        return colors[index % colors.length]; // Repeat colors if more keys than defined colors
+    }
+</script>
+
+</body>
+</html>

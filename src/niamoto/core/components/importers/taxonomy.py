@@ -1,9 +1,12 @@
+import os
+
 import pandas as pd
 from typing import Tuple, Optional, Any
 from rich.progress import track
 from sqlalchemy import func
 from niamoto.core.models import TaxonRef
 from niamoto.common.database import Database
+import logging
 
 
 class TaxonomyImporter:
@@ -22,6 +25,15 @@ class TaxonomyImporter:
             db (Database): The database connection.
         """
         self.db = db
+        # Ensure the logs directory exists
+        log_directory = "logs"
+        if not os.path.exists(log_directory):
+            os.makedirs(log_directory)
+
+        # Configure logging to write to a file in the logs directory
+        log_file_path = os.path.join(log_directory, "taxonomy_import.log")
+        logging.basicConfig(filename=log_file_path, level=logging.INFO,
+                            format='%(asctime)s - %(levelname)s - %(message)s')
 
     def import_from_csv(self, file_path: str, ranks: Tuple[str, ...]) -> str:
         """
@@ -108,7 +120,7 @@ class TaxonomyImporter:
                 for _, row in track(
                     rank_taxons.iterrows(),
                     total=rank_taxons.shape[0],
-                    description=f"Importing {rank}",
+                    description=f"{rank}",
                 ):
                     self._create_or_update_taxon(row, session)
 
@@ -116,7 +128,7 @@ class TaxonomyImporter:
                 self._update_nested_set_values(session)
 
     @staticmethod
-    def _create_or_update_taxon(row: Any, session: Any) -> TaxonRef:
+    def _create_or_update_taxon(row: Any, session: Any) -> Optional[TaxonRef]:
         """
         Create or update a taxon.
 
@@ -125,26 +137,32 @@ class TaxonomyImporter:
             session (Any): The session to use.
 
         Returns:
-            TaxonRef: The created or updated taxon.
+            Optional[TaxonRef]: The created or updated taxon, or None if an error occurred.
         """
         taxon_id = int(row["id_taxon"])
-        taxon: Optional[TaxonRef] = (
-            session.query(TaxonRef).filter_by(id=taxon_id).one_or_none()
-        )
+        try:
+            taxon: Optional[TaxonRef] = (
+                session.query(TaxonRef).filter_by(id=taxon_id).one_or_none()
+            )
 
-        if taxon is None:
-            taxon = TaxonRef(id=taxon_id)
-            session.add(taxon)
+            if taxon is None:
+                taxon = TaxonRef(id=taxon_id)
+                session.add(taxon)
 
-        taxon.full_name = row["full_name"]
-        taxon.authors = row["authors"]
-        taxon.rank_name = row["rank"]
+            taxon.full_name = row["full_name"]
+            taxon.authors = row["authors"]
+            taxon.rank_name = row["rank"]
 
-        parent_id = row["parent_id"]
-        if not pd.isna(parent_id):
-            taxon.parent_id = int(parent_id)
+            parent_id = row["parent_id"]
+            if not pd.isna(parent_id):
+                taxon.parent_id = int(parent_id)
 
-        return taxon
+            session.flush()
+            return taxon
+        except Exception as e:
+            logging.info(f"Duplicate key for id_taxon: {taxon_id} - {e}")
+            session.rollback()
+            return None
 
     @staticmethod
     def _update_nested_set_values(session: Any) -> None:

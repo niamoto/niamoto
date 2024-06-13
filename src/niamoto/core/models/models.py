@@ -4,20 +4,18 @@ It uses SQLAlchemy as the ORM and geoalchemy2 for spatial features.
 """
 from typing import List, Optional, TYPE_CHECKING
 
-# pylint: disable=too-few-public-methods
-
-
 from sqlalchemy import (
     Column,
     ForeignKey,
     Integer,
     String,
-    Text,
     Sequence,
-    Boolean,
-)
-from sqlalchemy.dialects.postgresql import JSON, BIGINT
+    Index, )
+from sqlalchemy.dialects.postgresql import BIGINT
 from sqlalchemy.orm import DeclarativeBase, relationship
+
+
+# pylint: disable=too-few-public-methods
 
 
 class Base(DeclarativeBase):
@@ -62,6 +60,12 @@ class TaxonRef(Base):
         parent_id = Column(BIGINT, ForeignKey("taxon_ref.id"), nullable=True)
         children = relationship("TaxonRef", backref="parent", remote_side=[id])
 
+    __table_args__ = (
+        Index('ix_taxon_ref_id', 'id'),
+        Index('ix_taxon_ref_rank_name', 'rank_name'),
+        Index('ix_taxon_ref_full_name', 'full_name')
+    )
+
     def __repr__(self) -> str:
         return f"<TaxonRef(id={self.id}, id_taxon={self.id}, full_name={self.full_name}, rank_name={self.rank_name})>"
 
@@ -88,48 +92,32 @@ class PlotRef(Base):
     geometry = Column(String)
 
 
-class Mapping(Base):
+class ShapeRef(Base):
     """
-    A class used to represent a mapping.
+    A class used to represent a shape reference.
 
     Attributes:
         id (Integer): The primary key.
-        target_table_name (String): The target table name.
-        target_field (String): The target field.
-        field_type (String): The field type.
-        group_by (String): The group by field.
-        reference_table_name (String): The reference table name.
-        reference_data_path (String): The reference data path.
-        is_identifier (Boolean): Whether the field is an identifier.
-        label (String): The label of the field.
-        description (String): The description of the field.
-        transformation (Text): The transformation of the field.
-        bins (Text): The bins of the field.
-        widgets (JSON): The widgets of the field.
+        label (String): The label of the shape.
+        type (String): The type of the shape.
+        location (String): The geometry of the shape (MultiPolygon) as WKT.
+        geom_forest (String): The forest geometry (MultiPolygon) as WKT.
     """
 
-    __tablename__ = "mapping"
+    __tablename__ = "shape_ref"
 
-    id_seq: Sequence = Sequence("mapping_id_seq")
+    id_seq = Sequence("shape_id_seq")
     id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
-    target_table_name = Column(String(255))
-    target_field = Column(String(255))
-    field_type = Column(String(50))
-    group_by = Column(String(50))
-    reference_table_name = Column(String(255), nullable=True)
-    reference_data_path = Column(String(255), nullable=True)
-    is_identifier = Column(Boolean, nullable=False)
-    label = Column(String(255))
-    description = Column(String(255))
-    transformation = Column(Text)
-    bins = Column(Text)
-    widgets = Column(JSON)
+    label = Column(String(50), nullable=False)
+    type = Column(String(50))
+    shape_location = Column(String, nullable=False)
+    forest_location = Column(String, nullable=False)
+
+    __table_args__ = (
+        Index('ix_shape_ref_id', 'id'),
+        Index('ix_shape_ref_label', 'label'),
+        Index('ix_shape_ref_type', 'type')
+    )
 
     def __repr__(self) -> str:
-        return (
-            f"<Mapping(id={self.id}, target_table_name={self.target_table_name}, "
-            f"target_field={self.target_field}, field_type={self.field_type}, "
-            f"is_identifier={self.is_identifier}, label={self.label}, "
-            f"description={self.description}, transformation={self.transformation}, "
-            f"bins={self.bins}, widgets={self.widgets})>"
-        )
+        return f"<ShapeRef(id={self.id}, label={self.label}, type={self.type})>"

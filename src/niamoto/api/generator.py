@@ -1,6 +1,6 @@
 from typing import List, Optional, Any, Dict
 
-from niamoto.core.models import TaxonRef
+from niamoto.core.models import TaxonRef, PlotRef
 from niamoto.common.config import Config
 from niamoto.publish import PageGenerator
 
@@ -38,6 +38,21 @@ class StaticContentGenerator:
         """
         return self.page_generator.generate_taxon_page(taxon, stats, mapping)
 
+    def generate_json_for_taxon(
+            self, taxon: TaxonRef, stats: Optional[Any]
+    ) -> str:
+        """
+        Generates a page for a specific taxon.
+
+        Args:
+            taxon (niamoto.core.models.TaxonRef): The taxon for which to generate a page.
+            stats (Optional[Any]): The statistics to include on the page.
+
+        Returns:
+            str: The generated page as a string.
+        """
+        return self.page_generator.generate_taxon_json(taxon, stats)
+
     def generate_taxonomy_tree(self, taxons: List[TaxonRef]) -> None:
         """
         Generates a taxonomy tree for a list of taxons.
@@ -46,3 +61,42 @@ class StaticContentGenerator:
             taxons (List[niamoto.core.models.TaxonRef]): The taxons for which to generate a taxonomy tree.
         """
         self.page_generator.generate_taxonomy_tree_js(taxons)
+
+    def generate_page_for_plot(
+            self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
+    ) -> str:
+        """
+        Generates a page for a specific plot.
+
+        Args:
+            plot (niamoto.core.models.PlotRef): The plot for which to generate a page.
+            stats (Optional[Any]): The statistics to include on the page.
+            mapping (Dict[Any, Any]): The mapping to use for generating the page.
+
+        Returns:
+            str: The path to the generated page.
+        """
+        return self.page_generator.generate_plot_page(plot, stats, mapping)
+
+    def generate_json_for_plot(self, plot: PlotRef, stats: Optional[Any]) -> str:
+        """
+        Generates a JSON file for a specific plot.
+
+        Args:
+            plot (niamoto.core.models.PlotRef): The plot for which to generate a JSON file.
+            stats (Optional[Any]): The statistics to include in the JSON file.
+
+        Returns:
+            str: The path to the generated JSON file.
+        """
+        return self.page_generator.generate_plot_json(plot, stats)
+
+    def copy_template_page(self, template_name: str, output_name: str) -> None:
+        """
+        Copies a template page to the output directory.
+
+        Args:
+            template_name (str): The name of the template page to copy.
+            output_name (str): The name of the output page.
+        """
+        self.page_generator.copy_template_page(template_name, output_name)

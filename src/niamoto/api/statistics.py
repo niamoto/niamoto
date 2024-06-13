@@ -78,13 +78,13 @@ class ApiStatistics:
             mapper_service = MapperService(self.db_path)
             if group_by:
                 group_config = mapper_service.get_group_config(group_by)
-                target_table_name = group_config.get("target_table_name")
+                source_table_name = group_config.get("source_table_name")
             else:
                 mapping = mapper_service.get_mapping()
-                target_table_name = mapping[0].get("target_table_name")
+                source_table_name = mapping[0].get("source_table_name")
 
             # Retrieve the occurrences from the target table
-            occurrences = self.load_occurrences_from_database(target_table_name)
+            occurrences = self.load_occurrences_from_database(source_table_name)
 
         return occurrences
 

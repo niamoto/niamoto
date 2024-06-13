@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Niamoto - <span id="taxon-full-name"></span></title>
+    <link rel="stylesheet" href="js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
+    <link rel="stylesheet" href="js/vendor/leaflet/1.9.4_leaflet.css">
+    <script src="js/vendor/chart/4.4.2_chart.js"></script>
+    <script src="js/vendor/d3/7.8.5_d3.js"></script>
+    <script src="js/vendor/jquery/3.6.0_jquery.js"></script>
+    <script src="js/vendor/raphael/2.3.0_raphael.js"></script>
+    <script src="js/vendor/justgage/1.6.1_justgage.js"></script>
+    <script src="js/vendor/leaflet/1.9.4_leaflet.js"></script>
+    <script src="js/index.js"></script>
+    <script src="js/taxonomy_tree.js"></script>
+
+    <style>
+        .gauge {
+            height: 349px;
+        }
+
+        ul {
+            list-style-type: none;
+        }
+
+        li {
+            margin-left: 20px;
+        }
+
+        #taxonMap {
+            position: relative;
+            height: 400px;
+        }
+
+        .loader-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="flex">
+    <!-- Container for the taxonomic tree -->
+    <div class="w-1/4 p-4" id="taxonomy-tree">
+        <!-- The taxonomic tree will be loaded here -->
+    </div>
+    <!-- Container for the existing content -->
+    <div class="w-3/4">
+        <div class="rounded overflow-hidden shadow-lg mb-2">
+            <div class="px-6 py-4">
+                <div class="font-bold text-4xl mb-2"><i id="taxon-full-name-placeholder"></i> <span id="taxon-authors"></span></div>
+                <p class="text-gray-700 text-base">
+                    Rank: <span id="taxon-rank-name"></span>
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap -mx-2" id="dynamic-content">
+            <!-- Dynamic content will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Function to fetch JSON data for a taxon
+        async function fetchTaxonData(taxonId) {
+            const response = await fetch(`json/${taxonId}.json`);
+            return await response.json();
+        }
+
+        // Function to initialize the page with taxon data
+        async function initializePage(taxonId) {
+            try {
+                const taxonData = await fetchTaxonData(taxonId);
+                document.getElementById('taxon-full-name').textContent = taxonData.full_name;
+                document.getElementById('taxon-full-name-placeholder').textContent = taxonData.full_name;
+                document.getElementById('taxon-authors').textContent = taxonData.authors;
+                document.getElementById('taxon-rank-name').textContent = taxonData.rank_name;
+
+                // Load other dynamic content based on taxonData and mapping
+                loadDynamicContent(taxonData);
+
+                const treeContainer = document.getElementById('taxonomy-tree');
+                createTree(treeContainer, taxonomyData); // Assuming taxonomyData is available
+                loadCharts(taxonData, mapping); // Assuming mapping is available
+                setTimeout(initMap, 0.5);
+            } catch (error) {
+                console.error('Error fetching taxon data:', error);
+            }
+        }
+
+        // Function to load dynamic content based on taxon data
+        function loadDynamicContent(taxonData) {
+            const contentContainer = document.getElementById('dynamic-content');
+            // Generate content based on taxonData and mapping (Example logic shown below)
+            mapping.fields.forEach(field => {
+                if (field.field_type === 'GEOGRAPHY') {
+                    const mapDiv = document.createElement('div');
+                    mapDiv.classList.add('w-full', 'px-2', 'mb-4');
+                    mapDiv.innerHTML = `
+                        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                            <div class="px-6 pt-4 pb-2">
+                                <div id="taxonMap" style="height: 400px; position: relative;">
+                                    <div class="loader-container" id="mapLoader">
+                                        <div class="loader"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    contentContainer.appendChild(mapDiv);
+                } else {
+                    const chartDiv = document.createElement('div');
+                    chartDiv.classList.add('w-1/2', 'px-2', 'mb-4');
+                    chartDiv.innerHTML = `
+                        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                            ${field.bins && field.bins.values ? `
+                                <h2 class="font-bold text-xl mb-2">${field.bins.chart_options.title}</h2>
+                                <canvas id="${field.source_field}BinChart"></canvas>
+                            ` : ''}
+                            ${field.transformations.map(transformation => `
+                                ${transformation.chart_type === 'text' ? `
+                                    <div class="w-full">
+                                        <h2 class="font-bold text-xl mb-2">${transformation.chart_options.title}</h2>
+                                        <p id="${field.key}Text"></p>
+                                    </div>
+                                ` : ''}
+                                ${transformation.chart_type === 'pie' ? `
+                                    <h2 class="font-bold text-xl mb-2">${transformation.chart_options.title}</h2>
+                                    <canvas id="${field.key}PieChart"></canvas>
+                                ` : ''}
+                                ${transformation.chart_type === 'gauge' ? `
+                                    <h2 class="font-bold text-xl mb-2">${transformation.chart_options.title}</h2>
+                                    <div class="gauge" id="${field.key}${transformation.name}Gauge"></div>
+                                ` : ''}
+                            `).join('')}
+                        </div>
+                    `;
+                    contentContainer.appendChild(chartDiv);
+                }
+            });
+        }
+
+        // Initialize the page with a given taxon ID (Example ID used here)
+        initializePage(1);
+    });
+</script>
+
+</body>
+</html>

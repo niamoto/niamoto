@@ -5,8 +5,10 @@ from typing import Any, List, Optional, Dict
 
 import jinja2
 import rjsmin  # type: ignore
+from shapely import wkt
+from shapely.geometry import mapping
 
-from niamoto.core.models import TaxonRef
+from niamoto.core.models import TaxonRef, PlotRef
 from niamoto.common.config import Config
 
 
@@ -38,12 +40,13 @@ class PageGenerator:
             os.path.dirname(os.path.abspath(__file__)), "static"
         )
         self.output_dir = self.config.get("outputs", "static_pages")
+        self.json_output_dir = os.path.join(self.output_dir, "json")
 
         template_loader = jinja2.FileSystemLoader(searchpath=self.template_dir)
         self.template_env = jinja2.Environment(loader=template_loader)
 
     def generate_taxon_page(
-        self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
+            self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
     ) -> str:
         """
         Generates a webpage for a given taxon object.
@@ -68,6 +71,26 @@ class PageGenerator:
         self.copy_static_files()
         return output_path
 
+    def generate_taxon_json(self, taxon: TaxonRef, stats: Optional[Any]) -> str:
+        """
+        Generates a JSON file for a given taxon object.
+
+        Args:
+            taxon (niamoto.core.models.models.TaxonRef): The taxon object for which the JSON file is generated.
+            stats (dict, optional): A dictionary containing statistics for the taxon.
+
+        Returns:
+            str: The path of the generated JSON file.
+        """
+        taxon_dict = self.taxon_to_dict(taxon, stats)
+        os.makedirs(self.json_output_dir, exist_ok=True)
+        taxon_output_dir = os.path.join(self.json_output_dir, "taxon")
+        output_path = os.path.join(taxon_output_dir, f"{taxon.id}.json")
+        os.makedirs(taxon_output_dir, exist_ok=True)
+        with open(output_path, "w") as file:
+            json.dump(taxon_dict, file, indent=4)
+        return output_path
+
     def generate_taxonomy_tree_js(self, taxons: List[TaxonRef]) -> None:
         """
         Generates a JavaScript file containing the taxonomy tree data.
@@ -79,7 +102,9 @@ class PageGenerator:
         js_content = "const taxonomyData = " + json.dumps(tree, indent=4) + ";"
         minified_js = rjsmin.jsmin(js_content)
 
-        js_path = os.path.join(self.output_dir, "js", "taxonomy_tree.js")
+        js_dir = os.path.join(self.output_dir, "js")
+        os.makedirs(js_dir, exist_ok=True)  # Ensure the directory exists
+        js_path = os.path.join(js_dir, "taxonomy_tree.js")
         with open(js_path, "w") as file:
             file.write(minified_js)
 
@@ -103,7 +128,7 @@ class PageGenerator:
         return tree
 
     def build_subtree(
-        self, taxon: TaxonRef, taxons_by_id: Dict[int, TaxonRef]
+            self, taxon: TaxonRef, taxons_by_id: Dict[int, TaxonRef]
     ) -> Dict[str, Any]:
         """
         Builds a subtree for a given taxon object.
@@ -126,12 +151,57 @@ class PageGenerator:
 
         for child_id, child_taxon in taxons_by_id.items():
             if (
-                child_taxon.parent_id == taxon.id
-                and left < child_taxon.lft < child_taxon.rght < right
+                    child_taxon.parent_id == taxon.id
+                    and left < child_taxon.lft < child_taxon.rght < right
             ):
                 node["children"].append(self.build_subtree(child_taxon, taxons_by_id))
 
         return node
+
+    def generate_plot_page(
+            self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
+    ) -> str:
+        """
+        Generates a webpage for a given plot object.
+
+        Args:
+            plot (niamoto.core.models.models.PlotRef): The plot object for which the webpage is generated.
+            stats (dict, optional): A dictionary containing statistics for the plot.
+            mapping (dict): The mapping dictionary containing the configuration for generating the webpage.
+
+        Returns:
+            str: The path of the generated webpage.
+        """
+        template = self.template_env.get_template("plot_template.html")
+        plot_dict = self.plot_to_dict(plot, stats)
+        html_output = template.render(plot=plot_dict, stats=stats, mapping=mapping)
+        plot_output_dir = os.path.join(self.output_dir, "pages", "plot")
+        os.makedirs(plot_output_dir, exist_ok=True)
+        output_path = os.path.join(plot_output_dir, f"{plot.id}.html")
+        with open(output_path, "w") as file:
+            file.write(html_output)
+        self.copy_static_files()
+        return output_path
+
+    def generate_plot_json(self, plot: PlotRef, stats: Optional[Any]) -> str:
+        """
+        Generates a JSON file for a given plot object.
+
+        Args:
+            plot (niamoto.core.models.models.PlotRef): The plot object for which the JSON file is generated.
+            stats (dict, optional): A dictionary containing statistics for the plot.
+
+        Returns:
+            str: The path of the generated JSON file.
+        """
+        plot_dict = self.plot_to_dict(plot, stats)
+        os.makedirs(self.json_output_dir, exist_ok=True)
+        plot_output_dir = os.path.join(self.json_output_dir, "plot")
+        output_path = os.path.join(plot_output_dir, f"{plot.id}.json")
+        os.makedirs(plot_output_dir, exist_ok=True)
+        with open(output_path, "w") as file:
+            json.dump(plot_dict, file, indent=4)
+        return output_path
 
     def copy_static_files(self) -> None:
         """
@@ -150,6 +220,22 @@ class PageGenerator:
                 shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
             else:
                 shutil.copy2(src_path, dest_path)
+
+    def copy_template_page(self, template_name: str, output_name: str) -> None:
+        """
+        Copies a template page to the output directory.
+
+        Args:
+            template_name (str): The name of the template file to be copied.
+            output_name (str): The name of the output file.
+
+        Returns:
+            None
+        """
+        template_path = os.path.join(self.template_dir, template_name)
+        output_path = os.path.join(self.output_dir, output_name)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        shutil.copy2(template_path, output_path)
 
     def taxon_to_dict(self, taxon: TaxonRef, stats: Optional[Any]) -> dict[str, Any]:
         """
@@ -178,9 +264,6 @@ class PageGenerator:
             for key, value in stats.items():
                 if key.endswith("_bins"):
                     freq_key = key[:-5]  # Remove the "_bins" suffix
-                    freq_key = freq_key.replace(
-                        "_", "-"
-                    )  # Replace "_" with "-" for other keys
                     if value is not None:  # Check if value is not None
                         frequencies[freq_key] = json.loads(
                             value.replace("'", '"')
@@ -191,3 +274,37 @@ class PageGenerator:
             taxon_dict["frequencies"] = frequencies
 
         return taxon_dict
+
+    def plot_to_dict(self, plot: PlotRef, stats: Optional[Any]) -> dict[str, Any]:
+        """
+        Converts a PlotRef object and its associated statistics to a dictionary.
+
+        Args:
+            plot (niamoto.core.models.models.PlotRef): A PlotRef object.
+            stats (dict, optional): A dictionary containing statistics for the plot.
+
+        Returns:
+            dict[str, Any]: A dictionary representing the plot data and its statistics.
+        """
+        plot_dict = {
+            "id": plot.id,
+            "id_locality": plot.id_locality,
+            "locality": plot.locality,
+            "substrat": plot.substrat,
+            "geometry": mapping(wkt.loads(plot.geometry)) if plot.geometry else None,
+        }
+
+        if stats:
+            frequencies = {}
+            for key, value in stats.items():
+                if key.endswith("_bins"):
+                    freq_key = key[:-5]  # Remove the "_bins" suffix
+                    if value is not None:  # Check if value is not None
+                        frequencies[freq_key] = json.loads(value.replace("'", '"'))  # Parse the JSON string
+                else:
+                    plot_dict[key] = value
+
+            plot_dict["frequencies"] = frequencies
+
+        return plot_dict
+

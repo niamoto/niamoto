@@ -25,7 +25,7 @@ from niamoto.api.statistics import ApiStatistics
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.environment import Environment
-from niamoto.core.models import TaxonRef, Base
+from niamoto.core.models import TaxonRef, Base, PlotRef
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
 from niamoto.core.services.mapper import MapperService
 
@@ -344,24 +344,35 @@ def import_plots(csvfile: str) -> None:
 @click.argument("csvfile", required=False)
 @click.option(
     "--taxon-identifier",
+    "--location-field",
     "-t",
     help="Name of the column in the CSV that corresponds to the taxon ID.",
 )
-def import_occurrences(csvfile: str, taxon_identifier: str) -> None:
+@click.option(
+    "--location-field",
+    "-l",
+    help="Name of the column in the CSV that corresponds to the taxon ID.",
+)
+def import_occurrences(csvfile: str, taxon_identifier: str, location_field: str) -> None:
     """
-    Import occurrence data from a CSV file, analyze it to update the 'mapping' table, and link occurrences to their taxons.
+    Import occurrence data from a CSV file, analyze it to update the 'mapping' table,
+    and link occurrences to their taxons.
 
     This command reads occurrence data from the specified CSV file, performs an analysis to update the 'mapping' table,
-    and establishes links between occurrences and their corresponding taxons based on the provided taxon identifier column.
+    and establishes links between occurrences and their corresponding taxons based on
+    the provided taxon identifier column.
 
     If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
-    If the `--taxon-identifier` option is not provided, the command will use the taxon identifier specified in the configuration file.
+    If the `--taxon-identifier` option is not provided, the command will use the taxon identifier
+    specified in the configuration file.
 
     Args:
         csvfile (str, optional): Path to the CSV file containing the occurrence data to be imported and analyzed.
-                                 If not provided, the path specified in the configuration file will be used.
+                        If not provided, the path specified in the configuration file will be used.
         taxon_identifier (str, optional): Name of the column in the CSV file that contains the taxon IDs.
-                                          If not provided, the identifier specified in the configuration file will be used.
+                        If not provided, the identifier specified in the configuration file will be used.
+       location_field (str, optional): Name of the column in the CSV file that contains the location data.
+                        If not provided, the identifier specified in the configuration file will be used.
 
     Examples:
         $ niamoto import-occurrences occurrences.csv --taxon-identifier=id_taxonref
@@ -386,6 +397,7 @@ def import_occurrences(csvfile: str, taxon_identifier: str) -> None:
     occurrences_config = config.get("sources", "occurrences")
     default_csvfile = occurrences_config.get("path")
     default_taxon_identifier = occurrences_config.get("taxon_identifier")
+    default_location_field = occurrences_config.get("location_field")
 
     if not csvfile and default_csvfile and os.path.exists(default_csvfile):
         csvfile = default_csvfile
@@ -397,8 +409,12 @@ def import_occurrences(csvfile: str, taxon_identifier: str) -> None:
     if not taxon_identifier:
         raise ValueError("Taxon identifier column not specified.")
 
+    location_field = location_field or default_location_field
+    if not location_field:
+        raise ValueError("Location field column not specified.")
+
     data_importer = ApiImporter()
-    import_occ_result = data_importer.import_occurrences(csvfile, taxon_identifier)
+    import_occ_result = data_importer.import_occurrences(csvfile, taxon_identifier, location_field)
     console = Console()
     console.print(import_occ_result, style="italic green")
 
@@ -463,12 +479,56 @@ def import_occurrence_plot_links(csvfile: str) -> None:
         raise
 
 
+@cli.command(name="import-shapes")
+@click.argument("csvfile", required=False)
+def import_shapes(csvfile: str) -> None:
+    """
+    Import shape data from a CSV file into the database.
+
+    This command reads shape data from the specified CSV file and imports it into the database.
+    The CSV file should contain columns corresponding to the shape data.
+
+    If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
+
+    Args:
+        csvfile (str, optional): Path to the CSV file containing the shape data to be imported.
+                                 If not provided, the path specified in the configuration file will be used.
+
+    Examples:
+        $ niamoto import-shapes shapes.csv
+        $ niamoto import-shapes
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
+
+    Note:
+        The CSV file should have a header row specifying the column names.
+    """
+    config = Config()
+    shapes_config = config.get("sources", "shapes")
+    default_csvfile = shapes_config.get("path")
+
+    if not csvfile and default_csvfile and os.path.exists(default_csvfile):
+        csvfile = default_csvfile
+
+    if not csvfile or not os.path.exists(csvfile):
+        raise FileNotFoundError("CSV file not specified or does not exist.")
+
+    data_importer = ApiImporter()
+    import_shapes_result = data_importer.import_shapes(csvfile)
+    console = Console()
+    console.print(import_shapes_result, style="italic green")
+
+
 @cli.command(name="import-all")
 def import_all() -> None:
     """
     Import all data sources as specified in the configuration file.
 
-    This command reads the paths for taxonomy, plots, occurrences, and occurrence-plot links
+    This command reads the paths for taxonomy, plots, shapes, occurrences, and occurrence-plot links
     from the configuration file, resets the relevant tables, and imports the data into the database.
 
     Returns:
@@ -503,10 +563,19 @@ def import_all() -> None:
     console.print(f"Importing plots from {plots_csvfile}", style="italic green")
     data_importer.import_plots(plots_csvfile)
 
+    # Import shapes
+    shapes_config = config.get("sources", "shapes")
+    shapes_csvfile = shapes_config.get("path")
+    if not shapes_csvfile or not os.path.exists(shapes_csvfile):
+        raise FileNotFoundError(f"Shapes CSV file not found: {shapes_csvfile}")
+    console.print(f"Importing shapes from {shapes_csvfile}", style="italic green")
+    data_importer.import_shapes(shapes_csvfile)
+
     # Import occurrences
     occurrences_config = config.get("sources", "occurrences")
     occurrences_csvfile = occurrences_config.get("path")
     occurrences_taxon_identifier = occurrences_config.get("taxon_identifier")
+    occurrences_location_field = occurrences_config.get("source_location_field")
     if not occurrences_csvfile or not os.path.exists(occurrences_csvfile):
         raise FileNotFoundError(
             f"Occurrences CSV file not found: {occurrences_csvfile}"
@@ -514,7 +583,7 @@ def import_all() -> None:
     console.print(
         f"Importing occurrences from {occurrences_csvfile}", style="italic green"
     )
-    data_importer.import_occurrences(occurrences_csvfile, occurrences_taxon_identifier)
+    data_importer.import_occurrences(occurrences_csvfile, occurrences_taxon_identifier, occurrences_location_field)
 
     # Import occurrence plots
     occurrence_plots_config = config.get("sources", "occurrence-plots")
@@ -555,6 +624,7 @@ def reset_tables(db_path: str) -> None:
         duckdb_connection.execute("DROP TABLE IF EXISTS occurrences_plots")
         duckdb_connection.execute("DROP TABLE IF EXISTS occurrences")
         duckdb_connection.execute("DROP TABLE IF EXISTS plot_ref")
+        duckdb_connection.execute("DROP TABLE IF EXISTS shape_ref")
         duckdb_connection.execute("DROP TABLE IF EXISTS taxon_ref")
 
         console.print("Tables dropped successfully.", style="italic green")
@@ -598,10 +668,10 @@ def reset_tables(db_path: str) -> None:
     help="The path to the reference table file (e.g., GeoPackage).",
 )
 def generate_mapping(
-    data_source: str,
-    mapping_group: str,
-    reference_table_name: Optional[str],
-    reference_data_path: Optional[str],
+        data_source: str,
+        mapping_group: str,
+        reference_table_name: Optional[str],
+        reference_data_path: Optional[str],
 ) -> None:
     """
     Generate a mapping from a CSV file based on the specified grouping criteria.
@@ -656,7 +726,7 @@ def generate_mapping(
 @click.option(
     "--csv-file",
     type=str,
-    help="Path to the CSV file containing the occurrences. If not provided, the target_table_name from the mapping will be used.",
+    help="Path to the CSV file containing the occurrences. If not provided, the source_table_name from the mapping will be used.",
 )
 def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) -> None:
     """
@@ -665,13 +735,13 @@ def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) 
     This command calculates various statistics based on the mapping file defined in the configuration.
     It provides options to calculate statistics for a specific group or for all groups.
     If a CSV file is provided, it will be used as the data source for calculating the statistics.
-    Otherwise, the target_table_name from the mapping file will be used.
+    Otherwise, the source_table_name from the mapping file will be used.
 
     Args:
         mapping_group (str, optional): The specific group to calculate statistics for.
                                   If not provided, statistics will be calculated for all groups.
         csv_file (str, optional): Path to the CSV file containing the occurrences.
-                                  If not provided, the target_table_name from the mapping will be used.
+                                  If not provided, the source_table_name from the mapping will be used.
 
     Examples:
         $ niamoto calculate-statistics
@@ -735,14 +805,36 @@ def generate_static_site() -> None:
     repository = NiamotoRepository(db_path)
 
     # Get all Taxon entities from the repository, ordered by their full name
-    taxons = repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
 
     content_generator = StaticContentGenerator(config=config_manager)
 
     mapping_service = MapperService(db_path)
+
+    plots = repository.get_entities(PlotRef, order_by=asc(PlotRef.id))
+    plot_mapping_group = mapping_service.get_group_config("plot")
+    # Generate a page for each plot
+    for plot in track(plots, description="Generating plot pages"):
+        with repository.db.engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT * FROM plot_stats WHERE plot_id = :plot_id"),
+                {"plot_id": plot.id_locality},
+            )
+            plot_stats_row = result.fetchone()
+
+            if plot_stats_row:
+                plot_stats_dict = dict(zip(result.keys(), plot_stats_row))
+            else:
+                plot_stats_dict = {}
+
+            content_generator.generate_page_for_plot(
+                plot, plot_stats_dict, plot_mapping_group
+            )
+            content_generator.generate_json_for_plot(plot, plot_stats_dict)
+
+    taxons = repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
     mapping_group = mapping_service.get_group_config("taxon")
     # Generate a page for each taxon
-    for taxon in track(taxons, description="Pages generated"):
+    for taxon in track(taxons, description="Generating taxon pages"):
         with repository.db.engine.connect() as connection:
             result = connection.execute(
                 text("SELECT * FROM taxon_stats WHERE taxon_id = :taxon_id"),
@@ -758,6 +850,9 @@ def generate_static_site() -> None:
             content_generator.generate_page_for_taxon(
                 taxon, taxon_stats_dict, mapping_group
             )
+            content_generator.generate_json_for_taxon(taxon, taxon_stats_dict)
+
+
 
     # Generate the taxonomy tree
     content_generator.generate_taxonomy_tree(taxons)
