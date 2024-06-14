@@ -1,6 +1,7 @@
 import time
-from typing import List, Dict, Any, Hashable
+from typing import List, Dict, Any, Hashable, Union
 
+import pandas as pd
 from rich.progress import track
 from sqlalchemy import select
 
@@ -55,13 +56,96 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                 return
 
             stats = self.calculate_stats(taxon_id, taxon_occurrences)
-            specific_stats = self.calculate_specific_stats(taxon_id, taxon_occurrences)
-            stats.update(specific_stats)
 
             self.create_or_update_stats_entry(taxon_id, stats)
 
         except Exception as e:
             self.console.print(f"Failed to process taxon {taxon.id}: {e}", style="bold red")
+
+    def calculate_stats(
+            self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Calculate statistics for a group.
+
+        Args:
+            group_id (int): The group id.
+            group_occurrences (list[dict[Hashable, Any]]): The group occurrences.
+
+        Returns:
+            Dict[str, Any]: The statistics.
+        """
+        stats: Dict[str, Union[int, Dict[str, Any], pd.Series[Any], float]] = {}
+
+        # Convert occurrences to pandas DataFrame
+        df_occurrences = pd.DataFrame(group_occurrences)
+
+        # Iterate over fields in the mapping
+        for field, field_config in self.fields.items():
+            source_field = field_config.get("source_field")
+            transformations = field_config.get("transformations", [])
+
+            if source_field is None:
+                if transformations:
+                    for transformation in transformations:
+                        transform_name = transformation.get("name")
+                        if transform_name == "count":
+                            stats[field] = len(group_occurrences)
+                            break
+                        elif transform_name == "top":
+                            stats[field] = self.calculate_top_items(group_occurrences, field_config)
+
+            elif source_field in df_occurrences.columns:
+                # Binary field (ex: um_occurrences)
+                if field_config.get("field_type") == "BOOLEAN":
+                    if source_field in df_occurrences.columns:
+                        value_counts = df_occurrences[source_field].value_counts()
+                        stats[f"{field}_true"] = value_counts.get(True, 0)
+                        stats[f"{field}_false"] = value_counts.get(False, 0)
+
+                # Geolocation field (ex: occurrence_location)
+                elif field_config.get("field_type") == "GEOGRAPHY":
+                    if source_field in df_occurrences.columns:
+                        coordinates = self.extract_coordinates(df_occurrences, source_field)
+                        stats[f"{field}"] = {
+                            "type": "MultiPoint",
+                            "coordinates": coordinates,
+                        }
+
+                else:
+                    # Other fields
+                    field_values = df_occurrences[source_field]
+                    field_values = field_values[
+                        (field_values != 0) & (field_values.notnull())
+                        ]
+
+                    # Calculate transformations
+                    transformations = field_config.get("transformations", [])
+                    for transformation in transformations:
+                        transform_name = transformation.get("name")
+                        if hasattr(pd.Series, transform_name) and len(field_values) > 0:
+                            transform_func = getattr(pd.Series, transform_name)
+                            transform_result = transform_func(field_values)
+                            if isinstance(transform_result, pd.Series):
+                                stats[
+                                    f"{field}_{transform_name}"
+                                ] = transform_result.round(2)
+                            else:
+                                stats[f"{field}_{transform_name}"] = round(
+                                    transform_result, 2
+                                )
+
+                    # Calculate bins
+                    bins_config = field_config.get("bins")
+                    if bins_config:
+                        bins = bins_config["values"]
+                        if bins and len(field_values) > 0:
+                            bin_percentages = self.calculate_bins(
+                                field_values.tolist(), bins
+                            )
+                            stats[f"{field}_bins"] = bin_percentages
+
+        return stats
 
     def get_taxon_occurrences(self, taxon: TaxonRef) -> list[dict[Hashable, Any]]:
         """
@@ -93,21 +177,6 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
         )
         return [taxon_id[0] for taxon_id in taxon_ids]
 
-    def calculate_specific_stats(
-        self, taxon_id: int, taxon_occurrences: list[dict[Hashable, Any]]
-    ) -> Dict[str, Any]:
-        """
-        Calculate specific statistics for a taxon.
-
-        Args:
-            taxon_id (int): The taxon id.
-            taxon_occurrences (list[dict[Hashable, Any]]): The taxon occurrences.
-
-        Returns:
-            Dict[str, Any]: The specific statistics.
-        """
-        specific_stats = {'top_species': self.calculate_top_species(taxon_occurrences, 10)}
-        return specific_stats
 
     def calculate_frequencies(
         self, taxon_id: int, taxon_occurrences: list[dict[Hashable, Any]]

@@ -9,6 +9,7 @@ without directly interacting with the underlying Python code.
 """
 
 import os
+import subprocess
 import time
 from typing import Optional, List
 
@@ -396,7 +397,7 @@ def import_occurrences(csvfile: str, taxon_identifier: str, location_field: str)
     config = Config()
     occurrences_config = config.get("sources", "occurrences")
     default_csvfile = occurrences_config.get("path")
-    default_taxon_identifier = occurrences_config.get("taxon_identifier")
+    default_taxon_identifier = occurrences_config.get("identifier")
     default_location_field = occurrences_config.get("location_field")
 
     if not csvfile and default_csvfile and os.path.exists(default_csvfile):
@@ -574,7 +575,7 @@ def import_all() -> None:
     # Import occurrences
     occurrences_config = config.get("sources", "occurrences")
     occurrences_csvfile = occurrences_config.get("path")
-    occurrences_taxon_identifier = occurrences_config.get("taxon_identifier")
+    occurrences_taxon_identifier = occurrences_config.get("identifier")
     occurrences_location_field = occurrences_config.get("source_location_field")
     if not occurrences_csvfile or not os.path.exists(occurrences_csvfile):
         raise FileNotFoundError(
@@ -852,10 +853,9 @@ def generate_static_site() -> None:
             )
             content_generator.generate_json_for_taxon(taxon, taxon_stats_dict)
 
-
-
     # Generate the taxonomy tree
     content_generator.generate_taxonomy_tree(taxons)
+    content_generator.generate_plot_list(plots)
 
     repository.close_session()
     duration = time.time() - start_time
@@ -864,6 +864,109 @@ def generate_static_site() -> None:
         f"🌱 Generated {len(taxons)} pages in {duration:.2f} seconds.",
         style="italic green",
     )
+
+
+@cli.command(name="deploy-static-site")
+@click.option(
+    "--output-dir", default="output", help="Directory containing generated files."
+)
+@click.option(
+    "--provider", type=click.Choice(['github', 'netlify']), required=True,
+    help="Deployment provider (github or netlify)."
+)
+@click.option(
+    "--repo-url", help="GitHub repository URL (required if provider is 'github')."
+)
+@click.option(
+    "--branch", default="main", help="Branch to deploy to (default is 'main')."
+)
+@click.option(
+    "--site-id", help="Netlify site ID (required if provider is 'netlify')."
+)
+def deploy(output_dir: str, provider: str, repo_url: str, branch: str, site_id: str) -> None:
+    """
+    Deploy generated static files to the specified provider (GitHub Pages or Netlify).
+
+    Args:
+        output_dir (str): Path to the directory containing generated files.
+        provider (str): Deployment provider ('github' or 'netlify').
+        repo_url (str): GitHub repository URL (required if provider is 'github').
+        branch (str): Branch to deploy to (default is 'main').
+        site_id (str): Netlify site ID (required if provider is 'netlify').
+
+    Examples:
+        $ niamoto deploy --provider=github --output-dir=output --repo-url=https://github.com/username/repo.git
+        $ niamoto deploy --provider=netlify --output-dir=output --site-id=your-netlify-site-id
+    """
+    if provider == 'github' and not repo_url:
+        raise click.UsageError("The --repo-url option is required when deploying to GitHub Pages.")
+    if provider == 'netlify' and not site_id:
+        raise click.UsageError("The --site-id option is required when deploying to Netlify.")
+
+    try:
+        if provider == 'github':
+            deploy_to_github(output_dir, repo_url, branch)
+        elif provider == 'netlify':
+            deploy_to_netlify(output_dir, site_id)
+        else:
+            raise click.UsageError("Unsupported provider specified.")
+    except subprocess.CalledProcessError as e:
+        console = Console()
+        console.print(f"An error occurred while deploying: {e}", style="bold red")
+
+
+def deploy_to_github(output_dir: str, repo_url: str, branch: str) -> None:
+    """
+    Deploy generated static files to GitHub Pages.
+
+    Args:
+        output_dir (str): Path to the directory containing generated files.
+        repo_url (str): GitHub repository URL.
+        branch (str): Branch to deploy to (default is 'main').
+
+    """
+    try:
+        os.chdir(output_dir)
+
+        # Initialize git repository if not already initialized
+        if not os.path.exists(os.path.join(output_dir, '.git')):
+            subprocess.run(['git', 'init'], check=True)
+
+        # Check if the remote 'origin' is already set
+        result = subprocess.run(['git', 'remote', 'get-url', 'origin'], capture_output=True, text=True)
+        if result.returncode != 0:
+            subprocess.run(['git', 'remote', 'add', 'origin', repo_url], check=True)
+        else:
+            subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], check=True)
+
+        subprocess.run(['git', 'add', '.'], check=True)
+        subprocess.run(['git', 'commit', '-m', 'Deploy static site'], check=True)
+        subprocess.run(['git', 'push', '--force', 'origin', branch], check=True)
+
+        console = Console()
+        console.print("Deployment to GitHub Pages successful.", style="italic green")
+    except subprocess.CalledProcessError as e:
+        console = Console()
+        console.print(f"An error occurred while deploying to GitHub: {e}", style="bold red")
+
+
+def deploy_to_netlify(output_dir: str, site_id: str) -> None:
+    """
+    Deploy generated static files to Netlify.
+
+    Args:
+        output_dir (str): Path to the directory containing generated files.
+        site_id (str): Netlify site ID.
+
+    """
+    try:
+        subprocess.run(['netlify', 'deploy', '--prod', '--dir', output_dir, '--site', site_id], check=True)
+
+        console = Console()
+        console.print("Deployment to Netlify successful.", style="italic green")
+    except subprocess.CalledProcessError as e:
+        console = Console()
+        console.print(f"An error occurred while deploying to Netlify: {e}", style="bold red")
 
 
 if __name__ == "__main__":

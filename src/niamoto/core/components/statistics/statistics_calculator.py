@@ -8,7 +8,7 @@ import pandas as pd
 from rich.console import Console
 
 from niamoto.common.database import Database
-from niamoto.core.models import TaxonRef
+from ...models import TaxonRef
 from niamoto.core.services.mapper import MapperService
 
 
@@ -57,6 +57,7 @@ class StatisticsCalculator(ABC):
         self.fields = self.mapper_service.get_fields(group_by)
         self.console = Console()
 
+    @abstractmethod
     def calculate_stats(
             self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
@@ -70,78 +71,7 @@ class StatisticsCalculator(ABC):
         Returns:
             Dict[str, Any]: The statistics.
         """
-        stats: Dict[str, Union[int, Dict[str, Any], pd.Series[Any], float]] = {}
-
-        # Convert occurrences to pandas DataFrame
-        df_occurrences = pd.DataFrame(group_occurrences)
-
-        # Iterate over fields in the mapping
-        for field, field_config in self.fields.items():
-            source_field = field_config.get("source_field")
-
-            if source_field is None:
-                # Special field without source_field (ex: total_occurrences)
-                if field_config.get("transformations"):
-                    for transformation in field_config.get("transformations", []):
-                        if transformation.get("name") == "count":
-                            stats[field] = len(group_occurrences)
-                            break
-
-            elif source_field in df_occurrences.columns:
-                # Binary field (ex: um_occurrences)
-                if field_config.get("field_type") == "BOOLEAN":
-                    if source_field in df_occurrences.columns:
-                        value_counts = df_occurrences[source_field].value_counts()
-                        stats[f"{field}_true"] = value_counts.get(True, 0)
-                        stats[f"{field}_false"] = value_counts.get(False, 0)
-
-                # Geolocation field (ex: occurrence_location)
-                elif field_config.get("field_type") == "GEOGRAPHY":
-                    if source_field in df_occurrences.columns:
-                        coordinates = self.extract_coordinates(df_occurrences, source_field)
-                        stats[f"{field}"] = {
-                            "type": "MultiPoint",
-                            "coordinates": coordinates,
-                        }
-
-                else:
-                    # Other fields
-                    field_values = df_occurrences[source_field]
-                    field_values = field_values[
-                        (field_values != 0) & (field_values.notnull())
-                        ]
-
-                    # Calculate transformations
-                    transformations = field_config.get("transformations", [])
-                    for transformation in transformations:
-                        transform_name = transformation.get("name")
-                        if hasattr(pd.Series, transform_name) and len(field_values) > 0:
-                            transform_func = getattr(pd.Series, transform_name)
-                            transform_result = transform_func(field_values)
-                            if isinstance(transform_result, pd.Series):
-                                stats[
-                                    f"{field}_{transform_name}"
-                                ] = transform_result.round(2)
-                            else:
-                                stats[f"{field}_{transform_name}"] = round(
-                                    transform_result, 2
-                                )
-
-                    # Calculate bins
-                    bins_config = field_config.get("bins")
-                    if bins_config:
-                        bins = bins_config["values"]
-                        if bins and len(field_values) > 0:
-                            bin_percentages = self.calculate_bins(
-                                field_values.tolist(), bins
-                            )
-                            stats[f"{field}_bins"] = bin_percentages
-
-        # Add group-specific stats
-        specific_stats = self.calculate_specific_stats(group_id, group_occurrences)
-        stats.update(specific_stats)
-
-        return stats
+        pass
 
     def initialize_stats_table(self) -> None:
         """
@@ -315,20 +245,21 @@ class StatisticsCalculator(ABC):
             for coords, count in coordinate_counts.items()
         ]
 
-    def calculate_top_items(self, occurrences: list[dict[Hashable, Any]], top_count: int, target_ranks: list[str]) -> \
+    def calculate_top_items(self, occurrences: list[dict[Hashable, Any]], field_config: dict) -> \
             Dict[str, int]:
         """
         Calculate the top most frequent items in the occurrences based on target ranks.
 
         Args:
+            field_config:
             occurrences (list[dict[Hashable, Any]]): The occurrences to calculate statistics for.
-            top_count (int): The number of top items to retrieve.
-            target_ranks (list[str]): The list of target ranks to consider.
 
         Returns:
             Dict[str, int]: A dictionary with the top items and their counts.
         """
         taxon_ids = {occ.get('taxon_ref_id') for occ in occurrences if occ.get('taxon_ref_id')}
+        target_ranks = field_config['transformations'][0]['target_ranks']
+        top_count = field_config['transformations'][0]['count']
 
         if not taxon_ids:
             return {}
@@ -365,8 +296,8 @@ class StatisticsCalculator(ABC):
         Find the item name based on target ranks by traversing up the hierarchy.
 
         Args:
-            taxon (TaxonRef): The taxon to start the search from.
-            taxon_dict (Dict[int, TaxonRef]): The dictionary of all taxons.
+            taxon ('niamoto.core.models.models.TaxonRef'): The taxon to start the search from.
+            taxon_dict (Dict[int, 'niamoto.core.models.models.TaxonRef']): The dictionary of all taxons.
             target_ranks (list[str]): The list of target ranks to consider.
 
         Returns:
@@ -376,18 +307,3 @@ class StatisticsCalculator(ABC):
             taxon = taxon_dict.get(taxon.parent_id)
         return taxon.full_name if taxon and taxon.rank_name.lower() in target_ranks else None
 
-    def calculate_top_species(self, occurrences: list[dict[Hashable, Any]], top_count: int) -> Dict[str, int]:
-        target_ranks = ['id_species', 'id_infra']
-        return self.calculate_top_items(occurrences, top_count, target_ranks)
-
-    def calculate_top_families(self, occurrences: list[dict[Hashable, Any]], top_count: int) -> Dict[str, int]:
-        target_ranks = ['id_family']
-        return self.calculate_top_items(occurrences, top_count, target_ranks)
-
-    def calculate_top_species(self, occurrences: list[dict[Hashable, Any]], top_count: int) -> Dict[str, int]:
-        target_ranks = ['id_species', 'id_infra']
-        return self.calculate_top_items(occurrences, top_count, target_ranks)
-
-    def calculate_top_families(self, occurrences: list[dict[Hashable, Any]], top_count: int) -> Dict[str, int]:
-        target_ranks = ['id_family']
-        return self.calculate_top_items(occurrences, top_count, target_ranks)

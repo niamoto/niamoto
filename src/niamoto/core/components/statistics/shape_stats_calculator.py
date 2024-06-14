@@ -5,16 +5,13 @@ from typing import List, Dict, Any, Hashable, Union
 import pandas as pd
 import rasterio
 from rasterio.mask import mask
-from rich.progress import track
+from rtree import index
 from shapely.geometry import mapping
 from shapely.wkb import loads as wkb_loads
 from shapely.wkt import loads as wkt_loads
-from rtree import index
 
 from niamoto.core.models import ShapeRef
 from .statistics_calculator import StatisticsCalculator
-
-logging.basicConfig(level=logging.DEBUG, filename='logs/shape_stats_calculator.log', filemode='w')
 
 
 class ShapeStatsCalculator(StatisticsCalculator):

@@ -111,10 +111,13 @@ class Config:
                     "path": "data/sources/taxonomy.csv",
                     "ranks": "id_family,id_genus,id_species,id_infra",
                 },
-                "plots": {"path": "data/sources/plots.gpkg"},
+                "plots": {
+                    "path": "data/sources/plots.gpkg",
+                    "identifier": "id_locality",
+                },
                 "occurrences": {
                     "path": "data/sources/occurrences.csv",
-                    "taxon_identifier": "id_taxonref",
+                    "identifier": "id_taxonref",
                 },
                 "occurrence-plots": {"path": "data/sources/occurrence-plots.csv"},
                 "shapes": {"path": "data/sources/shapes.csv"},

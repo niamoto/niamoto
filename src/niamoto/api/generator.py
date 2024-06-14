@@ -62,6 +62,15 @@ class StaticContentGenerator:
         """
         self.page_generator.generate_taxonomy_tree_js(taxons)
 
+    def generate_plot_list(self, plots: List[PlotRef]) -> None:
+        """
+        Generates a list of plots.
+
+        Args:
+            plots (List[niamoto.core.models.PlotRef]): The plots for which to generate a list.
+        """
+        self.page_generator.generate_plot_list_js(plots)
+
     def generate_page_for_plot(
             self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
     ) -> str:

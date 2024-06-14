@@ -108,6 +108,23 @@ class PageGenerator:
         with open(js_path, "w") as file:
             file.write(minified_js)
 
+    def generate_plot_list_js(self, plots: List[PlotRef]) -> None:
+        """
+        Generates a JavaScript file containing the plot list data.
+
+        Args:
+            plots (List[niamoto.core.models.models.PlotRef]): A list of plot objects.
+        """
+        plot_list = self.get_plot_list(plots)
+        js_content = "const plotList = " + json.dumps(plot_list, indent=4) + ";"
+        minified_js = rjsmin.jsmin(js_content)
+
+        js_dir = os.path.join(self.output_dir, "js")
+        os.makedirs(js_dir, exist_ok=True)
+        js_path = os.path.join(js_dir, "plot_list.js")
+        with open(js_path, "w") as file:
+            file.write(minified_js)
+
     def build_taxonomy_tree(self, taxons: List[TaxonRef]) -> List[Dict[Any, Any]]:
         """
         Builds a taxonomy tree from a list of taxon objects.
@@ -157,6 +174,21 @@ class PageGenerator:
                 node["children"].append(self.build_subtree(child_taxon, taxons_by_id))
 
         return node
+
+    def get_plot_list(self, plots: List[PlotRef]) -> List[Dict[str, Any]]:
+        """
+        Retrieves a list of plots and formats it for the template.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing plot information.
+        """
+        plot_list = []
+        for plot in plots:
+            plot_list.append({
+                "id": plot.id,
+                "name": plot.locality
+            })
+        return plot_list
 
     def generate_plot_page(
             self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]

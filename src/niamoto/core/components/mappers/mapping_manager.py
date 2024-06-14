@@ -331,6 +331,21 @@ class MappingManager:
         else:
             return []
 
+    def get_sources(self) -> Dict[str, Any]:
+        """
+        Get the sources from the configuration file.
+
+        Returns:
+            Dict[str, Any]: The sources.
+        """
+        config_path = os.path.join(os.getcwd(), "config.yml")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as config_file:
+                config_data = yaml.safe_load(config_file) or {}
+                return config_data.get("sources", {})
+        else:
+            return {}
+
     def get_group_config(self, group_by: str) -> Dict[str, Any]:
         """
         Get the group config for a group.

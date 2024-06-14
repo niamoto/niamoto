@@ -30,16 +30,16 @@ class TaxonRef(Base):
     """
     A class used to represent a taxon reference.
 
-    Attributes:
+    Parameters:
         id (BIGINT): The primary key. :no-index:
-        full_name (String): The full name of the taxon.
-        authors (String): The authors of the taxon.
-        rank_name (String): The rank name of the taxon.
-        lft (Integer): The left value for nested set model.
-        rght (Integer): The right value for nested set model.
-        level (Integer): The level value for nested set model.
-        parent_id (BIGINT): The parent taxon id.
-        children (List[TaxonRef]): The children of the taxon.
+        full_name (String): The full name of the taxon. :noindex:
+        authors (String): The authors of the taxon. :noindex:
+        rank_name (String): The rank name of the taxon. :noindex:
+        lft (Integer): The left value for nested set model. :noindex:
+        rght (Integer): The right value for nested set model. :noindex:
+        level (Integer): The level value for nested set model. :noindex:
+        parent_id (BIGINT): The parent taxon id. :noindex:
+        children (List[TaxonRef]): The children of the taxon. :noindex:
     """
 
     __tablename__ = "taxon_ref"
@@ -74,12 +74,12 @@ class PlotRef(Base):
     """
     A class used to represent a plot reference.
 
-    Attributes:
-        id (BIGINT): The primary key.
-        id_locality (BIGINT): The locality id.
-        locality (String): The locality of the plot.
-        substrat (String): The substrat of the plot.
-        geometry (String): The geometry of the plot.
+    Parameters:
+        id (BIGINT): The primary key. :no-index:
+        id_locality (BIGINT): The locality id. :noindex:
+        locality (String): The locality of the plot. :noindex:
+        substrat (String): The substrat of the plot. :noindex:
+        geometry (String): The geometry of the plot. :noindex:
     """
 
     __tablename__ = "plot_ref"
@@ -96,12 +96,12 @@ class ShapeRef(Base):
     """
     A class used to represent a shape reference.
 
-    Attributes:
-        id (Integer): The primary key.
-        label (String): The label of the shape.
-        type (String): The type of the shape.
-        location (String): The geometry of the shape (MultiPolygon) as WKT.
-        geom_forest (String): The forest geometry (MultiPolygon) as WKT.
+    Parameters:
+        id (Integer): The primary key. :no-index:
+        label (String): The label of the shape. :noindex:
+        type (String): The type of the shape. :noindex:
+        location (String): The geometry of the shape (MultiPolygon) as WKT. :noindex:
+        geom_forest (String): The forest geometry (MultiPolygon) as WKT. :noindex:
     """
 
     __tablename__ = "shape_ref"

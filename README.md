@@ -205,33 +205,37 @@ The mapping consists of the following elements:
 #### Field Configuration
 Each field in the `fields` dictionary is defined by the following elements:
 
+- `source`: The source of the data (e.g., "occurrences", "plots")
 - `source_field`: The name of the target field in the occurrences table. Can be null for calculated fields.
 - `field_type`: The data type of the field (e.g., "INTEGER", "DOUBLE", "BOOLEAN", "GEOGRAPHY").
 - `label`: The label of the field.
 - `description`: A description of the field.
 - `transformations`: A list of transformations to apply to the field. Each transformation is defined by:
   - `name`: The name of the transformation (e.g., "count", "mean", "max", "min", "coordinates").
+  - `count` (for `top` transformations): The number of top values to retrieve.
+  - `target_ranks` (for `top` transformations): A list of target ranks to consider (e.g., "id_species", "id_infra").
   - `chart_type`: The type of chart to generate (e.g., "text", "pie", "map", "gauge", "bar").
   - `chart_options`: Specific options for the chart type (e.g., "max", "title", "label", "color", "indexAxis", "stacked").
 - `bins`: A dictionary defining the bins for the field. It contains:
   - `values`: A list of values to discretize continuous data.
   - `chart_type`: The type of chart to generate for the bins (e.g., "bar").
   - `chart_options`: Specific options for the bin chart (e.g., "title", "color").
-- `is_identifier`: Indicates whether the field is an identifier (boolean value).
-- `display_order`: The display order of the field in the interface.
 
 #### Special Fields
-Some fields may have specific configurations depending on their `source_field` and `field_type`:
+Some fields may have specific configurations depending on their `source` and `field_type`:
 
 - **Calculated field** (e.g., total number of occurrences):
+  - `source`: "occurrences"
   - `source_field`: null
   - `field_type`: "INTEGER"
   - `transformations`: Must contain a "count" type transformation
 - **Boolean field** (e.g., occurrence on a particular substrate):
+  - `source`: "occurrences"
   - `source_field`: The name of the boolean field in the occurrences table
   - `field_type`: "BOOLEAN"
   - `transformations`: May contain a "count" type transformation
 - **Geographical field** (e.g., location of the occurrence):
+  - `source`: "occurrences"
   - `source_field`: The name of the geographical field in the occurrences table
   - `field_type`: "GEOGRAPHY"
   - `transformations`: May contain a "coordinates" type transformation
@@ -281,6 +285,18 @@ To run your tests with pytest, use:
 pytest --cov=src --cov-report html
 ```
 
+## Documentation
+
+The documentation for the Niamoto CLI tool is available in the `docs` directory. It includes information on the CLI commands, configuration options, and data import formats.
+
+To build the documentation, you can use the following command:
+
+```bash
+cd docs
+sphinx-apidoc -o . ../src/niamoto
+make html
+make markdown
+```
 
 ## License
 
