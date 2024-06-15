@@ -21,7 +21,13 @@ class PlotStatsCalculator(StatisticsCalculator):
         StatisticsCalculator
     """
 
-    def __init__(self, db: Database, mapper_service: MapperService, occurrences: list[dict[Hashable, Any]], group_by: str):
+    def __init__(
+        self,
+        db: Database,
+        mapper_service: MapperService,
+        occurrences: list[dict[Hashable, Any]],
+        group_by: str,
+    ):
         super().__init__(db, mapper_service, occurrences, group_by)
         self.plot_identifier = self.mapper_service.get_source_identifier("plots")
         self.plots_data = self.load_plots_data()
@@ -74,10 +80,12 @@ class PlotStatsCalculator(StatisticsCalculator):
             self.create_or_update_stats_entry(plot_id, stats)
 
         except Exception as e:
-            self.console.print(f"Failed to process plot {plot.id}: {e}", style="bold red")
+            self.console.print(
+                f"Failed to process plot {plot.id}: {e}", style="bold red"
+            )
 
     def calculate_stats(
-            self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
+        self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
         """
         Calculate statistics for a group.
@@ -95,8 +103,16 @@ class PlotStatsCalculator(StatisticsCalculator):
         df_occurrences = pd.DataFrame(group_occurrences)
 
         # Retrieve the plot object using group_id
-        plot = self.db.session.query(PlotRef).filter(PlotRef.id_locality == group_id).first()
-        plot_data = self.plots_data[self.plots_data[self.plot_identifier] == group_id].iloc[0] if plot else None
+        plot = (
+            self.db.session.query(PlotRef)
+            .filter(PlotRef.id_locality == group_id)
+            .first()
+        )
+        plot_data = (
+            self.plots_data[self.plots_data[self.plot_identifier] == group_id].iloc[0]
+            if plot
+            else None
+        )
 
         # Iterate over fields in the mapping
         for field, field_config in self.fields.items():
@@ -113,17 +129,25 @@ class PlotStatsCalculator(StatisticsCalculator):
                             stats[field] = len(group_occurrences)
                             break
                         elif transform_name == "top":
-                            stats[field] = self.calculate_top_items(group_occurrences, field_config)
+                            stats[field] = self.calculate_top_items(
+                                group_occurrences, field_config
+                            )
 
-            elif source == 'occurrences':
+            elif source == "occurrences":
                 # Binary field (ex: um_occurrences)
-                if field_config.get("field_type") == "BOOLEAN" and source_field in df_occurrences.columns:
+                if (
+                    field_config.get("field_type") == "BOOLEAN"
+                    and source_field in df_occurrences.columns
+                ):
                     value_counts = df_occurrences[source_field].value_counts()
                     stats[f"{field}_true"] = value_counts.get(True, 0)
                     stats[f"{field}_false"] = value_counts.get(False, 0)
 
                 # Geolocation field (ex: occurrence_location)
-                elif field_config.get("field_type") == "GEOGRAPHY" and source_field in df_occurrences.columns:
+                elif (
+                    field_config.get("field_type") == "GEOGRAPHY"
+                    and source_field in df_occurrences.columns
+                ):
                     coordinates = self.extract_coordinates(df_occurrences, source_field)
                     stats[field] = {
                         "type": "MultiPoint",
@@ -135,15 +159,22 @@ class PlotStatsCalculator(StatisticsCalculator):
                     field_values = df_occurrences[source_field]
                     field_values = field_values[
                         (field_values != 0) & (field_values.notnull())
-                        ]
+                    ]
 
                     # Calculate transformations
                     if transformations:
                         for transformation in transformations:
                             transform_name = transformation.get("name")
-                            field_name = f"{field}_{transform_name}" if transform_name else f"{field}"
+                            field_name = (
+                                f"{field}_{transform_name}"
+                                if transform_name
+                                else f"{field}"
+                            )
 
-                            if hasattr(pd.Series, transform_name) and len(field_values) > 0:
+                            if (
+                                hasattr(pd.Series, transform_name)
+                                and len(field_values) > 0
+                            ):
                                 transform_func = getattr(pd.Series, transform_name)
                                 transform_result = transform_func(field_values)
                                 if isinstance(transform_result, pd.Series):
@@ -156,13 +187,17 @@ class PlotStatsCalculator(StatisticsCalculator):
                     if bins_config:
                         bins = bins_config["values"]
                         if bins and len(field_values) > 0:
-                            bin_percentages = self.calculate_bins(field_values.tolist(), bins)
+                            bin_percentages = self.calculate_bins(
+                                field_values.tolist(), bins
+                            )
                             stats[f"{field}_bins"] = bin_percentages
 
-            elif source == 'plots' and plot_data is not None:
+            elif source == "plots" and plot_data is not None:
                 if source_field:
                     if field_config.get("field_type") == "GEOGRAPHY":
-                        stats[field] = self.extract_coordinates_from_geometry(plot_data[source_field])
+                        stats[field] = self.extract_coordinates_from_geometry(
+                            plot_data[source_field]
+                        )
                     else:
                         stats[field] = plot_data[source_field]
                 else:
@@ -185,12 +220,15 @@ class PlotStatsCalculator(StatisticsCalculator):
         elif geometry.geom_type == "LineString":
             return {
                 "type": "LineString",
-                "coordinates": [[point.x, point.y] for point in geometry.coords]
+                "coordinates": [[point.x, point.y] for point in geometry.coords],
             }
         elif geometry.geom_type == "Polygon":
             return {
                 "type": "Polygon",
-                "coordinates": [[[point.x, point.y] for point in ring.coords] for ring in geometry.interiors]
+                "coordinates": [
+                    [[point.x, point.y] for point in ring.coords]
+                    for ring in geometry.interiors
+                ],
             }
         else:
             return {"type": "Unknown", "coordinates": []}
@@ -206,9 +244,10 @@ class PlotStatsCalculator(StatisticsCalculator):
             list[dict[Hashable, Any]]: The plot occurrences.
         """
         occurrences_plots = Table(
-            'occurrences_plots', MetaData(),
-            Column('id_occurrence', Integer, primary_key=True),
-            Column('id_plot', Integer, primary_key=True)
+            "occurrences_plots",
+            MetaData(),
+            Column("id_occurrence", Integer, primary_key=True),
+            Column("id_plot", Integer, primary_key=True),
         )
 
         occurrence_ids = (
@@ -217,7 +256,9 @@ class PlotStatsCalculator(StatisticsCalculator):
             .all()
         )
         occurrence_ids = [op[0] for op in occurrence_ids]
-        return [occ for occ in self.occurrences if occ[self.identifier] in occurrence_ids]
+        return [
+            occ for occ in self.occurrences if occ[self.identifier] in occurrence_ids
+        ]
 
     def _retrieve_all_plots(self) -> List[PlotRef]:
         """
@@ -241,7 +282,9 @@ class PlotStatsCalculator(StatisticsCalculator):
         """
         return plot.id_locality
 
-    def calculate_top_values(self, plot_occurrences: list[dict[Hashable, Any]], field_config: dict) -> dict:
+    def calculate_top_values(
+        self, plot_occurrences: list[dict[Hashable, Any]], field_config: dict
+    ) -> dict:
         """
         Calculate the top values based on the configuration.
 
@@ -252,12 +295,12 @@ class PlotStatsCalculator(StatisticsCalculator):
         Returns:
             dict: The top values.
         """
-        target_ranks = field_config['transformations'][0]['target_ranks']
-        count = field_config['transformations'][0]['count']
+        target_ranks = field_config["transformations"][0]["target_ranks"]
+        count = field_config["transformations"][0]["count"]
 
         counts = Counter()
         for occ in plot_occurrences:
-            taxon_id = occ.get('taxon_ref_id')
+            taxon_id = occ.get("taxon_ref_id")
             if taxon_id:
                 taxon = self.db.session.query(TaxonRef).get(taxon_id)
                 if taxon and taxon.rank_name in target_ranks:

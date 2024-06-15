@@ -65,7 +65,11 @@ class Database:
         """
         try:
             with self.engine.connect() as connection:
-                result = connection.execute(text("SELECT * FROM duckdb_extensions() WHERE extension_name = 'spatial'"))
+                result = connection.execute(
+                    text(
+                        "SELECT * FROM duckdb_extensions() WHERE extension_name = 'spatial'"
+                    )
+                )
                 return result.fetchone() is not None
         except exc.SQLAlchemyError as e:
             print(f"Error checking spatial extension: {e}")

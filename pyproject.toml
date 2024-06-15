@@ -144,6 +144,7 @@ sphinxcontrib-napoleon = "^0.7"
 myst-parser = "^3.0.1"
 sphinx-markdown-builder = "^0.6.6"
 rtree = "^1.2.0"
+types-shapely = "^2.0.0.20240613"
 
 
 [tool.poetry.group.dev.dependencies]

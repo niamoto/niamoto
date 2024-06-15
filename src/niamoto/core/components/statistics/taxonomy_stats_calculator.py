@@ -60,10 +60,12 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
             self.create_or_update_stats_entry(taxon_id, stats)
 
         except Exception as e:
-            self.console.print(f"Failed to process taxon {taxon.id}: {e}", style="bold red")
+            self.console.print(
+                f"Failed to process taxon {taxon.id}: {e}", style="bold red"
+            )
 
     def calculate_stats(
-            self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
+        self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
         """
         Calculate statistics for a group.
@@ -93,7 +95,9 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                             stats[field] = len(group_occurrences)
                             break
                         elif transform_name == "top":
-                            stats[field] = self.calculate_top_items(group_occurrences, field_config)
+                            stats[field] = self.calculate_top_items(
+                                group_occurrences, field_config
+                            )
 
             elif source_field in df_occurrences.columns:
                 # Binary field (ex: um_occurrences)
@@ -106,7 +110,9 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                 # Geolocation field (ex: occurrence_location)
                 elif field_config.get("field_type") == "GEOGRAPHY":
                     if source_field in df_occurrences.columns:
-                        coordinates = self.extract_coordinates(df_occurrences, source_field)
+                        coordinates = self.extract_coordinates(
+                            df_occurrences, source_field
+                        )
                         stats[f"{field}"] = {
                             "type": "MultiPoint",
                             "coordinates": coordinates,
@@ -117,7 +123,7 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                     field_values = df_occurrences[source_field]
                     field_values = field_values[
                         (field_values != 0) & (field_values.notnull())
-                        ]
+                    ]
 
                     # Calculate transformations
                     transformations = field_config.get("transformations", [])
@@ -176,7 +182,6 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
             .all()
         )
         return [taxon_id[0] for taxon_id in taxon_ids]
-
 
     def calculate_frequencies(
         self, taxon_id: int, taxon_occurrences: list[dict[Hashable, Any]]

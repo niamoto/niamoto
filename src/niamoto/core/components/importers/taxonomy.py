@@ -32,8 +32,11 @@ class TaxonomyImporter:
 
         # Configure logging to write to a file in the logs directory
         log_file_path = os.path.join(log_directory, "taxonomy_import.log")
-        logging.basicConfig(filename=log_file_path, level=logging.INFO,
-                            format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(
+            filename=log_file_path,
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+        )
 
     def import_from_csv(self, file_path: str, ranks: Tuple[str, ...]) -> str:
         """

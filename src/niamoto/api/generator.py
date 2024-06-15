@@ -24,8 +24,13 @@ class StaticContentGenerator:
         self.page_generator = PageGenerator(config)
         self.api_generator = ApiGenerator(config)
 
-    def generate_page(self, template_name: str, output_name: str, depth: str = '',
-                      context: Optional[Dict[str, Any]] = None) -> str:
+    def generate_page(
+        self,
+        template_name: str,
+        output_name: str,
+        depth: str = "",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
         Generates a page from a template.
 
@@ -38,7 +43,9 @@ class StaticContentGenerator:
         Returns:
             str: The path of the generated page.
         """
-        return self.page_generator.generate_page(template_name, output_name, depth, context)
+        return self.page_generator.generate_page(
+            template_name, output_name, depth, context
+        )
 
     def generate_page_for_taxon(
         self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
@@ -56,9 +63,7 @@ class StaticContentGenerator:
         """
         return self.page_generator.generate_taxon_page(taxon, stats, mapping)
 
-    def generate_json_for_taxon(
-            self, taxon: TaxonRef, stats: Optional[Any]
-    ) -> str:
+    def generate_json_for_taxon(self, taxon: TaxonRef, stats: Optional[Any]) -> str:
         """
         Generates a page for a specific taxon.
 
@@ -90,7 +95,7 @@ class StaticContentGenerator:
         self.page_generator.generate_plot_list_js(plots)
 
     def generate_page_for_plot(
-            self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
+        self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
     ) -> str:
         """
         Generates a page for a specific plot.

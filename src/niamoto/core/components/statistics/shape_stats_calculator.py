@@ -9,6 +9,8 @@ from rtree import index
 from shapely.geometry import mapping
 from shapely.wkb import loads as wkb_loads
 from shapely.wkt import loads as wkt_loads
+from shapely.errors import WKTReadingError
+
 
 from niamoto.core.models import ShapeRef
 from .statistics_calculator import StatisticsCalculator
@@ -70,10 +72,12 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         except Exception as e:
             logging.error(f"Failed to process shape {shape_ref.id}: {e}")
-            self.console.print(f"Failed to process shape {shape_ref.id}: {e}", style="bold red")
+            self.console.print(
+                f"Failed to process shape {shape_ref.id}: {e}", style="bold red"
+            )
 
     def calculate_stats(
-            self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
+        self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
         """
         Calculate statistics for a group.
@@ -87,7 +91,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
         """
         logging.debug(f"Calculating stats for group ID: {group_id}")
 
-        shape_ref = self.db.session.query(ShapeRef).filter(ShapeRef.id == group_id).first()
+        shape_ref = (
+            self.db.session.query(ShapeRef).filter(ShapeRef.id == group_id).first()
+        )
         stats: Dict[str, Union[int, Dict[str, Any], pd.Series[Any], float]] = {}
 
         # Convert occurrences to pandas DataFrame
@@ -99,7 +105,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
             source = field_config.get("source")
             rank_type = field_config.get("rank_type", None)
 
-            logging.debug(f"Processing field: {field}, source: {source}, source_field: {source_field}")
+            logging.debug(
+                f"Processing field: {field}, source: {source}, source_field: {source_field}"
+            )
 
             if source_field is None:
                 # Special field without source_field (ex: total_occurrences)
@@ -109,28 +117,36 @@ class ShapeStatsCalculator(StatisticsCalculator):
                             stats[field] = len(group_occurrences)
                             break
 
-            elif source == 'shapes':
-                if source_field in ['shape_location', 'forest_location']:
+            elif source == "shapes":
+                if source_field in ["shape_location", "forest_location"]:
                     # Calculate area
-                    stats[field] = self.calculate_area(shape_ref.__dict__.get(source_field, ""))
+                    stats[field] = self.calculate_area(
+                        shape_ref.__dict__.get(source_field, "")
+                    )
 
-            elif source == 'occurrences':
+            elif source == "occurrences":
                 if rank_type:
-                    stats[field] = self.calculate_unique_ranks(df_occurrences, rank_type)
+                    stats[field] = self.calculate_unique_ranks(
+                        df_occurrences, rank_type
+                    )
                 else:
                     # Handle count and other transformations for occurrences
                     transformations = field_config.get("transformations", [])
                     for transformation in transformations:
                         transform_name = transformation.get("name")
-                        logging.debug(f"Applying transformation: {transform_name} to field: {field}")
+                        logging.debug(
+                            f"Applying transformation: {transform_name} to field: {field}"
+                        )
                         if transform_name == "count":
                             stats[field] = len(group_occurrences)
                         elif transform_name == "unique":
                             stats[field] = df_occurrences[source_field].nunique()
 
-            elif 'rasters' in source:
-                if source_field in ['altitude', 'rainfall']:
-                    stats[field] = self.calculate_raster_stats(shape_ref, source, source_field, field_config)
+            elif "rasters" in source:
+                if source_field in ["altitude", "rainfall"]:
+                    stats[field] = self.calculate_raster_stats(
+                        shape_ref, source, source_field, field_config
+                    )
 
         # Add group-specific stats
         specific_stats = self.calculate_specific_stats(group_id, group_occurrences)
@@ -139,7 +155,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         return stats
 
     def calculate_specific_stats(
-            self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
+        self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
         """
         Calculate specific statistics for a shape.
@@ -153,16 +169,20 @@ class ShapeStatsCalculator(StatisticsCalculator):
         """
         logging.debug(f"Calculating specific stats for group ID: {group_id}")
 
-        shape_ref = self.db.session.query(ShapeRef).filter(ShapeRef.id == group_id).first()
+        shape_ref = (
+            self.db.session.query(ShapeRef).filter(ShapeRef.id == group_id).first()
+        )
         specific_stats: Dict[str, Any] = {}
 
         # Example for calculating fragmentation
-        if 'fragmentation' in self.fields:
-            specific_stats['fragmentation'] = self.calculate_fragmentation(shape_ref)
+        if "fragmentation" in self.fields:
+            specific_stats["fragmentation"] = self.calculate_fragmentation(shape_ref)
 
         # Example for calculating forest coverage
-        if 'forest_coverage' in self.fields:
-            specific_stats['forest_coverage'] = self.calculate_forest_coverage(shape_ref, group_occurrences)
+        if "forest_coverage" in self.fields:
+            specific_stats["forest_coverage"] = self.calculate_forest_coverage(
+                shape_ref, group_occurrences
+            )
 
         # Add other specific field calculations here...
 
@@ -181,7 +201,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
         geom = wkb_loads(wkt_geometry)
         return geom.area
 
-    def calculate_unique_ranks(self, df_occurrences: pd.DataFrame, rank_type: str) -> int:
+    def calculate_unique_ranks(
+        self, df_occurrences: pd.DataFrame, rank_type: str
+    ) -> int:
         """
         Calculate the number of unique ranks (families, species, etc.).
 
@@ -194,8 +216,13 @@ class ShapeStatsCalculator(StatisticsCalculator):
         """
         return df_occurrences[rank_type].nunique()
 
-    def calculate_raster_stats(self, shape_ref: ShapeRef, raster_path: str, source_field: str,
-                               field_config: dict) -> float:
+    def calculate_raster_stats(
+        self,
+        shape_ref: ShapeRef,
+        raster_path: str,
+        source_field: str,
+        field_config: dict,
+    ) -> float:
         """
         Calculate statistics from raster data.
 
@@ -213,13 +240,13 @@ class ShapeStatsCalculator(StatisticsCalculator):
             out_image, out_transform = mask(src, [mapping(shape_geom)], crop=True)
             out_image = out_image[out_image != src.nodata]
 
-            if 'mean' in [t['name'] for t in field_config['transformations']]:
+            if "mean" in [t["name"] for t in field_config["transformations"]]:
                 return out_image.mean()
 
-            if 'max' in [t['name'] for t in field_config['transformations']]:
+            if "max" in [t["name"] for t in field_config["transformations"]]:
                 return out_image.max()
 
-            if 'median' in [t['name'] for t in field_config['transformations']]:
+            if "median" in [t["name"] for t in field_config["transformations"]]:
                 return pd.Series(out_image.flatten()).median()
 
         return 0.0
@@ -237,8 +264,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
         # Placeholder for actual fragmentation calculation logic
         return 91.3  # Example value
 
-    def calculate_forest_coverage(self, shape_ref: ShapeRef, occurrences: list[dict[Hashable, Any]]) -> Dict[
-        str, float]:
+    def calculate_forest_coverage(
+        self, shape_ref: ShapeRef, occurrences: list[dict[Hashable, Any]]
+    ) -> Dict[str, float]:
         """
         Calculate the forest coverage within the shape.
 
@@ -253,9 +281,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
         forest_area = self.calculate_area(shape_ref.forest_location)
         forest_coverage_percentage = (forest_area / total_area) * 100
         return {
-            'forest_area': forest_area,
-            'total_area': total_area,
-            'forest_coverage_percentage': forest_coverage_percentage
+            "forest_area": forest_area,
+            "total_area": total_area,
+            "forest_coverage_percentage": forest_coverage_percentage,
         }
 
     def _retrieve_all_shapes(self) -> List[ShapeRef]:
@@ -293,7 +321,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
         for pos, occurrence in enumerate(self.occurrences):
             if isinstance(occurrence, dict):
                 point_wkt = occurrence.get(occurrence_location_field)
-                if point_wkt is not None and isinstance(point_wkt, str) and point_wkt.startswith("POINT"):
+                if (
+                    point_wkt is not None
+                    and isinstance(point_wkt, str)
+                    and point_wkt.startswith("POINT")
+                ):
                     try:
                         point_geom = wkt_loads(point_wkt)
                         if point_geom:
@@ -319,7 +351,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
             # Convert the WKB string to a Shapely geometry
             shape_geom = wkb_loads(bytes.fromhex(shape_ref.shape_location))
         except Exception as e:
-            logging.error(f"Failed to load shape geometry for shape ID {shape_ref.id}: {e}")
+            logging.error(
+                f"Failed to load shape geometry for shape ID {shape_ref.id}: {e}"
+            )
             return []
 
         occurrence_location_field = self.group_config.get("source_location_field")
@@ -343,14 +377,18 @@ class ShapeStatsCalculator(StatisticsCalculator):
             try:
                 point_geom = wkt_loads(wkt_str)
                 return shape_geom.contains(point_geom)
-            except:
+            except WKTReadingError:
                 return False
 
         # Apply the filtering function to the DataFrame
-        df_occurrences['is_within_shape'] = df_occurrences[occurrence_location_field].apply(is_within_shape)
-        filtered_occurrences = df_occurrences[df_occurrences['is_within_shape']]
+        df_occurrences["is_within_shape"] = df_occurrences[
+            occurrence_location_field
+        ].apply(is_within_shape)
+        filtered_occurrences = df_occurrences[df_occurrences["is_within_shape"]]
 
         # Convert the filtered DataFrame back to a list of dictionaries
-        occurrences_within_shape = filtered_occurrences.drop(columns=['is_within_shape']).to_dict('records')
+        occurrences_within_shape = filtered_occurrences.drop(
+            columns=["is_within_shape"]
+        ).to_dict("records")
 
         return occurrences_within_shape

@@ -20,7 +20,7 @@ class ApiGenerator(BaseGenerator):
             config (Config): An instance of Config containing configuration settings.
         """
         self.config = config
-        self.json_output_dir = os.path.join(self.config.get('outputs', 'static_api'))
+        self.json_output_dir = os.path.join(self.config.get("outputs", "static_api"))
 
     def generate_taxon_json(self, taxon: TaxonRef, stats: Optional[Any]) -> str:
         """
@@ -72,10 +72,7 @@ class ApiGenerator(BaseGenerator):
             str: The path of the generated JSON file.
         """
         all_taxa = [self.taxon_to_simple_dict(taxon) for taxon in taxa]
-        output_data = {
-            "total": len(all_taxa),
-            "taxa": all_taxa
-        }
+        output_data = {"total": len(all_taxa), "taxa": all_taxa}
         os.makedirs(self.json_output_dir, exist_ok=True)
         output_path = os.path.join(self.json_output_dir, "all_taxa.json")
         with open(output_path, "w") as file:
@@ -94,10 +91,7 @@ class ApiGenerator(BaseGenerator):
             str: The path of the generated JSON file.
         """
         all_plots = [self.plot_to_simple_dict(plot) for plot in plots]
-        output_data = {
-            "total": len(all_plots),
-            "plots": all_plots
-        }
+        output_data = {"total": len(all_plots), "plots": all_plots}
         os.makedirs(self.json_output_dir, exist_ok=True)
         output_path = os.path.join(self.json_output_dir, "all_plots.json")
         with open(output_path, "w") as file:
@@ -118,7 +112,7 @@ class ApiGenerator(BaseGenerator):
         return {
             "id": taxon.id,
             "name": taxon.full_name,
-            "endpoint": f"/api/taxon/{taxon.id}.json"
+            "endpoint": f"/api/taxon/{taxon.id}.json",
         }
 
     @staticmethod
@@ -135,5 +129,5 @@ class ApiGenerator(BaseGenerator):
         return {
             "id": plot.id,
             "name": plot.locality,
-            "endpoint": f"/api/plot/{plot.id}.json"
+            "endpoint": f"/api/plot/{plot.id}.json",
         }

@@ -76,7 +76,7 @@ class Config:
         Returns:
             Dict[str, Any]: The configuration section.
         """
-        return self.config.get(section, {})
+        return self.config.get(section, {}) or {}
 
     def get(self, section: str, key: Optional[str] = None) -> Any:
         """
@@ -124,8 +124,8 @@ class Config:
                 "rasters": {"path": "data/sources/rasters"},
             },
             "outputs": {
-                "static_pages": "outputs/static_files",
-                "api": "outputs/api",
+                "static_site": "outputs",
+                "static_api": "outputs/api",
             },
             "aggregations": [],
         }
@@ -184,7 +184,7 @@ class Config:
                 "shapes",
                 "rasters",
             ],
-            "outputs": ["static_pages", "api"],
+            "outputs": ["static_site", "static_api"],
             "aggregations": [],
         }
 

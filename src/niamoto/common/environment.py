@@ -49,14 +49,18 @@ class Environment:
     def reset(self) -> None:
         """
         Reset the environment by deleting the existing database, configuration,
-        and web static_files pages.
+        web and api static_files.
         """
         db_path = self.config.database_path
         if os.path.exists(db_path):
             os.remove(db_path)
 
-        static_pages_path = self.config.output_paths.get("static_pages")
+        static_pages_path = self.config.output_paths.get("static_site")
         if static_pages_path and os.path.exists(static_pages_path):
             shutil.rmtree(static_pages_path)
+
+        static_api_path = self.config.output_paths.get("static_api")
+        if static_api_path and os.path.exists(static_api_path):
+            shutil.rmtree(static_api_path)
 
         self.initialize()

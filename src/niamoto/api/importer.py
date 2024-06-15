@@ -67,7 +67,9 @@ class ApiImporter:
         except Exception as e:
             logger.error(f"Error during plot data import: {e}")
 
-    def import_occurrences(self, csvfile: str, taxon_id_column: str, location_column: str) -> Any:
+    def import_occurrences(
+        self, csvfile: str, taxon_id_column: str, location_column: str
+    ) -> Any:
         """
         Imports occurrences data using DataImportService.
 

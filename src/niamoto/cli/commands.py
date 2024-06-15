@@ -29,7 +29,7 @@ from niamoto.common.environment import Environment
 from niamoto.core.models import TaxonRef, Base, PlotRef
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
 from niamoto.core.services.mapper import MapperService
-from niamoto.publish.static_api import ApiGenerator
+from niamoto.publish.static_api.api_generator import ApiGenerator
 
 
 class RichCLI(click.Group):
@@ -75,13 +75,20 @@ class RichCLI(click.Group):
             "This CLI provides commands for initializing the database and importing data from CSV files.\n\n"
             "Options:\n"
             "  --help  Show this message and exit.\n\n"
-            "Available Commands:\n"
+            "Main Commands (in this order, require a complete config.yml file):\n"
         )
 
-        # Get the list of commands
-        commands = self.list_commands(ctx)
-        commands_info = []
-        for cmd_name in commands:
+        main_commands = [
+            "init", "import-all", "calculate-statistics", "generate-static-content", "deploy-static_files-site"
+        ]
+
+        other_commands = [
+            cmd for cmd in self.list_commands(ctx) if cmd not in main_commands
+        ]
+
+        # Get the list of main commands
+        main_commands_info = []
+        for cmd_name in main_commands:
             cmd = self.get_command(ctx, cmd_name)
             if cmd is None:
                 continue
@@ -93,22 +100,54 @@ class RichCLI(click.Group):
             else:
                 description = "No description provided"
 
-            commands_info.append((cmd_name, description))
+            main_commands_info.append((cmd_name, description))
 
-        # Create the command table with Rich
+        # Create the main command table with Rich
         console = Console()
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Command", style="dim")
-        table.add_column("Description")
-        for cmd_name, description in commands_info:
-            table.add_row(cmd_name, description)
+        main_table = Table(show_header=True, header_style="bold magenta")
+        main_table.add_column("Command", style="dim")
+        main_table.add_column("Description")
+        for cmd_name, description in main_commands_info:
+            main_table.add_row(cmd_name, description)
 
-        # Capture the output of the table into a variable
+        # Capture the output of the main table into a variable
         with console.capture() as capture:
-            console.print(table)
+            console.print(main_table)
 
         # Write the captured output into the formatter
         formatter.write(capture.get())
+
+        # Add other commands section
+        if other_commands:
+            formatter.write("\nOther Commands:\n")
+            other_commands_info = []
+            for cmd_name in other_commands:
+                cmd = self.get_command(ctx, cmd_name)
+                if cmd is None:
+                    continue
+
+                # Extract the first line of the docstring as a description
+                docstring = cmd.callback.__doc__
+                if docstring:
+                    description = docstring.strip().split("\n")[0]
+                else:
+                    description = "No description provided"
+
+                other_commands_info.append((cmd_name, description))
+
+            # Create the other commands table with Rich
+            other_table = Table(show_header=True, header_style="bold magenta")
+            other_table.add_column("Command", style="dim")
+            other_table.add_column("Description")
+            for cmd_name, description in other_commands_info:
+                other_table.add_row(cmd_name, description)
+
+            # Capture the output of the other table into a variable
+            with console.capture() as capture:
+                console.print(other_table)
+
+            # Write the captured output into the formatter
+            formatter.write(capture.get())
 
 
 @click.group(cls=RichCLI)
@@ -355,7 +394,9 @@ def import_plots(csvfile: str) -> None:
     "-l",
     help="Name of the column in the CSV that corresponds to the taxon ID.",
 )
-def import_occurrences(csvfile: str, taxon_identifier: str, location_field: str) -> None:
+def import_occurrences(
+    csvfile: str, taxon_identifier: str, location_field: str
+) -> None:
     """
     Import occurrence data from a CSV file, analyze it to update the 'mapping' table,
     and link occurrences to their taxons.
@@ -416,7 +457,9 @@ def import_occurrences(csvfile: str, taxon_identifier: str, location_field: str)
         raise ValueError("Location field column not specified.")
 
     data_importer = ApiImporter()
-    import_occ_result = data_importer.import_occurrences(csvfile, taxon_identifier, location_field)
+    import_occ_result = data_importer.import_occurrences(
+        csvfile, taxon_identifier, location_field
+    )
     console = Console()
     console.print(import_occ_result, style="italic green")
 
@@ -566,12 +609,13 @@ def import_all() -> None:
     data_importer.import_plots(plots_csvfile)
 
     # Import shapes
-    shapes_config = config.get("sources", "shapes")
-    shapes_csvfile = shapes_config.get("path")
-    if not shapes_csvfile or not os.path.exists(shapes_csvfile):
-        raise FileNotFoundError(f"Shapes CSV file not found: {shapes_csvfile}")
-    console.print(f"Importing shapes from {shapes_csvfile}", style="italic green")
-    data_importer.import_shapes(shapes_csvfile)
+    # TODO: Uncomment this section once the shapes import is implemented
+    # shapes_config = config.get("sources", "shapes")
+    # shapes_csvfile = shapes_config.get("path")
+    # if not shapes_csvfile or not os.path.exists(shapes_csvfile):
+    #     raise FileNotFoundError(f"Shapes CSV file not found: {shapes_csvfile}")
+    # console.print(f"Importing shapes from {shapes_csvfile}", style="italic green")
+    # data_importer.import_shapes(shapes_csvfile)
 
     # Import occurrences
     occurrences_config = config.get("sources", "occurrences")
@@ -585,7 +629,9 @@ def import_all() -> None:
     console.print(
         f"Importing occurrences from {occurrences_csvfile}", style="italic green"
     )
-    data_importer.import_occurrences(occurrences_csvfile, occurrences_taxon_identifier, occurrences_location_field)
+    data_importer.import_occurrences(
+        occurrences_csvfile, occurrences_taxon_identifier, occurrences_location_field
+    )
 
     # Import occurrence plots
     occurrence_plots_config = config.get("sources", "occurrence-plots")
@@ -670,10 +716,10 @@ def reset_tables(db_path: str) -> None:
     help="The path to the reference table file (e.g., GeoPackage).",
 )
 def generate_mapping(
-        data_source: str,
-        mapping_group: str,
-        reference_table_name: Optional[str],
-        reference_data_path: Optional[str],
+    data_source: str,
+    mapping_group: str,
+    reference_table_name: Optional[str],
+    reference_data_path: Optional[str],
 ) -> None:
     """
     Generate a mapping from a CSV file based on the specified grouping criteria.
@@ -882,8 +928,10 @@ def generate_static_content() -> None:
     "--output-dir", default="output", help="Directory containing generated files."
 )
 @click.option(
-    "--provider", type=click.Choice(['github', 'netlify']), required=True,
-    help="Deployment provider (github or netlify)."
+    "--provider",
+    type=click.Choice(["github", "netlify"]),
+    required=True,
+    help="Deployment provider (github or netlify).",
 )
 @click.option(
     "--repo-url", help="GitHub repository URL (required if provider is 'github')."
@@ -891,12 +939,12 @@ def generate_static_content() -> None:
 @click.option(
     "--branch", default="main", help="Branch to deploy to (default is 'main')."
 )
-@click.option(
-    "--site-id", help="Netlify site ID (required if provider is 'netlify')."
-)
-def deploy(output_dir: str, provider: str, repo_url: str, branch: str, site_id: str) -> None:
+@click.option("--site-id", help="Netlify site ID (required if provider is 'netlify').")
+def deploy(
+    output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
+) -> None:
     """
-    Deploy generated static_files files to the specified provider (GitHub Pages or Netlify).
+    Deploy generated static_site and static_api to the specified provider (GitHub Pages or Netlify).
 
     Args:
         output_dir (str): Path to the directory containing generated files.
@@ -909,15 +957,19 @@ def deploy(output_dir: str, provider: str, repo_url: str, branch: str, site_id: 
         $ niamoto deploy --provider=github --output-dir=output --repo-url=https://github.com/username/repo.git
         $ niamoto deploy --provider=netlify --output-dir=output --site-id=your-netlify-site-id
     """
-    if provider == 'github' and not repo_url:
-        raise click.UsageError("The --repo-url option is required when deploying to GitHub Pages.")
-    if provider == 'netlify' and not site_id:
-        raise click.UsageError("The --site-id option is required when deploying to Netlify.")
+    if provider == "github" and not repo_url:
+        raise click.UsageError(
+            "The --repo-url option is required when deploying to GitHub Pages."
+        )
+    if provider == "netlify" and not site_id:
+        raise click.UsageError(
+            "The --site-id option is required when deploying to Netlify."
+        )
 
     try:
-        if provider == 'github':
+        if provider == "github":
             deploy_to_github(output_dir, repo_url, branch)
-        elif provider == 'netlify':
+        elif provider == "netlify":
             deploy_to_netlify(output_dir, site_id)
         else:
             raise click.UsageError("Unsupported provider specified.")
@@ -940,25 +992,29 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str) -> None:
         os.chdir(output_dir)
 
         # Initialize git repository if not already initialized
-        if not os.path.exists(os.path.join(output_dir, '.git')):
-            subprocess.run(['git', 'init'], check=True)
+        if not os.path.exists(os.path.join(output_dir, ".git")):
+            subprocess.run(["git", "init"], check=True)
 
         # Check if the remote 'origin' is already set
-        result = subprocess.run(['git', 'remote', 'get-url', 'origin'], capture_output=True, text=True)
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"], capture_output=True, text=True
+        )
         if result.returncode != 0:
-            subprocess.run(['git', 'remote', 'add', 'origin', repo_url], check=True)
+            subprocess.run(["git", "remote", "add", "origin", repo_url], check=True)
         else:
-            subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], check=True)
+            subprocess.run(["git", "remote", "set-url", "origin", repo_url], check=True)
 
-        subprocess.run(['git', 'add', '.'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Deploy static_files site'], check=True)
-        subprocess.run(['git', 'push', '--force', 'origin', branch], check=True)
+        subprocess.run(["git", "add", "."], check=True)
+        subprocess.run(["git", "commit", "-m", "Deploy static_files site"], check=True)
+        subprocess.run(["git", "push", "--force", "origin", branch], check=True)
 
         console = Console()
         console.print("Deployment to GitHub Pages successful.", style="italic green")
     except subprocess.CalledProcessError as e:
         console = Console()
-        console.print(f"An error occurred while deploying to GitHub: {e}", style="bold red")
+        console.print(
+            f"An error occurred while deploying to GitHub: {e}", style="bold red"
+        )
 
 
 def deploy_to_netlify(output_dir: str, site_id: str) -> None:
@@ -971,13 +1027,18 @@ def deploy_to_netlify(output_dir: str, site_id: str) -> None:
 
     """
     try:
-        subprocess.run(['netlify', 'deploy', '--prod', '--dir', output_dir, '--site', site_id], check=True)
+        subprocess.run(
+            ["netlify", "deploy", "--prod", "--dir", output_dir, "--site", site_id],
+            check=True,
+        )
 
         console = Console()
         console.print("Deployment to Netlify successful.", style="italic green")
     except subprocess.CalledProcessError as e:
         console = Console()
-        console.print(f"An error occurred while deploying to Netlify: {e}", style="bold red")
+        console.print(
+            f"An error occurred while deploying to Netlify: {e}", style="bold red"
+        )
 
 
 if __name__ == "__main__":

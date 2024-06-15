@@ -44,8 +44,13 @@ class PageGenerator(BaseGenerator):
         template_loader = jinja2.FileSystemLoader(searchpath=self.template_dir)
         self.template_env = jinja2.Environment(loader=template_loader)
 
-    def generate_page(self, template_name: str, output_name: str, depth: str = '',
-                      context: Optional[Dict[str, Any]] = None) -> str:
+    def generate_page(
+        self,
+        template_name: str,
+        output_name: str,
+        depth: str = "",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
         Generates a static page using Jinja2 templates.
 
@@ -61,7 +66,7 @@ class PageGenerator(BaseGenerator):
         if context is None:
             context = {}
 
-        context['depth'] = depth  # Add the depth variable to the context
+        context["depth"] = depth  # Add the depth variable to the context
         template = self.template_env.get_template(template_name)
         html_output = template.render(context)
         output_path = os.path.join(self.output_dir, output_name)
@@ -71,7 +76,7 @@ class PageGenerator(BaseGenerator):
         return output_path
 
     def generate_taxon_page(
-            self, taxon: TaxonRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
+        self, taxon: TaxonRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
     ) -> str:
         """
         Generates a webpage for a given taxon object.
@@ -90,7 +95,7 @@ class PageGenerator(BaseGenerator):
             "taxon": taxon_dict,
             "stats": stats,
             "mapping": mapping_group,
-            "depth": "../"  # This assumes taxon pages are one level deep
+            "depth": "../",  # This assumes taxon pages are one level deep
         }
 
         html_output = template.render(context)
@@ -103,7 +108,7 @@ class PageGenerator(BaseGenerator):
         return output_path
 
     def generate_plot_page(
-            self, plot: PlotRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
+        self, plot: PlotRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
     ) -> str:
         """
         Generates a webpage for a given plot object.
@@ -122,7 +127,7 @@ class PageGenerator(BaseGenerator):
             "plot": plot_dict,
             "stats": stats,
             "mapping": mapping_group,
-            "depth": "../"  # This assumes plot pages are one level deep
+            "depth": "../",  # This assumes plot pages are one level deep
         }
 
         html_output = template.render(context)
@@ -188,7 +193,7 @@ class PageGenerator(BaseGenerator):
         return tree
 
     def build_subtree(
-            self, taxon: TaxonRef, taxons_by_id: Dict[int, TaxonRef]
+        self, taxon: TaxonRef, taxons_by_id: Dict[int, TaxonRef]
     ) -> Dict[str, Any]:
         """
         Builds a subtree for a given taxon object.
@@ -211,8 +216,8 @@ class PageGenerator(BaseGenerator):
 
         for child_id, child_taxon in taxons_by_id.items():
             if (
-                    child_taxon.parent_id == taxon.id
-                    and left < child_taxon.lft < child_taxon.rght < right
+                child_taxon.parent_id == taxon.id
+                and left < child_taxon.lft < child_taxon.rght < right
             ):
                 node["children"].append(self.build_subtree(child_taxon, taxons_by_id))
 
@@ -228,10 +233,7 @@ class PageGenerator(BaseGenerator):
         """
         plot_list = []
         for plot in plots:
-            plot_list.append({
-                "id": plot.id,
-                "name": plot.locality
-            })
+            plot_list.append({"id": plot.id, "name": plot.locality})
         return plot_list
 
     def copy_static_files(self) -> None:
@@ -267,4 +269,3 @@ class PageGenerator(BaseGenerator):
         output_path = os.path.join(self.output_dir, output_name)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         shutil.copy2(template_path, output_path)
-

@@ -1,5 +1,4 @@
 import pandas as pd
-from shapely.wkt import loads, dumps
 from niamoto.core.models import ShapeRef
 from niamoto.common.database import Database
 
@@ -39,8 +38,16 @@ class ShapeImporter:
         try:
             for index, row in shapes_data.iterrows():
                 # Ensure the shape_location and forest_location columns are strings
-                shape_location_wkt = str(row["shape_location"]) if pd.notna(row["shape_location"]) else None
-                forest_location_wkt = str(row["forest_location"]) if pd.notna(row["forest_location"]) else None
+                shape_location_wkt = (
+                    str(row["shape_location"])
+                    if pd.notna(row["shape_location"])
+                    else None
+                )
+                forest_location_wkt = (
+                    str(row["forest_location"])
+                    if pd.notna(row["forest_location"])
+                    else None
+                )
 
                 # Ensure other fields are correctly typed
                 label = str(row["label"]) if pd.notna(row["label"]) else None

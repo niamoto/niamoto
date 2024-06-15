@@ -1,7 +1,7 @@
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Dict, Any, Hashable, Tuple, Union
+from typing import List, Dict, Any, Hashable, Tuple
 
 import duckdb
 import pandas as pd
@@ -30,11 +30,11 @@ class StatisticsCalculator(ABC):
     """
 
     def __init__(
-            self,
-            db: Database,
-            mapper_service: MapperService,
-            occurrences: list[dict[Hashable, Any]],
-            group_by: str,
+        self,
+        db: Database,
+        mapper_service: MapperService,
+        occurrences: list[dict[Hashable, Any]],
+        group_by: str,
     ):
         """
         Initializes the StatisticsCalculator with the database connection, mapper service, occurrences, and group by field.
@@ -59,7 +59,7 @@ class StatisticsCalculator(ABC):
 
     @abstractmethod
     def calculate_stats(
-            self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
+        self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
         """
         Calculate statistics for a group.
@@ -87,7 +87,7 @@ class StatisticsCalculator(ABC):
         self.create_stats_table(table_name, initialize=True)
 
     def create_or_update_stats_entry(
-            self, group_id: int, stats: Dict[str, Any]
+        self, group_id: int, stats: Dict[str, Any]
     ) -> None:
         """
         Create or update a statistics entry.
@@ -217,7 +217,9 @@ class StatisticsCalculator(ABC):
         }
 
     @staticmethod
-    def extract_coordinates(filtered_data: Any, source_field: str) -> List[Dict[str, Any]]:
+    def extract_coordinates(
+        filtered_data: Any, source_field: str
+    ) -> List[Dict[str, Any]]:
         """
         Extract unique geographic coordinates and their occurrence counts from the filtered data.
 
@@ -245,8 +247,9 @@ class StatisticsCalculator(ABC):
             for coords, count in coordinate_counts.items()
         ]
 
-    def calculate_top_items(self, occurrences: list[dict[Hashable, Any]], field_config: dict) -> \
-            Dict[str, int]:
+    def calculate_top_items(
+        self, occurrences: list[dict[Hashable, Any]], field_config: dict
+    ) -> Dict[str, int]:
         """
         Calculate the top most frequent items in the occurrences based on target ranks.
 
@@ -257,41 +260,60 @@ class StatisticsCalculator(ABC):
         Returns:
             Dict[str, int]: A dictionary with the top items and their counts.
         """
-        taxon_ids = {occ.get('taxon_ref_id') for occ in occurrences if occ.get('taxon_ref_id')}
-        target_ranks = field_config['transformations'][0]['target_ranks']
-        top_count = field_config['transformations'][0]['count']
+        taxon_ids = {
+            occ.get("taxon_ref_id") for occ in occurrences if occ.get("taxon_ref_id")
+        }
+        target_ranks = field_config["transformations"][0]["target_ranks"]
+        top_count = field_config["transformations"][0]["count"]
 
         if not taxon_ids:
             return {}
 
         # Query all taxons in a single query
-        taxons = self.db.session.query(TaxonRef).filter(TaxonRef.id.in_(taxon_ids)).all()
+        taxons = (
+            self.db.session.query(TaxonRef).filter(TaxonRef.id.in_(taxon_ids)).all()
+        )
         taxon_dict = {taxon.id: taxon for taxon in taxons}
 
         # Query parent taxons to ensure we have the complete hierarchy
-        parent_ids = {taxon.parent_id for taxon in taxons if taxon.parent_id is not None}
+        parent_ids = {
+            taxon.parent_id for taxon in taxons if taxon.parent_id is not None
+        }
         while parent_ids:
-            parent_taxons = self.db.session.query(TaxonRef).filter(TaxonRef.id.in_(parent_ids)).all()
+            parent_taxons = (
+                self.db.session.query(TaxonRef)
+                .filter(TaxonRef.id.in_(parent_ids))
+                .all()
+            )
             for parent_taxon in parent_taxons:
                 taxon_dict[parent_taxon.id] = parent_taxon
-            parent_ids = {taxon.parent_id for taxon in parent_taxons if
-                          taxon.parent_id is not None and taxon.parent_id not in taxon_dict}
+            parent_ids = {
+                taxon.parent_id
+                for taxon in parent_taxons
+                if taxon.parent_id is not None and taxon.parent_id not in taxon_dict
+            }
 
         item_counts = {}
 
         for occ in occurrences:
-            taxon_id = occ.get('taxon_ref_id')
+            taxon_id = occ.get("taxon_ref_id")
             if taxon_id and taxon_id in taxon_dict:
                 taxon = taxon_dict[taxon_id]
                 item_name = self.find_item_name(taxon, taxon_dict, target_ranks)
                 if item_name:
                     item_counts[item_name] = item_counts.get(item_name, 0) + 1
 
-        top_items = dict(sorted(item_counts.items(), key=lambda item: item[1], reverse=True)[:top_count])
+        top_items = dict(
+            sorted(item_counts.items(), key=lambda item: item[1], reverse=True)[
+                :top_count
+            ]
+        )
         return top_items
 
     @staticmethod
-    def find_item_name(taxon: TaxonRef, taxon_dict: Dict[int, TaxonRef], target_ranks: list[str]) -> str:
+    def find_item_name(
+        taxon: TaxonRef, taxon_dict: Dict[int, TaxonRef], target_ranks: list[str]
+    ) -> str:
         """
         Find the item name based on target ranks by traversing up the hierarchy.
 
@@ -305,5 +327,8 @@ class StatisticsCalculator(ABC):
         """
         while taxon and taxon.rank_name.lower() not in target_ranks:
             taxon = taxon_dict.get(taxon.parent_id)
-        return taxon.full_name if taxon and taxon.rank_name.lower() in target_ranks else None
-
+        return (
+            taxon.full_name
+            if taxon and taxon.rank_name.lower() in target_ranks
+            else None
+        )

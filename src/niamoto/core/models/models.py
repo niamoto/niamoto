@@ -10,7 +10,8 @@ from sqlalchemy import (
     Integer,
     String,
     Sequence,
-    Index, )
+    Index,
+)
 from sqlalchemy.dialects.postgresql import BIGINT
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -61,9 +62,9 @@ class TaxonRef(Base):
         children = relationship("TaxonRef", backref="parent", remote_side=[id])
 
     __table_args__ = (
-        Index('ix_taxon_ref_id', 'id'),
-        Index('ix_taxon_ref_rank_name', 'rank_name'),
-        Index('ix_taxon_ref_full_name', 'full_name')
+        Index("ix_taxon_ref_id", "id"),
+        Index("ix_taxon_ref_rank_name", "rank_name"),
+        Index("ix_taxon_ref_full_name", "full_name"),
     )
 
     def __repr__(self) -> str:
@@ -114,9 +115,9 @@ class ShapeRef(Base):
     forest_location = Column(String, nullable=False)
 
     __table_args__ = (
-        Index('ix_shape_ref_id', 'id'),
-        Index('ix_shape_ref_label', 'label'),
-        Index('ix_shape_ref_type', 'type')
+        Index("ix_shape_ref_id", "id"),
+        Index("ix_shape_ref_label", "label"),
+        Index("ix_shape_ref_type", "type"),
     )
 
     def __repr__(self) -> str:

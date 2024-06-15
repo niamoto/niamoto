@@ -37,7 +37,9 @@ class ImporterService:
         """
         return self.taxonomy_importer.import_from_csv(file_path, ranks)
 
-    def import_occurrences(self, csvfile: str, taxon_id_column: str, location_column: str) -> str:
+    def import_occurrences(
+        self, csvfile: str, taxon_id_column: str, location_column: str
+    ) -> str:
         """
         Import occurrences data from a CSV file.
 
@@ -48,7 +50,9 @@ class ImporterService:
         Returns:
             str: A message indicating the status of the import operation.
         """
-        return self.occurrence_importer.import_valid_occurrences(csvfile, taxon_id_column, location_column)
+        return self.occurrence_importer.import_valid_occurrences(
+            csvfile, taxon_id_column, location_column
+        )
 
     def import_plots(self, gpkg_path: str) -> str:
         """

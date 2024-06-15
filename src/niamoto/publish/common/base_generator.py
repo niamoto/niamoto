@@ -4,12 +4,13 @@ from niamoto.core.models import TaxonRef, PlotRef
 from shapely import wkt
 from shapely.geometry import mapping
 
+
 class BaseGenerator:
     """
     The BaseGenerator class provides common methods for generating data dictionaries.
     """
 
-    def taxon_to_dict(self, taxon: TaxonRef, stats: Optional[Any]) -> dict:
+    def taxon_to_dict(self, taxon: TaxonRef, stats: Optional[Any]) -> Dict[str, Any]:
         taxon_dict = {
             "id": taxon.id,
             "full_name": taxon.full_name,
@@ -35,13 +36,13 @@ class BaseGenerator:
 
         return taxon_dict
 
-    def plot_to_dict(self, plot: PlotRef, stats: Optional[Any]) -> dict:
+    def plot_to_dict(self, plot: PlotRef, stats: Optional[Any]) -> Dict[str, Any]:
         plot_dict = {
             "id": plot.id,
             "id_locality": plot.id_locality,
             "locality": plot.locality,
             "substrat": plot.substrat,
-            "geometry": mapping(wkt.loads(plot.geometry)) if plot.geometry else None,
+            "geometry": mapping(wkt.loads(plot.geometry)) if isinstance(plot.geometry, str) else None,
         }
 
         if stats:

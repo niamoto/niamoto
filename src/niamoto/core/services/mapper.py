@@ -79,7 +79,7 @@ class MapperService:
             str: The path to the source.
         """
         sources = self.mapping_manager.get_sources()
-        return sources.get(source_name, {}).get('path', '')
+        return sources.get(source_name, {}).get("path", "")
 
     def get_source_identifier(self, source_name: str) -> str:
         """
@@ -92,7 +92,7 @@ class MapperService:
             str: The identifier for the source.
         """
         sources = self.mapping_manager.get_sources()
-        return sources.get(source_name, {}).get('identifier', 'id')
+        return sources.get(source_name, {}).get("identifier", "id")
 
     def get_fields(self, group_by: str) -> Dict[str, Any]:
         """
@@ -105,5 +105,3 @@ class MapperService:
             Dict[str, Any]: The fields for the given group.
         """
         return self.mapping_manager.get_fields(group_by)
-
-

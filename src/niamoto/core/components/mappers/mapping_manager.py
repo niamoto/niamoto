@@ -1,10 +1,9 @@
-import json
 import os
 
 import click
 import duckdb
 import yaml
-from typing import List, Any, Optional, Tuple, Dict, Collection
+from typing import List, Any, Optional, Dict, Collection
 from duckdb import DuckDBPyConnection
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -54,7 +53,6 @@ class MappingManager:
             con.execute(
                 f"CREATE TEMPORARY TABLE temp_csv AS SELECT * FROM READ_CSV_AUTO('{csvfile}')"
             )
-            session = self.db.get_new_session()
             column_schema = analyze_csv_data_types(csvfile)
             table = Table(show_header=True, header_style="bold magenta")
             table.add_column("Field", style="dim")

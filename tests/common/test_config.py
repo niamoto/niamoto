@@ -73,7 +73,10 @@ def test_get_method():
         config = Config()
         assert config.get("database") == {"path": "data/db/niamoto.db"}
         assert config.get("sources", "plots") == "data/sources/plots.gpkg"
-        assert config.get("web") == {"static_pages": "web/static_files", "api": "web/api"}
+        assert config.get("web") == {
+            "static_pages": "web/static_files",
+            "api": "web/api",
+        }
 
 
 def test_valid_config():

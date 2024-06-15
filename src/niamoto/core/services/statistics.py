@@ -2,7 +2,9 @@ from typing import Any, Hashable
 
 
 from niamoto.common.database import Database
-from niamoto.core.components.statistics.shape_stats_calculator import ShapeStatsCalculator
+from niamoto.core.components.statistics.shape_stats_calculator import (
+    ShapeStatsCalculator,
+)
 from niamoto.core.services.mapper import MapperService
 from niamoto.core.components.statistics.taxonomy_stats_calculator import (
     TaxonomyStatsCalculator,
@@ -36,7 +38,9 @@ class StatisticService:
 
         for group_config in mapping_data:
             group_by = group_config["group_by"]
-            self.calculate_group_statistics(occurrences, group_by)
+            # TODO: Remove this check once all group_by parameters are implemented
+            if group_by != "shape":
+                self.calculate_group_statistics(occurrences, group_by)
 
     def calculate_group_statistics(
         self, occurrences: list[dict[Hashable, Any]], group_by: str
