@@ -3,11 +3,12 @@ from typing import List, Optional, Any, Dict
 from niamoto.core.models import TaxonRef, PlotRef
 from niamoto.common.config import Config
 from niamoto.publish import PageGenerator
+from niamoto.publish.static_api import ApiGenerator
 
 
 class StaticContentGenerator:
     """
-    A class used to generate static content for the Niamoto project.
+    A class used to generate static_files content for the Niamoto project.
 
     Attributes:
         page_generator (niamoto.publish.PageGenerator): An instance of the PageGenerator class.
@@ -21,6 +22,23 @@ class StaticContentGenerator:
             config (Config): The configuration settings for the Niamoto project.
         """
         self.page_generator = PageGenerator(config)
+        self.api_generator = ApiGenerator(config)
+
+    def generate_page(self, template_name: str, output_name: str, depth: str = '',
+                      context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Generates a page from a template.
+
+        Args:
+            template_name (str): The name of the template file.
+            output_name (str): The name of the output file.
+            depth (str): The relative path to the root (e.g., '../../' for two levels up).
+            context (dict, optional): A dictionary of context variables for the template.
+
+        Returns:
+            str: The path of the generated page.
+        """
+        return self.page_generator.generate_page(template_name, output_name, depth, context)
 
     def generate_page_for_taxon(
         self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
@@ -51,7 +69,7 @@ class StaticContentGenerator:
         Returns:
             str: The generated page as a string.
         """
-        return self.page_generator.generate_taxon_json(taxon, stats)
+        return self.api_generator.generate_taxon_json(taxon, stats)
 
     def generate_taxonomy_tree(self, taxons: List[TaxonRef]) -> None:
         """
@@ -98,7 +116,7 @@ class StaticContentGenerator:
         Returns:
             str: The path to the generated JSON file.
         """
-        return self.page_generator.generate_plot_json(plot, stats)
+        return self.api_generator.generate_plot_json(plot, stats)
 
     def copy_template_page(self, template_name: str, output_name: str) -> None:
         """

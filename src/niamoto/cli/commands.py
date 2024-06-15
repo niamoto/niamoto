@@ -29,6 +29,7 @@ from niamoto.common.environment import Environment
 from niamoto.core.models import TaxonRef, Base, PlotRef
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
 from niamoto.core.services.mapper import MapperService
+from niamoto.publish.static_api import ApiGenerator
 
 
 class RichCLI(click.Group):
@@ -770,27 +771,27 @@ def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) 
         console.print(f"Error while calculating statistics: {e}", style="bold red")
 
 
-@cli.command(name="generate-static-site")
-def generate_static_site() -> None:
+@cli.command(name="generate-static-content")
+def generate_static_content() -> None:
     """
-    Generate static web pages for each taxon in the database.
+    Generate static_files web pages for each taxon in the database.
 
     This command retrieves all taxons from the database, ordered by their full name,
-    and generates a static web page for each taxon using the `SiteGeneratorAPI`.
+    and generates a static_files web page for each taxon using the `SiteGeneratorAPI`.
     It also generates a JavaScript file for the taxonomy tree using the `PageGenerator`.
 
-    The generated static site includes individual pages for each taxon, displaying relevant
+    The generated static_files site includes individual pages for each taxon, displaying relevant
     information and data associated with the taxon. The taxonomy tree JavaScript file
     provides an interactive hierarchical representation of the taxonomic structure.
 
     Examples:
-        $ niamoto generate-static-site
+        $ niamoto generate-static_files-site
 
     Returns:
         None
 
     Note:
-        - The generated static site files are stored in the configured output directory.
+        - The generated static_files site files are stored in the configured output directory.
         - The database connection settings are retrieved from the configuration file.
         - The command may take some time to complete, depending on the number of taxons in the database.
     """
@@ -807,7 +808,14 @@ def generate_static_site() -> None:
 
     # Get all Taxon entities from the repository, ordered by their full name
 
-    content_generator = StaticContentGenerator(config=config_manager)
+    page_generator = StaticContentGenerator(config=config_manager)
+    api_generator = ApiGenerator(config=config_manager)
+
+    # Generate static pages
+    page_generator.generate_page("index.html", "index.html", depth="")
+    page_generator.generate_page("methodology.html", "methodology.html", depth="")
+    page_generator.generate_page("resources.html", "resources.html", depth="")
+    page_generator.generate_page("construction.html", "construction.html", depth="")
 
     mapping_service = MapperService(db_path)
 
@@ -827,10 +835,10 @@ def generate_static_site() -> None:
             else:
                 plot_stats_dict = {}
 
-            content_generator.generate_page_for_plot(
+            page_generator.generate_page_for_plot(
                 plot, plot_stats_dict, plot_mapping_group
             )
-            content_generator.generate_json_for_plot(plot, plot_stats_dict)
+            api_generator.generate_plot_json(plot, plot_stats_dict)
 
     taxons = repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
     mapping_group = mapping_service.get_group_config("taxon")
@@ -848,14 +856,17 @@ def generate_static_site() -> None:
             else:
                 taxon_stats_dict = {}
 
-            content_generator.generate_page_for_taxon(
+            page_generator.generate_page_for_taxon(
                 taxon, taxon_stats_dict, mapping_group
             )
-            content_generator.generate_json_for_taxon(taxon, taxon_stats_dict)
+            page_generator.generate_json_for_taxon(taxon, taxon_stats_dict)
+            api_generator.generate_taxon_json(taxon, taxon_stats_dict)
 
     # Generate the taxonomy tree
-    content_generator.generate_taxonomy_tree(taxons)
-    content_generator.generate_plot_list(plots)
+    page_generator.generate_taxonomy_tree(taxons)
+    page_generator.generate_plot_list(plots)
+    api_generator.generate_all_taxa_json(taxons)
+    api_generator.generate_all_plots_json(plots)
 
     repository.close_session()
     duration = time.time() - start_time
@@ -866,7 +877,7 @@ def generate_static_site() -> None:
     )
 
 
-@cli.command(name="deploy-static-site")
+@cli.command(name="deploy-static_files-site")
 @click.option(
     "--output-dir", default="output", help="Directory containing generated files."
 )
@@ -885,7 +896,7 @@ def generate_static_site() -> None:
 )
 def deploy(output_dir: str, provider: str, repo_url: str, branch: str, site_id: str) -> None:
     """
-    Deploy generated static files to the specified provider (GitHub Pages or Netlify).
+    Deploy generated static_files files to the specified provider (GitHub Pages or Netlify).
 
     Args:
         output_dir (str): Path to the directory containing generated files.
@@ -917,7 +928,7 @@ def deploy(output_dir: str, provider: str, repo_url: str, branch: str, site_id: 
 
 def deploy_to_github(output_dir: str, repo_url: str, branch: str) -> None:
     """
-    Deploy generated static files to GitHub Pages.
+    Deploy generated static_files files to GitHub Pages.
 
     Args:
         output_dir (str): Path to the directory containing generated files.
@@ -940,7 +951,7 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str) -> None:
             subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], check=True)
 
         subprocess.run(['git', 'add', '.'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Deploy static site'], check=True)
+        subprocess.run(['git', 'commit', '-m', 'Deploy static_files site'], check=True)
         subprocess.run(['git', 'push', '--force', 'origin', branch], check=True)
 
         console = Console()
@@ -952,7 +963,7 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str) -> None:
 
 def deploy_to_netlify(output_dir: str, site_id: str) -> None:
     """
-    Deploy generated static files to Netlify.
+    Deploy generated static_files files to Netlify.
 
     Args:
         output_dir (str): Path to the directory containing generated files.

@@ -1,12 +1,7 @@
-<!DOCTYPE html>
-<html lang="fr">
+{% extends '_base.html' %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Niamoto - Portail de la forêt de Nouvelle-Calédonie</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+{% block title %}Niamoto - Portail de la forêt de Nouvelle-Calédonie{% endblock %}
+{% block extra_head %}
     <style>
         .bgimg-home {
             background-image: url('files/home_background.jpg');
@@ -25,161 +20,10 @@
             background: rgba(0, 0, 0, 0.4);
             z-index: 1;
         }
-
-        .site-title {
-            font-family: 'Arial Black', sans-serif;
-            font-size: 2rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
-            transition: color 0.3s;
-        }
-
-        .site-title:hover {
-            color: #ffdd57;
-        }
-
-        .text-contour {
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
-        }
-
-        .nav-bg {
-            background-color: rgba(34, 139, 34, 0.8);
-            /* Fond vert semi-transparent */
-            transition: background-color 0.3s;
-        }
-
-        .nav-bg:hover {
-            background-color: rgba(34, 139, 34, 1);
-            /* Fond vert opaque au survol */
-        }
-
-        .group:hover .group-hover\:block {
-            display: block;
-        }
-
-        .custom-nav {
-            z-index: 500;
-        }
-
-        .custom-dropdown {
-            z-index: 500;
-        }
-
-        .nav-link:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-            /* Fond blanc transparent au survol */
-            border-radius: 4px;
-        }
-
-        .menu-icon {
-            margin-right: 8px;
-        }
     </style>
-</head>
+{% endblock %}
 
-<body>
-    <nav class="nav-bg p-4 fixed w-full top-0 shadow-md z-50 custom-nav">
-        <div class="container mx-auto flex flex-wrap items-center justify-between">
-            <div class="flex items-center flex-shrink-0 text-white mr-6">
-                <a class="inline-flex items-center py-2 px-4 text-white no-underline" href="./index.html">
-                    <span class="site-title">Niamoto</span>
-                </a>
-            </div>
-            <div class="block lg:hidden">
-                <button id="nav-toggle"
-                    class="flex items-center px-3 py-2 border rounded text-teal-200 border-teal-400 hover:text-white hover:border-white">
-                    <svg class="fill-current h-3 w-3" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <title>Menu</title>
-                        <path d="M0 3h20v2H0zm0 6h20v2H0zm0 6h20v2H0z" />
-                    </svg>
-                </button>
-            </div>
-            <div class="w-full flex-grow lg:flex lg:items-center lg:w-auto hidden lg:block pt-6 lg:pt-0" id="nav-content">
-                <ul class="list-reset lg:flex justify-end flex-1 items-center">
-                    <li class="relative group mr-3">
-                        <a class="nav-link inline-block py-2 px-4 text-white no-underline" href="./index.html">
-                            <i class="fas fa-home menu-icon"></i>Home
-                        </a>
-                        <ul
-                            class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./index.html#introduction">Introduction</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./index.html#project">Project</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./index.html#objective">Objective</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./index.html#context">Context</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./index.html#flora">Flora</a></li>
-                        </ul>
-                    </li>
-                    <li class="relative group mr-3">
-                        <a class="nav-link inline-block py-2 px-4 text-white no-underline" href="./methodology.html">
-                            <i class="fas fa-flask menu-icon"></i>Methodology
-                        </a>
-                        <ul
-                            class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./methodology.html#preambule">Preamble</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./methodology.html#methodes">Methods</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./methodology.html#faq">FAQ</a></li>
-                        </ul>
-                    </li>
-                    <li class="relative group mr-3">
-                        <a class="nav-link inline-block py-2 px-4 text-white no-underline" href="./pages/taxon/1.html">
-                            <i class="fas fa-leaf menu-icon"></i>Trees
-                        </a>
-                        <ul
-                            class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./pages/taxon/1.html#preambule">Preamble</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./pages/taxon/1.html#learnTaxon">Study Trees</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./pages/taxon/1.html#taxon">New Caledonian Trees</a></li>
-                        </ul>
-                    </li>
-                    <li class="relative group mr-3">
-                        <a class="nav-link inline-block py-2 px-4 text-white no-underline" href="./pages/plot/1.html">
-                            <i class="fas fa-map-marked-alt menu-icon"></i>Populations
-                        </a>
-                        <ul
-                            class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./pages/plot/1.html#preambule">Preamble</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./pages/plot/1.html#learnPlot">Study Populations</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="./pages/plot/1.html#plot">New Caledonian Populations</a></li>
-                        </ul>
-                    </li>
-                    <li class="relative group mr-3">
-                        <a class="nav-link inline-block py-2 px-4 text-white no-underline" href="../../construction.html">
-                            <i class="fas fa-tree menu-icon"></i>Forest
-                        </a>
-                        <ul
-                            class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="../../construction.html#preambule">Preamble</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="../../construction.html#learnForest">Study Forests</a></li>
-                            <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100"
-                                    href="../../construction.html#forestPN">North Province Forest</a></li>
-                        </ul>
-                    </li>
-                    <li class="relative group mr-3">
-                        <a class="nav-link inline-block py-2 px-4 text-white no-underline" href="./ressources.html">
-                            <i class="fas fa-book menu-icon"></i>Resources
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% block content %}
 
     <div>
         <section id="home" class="bgimg-home flex items-center justify-center relative">
@@ -292,40 +136,12 @@
                     <li class="mb-2"><a href="./pages/methodologie.html" class="underline">Méthodologie</a></li>
                     <li class="mb-2"><a href="./pages/taxon/1.html" class="underline">Arbres</a></li>
                     <li class="mb-2"><a href="./pages/plot/1.html" class="underline">Peuplements</a></li>
-                    <li class="mb-2"><a href="../../construction.html" class="underline">Forêts</a></li>
+                    <li class="mb-2"><a href="construction.html" class="underline">Forêts</a></li>
                     <li class="mb-2"><a href="./pages/ressources.html" class="underline">Ressources</a></li>
                 </ul>
             </div>
         </section>
     </div>
 
-    <footer class="bg-green-700 text-white p-4 mt-8">
-        <div class="container mx-auto">
-            <div class="flex justify-center mb-4">
-                <div class="bg-white p-2 rounded-lg shadow-md flex justify-center">
-                    <figure class="mx-2"><img class="img-fluid" src="files/ps_100.png"></figure>
-                    <figure class="mx-2"><img class="img-fluid" src="files/pn_100.png"></figure>
-                    <figure class="mx-2"><img class="img-fluid" src="files/amap_100.png"></figure>
-                    <figure class="mx-2"><img class="img-fluid" src="files/herbarium_100.png"></figure>
-                    <figure class="mx-2"><img class="img-fluid" src="files/iac_100.png"></figure>
-                    <figure class="mx-2"><img class="img-fluid" src="files/ird_100.png"></figure>
-                    <figure class="mx-2"><img class="img-fluid" src="files/cirad_100.png"></figure>
-                </div>
-            </div>
-            <div class="text-center">
-                <p>Niamoto - Portail de la forêt de Nouvelle-Calédonie</p>
-                <a class="inline-block py-2 px-4 text-white no-underline" href="https://github.com/niamoto/niamoto" target="_blank">
-                    <span class="fab fa-github fa-lg" aria-hidden="true"></span> Github
-                </a>
-            </div>
-        </div>
-    </footer>
+{% endblock %}
 
-    <script>
-        document.getElementById('nav-toggle').onclick = function () {
-            document.getElementById('nav-content').classList.toggle('hidden');
-        }
-    </script>
-</body>
-
-</html>

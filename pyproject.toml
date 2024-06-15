@@ -56,7 +56,7 @@ geoalchemy2 = "^0.15.0"
 # duckdb - In-process SQL OLAP Database Management System.
 # Documentation: https://duckdb.org/docs/api/python
 # Note: DuckDB is a new database management system that is designed to be used as an embedded database.
-# It is designed to be robust against corrupt data, supports both static and dynamic typing, comes with a
+# It is designed to be robust against corrupt data, supports both static_files and dynamic typing, comes with a
 # powerful query optimizer and can execute SQL queries in parallel.
 # References : https://geog-414.gishub.org/book/duckdb/01_duckdb_intro.html
 #              https://medium.com/@dipeit/researchers-please-replace-sqlite-with-duckdb-now-f038044a2702
@@ -181,7 +181,7 @@ ruff = "^0.1.5"
 # Type Checking
 # ----------------
 
-# mypy - Optional static type checker for Python, aiming to combine the benefits of dynamic and static typing.
+# mypy - Optional static_files type checker for Python, aiming to combine the benefits of dynamic and static_files typing.
 # Documentation: http://mypy-lang.org/
 mypy = "^1.7.0"
 types-click = "^7.1.8"

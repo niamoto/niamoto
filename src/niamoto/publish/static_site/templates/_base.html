@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>{% block title %}Niamoto{% endblock %}</title>
-    <link rel="stylesheet" href="{% block tailwind_css %}../../js/vendor/tailwindcss/2.2.19_dist_tailwind.css{% endblock %}">
-    <link rel="stylesheet" href="{% block leaflet_css %}../../js/vendor/leaflet/1.9.4_leaflet.css{% endblock %}">
+    <link rel="stylesheet" href="{{ depth }}js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
+    <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.9.4_leaflet.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     {% block extra_head %}
     {% endblock %}
@@ -51,7 +51,7 @@
 </head>
 <body>
     {% include '_nav.html' %}
-    <div class="flex mt-16">
+    <div class="flex">
         {% block sidebar %}
         {% endblock %}
         <div class="w-full">
@@ -60,12 +60,12 @@
         </div>
     </div>
     {% include '_footer.html' %}
-    <script src="{% block chart_js %}../../js/vendor/chart/4.4.2_chart.js{% endblock %}"></script>
-    <script src="{% block d3_js %}../../js/vendor/d3/7.8.5_d3.js{% endblock %}"></script>
-    <script src="{% block jquery_js %}../../js/vendor/jquery/3.6.0_jquery.js{% endblock %}"></script>
-    <script src="{% block raphael_js %}../../js/vendor/raphael/2.3.0_raphael.js{% endblock %}"></script>
-    <script src="{% block justgage_js %}../../js/vendor/justgage/1.6.1_justgage.js{% endblock %}"></script>
-    <script src="{% block leaflet_js %}../../js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
+    <script src="{% block chart_js %}{{ depth }}js/vendor/chart/4.4.2_chart.js{% endblock %}"></script>
+    <script src="{% block d3_js %}{{ depth }}js/vendor/d3/7.8.5_d3.js{% endblock %}"></script>
+    <script src="{% block jquery_js %}{{ depth }}js/vendor/jquery/3.6.0_jquery.js{% endblock %}"></script>
+    <script src="{% block raphael_js %}{{ depth }}js/vendor/raphael/2.3.0_raphael.js{% endblock %}"></script>
+    <script src="{% block justgage_js %}{{ depth }}js/vendor/justgage/1.6.1_justgage.js{% endblock %}"></script>
+    <script src="{% block leaflet_js %}{{ depth }}js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
     {% block extra_scripts %}
     {% endblock %}
 </body>

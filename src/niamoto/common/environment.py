@@ -49,7 +49,7 @@ class Environment:
     def reset(self) -> None:
         """
         Reset the environment by deleting the existing database, configuration,
-        and web static pages.
+        and web static_files pages.
         """
         db_path = self.config.database_path
         if os.path.exists(db_path):

@@ -21,7 +21,7 @@ def test_default_config():
             == "data/sources/occurrence-plots.csv"
         )
         assert config.get("sources", "raster") == "data/sources/raster"
-        assert config.get("web", "static_pages") == "web/static"
+        assert config.get("web", "static_pages") == "web/static_files"
         assert config.get("web", "api") == "web/api"
         assert config.get("logs", "path") == "logs"
 
@@ -43,7 +43,7 @@ def test_custom_config(tmp_path):
             "raster": "custom/raster",
         },
         "web": {
-            "static_pages": "custom/static",
+            "static_pages": "custom/static_files",
             "api": "custom/api",
         },
         "logs": {"path": "custom/logs"},
@@ -59,7 +59,7 @@ def test_custom_config(tmp_path):
     assert config.get("sources", "occurrences") == "custom/occurrences.csv"
     assert config.get("sources", "occurrence-plots") == "custom/occurrence-plots.csv"
     assert config.get("sources", "raster") == "custom/raster"
-    assert config.get("web", "static_pages") == "custom/static"
+    assert config.get("web", "static_pages") == "custom/static_files"
     assert config.get("web", "api") == "custom/api"
     assert config.get("logs", "path") == "custom/logs"
 
@@ -73,7 +73,7 @@ def test_get_method():
         config = Config()
         assert config.get("database") == {"path": "data/db/niamoto.db"}
         assert config.get("sources", "plots") == "data/sources/plots.gpkg"
-        assert config.get("web") == {"static_pages": "web/static", "api": "web/api"}
+        assert config.get("web") == {"static_pages": "web/static_files", "api": "web/api"}
 
 
 def test_valid_config():

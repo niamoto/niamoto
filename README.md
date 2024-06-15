@@ -183,7 +183,7 @@ Calculates statistics based on the provided mapping file and optional group or C
 #### 9. Generate Static Site
 **Command:**
 ```bash
-$ niamoto generate-static-site
+$ niamoto generate-static_files-site
 ```
 **Explanation:**
 Generates a static website for each taxon in the database, providing a visual and informational representation of taxonomic data.

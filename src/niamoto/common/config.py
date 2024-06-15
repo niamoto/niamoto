@@ -124,7 +124,7 @@ class Config:
                 "rasters": {"path": "data/sources/rasters"},
             },
             "outputs": {
-                "static_pages": "outputs/static",
+                "static_pages": "outputs/static_files",
                 "api": "outputs/api",
             },
             "aggregations": [],

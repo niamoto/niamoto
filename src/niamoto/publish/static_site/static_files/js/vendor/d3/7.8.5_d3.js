@@ -1701,7 +1701,7 @@ function selection_select(select) {
 // or selection.selectAll are converted into proper arrays when creating a
 // selection; we don’t ever want to create a selection backed by a live
 // HTMLCollection or NodeList. However, note that selection.selectAll will use a
-// static NodeList as a group, since it safely derived from querySelectorAll.
+// static_files NodeList as a group, since it safely derived from querySelectorAll.
 function array$4(x) {
   return x == null ? [] : Array.isArray(x) ? x : Array.from(x);
 }
