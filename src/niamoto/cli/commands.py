@@ -923,7 +923,7 @@ def generate_static_content() -> None:
     )
 
 
-@cli.command(name="deploy-static_files-site")
+@cli.command(name="deploy-static-content")
 @click.option(
     "--output-dir", default="output", help="Directory containing generated files."
 )

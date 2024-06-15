@@ -55,12 +55,12 @@ class Environment:
         if os.path.exists(db_path):
             os.remove(db_path)
 
-        static_pages_path = self.config.output_paths.get("static_site")
-        if static_pages_path and os.path.exists(static_pages_path):
-            shutil.rmtree(static_pages_path)
-
-        static_api_path = self.config.output_paths.get("static_api")
-        if static_api_path and os.path.exists(static_api_path):
-            shutil.rmtree(static_api_path)
+        # static_pages_path = self.config.output_paths.get("static_site")
+        # if static_pages_path and os.path.exists(static_pages_path):
+        #     shutil.rmtree(static_pages_path)
+        #
+        # static_api_path = self.config.output_paths.get("static_api")
+        # if static_api_path and os.path.exists(static_api_path):
+        #     shutil.rmtree(static_api_path)
 
         self.initialize()
