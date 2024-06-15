@@ -68,6 +68,32 @@ class MapperService:
         """
         return self.mapping_manager.get_group_config(group_by)
 
+    def get_source_path(self, source_name: str) -> str:
+        """
+        Retrieves the path for a given source.
+
+        Args:
+            source_name (str): The name of the source.
+
+        Returns:
+            str: The path to the source.
+        """
+        sources = self.mapping_manager.get_sources()
+        return sources.get(source_name, {}).get("path", "")
+
+    def get_source_identifier(self, source_name: str) -> str:
+        """
+        Retrieves the identifier for a given source.
+
+        Args:
+            source_name (str): The name of the source.
+
+        Returns:
+            str: The identifier for the source.
+        """
+        sources = self.mapping_manager.get_sources()
+        return sources.get(source_name, {}).get("identifier", "id")
+
     def get_fields(self, group_by: str) -> Dict[str, Any]:
         """
         Retrieves the fields for a given group.

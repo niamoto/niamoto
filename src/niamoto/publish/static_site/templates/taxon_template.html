@@ -1,0 +1,108 @@
+{% extends '_base.html' %}
+
+{% block title %}Niamoto - {{ taxon.full_name }}{% endblock %}
+{% block extra_head %}
+    <script src="{{ depth }}js/index.js"></script>
+    <script src="{{ depth }}js/taxonomy_tree.js"></script>
+    <style>
+        #taxonMap {
+            position: relative;
+            height: 400px;
+        }
+        #taxonomy-tree li {
+            margin-left: 15px;
+        }
+    </style>
+    <script>
+        const taxonId = {{ taxon.id }};
+    </script>
+{% endblock %}
+{% block sidebar %}
+    <div class="w-1/4 p-4 mt-28" id="taxonomy-tree">
+        <!-- The taxonomic tree will be loaded here -->
+    </div>
+{% endblock %}
+
+{% block content %}
+    <div class="mt-28">
+        <div class="rounded overflow-hidden shadow-lg mb-2">
+            <div class="px-6 py-4">
+                <div class="font-bold text-4xl mb-2"><i>{{ taxon.full_name }}</i> {{ taxon.authors }}</div>
+                <p class="text-gray-700 text-base">
+                    Rank: {{ taxon.rank_name }}
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap -mx-2">
+            {% macro render_geography_field(field_key, field) %}
+                <div class="w-full px-2 mb-4">
+                    <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                        <div class="px-6 pt-4 pb-2">
+                            <div id="taxonMap" style="height: 400px; position: relative;">
+                                <div class="loader-container" id="mapLoader">
+                                    <div class="loader"></div>
+                                </div>
+                                <!-- The Leaflet map will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endmacro %}
+
+            {% macro render_chart(transformation, field_key) %}
+                {% if transformation.chart_options is defined %}
+                    <h2 class="font-bold text-xl mb-2">{{ transformation.chart_options.title }}</h2>
+                {% endif %}
+                {% if transformation.chart_type == 'text' %}
+                    <div class="w-full">
+                        <p id="{{ field_key }}Text"></p>
+                    </div>
+                {% elif transformation.chart_type == 'pie' %}
+                    <canvas id="{{ field_key }}PieChart"></canvas>
+                {% elif transformation.chart_type == 'gauge' %}
+                    <div class="gauge" id="{{ field_key }}{{ transformation.name }}Gauge"></div>
+                {% elif transformation.chart_type == 'bar' %}
+                    <canvas id="{{ field_key }}BarChart"></canvas>
+                {% endif %}
+            {% endmacro %}
+
+            {% macro render_field(field_key, field) %}
+                <div class="w-1/2 px-2 mb-4">
+                    <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                        {% if field.bins and field.bins.values is defined %}
+                            <h2 class="font-bold text-xl mb-2">{{ field.bins.chart_options.title }}</h2>
+                            <canvas id="{{ field.source_field }}BinChart"></canvas>
+                        {% endif %}
+                        {% for transformation in field.transformations %}
+                            {{ render_chart(transformation, field_key) }}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endmacro %}
+
+            {% for field_key, field in mapping.fields.items() %}
+                {% if field.field_type == 'GEOGRAPHY' %}
+                    {{ render_geography_field(field_key, field) }}
+                {% else %}
+                    {{ render_field(field_key, field) }}
+                {% endif %}
+            {% endfor %}
+
+        </div>
+    </div>
+
+{% endblock %}
+{% block extra_scripts %}
+    <script>
+        const taxon = {{ taxon | tojson | safe }};
+        const mapping = {{ mapping | tojson | safe }};
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const treeContainer = document.getElementById('taxonomy-tree');
+            createTree(treeContainer, taxonomyData);
+            loadCharts(taxon, mapping)
+            setTimeout(initMap, 0.5);
+        });
+    </script>
+{% endblock %}

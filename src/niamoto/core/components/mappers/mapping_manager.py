@@ -1,10 +1,9 @@
-import json
 import os
 
 import click
 import duckdb
 import yaml
-from typing import List, Any, Optional, Tuple, Dict, Collection
+from typing import List, Any, Optional, Dict, Collection
 from duckdb import DuckDBPyConnection
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -12,7 +11,6 @@ from rich.console import Console
 from rich.table import Table
 
 from niamoto.common.database import Database
-from niamoto.core.models import Mapping
 from niamoto.core.utils.csv_utils import analyze_csv_data_types, is_duckdb_type_numeric
 
 
@@ -55,7 +53,6 @@ class MappingManager:
             con.execute(
                 f"CREATE TEMPORARY TABLE temp_csv AS SELECT * FROM READ_CSV_AUTO('{csvfile}')"
             )
-            session = self.db.get_new_session()
             column_schema = analyze_csv_data_types(csvfile)
             table = Table(show_header=True, header_style="bold magenta")
             table.add_column("Field", style="dim")
@@ -73,16 +70,7 @@ class MappingManager:
                 f"[bold green]Identifier field selected:[/bold green] {identifier_field}"
             )
 
-            # Add the identifier field to the mapping
-            self.add_mapping_entry(
-                session,
-                identifier_field,
-                column_schema,
-                group_by,
-                reference_table_name,
-                reference_data_path,
-                is_identifier=True,
-            )
+            # Remove the identifier field from the list of fields
             field_names.remove(identifier_field)
 
             # Prompt the user to select the fields to map
@@ -101,27 +89,14 @@ class MappingManager:
                 transforms, bins = self.get_transforms_and_bins(
                     con, column_name, column_type
                 )
-                self.add_mapping_entry(
-                    session,
-                    column_name,
-                    column_schema,
-                    group_by,
-                    reference_table_name,
-                    reference_data_path,
-                    transforms,
-                    bins,
-                )
                 column_mapping_data = {
-                    "target_field": column_name,
+                    "source_field": column_name,
                     "field_type": column_type,
                     "label": column_name.upper(),
                     "description": column_name,
                     "transformations": transforms,
                     "bins": bins,
-                    "is_identifier": False,
                 }
-                if column_name == identifier_field:
-                    column_mapping_data["is_identifier"] = True
                 mapping_data[column_name] = column_mapping_data
             self.db.commit_session()
             console.print(f"Mapping table updated for {csvfile}", style="italic green")
@@ -156,7 +131,7 @@ class MappingManager:
                 new_mapping_entry = {
                     "group_by": group_by,
                     "identifier": identifier_field,
-                    "target_table_name": "occurrences",
+                    "source_table_name": "occurrences",
                     "reference_table_name": reference_table_name,
                     "reference_data_path": reference_data_path,
                     "fields": mapping_data,
@@ -194,69 +169,6 @@ class MappingManager:
         """
         return f"Adding new field {field} to the mapping"
         # Implement the logic to add a new field to the existing mapping
-
-    @staticmethod
-    def add_mapping_entry(
-        session: Any,
-        column_name: str,
-        column_schema: List[Tuple[str, str]],
-        group_by: str,
-        reference_table_name: Optional[str],
-        reference_data_path: Optional[str],
-        transforms: Optional[List[Dict[str, str]]] = None,
-        bins: Optional[Collection[str]] = None,
-        is_identifier: bool = False,
-    ) -> None:
-        """
-        Add a mapping entry.
-
-        Args:
-            session (Any): The session to use.
-            column_name (str): The column name.
-            column_schema (List[Tuple[str, str]]): The column schema.
-            group_by (str): The group by field.
-            reference_table_name (Optional[str]): The reference table name. Defaults to None.
-            reference_data_path (Optional[str]): The reference data path. Defaults to None.
-            transforms (Optional[List[Dict[str, str]]] optional): The transforms. Defaults to None.
-            bins (Optional[Collection[str]], optional): The bins. Defaults to None.
-            is_identifier (bool, optional): Whether the field is an identifier. Defaults to False.
-        """
-        field_type = next((ct for cn, ct in column_schema if cn == column_name), None)
-        mapping_entry = (
-            session.query(Mapping)
-            .filter_by(target_field=column_name, group_by=group_by)
-            .first()
-        )
-        if mapping_entry:
-            mapping_entry.field_type = field_type
-            mapping_entry.reference_table_name = reference_table_name
-            mapping_entry.reference_data_path = reference_data_path
-            mapping_entry.is_identifier = is_identifier
-            if transforms:
-                mapping_entry.transformation = ",".join(
-                    json.dumps(transform) for transform in transforms
-                )
-            if bins:
-                mapping_entry.bins = ",".join(map(str, bins))
-        else:
-            new_entry = Mapping(
-                target_table_name="occurrences",
-                target_field=column_name,
-                field_type=field_type,
-                group_by=group_by,
-                reference_table_name=reference_table_name,
-                reference_data_path=reference_data_path,
-                is_identifier=is_identifier,
-                label=column_name.upper(),
-                description=column_name,
-                transformation=",".join(
-                    json.dumps(transform) for transform in transforms
-                )
-                if transforms
-                else None,
-                bins=",".join(map(str, bins)) if bins else None,
-            )
-            session.add(new_entry)
 
     def get_transforms_and_bins(
         self, con: DuckDBPyConnection, column_name: str, column_type: Any
@@ -416,6 +328,21 @@ class MappingManager:
                 return config_data.get("aggregations", [])
         else:
             return []
+
+    def get_sources(self) -> Dict[str, Any]:
+        """
+        Get the sources from the configuration file.
+
+        Returns:
+            Dict[str, Any]: The sources.
+        """
+        config_path = os.path.join(os.getcwd(), "config.yml")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as config_file:
+                config_data = yaml.safe_load(config_file) or {}
+                return config_data.get("sources", {})
+        else:
+            return {}
 
     def get_group_config(self, group_by: str) -> Dict[str, Any]:
         """

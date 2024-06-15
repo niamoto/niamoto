@@ -7,8 +7,9 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   niamoto.publish.api_creator
-   niamoto.publish.static_site_generator
+   niamoto.publish.common
+   niamoto.publish.static_api
+   niamoto.publish.static_site
 
 Module contents
 ---------------

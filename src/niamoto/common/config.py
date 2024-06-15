@@ -76,7 +76,7 @@ class Config:
         Returns:
             Dict[str, Any]: The configuration section.
         """
-        return self.config.get(section, {})
+        return self.config.get(section, {}) or {}
 
     def get(self, section: str, key: Optional[str] = None) -> Any:
         """
@@ -111,17 +111,21 @@ class Config:
                     "path": "data/sources/taxonomy.csv",
                     "ranks": "id_family,id_genus,id_species,id_infra",
                 },
-                "plots": {"path": "data/sources/plots.gpkg"},
+                "plots": {
+                    "path": "data/sources/plots.gpkg",
+                    "identifier": "id_locality",
+                },
                 "occurrences": {
                     "path": "data/sources/occurrences.csv",
-                    "taxon_identifier": "id_taxonref",
+                    "identifier": "id_taxonref",
                 },
                 "occurrence-plots": {"path": "data/sources/occurrence-plots.csv"},
-                "raster": {"path": "data/sources/raster"},
+                "shapes": {"path": "data/sources/shapes.csv"},
+                "rasters": {"path": "data/sources/rasters"},
             },
             "outputs": {
-                "static_pages": "outputs/static",
-                "api": "outputs/api",
+                "static_site": "outputs",
+                "static_api": "outputs/api",
             },
             "aggregations": [],
         }
@@ -177,9 +181,10 @@ class Config:
                 "plots",
                 "occurrences",
                 "occurrence-plots",
-                "raster",
+                "shapes",
+                "rasters",
             ],
-            "outputs": ["static_pages", "api"],
+            "outputs": ["static_site", "static_api"],
             "aggregations": [],
         }
 

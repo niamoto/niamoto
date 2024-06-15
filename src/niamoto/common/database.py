@@ -40,10 +40,40 @@ class Database:
             self.session_factory = sessionmaker(bind=self.engine)
             self.session = scoped_session(self.session_factory)
             self.active_transaction = False
+
+            # Load the spatial extension
+            self.load_spatial_extension()
         except exc.SQLAlchemyError as e:
             raise Exception(
                 f"SQLAlchemy error during database initialization: {e}"
             ) from e
+
+    def load_spatial_extension(self) -> None:
+        """
+        Install and load the DuckDB spatial extension.
+        """
+        try:
+            with self.engine.connect() as connection:
+                connection.execute(text("INSTALL spatial"))
+                connection.execute(text("LOAD spatial"))
+        except exc.SQLAlchemyError as e:
+            raise Exception(f"Error loading spatial extension: {e}") from e
+
+    def check_spatial_extension_loaded(self) -> bool:
+        """
+        Check if the DuckDB spatial extension is loaded.
+        """
+        try:
+            with self.engine.connect() as connection:
+                result = connection.execute(
+                    text(
+                        "SELECT * FROM duckdb_extensions() WHERE extension_name = 'spatial'"
+                    )
+                )
+                return result.fetchone() is not None
+        except exc.SQLAlchemyError as e:
+            print(f"Error checking spatial extension: {e}")
+            return False
 
     def has_table(self, table_name: str) -> bool:
         """

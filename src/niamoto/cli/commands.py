@@ -9,6 +9,7 @@ without directly interacting with the underlying Python code.
 """
 
 import os
+import subprocess
 import time
 from typing import Optional, List
 
@@ -25,9 +26,10 @@ from niamoto.api.statistics import ApiStatistics
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.environment import Environment
-from niamoto.core.models import TaxonRef, Base
+from niamoto.core.models import TaxonRef, Base, PlotRef
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
 from niamoto.core.services.mapper import MapperService
+from niamoto.publish.static_api.api_generator import ApiGenerator
 
 
 class RichCLI(click.Group):
@@ -73,13 +75,20 @@ class RichCLI(click.Group):
             "This CLI provides commands for initializing the database and importing data from CSV files.\n\n"
             "Options:\n"
             "  --help  Show this message and exit.\n\n"
-            "Available Commands:\n"
+            "Main Commands (in this order, require a complete config.yml file):\n"
         )
 
-        # Get the list of commands
-        commands = self.list_commands(ctx)
-        commands_info = []
-        for cmd_name in commands:
+        main_commands = [
+            "init", "import-all", "calculate-statistics", "generate-static-content", "deploy-static_files-site"
+        ]
+
+        other_commands = [
+            cmd for cmd in self.list_commands(ctx) if cmd not in main_commands
+        ]
+
+        # Get the list of main commands
+        main_commands_info = []
+        for cmd_name in main_commands:
             cmd = self.get_command(ctx, cmd_name)
             if cmd is None:
                 continue
@@ -91,22 +100,54 @@ class RichCLI(click.Group):
             else:
                 description = "No description provided"
 
-            commands_info.append((cmd_name, description))
+            main_commands_info.append((cmd_name, description))
 
-        # Create the command table with Rich
+        # Create the main command table with Rich
         console = Console()
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Command", style="dim")
-        table.add_column("Description")
-        for cmd_name, description in commands_info:
-            table.add_row(cmd_name, description)
+        main_table = Table(show_header=True, header_style="bold magenta")
+        main_table.add_column("Command", style="dim")
+        main_table.add_column("Description")
+        for cmd_name, description in main_commands_info:
+            main_table.add_row(cmd_name, description)
 
-        # Capture the output of the table into a variable
+        # Capture the output of the main table into a variable
         with console.capture() as capture:
-            console.print(table)
+            console.print(main_table)
 
         # Write the captured output into the formatter
         formatter.write(capture.get())
+
+        # Add other commands section
+        if other_commands:
+            formatter.write("\nOther Commands:\n")
+            other_commands_info = []
+            for cmd_name in other_commands:
+                cmd = self.get_command(ctx, cmd_name)
+                if cmd is None:
+                    continue
+
+                # Extract the first line of the docstring as a description
+                docstring = cmd.callback.__doc__
+                if docstring:
+                    description = docstring.strip().split("\n")[0]
+                else:
+                    description = "No description provided"
+
+                other_commands_info.append((cmd_name, description))
+
+            # Create the other commands table with Rich
+            other_table = Table(show_header=True, header_style="bold magenta")
+            other_table.add_column("Command", style="dim")
+            other_table.add_column("Description")
+            for cmd_name, description in other_commands_info:
+                other_table.add_row(cmd_name, description)
+
+            # Capture the output of the other table into a variable
+            with console.capture() as capture:
+                console.print(other_table)
+
+            # Write the captured output into the formatter
+            formatter.write(capture.get())
 
 
 @click.group(cls=RichCLI)
@@ -344,24 +385,37 @@ def import_plots(csvfile: str) -> None:
 @click.argument("csvfile", required=False)
 @click.option(
     "--taxon-identifier",
+    "--location-field",
     "-t",
     help="Name of the column in the CSV that corresponds to the taxon ID.",
 )
-def import_occurrences(csvfile: str, taxon_identifier: str) -> None:
+@click.option(
+    "--location-field",
+    "-l",
+    help="Name of the column in the CSV that corresponds to the taxon ID.",
+)
+def import_occurrences(
+    csvfile: str, taxon_identifier: str, location_field: str
+) -> None:
     """
-    Import occurrence data from a CSV file, analyze it to update the 'mapping' table, and link occurrences to their taxons.
+    Import occurrence data from a CSV file, analyze it to update the 'mapping' table,
+    and link occurrences to their taxons.
 
     This command reads occurrence data from the specified CSV file, performs an analysis to update the 'mapping' table,
-    and establishes links between occurrences and their corresponding taxons based on the provided taxon identifier column.
+    and establishes links between occurrences and their corresponding taxons based on
+    the provided taxon identifier column.
 
     If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
-    If the `--taxon-identifier` option is not provided, the command will use the taxon identifier specified in the configuration file.
+    If the `--taxon-identifier` option is not provided, the command will use the taxon identifier
+    specified in the configuration file.
 
     Args:
         csvfile (str, optional): Path to the CSV file containing the occurrence data to be imported and analyzed.
-                                 If not provided, the path specified in the configuration file will be used.
+                        If not provided, the path specified in the configuration file will be used.
         taxon_identifier (str, optional): Name of the column in the CSV file that contains the taxon IDs.
-                                          If not provided, the identifier specified in the configuration file will be used.
+                        If not provided, the identifier specified in the configuration file will be used.
+       location_field (str, optional): Name of the column in the CSV file that contains the location data.
+                        If not provided, the identifier specified in the configuration file will be used.
 
     Examples:
         $ niamoto import-occurrences occurrences.csv --taxon-identifier=id_taxonref
@@ -385,7 +439,8 @@ def import_occurrences(csvfile: str, taxon_identifier: str) -> None:
     config = Config()
     occurrences_config = config.get("sources", "occurrences")
     default_csvfile = occurrences_config.get("path")
-    default_taxon_identifier = occurrences_config.get("taxon_identifier")
+    default_taxon_identifier = occurrences_config.get("identifier")
+    default_location_field = occurrences_config.get("location_field")
 
     if not csvfile and default_csvfile and os.path.exists(default_csvfile):
         csvfile = default_csvfile
@@ -397,8 +452,14 @@ def import_occurrences(csvfile: str, taxon_identifier: str) -> None:
     if not taxon_identifier:
         raise ValueError("Taxon identifier column not specified.")
 
+    location_field = location_field or default_location_field
+    if not location_field:
+        raise ValueError("Location field column not specified.")
+
     data_importer = ApiImporter()
-    import_occ_result = data_importer.import_occurrences(csvfile, taxon_identifier)
+    import_occ_result = data_importer.import_occurrences(
+        csvfile, taxon_identifier, location_field
+    )
     console = Console()
     console.print(import_occ_result, style="italic green")
 
@@ -463,12 +524,56 @@ def import_occurrence_plot_links(csvfile: str) -> None:
         raise
 
 
+@cli.command(name="import-shapes")
+@click.argument("csvfile", required=False)
+def import_shapes(csvfile: str) -> None:
+    """
+    Import shape data from a CSV file into the database.
+
+    This command reads shape data from the specified CSV file and imports it into the database.
+    The CSV file should contain columns corresponding to the shape data.
+
+    If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
+
+    Args:
+        csvfile (str, optional): Path to the CSV file containing the shape data to be imported.
+                                 If not provided, the path specified in the configuration file will be used.
+
+    Examples:
+        $ niamoto import-shapes shapes.csv
+        $ niamoto import-shapes
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
+
+    Note:
+        The CSV file should have a header row specifying the column names.
+    """
+    config = Config()
+    shapes_config = config.get("sources", "shapes")
+    default_csvfile = shapes_config.get("path")
+
+    if not csvfile and default_csvfile and os.path.exists(default_csvfile):
+        csvfile = default_csvfile
+
+    if not csvfile or not os.path.exists(csvfile):
+        raise FileNotFoundError("CSV file not specified or does not exist.")
+
+    data_importer = ApiImporter()
+    import_shapes_result = data_importer.import_shapes(csvfile)
+    console = Console()
+    console.print(import_shapes_result, style="italic green")
+
+
 @cli.command(name="import-all")
 def import_all() -> None:
     """
     Import all data sources as specified in the configuration file.
 
-    This command reads the paths for taxonomy, plots, occurrences, and occurrence-plot links
+    This command reads the paths for taxonomy, plots, shapes, occurrences, and occurrence-plot links
     from the configuration file, resets the relevant tables, and imports the data into the database.
 
     Returns:
@@ -503,10 +608,20 @@ def import_all() -> None:
     console.print(f"Importing plots from {plots_csvfile}", style="italic green")
     data_importer.import_plots(plots_csvfile)
 
+    # Import shapes
+    # TODO: Uncomment this section once the shapes import is implemented
+    # shapes_config = config.get("sources", "shapes")
+    # shapes_csvfile = shapes_config.get("path")
+    # if not shapes_csvfile or not os.path.exists(shapes_csvfile):
+    #     raise FileNotFoundError(f"Shapes CSV file not found: {shapes_csvfile}")
+    # console.print(f"Importing shapes from {shapes_csvfile}", style="italic green")
+    # data_importer.import_shapes(shapes_csvfile)
+
     # Import occurrences
     occurrences_config = config.get("sources", "occurrences")
     occurrences_csvfile = occurrences_config.get("path")
-    occurrences_taxon_identifier = occurrences_config.get("taxon_identifier")
+    occurrences_taxon_identifier = occurrences_config.get("identifier")
+    occurrences_location_field = occurrences_config.get("source_location_field")
     if not occurrences_csvfile or not os.path.exists(occurrences_csvfile):
         raise FileNotFoundError(
             f"Occurrences CSV file not found: {occurrences_csvfile}"
@@ -514,7 +629,9 @@ def import_all() -> None:
     console.print(
         f"Importing occurrences from {occurrences_csvfile}", style="italic green"
     )
-    data_importer.import_occurrences(occurrences_csvfile, occurrences_taxon_identifier)
+    data_importer.import_occurrences(
+        occurrences_csvfile, occurrences_taxon_identifier, occurrences_location_field
+    )
 
     # Import occurrence plots
     occurrence_plots_config = config.get("sources", "occurrence-plots")
@@ -555,6 +672,7 @@ def reset_tables(db_path: str) -> None:
         duckdb_connection.execute("DROP TABLE IF EXISTS occurrences_plots")
         duckdb_connection.execute("DROP TABLE IF EXISTS occurrences")
         duckdb_connection.execute("DROP TABLE IF EXISTS plot_ref")
+        duckdb_connection.execute("DROP TABLE IF EXISTS shape_ref")
         duckdb_connection.execute("DROP TABLE IF EXISTS taxon_ref")
 
         console.print("Tables dropped successfully.", style="italic green")
@@ -656,7 +774,7 @@ def generate_mapping(
 @click.option(
     "--csv-file",
     type=str,
-    help="Path to the CSV file containing the occurrences. If not provided, the target_table_name from the mapping will be used.",
+    help="Path to the CSV file containing the occurrences. If not provided, the source_table_name from the mapping will be used.",
 )
 def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) -> None:
     """
@@ -665,13 +783,13 @@ def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) 
     This command calculates various statistics based on the mapping file defined in the configuration.
     It provides options to calculate statistics for a specific group or for all groups.
     If a CSV file is provided, it will be used as the data source for calculating the statistics.
-    Otherwise, the target_table_name from the mapping file will be used.
+    Otherwise, the source_table_name from the mapping file will be used.
 
     Args:
         mapping_group (str, optional): The specific group to calculate statistics for.
                                   If not provided, statistics will be calculated for all groups.
         csv_file (str, optional): Path to the CSV file containing the occurrences.
-                                  If not provided, the target_table_name from the mapping will be used.
+                                  If not provided, the source_table_name from the mapping will be used.
 
     Examples:
         $ niamoto calculate-statistics
@@ -699,27 +817,27 @@ def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) 
         console.print(f"Error while calculating statistics: {e}", style="bold red")
 
 
-@cli.command(name="generate-static-site")
-def generate_static_site() -> None:
+@cli.command(name="generate-static-content")
+def generate_static_content() -> None:
     """
-    Generate static web pages for each taxon in the database.
+    Generate static_files web pages for each taxon in the database.
 
     This command retrieves all taxons from the database, ordered by their full name,
-    and generates a static web page for each taxon using the `SiteGeneratorAPI`.
+    and generates a static_files web page for each taxon using the `SiteGeneratorAPI`.
     It also generates a JavaScript file for the taxonomy tree using the `PageGenerator`.
 
-    The generated static site includes individual pages for each taxon, displaying relevant
+    The generated static_files site includes individual pages for each taxon, displaying relevant
     information and data associated with the taxon. The taxonomy tree JavaScript file
     provides an interactive hierarchical representation of the taxonomic structure.
 
     Examples:
-        $ niamoto generate-static-site
+        $ niamoto generate-static_files-site
 
     Returns:
         None
 
     Note:
-        - The generated static site files are stored in the configured output directory.
+        - The generated static_files site files are stored in the configured output directory.
         - The database connection settings are retrieved from the configuration file.
         - The command may take some time to complete, depending on the number of taxons in the database.
     """
@@ -735,14 +853,43 @@ def generate_static_site() -> None:
     repository = NiamotoRepository(db_path)
 
     # Get all Taxon entities from the repository, ordered by their full name
-    taxons = repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
 
-    content_generator = StaticContentGenerator(config=config_manager)
+    page_generator = StaticContentGenerator(config=config_manager)
+    api_generator = ApiGenerator(config=config_manager)
+
+    # Generate static pages
+    page_generator.generate_page("index.html", "index.html", depth="")
+    page_generator.generate_page("methodology.html", "methodology.html", depth="")
+    page_generator.generate_page("resources.html", "resources.html", depth="")
+    page_generator.generate_page("construction.html", "construction.html", depth="")
 
     mapping_service = MapperService(db_path)
+
+    plots = repository.get_entities(PlotRef, order_by=asc(PlotRef.id))
+    plot_mapping_group = mapping_service.get_group_config("plot")
+    # Generate a page for each plot
+    for plot in track(plots, description="Generating plot pages"):
+        with repository.db.engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT * FROM plot_stats WHERE plot_id = :plot_id"),
+                {"plot_id": plot.id_locality},
+            )
+            plot_stats_row = result.fetchone()
+
+            if plot_stats_row:
+                plot_stats_dict = dict(zip(result.keys(), plot_stats_row))
+            else:
+                plot_stats_dict = {}
+
+            page_generator.generate_page_for_plot(
+                plot, plot_stats_dict, plot_mapping_group
+            )
+            api_generator.generate_plot_json(plot, plot_stats_dict)
+
+    taxons = repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
     mapping_group = mapping_service.get_group_config("taxon")
     # Generate a page for each taxon
-    for taxon in track(taxons, description="Pages generated"):
+    for taxon in track(taxons, description="Generating taxon pages"):
         with repository.db.engine.connect() as connection:
             result = connection.execute(
                 text("SELECT * FROM taxon_stats WHERE taxon_id = :taxon_id"),
@@ -755,12 +902,17 @@ def generate_static_site() -> None:
             else:
                 taxon_stats_dict = {}
 
-            content_generator.generate_page_for_taxon(
+            page_generator.generate_page_for_taxon(
                 taxon, taxon_stats_dict, mapping_group
             )
+            page_generator.generate_json_for_taxon(taxon, taxon_stats_dict)
+            api_generator.generate_taxon_json(taxon, taxon_stats_dict)
 
     # Generate the taxonomy tree
-    content_generator.generate_taxonomy_tree(taxons)
+    page_generator.generate_taxonomy_tree(taxons)
+    page_generator.generate_plot_list(plots)
+    api_generator.generate_all_taxa_json(taxons)
+    api_generator.generate_all_plots_json(plots)
 
     repository.close_session()
     duration = time.time() - start_time
@@ -769,6 +921,124 @@ def generate_static_site() -> None:
         f"🌱 Generated {len(taxons)} pages in {duration:.2f} seconds.",
         style="italic green",
     )
+
+
+@cli.command(name="deploy-static-content")
+@click.option(
+    "--output-dir", default="output", help="Directory containing generated files."
+)
+@click.option(
+    "--provider",
+    type=click.Choice(["github", "netlify"]),
+    required=True,
+    help="Deployment provider (github or netlify).",
+)
+@click.option(
+    "--repo-url", help="GitHub repository URL (required if provider is 'github')."
+)
+@click.option(
+    "--branch", default="main", help="Branch to deploy to (default is 'main')."
+)
+@click.option("--site-id", help="Netlify site ID (required if provider is 'netlify').")
+def deploy(
+    output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
+) -> None:
+    """
+    Deploy generated static_site and static_api to the specified provider (GitHub Pages or Netlify).
+
+    Args:
+        output_dir (str): Path to the directory containing generated files.
+        provider (str): Deployment provider ('github' or 'netlify').
+        repo_url (str): GitHub repository URL (required if provider is 'github').
+        branch (str): Branch to deploy to (default is 'main').
+        site_id (str): Netlify site ID (required if provider is 'netlify').
+
+    Examples:
+        $ niamoto deploy --provider=github --output-dir=output --repo-url=https://github.com/username/repo.git
+        $ niamoto deploy --provider=netlify --output-dir=output --site-id=your-netlify-site-id
+    """
+    if provider == "github" and not repo_url:
+        raise click.UsageError(
+            "The --repo-url option is required when deploying to GitHub Pages."
+        )
+    if provider == "netlify" and not site_id:
+        raise click.UsageError(
+            "The --site-id option is required when deploying to Netlify."
+        )
+
+    try:
+        if provider == "github":
+            deploy_to_github(output_dir, repo_url, branch)
+        elif provider == "netlify":
+            deploy_to_netlify(output_dir, site_id)
+        else:
+            raise click.UsageError("Unsupported provider specified.")
+    except subprocess.CalledProcessError as e:
+        console = Console()
+        console.print(f"An error occurred while deploying: {e}", style="bold red")
+
+
+def deploy_to_github(output_dir: str, repo_url: str, branch: str) -> None:
+    """
+    Deploy generated static_files files to GitHub Pages.
+
+    Args:
+        output_dir (str): Path to the directory containing generated files.
+        repo_url (str): GitHub repository URL.
+        branch (str): Branch to deploy to (default is 'main').
+
+    """
+    try:
+        os.chdir(output_dir)
+
+        # Initialize git repository if not already initialized
+        if not os.path.exists(os.path.join(output_dir, ".git")):
+            subprocess.run(["git", "init"], check=True)
+
+        # Check if the remote 'origin' is already set
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"], capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            subprocess.run(["git", "remote", "add", "origin", repo_url], check=True)
+        else:
+            subprocess.run(["git", "remote", "set-url", "origin", repo_url], check=True)
+
+        subprocess.run(["git", "add", "."], check=True)
+        subprocess.run(["git", "commit", "-m", "Deploy static_files site"], check=True)
+        subprocess.run(["git", "push", "--force", "origin", branch], check=True)
+
+        console = Console()
+        console.print("Deployment to GitHub Pages successful.", style="italic green")
+    except subprocess.CalledProcessError as e:
+        console = Console()
+        console.print(
+            f"An error occurred while deploying to GitHub: {e}", style="bold red"
+        )
+
+
+def deploy_to_netlify(output_dir: str, site_id: str) -> None:
+    """
+    Deploy generated static_files files to Netlify.
+
+    Args:
+        output_dir (str): Path to the directory containing generated files.
+        site_id (str): Netlify site ID.
+
+    """
+    try:
+        subprocess.run(
+            ["netlify", "deploy", "--prod", "--dir", output_dir, "--site", site_id],
+            check=True,
+        )
+
+        console = Console()
+        console.print("Deployment to Netlify successful.", style="italic green")
+    except subprocess.CalledProcessError as e:
+        console = Console()
+        console.print(
+            f"An error occurred while deploying to Netlify: {e}", style="bold red"
+        )
 
 
 if __name__ == "__main__":

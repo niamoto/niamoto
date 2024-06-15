@@ -1,0 +1,320 @@
+{% extends '_base.html' %}
+
+{% block title %}Niamoto - Portail de la forêt de Nouvelle-Calédonie{% endblock %}
+{% block extra_head %}
+    <style>
+        .faq-header:hover {
+            background-color: #e2e8f0; /* Tailwind gray-200 hover color */
+        }
+    </style>
+    <script>
+        function toggleFaq(id) {
+                var content = document.getElementById(id);
+                content.classList.toggle('hidden');
+            }
+    </script>
+{% endblock %}
+
+{% block content %}
+
+    <div class="container mx-auto mt-20 py-4 max-w-4xl">
+        <h2 class="text-3xl font-semibold mb-4">Méthodologie</h2>
+        <section id="preambule" class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Préambule</h2>
+            <p class="mb-4"><b>La méthodologie se situe au cœur de notre métier de botanistes-écologues. Elle nous conduit à définir les protocoles qui permettent d’accumuler et d’analyser des données pour répondre à une question qui repose elle-même sur les résultats d’une ou de plusieurs autres études.</b></p>
+            <p>
+                La méthode scientifique permet à chacun de reproduire une étude dans le même contexte technique. C’est un peu
+                comme une recette de cuisine qui permet à chacun de reproduire le délicieux met. La première phase de la
+                méthode, peut être la plus importante, est de compiler les travaux issus du monde scientifique au travers
+                d’une veille bibliographique continue. C’est à partir de cette première pierre de la connaissance qu’il est
+                possible de construire une méthode robuste pour évaluer un écosystème comme la forêt. Cependant il convient de
+                prendre du recul et maintenir un esprit critique méticuleux face aux conclusions qui sont le plus souvent
+                construites à partir d'une partie infime de la réalité biologique et écologique.
+            </p>
+        </section>
+        <section id="methodes">
+    <div class="container mx-auto py-4">
+        <div class="col-lg-12 mx-auto">
+            <h2 class="text-2xl font-semibold mb-4">Nos méthodes</h2>
+            <h5 class="text-xl font-semibold mb-2">Taxonomie et identification</h5>
+            <p class="mb-4">La taxonomie est une classification du monde vivant basée sur des critères de similitude qui a pour objet de décrire les organismes et de les regrouper. Initialement basée sur la comparaison morphologique, elle s‘appuie désormais sur la biologie moléculaire et tous les outils issus de la génétique.</p>
+            <figure class="mb-4">
+                <img class="img-fluid mx-auto d-block" id="diagram" src="{{ depth }}files/img/methodes/Picture1.png" alt="Diagram">
+            </figure>
+            <p class="mb-4">La taxonomie prend une place fondamentale dans nos recherches. La délimitation des espèces, et plus exactement des taxons, se situe à la base de tous les traitements et analyses. La taxonomie évolue perpétuellement, ce qui modifie le regroupement de nos individus. Ainsi un inventaire qui contient 100 espèces à un instant donné sera plus ou moins riche lors de sa relecture en fonction du remaniement taxonomique fait par les taxonomistes. Les espèces, les genres ou encore les familles sont concernés par ces remaniements qui sont publiés dans des revues internationales. Pour assurer la cohérence de nos travaux, nous suivons l’évolution de cette taxonomie au travers du groupe <a href="http://publish.plantnet-project.org/project/florical_fr" target="_blank" class="underline text-blue-500">Florical</a> qui publie régulièrement les derniers états de la classification de la flore de Nouvelle-Calédonie en conformité avec la classification mondiale des angiospermes APG IV, proposée par l’<i>Angiosperm Phylogeny Group</i>.</p>
+
+            <h5 class="text-xl font-semibold mb-2">Identification des plantes</h5>
+            <p class="mb-4">La détermination du nom d’un arbre est une expertise qui repose sur un ensemble de compétences acquises au laboratoire et sur le terrain. L’expérience de la flore locale est indispensable pour apporter une identification de qualité.</p>
+            <figure class="mb-4">
+                <img class="img-fluid mx-auto d-block" id="ident" src="{{ depth }}files/img/methodes/Picture2.png" alt="Identification">
+            </figure>
+            <p class="mb-4">Au-delà de donner le nom de l’espèce, le botaniste réunit tous les indices qui lui permettent de rapprocher un individu-arbre rencontré sur le terrain avec une espèce connue et décrite dans la flore de la Nouvelle-Calédonie. Cependant, alors que dans la flore les espèces sont décrites par la totalité de leurs critères morphologiques et anatomiques, le botaniste sur le terrain ne dispose généralement que de quelques informations, qui sont parfois peu accessibles ou uniquement perceptibles aux jumelles. C’est ainsi que si les espèces sont souvent décrites précisément par leurs appareils sexuels (fleurs & fruits), le botaniste de terrain ne peut que rarement compter sur ces critères éphémères pour identifier une espèce; dans une parcelle de forêt moins de 5 % des arbres sont en fleur ou en fruit au moment de leur identification. Le botaniste fait alors appel à des critères qui reposent sur sa propre expertise acquise au fur et à mesure de son observation des plantes à différents âges et dans différents lieux. Cette connaissance lui permet de proposer un nom pour chaque arbre rencontré sur le terrain et s’il est dans l’impossibilité d’atteindre le niveau espèce ou le niveau infra-spécifique, il collecte un rameau de l’arbre qui lui permettra de faire des comparaisons avec une collection d’échantillons archivés dans un herbier. Les botanistes de notre équipe travaillent dans et avec l’<a href="http://publish.plantnet-project.org/project/nou" target="_blank" class="underline text-blue-500">herbier de la Nouvelle-Calédonie</a> où ils déposent et identifient les échantillons collectés sur le terrain. Malgré ce travail gigantesque certains arbres ne peuvent pas être identifiés jusqu’au nom de l’espèce, parfois simplement car ils sont trop hauts et inaccessibles sans devoir déployer des moyens démesurés. Ils sont alors exclus des analyses qui portent sur la quantification de la richesse spécifique.</p>
+
+            <h5 class="text-xl font-semibold mb-2">Les inventaires sur le terrain</h5>
+            <p class="mb-4">Les données incluses dans ce site reposent sur <a href="https://niamoto.nc/ressources/#listTree" class="underline text-blue-500">la liste des espèces d'arbres</a> de la Nouvelle-Calédonie. Cette liste se base sur les nombreux inventaires de terrain qui s’accumulent dans nos bases de données au fur et à mesure des études que nous réalisons.</p>
+            <p class="mb-4">Les <a href="https://niamoto.nc/forets/#learnPlot" class="underline text-blue-500">inventaires recouvrent de nombreuses méthodes</a> mais ils contiennent tous à minima une information relative à la présence d’un arbre dans un lieu donné. Ce couple qui lie l'identification d'une espèce et sa coordonnée géographique constitue une source de donnée fondamentale pour les études écologiques. En effet, la coordonnée permet d'inférer de nombreux paramètres (altitude, milieux, topographie, pluviométrie, substrat, distance aux habitations,...) à l'espèce. Accumulées depuis des années, ces données dessinent progressivement le contour des conditions environnementales propices au développement d’une espèce. Avec ce simple couple de données, nous pouvons dresser les préférences écologiques de chaque taxon en plus de sa distribution dans l’espace géographique.</p>
+            <figure class="mb-4">
+                <img class="img-fluid mx-auto d-block" id="inventory" src="{{ depth }}files/img/methodes/Picture3.png" alt="Inventory">
+            </figure>
+            <p class="mb-4">Les inventaires permettent d’accéder à la notion d’abondance locale en ajoutant le nombre d’individus de chaque espèce comptée sur la superficie effective de l’inventaire. Certaines espèces peuvent alors être rares à l’échelle de la Nouvelle-Calédonie et très abondante localement, comme <i>Acropogon aoupiniensis</i> Morat qui est une espèce micro-endémique qui se rencontre exclusivement aux abords du Mont Aoupinié et qui simultanément est l’espèce la plus abondante de notre parcelle de 1 ha située sur ce massif.</p>
+            <p class="mb-4">Les inventaires sont également utilisés pour définir les traits fonctionnels d’une espèce, c’est-à-dire ses propriétés intrinsèques qui définissent son comportement. Les traits fonctionnels sont généralement des mesures (diamètre, hauteur, densité de bois, strate, épaisseur et superficie des feuilles,...) qui dressent un profil général pour chaque espèce. Ces profils forment des groupes fonctionnels qui permettent de comparer des peuplements sur la base de leur composition fonctionnelle plutôt que sur leur composition floristique. Par exemple, le diamètre maximal atteint par une espèce dans tous nos inventaires est un trait fonctionnel qui permet de fixer son statut d’arbre puisque seules les espèces qui peuvent atteindre 10 cm de diamètre à 1,3 m du sol (DBH) sont qualifiées d’arbre. Les traits fonctionnels plus complexes à mesurer, tels que les propriétés des feuilles, permettent d’attribuer une résistance de l’espèce aux conditions de l’environnement, notamment l’aridité. Néanmoins, si ces traits fonctionnels sont précieux pour explorer davantage le comportement des espèces, ils ne représentent que des raccourcis dans des processus beaucoup plus complexes que ces traits qualifiés de ‘soft’ ne peuvent appréhender entièrement.</p>
+
+            <h5 class="text-xl font-semibold mb-2">Les analyses statistiques</h5>
+            <p class="mb-4">Parce que la biologie est un domaine où la variation est une propriété fondamentale, il n’est pas possible d’analyser les données sans évaluer la pertinence des résultats en suivant un protocole statistique rigoureux.</p>
+            <figure class="mb-4">
+                <img class="img-fluid mx-auto d-block" id="stat" src="{{ depth }}files/img/methodes/Picture4.png" alt="Stat">
+            </figure>
+            <p class="mb-4">En effet, les évidences qui semblent apparaître en consultant rapidement un jeu de données peuvent provenir de différents biais qui concourent à laisser envisager un lien de cause à effet (corrélation), là où seul le hasard est intervenu. Les statistiques sont utilisées pour évaluer la probabilité qu’une hypothèse soit liée au hasard en tenant compte de la taille et de la distribution de l’échantillon. En général ces statistiques sont associées à une hypothèse nulle qui représente une relation liée au hasard. Par exemple, une telle hypothèse pourrait tester si la distribution d’une plante est liée au hasard ou au contraire à l’une ou l’autre des conditions environnementales (substrat, topographie, altitude, milieu,...).</p>
+            <p class="mb-4">Les statistiques en écologie reposent sur des méthodes très complexes dont la perspicacité pour répondre à la question posée doit toujours être critiquée. Certaines données auto-corrélées, telles que l’altitude et la température qui évoluent ensemble, doivent être traitées pour ne pas sur-évaluer le poids du paramètre seul. Les données utilisées dans ce travail sont traitées en utilisant des méthodes statistiques publiées et validées par un comité de lecture externe. La <a href="https://niamoto.nc/ressources/#production" class="underline text-blue-500">liste des publications</a> associées à ce travail dévoilent la profondeur des études statistiques et mathématiques qui sont utilisées pour analyser des paramètres qui peuvent paraître simples, comme la distribution de la richesse selon l’altitude (Ibanez et al., 2014; Birnbaum et al., 2015).</p>
+
+            <h5 class="text-xl font-semibold mb-2">Les analyses géographiques</h5>
+            <figure class="mb-4">
+                <img class="img-fluid mx-auto d-block" id="geo" src="{{ depth }}files/img/methodes/Picture5.png" alt="Geo">
+            </figure>
+            <p class="mb-4">La forêt est une entité qui ne se mesure pas exclusivement par le nombre et la nature de ses espèces. La distribution géographique de cet écosystème permet d’aborder des questions sur son organisation dans le paysage de la Nouvelle-Calédonie. Où se trouve la forêt ? Quelles surfaces occupe-t-elle ? Quel est l’état de sa fragmentation ? sont autant de questions qui relèvent de la géographie. L’étendue de la forêt calédonienne est étudiée au travers des outils les plus modernes, tels que les imageries satellitaires ou aéroportées qui fournissent des données brutes qu’il convient de confronter aux réalités de terrain. La cartographie de la forêt s’appuie sur ces données pour délimiter précisément les ensembles de forêt au travers d’une validation reposant sur une expertise en photo-interprétation associée à un corpus de données. Ces analyses géographiques sont ainsi confrontées aux inventaires de terrain pour paramétrer des modèles qui permettent d’extrapoler une mesure sur toute l’étendue géographique qu’il s’agisse par exemple de la mesure de la biomasse via l’étude de la structure de la canopée sur des images Pléiades (Blanchard et al., 2015, 2016) ou encore de la distribution de la richesse en arbre en utilisant une série d’image Landsat (Pouteau et al., 2018). Bien entendu les analyses statistiques sont utilisées également ici pour définir le domaine de validité de ces modèles.</p>
+
+            <h5 class="text-xl font-semibold mb-2">L’informatique</h5>
+            <p class="mb-4">Toutes ces données ne pourraient être utilisées convenablement sans un stockage rigoureux sous la forme de jeux de données numériques et leur exploitation par des langages informatiques appropriés. Chaque inventaire, propriété fonctionnelle ou taxonomique mentionné dans ce travail est stocké dans une base de données relationnelle, qu’il s’agisse des données textuelles (chiffre, texte) ou géographiques (couche vectorielle). Le stockage, l’analyse et l’exploitation des données sont exclusivement réalisés avec des logiciels dits «open-source» depuis le système d’exploitation (linux) jusqu’aux outils de bases de données (PostgreSQL, PostGIS, Gdal), de cartographie (Qgis), de statistique (R), de développement informatique (Python, Django), de gestion d’images (Gimp, Dartable) ou encore de bureautique (WPS). Le développement de ce site est intégralement conçu et réalisé par notre équipe. Le code est disponible en libre téléchargement sur la plateforme <a href="https://github.com/niamoto/niamoto-portal" target="_blank" class="underline text-blue-500">GitHub</a> sous licence GPL-3.0.</p>
+            <p class="mb-4">Le contenu du site Niamoto reflète l’état de nos bases de données avec une place très réduite pour l'interprétation. C’est ainsi que vous constaterez nos lacunes sur des pans entiers de l’écologie forestière, sur des taxons tellement rares que nous ne les avons jamais rencontrés dans nos inventaires, sur des périodes de phénologie incomplète, sur des contenus déséquilibrés. Cette discipline avance en fonction de ces données, elle progresse continuellement si bien que le contenu de ce site évolue périodiquement pour refléter l'état de nos bases de données. Vous trouverez en bas de ce site, la date de publication associée à la citation du site de Niamoto.</p>
+
+            <h5 class="text-xl font-semibold mb-2">Les données</h5>
+            <p class="mb-4">Les données capitalisées dans le projet Niamoto reposent sur de nombreuses publications et collectes acquises dans différents lieux de la Nouvelle-Calédonie. Toutes les données relatives aux arbres et à la forêt proviennent des travaux menés par l’UMR Amap. Néanmoins, nos analyses s’appuient également sur des données externes qui sont utilisées en complément des données biologiques notamment pour étudier la distribution spatiale et environnementale des plantes.</p>
+            <ul class="list-disc pl-5 mb-4">
+                <li class="mb-2">Le support géographique de la Nouvelle-Calédonie et le catalogue des données téléchargées provient du portail de l'information géographique de la Nouvelle-Calédonie édité par le service de la Géomatique de la Direction des Technologies et des Services de l'Information <a href="https://georep.nc" target="_blank" class="underline text-blue-500">(georep.nc)</a>.</li>
+                <li class="mb-2">Les limites administratives (limites provinciales, communales, réserves) sont produites par le gouvernement de la Nouvelle-Calédonie (BD-Topo, DTSI, 2020). Les données sont utilisées conformément à l'Arrêté N°2017-1505/GNC du 04 juillet 2017 et mises à disposition par la province Nord selon les accords de partenariats 12C144 et 16C180 signés respectivement le 27 mars 2013 et le 30 janvier 2018. La commune de Poya, nommée artificiellement Poya Nord, a été divisée selon la limite administrative de la province Nord.</li>
+                <li class="mb-2">Les données de pluviométrie sont issues du modèle Aurelhy (Analyse Utilisant le RELief pour les besoins de l'HYdro-météorologie, 1991-2000) produit par Météo-France (Météo-France, 2011).</li>
+                <li class="mb-2">Les limites du substrat péridotite (échelle 1:1 000 000), ou substrat ultramafique, sont définies par la DIMENC/SGNC et le BRGM (2010) d’après la carte géologique de Nouvelle-Calédonie (Paris, 1981).</li>
+                <li class="mb-2">Le relief est basé sur le modèle SRTM-90 (« Shuttle Radar Topography Mission ») à 90 m de résolution produit par la NASA-NGA (2000) et le Modèle Numérique de Terrain (MNT) à 10 m de résolution crée par la DTSI (2006, révisé en 2012).</li>
+                <li class="mb-2">Les limites des concessions minières (échelle 1:10 000) sont issues du Cadastre minier de Nouvelle-Calédonie - SMC/DIMENC - Mise à jour le 08 mars 2013.</li>
+                <li class="mb-2">Les limites des périmètres de protection des eaux sont issues des travaux des services DAVAR / SDE / MERE (Mesures et Etudes de la Ressource en Eau) révisés le 25 mai 2019. Seuls les Périmètres de Protection Éloignés (PPE) sont considérés dans ce site.</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+
+
+
+
+
+        <section id="faq" class="container mx-auto py-4 max-w-4xl">
+  <h2 class="text-3xl font-semibold mb-4">Questions-Réponses</h2>
+  <p class="mb-6">L’objectif de ce site est de permettre au plus grand nombre de connaître l’état de nos recherches sur la forêt de la Nouvelle-Calédonie. Même si nous faisons l’effort de rendre accessible cette connaissance, certains termes ou concepts utilisés peuvent paraître mystérieux. Nous tentons de répondre ici à quelques interrogations les plus communément exprimées.</p>
+  <div class="faq-section">
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading1">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq1')">
+            Que signifie endémique, indigène, autochtone ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq1" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>Ces termes utilisés en botanique servent à décrire l'étendue de la distribution géographique d'une espèce vis-à-vis d'une limite, administrative ou environnementale. Une espèce endémique de la Nouvelle-Calédonie signifie qu'elle n'existe que dans ce territoire. Elle peut aussi être endémique d'une ile, d'une vallée ou d'un sommet.
+Une espèce indigène, ou autochtone, existe également dans un autre pays sans qu'elle n'ait été introduite par l'humain en opposition aux espèces introduites ou allochtones qui désignent spécifiquement les espèces introduites par l'humain. Une espèce invasive est généralement une espèce introduite qui se développe au-delà des limites de sa culture.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading2">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq2')">
+            Pourquoi inclure les palmiers, les fougères arborescentes et les pandanus dans la liste des arbres ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq2" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>Bien qu'elles ne soient pas des ligneux au sens strict, ces plantes présentent une forme arborescente et un tronc qui dépasse le diamètre de 10 cm à hauteur de poitrine (cf. DBH). De par leur morphologie et leur architecture, elles occupent la place d'un arbre dans la forêt et font partie intégrante de la structure, dans le sous-bois comme dans la canopée. Nous comptabilisons ces plantes dans la liste des individus de chaque parcelle.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading3">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq3')">
+            Comment fait-on une parcelle ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq3" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La mise en place d'une parcelle de 1 ha est un fastidieux travail qui demande du temps et de la main d'œuvre. Il faut environ 7 jours et 7 personnes pour dresser l'inventaire complet des arbres sur 1 ha de forêt en Nouvelle-Calédonie. Presque la moitié de ce temps est consacré à la mise en place physique de la parcelle qui demande de dérouler 1,3 km de ficelle et planter 110 poteaux pour marquer 100 carrés de 100 m². Une fois la structure montée, chaque arbre est étiqueté avant que les différentes mesures puissent débuter. Nous utilisons autant que possible les équipements modernes (laser, tablette) mais il reste encore beaucoup de travail pour que ces données soient pleinement décodées et injectées dans nos bases de données. Après cette opération sur le terrain, il faudra encore des mois pour identifier toutes les espèces, analyser les données et publier les résultats. Chaque parcelle représente un lourd investissement mais constitue en retour un important capital pour la connaissance des arbres et des forêts.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading4">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq4')">
+            Comment identifiez-vous les espèces ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq4" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>Le nom scientifique d'une espèce est finalement moins important que de savoir qu'une plante est différente des autres. Nous pourrions très facilement faire un inventaire en utilisant un autre dictionnaire que la taxonomie. D'ailleurs nos botanistes utilisent parfois des termes très éloignés de la botanique lorsqu'ils qualifient une plante sur le terrain. Le nom peut venir ultérieurement. Identifier est un travail compliqué qui demande une grande rigueur. Parfois il faut savoir reconnaître qu'il est impossible d'identifier l'espèce, soit parce que la plante est inconnue du botaniste soit parce qu'il manque des caractères fondamentaux pour mener à bien son identification. Mais il faut surtout savoir capitaliser et utiliser de multiples critères qui permettent d'éliminer les candidats au fur et à mesure. Cela peut être relatif à la structure de la fleur tout autant qu'à l'architecture de l'arbre, la densité du feuillage, la granulométrie de l'écorce, l'odeur du bois et même jusqu'au bruit produit par le déchirement d'une feuille. Cette expertise est unique et nos botanistes sont les meilleurs.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading5">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq5')">
+            Que signifie le DBH ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq5" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>Le DBH (Diameter at breast height) ou littéralement diamètre à hauteur de poitrine, est une mesure devenue internationale du diamètre d'un arbre en fixant la hauteur de la mesure à 1,3 m du sol. Cette mesure permet notamment de comparer les diamètres des arbres entre eux en évitant de donner une importance particulière à l'empattement du tronc. Dans la pratique, c'est la circonférence de l'arbre qui est mesurée à une hauteur moyenne de la poitrine en évitant, autant que possible les excroissances du tronc (e.g. bourrelets, contreforts, racines-échasses,...). La distribution des diamètres sur une parcelle, ou distribution diamétrique, révèle la structure de la forêt, notamment la part occupée par les petits arbres. En Nouvelle-Calédonie, plus de 60 % des arbres de la forêt font moins de 20 cm de DBH. La distribution au sein d'un taxon révèle un trait fonctionnel relatif notamment à sa taille adulte.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading6">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq6')">
+            Que signifie l’aire basale ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq6" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>Cette mesure exprime la surface occupée par les arbres sur une superficie donnée (m²/ha). Elle se calcule en additionnant la superficie occupée par chaque arbre au sol, c'est-à-dire la projection au sol de son DBH. Cette mesure donne une idée de la densité des arbres en prenant en compte le volume qu'ils occupent. Cependant deux inventaires ayant la même aire basale peuvent pourtant être très différents, par exemple avoir beaucoup d'arbres de petits diamètres ou seulement quelques gros arbres. Dorénavant nous utilisons davantage la biomasse qui exprime une quantité de matière à l'hectare. La combinaison entre la densité de tige, la hauteur de la canopée et la densité du bois produit une biomasse standard, comprise entre 200 et 450 t/ha ce qui s'inscrit dans la fourchette standard des valeurs de biomasse enregistrées dans les forêts tropicales.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading7">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq7')">
+            Quelles sont les limites des strates ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq7" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La classification en quatre strates (sous-bois, sous-canopée, canopée et émergent) s'appuie sur la classification proposée par Dawkins (1963) au regard de l'exposition de la couronne des arbres à lumière. En sous-bois la couronne des arbres ne reçoit jamais l'ensoleillement direct. Celle des arbres de sous-canopée est partiellement exposée, le sommet de celle des arbres de la canopée est intégralement exposée tandis que les arbres émergents sont totalement exposés au rayonnement lumineux. Chaque individu est affecté à l'une de ces classes. Bien entendu un arbre du sous-bois peut simplement être un petit arbre qui deviendra un arbre de la canopée voire émergent lorsqu'il sera adulte. C'est la répétition de ces mesures et l'analyse de la distribution qui permettent de donner un statut à l'arbre, par exemple arbre de la canopée s'il est souvent exposé au rayonnement du soleil.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading8">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq8')">
+            Comment mesurez-vous la biomasse ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq8" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La biomasse repose sur un calcul complexe qui exprime, en tonnes par hectare, la quantité de matière sèche des arbres par unité de surface. Dans ce projet, elle est calculée pour chaque parcelle en combinant les données de hauteur, de DBH et de densité de bois selon l'équation définies par Chave (2005). Pour chaque arbre des parcelles nous disposons de la mesure du DBH. La hauteur de chaque arbre est évaluée en utilisant une relation allométrique locale DBH= f(Hauteur), construite à partir des 100 mesures de hauteur collectées dans la parcelle. Enfin la densité de bois est une mesure directe faite sur 5 individus de chaque espèce. Lorsque nous ne disposons pas de la densité pour l'espèce, nous utilisons la densité moyenne calculée au niveau du genre ou de la famille si la donnée est indisponible au niveau du genre. La somme de la biomasse de chaque arbre donne un aperçu de la quanité de bois et donc de la quantité de carbone fixée par la forêt.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading9">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq9')">
+            Comment définissez-vous la forêt secondaire, mature et de coeur ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq9" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>Derrière ces classes empiriques se cache en réalité un processus dynamique et continu depuis la forêt jeune et/ou dégradée qui ne contient que quelques espèces jusqu'à la forêt très riche qui bénéficie de conditions environnementales optimales pour maximiser la richesse. La forêt secondaire représente la portion de la forêt qui est située à moins de 100 m de la lisière. Au contraire la forêt de cœur se situe à plus de 300 m de la lisière et combine une très forte probabilité de rencontrer plus de 80 espèces à l'hectare selon un modèle de richesse potentielle (S-SDM) établi à partir de la compilation de la niche calculée pour près de 600 espèces (Pouteau et al., 2015; Ibanez et al., 2016). La forêt mature représente le reste de la forêt, celle qui est située à plus de 100 m d'une lisière et dans une zone ou la richesse prédite à l'hectare est inférieure à 80 espèces.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading10">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq10')">
+            Comment définit on la période de floraison/fructification ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq10" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>Cettte donnée provient des observations menées sur les espèces d'arbres, en notant la fertilité de chaque individu dans nos inventaires et nos parcelles. Nous capitalisons également les données de l'herbier de Nouméa qui concentre de nombreux échantillons fertiles puisque l'appareil sexuel est fondamental pour identifier une espèce. En capitalisant le mois et l'état phénologique de chaque individu, nous proposons une distribution moyenne des fréquences observées de la floraison et de la fructification pour chaque taxon.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading11">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq11')">
+            Comment mesure-t-on la richesse d’une forêt ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq11" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La richesse est fréquemment utilisée pour évaluer la biodiversité des communautés d'arbres. Derrière ce mot se cachent des concepts assez complexes et pas toujours élucidés. Basiquement la richesse, ou diversité alpha, représente le nombre d'espèces sur une superficie fixe (par exemple 100 espèces sur une parcelle d'1ha). Cependant, cette richesse évolue avec la densité (ou nombre d'arbres à l'hectare) qui elle-même évolue avec les conditions de l'environnement. Enfin cette richesse ne prend pas en compte l'abondance de chacune des espèces, il faut compléter son interprétation par des indices idoines (Shannon, Simpson ou Pielou). La richesse peut également s'exprimer par l'hétérogénéité de la biodiversité qui se mesure en comparant le nombre d'espèces que deux parcelles ont en commun. Cette hétérogénéité, appelée indice de dissimilarité ou diversité beta, est très élevée en Nouvelle-Calédonie. Deux parcelles qui disposent d'une même diversité alpha partagent pourtant très peu d'espèces en commun (&lt; 50 %). Toutes ces mesures et leur interprétation demandent des compétences sérieuses en statistiques, mais nos écologues-analystes sont les meilleurs !</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading12">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq12')">
+            Comment définissez-vous les milieux ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq12" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La classification des milieux de vie (ou life zones) a été créée en 1947 et améliorée en 1967 par le botaniste anglais L. R. Holdridge. Cette classification repose sur un ensemble de variables climatiques, notamment la pluviométrie, la température et l'évapotranspiration potentielle, qui définissent l'ambiance bioclimatique d'une région ou d'un paysage. En Nouvelle-Calédonie, la classification de Holdrige est basée sur les données climatiques mondiales (WorldClim) et la pluviométrie locale (Modèle Aurelhy, météo France). Elle conduit à définir 5 grandes classes de milieux de vie dans le biome tropical de la Nouvelle-Calédonie (very dry, dry, moist, wet and rain). Cependant les classes extrêmes (very dry et rain) ne représentent que 0,3 % de la province Nord de sorte que nous ne retenons que trois milieux de vie, nommés en français milieu sec, humide et très humide. Ces milieux présentent des propriétés distincts pour la végétation depuis les milieux secs où la quantité d'eau est limitée jusqu'aux milieux très humides où elle est excessive. La zone intermédiaire, c'est-à-dire le milieu humide, présente la plus grande richesse d'arbres à l'hectare ou diversité alpha.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading13">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq13')">
+            Pourquoi et comment mesurez-vous la densité de bois ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq13" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La densité de bois est un raccourci ou proxy qui donne une idée de la vitesse de croissance de l'arbre en se basant sur le fait que les arbres à croissance rapide investissent peu dans la production de matière. Une faible densité exprime un contenu chargé en eau. La densité de bois se calcule en divisant le poids de matière sèche par le volume de bois frais. Il faut donc prélever une carotte de bois dans l'arbre en utilisant une tarière de Pressler dont le diamètre est calibré. Nous effectuons cette opération pour cinq arbres de chaque espèce. Cette densité de bois reflète d'autres mécanismes tels que la résistance à l'aridité qui se traduisent par une densification du bois. Les taxons qui vivent dans les milieux plus arides de la côte ouest partagent une densité de bois plus élevée et moins variable que les espèces qui vivent davantage dans les milieux humides (Ibanez et al., 2016).</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading14">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq14')">
+            Pourquoi et comment mesurez-vous les propriétés des feuilles ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq14" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>L'analyse de la propriété des feuilles constituent un raccourci pour identifier la tolérance des taxons à l'aridité. Très grossièrement, les plantes ayant de grandes feuilles gorgées d'eau sont moins résistantes à la sécheresse, elles seront donc davantage confinées dans le sous-bois des forêts humides. Au contraire, les plantes avec des petites feuilles, coriaces et peu chargées en eau seront plus résistantes à la dessiccation. Nous prélevons cinq feuilles sur cinq individus de chaque espèce. Ces feuilles sont pesées, digitalisées puis mesurées et ces données permettent de quantifier l'investissement de l'espèce dans la matière synthétisée. La surface foliaire spécifique (SLA), la superficie de chaque feuille (LA), la quantité de matière sèche (LDMC), l'épaisseur des feuilles (LT) sont les paramètres communément utilisés pour qualifier le spectre écologique d'une plante.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading15">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq15')">
+            Comment mesure-t-on la niche d’un espèce ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq15" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La niche écologique représente un hyper-volume théorique dans lequel la plante trouve les conditions environnementales favorables à son développement. Dans la pratique, nous définissons la niche en calculant pour chaque arbre, les conditions environnementales (par exemple, altitude, température, substrat, pluviométrie, pente) dans laquelle elle se développe. A partir de cette information, nous attribuons à chaque espèce une enveloppe environnementale, c'est-à-dire par exemple une pluviométrie minimale et maximale, une altitude minimale et maximale ou encore un ou plusieurs types de substrat. Cependant cette information n'est jamais binaire et il ne suffit pas qu'un seul individu soit observé à plus de 1000 m pour conclure que cette altitude est favorable au développement de l'espèce. C'est surtout la fréquence dans chaque classe de l'environnement qui dresse le profil environnemental associé à chaque espèce. La compilation de toutes ces données et l'analyse des fréquences dans chaque classe de l'environnement permet de dresser l'enveloppe environnementale la plus probable, c'est-à-dire la niche environnementale propice au développement de chaque espèce.</p>
+      </div>
+    </div>
+
+    <div class="faq-item mb-4">
+      <div class="faq-header bg-gray-200 p-2 cursor-pointer" id="heading16">
+        <h5 class="mb-0">
+          <button class="text-left w-full text-lg font-bold" type="button" onclick="toggleFaq('faq16')">
+            Comment mesure-t-on la fragmentation d’une forêt ?
+          </button>
+        </h5>
+      </div>
+      <div id="faq16" class="faq-content hidden p-4 bg-white border border-gray-200">
+        <p>La fragmentation est le processus par lequel une grande forêt est transformée en plusieurs fragments séparés les uns des autres par une matrice non-forestière. Elle exprime les conséquences du morcellement de la forêt sur les mouvements et échanges entre les organismes vivants. Pour mesurer la fragmentation nous utilisons la taille effective du maillage (meff_cbc), un indice intégré qui prend en compte la probabilité que deux individus de la même espèce puissent se rencontrer au sein d'un même habitat continu et non fragmenté (Jaeger, 2000, Moser et al. 2007). L'indice exprime une surface en km² dont la valeur reflète à la fois la surface occupée par la forêt et l'intensité du morcellement. Plus l'habitat est fragmenté, plus le meff_cbc est faible. Le sens écologique de cette variable s'applique différemment selon les espèces ; en effet les fourmis, les oiseaux, les arbustes du sous-bois ou encore les grands kaoris ne nécessitent pas la même superficie ni la même continuité de leur habitat pour survivre.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+    </div>
+
+{% endblock %}

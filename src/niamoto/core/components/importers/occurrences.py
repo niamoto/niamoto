@@ -116,7 +116,11 @@ class OccurrenceImporter:
             raise e
 
     def import_valid_occurrences(
-        self, csvfile: str, taxon_id_column: str, only_existing_taxons: bool = True
+        self,
+        csvfile: str,
+        taxon_id_column: str,
+        location_column: str,
+        only_existing_taxons: bool = True,
     ) -> str:
         """
         Import occurrences from a CSV file. Optionally, only import occurrences with existing taxons.

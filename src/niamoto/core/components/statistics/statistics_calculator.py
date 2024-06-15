@@ -1,12 +1,14 @@
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Dict, Any, Hashable, Tuple, Union
+from typing import List, Dict, Any, Hashable, Tuple
 
 import duckdb
 import pandas as pd
+from rich.console import Console
 
 from niamoto.common.database import Database
+from ...models import TaxonRef
 from niamoto.core.services.mapper import MapperService
 
 
@@ -53,23 +55,9 @@ class StatisticsCalculator(ABC):
         self.reference_table_name = self.group_config.get("reference_table_name")
         self.reference_data_path = self.group_config.get("reference_data_path")
         self.fields = self.mapper_service.get_fields(group_by)
+        self.console = Console()
 
     @abstractmethod
-    def calculate_specific_stats(
-        self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
-    ) -> Dict[str, Any]:
-        """
-        Abstract method to calculate specific statistics for a group.
-
-        Args:
-            group_id (int): The group id.
-            group_occurrences (list[dict[Hashable, Any]]): The group occurrences.
-
-        Returns:
-            Dict[str, Any]: The specific statistics.
-        """
-        pass
-
     def calculate_stats(
         self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
@@ -83,78 +71,7 @@ class StatisticsCalculator(ABC):
         Returns:
             Dict[str, Any]: The statistics.
         """
-        stats: Dict[str, Union[int, Dict[str, Any], pd.Series[Any], float]] = {}
-
-        # Convert occurrences to pandas DataFrame
-        df_occurrences = pd.DataFrame(group_occurrences)
-
-        # Iterate over fields in the mapping
-        for field, field_config in self.fields.items():
-            target_field = field_config.get("target_field")
-
-            if target_field is None:
-                # Special field without target_field (ex: total_occurrences)
-                if field_config.get("transformations"):
-                    for transformation in field_config.get("transformations", []):
-                        if transformation.get("name") == "count":
-                            stats[field] = len(group_occurrences)
-                            break
-
-            elif target_field in df_occurrences.columns:
-                # Binary field (ex: um_occurrences)
-                if field_config.get("field_type") == "BOOLEAN":
-                    if target_field in df_occurrences.columns:
-                        value_counts = df_occurrences[target_field].value_counts()
-                        stats[f"{field}_true"] = value_counts.get(True, 0)
-                        stats[f"{field}_false"] = value_counts.get(False, 0)
-
-                # Geolocation field (ex: occurrence_location)
-                elif field_config.get("field_type") == "GEOGRAPHY":
-                    if target_field in df_occurrences.columns:
-                        coordinates = self.extract_coordinates(df_occurrences)
-                        stats[f"{field}"] = {
-                            "type": "MultiPoint",
-                            "coordinates": coordinates,
-                        }
-
-                else:
-                    # Other fields
-                    field_values = df_occurrences[target_field]
-                    field_values = field_values[
-                        (field_values != 0) & (field_values.notnull())
-                    ]
-
-                    # Calculate transformations
-                    transformations = field_config.get("transformations", [])
-                    for transformation in transformations:
-                        transform_name = transformation.get("name")
-                        if hasattr(pd.Series, transform_name) and len(field_values) > 0:
-                            transform_func = getattr(pd.Series, transform_name)
-                            transform_result = transform_func(field_values)
-                            if isinstance(transform_result, pd.Series):
-                                stats[
-                                    f"{field}_{transform_name}"
-                                ] = transform_result.round(2)
-                            else:
-                                stats[f"{field}_{transform_name}"] = round(
-                                    transform_result, 2
-                                )
-
-                    # Calculate bins
-                    bins_config = field_config.get("bins")
-                    if bins_config:
-                        bins = bins_config["values"]
-                        if bins and len(field_values) > 0:
-                            bin_percentages = self.calculate_bins(
-                                field_values.tolist(), bins
-                            )
-                            stats[f"{field}_bins"] = bin_percentages
-
-        # Add group-specific stats
-        specific_stats = self.calculate_specific_stats(group_id, group_occurrences)
-        stats.update(specific_stats)
-
-        return stats
+        pass
 
     def initialize_stats_table(self) -> None:
         """
@@ -223,10 +140,10 @@ class StatisticsCalculator(ABC):
         fields_sql = [f"{self.group_by}_id INTEGER PRIMARY KEY"]
 
         for field, config in self.fields.items():
-            target_field = config.get("target_field")
+            source_field = config.get("source_field")
 
-            if target_field is None:
-                # Special field without target_field (ex: total_occurrences)
+            if source_field is None:
+                # Special field without source_field (ex: total_occurrences)
                 field_name = field
                 fields_sql.append(f"{field_name} {config.get('field_type', 'INTEGER')}")
 
@@ -242,15 +159,21 @@ class StatisticsCalculator(ABC):
 
                 else:
                     # Other fields
-                    for transformation in config.get("transformations", []):
-                        transform_name = transformation.get("name")
-                        field_name = f"{field}_{transform_name}"
-                        fields_sql.append(
-                            f"{field_name} {config.get('field_type', 'DOUBLE')}"
-                        )
+                    transformations = config.get("transformations", [])
+                    if transformations:
+                        for transformation in transformations:
+                            transform_name = transformation.get("name")
+                            if transform_name:
+                                field_name = f"{field}_{transform_name}"
+                            else:
+                                field_name = f"{field}"  # Use field name directly if transform_name is null
+                            fields_sql.append(
+                                f"{field_name} {config.get('field_type', 'DOUBLE')}"
+                            )
 
-                    # Generate a column for the bins, if specified
-                    if "bins" in config:
+                    # Generate a column for the bins, if specified and not empty
+                    bins = config.get("bins", [])
+                    if bins:  # Check if bins is not an empty list
                         bins_field_name = f"{field}_bins"
                         fields_sql.append(f"{bins_field_name} TEXT")
 
@@ -294,11 +217,14 @@ class StatisticsCalculator(ABC):
         }
 
     @staticmethod
-    def extract_coordinates(filtered_data: Any) -> List[Dict[str, Any]]:
+    def extract_coordinates(
+        filtered_data: Any, source_field: str
+    ) -> List[Dict[str, Any]]:
         """
         Extract unique geographic coordinates and their occurrence counts from the filtered data.
 
         Args:
+            source_field (str): The source field containing the geographic coordinates.
             filtered_data (pd.DataFrame): The DataFrame containing the filtered data.
 
         Returns:
@@ -306,7 +232,7 @@ class StatisticsCalculator(ABC):
         """
         coordinate_counts: defaultdict[Tuple[float, ...], int] = defaultdict(int)
 
-        for point in filtered_data["geo_pt"]:
+        for point in filtered_data[source_field]:
             if pd.notna(point):  # Check that the point is not NaN
                 coordinates = tuple(
                     map(
@@ -320,3 +246,89 @@ class StatisticsCalculator(ABC):
             {"coordinates": list(coords), "count": count}
             for coords, count in coordinate_counts.items()
         ]
+
+    def calculate_top_items(
+        self, occurrences: list[dict[Hashable, Any]], field_config: dict
+    ) -> Dict[str, int]:
+        """
+        Calculate the top most frequent items in the occurrences based on target ranks.
+
+        Args:
+            field_config:
+            occurrences (list[dict[Hashable, Any]]): The occurrences to calculate statistics for.
+
+        Returns:
+            Dict[str, int]: A dictionary with the top items and their counts.
+        """
+        taxon_ids = {
+            occ.get("taxon_ref_id") for occ in occurrences if occ.get("taxon_ref_id")
+        }
+        target_ranks = field_config["transformations"][0]["target_ranks"]
+        top_count = field_config["transformations"][0]["count"]
+
+        if not taxon_ids:
+            return {}
+
+        # Query all taxons in a single query
+        taxons = (
+            self.db.session.query(TaxonRef).filter(TaxonRef.id.in_(taxon_ids)).all()
+        )
+        taxon_dict = {taxon.id: taxon for taxon in taxons}
+
+        # Query parent taxons to ensure we have the complete hierarchy
+        parent_ids = {
+            taxon.parent_id for taxon in taxons if taxon.parent_id is not None
+        }
+        while parent_ids:
+            parent_taxons = (
+                self.db.session.query(TaxonRef)
+                .filter(TaxonRef.id.in_(parent_ids))
+                .all()
+            )
+            for parent_taxon in parent_taxons:
+                taxon_dict[parent_taxon.id] = parent_taxon
+            parent_ids = {
+                taxon.parent_id
+                for taxon in parent_taxons
+                if taxon.parent_id is not None and taxon.parent_id not in taxon_dict
+            }
+
+        item_counts = {}
+
+        for occ in occurrences:
+            taxon_id = occ.get("taxon_ref_id")
+            if taxon_id and taxon_id in taxon_dict:
+                taxon = taxon_dict[taxon_id]
+                item_name = self.find_item_name(taxon, taxon_dict, target_ranks)
+                if item_name:
+                    item_counts[item_name] = item_counts.get(item_name, 0) + 1
+
+        top_items = dict(
+            sorted(item_counts.items(), key=lambda item: item[1], reverse=True)[
+                :top_count
+            ]
+        )
+        return top_items
+
+    @staticmethod
+    def find_item_name(
+        taxon: TaxonRef, taxon_dict: Dict[int, TaxonRef], target_ranks: list[str]
+    ) -> str:
+        """
+        Find the item name based on target ranks by traversing up the hierarchy.
+
+        Args:
+            taxon ('niamoto.core.models.models.TaxonRef'): The taxon to start the search from.
+            taxon_dict (Dict[int, 'niamoto.core.models.models.TaxonRef']): The dictionary of all taxons.
+            target_ranks (list[str]): The list of target ranks to consider.
+
+        Returns:
+            str: The item name if found, otherwise None.
+        """
+        while taxon and taxon.rank_name.lower() not in target_ranks:
+            taxon = taxon_dict.get(taxon.parent_id)
+        return (
+            taxon.full_name
+            if taxon and taxon.rank_name.lower() in target_ranks
+            else None
+        )

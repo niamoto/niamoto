@@ -1,3 +1,4 @@
-__all__ = ["PageGenerator"]
+__all__ = ["PageGenerator", "ApiGenerator"]
 
-from .static_site_generator import PageGenerator
+from .static_site import PageGenerator
+from .static_api import ApiGenerator

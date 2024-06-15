@@ -1,10 +1,10 @@
-function loadCharts(taxon, mapping) {
-    var frequencies = taxon.frequencies;
+function loadCharts(item, mapping) {
+    var frequencies = item.frequencies;
 
-    Object.entries(mapping.fields).forEach(function([field_key, field]) {
+    Object.entries(mapping.fields).forEach(function ([field_key, field]) {
         if (field.field_type !== 'GEOGRAPHY') {
             // Chart for bins
-            if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field.target_field]) {
+            if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field.source_field]) {
                 var binData = {
                     labels: Object.keys(frequencies[field_key]),
                     datasets: [{
@@ -25,19 +25,19 @@ function loadCharts(taxon, mapping) {
             }
 
             // Charts for transformations
-            field.transformations.forEach(function(transformation) {
+            field.transformations.forEach(function (transformation) {
                 if (transformation.chart_type === 'text') {
                     var textElement = document.getElementById(field_key + 'Text');
                     if (textElement) {
-                        textElement.textContent = taxon[field_key];
+                        textElement.textContent = item[field_key];
                     }
                 } else if (transformation.chart_type === 'pie') {
                     var pieData = {
                         labels: ['True', 'False'],
                         datasets: [{
                             data: [
-                                taxon[field_key + '_true'] || 0,
-                                taxon[field_key + '_false'] || 0
+                                item[field_key + '_true'] || 0,
+                                item[field_key + '_false'] || 0
                             ],
                             backgroundColor: ['#FF6384', '#36A2EB']
                         }]
@@ -58,8 +58,8 @@ function loadCharts(taxon, mapping) {
                     new Chart(pieCtx, pieConfig);
                 } else if (transformation.chart_type === 'gauge') {
                     var gaugeOptions = {
-                        id: field.target_field + transformation.name + 'Gauge',
-                        value: taxon[field.target_field + '_' + transformation.name],
+                        id: field.source_field + transformation.name + 'Gauge',
+                        value: item[field.source_field + '_' + transformation.name],
                         min: 0,
                         max: transformation.chart_options.max,
                         title: transformation.chart_options.title,
@@ -67,7 +67,30 @@ function loadCharts(taxon, mapping) {
                     };
 
                     createGauge(gaugeOptions);
-                }
+                } else if (transformation.chart_type == 'bar') {
+                        var barData = {
+                            labels: Object.keys(item[field_key] || {}),
+                            datasets: [{
+                                label: field.label,
+                                data: Object.values(item[field_key] || {}),
+                                backgroundColor: getColor(0).background,
+                                borderColor: getColor(0).border,
+                                borderWidth: 1
+                            }]
+                        };
+
+                        var barConfig = {
+                            type: 'bar',
+                            data: barData,
+                            options: transformation.chart_options
+                        };
+
+                        var barCtx = document.getElementById(field_key + 'BarChart');
+                        if (barCtx) {
+                            barCtx = barCtx.getContext('2d');
+                            new Chart(barCtx, barConfig);
+                        }
+                    }
             });
         }
     });
@@ -130,8 +153,16 @@ function createTree(container, taxonomyData) {
             const $li = $('<li></li>');
             const $a = $('<a></a>', {
                 'href': `${baseUrl}${item.id}.html`,
-                'text': item.name
+                'text': item.name,
+                'data-id': item.id
             });
+
+            // Appliquez un style spécial au taxon actuel
+            if (item.id == taxonId) {
+                $a.css({
+                    'font-weight': 'bold',
+                });
+            }
 
             if (item.children && item.children.length > 0) {
                 const $span = $('<span>▸</span>').css({
@@ -155,9 +186,22 @@ function createTree(container, taxonomyData) {
         return $ul;
     }
 
+
+    function openCurrentNode($ul, currentId) {
+        const $currentLink = $ul.find(`a[data-id='${currentId}']`);
+        if ($currentLink.length > 0) {
+            $currentLink.parents('ul').each(function () {
+                $(this).show();
+                $(this).siblings('span').text('▾');
+            });
+        }
+    }
+
     const $tree = createList(taxonomyData);
     $(container).append($tree);
+    openCurrentNode($tree, taxonId); // Ouvrez le noeud correspondant
 }
+
 
 function initMap() {
 
@@ -204,8 +248,8 @@ function initMap() {
             document.getElementById('mapLoader').style.display = 'none';
         });
 
-         if (typeof geoPoints === "string") {
-          geoPoints = JSON.parse(geoPoints);
+        if (typeof geoPoints === "string") {
+            geoPoints = JSON.parse(geoPoints);
         }
 
         if (geoPoints && geoPoints.coordinates) {

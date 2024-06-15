@@ -67,13 +67,16 @@ class ApiImporter:
         except Exception as e:
             logger.error(f"Error during plot data import: {e}")
 
-    def import_occurrences(self, csvfile: str, taxon_id_column: str) -> Any:
+    def import_occurrences(
+        self, csvfile: str, taxon_id_column: str, location_column: str
+    ) -> Any:
         """
         Imports occurrences data using DataImportService.
 
         Args:
             csvfile (str): Path to the CSV file to be imported.
             taxon_id_column (str): Name of the column in the CSV that corresponds to the taxon ID.
+            location_column (str): Name of the column in the CSV that corresponds to the location data.
 
         Returns:
             Any: The results of the import operation.
@@ -84,7 +87,7 @@ class ApiImporter:
 
             # Call the service to import the occurrences
             import_occ_result = data_import_service.import_occurrences(
-                csvfile, taxon_id_column
+                csvfile, taxon_id_column, location_column
             )
 
             # Confirmation message
@@ -98,7 +101,7 @@ class ApiImporter:
         Imports occurrence-plot links from a CSV file.
 
         Args:
-            csvfile (str): Path to the CSV file to be imported.
+            csvfile (str): The path to the CSV file to be imported.
 
         Returns:
             Any: The results of the import operation.
@@ -117,3 +120,26 @@ class ApiImporter:
 
         except Exception as e:
             logger.error(f"Error during occurrence-plot data import: {e}")
+
+    def import_shapes(self, csvfile: str) -> Any:
+        """
+        Imports shape data from a CSV file.
+
+        Args:
+            csvfile (str): Path to the CSV file to be imported.
+
+        Returns:
+            Any: The results of the import operation.
+        """
+        try:
+            # Initialize the data import service
+            data_import_service = ImporterService(self.db_path)
+
+            # Call the service to import the shapes
+            import_shapes_result = data_import_service.import_shapes(csvfile)
+
+            # Confirmation message
+            return import_shapes_result
+
+        except Exception as e:
+            logger.error(f"Error during shapes data import: {e}")

@@ -1,0 +1,147 @@
+{% extends '_base.html' %}
+
+{% block title %}Niamoto - Portail de la forêt de Nouvelle-Calédonie{% endblock %}
+{% block extra_head %}
+    <style>
+        .bgimg-home {
+            background-image: url('{{ depth }}files/home_background.jpg');
+            background-size: cover;
+            background-position: center;
+            height: 100vh;
+            position: relative;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+
+    <div>
+        <section id="home" class="bgimg-home flex items-center justify-center relative">
+            <div class="overlay"></div>
+            <div class="text_home text-white text-contour text-center relative z-10">
+                <div class="container mx-auto">
+                    <h1 class="text-5xl font-bold mb-4">Bienvenue sur NIAMOTO</h1>
+                    <h2 class="text-2xl mb-4">Portail de la forêt de Nouvelle-Calédonie en Province Nord</h2>
+                </div>
+            </div>
+            <div class="absolute bottom-2 w-full flex justify-center z-10">
+                <div class="bg-white p-2 rounded-lg shadow-md flex justify-center">
+                    <figure class="mx-2"><img class="img-fluid" id="pn" src="{{ depth }}files/ps_100.png"></figure>
+                    <figure class="mx-2"><img class="img-fluid" id="pn" src="{{ depth }}files/pn_100.png"></figure>
+                    <figure class="mx-2"><img class="img-fluid" id="amap" src="{{ depth }}files/amap_100.png"></figure>
+                    <figure class="mx-2"><img class="img-fluid" id="herbarium" src="{{ depth }}files/herbarium_100.png"></figure>
+                    <figure class="mx-2"><img class="img-fluid" id="iac" src="{{ depth }}files/iac_100.png"></figure>
+                    <figure class="mx-2"><img class="img-fluid" id="ird" src="{{ depth }}files/ird_100.png"></figure>
+                    <figure class="mx-2"><img class="img-fluid" id="cirad" src="{{ depth }}files/cirad_100.png"></figure>
+                </div>
+            </div>
+        </section>
+
+        <section id="introduction" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-bold mb-4">Niamoto : la forêt de Nouvelle-Calédonie</h2>
+                <p class="mb-4">En paicî, mötö est l’arbre et nâ mötö (<em><i>niamoto en phonétique</i></em>) signifie la forêt. Ce site est dédié à la forêt de la Nouvelle-Calédonie dont la composition, la structure et la distribution sont uniques au monde. Plus spécifiquement, il se focalise sur la forêt de la province Nord et représente le fruit d’un partenariat établi depuis près de 10 ans entre une collectivité, <a href="https://www.province-nord.nc/" target="_blank" class="underline">la province Nord de Nouvelle-Calédonie</a> garante de son environnement et une unité mixte de recherche, l’<a href="http://amap.cirad.fr/fr/index.php" target="_blank" class="underline">UMR-Amap</a> (Cirad, Ird, Inrae, CNRS, et Université de Montpellier) associée à l’<a href="http://www.iac.nc/" target="_blank" class="underline">IAC</a>, dévouée à l’étude de la biodiversité végétale.</p>
+                <p class="mb-4">Au travers de cette plateforme, nous vous invitons à parcourir ces forêts exceptionnelles selon trois niveaux de leur organisation :</p>
+                <ul class="list-disc pl-5">
+                    <li class="mb-2"><strong>Les Arbres</strong> comme les principaux composants de la forêt même si ce sont des organismes minoritaires représentant moins de 20 % de tous les végétaux. Les arbres font la biomasse de la forêt et forment cette charpente, que l’on appelle la canopée, qui crée les conditions exceptionnelles et indispensables pour accueillir la diversité des autres espèces, qu’elles soient végétales, animales, fongiques et même bactériennes.</li>
+                    <li class="mb-2"><strong>Les Peuplements</strong> comme l’assemblage de toutes les espèces d’arbres pour construire une forêt. Ce n’est pas à proprement parler une société puisqu’il s’agit d’un rassemblement d’individus appartenant à plusieurs espèces. Néanmoins il existe des règles qui s’appliquent aux peuplements d’arbres que la phytosociologie tente de définir.</li>
+                    <li class="mb-2"><strong>La Forêt</strong> comme un des écosystèmes qui forment le paysage. La forêt est un meta-organisme, constitué de plusieurs êtres vivants, qui présente ses propres modes de fonctionnement. Elle naît, grandit, vieillit, se régénère, progresse ou régresse et son empreinte dans le paysage reflète son état.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="project" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-bold mb-4">Le projet Niamoto</h2>
+                <figure class="mx-auto mb-4">
+                    <img class="img-fluid" id="livre_pn" src="{{ depth }}files/bouquin.png">
+                </figure>
+                <p class="mb-4">Depuis 2012 la province Nord, et plus précisément le SIEC-DDEE (service impact environnement et conservation de la direction du développement économique et de l’environnement) a établi un partenariat avec l’antenne calédonienne de l’unité mixte de recherche AMAP (botAnique et Modélisation de l'Architecture des Plantes et des végétations). Ce partenariat a été scellé par la signature de 3 conventions mais surtout par un dialogue permanent entre les gestionnaires et les chercheurs. Les questions de recherche sont établies en concertation avec les besoins de la collectivité et la collectivité se nourrit des résultats de la recherche pour asseoir rigoureusement les mesures de conservation. Les travaux de recherche issus de ce partenariat ont donné lieu à de nombreuses publications scientifiques <a href="http://localhost:8000/ressources/#support"><i class="far fa-arrow-alt-circle-right"></i></a>, qui garantissent la robustesse des travaux mais ces productions ne sont pas toujours accessibles pour un public non averti.</p>
+                <p>Au-delà de cette production scientifique, le projet Niamoto se lance le défi de traduire les conclusions des travaux de recherches en termes plus accessibles pour favoriser la transmission de l'information. Cet exercice est complexe puisqu'il faut tordre les concepts de la réflexion scientifique pour leur donner un sens accessible au citoyen mais il est riche car il nous impose de démontrer que nos travaux s'inscrivent dans les préoccupations sociétales. Après un livre illustré qui explique le sens de nos recherche, le projet Niamoto propose au travers de ce site internet de découvrir les questions, les méthodes et les données à partir desquelles la science tente de comprendre le fonctionnement des arbres et de la forêt.</p>
+            </div>
+        </section>
+
+        <section id="objective" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-bold mb-4">Les objectifs</h2>
+                <p class="mb-4">Ce portail synthétise les résultats de ce partenariat sous une forme que nous espérons accessible à tous. La science est une composante citoyenne, elle n’est pas plus ni moins utile que d’autres activités qui conduisent nos sociétés à vivre mieux. Comme toutes disciplines, elle utilise un langage dédié et des méthodes spécifiques pour répondre à des questions complexes qui peuvent pourtant paraître simples.</p>
+                <p class="mb-4">Nous espérons autant transmettre la connaissance acquise que les questions qui se posent et pour lesquelles nous n'avons pas (encore) de réponses. L'accessibilité à la connaissance est un premier pas vers la conservation des milieux forestiers mais elle n'est pas suffisante. Les solutions ne peuvent émerger que d'une concertation plus étroite de la science avec les gestionnaires de l'environnement, la société civile et le pouvoir politique qui décide au final.</p>
+            </div>
+        </section>
+
+        <section id="context" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-bold mb-4">Le contexte</h2>
+                <figure class="mx-auto mb-4">
+                    <img class="img-fluid" id="map_pacific" src="{{ depth }}files/carte_pacifique.png" alt="carte du pacifique">
+                </figure>
+                <p class="mb-4">La Nouvelle-Calédonie est une collectivité française d'outre-mer. Il s'agit d'un archipel constitué de près de 1900 îles et îlots répartis dans l'océan Pacifique, à une latitude inter-tropicale (19-22°S), un peu au nord du Tropique du Capricorne. Sa superficie est de 18 576 km². Cet archipel est peuplé de près de 271 000 habitants. L'archipel néo-calédonien comprend une île principale, la Grande Terre d’une superficie d'environ 16 000 km² divisée administrativement en province Nord et province Sud. A l’est se situent les îles loyautés (Ouvéa, Lifou, Tiga et Maré) dont la superficie cumulée approche les 2 000 km² et constitue la province des îles.</p>
+
+                <p class="mb-4">La Nouvelle-Calédonie est un archipel ancien issu de la dislocation du super-continent Gondwana dans sa partie orientale qui s’est détachée de l’actuelle Australie, il y a environ 100 millions d’années. La dérive de continents et les épisodes tectoniques sous-marins ont entraîné ce bout de terre vers l’est s’enfonçant progressivement avec la plaque Pacifique sous le manteau terrestre, jusqu’à une profondeur gigantesque de 70 km estimée par les géologues. Durant ce processus, la Grande-Terre a été recouverte, en grande partie, par une nappe ophiolitique provenant du plancher océanique constituée des roches ultramafiques dont les sols dérivés recouvrent aujourd’hui environ un tiers de la Grande Terre. Ce n’est que lors de sa ré-émersion, il y a environ 37 millions d’années, que la flore a pu coloniser progressivement l’île par des événements de dispersion à longue distance et à courte distance via l’existence d’archipels tremplins. Les mécanismes géologiques et la datation du soulèvement des calcaires coralliens qui constituent le substrat majeur des îles Loyautés ne sont pas encore bien connus. Toutefois la flore contemporaine de ces îles, qui présente des spécificités propres au substrat calcaire, serait d’origine beaucoup plus récente que celle de la Grande-Terre, entre 3 et 10 millions d’années.</p>
+
+                <p class="mb-4">Cette histoire ancienne et cet isolement ont contribué à façonner une flore originale qui s’est déployée sur l’ensemble du territoire, épousant une grande diversité de conditions environnementales, constituée par la combinaison d’un gradient d’altitude (0-1629 m), d’un gradient de pluviométrie (800-4800 mm<sup>-1</sup>), d’un relief escarpé, d’une diversité de substrat (ultramafique, calcaires, volcano-sédimentaire) en encore d’un effet de Foehn prononcé qui scinde la Grande-Terre en deux, avec la côte ouest plus chaude et sèche que la côte est. Aujourd’hui, cette flore unique au monde est fortement menacée par les activités humaines telles que l’industrie nickélifère, les feux de brousse, l’exploitation forestière, l’urbanisation et les invasions biologiques.</p>
+
+                <p class="mb-4">L’association d’une forte originalité floristique et d’un niveau élevé de menaces pesant sur la flore, classe la Nouvelle-Calédonie parmi l’un des <a href="https://www.cepf.net/our-work/biodiversity-hotspots/new-caledonia" target="_blank" class="underline">36 points chauds de la biodiversité mondiale</a> et en fait une région prioritaire pour la conservation.</p>
+            </div>
+        </section>
+
+        <section id="flora" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-bold mb-4">La flore</h2>
+                <p class="mb-4">La flore indigène de Nouvelle-Calédonie est un réservoir unique de la biodiversité mondiale. Elle abrite 3 641 taxons correspondant à 3 409 espèces, 816 genres et 213 familles de plantes vasculaires. Le taux d’endémisme atteint plus de 75,5 % ce qui représente 1 % des taxons endémiques du monde, dont 3 familles, 96 genres et 2 555 espèces endémiques. (Extrait de <a href="http://publish.plantnet-project.org/project/florical_fr" target="_blank" class="underline">Florical</a>, juin 2020).</p>
+                <div class="row mb-4">
+                    <figure class="mx-auto">
+                        <img class="img-fluid" src="{{ depth }}files/home_tableau.png" alt="Tableau de la flore">
+                    </figure>
+                </div>
+                <p class="mb-4">Au niveau générique, cette flore a une forte affinité avec la flore Australienne (&gt; 25 %), Indomalaise (&gt; 13 %) ou encore avec la flore de Nouvelle Guinée (17 %). Néanmoins, elle présente de nombreuses singularités qui attisent la curiosité des botanistes du monde entier :</p>
+                <ul class="list-disc pl-5 mb-4">
+                    <li class="mb-2">Certaines familles sont sur-représentées (Rubiaceae, Pittosporaceae, Cunoniaceae, Euphorbiaceae) tandis que d’autres sont sous-représentées (Fabaceae, Lamiaceae, Malvaceae, Ericaceae) en comparaison avec les flores voisines notamment l’Australie ou l’Asie du Sud-Est.</li>
+                    <li class="mb-2">On y trouve de nombreuse familles ancestrales, appartenant au groupe des angiospermes basales telles que les Lauraceae, Proteaceae, Winteraceae, Piperaceae, Annonaceae, Monimiaceae et tout particulièrement <em><i>Amborella trichopoda</i></em>, l’espèce la plus basale de l’arbre phylogénétique actuel des plantes à fleurs.</li>
+                    </ul>
+                <div class="row mb-4">
+                    <div class="flex justify-center">
+                        <img id="Zygogynum_mackeei" class="img-fluid rounded mx-2" src="{{ depth }}files/Zygogynum_mackeei.png" alt="Zygogynum mackeei" title="Zygogynum mackeei">
+                        <img class="img-fluid rounded mx-2" src="{{ depth }}files/Amborella_trichopoda.png" title="Amborella trichopoda" alt="Amborella trichopoda">
+                        <img class="img-fluid rounded mx-2" src="{{ depth }}files/Cryptocarya_barrabea.png" title="Cryptocarya barrabea" alt="Cryptocarya barrabea">
+                        <img class="img-fluid rounded mx-2" src="{{ depth }}files/Hedycarya_rivularis.png" title="Hedycarya rivularis" alt="Hedycarya rivularis">
+                        <img class="img-fluid rounded mx-2" id="Stenocarpus_trinervis" src="{{ depth }}files/Stenocarpus_trinervis.png" title="Stenocarpus trinervis" alt="Stenocarpus trinervis">
+                    </div>
+                </div>
+                <ul class="list-disc pl-5 mb-4">
+                    <li class="mb-2">Elle abrite une grande richesse de gymnospermes avec 43 espèces, soit 7 % des conifères du monde, toutes endémiques, parmi lesquelles 18 des 44 espèces connues d’Araucariaceae. Par ailleurs, le territoire détient la seule espèce de gymnosperme parasite, <em><i>Parasitaxus usta</i></em>.</li>
+                </ul>
+                <div class="row">
+                    <div class="flex justify-center">
+                        <img class="img-fluid" id="Parasitaxus_usta" src="{{ depth }}files/Parasitaxus_usta.png" alt="Parasitaxus usta" title="Parasitaxus usta">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="resources" class="py-12 bg-gray-100">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-bold mb-4">Ressources</h2>
+                <ul class="list-disc pl-5">
+                    <li class="mb-2"><a href="{{ depth }}/methodologie.html" class="underline">Méthodologie</a></li>
+                    <li class="mb-2"><a href="{{ depth }}/taxon/1.html" class="underline">Arbres</a></li>
+                    <li class="mb-2"><a href="{{ depth }}/plot/1.html" class="underline">Peuplements</a></li>
+                    <li class="mb-2"><a href="{{ depth }}/construction.html" class="underline">Forêts</a></li>
+                    <li class="mb-2"><a href="{{ depth }}/ressources.html" class="underline">Ressources</a></li>
+                </ul>
+            </div>
+        </section>
+    </div>
+
+{% endblock %}
+

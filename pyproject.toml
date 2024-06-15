@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "niamoto"
-version = "0.0.3a1"
+version = "0.1.0"
 description = ""
 authors = ["Julien Barbe <julien.barbe@me.com>"]
 readme = "README.md"
@@ -56,23 +56,23 @@ geoalchemy2 = "^0.15.0"
 # duckdb - In-process SQL OLAP Database Management System.
 # Documentation: https://duckdb.org/docs/api/python
 # Note: DuckDB is a new database management system that is designed to be used as an embedded database.
-# It is designed to be robust against corrupt data, supports both static and dynamic typing, comes with a
+# It is designed to be robust against corrupt data, supports both static_files and dynamic typing, comes with a
 # powerful query optimizer and can execute SQL queries in parallel.
 # References : https://geog-414.gishub.org/book/duckdb/01_duckdb_intro.html
 #              https://medium.com/@dipeit/researchers-please-replace-sqlite-with-duckdb-now-f038044a2702
 #              http://duckdb.org/docs/archive/0.9.1/api/python/overview
-duckdb = "^0.10.1"
+duckdb = "^1.0.0"
 
 # duckdb-engine - SQLAlchemy dialect for DuckDB.
 # Documentation: https://pypi.org/project/duckdb-engine/
-duckdb-engine = "^0.12.0"
+duckdb-engine = "^0.13.0"
 
 # ---------------------
 # Geospatial libraries
 # ---------------------
 # leafmap - Interactive mapping library with ease of use for geospatial analysis.
 # Documentation: https://leafmap.org/#key-features
-leafmap = "^0.31.5"
+leafmap = "^0.32.1"
 
 # geopandas - Extends pandas for spatial data operations.
 # Documentation: https://geopandas.org/
@@ -96,7 +96,7 @@ pandas = "^2.2.1"
 
 # pyarrow - Python bindings for Apache Arrow. required by pandas.
 # Documentation: https://arrow.apache.org/docs/python/
-pyarrow = "16.0.0"
+pyarrow = "16.1.0"
 
 # numpy - Fundamental package for scientific computing in Python.
 # Documentation: https://numpy.org/
@@ -143,6 +143,8 @@ prompt-toolkit = "^3.0.43"
 sphinxcontrib-napoleon = "^0.7"
 myst-parser = "^3.0.1"
 sphinx-markdown-builder = "^0.6.6"
+rtree = "^1.2.0"
+types-shapely = "^2.0.0.20240613"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -180,7 +182,7 @@ ruff = "^0.1.5"
 # Type Checking
 # ----------------
 
-# mypy - Optional static type checker for Python, aiming to combine the benefits of dynamic and static typing.
+# mypy - Optional static_files type checker for Python, aiming to combine the benefits of dynamic and static_files typing.
 # Documentation: http://mypy-lang.org/
 mypy = "^1.7.0"
 types-click = "^7.1.8"
