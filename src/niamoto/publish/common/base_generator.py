@@ -39,9 +39,7 @@ class BaseGenerator:
     def plot_to_dict(self, plot: PlotRef, stats: Optional[Any]) -> Dict[str, Any]:
         plot_dict = {
             "id": plot.id,
-            "id_locality": plot.id_locality,
             "locality": plot.locality,
-            "substrat": plot.substrat,
             "geometry": mapping(wkt.loads(plot.geometry)) if isinstance(plot.geometry, str) else None,
         }
 

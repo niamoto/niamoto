@@ -46,6 +46,7 @@ class ImporterService:
         Args:
             csvfile (str): The path to the CSV file to be imported.
             taxon_id_column (str): The name of the column in the CSV file that contains the taxon IDs.
+            location_column (str): The name of the column in the CSV file that contains the location data.
 
         Returns:
             str: A message indicating the status of the import operation.
@@ -54,7 +55,7 @@ class ImporterService:
             csvfile, taxon_id_column, location_column
         )
 
-    def import_plots(self, gpkg_path: str) -> str:
+    def import_plots(self, gpkg_path: str, plot_identifier: str, location_field: str) -> str:
         """
         Import plot data from a GeoPackage file.
 
@@ -64,7 +65,7 @@ class ImporterService:
         Returns:
             str: A message indicating the status of the import operation.
         """
-        return self.plot_importer.import_from_gpkg(gpkg_path)
+        return self.plot_importer.import_from_gpkg(gpkg_path, plot_identifier, location_field)
 
     def import_occurrence_plot_links(self, csvfile: str) -> str:
         """

@@ -31,6 +31,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         super().__init__(db, mapper_service, occurrences, group_by)
         self.plot_identifier = self.mapper_service.get_source_identifier("plots")
         self.plots_data = self.load_plots_data()
+        self.source_filter = self.mapper_service.get_group_filter("plots")
 
     def load_plots_data(self) -> pd.DataFrame:
         plots_path = self.mapper_service.get_source_path("plots")
@@ -71,7 +72,7 @@ class PlotStatsCalculator(StatisticsCalculator):
             if plot_id is None:
                 return
 
-            plot_occurrences = self.get_plot_occurrences(plot_id)
+            plot_occurrences = self.get_plot_occurrences(plot_id, self.source_filter)
             if not plot_occurrences:
                 return
 
@@ -105,7 +106,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         # Retrieve the plot object using group_id
         plot = (
             self.db.session.query(PlotRef)
-            .filter(PlotRef.id_locality == group_id)
+            .filter(PlotRef.id == group_id)
             .first()
         )
         plot_data = (
@@ -233,7 +234,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         else:
             return {"type": "Unknown", "coordinates": []}
 
-    def get_plot_occurrences(self, plot_id: int) -> list[dict[Hashable, Any]]:
+    def get_plot_occurrences(self, plot_id: int, source_filter: Dict[str, Any] = None) -> list[dict[Hashable, Any]]:
         """
         Get plot occurrences.
 
@@ -250,12 +251,22 @@ class PlotStatsCalculator(StatisticsCalculator):
             Column("id_plot", Integer, primary_key=True),
         )
 
-        occurrence_ids = (
-            self.db.session.query(occurrences_plots.c.id_occurrence)
-            .filter(occurrences_plots.c.id_plot == plot_id)
-            .all()
+        occurrence_query = self.db.session.query(occurrences_plots.c.id_occurrence).filter(
+            occurrences_plots.c.id_plot == plot_id
         )
+
+        # Apply additional source filter if provided
+        if source_filter:
+            field = source_filter.get("field")
+            value = source_filter.get("value")
+            if field and value:
+                occurrence_query = occurrence_query.filter(
+                    occurrences_plots.c[field] == value
+                )
+
+        occurrence_ids = occurrence_query.all()
         occurrence_ids = [op[0] for op in occurrence_ids]
+
         return [
             occ for occ in self.occurrences if occ[self.identifier] in occurrence_ids
         ]
@@ -280,7 +291,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         Returns:
             int: The plot ID.
         """
-        return plot.id_locality
+        return plot.id
 
     def calculate_top_values(
         self, plot_occurrences: list[dict[Hashable, Any]], field_config: dict

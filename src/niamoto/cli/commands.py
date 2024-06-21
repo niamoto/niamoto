@@ -339,7 +339,17 @@ def import_taxonomy(csvfile: str, ranks: str) -> None:
 
 @cli.command(name="import-plots")
 @click.argument("csvfile", required=False)
-def import_plots(csvfile: str) -> None:
+@click.option(
+    "--plot-identifier",
+    "-t",
+    help="Name of the column in the CSV that corresponds to the plot ID.",
+)
+@click.option(
+    "--location-field",
+    "-l",
+    help="Name of the column in the CSV that corresponds to the location data.",
+)
+def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> None:
     """
     Import plot data from a CSV file into the database.
 
@@ -351,9 +361,13 @@ def import_plots(csvfile: str) -> None:
     Args:
         csvfile (str, optional): Path to the CSV file containing the plot data to be imported.
                                  If not provided, the path specified in the configuration file will be used.
+        plot_identifier (str, optional): Name of the column in the CSV file that corresponds to the plot ID.
+        location_field (str, optional): Name of the column in the CSV file that corresponds to the location data.
 
     Examples:
-        $ niamoto import-plots plots.csv
+        $ niamoto import-plots plots.csv --plot-identifier=id_location --location-field=geometry
+        $ niamoto import-plots plots.csv -t id_location -l geometry
+        $ niamoto import-plots -t id_location -l geometry
         $ niamoto import-plots
 
     Returns:
@@ -361,12 +375,18 @@ def import_plots(csvfile: str) -> None:
 
     Raises:
         FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
+        ValueError: If the specified plot identifier column is not found in the CSV file.
+
 
     Note:
-        The CSV file should have a header row specifying the column names.
+        - The CSV file should have a header row specifying the column names.
+        - The plot identifier column should contain unique identifiers for each plot.
+        - The location field column should contain the location data for each plot.
     """
     config = Config()
     plots_config = config.get("sources", "plots")
+    default_plot_identifier = plots_config.get("identifier")
+    default_location_field = plots_config.get("location_field")
     default_csvfile = plots_config.get("path")
 
     if not csvfile and default_csvfile and os.path.exists(default_csvfile):
@@ -375,8 +395,16 @@ def import_plots(csvfile: str) -> None:
     if not csvfile or not os.path.exists(csvfile):
         raise FileNotFoundError("CSV file not specified or does not exist.")
 
+    plot_identifier = plot_identifier or default_plot_identifier
+    if not plot_identifier:
+        raise ValueError("Plot identifier column not specified.")
+
+    location_field = location_field or default_location_field
+    if not location_field:
+        raise ValueError("Location field column not specified.")
+
     data_importer = ApiImporter()
-    import_plots_result = data_importer.import_plots(csvfile)
+    import_plots_result = data_importer.import_plots(csvfile, plot_identifier, location_field)
     console = Console()
     console.print(import_plots_result, style="italic green")
 
@@ -385,14 +413,13 @@ def import_plots(csvfile: str) -> None:
 @click.argument("csvfile", required=False)
 @click.option(
     "--taxon-identifier",
-    "--location-field",
     "-t",
     help="Name of the column in the CSV that corresponds to the taxon ID.",
 )
 @click.option(
     "--location-field",
     "-l",
-    help="Name of the column in the CSV that corresponds to the taxon ID.",
+    help="Name of the column in the CSV that corresponds to the location data.",
 )
 def import_occurrences(
     csvfile: str, taxon_identifier: str, location_field: str
@@ -769,12 +796,14 @@ def generate_mapping(
 @click.option(
     "--mapping-group",
     type=str,
-    help="The specific group to calculate statistics for. If not provided, statistics will be calculated for all groups.",
+    help="The specific group to calculate statistics for. If not provided, statistics will be calculated for all "
+         "groups.",
 )
 @click.option(
     "--csv-file",
     type=str,
-    help="Path to the CSV file containing the occurrences. If not provided, the source_table_name from the mapping will be used.",
+    help="Path to the CSV file containing the occurrences. If not provided, the source_table_name from the mapping "
+         "will be used.",
 )
 def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) -> None:
     """
@@ -872,7 +901,7 @@ def generate_static_content() -> None:
         with repository.db.engine.connect() as connection:
             result = connection.execute(
                 text("SELECT * FROM plot_stats WHERE plot_id = :plot_id"),
-                {"plot_id": plot.id_locality},
+                {"plot_id": plot.id},
             )
             plot_stats_row = result.fetchone()
 
