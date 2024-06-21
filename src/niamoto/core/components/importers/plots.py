@@ -22,12 +22,14 @@ class PlotImporter:
         """
         self.db = db
 
-    def import_from_gpkg(self, file_path: str) -> str:
+    def import_from_gpkg(self, gpkg_path: str, identifier: str, location_field: str) -> str:
         """
         Import plot data from a GeoPackage file.
 
         Args:
-            file_path (str): The path to the GeoPackage file to be imported.
+            gpkg_path (str): The path to the GeoPackage file to be imported.
+            identifier (str): The name of the column in the GeoPackage that corresponds to the plot ID.
+            location_field (str): The name of the column in the GeoPackage that corresponds to the location data.
 
         Returns:
             str: A message indicating the success of the import operation.
@@ -35,30 +37,29 @@ class PlotImporter:
         Raises:
             Exception: If an error occurs during the import operation.
         """
-        plots_data = gpd.read_file(file_path)
+        plots_data = gpd.read_file(gpkg_path)
 
         try:
             for index, row in plots_data.iterrows():
                 # Convert Shapely geometry to WKT
-                wkt_geometry = dumps(row["geometry"]) if row["geometry"] else None
+                wkt_geometry = dumps(row[location_field]) if row[location_field] else None
 
                 existing_plot = (
                     self.db.session.query(PlotRef)
-                    .filter_by(id_locality=row["id_locality"], locality=row["locality"])
+                    .filter_by(id=row[identifier], locality=row["locality"])
                     .scalar()
                 )
 
                 if not existing_plot:
                     plot = PlotRef(
-                        id_locality=row["id_locality"],
+                        id=row[identifier],
                         locality=row["locality"],
-                        substrat=row["substrat"],
-                        geometry=wkt_geometry,  # Utilisation de la chaîne WKT
+                        geometry=wkt_geometry,
                     )
                     self.db.session.add(plot)
             self.db.session.commit()
 
-            return f"Data from {file_path} imported successfully into table plot_ref."
+            return f"Data from {gpkg_path} imported successfully into table plot_ref."
 
         except Exception as e:
             self.db.session.rollback()

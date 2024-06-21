@@ -28,19 +28,25 @@ class Environment:
         Initialize the environment based on the provided configuration.
         """
         # Ensure all necessary directories are created
-        os.makedirs(os.path.dirname(self.config.database_path), exist_ok=True)
-        os.makedirs(self.config.logs_path, exist_ok=True)
+        db_dir = os.path.dirname(self.config.database_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        if self.config.logs_path:
+            os.makedirs(self.config.logs_path, exist_ok=True)
 
         # Create directories for each source
         for source in self.config.data_sources.values():
             if isinstance(source, dict):
                 path = source.get("path")
                 if path:
-                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    source_dir = os.path.dirname(path)
+                    if source_dir:
+                        os.makedirs(source_dir, exist_ok=True)
 
         # Create directories for each output
         for path in self.config.output_paths.values():
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+            if path:  # Ensure path is not empty
+                os.makedirs(path, exist_ok=True)
 
         # Initialize the database
         db = Database(self.config.database_path)
@@ -55,12 +61,12 @@ class Environment:
         if os.path.exists(db_path):
             os.remove(db_path)
 
-        # static_pages_path = self.config.output_paths.get("static_site")
-        # if static_pages_path and os.path.exists(static_pages_path):
-        #     shutil.rmtree(static_pages_path)
-        #
-        # static_api_path = self.config.output_paths.get("static_api")
-        # if static_api_path and os.path.exists(static_api_path):
-        #     shutil.rmtree(static_api_path)
+        static_pages_path = self.config.output_paths.get("static_site")
+        if static_pages_path and os.path.exists(static_pages_path):
+            shutil.rmtree(static_pages_path)
+
+        static_api_path = self.config.output_paths.get("static_api")
+        if static_api_path and os.path.exists(static_api_path):
+            shutil.rmtree(static_api_path)
 
         self.initialize()

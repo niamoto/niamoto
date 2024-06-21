@@ -94,6 +94,19 @@ class MapperService:
         sources = self.mapping_manager.get_sources()
         return sources.get(source_name, {}).get("identifier", "id")
 
+    def get_group_filter(self, group: str) -> Dict[str, Any]:
+        """
+        Get the filter configuration for a specific group.
+
+        Args:
+            group (str): The group name.
+
+        Returns:
+            Dict[str, Any]: The filter configuration.
+        """
+        group_config = self.get_group_config(group)
+        return group_config.get("filter", {})
+
     def get_fields(self, group_by: str) -> Dict[str, Any]:
         """
         Retrieves the fields for a given group.

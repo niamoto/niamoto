@@ -44,12 +44,14 @@ class ApiImporter:
         except Exception as e:
             logger.error(f"Error during taxonomy data import: {e}")
 
-    def import_plots(self, gpkg_path: str) -> Any:
+    def import_plots(self, gpkg_path: str, plot_identifier: str, location_field: str) -> Any:
         """
         Imports plot data from the provided GeoPackage file path.
 
         Args:
             gpkg_path (str): Path to the GeoPackage file to be imported.
+            plot_identifier (str): The name of the column in the GeoPackage that corresponds to the plot ID.
+            location_field (str): The name of the column in the GeoPackage that corresponds to the location data.
 
         Returns:
             Any: The results of the import operation.
@@ -59,7 +61,7 @@ class ApiImporter:
             data_import_service = ImporterService(self.db_path)
 
             # Call the service to import the plots
-            import_plot_results = data_import_service.import_plots(gpkg_path)
+            import_plot_results = data_import_service.import_plots(gpkg_path, plot_identifier, location_field)
 
             # Confirmation message
             return import_plot_results
@@ -68,15 +70,15 @@ class ApiImporter:
             logger.error(f"Error during plot data import: {e}")
 
     def import_occurrences(
-        self, csvfile: str, taxon_id_column: str, location_column: str
+        self, csvfile: str, taxon_identifier: str, location_field: str
     ) -> Any:
         """
         Imports occurrences data using DataImportService.
 
         Args:
             csvfile (str): Path to the CSV file to be imported.
-            taxon_id_column (str): Name of the column in the CSV that corresponds to the taxon ID.
-            location_column (str): Name of the column in the CSV that corresponds to the location data.
+            taxon_identifier (str): The name of the column in the CSV file that contains the taxon IDs.
+            location_field (str): The name of the column in the CSV file that contains the location data.
 
         Returns:
             Any: The results of the import operation.
@@ -87,7 +89,7 @@ class ApiImporter:
 
             # Call the service to import the occurrences
             import_occ_result = data_import_service.import_occurrences(
-                csvfile, taxon_id_column, location_column
+                csvfile, taxon_identifier, location_field
             )
 
             # Confirmation message

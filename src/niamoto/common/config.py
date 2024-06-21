@@ -113,11 +113,14 @@ class Config:
                 },
                 "plots": {
                     "path": "data/sources/plots.gpkg",
-                    "identifier": "id_locality",
+                    "identifier": "id",
+                    "location_field": "geometry"
                 },
                 "occurrences": {
                     "path": "data/sources/occurrences.csv",
                     "identifier": "id_taxonref",
+                    "location_field": "geo_pt"
+
                 },
                 "occurrence-plots": {"path": "data/sources/occurrence-plots.csv"},
                 "shapes": {"path": "data/sources/shapes.csv"},

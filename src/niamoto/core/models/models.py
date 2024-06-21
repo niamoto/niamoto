@@ -77,9 +77,7 @@ class PlotRef(Base):
 
     Parameters:
         id (BIGINT): The primary key. :no-index:
-        id_locality (BIGINT): The locality id. :noindex:
         locality (String): The locality of the plot. :noindex:
-        substrat (String): The substrat of the plot. :noindex:
         geometry (String): The geometry of the plot. :noindex:
     """
 
@@ -87,9 +85,7 @@ class PlotRef(Base):
 
     id_seq: Sequence = Sequence("plot_id_seq")
     id = Column(BIGINT, id_seq, server_default=id_seq.next_value(), primary_key=True)
-    id_locality = Column(BIGINT, nullable=False)
     locality = Column(String, nullable=False)
-    substrat = Column(String)
     geometry = Column(String)
 
 
