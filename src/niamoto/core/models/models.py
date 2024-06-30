@@ -93,12 +93,11 @@ class ShapeRef(Base):
     """
     A class used to represent a shape reference.
 
-    Parameters:
-        id (Integer): The primary key. :no-index:
-        label (String): The label of the shape. :noindex:
-        type (String): The type of the shape. :noindex:
-        location (String): The geometry of the shape (MultiPolygon) as WKT. :noindex:
-        geom_forest (String): The forest geometry (MultiPolygon) as WKT. :noindex:
+    Attributes:
+        id (int): The primary key.
+        label (str): The label of the shape.
+        type (str): The type of the shape.
+        location (str): The geometry of the shape (MultiPolygon) as WKT.
     """
 
     __tablename__ = "shape_ref"
@@ -107,14 +106,14 @@ class ShapeRef(Base):
     id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     label = Column(String(50), nullable=False)
     type = Column(String(50))
-    shape_location = Column(String, nullable=False)
-    forest_location = Column(String, nullable=False)
+    location = Column(String, nullable=False)
 
     __table_args__ = (
         Index("ix_shape_ref_id", "id"),
         Index("ix_shape_ref_label", "label"),
         Index("ix_shape_ref_type", "type"),
+        Index("ix_shape_ref_label_type", "label", "type", unique=True),  # Unique constraint on label and type
     )
 
-    def __repr__(self) -> str:
-        return f"<ShapeRef(id={self.id}, label={self.label}, type={self.type})>"
+    def __repr__(self):
+        return f"<ShapeRef(id={self.id}, label='{self.label}', type='{self.type}', location='{self.location[:30]}...')>"

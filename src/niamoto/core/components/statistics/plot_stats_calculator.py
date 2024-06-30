@@ -126,11 +126,12 @@ class PlotStatsCalculator(StatisticsCalculator):
                 if transformations:
                     for transformation in transformations:
                         transform_name = transformation.get("name")
+                        column_name = f"{field}_{transform_name}"
                         if transform_name == "count":
-                            stats[field] = len(group_occurrences)
+                            stats[column_name] = len(group_occurrences)
                             break
                         elif transform_name == "top":
-                            stats[field] = self.calculate_top_items(
+                            stats[column_name] = self.calculate_top_items(
                                 group_occurrences, field_config
                             )
 
@@ -196,9 +197,13 @@ class PlotStatsCalculator(StatisticsCalculator):
             elif source == "plots" and plot_data is not None:
                 if source_field:
                     if field_config.get("field_type") == "GEOGRAPHY":
-                        stats[field] = self.extract_coordinates_from_geometry(
-                            plot_data[source_field]
-                        )
+                        if transformations:
+                            for transformation in transformations:
+                                transform_name = transformation.get("name")
+                                column_name = f"{field}_{transform_name}"
+                                stats[column_name] = self.extract_coordinates_from_geometry(
+                                    plot_data[source_field]
+                                )
                     else:
                         stats[field] = plot_data[source_field]
                 else:

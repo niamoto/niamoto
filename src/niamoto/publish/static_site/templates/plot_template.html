@@ -44,10 +44,6 @@
 <div class="rounded overflow-hidden shadow-lg mb-2 mt-28">
     <div class="px-6 py-4">
         <div class="font-bold text-4xl mb-2">{{ plot.locality }}</div>
-        <p class="text-gray-700 text-base">
-            Locality: {{ plot.locality }}<br>
-            Substrat: {{ plot.substrat }}
-        </p>
     </div>
 </div>
 
@@ -80,7 +76,7 @@
     {% elif transformation.chart_type == 'gauge' %}
         <div class="gauge" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge"></div>
     {% elif transformation.chart_type == 'bar' %}
-        <canvas id="{{ field_key }}BarChart"></canvas>
+        <canvas id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
     {% endif %}
     {% endmacro %}
 
@@ -149,12 +145,14 @@
 
                 // Charts for transformations
                 field.transformations.forEach(function(transformation) {
-                    if (transformation.chart_type == 'text') {
+                    var transformationName = transformation.name ? transformation.name : '';
+                    var valueKey = transformation.name ? field_key + '_' + transformationName : field_key;
+                    if (transformation.chart_type === 'text') {
                         var textElement = document.getElementById(field_key + 'Text');
                         if (textElement) {
                             textElement.textContent = plot[field_key];
                         }
-                    } else if (transformation.chart_type == 'pie') {
+                    } else if (transformation.chart_type === 'pie') {
                         var pieData = {
                             labels: ['True', 'False'],
                             datasets: [{
@@ -182,9 +180,7 @@
                             pieCtx = pieCtx.getContext('2d');
                             new Chart(pieCtx, pieConfig);
                         }
-                    } else if (transformation.chart_type == 'gauge') {
-                        var transformationName = transformation.name ? transformation.name : '';
-                        var valueKey = transformation.name ? field_key + '_' + transformationName : field_key;
+                    } else if (transformation.chart_type === 'gauge') {
                         var gaugeOptions = {
                             id: field_key + transformationName + 'Gauge',
                             value: parseFloat(plot[valueKey]),
@@ -195,12 +191,12 @@
                         };
 
                         createGauge(gaugeOptions);
-                    } else if (transformation.chart_type == 'bar') {
+                    } else if (transformation.chart_type === 'bar') {
                         var barData = {
-                            labels: Object.keys(plot[field_key] || {}),
+                            labels: Object.keys(plot[valueKey] || {}),
                             datasets: [{
                                 label: field.label,
-                                data: Object.values(plot[field_key] || {}),
+                                data: Object.values(plot[valueKey] || {}),
                                 backgroundColor: getColor(0).background,
                                 borderColor: getColor(0).border,
                                 borderWidth: 1
@@ -212,8 +208,8 @@
                             data: barData,
                             options: transformation.chart_options
                         };
-
-                        var barCtx = document.getElementById(field_key + 'BarChart');
+                        var fieldId = field_key + transformation.name;
+                        var barCtx = document.getElementById(fieldId + 'BarChart');
                         if (barCtx) {
                             barCtx = barCtx.getContext('2d');
                             new Chart(barCtx, barConfig);

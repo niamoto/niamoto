@@ -21,14 +21,15 @@ from rich.progress import track
 from rich.table import Table
 from sqlalchemy import asc, text
 
-from niamoto.api import StaticContentGenerator, ApiImporter, ApiMapper
-from niamoto.api.statistics import ApiStatistics
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.environment import Environment
 from niamoto.core.models import TaxonRef, Base, PlotRef
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
+from niamoto.core.services.generator import GeneratorService
+from niamoto.core.services.importer import ImporterService
 from niamoto.core.services.mapper import MapperService
+from niamoto.core.services.statistics import StatisticService
 from niamoto.publish.static_api.api_generator import ApiGenerator
 
 
@@ -318,6 +319,7 @@ def import_taxonomy(csvfile: str, ranks: str) -> None:
         The column names should match the ranks specified in the `--ranks` option, if provided.
     """
     config = Config()
+    db_path = config.get("database", "path")
     taxonomy_config = config.get("sources", "taxonomy")
     ranks_from_config = taxonomy_config.get("ranks")
     default_csvfile = taxonomy_config.get("path")
@@ -331,7 +333,7 @@ def import_taxonomy(csvfile: str, ranks: str) -> None:
     ranks = ranks or ranks_from_config
     ranks_tuple = tuple(ranks.split(",")) if ranks else ()
 
-    data_importer = ApiImporter()
+    data_importer = ImporterService(db_path)
     import_tax_result = data_importer.import_taxonomy(csvfile, ranks_tuple)
     console = Console()
     console.print(import_tax_result, style="italic green")
@@ -384,6 +386,7 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
         - The location field column should contain the location data for each plot.
     """
     config = Config()
+    db_path = config.get("database", "path")
     plots_config = config.get("sources", "plots")
     default_plot_identifier = plots_config.get("identifier")
     default_location_field = plots_config.get("location_field")
@@ -403,7 +406,7 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     if not location_field:
         raise ValueError("Location field column not specified.")
 
-    data_importer = ApiImporter()
+    data_importer = ImporterService(db_path)
     import_plots_result = data_importer.import_plots(csvfile, plot_identifier, location_field)
     console = Console()
     console.print(import_plots_result, style="italic green")
@@ -422,7 +425,7 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     help="Name of the column in the CSV that corresponds to the location data.",
 )
 def import_occurrences(
-    csvfile: str, taxon_identifier: str, location_field: str
+        csvfile: str, taxon_identifier: str, location_field: str
 ) -> None:
     """
     Import occurrence data from a CSV file, analyze it to update the 'mapping' table,
@@ -464,6 +467,7 @@ def import_occurrences(
         - The 'mapping' table will be updated based on the analysis of the occurrence data.
     """
     config = Config()
+    db_path = config.get("database", "path")
     occurrences_config = config.get("sources", "occurrences")
     default_csvfile = occurrences_config.get("path")
     default_taxon_identifier = occurrences_config.get("identifier")
@@ -483,7 +487,7 @@ def import_occurrences(
     if not location_field:
         raise ValueError("Location field column not specified.")
 
-    data_importer = ApiImporter()
+    data_importer = ImporterService(db_path)
     import_occ_result = data_importer.import_occurrences(
         csvfile, taxon_identifier, location_field
     )
@@ -526,6 +530,7 @@ def import_occurrence_plot_links(csvfile: str) -> None:
         - The occurrence IDs and plot IDs should match the existing occurrences and plots in the database.
     """
     config = Config()
+    db_path = config.get("database", "path")
     occurrence_plots_config = config.get("sources", "occurrence-plots")
     default_csvfile = occurrence_plots_config.get("path")
 
@@ -536,8 +541,8 @@ def import_occurrence_plot_links(csvfile: str) -> None:
         raise FileNotFoundError("CSV file not specified or does not exist.")
 
     try:
-        api_importer = ApiImporter()
-        import_occ_plot_results = api_importer.import_occurrence_plot_links(csvfile)
+        data_importer = ImporterService(db_path)
+        import_occ_plot_results = data_importer.import_occurrence_plot_links(csvfile)
         console = Console()
         console.print(import_occ_plot_results, style="italic green")
     except FileNotFoundError as e:
@@ -552,45 +557,34 @@ def import_occurrence_plot_links(csvfile: str) -> None:
 
 
 @cli.command(name="import-shapes")
-@click.argument("csvfile", required=False)
-def import_shapes(csvfile: str) -> None:
+def import_shapes() -> None:
     """
-    Import shape data from a CSV file into the database.
+    Import shape data from the configuration file into the database.
 
-    This command reads shape data from the specified CSV file and imports it into the database.
-    The CSV file should contain columns corresponding to the shape data.
-
-    If the `csvfile` argument is not provided, the command will use the path specified in the configuration file.
-
-    Args:
-        csvfile (str, optional): Path to the CSV file containing the shape data to be imported.
-                                 If not provided, the path specified in the configuration file will be used.
-
-    Examples:
-        $ niamoto import-shapes shapes.csv
-        $ niamoto import-shapes
+    This command reads shape data from the configuration file and imports it into the database.
+    The configuration file should specify the paths to the shape files along with necessary metadata.
 
     Returns:
         None
 
     Raises:
-        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
+        FileNotFoundError: If any of the specified shape files do not exist.
+        ValueError: If the configuration is missing required fields.
+
+    Examples:
+        $ niamoto import-shapes
 
     Note:
-        The CSV file should have a header row specifying the column names.
+        The configuration file should have entries under the 'shapes' section specifying details
+        such as the file path, id field, and name field for each shape file.
     """
     config = Config()
-    shapes_config = config.get("sources", "shapes")
-    default_csvfile = shapes_config.get("path")
+    db_path = config.get("database", "path")
+    shapes_config = config.get("shapes")
 
-    if not csvfile and default_csvfile and os.path.exists(default_csvfile):
-        csvfile = default_csvfile
+    data_importer = ImporterService(db_path)
+    import_shapes_result = data_importer.import_shapes(shapes_config)
 
-    if not csvfile or not os.path.exists(csvfile):
-        raise FileNotFoundError("CSV file not specified or does not exist.")
-
-    data_importer = ApiImporter()
-    import_shapes_result = data_importer.import_shapes(csvfile)
     console = Console()
     console.print(import_shapes_result, style="italic green")
 
@@ -623,26 +617,27 @@ def import_all() -> None:
     taxonomy_ranks = taxonomy_config.get("ranks")
     if not taxonomy_csvfile or not os.path.exists(taxonomy_csvfile):
         raise FileNotFoundError(f"Taxonomy CSV file not found: {taxonomy_csvfile}")
-    data_importer = ApiImporter()
+    data_importer = ImporterService(db_path)
     console.print(f"Importing taxonomy from {taxonomy_csvfile}", style="italic green")
     data_importer.import_taxonomy(taxonomy_csvfile, tuple(taxonomy_ranks.split(",")))
 
     # Import plots
     plots_config = config.get("sources", "plots")
     plots_csvfile = plots_config.get("path")
+    plot_identifier = plots_config.get("identifier")
+    location_field = plots_config.get("location_field")
     if not plots_csvfile or not os.path.exists(plots_csvfile):
         raise FileNotFoundError(f"Plots CSV file not found: {plots_csvfile}")
     console.print(f"Importing plots from {plots_csvfile}", style="italic green")
-    data_importer.import_plots(plots_csvfile)
+    data_importer.import_plots(plots_csvfile, plot_identifier, location_field)
 
     # Import shapes
-    # TODO: Uncomment this section once the shapes import is implemented
-    # shapes_config = config.get("sources", "shapes")
-    # shapes_csvfile = shapes_config.get("path")
-    # if not shapes_csvfile or not os.path.exists(shapes_csvfile):
-    #     raise FileNotFoundError(f"Shapes CSV file not found: {shapes_csvfile}")
-    # console.print(f"Importing shapes from {shapes_csvfile}", style="italic green")
-    # data_importer.import_shapes(shapes_csvfile)
+    shapes_config = config.get("sources", "shapes")
+    shapes_csvfile = shapes_config.get("path")
+    if not shapes_csvfile or not os.path.exists(shapes_csvfile):
+        raise FileNotFoundError(f"Shapes CSV file not found: {shapes_csvfile}")
+    console.print(f"Importing shapes from {shapes_csvfile}", style="italic green")
+    data_importer.import_shapes(shapes_csvfile)
 
     # Import occurrences
     occurrences_config = config.get("sources", "occurrences")
@@ -743,10 +738,10 @@ def reset_tables(db_path: str) -> None:
     help="The path to the reference table file (e.g., GeoPackage).",
 )
 def generate_mapping(
-    data_source: str,
-    mapping_group: str,
-    reference_table_name: Optional[str],
-    reference_data_path: Optional[str],
+        data_source: str,
+        mapping_group: str,
+        reference_table_name: Optional[str],
+        reference_data_path: Optional[str],
 ) -> None:
     """
     Generate a mapping from a CSV file based on the specified grouping criteria.
@@ -775,9 +770,11 @@ def generate_mapping(
         - If a reference table and data path are provided, ensure that they are valid and accessible.
     """
     try:
-        api_mapper = ApiMapper()
+        config = Config()
+        db_path = config.get("database", "path")
+        api_mapper = MapperService(db_path)
         if data_source:
-            api_mapper.generate_mapping_from_csv(
+            api_mapper.generate_mapping(
                 data_source, mapping_group, reference_table_name, reference_data_path
             )
         else:
@@ -794,18 +791,18 @@ def generate_mapping(
 
 @cli.command(name="calculate-statistics")
 @click.option(
-    "--mapping-group",
-    type=str,
-    help="The specific group to calculate statistics for. If not provided, statistics will be calculated for all "
-         "groups.",
-)
-@click.option(
     "--csv-file",
     type=str,
     help="Path to the CSV file containing the occurrences. If not provided, the source_table_name from the mapping "
          "will be used.",
 )
-def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) -> None:
+@click.option(
+    "--mapping-group",
+    type=str,
+    help="The specific group to calculate statistics for. If not provided, statistics will be calculated for all "
+         "groups.",
+)
+def calculate_statistics(csv_file: Optional[str], mapping_group: Optional[str]) -> None:
     """
     Calculate statistics based on the mapping file specified in the configuration.
 
@@ -815,16 +812,16 @@ def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) 
     Otherwise, the source_table_name from the mapping file will be used.
 
     Args:
-        mapping_group (str, optional): The specific group to calculate statistics for.
-                                  If not provided, statistics will be calculated for all groups.
         csv_file (str, optional): Path to the CSV file containing the occurrences.
                                   If not provided, the source_table_name from the mapping will be used.
+        mapping_group (str, optional): The specific group to calculate statistics for.
+                                  If not provided, statistics will be calculated for all groups.
 
     Examples:
         $ niamoto calculate-statistics
-        $ niamoto calculate-statistics --mapping-group taxon
         $ niamoto calculate-statistics --csv-file occurrences.csv
-        $ niamoto calculate-statistics --mapping-group plot --csv-file plot_occurrences.csv
+        $ niamoto calculate-statistics --mapping-group taxon
+        $ niamoto calculate-statistics --csv-file plot_occurrences.csv --mapping-group plot
 
     Raises:
         Exception: If an error occurs during the statistics calculation process.
@@ -834,11 +831,10 @@ def calculate_statistics(mapping_group: Optional[str], csv_file: Optional[str]) 
         - The mapping file used for the statistics calculation is specified in the configuration.
     """
     try:
-        api_statistics = ApiStatistics()
-        if mapping_group:
-            api_statistics.calculate_group_statistics(mapping_group, csv_file)
-        else:
-            api_statistics.calculate_all_statistics(csv_file)
+        config = Config()
+        db_path = config.get("database", "path")
+        data_processor = StatisticService(db_path)
+        data_processor.calculate_statistics(csv_file=csv_file, group_by=mapping_group)
         console = Console()
         console.print("Statistics calculated successfully.", style="italic green")
     except Exception as e:
@@ -883,7 +879,7 @@ def generate_static_content() -> None:
 
     # Get all Taxon entities from the repository, ordered by their full name
 
-    page_generator = StaticContentGenerator(config=config_manager)
+    page_generator = GeneratorService(config=config_manager)
     api_generator = ApiGenerator(config=config_manager)
 
     # Generate static pages
@@ -970,7 +966,7 @@ def generate_static_content() -> None:
 )
 @click.option("--site-id", help="Netlify site ID (required if provider is 'netlify').")
 def deploy(
-    output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
+        output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
 ) -> None:
     """
     Deploy generated static_site and static_api to the specified provider (GitHub Pages or Netlify).

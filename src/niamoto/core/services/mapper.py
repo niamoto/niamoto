@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from niamoto.common.database import Database
 from niamoto.core.components.mappers.mapping_manager import MappingManager
 
@@ -19,11 +19,11 @@ class MapperService:
         self.mapping_manager = MappingManager(self.db)
 
     def generate_mapping(
-        self,
-        csvfile: str,
-        group_by: str,
-        reference_table_name: Optional[str],
-        reference_data_path: Optional[str],
+            self,
+            csvfile: str,
+            group_by: str,
+            reference_table_name: Optional[str],
+            reference_data_path: Optional[str],
     ) -> None:
         """
         Generates a mapping.
@@ -38,23 +38,23 @@ class MapperService:
             csvfile, group_by, reference_table_name, reference_data_path
         )
 
-    def add_mapping(self, field: str) -> None:
+    def add_aggregation(self, field: str) -> None:
         """
         Adds a mapping.
 
         Args:
             field (str): The field to add to the mapping.
         """
-        self.mapping_manager.add_mapping(field)
+        self.mapping_manager.add_aggregation(field)
 
-    def get_mapping(self) -> list[dict[str, Any]]:
+    def get_aggregations(self) -> list[dict[str, Any]]:
         """
         Retrieves the mapping.
 
         Returns:
             list[dict[str, Any]]: The mapping.
         """
-        return self.mapping_manager.get_mapping()
+        return self.mapping_manager.get_aggregations()
 
     def get_group_config(self, group_by: str) -> Dict[str, Any]:
         """
@@ -118,3 +118,64 @@ class MapperService:
             Dict[str, Any]: The fields for the given group.
         """
         return self.mapping_manager.get_fields(group_by)
+
+    def get_layers(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves the layers configuration.
+
+        Returns:
+            List[Dict[str, Any]]: A list of layer configurations.
+        """
+        return self.mapping_manager.get_layers()
+
+    def get_layer(self, layer_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a layer configuration by name.
+
+        Args:
+            layer_name (str): The name of the layer.
+
+        Returns:
+            Optional[Dict[str, Any]]: The layer configuration if found, None otherwise.
+
+        """
+        return self.mapping_manager.get_layer(layer_name)
+
+    def get_layer_path(self, layer_name: str) -> Optional[str]:
+        """
+        Retrieves the path for a given layer.
+
+        Args:
+            layer_name (str): The name of the layer.
+
+        Returns:
+            Optional[str]: The path to the layer if found, None otherwise.
+        """
+        layer = self.get_layer(layer_name)
+        return layer.get('path') if layer else None
+
+    def get_layer_type(self, layer_name: str) -> Optional[str]:
+        """
+        Retrieves the type of a given layer.
+
+        Args:
+            layer_name (str): The name of the layer.
+
+        Returns:
+            Optional[str]: The type of the layer if found, None otherwise.
+        """
+        layer = self.get_layer(layer_name)
+        return layer.get('type') if layer else None
+
+    def add_layer(self, layer_config: Dict[str, Any]) -> None:
+        """
+        Adds a new layer configuration.
+
+        Args:
+            layer_config (Dict[str, Any]): The layer configuration to add.
+
+        Returns:
+            None
+
+        """
+        self.mapping_manager.add_layer(layer_config)

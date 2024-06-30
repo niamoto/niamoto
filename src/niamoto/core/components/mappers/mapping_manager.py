@@ -31,12 +31,191 @@ class MappingManager:
         """
         self.db = db
 
+    @staticmethod
+    def get_config() -> Dict[str, Any]:
+        """
+        Get the full configuration.
+
+        Returns:
+            Dict[str, Any]: The full configuration.
+        """
+        config_path = os.path.join(os.getcwd(), "config.yml")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as config_file:
+                return yaml.safe_load(config_file) or {}
+        else:
+            return {}
+
+    @staticmethod
+    def custom_confirm(question: str, default: bool = False) -> bool:
+        """
+        Custom confirm prompt.
+
+        Args:
+            question (str): The question to ask.
+            default (bool, optional): The default answer. Defaults to False.
+
+        Returns:
+            bool: The user's answer.
+        """
+        console = Console()
+        while True:
+            console.print(question, end=" ")
+            response = click.prompt(
+                "(Y/n)" if default else "(y/N)", default="", show_default=False
+            ).lower()
+            if not response:
+                return default
+            if response in ["y", "yes"]:
+                return True
+            elif response in ["n", "no"]:
+                return False
+            else:
+                console.print("Invalid input. Please enter 'y' or 'n'.")
+
+    def get_aggregations(self) -> List[Dict[str, Any]]:
+        """
+        Get the mapping.
+
+        Returns:
+            List[Dict[str, Any]]: The mapping.
+        """
+        config = self.get_config()
+        return config.get('aggregations', [])
+
+    @staticmethod
+    def add_aggregation(field: str) -> str:
+        """
+        Add a new field to the mapping.
+
+        Args:
+            field (str): The field to be added.
+
+        Returns:
+            str: A message indicating the field has been added.
+        """
+        return f"Adding new field {field} to the mapping"
+        # Implement the logic to add a new field to the existing mapping
+
+    @staticmethod
+    def get_sources() -> Dict[str, Any]:
+        """
+        Get the sources from the configuration file.
+
+        Returns:
+            Dict[str, Any]: The sources.
+        """
+        config_path = os.path.join(os.getcwd(), "config.yml")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as config_file:
+                config_data = yaml.safe_load(config_file) or {}
+                return config_data.get("sources", {})
+        else:
+            return {}
+
+    def get_group_config(self, group_by: str) -> Dict[str, Any]:
+        """
+        Get the group config for a group.
+
+        Args:
+            group_by (str): The group by field.
+
+        Returns:
+            Dict[str, Any]: The group config.
+        """
+        mapping_data = self.get_aggregations()
+        group_config = next(
+            (entry for entry in mapping_data if entry["group_by"] == group_by), None
+        )
+        return group_config if group_config is not None else {}
+
+    def get_fields(self, group_by: str) -> Dict[str, Any]:
+        """
+        Get the fields for a group.
+
+        Args:
+            group_by (str): The group by field.
+
+        Returns:
+            Dict[str, Any]: The fields.
+        """
+        group_config: Optional[Dict[str, Any]] = self.get_group_config(group_by)
+        if group_config:
+            fields: Dict[str, Any] = group_config["fields"]
+            return fields
+        else:
+            return {}
+
+    def get_layers(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves the layers configuration.
+
+        Returns:
+            List[Dict[str, Any]]: A list of layer configurations.
+        """
+        config = self.get_config()
+        return config.get('layers', [])
+
+    def get_layer(self, layer_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a specific layer configuration by name.
+
+        Args:
+            layer_name (str): The name of the layer.
+
+        Returns:
+            Optional[Dict[str, Any]]: The layer configuration if found, None otherwise.
+        """
+        layers = self.get_layers()
+        return next((layer for layer in layers if layer['name'] == layer_name), None)
+
+    def add_layer(self, layer_config: Dict[str, Any]) -> None:
+        """
+        Adds a new layer to the configuration.
+
+        Args:
+            layer_config (Dict[str, Any]): The configuration of the new layer.
+        """
+        config = self.get_config()
+        if 'layers' not in config:
+            config['layers'] = []
+        config['layers'].append(layer_config)
+        self._save_config(config)
+
+    def update_layer(self, layer_name: str, layer_config: Dict[str, Any]) -> None:
+        """
+        Updates an existing layer in the configuration.
+
+        Args:
+            layer_name (str): The name of the layer to update.
+            layer_config (Dict[str, Any]): The new configuration for the layer.
+        """
+        config = self.get_config()
+        layers = config.get('layers', [])
+        for i, layer in enumerate(layers):
+            if layer['name'] == layer_name:
+                layers[i] = layer_config
+                break
+        self._save_config(config)
+
+    @staticmethod
+    def _save_config(config: Dict[str, Any]) -> None:
+        """
+        Saves the configuration to the config file.
+
+        Args:
+            config (Dict[str, Any]): The configuration to save.
+        """
+        config_path = os.path.join(os.getcwd(), "config.yml")
+        with open(config_path, "w") as config_file:
+            yaml.safe_dump(config, config_file, default_flow_style=False, sort_keys=False)
+
     def generate_mapping(
-        self,
-        csvfile: str,
-        group_by: str,
-        reference_table_name: Optional[str] = None,
-        reference_data_path: Optional[str] = None,
+            self,
+            csvfile: str,
+            group_by: str,
+            reference_table_name: Optional[str] = None,
+            reference_data_path: Optional[str] = None,
     ) -> None:
         """
         Generate a mapping from a CSV file.
@@ -107,6 +286,10 @@ class MappingManager:
                 config_data = yaml.safe_load(config_file) or {}
 
             # Ensure 'aggregations' section exists
+            if "layers" not in config_data:
+                config_data["layers"] = []
+
+            # Ensure 'aggregations' section exists
             if "aggregations" not in config_data:
                 config_data["aggregations"] = []
 
@@ -157,21 +340,27 @@ class MappingManager:
             self.db.close_db_session()
 
     @staticmethod
-    def add_mapping(field: str) -> str:
+    def determine_transformations(data_type: str) -> List[Dict[str, str]]:
         """
-        Add a new field to the mapping.
+        Determine the transformations for a data type.
 
         Args:
-            field (str): The field to be added.
+            data_type (str): The data type.
 
         Returns:
-            str: A message indicating the field has been added.
+            List[Dict[str, str]]: The transformations.
         """
-        return f"Adding new field {field} to the mapping"
-        # Implement the logic to add a new field to the existing mapping
+        if is_duckdb_type_numeric(data_type):
+            return [
+                {"name": "mean"},
+                {"name": "max"},
+                {"name": "median"},
+                {"name": "min"},
+            ]
+        return []
 
     def get_transforms_and_bins(
-        self, con: DuckDBPyConnection, column_name: str, column_type: Any
+            self, con: DuckDBPyConnection, column_name: str, column_type: Any
     ) -> tuple[list[dict[str, str]], Collection[str]]:
         """
         Get the transforms and bins for a column.
@@ -201,58 +390,11 @@ class MappingManager:
         return transforms, bins
 
     @staticmethod
-    def custom_confirm(question: str, default: bool = False) -> bool:
-        """
-        Custom confirm prompt.
-
-        Args:
-            question (str): The question to ask.
-            default (bool, optional): The default answer. Defaults to False.
-
-        Returns:
-            bool: The user's answer.
-        """
-        console = Console()
-        while True:
-            console.print(question, end=" ")
-            response = click.prompt(
-                "(Y/n)" if default else "(y/N)", default="", show_default=False
-            ).lower()
-            if not response:
-                return default
-            if response in ["y", "yes"]:
-                return True
-            elif response in ["n", "no"]:
-                return False
-            else:
-                console.print("Invalid input. Please enter 'y' or 'n'.")
-
-    @staticmethod
-    def determine_transformations(data_type: str) -> List[Dict[str, str]]:
-        """
-        Determine the transformations for a data type.
-
-        Args:
-            data_type (str): The data type.
-
-        Returns:
-            List[Dict[str, str]]: The transformations.
-        """
-        if is_duckdb_type_numeric(data_type):
-            return [
-                {"name": "mean"},
-                {"name": "max"},
-                {"name": "median"},
-                {"name": "min"},
-            ]
-        return []
-
-    @staticmethod
     def calculate_default_bins(
-        con: DuckDBPyConnection,
-        column_name: str,
-        column_type: str,
-        num_intervals: int = 6,
+            con: DuckDBPyConnection,
+            column_name: str,
+            column_type: str,
+            num_intervals: int = 6,
     ) -> Dict[str, Any]:
         """
         Calculate the default bins for a column.
@@ -313,66 +455,3 @@ class MappingManager:
             }
 
         return {}
-
-    def get_mapping(self) -> List[Dict[str, Any]]:
-        """
-        Get the mapping.
-
-        Returns:
-            List[Dict[str, Any]]: The mapping.
-        """
-        config_path = os.path.join(os.getcwd(), "config.yml")
-        if os.path.exists(config_path):
-            with open(config_path, "r") as config_file:
-                config_data = yaml.safe_load(config_file) or {}
-                return config_data.get("aggregations", [])
-        else:
-            return []
-
-    def get_sources(self) -> Dict[str, Any]:
-        """
-        Get the sources from the configuration file.
-
-        Returns:
-            Dict[str, Any]: The sources.
-        """
-        config_path = os.path.join(os.getcwd(), "config.yml")
-        if os.path.exists(config_path):
-            with open(config_path, "r") as config_file:
-                config_data = yaml.safe_load(config_file) or {}
-                return config_data.get("sources", {})
-        else:
-            return {}
-
-    def get_group_config(self, group_by: str) -> Dict[str, Any]:
-        """
-        Get the group config for a group.
-
-        Args:
-            group_by (str): The group by field.
-
-        Returns:
-            Dict[str, Any]: The group config.
-        """
-        mapping_data = self.get_mapping()
-        group_config = next(
-            (entry for entry in mapping_data if entry["group_by"] == group_by), None
-        )
-        return group_config if group_config is not None else {}
-
-    def get_fields(self, group_by: str) -> Dict[str, Any]:
-        """
-        Get the fields for a group.
-
-        Args:
-            group_by (str): The group by field.
-
-        Returns:
-            Dict[str, Any]: The fields.
-        """
-        group_config: Optional[Dict[str, Any]] = self.get_group_config(group_by)
-        if group_config:
-            fields: Dict[str, Any] = group_config["fields"]
-            return fields
-        else:
-            return {}
