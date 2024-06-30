@@ -141,10 +141,18 @@ class StatisticsCalculator(ABC):
 
         for field, config in self.fields.items():
             source_field = config.get("source_field")
+            transformations = config.get("transformations", [])
 
             if source_field is None:
                 # Special field without source_field (ex: total_occurrences)
                 field_name = field
+                if transformations:
+                    for transformation in transformations:
+                        transform_name = transformation.get("name")
+                        if transform_name:
+                            field_name = f"{field}_{transform_name}"
+                        else:
+                            field_name = f"{field}"
                 fields_sql.append(f"{field_name} {config.get('field_type', 'INTEGER')}")
 
             else:
@@ -155,11 +163,11 @@ class StatisticsCalculator(ABC):
 
                 # Geolocation field (ex: occurrence_location)
                 elif config.get("field_type") == "GEOGRAPHY":
-                    fields_sql.append(f"{field} TEXT")
-
+                    if transformations:
+                        for transformation in transformations:
+                            transform_name = transformation.get("name")
+                            fields_sql.append(f"{field}_{transform_name} TEXT")
                 else:
-                    # Other fields
-                    transformations = config.get("transformations", [])
                     if transformations:
                         for transformation in transformations:
                             transform_name = transformation.get("name")

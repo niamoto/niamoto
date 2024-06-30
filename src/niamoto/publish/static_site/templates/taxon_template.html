@@ -61,9 +61,9 @@
                 {% elif transformation.chart_type == 'pie' %}
                     <canvas id="{{ field_key }}PieChart"></canvas>
                 {% elif transformation.chart_type == 'gauge' %}
-                    <div class="gauge" id="{{ field_key }}{{ transformation.name }}Gauge"></div>
+                    <div class="gauge" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge"></div>
                 {% elif transformation.chart_type == 'bar' %}
-                    <canvas id="{{ field_key }}BarChart"></canvas>
+                    <canvas id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
                 {% endif %}
             {% endmacro %}
 

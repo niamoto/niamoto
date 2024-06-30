@@ -180,7 +180,7 @@ class TestCommands(unittest.TestCase):
         Args:
             mock_api_mapper: A mock for the ApiMapper class.
         """
-        mock_api_mapper.return_value.add_new_mapping.return_value = None
+        mock_api_mapper.return_value.add_aggregation.return_value = None
 
         runner = CliRunner()
 
