@@ -91,11 +91,12 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                 if transformations:
                     for transformation in transformations:
                         transform_name = transformation.get("name")
+                        column_name = f"{field}_{transform_name}"
                         if transform_name == "count":
-                            stats[field] = len(group_occurrences)
+                            stats[column_name] = len(group_occurrences)
                             break
                         elif transform_name == "top":
-                            stats[field] = self.calculate_top_items(
+                            stats[column_name] = self.calculate_top_items(
                                 group_occurrences, field_config
                             )
 
@@ -110,13 +111,17 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                 # Geolocation field (ex: occurrence_location)
                 elif field_config.get("field_type") == "GEOGRAPHY":
                     if source_field in df_occurrences.columns:
-                        coordinates = self.extract_coordinates(
-                            df_occurrences, source_field
-                        )
-                        stats[f"{field}"] = {
-                            "type": "MultiPoint",
-                            "coordinates": coordinates,
-                        }
+                        if transformations:
+                            for transformation in transformations:
+                                transform_name = transformation.get("name")
+                                column_name = f"{field}_{transform_name}"
+                                coordinates = self.extract_coordinates(
+                                    df_occurrences, source_field
+                                )
+                                stats[f"{column_name}"] = {
+                                    "type": "MultiPoint",
+                                    "coordinates": coordinates,
+                                }
 
                 else:
                     # Other fields

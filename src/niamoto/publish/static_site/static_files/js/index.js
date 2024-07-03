@@ -67,12 +67,13 @@ function loadCharts(item, mapping) {
                     };
 
                     createGauge(gaugeOptions);
-                } else if (transformation.chart_type == 'bar') {
+                } else if (transformation.chart_type === 'bar') {
+
                         var barData = {
-                            labels: Object.keys(item[field_key] || {}),
+                            labels: Object.keys(item[field_key+'_'+ transformation.name] || {}),
                             datasets: [{
                                 label: field.label,
-                                data: Object.values(item[field_key] || {}),
+                                data: Object.values(item[field_key+'_'+ transformation.name] || {}),
                                 backgroundColor: getColor(0).background,
                                 borderColor: getColor(0).border,
                                 borderWidth: 1
@@ -85,7 +86,8 @@ function loadCharts(item, mapping) {
                             options: transformation.chart_options
                         };
 
-                        var barCtx = document.getElementById(field_key + 'BarChart');
+                        var fieldKey = field_key + transformation.name;
+                        var barCtx = document.getElementById(fieldKey + 'BarChart');
                         if (barCtx) {
                             barCtx = barCtx.getContext('2d');
                             new Chart(barCtx, barConfig);
@@ -212,6 +214,7 @@ function initMap() {
             break;
         }
     }
+    console.log("Coordinates field: " + coordinatesField)
     if (coordinatesField) {
         var geoPoints = taxon[coordinatesField];
 

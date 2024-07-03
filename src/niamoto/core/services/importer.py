@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 from niamoto.core.components.importers.occurrences import OccurrenceImporter
 from niamoto.core.components.importers.plots import PlotImporter
 from niamoto.core.components.importers.taxonomy import TaxonomyImporter
@@ -79,14 +79,14 @@ class ImporterService:
         """
         return self.occurrence_importer.import_occurrence_plot_links(csvfile)
 
-    def import_shapes(self, csvfile: str) -> str:
+    def import_shapes(self, shapes_config: List[dict]) -> str:
         """
-        Import shape data from a CSV file.
+        Import shape data from the configuration.
 
         Args:
-            csvfile (str): The path to the CSV file to be imported.
+            shapes_config (list): A list of dictionaries containing shape information.
 
         Returns:
             str: A message indicating the status of the import operation.
         """
-        return self.shape_importer.import_from_csv(csvfile)
+        return self.shape_importer.import_from_config(shapes_config)

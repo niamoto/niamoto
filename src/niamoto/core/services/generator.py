@@ -6,17 +6,10 @@ from niamoto.publish import PageGenerator
 from niamoto.publish.static_api import ApiGenerator
 
 
-class StaticContentGenerator:
-    """
-    A class used to generate static_files content for the Niamoto project.
-
-    Attributes:
-        page_generator (niamoto.publish.PageGenerator): An instance of the PageGenerator class.
-    """
-
-    def __init__(self, config: Config) -> None:
+class GeneratorService:
+    def __init__(self, config: Config):
         """
-        Initializes the StaticContentGenerator with a given configuration.
+        Initializes a new instance of the GeneratorService class.
 
         Args:
             config (Config): The configuration settings for the Niamoto project.
@@ -25,11 +18,11 @@ class StaticContentGenerator:
         self.api_generator = ApiGenerator(config)
 
     def generate_page(
-        self,
-        template_name: str,
-        output_name: str,
-        depth: str = "",
-        context: Optional[Dict[str, Any]] = None,
+            self,
+            template_name: str,
+            output_name: str,
+            depth: str = "",
+            context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Generates a page from a template.
@@ -48,7 +41,7 @@ class StaticContentGenerator:
         )
 
     def generate_page_for_taxon(
-        self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
+            self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
     ) -> str:
         """
         Generates a page for a specific taxon.
@@ -95,7 +88,7 @@ class StaticContentGenerator:
         self.page_generator.generate_plot_list_js(plots)
 
     def generate_page_for_plot(
-        self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
+            self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
     ) -> str:
         """
         Generates a page for a specific plot.
