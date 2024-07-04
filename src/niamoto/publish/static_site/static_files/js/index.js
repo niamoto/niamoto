@@ -87,9 +87,9 @@ function loadCharts(item, mapping) {
                         };
 
                         var fieldKey = field_key + transformation.name;
-                        var barCtx = document.getElementById(fieldKey + 'BarChart');
-                        if (barCtx) {
-                            barCtx = barCtx.getContext('2d');
+                        var barCtxElement = document.getElementById(fieldKey + 'BarChart');
+                        if (barCtxElement) {
+                            var barCtx = barCtxElement.getContext('2d');
                             new Chart(barCtx, barConfig);
                         }
                     }

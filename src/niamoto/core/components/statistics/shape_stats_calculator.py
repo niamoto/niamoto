@@ -1,27 +1,26 @@
-import json
 import logging
-import os
 import time
-from typing import List, Dict, Any, Hashable, Union
+from typing import List, Dict, Any, Hashable, Union, Optional
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 import rasterio
-from pyproj import Transformer
+from geopandas import GeoDataFrame
+from matplotlib import pyplot as plt
+from rasterio.features import rasterize
 from rasterio.mask import mask
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 from rtree import index
-from shapely import box, MultiPolygon
-from shapely.geometry import mapping, shape
-from shapely.ops import transform
-from shapely.wkb import loads as wkb_loads
-from shapely.wkt import loads as wkt_loads
+from shapely import MultiPolygon, GeometryCollection, Polygon
 from shapely.errors import WKTReadingError
+from shapely.geometry import mapping, Point
+from shapely.wkt import loads as wkt_loads
 
 from niamoto.core.models import ShapeRef, TaxonRef
 from .statistics_calculator import StatisticsCalculator
 
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+logging.basicConfig(level=logging.INFO)
 
 
 class ShapeStatsCalculator(StatisticsCalculator):
@@ -40,9 +39,6 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         try:
             shapes = self._retrieve_all_shapes()
-
-            # Sort shapes by area in ascending order
-            shapes.sort(key=lambda shape_ref: self.calculate_area(shape_ref.shape_location))
 
             self.initialize_stats_table()
 
@@ -98,17 +94,15 @@ class ShapeStatsCalculator(StatisticsCalculator):
         Returns:
             List[Dict[Hashable, Any]]: The shape occurrences.
         """
-
         try:
-            # Convert the WKB string to a Shapely geometry
-            shape_geom = wkb_loads(bytes.fromhex(shape_ref.shape_location))
+            shape_gdf = self.load_shape_geometry(shape_ref.location)
+            if shape_gdf is None or shape_gdf.empty:
+                logging.error(f"Invalid geometry for shape ID {shape_ref.id}.")
+                return []
 
-            # Simplify the shape geometry to speed up operations
-            shape_geom = shape_geom.simplify(tolerance=0.01, preserve_topology=True)
+            shape_geom = shape_gdf.geometry.iloc[0]
         except Exception as e:
-            logging.error(
-                f"Failed to load shape geometry for shape ID {shape_ref.id}: {e}"
-            )
+            logging.error(f"Failed to load shape geometry for shape ID {shape_ref.id}: {e}")
             return []
 
         occurrence_location_field = self.group_config.get("source_location_field")
@@ -126,6 +120,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
         relevant_occurrences = [self.occurrences[pos] for pos in positions]
         df_occurrences = pd.DataFrame(relevant_occurrences)
 
+        if df_occurrences.empty:
+            return []
+
         # Check if occurrences are within the shape
         def is_within_shape(wkt_str):
             try:
@@ -135,84 +132,376 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 return False
 
         # Apply the filtering function to the DataFrame
-        df_occurrences["is_within_shape"] = df_occurrences[
-            occurrence_location_field
-        ].apply(is_within_shape)
+        df_occurrences["is_within_shape"] = df_occurrences[occurrence_location_field].apply(is_within_shape)
         filtered_occurrences = df_occurrences[df_occurrences["is_within_shape"]]
 
         # Convert the filtered DataFrame back to a list of dictionaries
-        occurrences_within_shape = filtered_occurrences.drop(
-            columns=["is_within_shape"]
-        ).to_dict("records")
+        occurrences_within_shape = filtered_occurrences.drop(columns=["is_within_shape"]).to_dict("records")
 
         return occurrences_within_shape
 
+    @staticmethod
+    def load_shape_geometry(wkt_str: str) -> Optional[GeoDataFrame]:
+        """
+        Load a geometry from a WKT string.
+
+        Args:
+            wkt_str (str): The WKT string.
+
+        Returns:
+            gpd.GeoDataFrame: The loaded geometry as a GeoDataFrame or None if loading fails.
+        """
+        try:
+            geometry = wkt_loads(wkt_str)
+
+            if not geometry.is_valid:
+                logging.warning(f"Invalid geometry: {geometry.wkt}")
+                geometry = geometry.buffer(0)  # Try to fix invalid geometry
+                logging.info(f"Geometry after buffer(0): {geometry.geom_type}, valid: {geometry.is_valid}")
+
+            if isinstance(geometry, GeometryCollection):
+                logging.warning("GeometryCollection encountered, extracting Polygons and MultiPolygons")
+                polygons = [geom for geom in geometry.geoms if isinstance(geom, (Polygon, MultiPolygon))]
+                if polygons:
+                    geometry = MultiPolygon(polygons)
+                else:
+                    logging.error("No valid Polygons found in GeometryCollection")
+                    return None
+
+            if not isinstance(geometry, (Polygon, MultiPolygon)):
+                logging.error(f"Unsupported geometry type: {geometry.geom_type}")
+                return None
+
+            # Create a GeoDataFrame with the geometry and set its CRS
+            gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
+            return gdf
+        except Exception as e:
+            logging.error(f"Failed to load geometry from WKT string: {str(e)}")
+            return None
+
     def calculate_stats(self, group_id: int, group_occurrences: list) -> dict:
+        """
+        Calculate statistics for a given shape and its occurrences.
+
+        Args:
+            group_id (int): The ID of the shape.
+            group_occurrences (list): The occurrences related to the shape.
+
+        Returns:
+            dict: The calculated statistics.
+        """
         stats = {}
         shape_ref = self.db.session.query(ShapeRef).filter(ShapeRef.id == group_id).first()
-        df_occurrences = pd.DataFrame(group_occurrences)
 
         for field, config in self.fields.items():
-            source_field = config.get('source_field')
+            data_sources = config.get('data_source', {})
+            if not isinstance(data_sources, list):
+                data_sources = [data_sources]
             transformations = config.get('transformations', [])
 
-            for transformation in transformations:
-                transform_name = transformation.get('name')
-                chart_type = transformation.get('chart_type')
-                column_name = f"{field}_{transform_name}"
-
-                if transform_name == 'area':
-                    stats[column_name] = self.calculate_area(getattr(shape_ref, source_field))
-
-                elif transform_name == 'coordinates' and chart_type == 'map':
-                    stats[column_name] = self.get_simplified_coordinates(shape_ref.__dict__.get(source_field, ""))
-
-                elif transform_name == 'count':
-                    stats[column_name] = len(group_occurrences)
-
-                elif transform_name == 'unique_taxonomic_count':
-                    target_ranks = transformation.get('target_ranks')
-                    stats[column_name] = self.calculate_unique_taxonomic_count(group_occurrences, target_ranks)
-
-                elif transform_name == 'range':
-                    raster_data = self.get_raster_data(config.get('source'), shape_ref)
-                    if raster_data is not None and raster_data.size > 0:
-                        min_val, max_val = self.calculate_range(raster_data)
-                        stats[column_name] = json.dumps({
-                            "min": float(min_val),
-                            "max": float(max_val)
-                        })
-                    else:
-                        stats[column_name] = json.dumps({
-                            "min": 0.0,
-                            "max": 0.0
-                        })
-
-                elif transform_name == 'median':
-                    raster_data = self.get_raster_data(config.get('source'), shape_ref)
-                    stats[column_name] = self.calculate_median(
-                        raster_data) if raster_data is not None and raster_data.size > 0 else 0.0
-
-                elif transform_name == 'max':
-                    raster_data = self.get_raster_data(config.get('source'), shape_ref)
-                    stats[column_name] = self.calculate_max(
-                        raster_data) if raster_data is not None and raster_data.size > 0 else 0.0
-
-                elif transform_name == 'fragmentation':
-                    stats[column_name] = self.calculate_fragmentation(shape_ref)
-
-                elif transform_name == 'cumulative_area':
-                    stats[column_name] = self.calculate_forest_fragmentation(shape_ref)
+            try:
+                for data_source in data_sources:
+                    if data_source.get('type') == 'layer':
+                        layer_name = data_source.get('name')
+                        layer_type = self.mapper_service.get_layer_type(layer_name)
+                        gdf = self.load_layer_as_gdf(shape_ref, layer_name, layer_type)
+                        if not gdf.empty:
+                            stats.update(self.process_layer_stats(shape_ref, gdf, field, transformations))
+                        else:
+                            logging.warning(f"Empty GeoDataFrame for {layer_name} in shape {group_id}")
+                    elif data_source.get('type') == 'shape' and data_source.get('name') == 'self':
+                        stats.update(self.process_shape_stats(shape_ref, field, transformations))
+                    elif data_source.get('type') == 'source' and data_source.get('name') == 'occurrences':
+                        stats.update(self.process_occurrence_stats(group_occurrences, field, transformations))
+            except Exception as e:
+                logging.error(f"Error processing {field} for shape {group_id}: {str(e)}")
+                stats[field] = None
 
         return stats
 
-    def calculate_unique_taxonomic_count(self, occurrences: list[dict[Hashable, Any]], target_ranks: list[str]) -> int:
+    def load_layer_as_gdf(self, shape_ref: ShapeRef, layer_name: str, layer_type: str) -> gpd.GeoDataFrame:
+        shape_gdf = self.load_shape_geometry(shape_ref.location)
+        if shape_gdf is None or shape_gdf.empty:
+            return gpd.GeoDataFrame()
+
+        layer_path = self.mapper_service.get_layer_path(layer_name)
+
+        if layer_type == 'raster':
+            with rasterio.open(layer_path) as src:
+                raster_crs = src.crs
+                shape_gdf = shape_gdf.to_crs(raster_crs)
+
+                try:
+                    out_image, out_transform = mask(src, shape_gdf.geometry, crop=True)
+                    out_image = out_image[0]  # Get the first band
+                    valid_data = out_image[out_image != src.nodata]
+
+                    if valid_data.size == 0:
+                        logging.warning(f"No data found within the shape for {shape_ref.id}.")
+                        return gpd.GeoDataFrame()
+
+                    # Create a GeoDataFrame with all valid pixel values
+                    rows, cols = np.where(out_image != src.nodata)
+                    xs, ys = rasterio.transform.xy(out_transform, rows, cols)
+                    points = [Point(x, y) for x, y in zip(xs, ys)]
+
+                    gdf = gpd.GeoDataFrame({
+                        'geometry': points,
+                        'value': valid_data
+                    }, crs=raster_crs)
+
+                    return gdf
+                except ValueError as e:
+                    if "Input shapes do not overlap raster" in str(e):
+                        logging.warning(f"Shape {shape_ref.id} does not overlap with raster {layer_name}.")
+                        return gpd.GeoDataFrame()
+                    else:
+                        raise
+
+        elif layer_type == 'vector':
+            gdf = gpd.read_file(layer_path)
+            shape_gdf = shape_gdf.to_crs(gdf.crs)
+            clipped = gpd.clip(gdf, shape_gdf)
+            return clipped
+
+        return gpd.GeoDataFrame()
+
+    def process_layer_stats(self, shape_ref: ShapeRef, gdf: gpd.GeoDataFrame, field: str,
+                            transformations: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Process statistics for a layer.
+
+        Args:
+            shape_ref (ShapeRef): The shape reference.
+            gdf (gpd.GeoDataFrame): The GeoDataFrame containing layer data.
+            field (str): The field name.
+            transformations (List[Dict[str, Any]]): The list of transformations to apply.
+
+        Returns:
+            Dict[str, Any]: The processed statistics.
+        """
+        stats = {}
+        field_config = self.fields.get(field, {})
+        for transformation in transformations:
+            transform_name = transformation.get('name')
+            column_name = f"{field}_{transform_name}"
+            try:
+                if transform_name == 'area':
+                    stats[column_name] = self.calculate_area_from_gdf(gdf)
+                elif transform_name == 'coordinates':
+                    stats[column_name] = self.get_coordinates_from_gdf(gdf)
+                elif transform_name == 'effective_mesh_size':
+                    stats[column_name] = self.calculate_effective_mesh_size_from_gdf(gdf)
+                elif transform_name == 'fragment_size_distribution':
+                    stats[column_name] = self.calculate_fragmentation_distribution_from_gdf(gdf, field_config)
+                elif transform_name == 'elevation_distribution':
+                    stats[column_name] = self.calculate_elevation_distribution(shape_ref)
+                elif transform_name in ['mean', 'median', 'max', 'range', 'distribution']:
+                    if 'value' not in gdf.columns or gdf['value'].empty:
+                        stats[column_name] = None
+                    else:
+                        stats[column_name] = self.calculate_raster_statistics(gdf, transform_name)
+            except Exception as e:
+                logging.error(f"Error processing {transform_name} for {field} in shape {shape_ref.id}: {str(e)}")
+                stats[column_name] = None
+        return stats
+
+    @staticmethod
+    def calculate_area_from_gdf(gdf: gpd.GeoDataFrame) -> float:
+        """
+        Calculate the total area from a GeoDataFrame.
+
+        Args:
+            gdf (gpd.GeoDataFrame): The GeoDataFrame containing geometries.
+
+        Returns:
+            float: The total area in hectares.
+        """
+        gdf_proj = gdf.to_crs(gdf.estimate_utm_crs())
+        return gdf_proj.area.sum() / 10000
+
+    @staticmethod
+    def get_coordinates_from_gdf(gdf: gpd.GeoDataFrame) -> dict:
+        """
+        Get the simplified coordinates of the union of geometries in the GeoDataFrame.
+
+        Args:
+            gdf (gpd.GeoDataFrame): The GeoDataFrame containing geometries.
+
+        Returns:
+            dict: The simplified coordinates as a GeoJSON-like dictionary.
+        """
+        if gdf.empty:
+            return {}
+        simplified_geom = gdf.geometry.union_all().simplify(tolerance=0.001, preserve_topology=True)
+        return mapping(simplified_geom)
+
+    @staticmethod
+    def calculate_effective_mesh_size_from_gdf(gdf: gpd.GeoDataFrame) -> float:
+        """
+        Calculate the effective mesh size from a GeoDataFrame.
+
+        Args:
+            gdf (gpd.GeoDataFrame): The GeoDataFrame containing geometries.
+
+        Returns:
+            float: The effective mesh size in square kilometers.
+        """
+        gdf_proj = gdf.to_crs(gdf.estimate_utm_crs())
+
+        # Convert to hectares first
+        areas_ha = gdf_proj.area / 10000
+
+        total_area = areas_ha.sum()
+        sum_squared_areas = (areas_ha ** 2).sum()
+
+        if total_area > 0:
+            meff = sum_squared_areas / total_area
+            meff_km2 = meff / 100
+            return meff_km2
+        else:
+            logging.warning("Total area is zero")
+            return 0.0
+
+    @staticmethod
+    def calculate_fragmentation_distribution_from_gdf(gdf: gpd.GeoDataFrame, field_config: Dict[str, Any]) -> Dict[
+        str, float]:
+        """
+        Calculate the fragmentation distribution from a GeoDataFrame.
+
+        Args:
+            gdf (gpd.GeoDataFrame): The GeoDataFrame containing geometries.
+            field_config (Dict[str, Any]): The field configuration containing transformation details.
+
+        Returns:
+            Dict[str, float]: The fragmentation distribution.
+        """
+        # Ensure we're working with a copy to avoid modifying the original
+        gdf = gdf.copy()
+
+        # Check if we have a 'geometry' column
+        if 'geometry' not in gdf.columns:
+            logging.warning("No geometry column found in the GeoDataFrame")
+            return {}
+
+        # Project to UTM
+        gdf_proj = gdf.to_crs(gdf.estimate_utm_crs())
+
+        # Calculate areas in hectares
+        gdf_proj['area_ha'] = gdf_proj.geometry.area / 10000
+
+        # Sort areas in descending order
+        fragment_areas = gdf_proj['area_ha'].sort_values(ascending=False)
+
+        total_area = fragment_areas.sum()
+        if total_area == 0:
+            logging.warning("Total area is zero")
+            return {}
+
+        # Get bins from configuration
+        bins = next(
+            (t['chart_options']['bins'] for t in field_config['transformations']
+             if t['name'] == 'fragment_size_distribution'),
+            []
+        )
+
+        if not bins:
+            logging.warning("No bins found in configuration")
+            return {}
+
+        bin_areas = {str(bin_val): 0.0 for bin_val in bins}
+
+        cumulative_area = 0.0
+
+        for bin_val in bins:
+            cumulative_area += fragment_areas[fragment_areas <= bin_val].sum()
+            bin_areas[str(bin_val)] = cumulative_area / total_area
+
+        return bin_areas
+
+    @staticmethod
+    def calculate_raster_statistics(gdf: gpd.GeoDataFrame, statistic: str) -> Any:
+        """
+        Calculate raster statistics from a GeoDataFrame.
+
+        Args:
+            gdf (gpd.GeoDataFrame): The GeoDataFrame containing raster values.
+            statistic (str): The type of statistic to calculate ('mean', 'median', 'max', 'range', 'distribution').
+
+        Returns:
+            Any: The calculated statistic.
+        """
+        raster_values = gdf['value'].to_numpy()
+
+        if statistic == 'mean':
+            return float(np.mean(raster_values))
+        elif statistic == 'median':
+            return float(np.median(raster_values))
+        elif statistic == 'max':
+            return float(np.max(raster_values))
+        elif statistic == 'range':
+            return {
+                "min": float(np.min(raster_values)),
+                "max": float(np.max(raster_values))
+            }
+        elif statistic == 'distribution':
+            hist, bin_edges = np.histogram(raster_values, bins='auto')
+            return {str(bin_edges[i]): int(hist[i]) for i in range(len(hist))}
+
+    def process_shape_stats(self, shape_ref: ShapeRef, field: str, transformations: List[Dict[str, Any]]) -> Dict[
+        str, Any]:
+        """
+        Process shape statistics for a given field.
+
+        Args:
+            shape_ref (ShapeRef): The shape reference.
+            field (str): The field name.
+            transformations (List[Dict[str, Any]]): The list of transformations to apply.
+
+        Returns:
+            Dict[str, Any]: The processed statistics.
+        """
+        stats = {}
+        for transformation in transformations:
+            transform_name = transformation.get('name')
+            column_name = f"{field}_{transform_name}"
+            if transform_name == 'area':
+                stats[column_name] = self.calculate_area(shape_ref.location)
+            elif transform_name == 'coordinates':
+                stats[column_name] = self.get_simplified_coordinates(shape_ref.location)
+        return stats
+
+    def process_occurrence_stats(self, group_occurrences: List[Dict[Hashable, Any]], field: str,
+                                 transformations: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Process occurrence statistics for a given field.
+
+        Args:
+            group_occurrences (List[Dict[Hashable, Any]]): The occurrences to process.
+            field (str): The field name.
+            transformations (List[Dict[str, Any]]): The list of transformations to apply.
+
+        Returns:
+            Dict[str, Any]: The processed statistics.
+        """
+        stats = {}
+        for transformation in transformations:
+            transform_name = transformation.get('name')
+            column_name = f"{field}_{transform_name}"
+            if transform_name == 'unique_taxonomic_count':
+                target_ranks = transformation.get('target_ranks', [])
+                stats[column_name] = self.calculate_unique_taxonomic_count(group_occurrences, target_ranks)
+            elif transform_name == 'count':
+                stats[column_name] = len(group_occurrences)
+        return stats
+
+    def calculate_unique_taxonomic_count(self, occurrences: List[Dict[Hashable, Any]], target_ranks: List[str]) -> int:
         """
         Calculate the unique count of taxonomic ranks in the occurrences.
 
         Args:
-            occurrences (list[dict[Hashable, Any]]): The occurrences to calculate statistics for.
-            target_ranks (list[str]): The taxonomic ranks to count.
+            occurrences (List[Dict[Hashable, Any]]): The occurrences to calculate statistics for.
+            target_ranks (List[str]): The taxonomic ranks to count.
 
         Returns:
             int: The unique count of the specified taxonomic ranks.
@@ -247,48 +536,21 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         return len(unique_taxons)
 
-    @staticmethod
-    def get_raster_data(raster_path: str, shape_ref: ShapeRef) -> np.array:
-        full_raster_path = f"data/sources/{raster_path}"
+    def get_simplified_coordinates(self, wkt_geometry: str) -> dict:
+        """
+        Get simplified coordinates for a WKT geometry.
 
-        if not os.path.exists(full_raster_path):
-            logging.error(f"Raster file not found: {full_raster_path}")
-            return None
+        Args:
+            wkt_geometry (str): The WKT representation of the geometry.
 
-        try:
-            with rasterio.open(full_raster_path) as src:
-                shape_geom = wkb_loads(bytes.fromhex(shape_ref.shape_location))
+        Returns:
+            dict: The simplified coordinates as a GeoJSON-like dictionary.
+        """
+        geom = self.load_shape_geometry(wkt_geometry)
+        simplified_geom = geom.simplify(tolerance=0.001, preserve_topology=True)
+        return mapping(simplified_geom)
 
-                # Transform shape geometry if CRS are different
-                shape_crs = "EPSG:4326"  # Assuming shape CRS is WGS84 (longitude/latitude)
-                raster_crs = src.crs.to_string()  # CRS of the raster
-                if shape_crs != raster_crs:
-                    transformer = Transformer.from_crs(shape_crs, raster_crs, always_xy=True)
-                    shape_geom = transform(transformer.transform, shape_geom)
-
-                raster_bounds_geom = box(*src.bounds)
-                if not shape_geom.intersects(raster_bounds_geom):
-                    logging.error(f"Shape ID {shape_ref.id} does not overlap with the raster.")
-                    return np.array([])
-
-                # Simplify the shape geometry to speed up operations
-                shape_geom = shape_geom.simplify(tolerance=0.01, preserve_topology=True)
-
-                out_image, out_transform = mask(src, [mapping(shape_geom)], crop=True)
-                out_image = out_image[out_image != src.nodata]
-
-                if out_image.size == 0:
-                    logging.error(f"No data found within the shape for shape ID {shape_ref.id}.")
-                    return np.array([])
-
-                return out_image
-
-        except Exception as e:
-            logging.error(f"Failed to process shape {shape_ref.id}: {e}")
-            return None
-
-    @staticmethod
-    def calculate_area(wkt_geometry: str) -> float:
+    def calculate_area(self, wkt_geometry: str) -> float:
         """
         Calculate the area of a geometry in hectares.
 
@@ -298,126 +560,227 @@ class ShapeStatsCalculator(StatisticsCalculator):
         Returns:
             float: The area of the geometry in hectares.
         """
-        geom = wkb_loads(wkt_geometry)
-
-        # Define the coordinate system transformation
-        transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-
-        # Reproject the geometry to EPSG:3857
-        geom_projected = transform(transformer.transform, geom)
-
-        # Calculate the area in square meters
-        area_sqm = geom_projected.area
-
-        # Convert square meters to hectares
-        area_hectares = area_sqm / 10000
-
-        return area_hectares
-
-    @staticmethod
-    def calculate_range(raster_data) -> (float, float):
-        return raster_data.min(), raster_data.max()
-
-    @staticmethod
-    def calculate_median(data) -> float:
-        return np.median(data)
-
-    @staticmethod
-    def calculate_max(data) -> float:
-        return data.max()
-
-    @staticmethod
-    def get_simplified_coordinates(wkt_geometry: str) -> dict:
-        geom = wkb_loads(wkt_geometry)
-        simplified_geom = geom.simplify(tolerance=0.001, preserve_topology=True)
-        return mapping(simplified_geom)
-
-    @staticmethod
-    def calculate_fragmentation(shape_ref: ShapeRef) -> float:
-        """
-        Calculate the effective mesh size for the forest areas within the shape.
-
-        Args:
-            shape_ref (ShapeRef): The shape object.
-
-        Returns:
-            float: The effective mesh size.
-        """
         try:
-            shape_geom = wkb_loads(bytes.fromhex(shape_ref.forest_location))
+            gdf = self.load_shape_geometry(wkt_geometry)
+            if gdf is None or gdf.empty:
+                return 0.0
 
-            if shape_geom.geom_type == 'GeometryCollection' or shape_geom.geom_type == 'MultiPolygon':
-                forest_fragments = [shape(fragment) for fragment in shape_geom.geoms]
-            else:
-                forest_fragments = [shape_geom]
+            # Project to a suitable UTM projection
+            gdf_projected = gdf.to_crs(gdf.estimate_utm_crs())
 
-            total_forest_area = sum(fragment.area for fragment in forest_fragments)
-            effective_mesh_size = total_forest_area / len(forest_fragments)
-            return effective_mesh_size
+            area_sqm = gdf_projected.geometry.area.sum()
 
+            if np.isnan(area_sqm) or np.isinf(area_sqm):
+                logging.warning(f"Invalid area calculated: {area_sqm}")
+                return 0.0
+
+            return area_sqm / 10000  # Convert to hectares
         except Exception as e:
-            logging.error(f"Failed to calculate fragmentation for shape ID {shape_ref.id}: {e}")
+            logging.error(f"Error calculating area: {str(e)}")
             return 0.0
 
-    def calculate_forest_fragmentation(self, shape_ref: ShapeRef) -> Dict[str, float]:
+    def calculate_elevation_distribution(self, shape_ref: ShapeRef) -> Dict[str, Any]:
         """
-        Calculate the forest fragmentation for the fragments within the shape.
+        Calculate the elevation distribution for a shape.
 
         Args:
-            shape_ref (ShapeRef): The shape object.
+            shape_ref (ShapeRef): The shape reference.
 
         Returns:
-            Dict[str, float]: A dictionary with class names and their corresponding cumulative areas.
+            Dict[str, Any]: The elevation distribution data.
         """
         try:
-            shape_geom = wkb_loads(bytes.fromhex(shape_ref.forest_location))
+            # Load the shape geometry
+            shape_geom = self.load_shape_geometry(shape_ref.location)
+            if shape_geom is None or shape_geom.empty:
+                return {}
 
-            # Verify if the geometry is of type MultiPolygon
-            if isinstance(shape_geom, MultiPolygon):
-                forest_fragments = [shape(fragment) for fragment in shape_geom.geoms]
-            else:
-                forest_fragments = [shape_geom]
+            # Load the elevation and forest cover layers
+            elevation_path = self.mapper_service.get_layer_path('elevation')
+            forest_path = self.mapper_service.get_layer_path('forest_cover')
 
-            # Convert the forest fragments to a GeoDataFrame
-            gdf = gpd.GeoDataFrame(geometry=forest_fragments, crs="EPSG:4326")
+            with rasterio.open(elevation_path) as elevation_src:
+                # Ensure that shape_geom is in the correct CRS
+                shape_geom = shape_geom.to_crs(elevation_src.crs)
 
-            # Reproject to UTM to get areas in square meters
-            gdf = gdf.to_crs(gdf.estimate_utm_crs())
+                # Mask the elevation data with the shape geometry
+                elevation_data, transform = mask(elevation_src, shape_geom.geometry, crop=True,
+                                                 nodata=elevation_src.nodata)
 
-            # Calculate the area of each fragment in hectares
-            gdf['area_ha'] = gdf.area / 10000  # Convertir les mètres carrés en hectares
-            fragment_areas = gdf['area_ha'].to_numpy()
-            fragment_areas.sort()
+                # Load the forest cover data
+                forest_gdf = gpd.read_file(forest_path)
+                forest_gdf = forest_gdf.to_crs(elevation_src.crs)
 
-            # Define the bins for the cumulative area
-            bins = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400,
-                    425, 450, 475, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900,
-                    2000, 7000, 12000, 17000, 27000, 500000]
+                # Rasterize the forest cover data
+                forest_raster = rasterize(
+                    [(geom, 1) for geom in forest_gdf.geometry],
+                    out_shape=elevation_data.shape[1:],
+                    transform=transform,
+                    fill=0,
+                    dtype=rasterio.uint8
+                )
 
-            # Initialise the dictionary to store the cumulative areas
-            bin_areas = {str(bin_val): 0.0 for bin_val in bins}
+                # Flatten the data
+                elevation_flat = elevation_data[0].flatten()
+                forest_flat = forest_raster.flatten()
 
-            # Calculate the total area of forest fragments
-            total_area = fragment_areas.sum()
-            if total_area == 0:
-                logging.warning(f"Total area of forest fragments is zero for shape ID {shape_ref.id}.")
-                return bin_areas
+                # Create masks for forest and non-forest pixels
+                valid_elevation_mask = elevation_flat != elevation_src.nodata
+                forest_mask = (forest_flat == 1) & valid_elevation_mask
+                non_forest_mask = (forest_flat == 0) & valid_elevation_mask
 
-            # Calculate the cumulative area for each bin
-            cumulative_area = 0.0
-            fragment_index = 0
+                # Determine the altitude range and interval automatically
+                valid_elevations = elevation_flat[valid_elevation_mask]
 
-            for bin_val in bins:
-                while fragment_index < len(fragment_areas) and fragment_areas[fragment_index] <= bin_val:
-                    cumulative_area += fragment_areas[fragment_index]
-                    fragment_index += 1
-                bin_areas[str(bin_val)] = cumulative_area / total_area
+                if valid_elevations.size == 0:
+                    logging.warning(f"No valid elevation data found for shape {shape_ref.id}")
+                    return {}
 
-            return bin_areas
+                min_elevation = np.floor(valid_elevations.min())
+                max_elevation = np.ceil(valid_elevations.max())
+
+                # Determine the number of intervals (aim for about 20 intervals)
+                target_intervals = 20
+                interval = np.ceil(
+                    (max_elevation - min_elevation) / target_intervals / 100) * 100  # Round to the nearest hundred
+
+                # Create altitude bins
+                altitude_bins = np.arange(min_elevation, max_elevation + interval, interval)
+
+                # Calculate the histogram for forest and non-forest pixels
+                forest_hist, _ = np.histogram(elevation_flat[forest_mask], bins=altitude_bins)
+                non_forest_hist, _ = np.histogram(elevation_flat[non_forest_mask], bins=altitude_bins)
+
+                # Convert the histograms to areas in hectares
+                pixel_area_ha = abs(elevation_src.transform[0] * elevation_src.transform[4]) / 10000
+                forest_areas = forest_hist * pixel_area_ha
+                non_forest_areas = non_forest_hist * pixel_area_ha
+
+                # Prepare the elevation distribution data
+                elevation_distribution = {
+                    "altitudes": altitude_bins[:-1].tolist(),  # Exclude the last value
+                    "forest": forest_areas.tolist(),
+                    "non_forest": non_forest_areas.tolist()
+                }
+
+            return elevation_distribution
 
         except Exception as e:
-            logging.error(f"Failed to calculate forest fragmentation for shape ID {shape_ref.id}: {e}")
+            logging.error(f"Error in calculate_elevation_distribution for shape {shape_ref.id}: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
             return {}
+
+    @staticmethod
+    def calculate_histogram(values: Union[np.ndarray, List], bins: List[float]) -> Dict[str, float]:
+        """
+        Calculate a histogram for given values and bins.
+
+        Args:
+            values (Union[np.ndarray, List]): The values to calculate the histogram for.
+            bins (List[float]): The bin edges for the histogram.
+
+        Returns:
+            Dict[str, float]: A dictionary with bin edges as keys and counts as values.
+        """
+        if len(values) == 0:
+            return {str(b): 0.0 for b in bins[:-1]}
+        hist, bin_edges = np.histogram(values, bins=bins)
+        return {str(bin_edges[i]): float(hist[i]) for i in range(len(hist))}
+
+    @staticmethod
+    def calculate_pixel_area(gdf: gpd.GeoDataFrame) -> float:
+        """
+        Calculate the average pixel area in hectares.
+
+        Args:
+            gdf (gpd.GeoDataFrame): The GeoDataFrame.
+
+        Returns:
+            float: The average pixel area in hectares.
+        """
+        bbox = gdf.total_bounds
+        avg_lat = (bbox[1] + bbox[3]) / 2  # Average latitude
+        pixel_size_deg = gdf.crs.to_dict().get('step', [1, 1])
+        pixel_width_m = pixel_size_deg[0] * 111320 * np.cos(np.radians(avg_lat))
+        pixel_height_m = pixel_size_deg[1] * 111320
+        return (pixel_width_m * pixel_height_m) / 10000  # In hectares
+
+    @staticmethod
+    def plot_elevation_distribution(data: Dict[str, Any]):
+        """
+        Plot the elevation distribution.
+
+        Args:
+            data (Dict[str, Any]): The elevation distribution data.
+        """
+        altitudes = data['altitudes']
+        forest = data['forest']
+        non_forest = data['non_forest']
+
+        # 1. Stacked histogram (original plot)
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.barh(altitudes, forest, label='Forest', color='#548235', height=90)
+        ax.barh(altitudes, non_forest, left=forest, label='Non-forest', color='#ecdcad', height=90)
+        ax.set_ylabel('Altitude (m)')
+        ax.set_xlabel('Area (ha)')
+        ax.set_title('Altitudinal Distribution (Histogram)')
+        ax.legend(loc='lower right')
+        ax.invert_yaxis()
+        ax.set_xlim(0, max(max(forest), max(non_forest)) * 1.1)
+        plt.tight_layout()
+        plt.show()
+
+        # 2. Area plot
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.fill_betweenx(altitudes, 0, forest, label='Forest', color='#548235', alpha=0.7)
+        ax.fill_betweenx(altitudes, forest, [f + nf for f, nf in zip(forest, non_forest)], label='Non-forest',
+                         color='#ecdcad', alpha=0.7)
+        ax.set_ylabel('Altitude (m)')
+        ax.set_xlabel('Area (ha)')
+        ax.set_title('Altitudinal Distribution (Area Plot)')
+        ax.legend(loc='lower right')
+        ax.invert_yaxis()
+        ax.set_xlim(0, max([f + nf for f, nf in zip(forest, non_forest)]) * 1.1)
+        plt.tight_layout()
+        plt.show()
+
+        # 3. Forest cover percentage
+        total_area = [f + nf for f, nf in zip(forest, non_forest)]
+        forest_percentage = [f / t * 100 if t > 0 else 0 for f, t in zip(forest, total_area)]
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.barh(altitudes, forest_percentage, color='#548235', height=90)
+        ax.set_ylabel('Altitude (m)')
+        ax.set_xlabel('Forest cover percentage')
+        ax.set_title('Forest cover percentage by altitude')
+        ax.invert_yaxis()
+        ax.set_xlim(0, 100)
+        for i, v in enumerate(forest_percentage):
+            ax.text(v + 1, altitudes[i], f'{v:.1f}%', va='center')
+        plt.tight_layout()
+        plt.show()
+
+    @staticmethod
+    def _safe_area_calculation(polygon: Polygon) -> float:
+        """
+        Safely calculate the area of a polygon.
+
+        Args:
+            polygon (Polygon): The polygon to calculate the area for.
+
+        Returns:
+            float: The area of the polygon.
+        """
+        try:
+            area = polygon.area
+            if np.isnan(area) or np.isinf(area):
+                logging.warning(f"Invalid area for polygon: {polygon.wkt[:100]}...")
+                return 0.0
+            return area
+        except Exception as e:
+            logging.error(f"Error calculating polygon area: {str(e)}")
+            return 0.0
 
     def _retrieve_all_shapes(self) -> List[ShapeRef]:
         """
@@ -454,16 +817,14 @@ class ShapeStatsCalculator(StatisticsCalculator):
         for pos, occurrence in enumerate(self.occurrences):
             if isinstance(occurrence, dict):
                 point_wkt = occurrence.get(occurrence_location_field)
-                if (
-                        point_wkt is not None
-                        and isinstance(point_wkt, str)
-                        and point_wkt.startswith("POINT")
-                ):
+                if point_wkt is not None and isinstance(point_wkt, str) and point_wkt.startswith("POINT"):
                     try:
                         point_geom = wkt_loads(point_wkt)
                         if point_geom:
-                            idx.insert(pos, point_geom.bounds)
+                            # Use the bounds of the point (which will be identical for min and max)
+                            bounds = point_geom.bounds
+                            idx.insert(pos, bounds)
                     except Exception as e:
-                        logging.error(f"Error processing occurrence {occurrence}: {e}")
+                        logging.error(f"Error processing occurrence at position {pos} with value {point_wkt}: {e}")
 
         return idx

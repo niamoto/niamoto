@@ -324,38 +324,3 @@ class PlotStatsCalculator(StatisticsCalculator):
 
         top_values = counts.most_common(count)
         return {f"{rank}": value for rank, value in top_values}
-
-    @staticmethod
-    def calculate_bins(values: List[float], bins: List[float]) -> dict[str, float]:
-        """
-        Categorizes the field data into specified bins and calculates the frequencies for each category.
-        The frequencies are then converted to percentages and returned as a dictionary.
-
-        Args:
-            values (List[float]): The list of field values.
-            bins (List[int]): The list of bins to categorize the data.
-
-        Returns:
-            dict[Any, Any]: A dictionary containing the frequencies of the field data categories as percentages.
-            The keys are the left endpoints of the intervals and the values are the percentages.
-        """
-        # Convert the list of values to a pandas Series
-        data = pd.Series(values)
-
-        # Distribute the data into categories
-        binned_data = pd.cut(data.dropna(), bins=bins, right=False)
-
-        # Calculate the frequencies for each category
-        data_counts = binned_data.value_counts(sort=False, normalize=True)
-
-        # Convert to percentages
-        data_percentages = data_counts.apply(
-            lambda x: round(x * 100, 2) if not pd.isna(x) else 0.0
-        )
-
-        # Convert to dictionary
-        return {
-            str(interval.left): percentage
-            for interval, percentage in data_percentages.items()
-            if isinstance(interval, pd.Interval)
-        }

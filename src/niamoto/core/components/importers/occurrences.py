@@ -75,7 +75,7 @@ class OccurrenceImporter:
 
             # Import the data with a spinner
             with Console().status(
-                "[bold green]Importing occurrences...", spinner="dots"
+                "[italic green]Importing occurrences...", spinner="dots"
             ):
                 column_names = ", ".join(
                     [
@@ -189,7 +189,7 @@ class OccurrenceImporter:
 
             with Progress() as progress:
                 task = progress.add_task(
-                    "[green]Importing occurrences...", total=num_chunks
+                    "[italic green]Importing occurrences...", total=num_chunks
                 )
 
                 # Insert data by chunks

@@ -142,18 +142,16 @@ class StatisticsCalculator(ABC):
         for field, config in self.fields.items():
             source_field = config.get("source_field")
             transformations = config.get("transformations", [])
+            field_type = config.get("field_type", "TEXT")
 
+            # Handle fields without a source field (e.g., calculated fields)
             if source_field is None:
-                # Special field without source_field (ex: total_occurrences)
-                field_name = field
                 if transformations:
                     for transformation in transformations:
                         transform_name = transformation.get("name")
-                        if transform_name:
-                            field_name = f"{field}_{transform_name}"
-                        else:
-                            field_name = f"{field}"
-                fields_sql.append(f"{field_name} {config.get('field_type', 'INTEGER')}")
+                        fields_sql.append(f"{field}_{transform_name} {field_type}")
+                else:
+                    fields_sql.append(f"{field} {field_type}")
 
             else:
                 # Binary field (ex: um_occurrences)
