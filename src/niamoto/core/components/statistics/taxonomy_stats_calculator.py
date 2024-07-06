@@ -188,23 +188,6 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
         )
         return [taxon_id[0] for taxon_id in taxon_ids]
 
-    def calculate_frequencies(
-        self, taxon_id: int, taxon_occurrences: list[dict[Hashable, Any]]
-    ) -> Dict[str, Any]:
-        """
-        Calculate frequencies for a taxon.
-
-        Args:
-            taxon_id (int): The taxon id.
-            taxon_occurrences (list[dict[Hashable, Any]]): The taxon occurrences.
-
-        Returns:
-            Dict[str, Any]: The frequencies.
-        """
-        frequencies: Dict[str, Any] = {}
-        # Logic to calculate frequencies specific to taxon
-        return frequencies
-
     def _retrieve_all_taxons(self) -> List[TaxonRef]:
         """
         Retrieve all taxons from the database.

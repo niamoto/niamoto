@@ -632,12 +632,11 @@ def import_all() -> None:
     data_importer.import_plots(plots_csvfile, plot_identifier, location_field)
 
     # Import shapes
-    shapes_config = config.get("sources", "shapes")
-    shapes_csvfile = shapes_config.get("path")
-    if not shapes_csvfile or not os.path.exists(shapes_csvfile):
-        raise FileNotFoundError(f"Shapes CSV file not found: {shapes_csvfile}")
-    console.print(f"Importing shapes from {shapes_csvfile}", style="italic green")
-    data_importer.import_shapes(shapes_csvfile)
+    shapes_config = config.get("shapes")
+    if not shapes_config:
+        raise ValueError("Shapes configuration not found in the config file.")
+    console.print("Importing shapes...", style="italic green")
+    data_importer.import_shapes(shapes_config)
 
     # Import occurrences
     occurrences_config = config.get("sources", "occurrences")
@@ -838,8 +837,12 @@ def calculate_statistics(csv_file: Optional[str], mapping_group: Optional[str]) 
         console = Console()
         console.print("Statistics calculated successfully.", style="italic green")
     except Exception as e:
-        console = Console()
-        console.print(f"Error while calculating statistics: {e}", style="bold red")
+        if "Could not set lock on file" in str(e):
+            console = Console()
+            console.print("Error: Database is currently locked by another process.", style="bold red")
+        else:
+            console = Console()
+            console.print(f"Error while calculating statistics: {e}", style="bold red")
 
 
 @cli.command(name="generate-static-content")
