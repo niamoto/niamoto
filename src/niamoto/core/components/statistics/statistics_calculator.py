@@ -1,3 +1,6 @@
+"""
+This module contains the StatisticsCalculator class, which is an abstract base class for calculating statistics.
+"""
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -10,6 +13,7 @@ from rich.console import Console
 from niamoto.common.database import Database
 from ...models import TaxonRef
 from niamoto.core.services.mapper import MapperService
+from ...utils.logging_utils import setup_logging
 
 
 class StatisticsCalculator(ABC):
@@ -35,6 +39,7 @@ class StatisticsCalculator(ABC):
         mapper_service: MapperService,
         occurrences: list[dict[Hashable, Any]],
         group_by: str,
+        log_component: str = 'statistics'
     ):
         """
         Initializes the StatisticsCalculator with the database connection, mapper service, occurrences, and group by field.
@@ -45,6 +50,7 @@ class StatisticsCalculator(ABC):
             occurrences (list[dict[Hashable, Any]]): The occurrences.
             group_by (str): The group by field.
         """
+
         self.db = db
         self.con = duckdb.connect(self.db.db_path)
         self.mapper_service = mapper_service
@@ -55,6 +61,7 @@ class StatisticsCalculator(ABC):
         self.reference_table_name = self.group_config.get("reference_table_name")
         self.reference_data_path = self.group_config.get("reference_data_path")
         self.fields = self.mapper_service.get_fields(group_by)
+        self.logger = setup_logging(component_name=log_component)
         self.console = Console()
 
     @abstractmethod

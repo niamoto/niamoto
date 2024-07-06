@@ -333,6 +333,8 @@ def import_taxonomy(csvfile: str, ranks: str) -> None:
     ranks = ranks or ranks_from_config
     ranks_tuple = tuple(ranks.split(",")) if ranks else ()
 
+    reset_table(db_path, "taxon_ref")
+
     data_importer = ImporterService(db_path)
     import_tax_result = data_importer.import_taxonomy(csvfile, ranks_tuple)
     console = Console()
@@ -405,6 +407,8 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     location_field = location_field or default_location_field
     if not location_field:
         raise ValueError("Location field column not specified.")
+
+    reset_table(db_path, "plot_ref")
 
     data_importer = ImporterService(db_path)
     import_plots_result = data_importer.import_plots(csvfile, plot_identifier, location_field)
@@ -487,6 +491,8 @@ def import_occurrences(
     if not location_field:
         raise ValueError("Location field column not specified.")
 
+    reset_table(db_path, "occurrences")
+
     data_importer = ImporterService(db_path)
     import_occ_result = data_importer.import_occurrences(
         csvfile, taxon_identifier, location_field
@@ -541,6 +547,7 @@ def import_occurrence_plot_links(csvfile: str) -> None:
         raise FileNotFoundError("CSV file not specified or does not exist.")
 
     try:
+        reset_table(db_path, "occurrences_plots")
         data_importer = ImporterService(db_path)
         import_occ_plot_results = data_importer.import_occurrence_plot_links(csvfile)
         console = Console()
@@ -581,6 +588,8 @@ def import_shapes() -> None:
     config = Config()
     db_path = config.get("database", "path")
     shapes_config = config.get("shapes")
+
+    reset_table(db_path, "shape_ref")
 
     data_importer = ImporterService(db_path)
     import_shapes_result = data_importer.import_shapes(shapes_config)
@@ -631,13 +640,6 @@ def import_all() -> None:
     console.print(f"Importing plots from {plots_csvfile}", style="italic green")
     data_importer.import_plots(plots_csvfile, plot_identifier, location_field)
 
-    # Import shapes
-    shapes_config = config.get("shapes")
-    if not shapes_config:
-        raise ValueError("Shapes configuration not found in the config file.")
-    console.print("Importing shapes...", style="italic green")
-    data_importer.import_shapes(shapes_config)
-
     # Import occurrences
     occurrences_config = config.get("sources", "occurrences")
     occurrences_csvfile = occurrences_config.get("path")
@@ -667,7 +669,55 @@ def import_all() -> None:
     )
     data_importer.import_occurrence_plot_links(occurrence_plots_csvfile)
 
+    # Import shapes
+    shapes_config = config.get("shapes")
+    if not shapes_config:
+        raise ValueError("Shapes configuration not found in the config file.")
+    data_importer.import_shapes(shapes_config)
+
     console.print("All data sources imported successfully.", style="bold green")
+
+
+def reset_table(db_path: str, table_name: str) -> None:
+    """
+    Reset a single table using DuckDB and recreate it using SQLAlchemy models if applicable.
+
+    Args:
+        db_path (str): The path to the DuckDB database file.
+        table_name (str): The name of the table to reset.
+
+    Returns:
+        None
+
+    Raises:
+        Exception: If an error occurs during the reset process.
+    """
+    console = Console()
+    duckdb_connection = duckdb.connect(db_path)  # Connect directly to DuckDB
+
+    try:
+        console.print(f"Resetting table {table_name}...", style="bold yellow")
+
+        # Drop the table
+        duckdb_connection.execute(f"DROP TABLE IF EXISTS {table_name}")
+
+    except Exception as e:
+        console.print(f"Error resetting table {table_name}: {e}", style="bold red")
+        raise
+    finally:
+        duckdb_connection.close()
+
+    # Recreate the table using SQLAlchemy models if the model exists
+    try:
+        db = Database(db_path)
+        engine = db.engine
+
+        if table_name in Base.metadata.tables:
+            Base.metadata.create_all(engine, tables=[Base.metadata.tables[table_name]])
+
+    except Exception as e:
+        console.print(f"Error recreating table {table_name}: {e}", style="bold red")
+        raise
 
 
 def reset_tables(db_path: str) -> None:
@@ -683,35 +733,10 @@ def reset_tables(db_path: str) -> None:
     Raises:
         Exception: If an error occurs during the reset process.
     """
-    console = Console()
-    duckdb_connection = duckdb.connect(db_path)  # Connect directly to DuckDB
+    table_names = ["occurrences_plots", "occurrences", "plot_ref", "shape_ref", "taxon_ref"]
 
-    try:
-        console.print("Resetting tables...", style="bold yellow")
-
-        # Drop tables
-        duckdb_connection.execute("DROP TABLE IF EXISTS occurrences_plots")
-        duckdb_connection.execute("DROP TABLE IF EXISTS occurrences")
-        duckdb_connection.execute("DROP TABLE IF EXISTS plot_ref")
-        duckdb_connection.execute("DROP TABLE IF EXISTS shape_ref")
-        duckdb_connection.execute("DROP TABLE IF EXISTS taxon_ref")
-
-        console.print("Tables dropped successfully.", style="italic green")
-    except Exception as e:
-        console.print(f"Error resetting tables: {e}", style="bold red")
-        raise
-    finally:
-        duckdb_connection.close()
-
-    # Recreate tables using SQLAlchemy models
-    try:
-        db = Database(db_path)
-        engine = db.engine
-        Base.metadata.create_all(engine)
-        console.print("Tables recreated successfully.", style="italic green")
-    except Exception as e:
-        console.print(f"Error recreating tables: {e}", style="bold red")
-        raise
+    for table_name in table_names:
+        reset_table(db_path, table_name)
 
 
 @cli.command(name="generate-mapping")

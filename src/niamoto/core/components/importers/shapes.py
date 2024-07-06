@@ -1,3 +1,7 @@
+"""
+This module contains the ShapeImporter class used to import shape data from various geospatial files into the database.
+"""
+import json
 import logging
 import os
 import tempfile
@@ -6,11 +10,15 @@ from typing import List
 
 import fiona
 from pyproj import Transformer, CRS
-from shapely import Polygon, MultiPolygon, Point, LineString
-from shapely.geometry import shape
+from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
+
+from rich.console import Console
+from rich.progress import Progress
+from shapely.geometry.base import BaseGeometry
 
 from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef
+from niamoto.core.utils.logging_utils import setup_logging
 
 
 class ShapeImporter:
@@ -29,18 +37,7 @@ class ShapeImporter:
             db (Database): The database connection.
         """
         self.db = db
-        # Ensure the logs directory exists
-        log_directory = "logs"
-        if not os.path.exists(log_directory):
-            os.makedirs(log_directory)
-
-        # Configure logging to write to a file in the logs directory
-        log_file_path = os.path.join(log_directory, "shape_import.log")
-        logging.basicConfig(
-            filename=log_file_path,
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-        )
+        self.logger = setup_logging(component_name='shapes_import')
 
     def import_from_config(self, shapes_config: List[dict]) -> str:
         """
@@ -55,71 +52,80 @@ class ShapeImporter:
         Raises:
             Exception: If an error occurs during the import operation.
         """
+        console = Console()
         try:
-            for shape_info in shapes_config:
-                file_path = shape_info['path']
-                id_field = shape_info['id_field']
-                name_field = shape_info['name_field']
-                shape_type = shape_info['name']
+            with Progress(console=console) as progress:
+                task = progress.add_task("[green]Importing shapes...", total=len(shapes_config))
 
-                # Create a temporary directory to extract the files
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    if file_path.endswith('.zip'):
-                        with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                            zip_ref.extractall(tmpdirname)
-                        for root, dirs, files in os.walk(tmpdirname):
-                            for file in files:
-                                if file.endswith(
-                                        ('.gpkg', '.shp', '.geojson', '.json', '.tab', '.mif', '.mid', '.gdb')):
-                                    file_path = os.path.join(root, file)
-                                    break
-                            if file_path != shape_info['path']:
-                                break
+                for shape_info in shapes_config:
+                    shape_category = shape_info['category']
+                    file_path = shape_info['path']
+                    name_field = shape_info['name_field']
 
-                    with fiona.open(file_path, 'r') as src:
-                        # Get the source CRS
-                        src_crs = CRS.from_string(src.crs_wkt)
-                        # Define the target CRS
-                        dst_crs = CRS.from_epsg(4326)
+                    # Create a temporary directory to extract the files
+                    with tempfile.TemporaryDirectory() as tmpdirname:
+                        if file_path.endswith('.zip'):
+                            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                                zip_ref.extractall(tmpdirname)
+                            file_path = next(
+                                (os.path.join(root, file) for root, _, files in os.walk(tmpdirname) for file in files
+                                 if file.endswith(('.gpkg', '.shp', '.geojson', '.json', '.tab', '.mif', '.mid', '.gdb'))),
+                                shape_info['path']
+                            )
+                        # If the file is GeoJSON, try to fix the formatting
+                        if file_path.endswith(('.geojson', '.json')):
+                            with open(file_path, 'r') as f:
+                                data = json.load(f)
+                            with open(file_path, 'w') as f:
+                                json.dump(data, f)
 
-                        # Create a transformer
-                        transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+                        with fiona.open(file_path, 'r') as src:
+                            # Get the source CRS
+                            src_crs = CRS.from_string(src.crs_wkt)
+                            # Define the target CRS
+                            dst_crs = CRS.from_epsg(4326)
 
-                        for feature in src:
-                            geom = shape(feature['geometry'])
+                            # Create a transformer
+                            transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
 
-                            # Convert the 3D geometry to 2D if necessary and transform the coordinates
-                            geom_wgs84 = self.transform_geometry(geom, transformer)
+                            for feature in src:
+                                geom = shape(feature['geometry'])
 
-                            # Convert the geometry to WKT
-                            geom_wkt = geom_wgs84.wkt
+                                # Convert the 3D geometry to 2D if necessary and transform the coordinates
+                                geom_wgs84 = self.transform_geometry(geom, transformer)
 
-                            properties = feature['properties']
-                            label = properties.get(name_field)
-                            shape_id = properties.get(id_field)
+                                # Convert the geometry to WKT
+                                geom_wkt = geom_wgs84.wkt
 
-                            # Validate the properties
-                            if not isinstance(label, str) or not isinstance(shape_id, (int, str)):
-                                logging.warning(f"Skipping feature due to invalid properties: {properties} for {shape_info['name']}")
-                                continue
+                                properties = feature['properties']
+                                label = properties.get(name_field)
+                                label = str(label) if label is not None else None
 
-                            if label and geom_wkt:
-                                existing_shape = (
-                                    self.db.session.query(ShapeRef)
-                                    .filter_by(label=label, type=shape_type)
-                                    .scalar()
-                                )
+                                # Validate the properties
+                                if not isinstance(label, str):
+                                    logging.warning(f"Skipping feature due to invalid properties: {properties} for "
+                                                    f"{name_field}")
+                                    continue
 
-                                if not existing_shape:
-                                    new_shape = ShapeRef(
-                                        label=label,
-                                        type=shape_type,
-                                        location=geom_wkt,
+                                if label and geom_wkt:
+                                    existing_shape = (
+                                        self.db.session.query(ShapeRef)
+                                        .filter_by(label=label, type=shape_category)
+                                        .scalar()
                                     )
-                                    self.db.session.add(new_shape)
-                                else:
-                                    # Update the existing shape
-                                    existing_shape.location = geom_wkt
+
+                                    if not existing_shape:
+                                        new_shape = ShapeRef(
+                                            label=label,
+                                            type=shape_category,
+                                            location=geom_wkt,
+                                        )
+                                        self.db.session.add(new_shape)
+                                    else:
+                                        # Update the existing shape
+                                        existing_shape.location = geom_wkt
+
+                    progress.update(task, advance=1)
 
             self.db.session.commit()
             return "Shape data imported successfully."
@@ -131,7 +137,17 @@ class ShapeImporter:
         finally:
             self.db.close_db_session()
 
-    def transform_geometry(self, geom, transformer):
+    def transform_geometry(self, geom: BaseGeometry, transformer: Transformer) -> BaseGeometry:
+        """
+        Transform the geometry to WGS84.
+        Args:
+            geom (BaseGeometry): The geometry to transform.
+            transformer (Transformer): The transformer to use.
+
+        Returns:
+            The transformed geometry.
+
+        """
         if isinstance(geom, Point):
             return self.transform_point(geom, transformer)
         elif isinstance(geom, LineString):
@@ -145,14 +161,44 @@ class ShapeImporter:
 
     @staticmethod
     def transform_point(point: Point, coord_transformer: Transformer) -> Point:
+        """
+        Transform a point to WGS84.
+        Args:
+            point (Point): The point to transform.
+            coord_transformer (Transformer): The transformer to use.
+
+        Returns:
+            The transformed point.
+
+        """
         x, y = point.x, point.y
         x, y = coord_transformer.transform(xx=x, yy=y)
         return Point(x, y)
 
     def transform_linestring(self, linestring: LineString, transformer) -> LineString:
+        """
+        Transform a linestring to WGS84.
+        Args:
+            linestring (LineString): The linestring to transform.
+            transformer (Transformer): The transformer to use.
+
+        Returns:
+            The transformed linestring.
+
+        """
         return LineString([self.transform_point(Point(x, y), transformer) for x, y, *_ in linestring.coords])
 
-    def transform_polygon(self, polygon, transformer):
+    def transform_polygon(self, polygon: Polygon, transformer: Transformer) -> Polygon:
+        """
+        Transform a polygon to WGS84.
+        Args:
+            polygon (Polygon): The polygon to transform.
+            transformer (Transformer): The transformer to use.
+
+        Returns:
+            The transformed polygon.
+
+        """
         exterior = self.transform_linestring(LineString(polygon.exterior.coords), transformer)
         interiors = [self.transform_linestring(LineString(interior.coords), transformer) for interior in
                      polygon.interiors]

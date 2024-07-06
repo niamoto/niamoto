@@ -1,3 +1,6 @@
+"""
+Shape statistics calculator module.
+"""
 import logging
 import time
 from typing import List, Dict, Any, Hashable, Union, Optional
@@ -15,12 +18,13 @@ from rtree import index
 from shapely import MultiPolygon, GeometryCollection, Polygon
 from shapely.errors import WKTReadingError
 from shapely.geometry import mapping, Point
+from shapely.prepared import prep
 from shapely.wkt import loads as wkt_loads
 
+from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef, TaxonRef
 from .statistics_calculator import StatisticsCalculator
-
-logging.basicConfig(level=logging.INFO)
+from ...services.mapper import MapperService
 
 
 class ShapeStatsCalculator(StatisticsCalculator):
@@ -30,6 +34,15 @@ class ShapeStatsCalculator(StatisticsCalculator):
     Inherits from:
         StatisticsCalculator
     """
+
+    def __init__(
+            self,
+            db: Database,
+            mapper_service: MapperService,
+            occurrences: list[dict[Hashable, Any]],
+            group_by: str
+    ):
+        super().__init__(db, mapper_service, occurrences, group_by, log_component='shape_stats')
 
     def calculate_shape_stats(self) -> None:
         """
@@ -82,7 +95,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             self.create_or_update_stats_entry(shape_id, stats)
 
         except Exception as e:
-            logging.error(f"Failed to process shape {shape_ref.id}: {e}")
+            self.logger.error(f"Failed to process shape {shape_ref.id}: {e}")
 
     def get_shape_occurrences(self, shape_ref: ShapeRef) -> List[Dict[Hashable, Any]]:
         """
@@ -97,12 +110,13 @@ class ShapeStatsCalculator(StatisticsCalculator):
         try:
             shape_gdf = self.load_shape_geometry(shape_ref.location)
             if shape_gdf is None or shape_gdf.empty:
-                logging.error(f"Invalid geometry for shape ID {shape_ref.id}.")
+                self.logger.error(f"Invalid geometry for shape ID {shape_ref.id}.")
                 return []
 
             shape_geom = shape_gdf.geometry.iloc[0]
+            prepared_shape = prep(shape_geom)
         except Exception as e:
-            logging.error(f"Failed to load shape geometry for shape ID {shape_ref.id}: {e}")
+            self.logger.error(f"Failed to load shape geometry for shape ID {shape_ref.id}: {e}")
             return []
 
         occurrence_location_field = self.group_config.get("source_location_field")
@@ -125,10 +139,20 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         # Check if occurrences are within the shape
         def is_within_shape(wkt_str):
+            """
+            Check if a point is within the shape.
+            Args:
+                wkt_str (str): The WKT representation of the point.
+
+            Returns:
+                bool: True if the point is within the shape, False otherwise.
+
+            """
             try:
                 point_geom = wkt_loads(wkt_str)
-                return shape_geom.contains(point_geom)
+                return prepared_shape.contains(point_geom)
             except WKTReadingError:
+                self.logger.warning(f"Invalid WKT: {wkt_str}")
                 return False
 
         # Apply the filtering function to the DataFrame
@@ -140,8 +164,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         return occurrences_within_shape
 
-    @staticmethod
-    def load_shape_geometry(wkt_str: str) -> Optional[GeoDataFrame]:
+    def load_shape_geometry(self, wkt_str: str) -> Optional[GeoDataFrame]:
         """
         Load a geometry from a WKT string.
 
@@ -155,28 +178,28 @@ class ShapeStatsCalculator(StatisticsCalculator):
             geometry = wkt_loads(wkt_str)
 
             if not geometry.is_valid:
-                logging.warning(f"Invalid geometry: {geometry.wkt}")
+                self.logger.warning(f"Invalid geometry: {geometry.wkt}")
                 geometry = geometry.buffer(0)  # Try to fix invalid geometry
-                logging.info(f"Geometry after buffer(0): {geometry.geom_type}, valid: {geometry.is_valid}")
+                self.logger.info(f"Geometry after buffer(0): {geometry.geom_type}, valid: {geometry.is_valid}")
 
             if isinstance(geometry, GeometryCollection):
-                logging.warning("GeometryCollection encountered, extracting Polygons and MultiPolygons")
+                self.logger.warning("GeometryCollection encountered, extracting Polygons and MultiPolygons")
                 polygons = [geom for geom in geometry.geoms if isinstance(geom, (Polygon, MultiPolygon))]
                 if polygons:
                     geometry = MultiPolygon(polygons)
                 else:
-                    logging.error("No valid Polygons found in GeometryCollection")
+                    self.logger.error("No valid Polygons found in GeometryCollection")
                     return None
 
             if not isinstance(geometry, (Polygon, MultiPolygon)):
-                logging.error(f"Unsupported geometry type: {geometry.geom_type}")
+                self.logger.error(f"Unsupported geometry type: {geometry.geom_type}")
                 return None
 
             # Create a GeoDataFrame with the geometry and set its CRS
             gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
             return gdf
         except Exception as e:
-            logging.error(f"Failed to load geometry from WKT string: {str(e)}")
+            self.logger.error(f"Failed to load geometry from WKT string: {str(e)}")
             return None
 
     def calculate_stats(self, group_id: int, group_occurrences: list) -> dict:
@@ -208,18 +231,29 @@ class ShapeStatsCalculator(StatisticsCalculator):
                         if not gdf.empty:
                             stats.update(self.process_layer_stats(shape_ref, gdf, field, transformations))
                         else:
-                            logging.warning(f"Empty GeoDataFrame for {layer_name} in shape {group_id}")
+                            self.logger.warning(f"Empty GeoDataFrame for {layer_name} in shape {group_id}")
                     elif data_source.get('type') == 'shape' and data_source.get('name') == 'self':
                         stats.update(self.process_shape_stats(shape_ref, field, transformations))
                     elif data_source.get('type') == 'source' and data_source.get('name') == 'occurrences':
                         stats.update(self.process_occurrence_stats(group_occurrences, field, transformations))
             except Exception as e:
-                logging.error(f"Error processing {field} for shape {group_id}: {str(e)}")
+                self.logger.error(f"Error processing {field} for shape {group_id}: {str(e)}")
                 stats[field] = None
 
         return stats
 
     def load_layer_as_gdf(self, shape_ref: ShapeRef, layer_name: str, layer_type: str) -> gpd.GeoDataFrame:
+        """
+        Load a layer as a GeoDataFrame and clip it to the shape geometry.
+        Args:
+            shape_ref (ShapeRef): The shape reference.
+            layer_name (str): The name of the layer.
+            layer_type (str): The type of the layer ('raster' or 'vector').
+
+        Returns:
+            gpd.GeoDataFrame: The loaded and clipped layer data.
+
+        """
         shape_gdf = self.load_shape_geometry(shape_ref.location)
         if shape_gdf is None or shape_gdf.empty:
             return gpd.GeoDataFrame()
@@ -237,7 +271,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     valid_data = out_image[out_image != src.nodata]
 
                     if valid_data.size == 0:
-                        logging.warning(f"No data found within the shape for {shape_ref.id}.")
+                        self.logger.warning(f"No data found within the shape for {shape_ref.id}.")
                         return gpd.GeoDataFrame()
 
                     # Create a GeoDataFrame with all valid pixel values
@@ -253,7 +287,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     return gdf
                 except ValueError as e:
                     if "Input shapes do not overlap raster" in str(e):
-                        logging.warning(f"Shape {shape_ref.id} does not overlap with raster {layer_name}.")
+                        self.logger.warning(f"Shape {shape_ref.id} does not overlap with raster {layer_name}.")
                         return gpd.GeoDataFrame()
                     else:
                         raise
@@ -302,7 +336,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     else:
                         stats[column_name] = self.calculate_raster_statistics(gdf, transform_name)
             except Exception as e:
-                logging.error(f"Error processing {transform_name} for {field} in shape {shape_ref.id}: {str(e)}")
+                self.logger.error(f"Error processing {transform_name} for {field} in shape {shape_ref.id}: {str(e)}")
                 stats[column_name] = None
         return stats
 
@@ -336,8 +370,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         simplified_geom = gdf.geometry.union_all().simplify(tolerance=0.001, preserve_topology=True)
         return mapping(simplified_geom)
 
-    @staticmethod
-    def calculate_effective_mesh_size_from_gdf(gdf: gpd.GeoDataFrame) -> float:
+    def calculate_effective_mesh_size_from_gdf(self, gdf: gpd.GeoDataFrame) -> float:
         """
         Calculate the effective mesh size from a GeoDataFrame.
 
@@ -360,12 +393,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
             meff_km2 = meff / 100
             return meff_km2
         else:
-            logging.warning("Total area is zero")
+            self.logger.warning("Total area is zero")
             return 0.0
 
-    @staticmethod
-    def calculate_fragmentation_distribution_from_gdf(gdf: gpd.GeoDataFrame, field_config: Dict[str, Any]) -> Dict[
-        str, float]:
+    def calculate_fragmentation_distribution_from_gdf(self, gdf: gpd.GeoDataFrame, field_config: Dict[str, Any]) -> \
+            Dict[str, float]:
         """
         Calculate the fragmentation distribution from a GeoDataFrame.
 
@@ -381,7 +413,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         # Check if we have a 'geometry' column
         if 'geometry' not in gdf.columns:
-            logging.warning("No geometry column found in the GeoDataFrame")
+            self.logger.warning("No geometry column found in the GeoDataFrame")
             return {}
 
         # Project to UTM
@@ -395,7 +427,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         total_area = fragment_areas.sum()
         if total_area == 0:
-            logging.warning("Total area is zero")
+            self.logger.warning("Total area is zero")
             return {}
 
         # Get bins from configuration
@@ -406,7 +438,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         )
 
         if not bins:
-            logging.warning("No bins found in configuration")
+            self.logger.warning("No bins found in configuration")
             return {}
 
         bin_areas = {str(bin_val): 0.0 for bin_val in bins}
@@ -448,8 +480,8 @@ class ShapeStatsCalculator(StatisticsCalculator):
             hist, bin_edges = np.histogram(raster_values, bins='auto')
             return {str(bin_edges[i]): int(hist[i]) for i in range(len(hist))}
 
-    def process_shape_stats(self, shape_ref: ShapeRef, field: str, transformations: List[Dict[str, Any]]) -> Dict[
-        str, Any]:
+    def process_shape_stats(self, shape_ref: ShapeRef, field: str, transformations: List[Dict[str, Any]]) -> (
+            Dict)[str, Any]:
         """
         Process shape statistics for a given field.
 
@@ -571,12 +603,12 @@ class ShapeStatsCalculator(StatisticsCalculator):
             area_sqm = gdf_projected.geometry.area.sum()
 
             if np.isnan(area_sqm) or np.isinf(area_sqm):
-                logging.warning(f"Invalid area calculated: {area_sqm}")
+                self.logger.warning(f"Invalid area calculated: {area_sqm}")
                 return 0.0
 
             return area_sqm / 10000  # Convert to hectares
         except Exception as e:
-            logging.error(f"Error calculating area: {str(e)}")
+            self.logger.error(f"Error calculating area: {str(e)}")
             return 0.0
 
     def calculate_elevation_distribution(self, shape_ref: ShapeRef) -> Dict[str, Any]:
@@ -633,7 +665,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 valid_elevations = elevation_flat[valid_elevation_mask]
 
                 if valid_elevations.size == 0:
-                    logging.warning(f"No valid elevation data found for shape {shape_ref.id}")
+                    self.logger.warning(f"No valid elevation data found for shape {shape_ref.id}")
                     return {}
 
                 min_elevation = np.floor(valid_elevations.min())
@@ -666,9 +698,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
             return elevation_distribution
 
         except Exception as e:
-            logging.error(f"Error in calculate_elevation_distribution for shape {shape_ref.id}: {str(e)}")
+            self.logger.error(f"Error in calculate_elevation_distribution for shape {shape_ref.id}: {str(e)}")
             import traceback
-            logging.error(traceback.format_exc())
+            self.logger.error(traceback.format_exc())
             return {}
 
     @staticmethod
@@ -761,8 +793,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         plt.tight_layout()
         plt.show()
 
-    @staticmethod
-    def _safe_area_calculation(polygon: Polygon) -> float:
+    def _safe_area_calculation(self, polygon: Polygon) -> float:
         """
         Safely calculate the area of a polygon.
 
@@ -775,11 +806,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
         try:
             area = polygon.area
             if np.isnan(area) or np.isinf(area):
-                logging.warning(f"Invalid area for polygon: {polygon.wkt[:100]}...")
+                self.logger.warning(f"Invalid area for polygon: {polygon.wkt[:100]}...")
                 return 0.0
             return area
         except Exception as e:
-            logging.error(f"Error calculating polygon area: {str(e)}")
+            self.logger.error(f"Error calculating polygon area: {str(e)}")
             return 0.0
 
     def _retrieve_all_shapes(self) -> List[ShapeRef]:
@@ -819,12 +850,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 point_wkt = occurrence.get(occurrence_location_field)
                 if point_wkt is not None and isinstance(point_wkt, str) and point_wkt.startswith("POINT"):
                     try:
-                        point_geom = wkt_loads(point_wkt)
-                        if point_geom:
-                            # Use the bounds of the point (which will be identical for min and max)
-                            bounds = point_geom.bounds
-                            idx.insert(pos, bounds)
-                    except Exception as e:
-                        logging.error(f"Error processing occurrence at position {pos} with value {point_wkt}: {e}")
+                        # Use string manipulation instead of wkt_loads for faster processing
+                        coords = point_wkt.strip("POINT ()").split()
+                        x, y = float(coords[0]), float(coords[1])
+                        idx.insert(pos, (x, y, x, y))
+                    except (ValueError, IndexError) as e:
+                        self.logger.error(f"Error processing occurrence at position {pos} with value {point_wkt}: {e}")
 
         return idx

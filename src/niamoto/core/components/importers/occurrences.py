@@ -1,5 +1,6 @@
-# components/importers/occurrences.py
-
+"""
+A module for importing occurrence data from a CSV file into the database.
+"""
 import duckdb
 import pandas as pd
 import sqlalchemy
@@ -7,11 +8,22 @@ from typing import Any
 from rich.console import Console
 from rich.progress import Progress
 
+from niamoto.core.utils.logging_utils import setup_logging
+
 
 class OccurrenceImporter:
+    """
+    A class used to import occurrence data from a CSV file into the database.
+
+    Attributes:
+        db_path (str): The path to the database file.
+        con (duckdb.Connection): The connection to the DuckDB database.
+    """
+
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.con = duckdb.connect(self.db_path)
+        self.logger = setup_logging(component_name='occurrences_import')
 
     @staticmethod
     def analyze_data(csvfile: str) -> Any:
@@ -75,7 +87,7 @@ class OccurrenceImporter:
 
             # Import the data with a spinner
             with Console().status(
-                "[italic green]Importing occurrences...", spinner="dots"
+                    "[italic green]Importing occurrences...", spinner="dots"
             ):
                 column_names = ", ".join(
                     [
@@ -155,7 +167,7 @@ class OccurrenceImporter:
             )
             if not id_column_exists:
                 columns_sql = f"id BIGINT PRIMARY KEY, {columns_sql}"
-            columns_sql += ", taxon_ref_id BIGINT REFERENCES taxon_ref(id)"
+            columns_sql += ", taxon_ref_id BIGINT"
 
             # Drop the existing occurrences table if it exists
             drop_table_sql = "DROP TABLE IF EXISTS occurrences;"
@@ -194,7 +206,7 @@ class OccurrenceImporter:
 
                 # Insert data by chunks
                 for i in range(0, len(df), chunk_size):
-                    chunk = df.iloc[i : i + chunk_size]
+                    chunk = df.iloc[i: i + chunk_size]
                     chunk.to_sql("occurrences", engine, if_exists="append", index=False)
                     progress.update(task, advance=1)
 
@@ -209,11 +221,25 @@ class OccurrenceImporter:
             return f"Total valid occurrences imported: {imported_count}"
 
         except ValueError as ve:
+            self.logger.error(f"ValueError: {ve}")
             raise ve
         except Exception as e:
+            self.logger.error(f"Exception: {e}")
             raise e
 
     def import_occurrence_plot_links(self, csvfile: str) -> str:
+        """
+        Import occurrence-plot links from a CSV file into the database.
+        Args:
+            csvfile (str): Path to the CSV file to be imported.
+
+        Returns:
+            str: A message indicating the number of imported occurrence-plot links.
+
+        Raises:
+            Exception: If an error occurs during the import operation.
+
+        """
         try:
             # Analyse the CSV file to get the schema
             column_schema = self.analyze_data(csvfile)
@@ -245,7 +271,7 @@ class OccurrenceImporter:
 
                 # Insert data by chunks
                 for i in range(0, len(df), chunk_size):
-                    chunk = df.iloc[i : i + chunk_size]
+                    chunk = df.iloc[i: i + chunk_size]
                     chunk.to_sql(
                         "occurrences_plots", engine, if_exists="append", index=False
                     )

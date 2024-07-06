@@ -1,3 +1,6 @@
+"""
+Taxonomy statistics calculator module.
+"""
 import time
 from typing import List, Dict, Any, Hashable, Union
 
@@ -5,8 +8,10 @@ import pandas as pd
 from rich.progress import track
 from sqlalchemy import select
 
+from niamoto.common.database import Database
 from .statistics_calculator import StatisticsCalculator
 from niamoto.core.models import TaxonRef
+from ...services.mapper import MapperService
 
 
 class TaxonomyStatsCalculator(StatisticsCalculator):
@@ -16,6 +21,15 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
     Inherits from:
         StatisticsCalculator
     """
+
+    def __init__(
+            self,
+            db: Database,
+            mapper_service: MapperService,
+            occurrences: list[dict[Hashable, Any]],
+            group_by: str
+    ):
+        super().__init__(db, mapper_service, occurrences, group_by, log_component='taxonomy_stats')
 
     def calculate_taxonomy_stats(self) -> None:
         """
@@ -32,7 +46,7 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                 self.process_taxon(taxon)
 
         except Exception as e:
-            self.console.print(f"An error occurred: {e}", style="bold red")
+            self.logger.error(f"An error occurred: {e}", style="bold red")
         finally:
             total_time = time.time() - start_time
             self.console.print(
@@ -60,9 +74,7 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
             self.create_or_update_stats_entry(taxon_id, stats)
 
         except Exception as e:
-            self.console.print(
-                f"Failed to process taxon {taxon.id}: {e}", style="bold red"
-            )
+            self.logger.error(f"Failed to process taxon {taxon.id}: {e}")
 
     def calculate_stats(
         self, group_id: int, group_occurrences: list[dict[Hashable, Any]]

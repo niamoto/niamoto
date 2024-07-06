@@ -1,11 +1,12 @@
-import logging
-import os
-
+"""
+This module contains the PlotImporter class, which is used to import plot data from a GeoPackage file into the database.
+"""
 import geopandas as gpd  # type: ignore
 from shapely.wkt import dumps  # type: ignore
 
-from niamoto.core.models import PlotRef
 from niamoto.common.database import Database
+from niamoto.core.models import PlotRef
+from niamoto.core.utils.logging_utils import setup_logging
 
 
 class PlotImporter:
@@ -24,18 +25,7 @@ class PlotImporter:
             db (Database): The database connection.
         """
         self.db = db
-        # Ensure the logs directory exists
-        log_directory = "logs"
-        if not os.path.exists(log_directory):
-            os.makedirs(log_directory)
-
-        # Configure logging to write to a file in the logs directory
-        log_file_path = os.path.join(log_directory, "plot_import.log")
-        logging.basicConfig(
-            filename=log_file_path,
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-        )
+        self.logger = setup_logging(component_name='plots_import')
 
     def import_from_gpkg(self, gpkg_path: str, identifier: str, location_field: str) -> str:
         """
