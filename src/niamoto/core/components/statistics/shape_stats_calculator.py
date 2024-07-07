@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Hashable, Union, Optional
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pyproj
 import rasterio
 from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
@@ -15,7 +16,7 @@ from rasterio.features import rasterize
 from rasterio.mask import mask
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 from rtree import index
-from shapely import MultiPolygon, GeometryCollection, Polygon
+from shapely import MultiPolygon, GeometryCollection, Polygon, simplify, transform, polygonize, make_valid, unary_union
 from shapely.errors import WKTReadingError
 from shapely.geometry import mapping, Point
 from shapely.prepared import prep
@@ -26,6 +27,7 @@ from niamoto.core.models import ShapeRef, TaxonRef
 from .statistics_calculator import StatisticsCalculator
 from ...services.mapper import MapperService
 
+LARGE_SHAPE_THRESHOLD_KM2 = 1000
 
 class ShapeStatsCalculator(StatisticsCalculator):
     """
@@ -43,6 +45,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             group_by: str
     ):
         super().__init__(db, mapper_service, occurrences, group_by, log_component='shape_stats')
+        self.shape_cache = {}
 
     def calculate_shape_stats(self) -> None:
         """
@@ -164,44 +167,6 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         return occurrences_within_shape
 
-    def load_shape_geometry(self, wkt_str: str) -> Optional[GeoDataFrame]:
-        """
-        Load a geometry from a WKT string.
-
-        Args:
-            wkt_str (str): The WKT string.
-
-        Returns:
-            gpd.GeoDataFrame: The loaded geometry as a GeoDataFrame or None if loading fails.
-        """
-        try:
-            geometry = wkt_loads(wkt_str)
-
-            if not geometry.is_valid:
-                self.logger.warning(f"Invalid geometry: {geometry.wkt}")
-                geometry = geometry.buffer(0)  # Try to fix invalid geometry
-                self.logger.info(f"Geometry after buffer(0): {geometry.geom_type}, valid: {geometry.is_valid}")
-
-            if isinstance(geometry, GeometryCollection):
-                self.logger.warning("GeometryCollection encountered, extracting Polygons and MultiPolygons")
-                polygons = [geom for geom in geometry.geoms if isinstance(geom, (Polygon, MultiPolygon))]
-                if polygons:
-                    geometry = MultiPolygon(polygons)
-                else:
-                    self.logger.error("No valid Polygons found in GeometryCollection")
-                    return None
-
-            if not isinstance(geometry, (Polygon, MultiPolygon)):
-                self.logger.error(f"Unsupported geometry type: {geometry.geom_type}")
-                return None
-
-            # Create a GeoDataFrame with the geometry and set its CRS
-            gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
-            return gdf
-        except Exception as e:
-            self.logger.error(f"Failed to load geometry from WKT string: {str(e)}")
-            return None
-
     def calculate_stats(self, group_id: int, group_occurrences: list) -> dict:
         """
         Calculate statistics for a given shape and its occurrences.
@@ -216,6 +181,15 @@ class ShapeStatsCalculator(StatisticsCalculator):
         stats = {}
         shape_ref = self.db.session.query(ShapeRef).filter(ShapeRef.id == group_id).first()
 
+        # Load and clean shape geometry once
+        shape_gdf = self.load_shape_geometry(shape_ref.location)
+        if shape_gdf is None or shape_gdf.empty:
+            self.logger.error(f"Shape geometry for {group_id} is invalid.")
+            return stats
+
+        # Load layers once
+        loaded_layers = self.load_all_layers(shape_gdf)
+
         for field, config in self.fields.items():
             data_sources = config.get('data_source', {})
             if not isinstance(data_sources, list):
@@ -226,9 +200,8 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 for data_source in data_sources:
                     if data_source.get('type') == 'layer':
                         layer_name = data_source.get('name')
-                        layer_type = self.mapper_service.get_layer_type(layer_name)
-                        gdf = self.load_layer_as_gdf(shape_ref, layer_name, layer_type)
-                        if not gdf.empty:
+                        gdf = loaded_layers.get(layer_name)
+                        if gdf is not None and not gdf.empty:
                             stats.update(self.process_layer_stats(shape_ref, gdf, field, transformations))
                         else:
                             self.logger.warning(f"Empty GeoDataFrame for {layer_name} in shape {group_id}")
@@ -238,26 +211,48 @@ class ShapeStatsCalculator(StatisticsCalculator):
                         stats.update(self.process_occurrence_stats(group_occurrences, field, transformations))
             except Exception as e:
                 self.logger.error(f"Error processing {field} for shape {group_id}: {str(e)}")
-                stats[field] = None
 
         return stats
 
-    def load_layer_as_gdf(self, shape_ref: ShapeRef, layer_name: str, layer_type: str) -> gpd.GeoDataFrame:
+    def load_all_layers(self, shape_gdf: gpd.GeoDataFrame) -> Dict[str, gpd.GeoDataFrame]:
+        """
+        Load all layers based on the configuration.
+
+        Args:
+            shape_gdf (gpd.GeoDataFrame): The shape geometry DataFrame.
+
+        Returns:
+            Dict[str, gpd.GeoDataFrame]: A dictionary of loaded and clipped layers.
+        """
+        loaded_layers = {}
+
+        for field, config in self.fields.items():
+            data_sources = config.get('data_source', {})
+            if not isinstance(data_sources, list):
+                data_sources = [data_sources]
+
+            for data_source in data_sources:
+                if data_source.get('type') == 'layer':
+                    layer_name = data_source.get('name')
+                    if layer_name not in loaded_layers:
+                        layer_type = self.mapper_service.get_layer_type(layer_name)
+                        gdf = self.load_layer_as_gdf(shape_gdf, layer_name, layer_type)
+                        loaded_layers[layer_name] = gdf
+
+        return loaded_layers
+
+    def load_layer_as_gdf(self, shape_gdf: gpd.GeoDataFrame, layer_name: str, layer_type: str) -> gpd.GeoDataFrame:
         """
         Load a layer as a GeoDataFrame and clip it to the shape geometry.
+
         Args:
-            shape_ref (ShapeRef): The shape reference.
+            shape_gdf (gpd.GeoDataFrame): The shape geometry DataFrame.
             layer_name (str): The name of the layer.
             layer_type (str): The type of the layer ('raster' or 'vector').
 
         Returns:
             gpd.GeoDataFrame: The loaded and clipped layer data.
-
         """
-        shape_gdf = self.load_shape_geometry(shape_ref.location)
-        if shape_gdf is None or shape_gdf.empty:
-            return gpd.GeoDataFrame()
-
         layer_path = self.mapper_service.get_layer_path(layer_name)
 
         if layer_type == 'raster':
@@ -271,7 +266,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     valid_data = out_image[out_image != src.nodata]
 
                     if valid_data.size == 0:
-                        self.logger.warning(f"No data found within the shape for {shape_ref.id}.")
+                        self.logger.warning(f"No data found within the shape for {layer_name}.")
                         return gpd.GeoDataFrame()
 
                     # Create a GeoDataFrame with all valid pixel values
@@ -287,7 +282,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     return gdf
                 except ValueError as e:
                     if "Input shapes do not overlap raster" in str(e):
-                        self.logger.warning(f"Shape {shape_ref.id} does not overlap with raster {layer_name}.")
+                        self.logger.warning(f"Shape does not overlap with raster {layer_name}.")
                         return gpd.GeoDataFrame()
                     else:
                         raise
@@ -299,6 +294,105 @@ class ShapeStatsCalculator(StatisticsCalculator):
             return clipped
 
         return gpd.GeoDataFrame()
+
+    def load_shape_geometry(self, wkt_str: str) -> Optional[gpd.GeoDataFrame]:
+        """
+        Load a geometry from a WKT string.
+
+        Args:
+            wkt_str (str): The WKT string.
+
+        Returns:
+            gpd.GeoDataFrame: The loaded geometry as a GeoDataFrame or None if loading fails.
+        """
+        try:
+            geometry = wkt_loads(wkt_str)
+
+            # Attempt to make the geometry valid
+            if not geometry.is_valid:
+                self.logger.warning(f"Invalid geometry detected. Attempting to fix...")
+                geometry = make_valid(geometry)
+
+            if not geometry.is_valid:
+                self.logger.warning(f"Geometry still invalid after make_valid(). Attempting buffer(0)...")
+                geometry = geometry.buffer(0)
+
+            if isinstance(geometry, GeometryCollection):
+                self.logger.warning("GeometryCollection encountered, extracting Polygons and MultiPolygons")
+                polygons = [geom for geom in geometry.geoms if isinstance(geom, (Polygon, MultiPolygon))]
+                if polygons:
+                    geometry = unary_union(polygons)
+                else:
+                    self.logger.error("No valid Polygons found in GeometryCollection")
+                    return None
+
+            if not isinstance(geometry, (Polygon, MultiPolygon)):
+                self.logger.error(f"Unsupported geometry type: {geometry.geom_type}")
+                return None
+
+            # Additional cleanup step
+            if isinstance(geometry, MultiPolygon):
+                clean_polygons = []
+                for poly in geometry.geoms:
+                    if poly.is_valid:
+                        clean_polygons.append(poly)
+                    else:
+                        # Try to fix invalid polygons
+                        boundary = poly.boundary
+                        if boundary.is_valid:
+                            fixed_polygons = list(polygonize(boundary))
+                            clean_polygons.extend(fixed_polygons)
+                geometry = MultiPolygon(clean_polygons)
+            elif isinstance(geometry, Polygon):
+                if not geometry.is_valid:
+                    boundary = geometry.boundary
+                    if boundary.is_valid:
+                        fixed_polygons = list(polygonize(boundary))
+                        geometry = MultiPolygon(fixed_polygons)
+
+            # Calculate area in km²
+            geod = pyproj.Geod(ellps="WGS84")
+            area_m2 = abs(geod.geometry_area_perimeter(geometry)[0])
+            area_km2 = area_m2 / 1_000_000  # Convert m² to km²
+
+            # Simplify large geometries
+            if area_km2 > LARGE_SHAPE_THRESHOLD_KM2:
+                tolerance = 0.001 * (area_km2 ** 0.5)
+                geometry = geometry.simplify(tolerance, preserve_topology=True)
+
+                if not isinstance(geometry, MultiPolygon):
+                    total_vertices = sum(len(poly.exterior.coords) for poly in geometry.geoms)
+
+            # Create a GeoDataFrame with the geometry and set its CRS
+            gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
+            # Clean the shape geometry
+            gdf['geometry'] = gdf['geometry'].apply(self.clean_geometry)
+            gdf = gdf[gdf['geometry'].is_valid]
+
+            if gdf.empty:
+                self.logger.warning(f"Shape became invalid after cleaning.")
+                return gpd.GeoDataFrame()
+
+            return gdf
+        except Exception as e:
+            self.logger.error(f"Failed to load geometry from WKT string: {str(e)}")
+            return None
+
+    @staticmethod
+    def clean_geometry(geom):
+        """
+        Clean the geometry by making it valid and removing any non-Polygon geometries.
+        Args:
+            geom (shapely.geometry.base.BaseGeometry): The geometry to clean.
+
+        Returns:
+            shapely.geometry.base.BaseGeometry: The cleaned geometry.
+        """
+        if not geom.is_valid:
+            geom = make_valid(geom)
+        if geom.geom_type == 'GeometryCollection':
+            geom = unary_union([g for g in geom.geoms if g.geom_type in ['Polygon', 'MultiPolygon']])
+        return geom
 
     def process_layer_stats(self, shape_ref: ShapeRef, gdf: gpd.GeoDataFrame, field: str,
                             transformations: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -671,13 +765,36 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 min_elevation = np.floor(valid_elevations.min())
                 max_elevation = np.ceil(valid_elevations.max())
 
+                # Check if min and max are equal
+                if min_elevation == max_elevation:
+                    self.logger.warning(f"Constant elevation ({min_elevation}) for shape {shape_ref.id}")
+                    return {
+                        "altitudes": [float(min_elevation)],  # Convert to Python float
+                        "forest": [int(np.sum(forest_mask))],  # Convert to Python int
+                        "non_forest": [int(np.sum(non_forest_mask))]  # Convert to Python int
+                    }
+
                 # Determine the number of intervals (aim for about 20 intervals)
                 target_intervals = 20
                 interval = np.ceil(
                     (max_elevation - min_elevation) / target_intervals / 100) * 100  # Round to the nearest hundred
 
+                # Ensure the interval is not zero or too small
+                if interval < 1:
+                    interval = 1
+
                 # Create altitude bins
-                altitude_bins = np.arange(min_elevation, max_elevation + interval, interval)
+                try:
+                    altitude_bins = np.arange(min_elevation, max_elevation + interval, interval)
+                except ValueError as e:
+                    self.logger.error(f"Error creating altitude bins for shape {shape_ref.id}: {str(e)}")
+                    self.logger.error(
+                        f"min_elevation: {min_elevation}, max_elevation: {max_elevation}, interval: {interval}")
+                    return {}
+
+                # Ensure we have at least two bins
+                if len(altitude_bins) < 2:
+                    altitude_bins = np.array([min_elevation, max_elevation])
 
                 # Calculate the histogram for forest and non-forest pixels
                 forest_hist, _ = np.histogram(elevation_flat[forest_mask], bins=altitude_bins)
@@ -690,9 +807,10 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
                 # Prepare the elevation distribution data
                 elevation_distribution = {
-                    "altitudes": altitude_bins[:-1].tolist(),  # Exclude the last value
-                    "forest": forest_areas.tolist(),
-                    "non_forest": non_forest_areas.tolist()
+                    "altitudes": [float(alt) for alt in altitude_bins[:-1].tolist()],
+                    # Exclude the last value and convert to Python float
+                    "forest": [float(area) for area in forest_areas.tolist()],  # Convert to Python float
+                    "non_forest": [float(area) for area in non_forest_areas.tolist()]  # Convert to Python float
                 }
 
             return elevation_distribution

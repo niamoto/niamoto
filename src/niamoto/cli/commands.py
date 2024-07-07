@@ -19,6 +19,7 @@ from loguru import logger
 from rich.console import Console
 from rich.progress import track
 from rich.table import Table
+from rich import box
 from sqlalchemy import asc, text
 
 from niamoto.common.config import Config
@@ -32,8 +33,16 @@ from niamoto.core.services.mapper import MapperService
 from niamoto.core.services.statistics import StatisticService
 from niamoto.publish.static_api.api_generator import ApiGenerator
 
+NIAMOTO_ASCII_ART = """
+┳┓┳┏┓┳┳┓┏┓┏┳┓┏┓
+┃┃┃┣┫┃┃┃┃┃ ┃ ┃┃
+┛┗┻┛┗┛ ┗┗┛ ┻ ┗┛                                
+"""
 
 class RichCLI(click.Group):
+    """
+    Custom Click Group class that provides a richly formatted CLI interface.
+    """
     def list_commands(self, ctx: click.Context) -> List[str]:
         """
         Return the list of command names as they were added, not sorted.
@@ -70,14 +79,19 @@ class RichCLI(click.Group):
             - The output of the command table is captured and written to the formatter.
         """
         # Display the custom help message
-        formatter.write(
-            "Usage: niamoto [OPTIONS] COMMAND [ARGS]...\n\n"
-            "Command line interface for Niamoto.\n"
-            "This CLI provides commands for initializing the database and importing data from CSV files.\n\n"
-            "Options:\n"
-            "  --help  Show this message and exit.\n\n"
-            "Main Commands (in this order, require a complete config.yml file):\n"
-        )
+        console = Console()
+        with console.capture() as capture:
+            console.print("[green]" + NIAMOTO_ASCII_ART + "[/green]")
+            console.print(
+                "\nUsage: niamoto [OPTIONS] COMMAND [ARGS]...\n\n"
+                "Command line interface for Niamoto.\n"
+                "This CLI provides commands for initializing the database and importing data from CSV files.\n\n"
+                "Options:\n"
+                "  --help  Show this message and exit.\n\n"
+                "Main Commands (in this order, require a complete config.yml file):\n"
+            )
+
+        formatter.write(capture.get())
 
         main_commands = [
             "init", "import-all", "calculate-statistics", "generate-static-content", "deploy-static_files-site"
@@ -233,10 +247,10 @@ def init(reset: bool) -> None:
     console.print("🌱 Niamoto initialized.", style="italic green")
     console.rule()
 
-    list_commands(cli)
+    list_commands(cli, click.get_current_context())
 
 
-def list_commands(group: click.Group) -> None:
+def list_commands(group: click.Group, ctx: click.Context) -> None:
     """
     Display a formatted table of available commands and their descriptions.
 
@@ -247,6 +261,7 @@ def list_commands(group: click.Group) -> None:
 
     Args:
         group (click.Group): The click.Group object containing the commands to be listed.
+        ctx (click.Context): The click context object.
 
     Returns:
         None
@@ -261,25 +276,68 @@ def list_commands(group: click.Group) -> None:
         - The "Command" column has a fixed width of 20 characters and is styled with a "dim" color.
     """
     console = Console()
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Command", style="dim", width=20)
-    table.add_column("Description")
+    console.print(NIAMOTO_ASCII_ART, style="bold green")
 
-    for command in group.commands.values():
-        docstring = command.callback.__doc__
+    main_commands = [
+        "init", "import-all", "calculate-statistics", "generate-static-content", "deploy-static_files-site"
+    ]
+
+    other_commands = [
+        cmd for cmd in group.list_commands(ctx) if cmd not in main_commands
+    ]
+
+    # Get the list of main commands
+    main_commands_info = []
+    for cmd_name in main_commands:
+        cmd = group.get_command(ctx, cmd_name)
+        if cmd is None:
+            continue
+
+        # Extract the first line of the docstring as a description
+        docstring = cmd.callback.__doc__
         if docstring:
-            # Extract the first non-empty line of the docstring
-            description = next(
-                (line.strip() for line in docstring.split("\n") if line.strip()),
-                "No description",
-            )
+            description = docstring.strip().split("\n")[0]
         else:
-            description = "No description"
+            description = "No description provided"
 
-        table.add_row(command.name, description)
+        main_commands_info.append((cmd_name, description))
 
-    console.print("Available Commands:", style="italic underline")
-    console.print(table)
+    # Create the main command table with Rich
+    main_table = Table(show_header=True, header_style="bold magenta", box=box.SIMPLE)
+    main_table.add_column("Command", style="dim")
+    main_table.add_column("Description")
+    for cmd_name, description in main_commands_info:
+        main_table.add_row(cmd_name, description)
+
+    console.print("Main Commands:", style="italic underline")
+    console.print(main_table)
+
+    # Add other commands section
+    if other_commands:
+        other_commands_info = []
+        for cmd_name in other_commands:
+            cmd = group.get_command(ctx, cmd_name)
+            if cmd is None:
+                continue
+
+            # Extract the first line of the docstring as a description
+            docstring = cmd.callback.__doc__
+            if docstring:
+                description = docstring.strip().split("\n")[0]
+            else:
+                description = "No description provided"
+
+            other_commands_info.append((cmd_name, description))
+
+        # Create the other commands table with Rich
+        other_table = Table(show_header=True, header_style="bold magenta", box=box.SIMPLE)
+        other_table.add_column("Command", style="dim")
+        other_table.add_column("Description")
+        for cmd_name, description in other_commands_info:
+            other_table.add_row(cmd_name, description)
+
+        console.print("Other Commands:", style="italic underline")
+        console.print(other_table)
 
 
 @cli.command(name="import-taxonomy")
@@ -644,7 +702,7 @@ def import_all() -> None:
     occurrences_config = config.get("sources", "occurrences")
     occurrences_csvfile = occurrences_config.get("path")
     occurrences_taxon_identifier = occurrences_config.get("identifier")
-    occurrences_location_field = occurrences_config.get("source_location_field")
+    occurrences_location_field = occurrences_config.get("location_field")
     if not occurrences_csvfile or not os.path.exists(occurrences_csvfile):
         raise FileNotFoundError(
             f"Occurrences CSV file not found: {occurrences_csvfile}"
@@ -696,8 +754,6 @@ def reset_table(db_path: str, table_name: str) -> None:
     duckdb_connection = duckdb.connect(db_path)  # Connect directly to DuckDB
 
     try:
-        console.print(f"Resetting table {table_name}...", style="bold yellow")
-
         # Drop the table
         duckdb_connection.execute(f"DROP TABLE IF EXISTS {table_name}")
 
@@ -734,6 +790,9 @@ def reset_tables(db_path: str) -> None:
         Exception: If an error occurs during the reset process.
     """
     table_names = ["occurrences_plots", "occurrences", "plot_ref", "shape_ref", "taxon_ref"]
+
+    console = Console()
+    console.print("Initializing database...", style="italic green")
 
     for table_name in table_names:
         reset_table(db_path, table_name)

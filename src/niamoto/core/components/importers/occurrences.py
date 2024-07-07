@@ -1,12 +1,18 @@
 """
 A module for importing occurrence data from a CSV file into the database.
 """
+import json
+
 import duckdb
 import pandas as pd
 import sqlalchemy
 from typing import Any
+
+from geoalchemy2 import Geometry
 from rich.console import Console
 from rich.progress import Progress
+from shapely import wkt
+from shapely.geometry import mapping, shape
 
 from niamoto.core.utils.logging_utils import setup_logging
 
@@ -140,6 +146,7 @@ class OccurrenceImporter:
         Args:
             csvfile (str): Path to the CSV file to be imported.
             taxon_id_column (str): Name of the column in the CSV that corresponds to the taxon ID.
+            location_column (str): Name of the column in the CSV that corresponds to the location.
             only_existing_taxons (bool): If True, only import occurrences for existing taxons.
 
         Returns:
@@ -149,6 +156,7 @@ class OccurrenceImporter:
             ValueError: If the specified taxon ID column is not found in the CSV file.
         """
         try:
+            self.con.execute("LOAD spatial;")
             # Analyse the CSV file to get the schema
             column_schema = self.analyze_data(csvfile)
 
@@ -174,9 +182,15 @@ class OccurrenceImporter:
             self.con.execute(drop_table_sql)
 
             # Create the 'occurrences' table with the foreign key constraint
-            create_table_sql = (
-                f"CREATE TABLE IF NOT EXISTS occurrences ({columns_sql});"
-            )
+            # create_table_sql = (
+            #     f"CREATE TABLE IF NOT EXISTS occurrences ({columns_sql});"
+            # )
+            create_table_sql = f"""
+                    CREATE TABLE IF NOT EXISTS occurrences (
+                        {columns_sql},
+                        location VARCHAR
+                    );
+                    """
             self.con.execute(create_table_sql)
 
             df = pd.read_csv(csvfile, low_memory=False)
@@ -195,6 +209,28 @@ class OccurrenceImporter:
             # Add a 'taxon_ref_id' column
             df["taxon_ref_id"] = df[taxon_id_column]
 
+            def process_geometry(geom_string):
+                if pd.isna(geom_string):
+                    return None
+                try:
+                    if isinstance(geom_string, str) and geom_string.strip():
+                        if geom_string.startswith('{'):  # C'est probablement du GeoJSON
+                            geom = shape(json.loads(geom_string))
+                        else:  # On suppose que c'est du WKT
+                            geom = wkt.loads(geom_string)
+
+                        if not geom.is_valid:
+                            return None
+                        return geom.wkt  # Retournons du WKT valide
+                    else:
+                        return None
+                except Exception as e:
+                    print(f"Error processing geometry: {e}")
+                    return None
+
+            # Appliquer la fonction à la colonne de localisation
+            df['location'] = df[location_column].apply(process_geometry)
+
             # Define the size of each "chunk" for insertion
             chunk_size = 1000
             num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
@@ -209,6 +245,17 @@ class OccurrenceImporter:
                     chunk = df.iloc[i: i + chunk_size]
                     chunk.to_sql("occurrences", engine, if_exists="append", index=False)
                     progress.update(task, advance=1)
+
+            convert_to_geometry_sql = """
+                    ALTER TABLE occurrences
+                    ALTER COLUMN location TYPE GEOMETRY
+                    USING CASE 
+                        WHEN location IS NOT NULL AND location != '' 
+                        THEN ST_GeomFromText(location)
+                        ELSE NULL
+                    END;
+                    """
+            self.con.execute(convert_to_geometry_sql)
 
             # Count the number of valid imported occurrences
             count_sql = "SELECT COUNT(*) FROM occurrences;"
