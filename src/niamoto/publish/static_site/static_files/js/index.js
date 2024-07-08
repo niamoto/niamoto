@@ -68,31 +68,30 @@ function loadCharts(item, mapping) {
 
                     createGauge(gaugeOptions);
                 } else if (transformation.chart_type === 'bar') {
+                    var barData = {
+                        labels: Object.keys(item[field_key+'_'+ transformation.name] || {}),
+                        datasets: [{
+                            label: field.label,
+                            data: Object.values(item[field_key+'_'+ transformation.name] || {}),
+                            backgroundColor: getColor(0).background,
+                            borderColor: getColor(0).border,
+                            borderWidth: 1
+                        }]
+                    };
 
-                        var barData = {
-                            labels: Object.keys(item[field_key+'_'+ transformation.name] || {}),
-                            datasets: [{
-                                label: field.label,
-                                data: Object.values(item[field_key+'_'+ transformation.name] || {}),
-                                backgroundColor: getColor(0).background,
-                                borderColor: getColor(0).border,
-                                borderWidth: 1
-                            }]
-                        };
+                    var barConfig = {
+                        type: 'bar',
+                        data: barData,
+                        options: transformation.chart_options
+                    };
 
-                        var barConfig = {
-                            type: 'bar',
-                            data: barData,
-                            options: transformation.chart_options
-                        };
-
-                        var fieldKey = field_key + transformation.name;
-                        var barCtxElement = document.getElementById(fieldKey + 'BarChart');
-                        if (barCtxElement) {
-                            var barCtx = barCtxElement.getContext('2d');
-                            new Chart(barCtx, barConfig);
-                        }
+                    var fieldKey = field_key + transformation.name;
+                    var barCtxElement = document.getElementById(fieldKey + 'BarChart');
+                    if (barCtxElement) {
+                        var barCtx = barCtxElement.getContext('2d');
+                        new Chart(barCtx, barConfig);
                     }
+                }
             });
         }
     });

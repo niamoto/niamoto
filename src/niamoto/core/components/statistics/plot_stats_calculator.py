@@ -1,3 +1,6 @@
+"""
+Plot statistics calculator module.
+"""
 import time
 from collections import Counter
 from typing import List, Dict, Any, Hashable, Union
@@ -28,12 +31,19 @@ class PlotStatsCalculator(StatisticsCalculator):
         occurrences: list[dict[Hashable, Any]],
         group_by: str,
     ):
-        super().__init__(db, mapper_service, occurrences, group_by)
+        super().__init__(db, mapper_service, occurrences, group_by, log_component='plot_stats')
         self.plot_identifier = self.mapper_service.get_source_identifier("plots")
         self.plots_data = self.load_plots_data()
         self.source_filter = self.mapper_service.get_group_filter("plots")
 
     def load_plots_data(self) -> pd.DataFrame:
+        """
+        Load plot data from the source.
+
+        Returns:
+            pd.DataFrame: The plot data.
+
+        """
         plots_path = self.mapper_service.get_source_path("plots")
         gdf = gpd.read_file(plots_path)
         return gdf
@@ -53,7 +63,7 @@ class PlotStatsCalculator(StatisticsCalculator):
                 self.process_plot(plot)
 
         except Exception as e:
-            self.console.print(f"An error occurred: {e}", style="bold red")
+            self.logger.error(f"An error occurred: {e}")
         finally:
             total_time = time.time() - start_time
             self.console.print(
@@ -81,9 +91,7 @@ class PlotStatsCalculator(StatisticsCalculator):
             self.create_or_update_stats_entry(plot_id, stats)
 
         except Exception as e:
-            self.console.print(
-                f"Failed to process plot {plot.id}: {e}", style="bold red"
-            )
+            self.logger.error(f"Failed to process taxon {plot.id}: {e}")
 
     def calculate_stats(
         self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
@@ -211,7 +219,8 @@ class PlotStatsCalculator(StatisticsCalculator):
 
         return stats
 
-    def extract_coordinates_from_geometry(self, geometry: Any) -> Dict[str, Any]:
+    @staticmethod
+    def extract_coordinates_from_geometry(geometry: Any) -> Dict[str, Any]:
         """
         Extract coordinates from GeoDataFrame geometry.
 
@@ -245,6 +254,7 @@ class PlotStatsCalculator(StatisticsCalculator):
 
         Args:
             plot_id (int): The plot ID to get occurrences for.
+            source_filter (Dict[str, Any], optional): The source filter to apply.
 
         Returns:
             list[dict[Hashable, Any]]: The plot occurrences.

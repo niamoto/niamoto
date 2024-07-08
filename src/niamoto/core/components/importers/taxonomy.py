@@ -1,12 +1,16 @@
-import os
+"""
+This module contains the TaxonomyImporter class used to import taxonomy data from a CSV file into the database.
+"""
+import logging
+from typing import Tuple, Optional, Any
 
 import pandas as pd
-from typing import Tuple, Optional, Any
 from rich.progress import track
 from sqlalchemy import func
-from niamoto.core.models import TaxonRef
+
 from niamoto.common.database import Database
-import logging
+from niamoto.core.models import TaxonRef
+from niamoto.core.utils.logging_utils import setup_logging
 
 
 class TaxonomyImporter:
@@ -25,18 +29,7 @@ class TaxonomyImporter:
             db (Database): The database connection.
         """
         self.db = db
-        # Ensure the logs directory exists
-        log_directory = "logs"
-        if not os.path.exists(log_directory):
-            os.makedirs(log_directory)
-
-        # Configure logging to write to a file in the logs directory
-        log_file_path = os.path.join(log_directory, "taxonomy_import.log")
-        logging.basicConfig(
-            filename=log_file_path,
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-        )
+        self.logger = setup_logging(component_name='taxonomy_import')
 
     def import_from_csv(self, file_path: str, ranks: Tuple[str, ...]) -> str:
         """
@@ -130,8 +123,7 @@ class TaxonomyImporter:
                 session.commit()
                 self._update_nested_set_values(session)
 
-    @staticmethod
-    def _create_or_update_taxon(row: Any, session: Any) -> Optional[TaxonRef]:
+    def _create_or_update_taxon(self, row: Any, session: Any) -> Optional[TaxonRef]:
         """
         Create or update a taxon.
 
@@ -163,7 +155,7 @@ class TaxonomyImporter:
             session.flush()
             return taxon
         except Exception as e:
-            logging.info(f"Duplicate key for id_taxon: {taxon_id} - {e}")
+            self.logger.info(f"Duplicate key for id_taxon: {taxon_id} - {e}")
             session.rollback()
             return None
 
@@ -183,6 +175,25 @@ class TaxonomyImporter:
         taxon_dict = {taxon.id: taxon for taxon in taxons}
 
         def traverse(taxon_id: int, _left: int, level: int) -> int:
+            """
+            Traverse the taxonomy tree to update left and right values for nested set representation.
+
+            This recursive function traverses the taxonomy tree starting from a given taxon, updating
+            the 'lft' and 'rght' values of each taxon to represent the tree in a nested set model. This
+            model facilitates efficient tree queries.
+
+            Args:
+                taxon_id (int): The ID of the current taxon being traversed.
+                _left (int): The current left value to be assigned to the taxon.
+                level (int): The current depth level in the taxonomy tree.
+
+            Returns:
+                int: The next right value to be used in the traversal.
+
+            The traversal uses a depth-first search approach, incrementing the left value for each taxon,
+            then recursively calling itself for each child, and finally setting the right value. This
+            method allows for the entire tree structure to be represented linearly in two dimensions.
+            """
             taxon = taxon_dict[taxon_id]
             taxon.lft = _left
             taxon.level = level
