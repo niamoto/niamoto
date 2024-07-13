@@ -10,13 +10,12 @@ import numpy as np
 import pandas as pd
 import pyproj
 import rasterio
-from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
 from rasterio.features import rasterize
 from rasterio.mask import mask
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 from rtree import index
-from shapely import MultiPolygon, GeometryCollection, Polygon, simplify, transform, polygonize, make_valid, unary_union
+from shapely import MultiPolygon, GeometryCollection, Polygon, polygonize, make_valid, unary_union
 from shapely.errors import WKTReadingError
 from shapely.geometry import mapping, Point
 from shapely.prepared import prep
@@ -45,7 +44,6 @@ class ShapeStatsCalculator(StatisticsCalculator):
             group_by: str
     ):
         super().__init__(db, mapper_service, occurrences, group_by, log_component='shape_stats')
-        self.shape_cache = {}
 
     def calculate_shape_stats(self) -> None:
         """
@@ -74,7 +72,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         finally:
             total_time = time.time() - start_time
             self.console.print(
-                f"Total processing time: {total_time:.2f} seconds", style="italic blue"
+                f"⏱ Total processing time: {total_time:.2f} seconds", style="italic blue"
             )
 
     def process_shape(self, shape_ref: ShapeRef) -> None:
@@ -289,8 +287,20 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         elif layer_type == 'vector':
             gdf = gpd.read_file(layer_path)
-            shape_gdf = shape_gdf.to_crs(gdf.crs)
+
+            # Ensure both GeoDataFrames are in the same CRS
+            if gdf.crs != shape_gdf.crs:
+                shape_gdf = shape_gdf.to_crs(gdf.crs)
+
+            # Clip the layer to the shape geometry
             clipped = gpd.clip(gdf, shape_gdf)
+
+            # Remove any invalid geometries
+            clipped = clipped[clipped.geometry.is_valid]
+
+            # Remove any empty geometries
+            clipped = clipped[~clipped.geometry.is_empty]
+
             return clipped
 
         return gpd.GeoDataFrame()
@@ -310,11 +320,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
             # Attempt to make the geometry valid
             if not geometry.is_valid:
-                self.logger.warning(f"Invalid geometry detected. Attempting to fix...")
+                self.logger.warning("Invalid geometry detected. Attempting to fix...")
                 geometry = make_valid(geometry)
 
             if not geometry.is_valid:
-                self.logger.warning(f"Geometry still invalid after make_valid(). Attempting buffer(0)...")
+                self.logger.warning("Geometry still invalid after make_valid(). Attempting buffer(0)...")
                 geometry = geometry.buffer(0)
 
             if isinstance(geometry, GeometryCollection):
@@ -348,7 +358,10 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     boundary = geometry.boundary
                     if boundary.is_valid:
                         fixed_polygons = list(polygonize(boundary))
-                        geometry = MultiPolygon(fixed_polygons)
+                        if len(fixed_polygons) == 1:
+                            geometry = fixed_polygons[0]
+                        else:
+                            geometry = MultiPolygon(fixed_polygons)
 
             # Calculate area in km²
             geod = pyproj.Geod(ellps="WGS84")
@@ -360,8 +373,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 tolerance = 0.001 * (area_km2 ** 0.5)
                 geometry = geometry.simplify(tolerance, preserve_topology=True)
 
-                if not isinstance(geometry, MultiPolygon):
+                if isinstance(geometry, Polygon):
+                    self.logger.info(f"Geometry simplified. New vertex count: {len(geometry.exterior.coords)}")
+                elif isinstance(geometry, MultiPolygon):
                     total_vertices = sum(len(poly.exterior.coords) for poly in geometry.geoms)
+                    self.logger.info(f"Geometry simplified. New total vertex count: {total_vertices}")
 
             # Create a GeoDataFrame with the geometry and set its CRS
             gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
@@ -370,7 +386,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             gdf = gdf[gdf['geometry'].is_valid]
 
             if gdf.empty:
-                self.logger.warning(f"Shape became invalid after cleaning.")
+                self.logger.warning("Shape became invalid after cleaning.")
                 return gpd.GeoDataFrame()
 
             return gdf
@@ -474,19 +490,28 @@ class ShapeStatsCalculator(StatisticsCalculator):
         Returns:
             float: The effective mesh size in square kilometers.
         """
+
+        # Reproject the GeoDataFrame to a suitable UTM coordinate system
         gdf_proj = gdf.to_crs(gdf.estimate_utm_crs())
 
-        # Convert to hectares first
+        # Convert area to hectares (1 hectare = 10,000 square meters)
         areas_ha = gdf_proj.area / 10000
 
+        # Calculate the total area in hectares
         total_area = areas_ha.sum()
+
+        # Calculate the sum of squared areas
         sum_squared_areas = (areas_ha ** 2).sum()
 
         if total_area > 0:
+            # Calculate the Effective Mesh Size (MEFF) in hectares
             meff = sum_squared_areas / total_area
+
+            # Convert MEFF from hectares to square kilometers (1 km² = 100 ha)
             meff_km2 = meff / 100
             return meff_km2
         else:
+            # Log a warning if the total area is zero and return 0
             self.logger.warning("Total area is zero")
             return 0.0
 
@@ -505,26 +530,20 @@ class ShapeStatsCalculator(StatisticsCalculator):
         # Ensure we're working with a copy to avoid modifying the original
         gdf = gdf.copy()
 
-        # Check if we have a 'geometry' column
         if 'geometry' not in gdf.columns:
             self.logger.warning("No geometry column found in the GeoDataFrame")
             return {}
 
-        # Project to UTM
         gdf_proj = gdf.to_crs(gdf.estimate_utm_crs())
-
-        # Calculate areas in hectares
         gdf_proj['area_ha'] = gdf_proj.geometry.area / 10000
 
-        # Sort areas in descending order
-        fragment_areas = gdf_proj['area_ha'].sort_values(ascending=False)
-
+        fragment_areas = gdf_proj['area_ha'].sort_values(ascending=True)
         total_area = fragment_areas.sum()
+
         if total_area == 0:
             self.logger.warning("Total area is zero")
             return {}
 
-        # Get bins from configuration
         bins = next(
             (t['chart_options']['bins'] for t in field_config['transformations']
              if t['name'] == 'fragment_size_distribution'),
@@ -536,12 +555,14 @@ class ShapeStatsCalculator(StatisticsCalculator):
             return {}
 
         bin_areas = {str(bin_val): 0.0 for bin_val in bins}
-
         cumulative_area = 0.0
+        last_bin = 0
 
         for bin_val in bins:
-            cumulative_area += fragment_areas[fragment_areas <= bin_val].sum()
-            bin_areas[str(bin_val)] = cumulative_area / total_area
+            bin_sum = fragment_areas[(fragment_areas > last_bin) & (fragment_areas <= bin_val)].sum()
+            cumulative_area += bin_sum
+            bin_areas[str(bin_val)] = cumulative_area / total_area * 100  # Convert to percentage
+            last_bin = bin_val
 
         return bin_areas
 

@@ -20,14 +20,12 @@ class CustomFilter(logging.Filter):
             bool: True if the record should be logged, False otherwise.
 
         """
-        if any(msg in record.getMessage() for msg in [
+        return not any(msg in record.getMessage() for msg in [
             'Empty GeoDataFrame',
             'No data found within the shape',
             'does not overlap with raster',
             'Expecting property name enclosed in double quotes'
-        ]):
-            return False
-        return True
+        ])
 
 
 def setup_logging(log_directory='logs', component_name=None):

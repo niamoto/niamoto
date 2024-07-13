@@ -50,7 +50,7 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
         finally:
             total_time = time.time() - start_time
             self.console.print(
-                f"Total processing time: {total_time:.2f} seconds", style="italic blue"
+                f"⏱ Total processing time: {total_time:.2f} seconds", style="italic blue"
             )
 
     def process_taxon(self, taxon: TaxonRef) -> None:

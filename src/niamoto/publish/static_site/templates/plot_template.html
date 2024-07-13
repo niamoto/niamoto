@@ -281,13 +281,10 @@
             attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
         });
         const map = L.map('plotMap', {
-            center: [-21.291237, 165.516418],
-            minZoom: 6,
-            maxZoom: 18,
             layers: [carte, satellite],
             scrollWheelZoom: false
         });
-        map.attributionControl.setPrefix(false); // Pour supprimer complètement le préfixe "Powered by Leaflet"
+        map.attributionControl.setPrefix(false); // Remove the "Powered by Leaflet" prefix
         map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
 
         const baseMaps = {
@@ -302,10 +299,21 @@
         });
 
         if (geometry) {
-            const geoJsonLayer = L.geoJSON(geometry).addTo(map);
+            const geoJsonLayer = L.geoJSON(geometry, {
+                style: function() {
+                    return {
+                        color: '#228b22', // Border color
+                        weight: 2,       // Border width
+                        fillColor: '#228b22cc', // Fill color with opacity
+                        fillOpacity: 0.8 // Fill opacity
+                    };
+                }
+            }).addTo(map);
             map.fitBounds(geoJsonLayer.getBounds());
         } else {
             console.warn("No geographic coordinates found.");
+            // Set default view if no geometry is found
+            map.setView([-21.291237, 165.516418], 10);
         }
     }
 

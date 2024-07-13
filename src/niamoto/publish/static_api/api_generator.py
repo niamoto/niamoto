@@ -1,9 +1,12 @@
 import json
 import os
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union, cast
+
+from shapely import wkt
+from shapely.geometry import mapping
 
 from niamoto.common.config import Config
-from niamoto.core.models import TaxonRef, PlotRef
+from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from niamoto.publish.common.base_generator import BaseGenerator
 
 
@@ -20,7 +23,7 @@ class ApiGenerator(BaseGenerator):
             config (Config): An instance of Config containing configuration settings.
         """
         self.config = config
-        self.json_output_dir = os.path.join(self.config.get("outputs", "static_api"))
+        self.json_output_dir: str = cast(str, os.path.join(self.config.get("outputs", "static_api")))
 
     def generate_taxon_json(self, taxon: TaxonRef, stats: Optional[Any]) -> str:
         """
@@ -58,6 +61,31 @@ class ApiGenerator(BaseGenerator):
         output_path = os.path.join(plot_output_dir, f"{plot.id}.json")
         with open(output_path, "w") as file:
             json.dump(plot_dict, file, indent=4)
+        return output_path
+
+    def generate_shape_json(self, shape: ShapeRef, stats: Optional[Any]) -> str:
+        """
+        Generates a JSON file for a given shape object.
+
+        Args:
+            shape (niamoto.core.models.models.ShapeRef): The shape object for which the JSON file is generated.
+            stats (dict, optional): A dictionary containing statistics for the shape.
+
+        Returns:
+            str: The path of the generated JSON file.
+        """
+        # Convert WKT to GeoJSON
+        geometry = wkt.loads(shape.location)
+        geojson_geometry = mapping(geometry)
+
+        shape_dict = self.shape_to_dict(shape, stats)
+        shape_dict["geometry"] = geojson_geometry
+
+        shape_output_dir = os.path.join(self.json_output_dir, "shape")
+        os.makedirs(shape_output_dir, exist_ok=True)
+        output_path = os.path.join(shape_output_dir, f"{shape.id}.json")
+        with open(output_path, "w") as file:
+            json.dump(shape_dict, file, indent=4)
         return output_path
 
     def generate_all_taxa_json(self, taxa: List[TaxonRef]) -> str:
@@ -98,6 +126,25 @@ class ApiGenerator(BaseGenerator):
             json.dump(output_data, file, indent=4)
         return output_path
 
+    def generate_all_shapes_json(self, shapes: List[ShapeRef]) -> str:
+        """
+        Generates a JSON file that contains all shape objects in a simplified format,
+        along with the total number of shapes.
+
+        Args:
+            shapes (list of niamoto.core.models.models.ShapeRef): A list of shape objects.
+
+        Returns:
+            str: The path of the generated JSON file.
+        """
+        all_shapes = [self.shape_to_simple_dict(shape) for shape in shapes]
+        output_data = {"total": len(all_shapes), "shapes": all_shapes}
+        os.makedirs(self.json_output_dir, exist_ok=True)
+        output_path = os.path.join(self.json_output_dir, "all_shapes.json")
+        with open(output_path, "w") as file:
+            json.dump(output_data, file, indent=4)
+        return output_path
+
     @staticmethod
     def taxon_to_simple_dict(taxon: TaxonRef) -> dict:
         """
@@ -130,4 +177,22 @@ class ApiGenerator(BaseGenerator):
             "id": plot.id,
             "name": plot.locality,
             "endpoint": f"/api/plot/{plot.id}.json",
+        }
+
+    @staticmethod
+    def shape_to_simple_dict(shape: ShapeRef) -> dict:
+        """
+        Converts a ShapeRef object to a simplified dictionary.
+
+        Args:
+            shape (niamoto.core.models.models.ShapeRef): The shape object to convert.
+
+        Returns:
+            dict: A dictionary representation of the shape.
+        """
+        return {
+            "id": shape.id,
+            "name": shape.label,
+            "type": shape.type,
+            "endpoint": f"/api/shape/{shape.id}.json",
         }

@@ -67,7 +67,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         finally:
             total_time = time.time() - start_time
             self.console.print(
-                f"Total processing time: {total_time:.2f} seconds", style="italic blue"
+                f"⏱ Total processing time: {total_time:.2f} seconds", style="italic blue"
             )
 
     def process_plot(self, plot: PlotRef) -> None:
@@ -91,7 +91,7 @@ class PlotStatsCalculator(StatisticsCalculator):
             self.create_or_update_stats_entry(plot_id, stats)
 
         except Exception as e:
-            self.logger.error(f"Failed to process taxon {plot.id}: {e}")
+            self.logger.error(f"Failed to process plot {plot.id}: {e}")
 
     def calculate_stats(
         self, group_id: int, group_occurrences: list[dict[Hashable, Any]]

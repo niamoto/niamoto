@@ -2,17 +2,15 @@
 A module for importing occurrence data from a CSV file into the database.
 """
 import json
+from typing import Any
 
 import duckdb
 import pandas as pd
 import sqlalchemy
-from typing import Any
-
-from geoalchemy2 import Geometry
 from rich.console import Console
 from rich.progress import Progress
 from shapely import wkt
-from shapely.geometry import mapping, shape
+from shapely.geometry import shape
 
 from niamoto.core.utils.logging_utils import setup_logging
 
