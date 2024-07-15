@@ -1,7 +1,6 @@
 """
 This module contains the TaxonomyImporter class used to import taxonomy data from a CSV file into the database.
 """
-import logging
 from typing import Tuple, Optional, Any
 
 import pandas as pd
@@ -29,7 +28,7 @@ class TaxonomyImporter:
             db (Database): The database connection.
         """
         self.db = db
-        self.logger = setup_logging(component_name='taxonomy_import')
+        self.logger = setup_logging(component_name="taxonomy_import")
 
     def import_from_csv(self, file_path: str, ranks: Tuple[str, ...]) -> str:
         """

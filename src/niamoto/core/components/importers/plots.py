@@ -2,7 +2,7 @@
 This module contains the PlotImporter class, which is used to import plot data from a GeoPackage file into the database.
 """
 import geopandas as gpd  # type: ignore
-from shapely.wkt import dumps  # type: ignore
+from shapely.wkt import dumps
 
 from niamoto.common.database import Database
 from niamoto.core.models import PlotRef
@@ -25,9 +25,11 @@ class PlotImporter:
             db (Database): The database connection.
         """
         self.db = db
-        self.logger = setup_logging(component_name='plots_import')
+        self.logger = setup_logging(component_name="plots_import")
 
-    def import_from_gpkg(self, gpkg_path: str, identifier: str, location_field: str) -> str:
+    def import_from_gpkg(
+        self, gpkg_path: str, identifier: str, location_field: str
+    ) -> str:
         """
         Import plot data from a GeoPackage file.
 
@@ -47,7 +49,9 @@ class PlotImporter:
         try:
             for index, row in plots_data.iterrows():
                 # Convert Shapely geometry to WKT
-                wkt_geometry = dumps(row[location_field]) if row[location_field] else None
+                wkt_geometry = (
+                    dumps(row[location_field]) if row[location_field] else None
+                )
 
                 existing_plot = (
                     self.db.session.query(PlotRef)
@@ -57,7 +61,7 @@ class PlotImporter:
 
                 if not existing_plot:
                     plot = PlotRef(
-                        id=row[identifier],
+                        id_locality=row[identifier],
                         locality=row["locality"],
                         geometry=wkt_geometry,
                     )

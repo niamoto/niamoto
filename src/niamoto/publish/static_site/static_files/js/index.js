@@ -213,7 +213,6 @@ function initMap() {
             break;
         }
     }
-    console.log("Coordinates field: " + coordinatesField)
     if (coordinatesField) {
         var geoPoints = taxon[coordinatesField];
 

@@ -54,12 +54,10 @@ class StatisticService:
                     group_by = group_config["group_by"]
                     self.calculate_group_statistics(occurrences, group_by)
         except Exception as e:
-            logger.exception(
-                f"Error calculating statistics: {e}"
-            )
+            logger.exception(f"Error calculating statistics: {e}")
 
     def calculate_group_statistics(
-            self, occurrences: list[dict[Hashable, Any]], group_by: str
+        self, occurrences: list[dict[Hashable, Any]], group_by: Optional[str]
     ) -> None:
         """
         Calculate group statistics for a given list of occurrences and a group by parameter.
@@ -88,7 +86,7 @@ class StatisticService:
                 shape_calculator.calculate_shape_stats()
 
     def get_occurrences(
-            self, group_by: Optional[str], csv_file: Optional[str]
+        self, group_by: Optional[str], csv_file: Optional[str]
     ) -> list[dict[Hashable, Any]]:
         """
         Retrieves occurrences either from a CSV file or from the database.
@@ -138,7 +136,7 @@ class StatisticService:
         return occurrences
 
     def load_occurrences_from_database(
-            self, table_name: Optional[Any]
+        self, table_name: Optional[Any]
     ) -> list[dict[Hashable, Any]]:
         """
         Loads occurrences from the database.

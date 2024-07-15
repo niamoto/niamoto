@@ -17,21 +17,17 @@ import click
 import duckdb
 from loguru import logger
 from rich.console import Console
-from rich.progress import track
 from rich.table import Table
 from rich import box
-from sqlalchemy import asc, text
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.environment import Environment
-from niamoto.core.models import TaxonRef, Base, PlotRef
-from niamoto.core.repositories.niamoto_repository import NiamotoRepository
+from niamoto.core.models import Base
 from niamoto.core.services.generator import GeneratorService
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.services.mapper import MapperService
 from niamoto.core.services.statistics import StatisticService
-from niamoto.publish.static_api.api_generator import ApiGenerator
 
 NIAMOTO_ASCII_ART = """
 ┳┓┳┏┓┳┳┓┏┓┏┳┓┏┓
@@ -39,10 +35,12 @@ NIAMOTO_ASCII_ART = """
 ┛┗┻┛┗┛ ┗┗┛ ┻ ┗┛                                
 """
 
+
 class RichCLI(click.Group):
     """
     Custom Click Group class that provides a richly formatted CLI interface.
     """
+
     def list_commands(self, ctx: click.Context) -> List[str]:
         """
         Return the list of command names as they were added, not sorted.
@@ -94,7 +92,11 @@ class RichCLI(click.Group):
         formatter.write(capture.get())
 
         main_commands = [
-            "init", "import-all", "calculate-statistics", "generate-static-content", "deploy-static_files-site"
+            "init",
+            "import-all",
+            "calculate-statistics",
+            "generate-content",
+            "deploy-static_files-site",
         ]
 
         other_commands = [
@@ -279,7 +281,11 @@ def list_commands(group: click.Group, ctx: click.Context) -> None:
     console.print(NIAMOTO_ASCII_ART, style="bold green")
 
     main_commands = [
-        "init", "import-all", "calculate-statistics", "generate-static-content", "deploy-static_files-site"
+        "init",
+        "import-all",
+        "calculate-statistics",
+        "generate-content",
+        "deploy-static_files-site",
     ]
 
     other_commands = [
@@ -330,7 +336,9 @@ def list_commands(group: click.Group, ctx: click.Context) -> None:
             other_commands_info.append((cmd_name, description))
 
         # Create the other commands table with Rich
-        other_table = Table(show_header=True, header_style="bold magenta", box=box.SIMPLE)
+        other_table = Table(
+            show_header=True, header_style="bold magenta", box=box.SIMPLE
+        )
         other_table.add_column("Command", style="dim")
         other_table.add_column("Description")
         for cmd_name, description in other_commands_info:
@@ -469,7 +477,9 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     reset_table(db_path, "plot_ref")
 
     data_importer = ImporterService(db_path)
-    import_plots_result = data_importer.import_plots(csvfile, plot_identifier, location_field)
+    import_plots_result = data_importer.import_plots(
+        csvfile, plot_identifier, location_field
+    )
     console = Console()
     console.print(import_plots_result, style="italic green")
 
@@ -487,7 +497,7 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     help="Name of the column in the CSV that corresponds to the location data.",
 )
 def import_occurrences(
-        csvfile: str, taxon_identifier: str, location_field: str
+    csvfile: str, taxon_identifier: str, location_field: str
 ) -> None:
     """
     Import occurrence data from a CSV file, analyze it to update the 'mapping' table,
@@ -789,7 +799,13 @@ def reset_tables(db_path: str) -> None:
     Raises:
         Exception: If an error occurs during the reset process.
     """
-    table_names = ["occurrences_plots", "occurrences", "plot_ref", "shape_ref", "taxon_ref"]
+    table_names = [
+        "occurrences_plots",
+        "occurrences",
+        "plot_ref",
+        "shape_ref",
+        "taxon_ref",
+    ]
 
     console = Console()
     console.print("Initializing database...", style="italic green")
@@ -821,10 +837,10 @@ def reset_tables(db_path: str) -> None:
     help="The path to the reference table file (e.g., GeoPackage).",
 )
 def generate_mapping(
-        data_source: str,
-        mapping_group: str,
-        reference_table_name: Optional[str],
-        reference_data_path: Optional[str],
+    data_source: str,
+    mapping_group: str,
+    reference_table_name: Optional[str],
+    reference_data_path: Optional[str],
 ) -> None:
     """
     Generate a mapping from a CSV file based on the specified grouping criteria.
@@ -877,13 +893,13 @@ def generate_mapping(
     "--csv-file",
     type=str,
     help="Path to the CSV file containing the occurrences. If not provided, the source_table_name from the mapping "
-         "will be used.",
+    "will be used.",
 )
 @click.option(
     "--mapping-group",
     type=str,
     help="The specific group to calculate statistics for. If not provided, statistics will be calculated for all "
-         "groups.",
+    "groups.",
 )
 def calculate_statistics(csv_file: Optional[str], mapping_group: Optional[str]) -> None:
     """
@@ -923,116 +939,61 @@ def calculate_statistics(csv_file: Optional[str], mapping_group: Optional[str]) 
     except Exception as e:
         if "Could not set lock on file" in str(e):
             console = Console()
-            console.print("Error: Database is currently locked by another process.", style="bold red")
+            console.print(
+                "Error: Database is currently locked by another process.",
+                style="bold red",
+            )
         else:
             console = Console()
             console.print(f"Error while calculating statistics: {e}", style="bold red")
 
 
-@cli.command(name="generate-static-content")
-def generate_static_content() -> None:
+@cli.command(name="generate-content")
+@click.option(
+    "--mapping-group",
+    type=str,
+    help="The specific group to generate content for. If not provided, content will be generated for all groups.",
+)
+def generate_content(mapping_group: Optional[str]) -> None:
     """
-    Generate static_files web pages for each taxon in the database.
+    Generate static web pages for each group in the database.
 
-    This command retrieves all taxons from the database, ordered by their full name,
-    and generates a static_files web page for each taxon using the `SiteGeneratorAPI`.
-    It also generates a JavaScript file for the taxonomy tree using the `PageGenerator`.
+    This command generates static web pages for a specific group or all groups in the database.
+    The mapping file used for the content generation is specified in the configuration.
 
-    The generated static_files site includes individual pages for each taxon, displaying relevant
-    information and data associated with the taxon. The taxonomy tree JavaScript file
-    provides an interactive hierarchical representation of the taxonomic structure.
+    Args:
+        mapping_group (str, optional): The specific group to generate content for.
+                                       If not provided, content will be generated for all groups.
 
     Examples:
-        $ niamoto generate-static_files-site
+        $ niamoto generate-static-content
+        $ niamoto generate-static-content --mapping-group taxon
+        $ niamoto generate-static-content --mapping-group plot
 
-    Returns:
-        None
+    Raises:
+        Exception: If an error occurs during the content generation process.
 
     Note:
-        - The generated static_files site files are stored in the configured output directory.
+        - The generated static site files are stored in the configured output directory.
         - The database connection settings are retrieved from the configuration file.
-        - The command may take some time to complete, depending on the number of taxons in the database.
+        - The command may take some time to complete, depending on the number of groups in the database.
     """
-    # Record the start time
-    start_time = time.time()
+    try:
+        start_time = time.time()
+        config = Config()
+        generator_service = GeneratorService(config)
+        generator_service.generate_content(mapping_group)
 
-    # Create a ConfigManager instance to manage configuration
-    config_manager = Config()
+        duration = time.time() - start_time
+        console = Console()
+        console.print(
+            f"🌱 Content generation completed in {duration:.2f} seconds.",
+            style="italic green",
+        )
 
-    # Get the database path from the configuration
-    db_path = config_manager.get("database", "path")
-
-    repository = NiamotoRepository(db_path)
-
-    # Get all Taxon entities from the repository, ordered by their full name
-
-    page_generator = GeneratorService(config=config_manager)
-    api_generator = ApiGenerator(config=config_manager)
-
-    # Generate static pages
-    page_generator.generate_page("index.html", "index.html", depth="")
-    page_generator.generate_page("methodology.html", "methodology.html", depth="")
-    page_generator.generate_page("resources.html", "resources.html", depth="")
-    page_generator.generate_page("construction.html", "construction.html", depth="")
-
-    mapping_service = MapperService(db_path)
-
-    plots = repository.get_entities(PlotRef, order_by=asc(PlotRef.id))
-    plot_mapping_group = mapping_service.get_group_config("plot")
-    # Generate a page for each plot
-    for plot in track(plots, description="Generating plot pages"):
-        with repository.db.engine.connect() as connection:
-            result = connection.execute(
-                text("SELECT * FROM plot_stats WHERE plot_id = :plot_id"),
-                {"plot_id": plot.id},
-            )
-            plot_stats_row = result.fetchone()
-
-            if plot_stats_row:
-                plot_stats_dict = dict(zip(result.keys(), plot_stats_row))
-            else:
-                plot_stats_dict = {}
-
-            page_generator.generate_page_for_plot(
-                plot, plot_stats_dict, plot_mapping_group
-            )
-            api_generator.generate_plot_json(plot, plot_stats_dict)
-
-    taxons = repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
-    mapping_group = mapping_service.get_group_config("taxon")
-    # Generate a page for each taxon
-    for taxon in track(taxons, description="Generating taxon pages"):
-        with repository.db.engine.connect() as connection:
-            result = connection.execute(
-                text("SELECT * FROM taxon_stats WHERE taxon_id = :taxon_id"),
-                {"taxon_id": taxon.id},
-            )
-            taxon_stats_row = result.fetchone()
-
-            if taxon_stats_row:
-                taxon_stats_dict = dict(zip(result.keys(), taxon_stats_row))
-            else:
-                taxon_stats_dict = {}
-
-            page_generator.generate_page_for_taxon(
-                taxon, taxon_stats_dict, mapping_group
-            )
-            page_generator.generate_json_for_taxon(taxon, taxon_stats_dict)
-            api_generator.generate_taxon_json(taxon, taxon_stats_dict)
-
-    # Generate the taxonomy tree
-    page_generator.generate_taxonomy_tree(taxons)
-    page_generator.generate_plot_list(plots)
-    api_generator.generate_all_taxa_json(taxons)
-    api_generator.generate_all_plots_json(plots)
-
-    repository.close_session()
-    duration = time.time() - start_time
-    console = Console()
-    console.print(
-        f"🌱 Generated {len(taxons)} pages in {duration:.2f} seconds.",
-        style="italic green",
-    )
+    except Exception as e:
+        console = Console()
+        console.print(f"Error while generating static content: {e}", style="bold red")
 
 
 @cli.command(name="deploy-static-content")
@@ -1053,7 +1014,7 @@ def generate_static_content() -> None:
 )
 @click.option("--site-id", help="Netlify site ID (required if provider is 'netlify').")
 def deploy(
-        output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
+    output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
 ) -> None:
     """
     Deploy generated static_site and static_api to the specified provider (GitHub Pages or Netlify).

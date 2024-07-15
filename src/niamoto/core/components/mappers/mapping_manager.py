@@ -81,7 +81,11 @@ class MappingManager:
             List[Dict[str, Any]]: The mapping.
         """
         config = self.get_config()
-        return config.get('aggregations', [])
+        aggregations = config.get("aggregations", [])
+        if isinstance(aggregations, list) and all(isinstance(item, dict) for item in aggregations):
+            return aggregations
+        else:
+            return []
 
     @staticmethod
     def add_aggregation(field: str) -> str:
@@ -109,7 +113,11 @@ class MappingManager:
         if os.path.exists(config_path):
             with open(config_path, "r") as config_file:
                 config_data = yaml.safe_load(config_file) or {}
-                return config_data.get("sources", {})
+                sources = config_data.get("sources", {})
+                if isinstance(sources, dict):
+                    return sources
+                else:
+                    return {}  # Ensure a dict is returned even if "sources" is not a dict
         else:
             return {}
 
@@ -154,7 +162,11 @@ class MappingManager:
             List[Dict[str, Any]]: A list of layer configurations.
         """
         config = self.get_config()
-        return config.get('layers', [])
+        layers = config.get("layers", [])
+        if isinstance(layers, list) and all(isinstance(item, dict) for item in layers):
+            return layers
+        else:
+            return []  # Ensure a list of dictionaries is returned even if "layers" is not a list of dictionaries
 
     def get_layer(self, layer_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -167,7 +179,7 @@ class MappingManager:
             Optional[Dict[str, Any]]: The layer configuration if found, None otherwise.
         """
         layers = self.get_layers()
-        return next((layer for layer in layers if layer['name'] == layer_name), None)
+        return next((layer for layer in layers if layer["name"] == layer_name), None)
 
     def add_layer(self, layer_config: Dict[str, Any]) -> None:
         """
@@ -177,9 +189,9 @@ class MappingManager:
             layer_config (Dict[str, Any]): The configuration of the new layer.
         """
         config = self.get_config()
-        if 'layers' not in config:
-            config['layers'] = []
-        config['layers'].append(layer_config)
+        if "layers" not in config:
+            config["layers"] = []
+        config["layers"].append(layer_config)
         self._save_config(config)
 
     def update_layer(self, layer_name: str, layer_config: Dict[str, Any]) -> None:
@@ -191,9 +203,9 @@ class MappingManager:
             layer_config (Dict[str, Any]): The new configuration for the layer.
         """
         config = self.get_config()
-        layers = config.get('layers', [])
+        layers = config.get("layers", [])
         for i, layer in enumerate(layers):
-            if layer['name'] == layer_name:
+            if layer["name"] == layer_name:
                 layers[i] = layer_config
                 break
         self._save_config(config)
@@ -208,14 +220,16 @@ class MappingManager:
         """
         config_path = os.path.join(os.getcwd(), "config.yml")
         with open(config_path, "w") as config_file:
-            yaml.safe_dump(config, config_file, default_flow_style=False, sort_keys=False)
+            yaml.safe_dump(
+                config, config_file, default_flow_style=False, sort_keys=False
+            )
 
     def generate_mapping(
-            self,
-            csvfile: str,
-            group_by: str,
-            reference_table_name: Optional[str] = None,
-            reference_data_path: Optional[str] = None,
+        self,
+        csvfile: str,
+        group_by: str,
+        reference_table_name: Optional[str] = None,
+        reference_data_path: Optional[str] = None,
     ) -> None:
         """
         Generate a mapping from a CSV file.
@@ -360,7 +374,7 @@ class MappingManager:
         return []
 
     def get_transforms_and_bins(
-            self, con: DuckDBPyConnection, column_name: str, column_type: Any
+        self, con: DuckDBPyConnection, column_name: str, column_type: Any
     ) -> tuple[list[dict[str, str]], Collection[str]]:
         """
         Get the transforms and bins for a column.
@@ -391,10 +405,10 @@ class MappingManager:
 
     @staticmethod
     def calculate_default_bins(
-            con: DuckDBPyConnection,
-            column_name: str,
-            column_type: str,
-            num_intervals: int = 6,
+        con: DuckDBPyConnection,
+        column_name: str,
+        column_type: str,
+        num_intervals: int = 6,
     ) -> Dict[str, Any]:
         """
         Calculate the default bins for a column.

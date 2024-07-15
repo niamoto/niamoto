@@ -85,6 +85,7 @@ class PlotRef(Base):
 
     id_seq: Sequence = Sequence("plot_id_seq")
     id = Column(BIGINT, id_seq, server_default=id_seq.next_value(), primary_key=True)
+    id_locality = Column(BIGINT, nullable=False)
     locality = Column(String, nullable=False)
     geometry = Column(String)
 
@@ -112,8 +113,10 @@ class ShapeRef(Base):
         Index("ix_shape_ref_id", "id"),
         Index("ix_shape_ref_label", "label"),
         Index("ix_shape_ref_type", "type"),
-        Index("ix_shape_ref_label_type", "label", "type", unique=True),  # Unique constraint on label and type
+        Index(
+            "ix_shape_ref_label_type", "label", "type", unique=True
+        ),  # Unique constraint on label and type
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<ShapeRef(id={self.id}, label='{self.label}', type='{self.type}', location='{self.location[:30]}...')>"

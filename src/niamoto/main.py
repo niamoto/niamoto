@@ -1,10 +1,12 @@
 import sys
 import logging
+from typing import Type, Optional, Any
+
 from niamoto.cli.commands import cli
 from niamoto.core.utils.logging_utils import setup_logging
 
 
-def handle_exception(exc_type, exc_value, exc_traceback):
+def handle_exception(exc_type: Type[BaseException], exc_value: BaseException, exc_traceback: Optional[Any]) -> None:
     """
     Global exception handler to log uncaught exceptions.
 
@@ -24,14 +26,14 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 
-def init_logging():
+def init_logging() -> None:
     """
     Initialize global logging for the application.
 
     This function sets up logging with a 'main' component name, which will create
     or use a 'main.log' file for general application logs.
     """
-    setup_logging(component_name='main')
+    setup_logging(component_name="main")
 
 
 def main() -> None:

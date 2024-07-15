@@ -2,7 +2,7 @@
 Taxonomy statistics calculator module.
 """
 import time
-from typing import List, Dict, Any, Hashable, Union
+from typing import List, Dict, Any, Hashable, Union, Optional
 
 import pandas as pd
 from rich.progress import track
@@ -23,13 +23,15 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
     """
 
     def __init__(
-            self,
-            db: Database,
-            mapper_service: MapperService,
-            occurrences: list[dict[Hashable, Any]],
-            group_by: str
+        self,
+        db: Database,
+        mapper_service: MapperService,
+        occurrences: list[dict[Hashable, Any]],
+        group_by: str,
     ):
-        super().__init__(db, mapper_service, occurrences, group_by, log_component='taxonomy_stats')
+        super().__init__(
+            db, mapper_service, occurrences, group_by, log_component="taxonomy_stats"
+        )
 
     def calculate_taxonomy_stats(self) -> None:
         """
@@ -46,11 +48,12 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                 self.process_taxon(taxon)
 
         except Exception as e:
-            self.logger.error(f"An error occurred: {e}", style="bold red")
+            self.logger.error(f"An error occurred: {e}")
         finally:
             total_time = time.time() - start_time
             self.console.print(
-                f"Total processing time: {total_time:.2f} seconds", style="italic blue"
+                f"⏱ Total processing time: {total_time:.2f} seconds",
+                style="italic blue",
             )
 
     def process_taxon(self, taxon: TaxonRef) -> None:
@@ -209,7 +212,7 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
         """
         return self.db.session.query(TaxonRef).all()
 
-    def _extract_taxon_id(self, taxon: TaxonRef) -> int:
+    def _extract_taxon_id(self, taxon: TaxonRef) -> Optional[int]:
         """
         Extract the taxon ID value.
 
@@ -217,6 +220,6 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
             taxon (TaxonRef): The taxon from which to extract the ID.
 
         Returns:
-            int: The taxon ID.
+            int (Optional[int]): The taxon ID.
         """
         return self.db.session.execute(select(taxon.id)).scalar()
