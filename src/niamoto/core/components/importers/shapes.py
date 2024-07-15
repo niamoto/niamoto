@@ -6,9 +6,9 @@ import logging
 import os
 import tempfile
 import zipfile
-from typing import List
+from typing import List, Dict, Any
 
-import fiona
+import fiona # type: ignore
 from pyproj import Transformer, CRS
 from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
 
@@ -37,9 +37,9 @@ class ShapeImporter:
             db (Database): The database connection.
         """
         self.db = db
-        self.logger = setup_logging(component_name='shapes_import')
+        self.logger = setup_logging(component_name="shapes_import")
 
-    def import_from_config(self, shapes_config: List[dict]) -> str:
+    def import_from_config(self, shapes_config: List[Dict[str, Any]]) -> str:
         """
         Import shape data from various geospatial files based on the configuration.
 
@@ -55,41 +55,60 @@ class ShapeImporter:
         console = Console()
         try:
             with Progress(console=console) as progress:
-                task = progress.add_task("[green]Importing shapes...", total=len(shapes_config))
+                task = progress.add_task(
+                    "[green]Importing shapes...", total=len(shapes_config)
+                )
 
                 for shape_info in shapes_config:
-                    shape_category = shape_info['category']
-                    file_path = shape_info['path']
-                    name_field = shape_info['name_field']
+                    shape_category = shape_info["category"]
+                    file_path = shape_info["path"]
+                    name_field = shape_info["name_field"]
 
                     # Create a temporary directory to extract the files
                     with tempfile.TemporaryDirectory() as tmpdirname:
-                        if file_path.endswith('.zip'):
-                            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                        if file_path.endswith(".zip"):
+                            with zipfile.ZipFile(file_path, "r") as zip_ref:
                                 zip_ref.extractall(tmpdirname)
                             file_path = next(
-                                (os.path.join(root, file) for root, _, files in os.walk(tmpdirname) for file in files
-                                 if file.endswith(('.gpkg', '.shp', '.geojson', '.json', '.tab', '.mif', '.mid', '.gdb'))),
-                                shape_info['path']
+                                (
+                                    os.path.join(root, file)
+                                    for root, _, files in os.walk(tmpdirname)
+                                    for file in files
+                                    if file.endswith(
+                                        (
+                                            ".gpkg",
+                                            ".shp",
+                                            ".geojson",
+                                            ".json",
+                                            ".tab",
+                                            ".mif",
+                                            ".mid",
+                                            ".gdb",
+                                        )
+                                    )
+                                ),
+                                shape_info["path"],
                             )
                         # If the file is GeoJSON, try to fix the formatting
-                        if file_path.endswith(('.geojson', '.json')):
-                            with open(file_path, 'r') as f:
+                        if file_path.endswith((".geojson", ".json")):
+                            with open(file_path, "r") as f:
                                 data = json.load(f)
-                            with open(file_path, 'w') as f:
+                            with open(file_path, "w") as f:
                                 json.dump(data, f)
 
-                        with fiona.open(file_path, 'r') as src:
+                        with fiona.open(file_path, "r") as src:
                             # Get the source CRS
                             src_crs = CRS.from_string(src.crs_wkt)
                             # Define the target CRS
                             dst_crs = CRS.from_epsg(4326)
 
                             # Create a transformer
-                            transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+                            transformer = Transformer.from_crs(
+                                src_crs, dst_crs, always_xy=True
+                            )
 
                             for feature in src:
-                                geom = shape(feature['geometry'])
+                                geom = shape(feature["geometry"])
 
                                 # Convert the 3D geometry to 2D if necessary and transform the coordinates
                                 geom_wgs84 = self.transform_geometry(geom, transformer)
@@ -97,14 +116,16 @@ class ShapeImporter:
                                 # Convert the geometry to WKT
                                 geom_wkt = geom_wgs84.wkt
 
-                                properties = feature['properties']
+                                properties = feature["properties"]
                                 label = properties.get(name_field)
                                 label = str(label) if label is not None else None
 
                                 # Validate the properties
                                 if not isinstance(label, str):
-                                    logging.warning(f"Skipping feature due to invalid properties: {properties} for "
-                                                    f"{name_field}")
+                                    logging.warning(
+                                        f"Skipping feature due to invalid properties: {properties} for "
+                                        f"{name_field}"
+                                    )
                                     continue
 
                                 if label and geom_wkt:
@@ -137,7 +158,9 @@ class ShapeImporter:
         finally:
             self.db.close_db_session()
 
-    def transform_geometry(self, geom: BaseGeometry, transformer: Transformer) -> BaseGeometry:
+    def transform_geometry(
+        self, geom: BaseGeometry, transformer: Transformer
+    ) -> BaseGeometry:
         """
         Transform the geometry to WGS84.
         Args:
@@ -145,7 +168,7 @@ class ShapeImporter:
             transformer (Transformer): The transformer to use.
 
         Returns:
-            The transformed geometry.
+            BaseGeometry: The transformed geometry.
 
         """
         if isinstance(geom, Point):
@@ -155,7 +178,9 @@ class ShapeImporter:
         elif isinstance(geom, Polygon):
             return self.transform_polygon(geom, transformer)
         elif isinstance(geom, MultiPolygon):
-            return MultiPolygon([self.transform_polygon(poly, transformer) for poly in geom.geoms])
+            return MultiPolygon(
+                [self.transform_polygon(poly, transformer) for poly in geom.geoms]
+            )
         else:
             raise ValueError(f"Unsupported geometry type: {type(geom)}")
 
@@ -168,14 +193,14 @@ class ShapeImporter:
             coord_transformer (Transformer): The transformer to use.
 
         Returns:
-            The transformed point.
+            Point: The transformed point.
 
         """
         x, y = point.x, point.y
         x, y = coord_transformer.transform(xx=x, yy=y)
         return Point(x, y)
 
-    def transform_linestring(self, linestring: LineString, transformer) -> LineString:
+    def transform_linestring(self, linestring: LineString, transformer: Transformer) -> LineString:
         """
         Transform a linestring to WGS84.
         Args:
@@ -183,10 +208,15 @@ class ShapeImporter:
             transformer (Transformer): The transformer to use.
 
         Returns:
-            The transformed linestring.
+            LineString: The transformed linestring.
 
         """
-        return LineString([self.transform_point(Point(x, y), transformer) for x, y, *_ in linestring.coords])
+        return LineString(
+            [
+                self.transform_point(Point(x, y), transformer)
+                for x, y, *_ in linestring.coords
+            ]
+        )
 
     def transform_polygon(self, polygon: Polygon, transformer: Transformer) -> Polygon:
         """
@@ -196,10 +226,14 @@ class ShapeImporter:
             transformer (Transformer): The transformer to use.
 
         Returns:
-            The transformed polygon.
+            Polygon: The transformed polygon.
 
         """
-        exterior = self.transform_linestring(LineString(polygon.exterior.coords), transformer)
-        interiors = [self.transform_linestring(LineString(interior.coords), transformer) for interior in
-                     polygon.interiors]
+        exterior = self.transform_linestring(
+            LineString(polygon.exterior.coords), transformer
+        )
+        interiors = [
+            self.transform_linestring(LineString(interior.coords), transformer)
+            for interior in polygon.interiors
+        ]
         return Polygon(exterior, interiors)

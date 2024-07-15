@@ -3,9 +3,9 @@ Plot statistics calculator module.
 """
 import time
 from collections import Counter
-from typing import List, Dict, Any, Hashable, Union
+from typing import List, Dict, Any, Hashable, Union, cast, Optional
 
-import geopandas as gpd
+import geopandas as gpd # type: ignore
 import pandas as pd
 from rich.progress import track
 from sqlalchemy import Table, MetaData, Column, Integer
@@ -31,7 +31,9 @@ class PlotStatsCalculator(StatisticsCalculator):
         occurrences: list[dict[Hashable, Any]],
         group_by: str,
     ):
-        super().__init__(db, mapper_service, occurrences, group_by, log_component='plot_stats')
+        super().__init__(
+            db, mapper_service, occurrences, group_by, log_component="plot_stats"
+        )
         self.plot_identifier = self.mapper_service.get_source_identifier("plots")
         self.plots_data = self.load_plots_data()
         self.source_filter = self.mapper_service.get_group_filter("plots")
@@ -42,10 +44,10 @@ class PlotStatsCalculator(StatisticsCalculator):
 
         Returns:
             pd.DataFrame: The plot data.
-
         """
         plots_path = self.mapper_service.get_source_path("plots")
         gdf = gpd.read_file(plots_path)
+        assert isinstance(gdf, pd.DataFrame), "gdf must be a pandas DataFrame"
         return gdf
 
     def calculate_plot_stats(self) -> None:
@@ -67,7 +69,8 @@ class PlotStatsCalculator(StatisticsCalculator):
         finally:
             total_time = time.time() - start_time
             self.console.print(
-                f"⏱ Total processing time: {total_time:.2f} seconds", style="italic blue"
+                f"⏱ Total processing time: {total_time:.2f} seconds",
+                style="italic blue",
             )
 
     def process_plot(self, plot: PlotRef) -> None:
@@ -82,11 +85,12 @@ class PlotStatsCalculator(StatisticsCalculator):
             if plot_id is None:
                 return
 
-            plot_occurrences = self.get_plot_occurrences(plot_id, self.source_filter)
+            plot_source_identifier = getattr(plot, self.plot_identifier)
+            plot_occurrences = self.get_plot_occurrences(plot_source_identifier, self.source_filter)
             if not plot_occurrences:
                 return
 
-            stats = self.calculate_stats(plot_id, plot_occurrences)
+            stats = self.calculate_stats(plot_source_identifier, plot_occurrences)
 
             self.create_or_update_stats_entry(plot_id, stats)
 
@@ -112,11 +116,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         df_occurrences = pd.DataFrame(group_occurrences)
 
         # Retrieve the plot object using group_id
-        plot = (
-            self.db.session.query(PlotRef)
-            .filter(PlotRef.id == group_id)
-            .first()
-        )
+        plot = self.db.session.query(PlotRef).filter(PlotRef.id_locality == group_id).first()
         plot_data = (
             self.plots_data[self.plots_data[self.plot_identifier] == group_id].iloc[0]
             if plot
@@ -209,7 +209,9 @@ class PlotStatsCalculator(StatisticsCalculator):
                             for transformation in transformations:
                                 transform_name = transformation.get("name")
                                 column_name = f"{field}_{transform_name}"
-                                stats[column_name] = self.extract_coordinates_from_geometry(
+                                stats[
+                                    column_name
+                                ] = self.extract_coordinates_from_geometry(
                                     plot_data[source_field]
                                 )
                     else:
@@ -248,7 +250,9 @@ class PlotStatsCalculator(StatisticsCalculator):
         else:
             return {"type": "Unknown", "coordinates": []}
 
-    def get_plot_occurrences(self, plot_id: int, source_filter: Dict[str, Any] = None) -> list[dict[Hashable, Any]]:
+    def get_plot_occurrences(
+            self, plot_id: int, source_filter: Optional[Dict[str, Any]] = None
+    ) -> list[dict[Hashable, Any]]:
         """
         Get plot occurrences.
 
@@ -259,6 +263,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         Returns:
             list[dict[Hashable, Any]]: The plot occurrences.
         """
+
         occurrences_plots = Table(
             "occurrences_plots",
             MetaData(),
@@ -306,11 +311,11 @@ class PlotStatsCalculator(StatisticsCalculator):
         Returns:
             int: The plot ID.
         """
-        return plot.id
+        return cast(int, plot.id)
 
     def calculate_top_values(
-        self, plot_occurrences: list[dict[Hashable, Any]], field_config: dict
-    ) -> dict:
+        self, plot_occurrences: list[dict[Hashable, Any]], field_config: Dict[str, Any]
+    ) -> Dict[str, int]:
         """
         Calculate the top values based on the configuration.
 
@@ -324,7 +329,7 @@ class PlotStatsCalculator(StatisticsCalculator):
         target_ranks = field_config["transformations"][0]["target_ranks"]
         count = field_config["transformations"][0]["count"]
 
-        counts = Counter()
+        counts: Counter[str] = Counter()
         for occ in plot_occurrences:
             taxon_id = occ.get("taxon_ref_id")
             if taxon_id:

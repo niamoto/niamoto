@@ -4,7 +4,7 @@ This module contains the StatisticsCalculator class, which is an abstract base c
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Dict, Any, Hashable, Tuple
+from typing import List, Dict, Any, Hashable, Tuple, Optional
 
 import duckdb
 import pandas as pd
@@ -39,7 +39,7 @@ class StatisticsCalculator(ABC):
         mapper_service: MapperService,
         occurrences: list[dict[Hashable, Any]],
         group_by: str,
-        log_component: str = 'statistics'
+        log_component: str = "statistics",
     ):
         """
         Initializes the StatisticsCalculator with the database connection, mapper service, occurrences, and group by field.
@@ -261,7 +261,7 @@ class StatisticsCalculator(ABC):
         ]
 
     def calculate_top_items(
-        self, occurrences: list[dict[Hashable, Any]], field_config: dict
+        self, occurrences: list[dict[Hashable, Any]], field_config: dict[str, Any]
     ) -> Dict[str, int]:
         """
         Calculate the top most frequent items in the occurrences based on target ranks.
@@ -306,7 +306,7 @@ class StatisticsCalculator(ABC):
                 if taxon.parent_id is not None and taxon.parent_id not in taxon_dict
             }
 
-        item_counts = {}
+        item_counts: dict[str, int] = {}
 
         for occ in occurrences:
             taxon_id = occ.get("taxon_ref_id")
@@ -326,7 +326,7 @@ class StatisticsCalculator(ABC):
     @staticmethod
     def find_item_name(
         taxon: TaxonRef, taxon_dict: Dict[int, TaxonRef], target_ranks: list[str]
-    ) -> str:
+    ) -> Any:
         """
         Find the item name based on target ranks by traversing up the hierarchy.
 

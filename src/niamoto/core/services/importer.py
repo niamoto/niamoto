@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 from niamoto.core.components.importers.occurrences import OccurrenceImporter
 from niamoto.core.components.importers.plots import PlotImporter
 from niamoto.core.components.importers.taxonomy import TaxonomyImporter
@@ -55,17 +55,23 @@ class ImporterService:
             csvfile, taxon_id_column, location_column
         )
 
-    def import_plots(self, gpkg_path: str, plot_identifier: str, location_field: str) -> str:
+    def import_plots(
+        self, gpkg_path: str, plot_identifier: str, location_field: str
+    ) -> str:
         """
         Import plot data from a GeoPackage file.
 
         Args:
             gpkg_path (str): The path to the GeoPackage file to be imported.
+            plot_identifier (str): The name of the column in the GeoPackage file that contains the plot identifiers.
+            location_field (str): The name of the column in the GeoPackage file that contains the location data.
 
         Returns:
             str: A message indicating the status of the import operation.
         """
-        return self.plot_importer.import_from_gpkg(gpkg_path, plot_identifier, location_field)
+        return self.plot_importer.import_from_gpkg(
+            gpkg_path, plot_identifier, location_field
+        )
 
     def import_occurrence_plot_links(self, csvfile: str) -> str:
         """
@@ -79,7 +85,7 @@ class ImporterService:
         """
         return self.occurrence_importer.import_occurrence_plot_links(csvfile)
 
-    def import_shapes(self, shapes_config: List[dict]) -> str:
+    def import_shapes(self, shapes_config: List[Dict[str, Any]]) -> str:
         """
         Import shape data from the configuration.
 

@@ -3,7 +3,7 @@ from typing import Optional, Any, Dict
 from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from shapely import wkt
 from shapely.geometry import mapping, shape
-from shapely.geometry import shape as shapely_shape
+
 
 class BaseGenerator:
     """
@@ -59,10 +59,11 @@ class BaseGenerator:
             dict: The dictionary representation of the PlotRef object.
 
         """
+        geometry_str = str(plot.geometry) if plot.geometry is not None else None
         plot_dict = {
             "id": plot.id,
             "locality": plot.locality,
-            "geometry": mapping(wkt.loads(plot.geometry)) if isinstance(plot.geometry, str) else None,
+            "geometry": mapping(wkt.loads(geometry_str)) if geometry_str is not None else None,
         }
 
         if stats:
@@ -94,7 +95,7 @@ class BaseGenerator:
         shape_dict = {
             "id": shape_ref.id,
             "name": shape_ref.label,
-            "type": shape_ref.type
+            "type": shape_ref.type,
         }
 
         if stats:
@@ -109,17 +110,21 @@ class BaseGenerator:
 
                         for feature in features:
                             geom = shape(feature["geometry"])
-                            simplified_geom = geom.simplify(simplify_tolerance, preserve_topology=True)
+                            simplified_geom = geom.simplify(
+                                simplify_tolerance, preserve_topology=True
+                            )
                             feature["geometry"] = mapping(simplified_geom)
                             simplified_features.append(feature)
 
                         shape_dict["shape_coordinates"] = {
                             "type": "FeatureCollection",
-                            "features": simplified_features
+                            "features": simplified_features,
                         }
                     else:
                         shape_geom = shape(shape_coords)
-                        simplified_shape_geom = shape_geom.simplify(simplify_tolerance, preserve_topology=True)
+                        simplified_shape_geom = shape_geom.simplify(
+                            simplify_tolerance, preserve_topology=True
+                        )
                         shape_dict["shape_coordinates"] = mapping(simplified_shape_geom)
 
                 except (json.JSONDecodeError, TypeError):
@@ -130,7 +135,9 @@ class BaseGenerator:
                     forest_coords = json.loads(stats["forest_coordinates"])
 
                     forest_geom = shape(forest_coords)
-                    simplified_forest_geom = forest_geom.simplify(simplify_tolerance, preserve_topology=True)
+                    simplified_forest_geom = forest_geom.simplify(
+                        simplify_tolerance, preserve_topology=True
+                    )
                     shape_dict["forest_coordinates"] = mapping(simplified_forest_geom)
 
                 except (json.JSONDecodeError, TypeError):

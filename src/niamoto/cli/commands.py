@@ -17,21 +17,17 @@ import click
 import duckdb
 from loguru import logger
 from rich.console import Console
-from rich.progress import track
 from rich.table import Table
 from rich import box
-from sqlalchemy import asc, text
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.environment import Environment
-from niamoto.core.models import TaxonRef, Base, PlotRef, ShapeRef
-from niamoto.core.repositories.niamoto_repository import NiamotoRepository
+from niamoto.core.models import Base
 from niamoto.core.services.generator import GeneratorService
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.services.mapper import MapperService
 from niamoto.core.services.statistics import StatisticService
-from niamoto.publish.static_api.api_generator import ApiGenerator
 
 NIAMOTO_ASCII_ART = """
 ┳┓┳┏┓┳┳┓┏┓┏┳┓┏┓
@@ -39,10 +35,12 @@ NIAMOTO_ASCII_ART = """
 ┛┗┻┛┗┛ ┗┗┛ ┻ ┗┛                                
 """
 
+
 class RichCLI(click.Group):
     """
     Custom Click Group class that provides a richly formatted CLI interface.
     """
+
     def list_commands(self, ctx: click.Context) -> List[str]:
         """
         Return the list of command names as they were added, not sorted.
@@ -94,7 +92,11 @@ class RichCLI(click.Group):
         formatter.write(capture.get())
 
         main_commands = [
-            "init", "import-all", "calculate-statistics", "generate-content", "deploy-static_files-site"
+            "init",
+            "import-all",
+            "calculate-statistics",
+            "generate-content",
+            "deploy-static_files-site",
         ]
 
         other_commands = [
@@ -279,7 +281,11 @@ def list_commands(group: click.Group, ctx: click.Context) -> None:
     console.print(NIAMOTO_ASCII_ART, style="bold green")
 
     main_commands = [
-        "init", "import-all", "calculate-statistics", "generate-content", "deploy-static_files-site"
+        "init",
+        "import-all",
+        "calculate-statistics",
+        "generate-content",
+        "deploy-static_files-site",
     ]
 
     other_commands = [
@@ -330,7 +336,9 @@ def list_commands(group: click.Group, ctx: click.Context) -> None:
             other_commands_info.append((cmd_name, description))
 
         # Create the other commands table with Rich
-        other_table = Table(show_header=True, header_style="bold magenta", box=box.SIMPLE)
+        other_table = Table(
+            show_header=True, header_style="bold magenta", box=box.SIMPLE
+        )
         other_table.add_column("Command", style="dim")
         other_table.add_column("Description")
         for cmd_name, description in other_commands_info:
@@ -469,7 +477,9 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     reset_table(db_path, "plot_ref")
 
     data_importer = ImporterService(db_path)
-    import_plots_result = data_importer.import_plots(csvfile, plot_identifier, location_field)
+    import_plots_result = data_importer.import_plots(
+        csvfile, plot_identifier, location_field
+    )
     console = Console()
     console.print(import_plots_result, style="italic green")
 
@@ -487,7 +497,7 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     help="Name of the column in the CSV that corresponds to the location data.",
 )
 def import_occurrences(
-        csvfile: str, taxon_identifier: str, location_field: str
+    csvfile: str, taxon_identifier: str, location_field: str
 ) -> None:
     """
     Import occurrence data from a CSV file, analyze it to update the 'mapping' table,
@@ -789,7 +799,13 @@ def reset_tables(db_path: str) -> None:
     Raises:
         Exception: If an error occurs during the reset process.
     """
-    table_names = ["occurrences_plots", "occurrences", "plot_ref", "shape_ref", "taxon_ref"]
+    table_names = [
+        "occurrences_plots",
+        "occurrences",
+        "plot_ref",
+        "shape_ref",
+        "taxon_ref",
+    ]
 
     console = Console()
     console.print("Initializing database...", style="italic green")
@@ -821,10 +837,10 @@ def reset_tables(db_path: str) -> None:
     help="The path to the reference table file (e.g., GeoPackage).",
 )
 def generate_mapping(
-        data_source: str,
-        mapping_group: str,
-        reference_table_name: Optional[str],
-        reference_data_path: Optional[str],
+    data_source: str,
+    mapping_group: str,
+    reference_table_name: Optional[str],
+    reference_data_path: Optional[str],
 ) -> None:
     """
     Generate a mapping from a CSV file based on the specified grouping criteria.
@@ -877,13 +893,13 @@ def generate_mapping(
     "--csv-file",
     type=str,
     help="Path to the CSV file containing the occurrences. If not provided, the source_table_name from the mapping "
-         "will be used.",
+    "will be used.",
 )
 @click.option(
     "--mapping-group",
     type=str,
     help="The specific group to calculate statistics for. If not provided, statistics will be calculated for all "
-         "groups.",
+    "groups.",
 )
 def calculate_statistics(csv_file: Optional[str], mapping_group: Optional[str]) -> None:
     """
@@ -923,10 +939,14 @@ def calculate_statistics(csv_file: Optional[str], mapping_group: Optional[str]) 
     except Exception as e:
         if "Could not set lock on file" in str(e):
             console = Console()
-            console.print("Error: Database is currently locked by another process.", style="bold red")
+            console.print(
+                "Error: Database is currently locked by another process.",
+                style="bold red",
+            )
         else:
             console = Console()
             console.print(f"Error while calculating statistics: {e}", style="bold red")
+
 
 @cli.command(name="generate-content")
 @click.option(
@@ -966,11 +986,15 @@ def generate_content(mapping_group: Optional[str]) -> None:
 
         duration = time.time() - start_time
         console = Console()
-        console.print(f"🌱 Content generation completed in {duration:.2f} seconds.", style="italic green")
+        console.print(
+            f"🌱 Content generation completed in {duration:.2f} seconds.",
+            style="italic green",
+        )
 
     except Exception as e:
         console = Console()
         console.print(f"Error while generating static content: {e}", style="bold red")
+
 
 @cli.command(name="deploy-static-content")
 @click.option(
@@ -990,7 +1014,7 @@ def generate_content(mapping_group: Optional[str]) -> None:
 )
 @click.option("--site-id", help="Netlify site ID (required if provider is 'netlify').")
 def deploy(
-        output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
+    output_dir: str, provider: str, repo_url: str, branch: str, site_id: str
 ) -> None:
     """
     Deploy generated static_site and static_api to the specified provider (GitHub Pages or Netlify).

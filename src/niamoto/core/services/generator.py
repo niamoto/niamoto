@@ -10,10 +10,12 @@ from sqlalchemy import asc
 from sqlalchemy.sql import text
 from rich.progress import track
 
+
 class GeneratorService:
     """
     The GeneratorService class provides methods to generate pages and JSON files.
     """
+
     def __init__(self, config: Config):
         """
         Initializes a new instance of the GeneratorService class.
@@ -53,7 +55,9 @@ class GeneratorService:
                 self.generate_group_content(group_by, group_config)
 
             # Generate the taxonomy tree
-            taxons = self.repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
+            taxons = self.repository.get_entities(
+                TaxonRef, order_by=asc(TaxonRef.full_name)
+            )
             self.generate_taxonomy_tree(taxons)
 
             plots = self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id))
@@ -69,7 +73,7 @@ class GeneratorService:
         except Exception as e:
             logger.exception(f"Error generating content: {e}")
 
-    def generate_group_content(self, group_by: str, group_config: dict) -> None:
+    def generate_group_content(self, group_by: str, group_config: Dict[str, Any]) -> None:
         """
         Generate content for a given group.
 
@@ -82,7 +86,9 @@ class GeneratorService:
         elif group_by == "shape":
             entities = self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id))
         elif group_by == "taxon":
-            entities = self.repository.get_entities(TaxonRef, order_by=asc(TaxonRef.full_name))
+            entities = self.repository.get_entities(
+                TaxonRef, order_by=asc(TaxonRef.full_name)
+            )
         else:
             raise ValueError(f"Unknown group_by: {group_by}")
 
@@ -106,11 +112,11 @@ class GeneratorService:
                     self.generate_json_for_taxon(entity, stats_dict)
 
     def generate_page(
-            self,
-            template_name: str,
-            output_name: str,
-            depth: str = "",
-            context: Optional[Dict[str, Any]] = None,
+        self,
+        template_name: str,
+        output_name: str,
+        depth: str = "",
+        context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Generates a page from a template.
@@ -129,7 +135,7 @@ class GeneratorService:
         )
 
     def generate_page_for_taxon(
-            self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
+        self, taxon: TaxonRef, stats: Optional[Any], mapping: Dict[Any, Any]
     ) -> str:
         """
         Generates a page for a specific taxon.
@@ -176,7 +182,7 @@ class GeneratorService:
         self.page_generator.generate_plot_list_js(plots)
 
     def generate_page_for_plot(
-            self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
+        self, plot: PlotRef, stats: Optional[Any], mapping: Dict[Any, Any]
     ) -> str:
         """
         Generates a page for a specific plot.
@@ -213,7 +219,9 @@ class GeneratorService:
         """
         self.page_generator.generate_shape_list_js(shapes)
 
-    def generate_page_for_shape(self, shape: ShapeRef, stats: Optional[Any], mapping: Dict[Any, Any]) -> str:
+    def generate_page_for_shape(
+        self, shape: ShapeRef, stats: Optional[Any], mapping: Dict[Any, Any]
+    ) -> str:
         """
         Generates a page for a specific shape.
 

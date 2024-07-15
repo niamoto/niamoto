@@ -144,7 +144,7 @@ class PageGenerator(BaseGenerator):
         return output_path
 
     def generate_shape_page(
-            self, shape: ShapeRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
+        self, shape: ShapeRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
     ) -> str:
         """
         Generates a webpage for a given shape object.
@@ -161,14 +161,16 @@ class PageGenerator(BaseGenerator):
         shape_dict = self.shape_to_dict(shape, stats)
 
         # Here you should retrieve all the shape types for the sidebar
-        shape_types = self.get_all_shape_types()  # Ensure you have a method to get all shape types
+        shape_types = (
+            self.get_all_shape_types()
+        )  # Ensure you have a method to get all shape types
 
         context = {
             "shape": shape_dict,
             "stats": stats,
             "mapping": mapping_group,
             "depth": "../",  # This assumes shape pages are one level deep
-            "shape_types": shape_types  # Add shape_types to the context
+            "shape_types": shape_types,  # Add shape_types to the context
         }
 
         html_output = template.render(context)
@@ -180,12 +182,12 @@ class PageGenerator(BaseGenerator):
         self.copy_static_files()
         return output_path
 
-    def get_all_shape_types(self) -> list:
+    def get_all_shape_types(self) -> List[str]:
         """
         Retrieve all unique shape types from the database.
 
         Returns:
-            list: A list of unique shape types.
+            List[str]: A list of unique shape types.
         """
         session = self.db.session()
         shape_types = session.query(ShapeRef.type).distinct().all()
@@ -199,42 +201,34 @@ class PageGenerator(BaseGenerator):
         Args:
             shapes (List[niamoto.core.models.Shape]): A list of shape objects.
         """
-        shape_dict = {}
+        shape_dict: Dict[str, List[Dict[str, Any]]] = {}
         for shape in shapes:
             if shape.type not in shape_dict:
                 shape_dict[shape.type] = []
             geom = wkt.loads(shape.location)
-            simplified_geom = geom.simplify(0.01, preserve_topology=True)  # Simplify geometry
+            simplified_geom = geom.simplify(
+                0.01, preserve_topology=True
+            )  # Simplify geometry
             geojson_geom = mapping(simplified_geom)
 
-            shape_dict[shape.type].append({
-                "id": shape.id,
-                "name": shape.label,
-                "geometry": geojson_geom  # Use simplified GeoJSON geometry
-            })
+            shape_dict[shape.type].append(
+                {
+                    "id": shape.id,
+                    "name": shape.label,
+                    "geometry": geojson_geom,  # Use simplified GeoJSON geometry
+                }
+            )
 
-        shape_types = [{"type": type_name, "shapes": shapes} for type_name, shapes in shape_dict.items()]
+        shape_types = [
+            {"type": type_name, "shapes": shapes}
+            for type_name, shapes in shape_dict.items()
+        ]
 
         shape_list_path = os.path.join(self.output_dir, "js", "shape_list.js")
         with open(shape_list_path, "w") as shape_list_file:
-            shape_list_file.write(f"const shapeTypes = {json.dumps(shape_types, indent=4)};")
-
-    def generate_json_for_shape(self, shape, shape_stats):
-        """
-        Generates a JSON file for a given shape object.
-        Args:
-            shape (niamoto.core.models.models.Shape): The shape object for which the JSON file is generated.
-            shape_stats (dict): A dictionary containing statistics for the shape.
-        """
-        shape_data = {
-            "id": shape.id,
-            "name": shape.label,
-            "frequencies": shape.frequencies,
-            "stats": shape_stats,
-        }
-        shape_json_path = os.path.join(self.output_dir, "api", f"shape_{shape.id}.json")
-        with open(shape_json_path, "w") as shape_json_file:
-            json.dump(shape_data, shape_json_file)
+            shape_list_file.write(
+                f"const shapeTypes = {json.dumps(shape_types, indent=4)};"
+            )
 
     def generate_taxonomy_tree_js(self, taxons: List[TaxonRef]) -> None:
         """

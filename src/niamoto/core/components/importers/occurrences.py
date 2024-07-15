@@ -27,7 +27,7 @@ class OccurrenceImporter:
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.con = duckdb.connect(self.db_path)
-        self.logger = setup_logging(component_name='occurrences_import')
+        self.logger = setup_logging(component_name="occurrences_import")
 
     @staticmethod
     def analyze_data(csvfile: str) -> Any:
@@ -91,7 +91,7 @@ class OccurrenceImporter:
 
             # Import the data with a spinner
             with Console().status(
-                    "[italic green]Importing occurrences...", spinner="dots"
+                "[italic green]Importing occurrences...", spinner="dots"
             ):
                 column_names = ", ".join(
                     [
@@ -207,12 +207,21 @@ class OccurrenceImporter:
             # Add a 'taxon_ref_id' column
             df["taxon_ref_id"] = df[taxon_id_column]
 
-            def process_geometry(geom_string):
+            def process_geometry(geom_string: str) -> Any:
+                """
+                Process the geometry string and return a valid WKT string.
+                Args:
+                    geom_string (str): The geometry string to be processed.
+
+                Returns:
+                    Any: A valid WKT string or None if the geometry is invalid.
+
+                """
                 if pd.isna(geom_string):
                     return None
                 try:
                     if isinstance(geom_string, str) and geom_string.strip():
-                        if geom_string.startswith('{'):  # C'est probablement du GeoJSON
+                        if geom_string.startswith("{"):  # C'est probablement du GeoJSON
                             geom = shape(json.loads(geom_string))
                         else:  # On suppose que c'est du WKT
                             geom = wkt.loads(geom_string)
@@ -227,7 +236,7 @@ class OccurrenceImporter:
                     return None
 
             # Appliquer la fonction à la colonne de localisation
-            df['location'] = df[location_column].apply(process_geometry)
+            df["location"] = df[location_column].apply(process_geometry)
 
             # Define the size of each "chunk" for insertion
             chunk_size = 1000
@@ -240,7 +249,7 @@ class OccurrenceImporter:
 
                 # Insert data by chunks
                 for i in range(0, len(df), chunk_size):
-                    chunk = df.iloc[i: i + chunk_size]
+                    chunk = df.iloc[i : i + chunk_size]
                     chunk.to_sql("occurrences", engine, if_exists="append", index=False)
                     progress.update(task, advance=1)
 
@@ -316,7 +325,7 @@ class OccurrenceImporter:
 
                 # Insert data by chunks
                 for i in range(0, len(df), chunk_size):
-                    chunk = df.iloc[i: i + chunk_size]
+                    chunk = df.iloc[i : i + chunk_size]
                     chunk.to_sql(
                         "occurrences_plots", engine, if_exists="append", index=False
                     )

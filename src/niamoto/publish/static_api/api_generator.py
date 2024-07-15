@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, List, Optional, Union, cast
+from typing import Any, List, Optional, cast, Dict, Union
 
 from shapely import wkt
 from shapely.geometry import mapping
@@ -23,7 +23,9 @@ class ApiGenerator(BaseGenerator):
             config (Config): An instance of Config containing configuration settings.
         """
         self.config = config
-        self.json_output_dir: str = cast(str, os.path.join(self.config.get("outputs", "static_api")))
+        self.json_output_dir: str = cast(
+            str, os.path.join(self.config.get("outputs", "static_api"))
+        )
 
     def generate_taxon_json(self, taxon: TaxonRef, stats: Optional[Any]) -> str:
         """
@@ -75,11 +77,14 @@ class ApiGenerator(BaseGenerator):
             str: The path of the generated JSON file.
         """
         # Convert WKT to GeoJSON
-        geometry = wkt.loads(shape.location)
-        geojson_geometry = mapping(geometry)
+        if shape.location is not None:
+            geometry_str = str(shape.location)
+            geometry = wkt.loads(geometry_str)
+            geojson_geometry = mapping(geometry)
 
         shape_dict = self.shape_to_dict(shape, stats)
-        shape_dict["geometry"] = geojson_geometry
+        if geojson_geometry is not None:
+            shape_dict["geometry"] = geojson_geometry
 
         shape_output_dir = os.path.join(self.json_output_dir, "shape")
         os.makedirs(shape_output_dir, exist_ok=True)
@@ -146,7 +151,7 @@ class ApiGenerator(BaseGenerator):
         return output_path
 
     @staticmethod
-    def taxon_to_simple_dict(taxon: TaxonRef) -> dict:
+    def taxon_to_simple_dict(taxon: TaxonRef) -> Dict[str, Union[str, int]]:
         """
         Converts a TaxonRef object to a simplified dictionary.
 
@@ -157,13 +162,13 @@ class ApiGenerator(BaseGenerator):
             dict: A dictionary representation of the taxon.
         """
         return {
-            "id": taxon.id,
-            "name": taxon.full_name,
+            "id": int(taxon.id),
+            "name": str(taxon.full_name),
             "endpoint": f"/api/taxon/{taxon.id}.json",
         }
 
     @staticmethod
-    def plot_to_simple_dict(plot: PlotRef) -> dict:
+    def plot_to_simple_dict(plot: PlotRef) -> Dict[str, Union[str, int]]:
         """
         Converts a PlotRef object to a simplified dictionary.
 
@@ -174,13 +179,13 @@ class ApiGenerator(BaseGenerator):
             dict: A dictionary representation of the plot.
         """
         return {
-            "id": plot.id,
-            "name": plot.locality,
+            "id": int(plot.id),
+            "name": str(plot.locality),
             "endpoint": f"/api/plot/{plot.id}.json",
         }
 
     @staticmethod
-    def shape_to_simple_dict(shape: ShapeRef) -> dict:
+    def shape_to_simple_dict(shape: ShapeRef) -> Dict[str, Union[str, int]]:
         """
         Converts a ShapeRef object to a simplified dictionary.
 
@@ -191,8 +196,8 @@ class ApiGenerator(BaseGenerator):
             dict: A dictionary representation of the shape.
         """
         return {
-            "id": shape.id,
-            "name": shape.label,
-            "type": shape.type,
+            "id": int(shape.id),
+            "name": str(shape.label),
+            "type": str(shape.type),
             "endpoint": f"/api/shape/{shape.id}.json",
         }

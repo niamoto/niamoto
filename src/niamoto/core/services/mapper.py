@@ -19,11 +19,11 @@ class MapperService:
         self.mapping_manager = MappingManager(self.db)
 
     def generate_mapping(
-            self,
-            csvfile: str,
-            group_by: str,
-            reference_table_name: Optional[str],
-            reference_data_path: Optional[str],
+        self,
+        csvfile: str,
+        group_by: str,
+        reference_table_name: Optional[str],
+        reference_data_path: Optional[str],
     ) -> None:
         """
         Generates a mapping.
@@ -56,7 +56,7 @@ class MapperService:
         """
         return self.mapping_manager.get_aggregations()
 
-    def get_group_config(self, group_by: str) -> Dict[str, Any]:
+    def get_group_config(self, group_by: Optional[str]) -> Dict[str, Any]:
         """
         Retrieves the group configuration.
 
@@ -66,9 +66,9 @@ class MapperService:
         Returns:
             Dict[str, Any]: The group configuration.
         """
-        return self.mapping_manager.get_group_config(group_by)
+        return self.mapping_manager.get_group_config(str(group_by))
 
-    def get_source_path(self, source_name: str) -> str:
+    def get_source_path(self, source_name: str) -> Any:
         """
         Retrieves the path for a given source.
 
@@ -76,12 +76,12 @@ class MapperService:
             source_name (str): The name of the source.
 
         Returns:
-            str: The path to the source.
+            Any: The path to the source.
         """
         sources = self.mapping_manager.get_sources()
         return sources.get(source_name, {}).get("path", "")
 
-    def get_source_identifier(self, source_name: str) -> str:
+    def get_source_identifier(self, source_name: str) -> Any:
         """
         Retrieves the identifier for a given source.
 
@@ -89,12 +89,12 @@ class MapperService:
             source_name (str): The name of the source.
 
         Returns:
-            str: The identifier for the source.
+            Any: The identifier for the source.
         """
         sources = self.mapping_manager.get_sources()
         return sources.get(source_name, {}).get("identifier", "id")
 
-    def get_group_filter(self, group: str) -> Dict[str, Any]:
+    def get_group_filter(self, group: str) -> Any:
         """
         Get the filter configuration for a specific group.
 
@@ -102,7 +102,7 @@ class MapperService:
             group (str): The group name.
 
         Returns:
-            Dict[str, Any]: The filter configuration.
+            Any: The filter configuration.
         """
         group_config = self.get_group_config(group)
         return group_config.get("filter", {})
@@ -152,7 +152,7 @@ class MapperService:
             Optional[str]: The path to the layer if found, None otherwise.
         """
         layer = self.get_layer(layer_name)
-        return layer.get('path') if layer else None
+        return layer.get("path") if layer else None
 
     def get_layer_type(self, layer_name: str) -> Optional[str]:
         """
@@ -165,7 +165,7 @@ class MapperService:
             Optional[str]: The type of the layer if found, None otherwise.
         """
         layer = self.get_layer(layer_name)
-        return layer.get('type') if layer else None
+        return layer.get("type") if layer else None
 
     def add_layer(self, layer_config: Dict[str, Any]) -> None:
         """
