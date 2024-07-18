@@ -44,6 +44,9 @@ class GeneratorService:
             self.generate_page("methodology.html", "methodology.html", depth="")
             self.generate_page("resources.html", "resources.html", depth="")
             self.generate_page("construction.html", "construction.html", depth="")
+            self.generate_page("trees.html", "trees.html", depth="")
+            self.generate_page("plots.html", "plots.html", depth="")
+            self.generate_page("forests.html", "forests.html", depth="")
 
             if mapping_group:
                 group_configs = [self.mapper_service.get_group_config(mapping_group)]
