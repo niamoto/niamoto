@@ -3,7 +3,7 @@ Shape statistics calculator module.
 """
 import logging
 import time
-from typing import List, Dict, Any, Hashable, Union, Optional, cast
+from typing import List, Dict, Any, Hashable, Optional, cast
 
 import geopandas as gpd  # type: ignore
 import numpy as np
@@ -11,8 +11,8 @@ import pandas as pd
 import pyproj
 import rasterio  # type: ignore
 from matplotlib import pyplot as plt
-from rasterio.features import rasterize # type: ignore
-from rasterio.mask import mask # type: ignore
+from rasterio.features import rasterize  # type: ignore
+from rasterio.mask import mask  # type: ignore
 from rich.progress import (
     Progress,
     SpinnerColumn,
@@ -276,7 +276,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         """
         loaded_layers = {}
 
-        for field, config in self.fields.items():
+        for _field, config in self.fields.items():
             data_sources = config.get("data_source", {})
             if not isinstance(data_sources, list):
                 data_sources = [data_sources]
