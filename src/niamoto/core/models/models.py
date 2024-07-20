@@ -12,7 +12,7 @@ from sqlalchemy import (
     Sequence,
     Index,
 )
-from sqlalchemy.dialects.postgresql import BIGINT
+from sqlalchemy.dialects.postgresql import BIGINT, JSON
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -41,6 +41,7 @@ class TaxonRef(Base):
         level (Integer): The level value for nested set model. :noindex:
         parent_id (BIGINT): The parent taxon id. :noindex:
         children (List[TaxonRef]): The children of the taxon. :noindex:
+        extra_data (JSON): Additional fields stored in JSON format. :noindex:
     """
 
     __tablename__ = "taxon_ref"
@@ -53,6 +54,7 @@ class TaxonRef(Base):
     lft = Column(Integer)
     rght = Column(Integer)
     level = Column(Integer)
+    extra_data = Column(JSON, nullable=True)
 
     if TYPE_CHECKING:
         parent_id: Optional[int]
@@ -95,10 +97,10 @@ class ShapeRef(Base):
     A class used to represent a shape reference.
 
     Attributes:
-        id (int): The primary key.
-        label (str): The label of the shape.
-        type (str): The type of the shape.
-        location (str): The geometry of the shape (MultiPolygon) as WKT.
+        id (int): The primary key. :noindex:
+        label (str): The label of the shape. :noindex:
+        type (str): The type of the shape. :noindex:
+        location (str): The geometry of the shape (MultiPolygon) as WKT. :noindex:
     """
 
     __tablename__ = "shape_ref"

@@ -7,7 +7,6 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   niamoto.api
    niamoto.cli
    niamoto.common
    niamoto.core

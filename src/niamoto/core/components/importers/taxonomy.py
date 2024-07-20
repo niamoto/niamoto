@@ -117,12 +117,12 @@ class TaxonomyImporter:
                     total=rank_taxons.shape[0],
                     description=f"{rank}",
                 ):
-                    self._create_or_update_taxon(row, session)
+                    self._create_or_update_taxon(row, session, ranks)
 
                 session.commit()
                 self._update_nested_set_values(session)
 
-    def _create_or_update_taxon(self, row: Any, session: Any) -> Optional[TaxonRef]:
+    def _create_or_update_taxon(self, row: Any, session: Any, ranks: Tuple[str, ...]) -> Optional[TaxonRef]:
         """
         Create or update a taxon.
 
@@ -151,12 +151,25 @@ class TaxonomyImporter:
             if not pd.isna(parent_id):
                 taxon.parent_id = int(parent_id)
 
+            # Store extra data in JSON format
+            standard_fields = ['id_taxon', 'full_name', 'authors', 'rank', 'parent_id']
+            all_ignored_fields = set(standard_fields).union(ranks)
+            extra_data = {key: (None if pd.isna(value) else self._convert_to_correct_type(value)) for key, value in
+                          row.items() if key not in all_ignored_fields}
+            taxon.extra_data = extra_data
+
             session.flush()
             return taxon
         except Exception as e:
             self.logger.info(f"Duplicate key for id_taxon: {taxon_id} - {e}")
             session.rollback()
             return None
+
+    @staticmethod
+    def _convert_to_correct_type(value: Any) -> Any:
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return value
 
     @staticmethod
     def _update_nested_set_values(session: Any) -> None:
