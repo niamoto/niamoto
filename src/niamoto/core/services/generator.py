@@ -95,7 +95,7 @@ class GeneratorService:
         else:
             raise ValueError(f"Unknown group_by: {group_by}")
 
-        for entity in track(entities, description=f"Generating {group_by} pages"):
+        for entity in track(entities, description=f"Generating {group_by} static content"):
             with self.repository.db.engine.connect() as connection:
                 result = connection.execute(
                     text(f"SELECT * FROM {group_by}_stats WHERE {group_by}_id = :id"),

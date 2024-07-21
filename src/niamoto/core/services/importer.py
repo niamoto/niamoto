@@ -1,9 +1,13 @@
 from typing import Tuple, List, Dict, Any
+
+import pandas as pd
+
 from niamoto.core.components.importers.occurrences import OccurrenceImporter
 from niamoto.core.components.importers.plots import PlotImporter
 from niamoto.core.components.importers.taxonomy import TaxonomyImporter
 from niamoto.core.components.importers.shapes import ShapeImporter
 from niamoto.common.database import Database
+from niamoto.core.utils.logging_utils import setup_logging
 
 
 class ImporterService:
@@ -19,6 +23,7 @@ class ImporterService:
             db_path (str): The path to the database file.
         """
         self.db = Database(db_path)
+        self.logger = setup_logging(component_name="importer_service")
         self.taxonomy_importer = TaxonomyImporter(self.db)
         self.occurrence_importer = OccurrenceImporter(db_path)
         self.plot_importer = PlotImporter(self.db)
@@ -35,7 +40,60 @@ class ImporterService:
         Returns:
             str: A message indicating the status of the import operation.
         """
-        return self.taxonomy_importer.import_from_csv(file_path, ranks)
+        separator = self._detect_separator(file_path)
+        if self._validate_csv_format(file_path, separator, ranks):
+            taxonomy_importer = TaxonomyImporter(self.db)
+            return taxonomy_importer.import_from_csv(file_path, ranks)
+        else:
+            return "CSV file format is incorrect. Please ensure it contains the required standard fields."
+
+    @staticmethod
+    def _detect_separator(file_path: str) -> str:
+        """
+        Detect the separator used in the CSV file.
+
+        Args:
+            file_path (str): The path to the CSV file.
+
+        Returns:
+            str: The detected separator.
+        """
+        with open(file_path, 'r') as file:
+            first_line = file.readline()
+            if ',' in first_line:
+                return ','
+            elif ';' in first_line:
+                return ';'
+            else:
+                return ','  # Default to comma if no separator is found
+
+    def _validate_csv_format(self, file_path: str, separator: str, ranks: Tuple[str, ...]) -> bool:
+        """
+        Validate the format of the CSV file to ensure it contains the required standard fields and ranks.
+
+        Args:
+            file_path (str): The path to the CSV file to be validated.
+            separator (str): The separator used in the CSV file.
+            ranks (Tuple[str, ...]): The ranks to be validated.
+
+        Returns:
+            bool: True if the CSV file contains the required standard fields and ranks, False otherwise.
+        """
+        required_fields = {'id_taxon', 'full_name', 'authors'}
+        required_fields.update(ranks)
+
+        try:
+            df = pd.read_csv(file_path, sep=separator, on_bad_lines='warn')
+        except pd.errors.ParserError as e:
+            self.logger.error(f"Error reading CSV file: {e}")
+            return False
+
+        csv_fields = set(df.columns)
+        if not required_fields.issubset(csv_fields):
+            missing_fields = required_fields - csv_fields
+            self.logger.error(f"Missing required fields in CSV file: {', '.join(missing_fields)}")
+            return False
+        return True
 
     def import_occurrences(
         self, csvfile: str, taxon_id_column: str, location_column: str

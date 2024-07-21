@@ -139,13 +139,22 @@ function createGauge(options) {
     });
 }
 
-function createTree(container, taxonomyData) {
-    function getBaseUrl() {
-        const pathArray = window.location.pathname.split('/');
-        pathArray.pop();
-        return pathArray.join('/') + '/';
-    }
+function getBaseUrl() {
+    const pathArray = window.location.pathname.split('/');
+    pathArray.pop();
+    return pathArray.join('/') + '/';
+}
 
+function openCurrentNode($ul, currentId) {
+    const $currentLink = $ul.find(`a[data-id='${currentId}']`);
+    if ($currentLink.length > 0) {
+        $currentLink.parents('ul').each(function () {
+            $(this).show();
+            $(this).siblings('span').text('▾');
+        });
+    }
+}
+function createTree(container, taxonomyData) {
     const baseUrl = getBaseUrl();
 
     function createList(data) {
@@ -187,20 +196,82 @@ function createTree(container, taxonomyData) {
         return $ul;
     }
 
-
-    function openCurrentNode($ul, currentId) {
-        const $currentLink = $ul.find(`a[data-id='${currentId}']`);
-        if ($currentLink.length > 0) {
-            $currentLink.parents('ul').each(function () {
-                $(this).show();
-                $(this).siblings('span').text('▾');
-            });
-        }
-    }
-
     const $tree = createList(taxonomyData);
     $(container).append($tree);
     openCurrentNode($tree, taxonId); // Ouvrez le noeud correspondant
+}
+
+function createImprovedTree(container, taxonomyData) {
+    const baseUrl = getBaseUrl();
+    const $treeContainer = $(container);
+    const $searchInput = $('#taxonSearch');
+
+    function createList(data, level = 0) {
+        const $ul = $('<ul></ul>').addClass(`level-${level}`);
+        $.each(data, function (i, item) {
+            const $li = $('<li></li>');
+            const $a = $('<a></a>', {
+                'href': `${baseUrl}${item.id}.html`,
+                'text': item.name,
+                'data-id': item.id,
+                'title': item.name // Ajout d'un titre pour améliorer l'accessibilité
+            });
+
+            if (item.id == taxonId) {
+                $a.addClass('current-taxon');
+            }
+
+            if (item.children && item.children.length > 0) {
+                const $span = $('<span class="toggle">▸</span>');
+                const $childUl = createList(item.children, level + 1).hide();
+
+                $span.on('click', function(event) {
+                    event.stopPropagation();
+                    $childUl.toggle();
+                    $(this).text($childUl.is(":visible") ? '▾' : '▸');
+                });
+
+                $li.append($span).append($a).append($childUl);
+            } else {
+                $li.append($a);
+            }
+            $ul.append($li);
+        });
+        return $ul;
+    }
+
+    const $tree = createList(taxonomyData);
+    $treeContainer.append($tree);
+    openCurrentNode($tree, taxonId);
+    scrollToCurrentTaxon();
+
+    // Search functionality
+    $searchInput.on('input', function() {
+        const searchTerm = $(this).val().toLowerCase();
+        $tree.find('li').each(function() {
+            const $li = $(this);
+            const taxonName = $li.find('> a').text().toLowerCase();
+            if (taxonName.includes(searchTerm)) {
+                $li.show();
+                $li.parents('li').show();
+                $li.find('ul').show();
+            } else {
+                $li.hide();
+            }
+        });
+    });
+
+    // Scroll to the current taxon
+    function scrollToCurrentTaxon() {
+        const $currentTaxon = $tree.find('.current-taxon');
+        if ($currentTaxon.length) {
+            const containerTop = $treeContainer.offset().top;
+            const taxonTop = $currentTaxon.offset().top;
+            const scrollPosition = taxonTop - containerTop - ($treeContainer.height() / 2) + ($currentTaxon.height() / 2);
+
+            $treeContainer.scrollTop(Math.max(0, scrollPosition));
+        }
+    }
 }
 
 
@@ -288,6 +359,6 @@ function getColor(index) {
     return colors[index % colors.length]; // Repeat colors if more keys than defined colors
 }
 
-window.createTree = createTree;
+window.createTree = createImprovedTree;
 window.loadCharts = loadCharts;
 window.initMap = initMap;

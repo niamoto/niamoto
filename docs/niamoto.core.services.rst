@@ -20,14 +20,6 @@ niamoto.core.services.mapper module
    :undoc-members:
    :show-inheritance:
 
-niamoto.core.services.processor module
---------------------------------------
-
-.. automodule:: niamoto.core.services.processor
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 niamoto.core.services.statistics module
 ---------------------------------------
 
