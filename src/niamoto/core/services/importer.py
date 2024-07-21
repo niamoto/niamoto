@@ -1,3 +1,4 @@
+import csv
 from typing import Tuple, List, Dict, Any
 
 import pandas as pd
@@ -41,11 +42,14 @@ class ImporterService:
             str: A message indicating the status of the import operation.
         """
         separator = self._detect_separator(file_path)
-        if self._validate_csv_format(file_path, separator, ranks):
-            taxonomy_importer = TaxonomyImporter(self.db)
-            return taxonomy_importer.import_from_csv(file_path, ranks)
-        else:
-            return "CSV file format is incorrect. Please ensure it contains the required standard fields."
+        try:
+            if self._validate_csv_format(file_path, separator, ranks):
+                return self.taxonomy_importer.import_from_csv(file_path, ranks)
+            else:
+                return "CSV file format is incorrect. Please ensure it contains the required standard fields."
+        except Exception as e:
+            self.logger.error(f"Error importing taxonomy data: {e}")
+            return "An error occurred during taxonomy data import."
 
     @staticmethod
     def _detect_separator(file_path: str) -> str:
@@ -60,12 +64,8 @@ class ImporterService:
         """
         with open(file_path, 'r') as file:
             first_line = file.readline()
-            if ',' in first_line:
-                return ','
-            elif ';' in first_line:
-                return ';'
-            else:
-                return ','  # Default to comma if no separator is found
+            dialect = csv.Sniffer().sniff(first_line)
+            return str(dialect.delimiter)
 
     def _validate_csv_format(self, file_path: str, separator: str, ranks: Tuple[str, ...]) -> bool:
         """

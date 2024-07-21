@@ -1,196 +1,215 @@
 import os
 import tempfile
-import shutil
 import unittest
-from unittest import mock
+from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 from niamoto.cli import commands
 from niamoto.common.config import Config
 
 
 class TestCommands(unittest.TestCase):
-    """
-    The TestCommands class provides test cases for the commands in the CLI.
-    """
 
     def setUp(self):
-        """
-        Setup method for the test cases. It is automatically called before each test case.
-        """
         self.runner = CliRunner()
         self.temp_dir = tempfile.mkdtemp(prefix="niamoto_test_")
         os.environ["NIAMOTO_HOME"] = self.temp_dir
 
     def tearDown(self):
-        """
-        Teardown method for the test cases. It is automatically called after each test case.
-        """
         os.environ.pop("NIAMOTO_HOME", None)
-        shutil.rmtree(self.temp_dir)
+        os.rmdir(self.temp_dir)
 
-    @mock.patch("niamoto.cli.commands.Console")
-    @mock.patch("niamoto.cli.commands.Environment")
-    @mock.patch("niamoto.cli.commands.Config")
-    @mock.patch("niamoto.cli.commands.list_commands")
-    def test_init_new_environment(
-        self, mock_list_commands, mock_config, mock_environment, mock_console
-    ):
-        """
-        Test case for the 'init' command of the CLI.
-
-        Args:
-            mock_list_commands: A mock for the list_commands function.
-            mock_config: A mock for the Config class.
-            mock_environment: A mock for the Environment class.
-            mock_console: A mock for the Console class.
-        """
-        # Create a temporary directory for the configuration file
+    @patch('niamoto.cli.commands.Environment')
+    @patch('niamoto.cli.commands.Config')
+    def test_init(self, mock_config, mock_environment):
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Configure the path of the configuration file in the temporary directory
-            config_path = os.path.join(temp_dir, "config.yml")
-
-            # Patch the get_niamoto_home method of Config to return the temporary directory
-            with mock.patch.object(Config, "get_niamoto_home", return_value=temp_dir):
-                # Configure the mock Config to return the path of the temporary configuration file
-                mock_config.return_value.config_path = config_path
-
-                # Execute the 'init' command without any options
+            with patch.object(Config, "get_niamoto_home", return_value=temp_dir):
                 result = self.runner.invoke(commands.init)
-
-            # Verify that the command has exited with the exit code 0
-            self.assertEqual(result.exit_code, 0)
-
-            # Verify that 'Environment' has been called with the configuration object
-            mock_environment.assert_called_once_with(mock_config.return_value.config)
-
-            # Verify that 'Environment.initialize' has been called
-            mock_environment.return_value.initialize.assert_called_once()
-
-            # Verify that 'Console.print' has been called with the initialization message
-            mock_console.return_value.print.assert_any_call(
-                "🌱 Niamoto initialized.", style="italic green"
-            )
-
-            mock_console.return_value.rule.assert_called_once()
-
-            mock_list_commands.assert_called_once_with(commands.cli)
-
-    @mock.patch("niamoto.cli.commands.Console")
-    @mock.patch("niamoto.cli.commands.Table")
-    def test_list_commands(self, mock_table, mock_console):
-        """
-        Test case for the 'list_commands' function of the CLI.
-
-        Args:
-            mock_table: A mock for the Table class.
-            mock_console: A mock for the Console class.
-        """
-        # Create a mock group with two commands
-        mock_group = mock.MagicMock()
-        command1 = mock.MagicMock()
-        command1.name = "command1"
-        command1.callback.__doc__ = "description1"
-        command2 = mock.MagicMock()
-        command2.name = "command2"
-        command2.callback.__doc__ = "description2"
-        mock_group.commands.values.return_value = [command1, command2]
-
-        # Call the 'list_commands' function with the mock group
-        commands.list_commands(mock_group)
-
-        # Verify that 'Console' and 'Table' have been called once
-        mock_console.assert_called_once()
-        mock_table.assert_called_once()
-
-        # Print out the calls to the 'add_row' method
-        print(mock_table.return_value.add_row.call_args_list)
-
-        # Verify that 'Table.add_column' has been called twice
-        mock_table.return_value.add_row.assert_any_call("command1", "description1")
-        mock_table.return_value.add_row.assert_any_call("command2", "description2")
-
-    @mock.patch("niamoto.cli.commands.ApiImporter")
-    @mock.patch("niamoto.cli.commands.Console")
-    def test_import_occurrences(self, mock_console, mock_api_importer):
-        """
-        Test case for the 'import-occurrences' command of the CLI.
-
-        Args:
-            mock_console: A mock for the Console class.
-            mock_api_importer: A mock for the ApiImporter class.
-        """
-        mock_result = mock.MagicMock()
-        mock_result.__str__.side_effect = lambda: "Import successful"
-        mock_api_importer.return_value.import_occurrences.return_value = mock_result
-
-        result = self.runner.invoke(
-            commands.cli,
-            ["import-occurrences", "test.csv", "--taxon-id-column", "taxon_id"],
-        )
-
         self.assertEqual(result.exit_code, 0)
+        mock_environment.return_value.initialize.assert_called_once()
 
-    @mock.patch("niamoto.cli.commands.ApiImporter")
-    def test_import_taxonomy(self, mock_api_importer):
-        """
-        Test case for the 'import-taxonomy' command of the CLI.
+    @patch('niamoto.cli.commands.ImporterService')
+    @patch('niamoto.cli.commands.Config')
+    @patch('niamoto.cli.commands.reset_table')
+    def test_import_taxonomy(self, mock_reset_table, mock_config, mock_importer_service):
+        mock_config.return_value.get.return_value = {
+            'path': 'test_taxonomy_path',
+            'ranks': 'family,genus,species'
+        }
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+            temp_file.write('header1,header2,header3\n')
+            csv_path = temp_file.name
 
-        Args:
-            mock_api_importer: A mock for the ApiImporter class.
-        """
-        mock_api_importer.return_value.import_taxononomy.return_value = (
-            "Import successful"
-        )
+        try:
+            result = self.runner.invoke(commands.import_taxonomy, [csv_path, '--ranks', 'family,genus,species'])
+            self.assertEqual(result.exit_code, 0)
+            mock_reset_table.assert_called_once()
+            mock_importer_service.return_value.import_taxonomy.assert_called_once_with(csv_path, ('family', 'genus', 'species'))
+        finally:
+            os.unlink(csv_path)
 
-        runner = CliRunner()
+    @patch('niamoto.cli.commands.ImporterService')
+    @patch('niamoto.cli.commands.Config')
+    @patch('niamoto.cli.commands.reset_table')
+    def test_import_plots(self, mock_reset_table, mock_config, mock_importer_service):
+        mock_config.return_value.get.return_value = {
+            'path': 'test_plots_path',
+            'identifier': 'plot_id',
+            'location_field': 'geometry'
+        }
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+            temp_file.write('plot_id,geometry\n')
+            csv_path = temp_file.name
 
-        result = runner.invoke(
-            commands.cli, ["import-taxonomy", "test.csv", "--ranks", "species"]
-        )
+        try:
+            result = self.runner.invoke(commands.import_plots, [csv_path, '--plot-identifier', 'plot_id', '--location-field', 'geometry'])
+            self.assertEqual(result.exit_code, 0)
+            mock_reset_table.assert_called_once()
+            mock_importer_service.return_value.import_plots.assert_called_once_with(csv_path, 'plot_id', 'geometry')
+        finally:
+            os.unlink(csv_path)
 
-        mock_api_importer.return_value.import_taxononomy.assert_called_once_with(
-            "test.csv", ("species",)
-        )
+    @patch('niamoto.cli.commands.ImporterService')
+    @patch('niamoto.cli.commands.Config')
+    @patch('niamoto.cli.commands.reset_table')
+    def test_import_occurrences(self, mock_reset_table, mock_config, mock_importer_service):
+        mock_config.return_value.get.return_value = {
+            'path': 'test_occurrences_path',
+            'identifier': 'taxon_id',
+            'location_field': 'location'
+        }
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+            temp_file.write('taxon_id,location\n')
+            csv_path = temp_file.name
 
-        self.assertEqual(result.output.strip(), "Import successful")
+        try:
+            result = self.runner.invoke(commands.import_occurrences, [csv_path, '--taxon-identifier', 'taxon_id', '--location-field', 'location'])
+            self.assertEqual(result.exit_code, 0)
+            mock_reset_table.assert_called_once()
+            mock_importer_service.return_value.import_occurrences.assert_called_once_with(csv_path, 'taxon_id', 'location')
+        finally:
+            os.unlink(csv_path)
 
-    @mock.patch("niamoto.cli.commands.ApiImporter")
-    def test_import_plots(self, mock_api_importer):
-        """
-        Test case for the 'import-plots' command of the CLI.
+    @patch('niamoto.cli.commands.ImporterService')
+    @patch('niamoto.cli.commands.Config')
+    @patch('niamoto.cli.commands.reset_table')
+    def test_import_occurrence_plot_links(self, mock_reset_table, mock_config, mock_importer_service):
+        mock_config.return_value.get.return_value = {'path': 'test_occurrence_plots_path'}
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+            temp_file.write('occurrence_id,plot_id\n')
+            csv_path = temp_file.name
 
-        Args:
-            mock_api_importer: A mock for the ApiImporter class.
-        """
-        mock_api_importer.return_value.import_plots.return_value = "Import successful"
+        try:
+            result = self.runner.invoke(commands.import_occurrence_plot_links, [csv_path])
+            self.assertEqual(result.exit_code, 0)
+            mock_reset_table.assert_called_once()
+            mock_importer_service.return_value.import_occurrence_plot_links.assert_called_once_with(csv_path)
+        finally:
+            os.unlink(csv_path)
 
-        runner = CliRunner()
+    @patch('niamoto.cli.commands.ImporterService')
+    @patch('niamoto.cli.commands.Config')
+    @patch('niamoto.cli.commands.reset_table')
+    def test_import_shapes(self, mock_reset_table, mock_config, mock_importer_service):
+        mock_config.return_value.get.return_value = [{'name': 'shape1', 'path': 'shape1.shp'}]
+        result = self.runner.invoke(commands.import_shapes)
+        self.assertEqual(result.exit_code, 0)
+        mock_reset_table.assert_called_once()
+        mock_importer_service.return_value.import_shapes.assert_called_once()
 
-        result = runner.invoke(commands.cli, ["import-plots", "test.gpkg"])
+    @patch('niamoto.cli.commands.ImporterService')
+    @patch('niamoto.cli.commands.Config')
+    @patch('niamoto.cli.commands.reset_tables')
+    def test_import_all(self, mock_reset_tables, mock_config, mock_importer_service):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            taxonomy_path = os.path.join(temp_dir, 'taxonomy.csv')
+            plots_path = os.path.join(temp_dir, 'plots.csv')
+            occurrences_path = os.path.join(temp_dir, 'occurrences.csv')
+            occurrence_plots_path = os.path.join(temp_dir, 'occurrence_plots.csv')
+            shape_path = os.path.join(temp_dir, 'shape1.shp')
 
-        mock_api_importer.return_value.import_plots.assert_called_once_with("test.gpkg")
+            # Créer des fichiers avec un contenu minimal
+            for path in [taxonomy_path, plots_path, occurrences_path, occurrence_plots_path]:
+                with open(path, 'w') as f:
+                    f.write('header1,header2,header3\n')
+                    f.write('data1,data2,data3\n')
 
-        self.assertEqual(result.output.strip(), "Import successful")
+            # Créer un fichier shape vide
+            open(shape_path, 'a').close()
 
-    @mock.patch("niamoto.cli.commands.ApiMapper")
-    def test_generate_mapping_add_new_field(self, mock_api_mapper):
-        """
-        Test case for the 'generate-mapping' command of the CLI.
+            # Configurer le mock Config
+            mock_config_instance = MagicMock()
+            mock_config_instance.get.side_effect = lambda *args: {
+                ('database', 'path'): os.path.join(temp_dir, 'test.db'),
+                ('sources', 'taxonomy'): {'path': taxonomy_path, 'ranks': 'family,genus,species'},
+                ('sources', 'plots'): {'path': plots_path, 'identifier': 'plot_id', 'location_field': 'geometry'},
+                ('sources', 'occurrences'): {'path': occurrences_path, 'identifier': 'taxon_id',
+                                             'location_field': 'location'},
+                ('sources', 'occurrence-plots'): {'path': occurrence_plots_path},
+                ('shapes',): [{'name': 'shape1', 'path': shape_path}]
+            }.get(args, None)
+            mock_config.return_value = mock_config_instance
 
-        Args:
-            mock_api_mapper: A mock for the ApiMapper class.
-        """
-        mock_api_mapper.return_value.add_aggregation.return_value = None
+            # Configurer le mock ImporterService
+            mock_importer_instance = MagicMock()
+            mock_importer_instance.import_taxonomy.return_value = "Taxonomy import successful"
+            mock_importer_instance.import_plots.return_value = "Plots import successful"
+            mock_importer_instance.import_occurrences.return_value = "Occurrences import successful"
+            mock_importer_instance.import_occurrence_plot_links.return_value = "Occurrence plot links import successful"
+            mock_importer_instance.import_shapes.return_value = "Shapes import successful"
+            mock_importer_service.return_value = mock_importer_instance
 
-        runner = CliRunner()
+            # Exécuter la commande
+            result = self.runner.invoke(commands.import_all)
 
-        result = runner.invoke(
-            commands.cli,
-            ["generate-mapping", "--add", "new_field", "--key", "mapping_key"],
-        )
+            print(f"Command output: {result.output}")
+            if result.exception:
+                print(f"Exception: {result.exception}")
+                print(f"Exception traceback: {result.exc_info}")
 
-        self.assertEqual(result.exit_code, 2)
+            self.assertEqual(result.exit_code, 0,
+                             f"Command failed with exit code {result.exit_code}. Error: {result.output}")
 
+            # Vérifier les appels
+            mock_reset_tables.assert_called_once()
+            mock_importer_instance.import_taxonomy.assert_called_once_with(taxonomy_path,
+                                                                           ('family', 'genus', 'species'))
+            mock_importer_instance.import_plots.assert_called_once_with(plots_path, 'plot_id', 'geometry')
+            mock_importer_instance.import_occurrences.assert_called_once_with(occurrences_path, 'taxon_id', 'location')
+            mock_importer_instance.import_occurrence_plot_links.assert_called_once_with(occurrence_plots_path)
+            mock_importer_instance.import_shapes.assert_called_once()
 
-if __name__ == "__main__":
+    @patch('niamoto.cli.commands.MapperService')
+    @patch('niamoto.cli.commands.Config')
+    def test_generate_mapping(self, mock_config, mock_mapper_service):
+        result = self.runner.invoke(commands.generate_mapping, ['--data-source', 'test.csv', '--mapping-group', 'taxon'])
+        self.assertEqual(result.exit_code, 0)
+        mock_mapper_service.return_value.generate_mapping.assert_called_once()
+
+    @patch('niamoto.cli.commands.StatisticService')
+    @patch('niamoto.cli.commands.Config')
+    def test_calculate_statistics(self, mock_config, mock_statistic_service):
+        result = self.runner.invoke(commands.calculate_statistics)
+        self.assertEqual(result.exit_code, 0)
+        mock_statistic_service.return_value.calculate_statistics.assert_called_once()
+
+    @patch('niamoto.cli.commands.GeneratorService')
+    @patch('niamoto.cli.commands.Config')
+    def test_generate_content(self, mock_config, mock_generator_service):
+        result = self.runner.invoke(commands.generate_content)
+        self.assertEqual(result.exit_code, 0)
+        mock_generator_service.return_value.generate_content.assert_called_once()
+
+    @patch('niamoto.cli.commands.deploy_to_github')
+    def test_deploy_to_github(self, mock_deploy_to_github):
+        result = self.runner.invoke(commands.deploy, ['--provider', 'github', '--output-dir', 'output', '--repo-url', 'https://github.com/test/repo.git'])
+        self.assertEqual(result.exit_code, 0)
+        mock_deploy_to_github.assert_called_once()
+
+    @patch('niamoto.cli.commands.deploy_to_netlify')
+    def test_deploy_to_netlify(self, mock_deploy_to_netlify):
+        result = self.runner.invoke(commands.deploy, ['--provider', 'netlify', '--output-dir', 'output', '--site-id', 'test-site-id'])
+        self.assertEqual(result.exit_code, 0)
+        mock_deploy_to_netlify.assert_called_once()
+
+if __name__ == '__main__':
     unittest.main()

@@ -27,7 +27,7 @@ class BaseGenerator:
             "full_name": taxon.full_name,
             "authors": taxon.authors,
             "rank_name": taxon.rank_name,
-            "metadata": taxon.extra_data,
+            "metadata": taxon.extra_data if taxon.extra_data is not None else {},
             "lft": taxon.lft,
             "rght": taxon.rght,
             "level": taxon.level,

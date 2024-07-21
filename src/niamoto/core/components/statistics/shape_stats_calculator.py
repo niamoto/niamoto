@@ -29,7 +29,7 @@ from shapely import (
     make_valid,
     unary_union,
 )
-from shapely.errors import WKTReadingError
+from shapely.errors import ShapelyError
 from shapely.geometry import mapping, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
@@ -172,7 +172,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             try:
                 point_geom = wkt_loads(wkt_str)
                 return prepared_shape.contains(point_geom)
-            except WKTReadingError:
+            except ShapelyError:
                 self.logger.warning(f"Invalid WKT: {wkt_str}")
                 return False
 

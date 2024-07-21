@@ -191,23 +191,21 @@ class Config:
         }
 
         try:
-            with open(self.config_path, "r") as config_file:
-                config: Dict[Any, Any] = yaml.safe_load(config_file)
-
             for section, keys in expected_keys.items():
-                if section not in config:
+                if section not in self.config:
                     raise ValueError(f"Missing section: {section}")
 
-                for key in keys:
-                    if key not in config[section] or not config[section][key]:
-                        raise ValueError(
-                            f"Missing or empty key '{key}' in section '{section}'"
-                        )
+                if keys:
+                    for key in keys:
+                        if key not in self.config[section] or not self.config[section][key]:
+                            raise ValueError(
+                                f"Missing or empty key '{key}' in section '{section}'"
+                            )
 
-            return config
+            return self.config
 
         except Exception as e:
-            raise ValueError(f"Error validating configuration file: {e}")
+            raise ValueError(f"Error validating configuration: {e}")
 
     def load_config(self, create_default: bool = True) -> Any:
         """

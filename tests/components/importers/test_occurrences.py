@@ -60,7 +60,7 @@ class TestOccurrenceImporter(unittest.TestCase):
         Test case for the import_valid_occurrences method of the OccurrenceImporter class.
         """
         result = self.importer.import_valid_occurrences(
-            self.csv_file, self.taxon_id_column
+            self.csv_file, self.taxon_id_column, 'geo_pt'
         )
         self.assertEqual(result, "Total valid occurrences imported: 0")
 

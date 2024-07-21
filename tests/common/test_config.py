@@ -1,121 +1,138 @@
 import os
-import pytest
 import tempfile
+import unittest
+from unittest.mock import patch, mock_open, Mock
 import yaml
 from niamoto.common.config import Config
 
 
-def test_default_config():
-    """
-    Test case for the default configuration of the application.
-    """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        os.environ["NIAMOTO_HOME"] = temp_dir
+class TestConfig(unittest.TestCase):
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.old_niamoto_home = os.environ.get('NIAMOTO_HOME')
+        os.environ['NIAMOTO_HOME'] = self.test_dir
+
+    def tearDown(self):
+        if self.old_niamoto_home:
+            os.environ['NIAMOTO_HOME'] = self.old_niamoto_home
+        else:
+            os.environ.pop('NIAMOTO_HOME', None)
+        import shutil
+        shutil.rmtree(self.test_dir)
+
+    def test_init_with_default_config(self):
         config = Config()
-        assert config.get("database", "path") == "data/db/niamoto.db"
-        assert config.get("sources", "taxonomy") == "data/sources/taxonomy.csv"
-        assert config.get("sources", "plots") == "data/sources/plots.gpkg"
-        assert config.get("sources", "occurrences") == "data/sources/occurrences.csv"
-        assert (
-            config.get("sources", "occurrence-plots")
-            == "data/sources/occurrence-plots.csv"
-        )
-        assert config.get("sources", "raster") == "data/sources/raster"
-        assert config.get("web", "static_pages") == "web/static_files"
-        assert config.get("web", "api") == "web/api"
-        assert config.get("logs", "path") == "logs"
+        self.assertTrue(os.path.exists(os.path.join(self.test_dir, "config.yml")))
+        self.assertEqual(config.database_path, "data/db/niamoto.db")
 
+    def test_init_with_custom_config_path(self):
+        custom_path = os.path.join(self.test_dir, "custom_config.yml")
+        config = Config(config_path=custom_path, create_default=True)
+        self.assertTrue(os.path.exists(custom_path))
 
-def test_custom_config(tmp_path):
-    """
-    Test case for a custom configuration of the application.
-
-    Args:
-        tmp_path: A pytest fixture that provides a temporary directory unique to the test invocation.
-    """
-    custom_config = {
-        "database": {"path": "custom/db/path.db"},
-        "sources": {
-            "taxonomy": "custom/taxonomy.csv",
-            "plots": "custom/plots.gpkg",
-            "occurrences": "custom/occurrences.csv",
-            "occurrence-plots": "custom/occurrence-plots.csv",
-            "raster": "custom/raster",
-        },
-        "web": {
-            "static_pages": "custom/static_files",
-            "api": "custom/api",
-        },
-        "logs": {"path": "custom/logs"},
-    }
-    config_path = tmp_path / "custom_config.yml"
-    with open(config_path, "w") as f:
-        yaml.dump(custom_config, f)
-
-    config = Config(str(config_path))
-    assert config.get("database", "path") == "custom/db/path.db"
-    assert config.get("sources", "taxonomy") == "custom/taxonomy.csv"
-    assert config.get("sources", "plots") == "custom/plots.gpkg"
-    assert config.get("sources", "occurrences") == "custom/occurrences.csv"
-    assert config.get("sources", "occurrence-plots") == "custom/occurrence-plots.csv"
-    assert config.get("sources", "raster") == "custom/raster"
-    assert config.get("web", "static_pages") == "custom/static_files"
-    assert config.get("web", "api") == "custom/api"
-    assert config.get("logs", "path") == "custom/logs"
-
-
-def test_get_method():
-    """
-    Test case for the get method of the Config class.
-    """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        os.environ["NIAMOTO_HOME"] = temp_dir
+    def test_get_section(self):
         config = Config()
-        assert config.get("database") == {"path": "data/db/niamoto.db"}
-        assert config.get("sources", "plots") == "data/sources/plots.gpkg"
-        assert config.get("web") == {
-            "static_pages": "web/static_files",
-            "api": "web/api",
+        sources = config.get_section("sources")
+        self.assertIsInstance(sources, dict)
+        self.assertIn("taxonomy", sources)
+
+    def test_get(self):
+        config = Config()
+        taxonomy_path = config.get("sources", "taxonomy")
+        self.assertEqual(taxonomy_path["path"], "data/sources/taxonomy.csv")
+
+    def test_set_and_save(self):
+        config = Config()
+        new_path = "/new/path/to/db"
+        config.set("database", "path", new_path)
+        config.save()
+
+        # Recharger la configuration pour vérifier que les changements ont été sauvegardés
+        new_config = Config()
+        self.assertEqual(new_config.database_path, new_path)
+
+    def test_validate_config(self):
+        config = Config()
+        validated_config = config.validate_config()
+        self.assertIsNotNone(validated_config)
+
+    def test_validate_config_with_missing_section(self):
+        # Create an invalid configuration
+        invalid_config = {
+            "logs": {"path": "logs"},
+            "sources": {
+                "taxonomy": {"path": "data/sources/taxonomy.csv"},
+                "plots": {"path": "data/sources/plots.gpkg"},
+                "occurrences": {"path": "data/sources/occurrences.csv"},
+                "occurrence-plots": {"path": "data/sources/occurrence-plots.csv"},
+                "shapes": {"path": "data/sources/shapes.csv"},
+                "rasters": {"path": "data/sources/rasters"}
+            },
+            "outputs": {"static_site": "outputs", "static_api": "outputs/api"},
+            "aggregations": []
         }
 
+        # Create a mock Config instance with the invalid configuration
+        mock_config = Mock(spec=Config)
+        mock_config.config = invalid_config
+        mock_config.config_path = os.path.join(self.test_dir, "config.yml")
 
-def test_valid_config():
-    """
-    Test case for validating a correct configuration of the application.
-    """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        os.environ["NIAMOTO_HOME"] = temp_dir
+        # Call the validate_config method
+        with self.assertRaises(ValueError) as context:
+            Config.validate_config(mock_config)
+
+        # Verify that the expected exception was raised
+        self.assertIn("Missing section: database", str(context.exception))
+
+    def test_get_niamoto_home(self):
+        # Test with NIAMOTO_HOME environment variable
+        self.assertEqual(Config.get_niamoto_home(), self.test_dir)
+
+        # Test without NIAMOTO_HOME environment variable
+        old_home = os.environ.pop('NIAMOTO_HOME', None)
+        try:
+            self.assertEqual(Config.get_niamoto_home(), os.getcwd())
+        finally:
+            if old_home:
+                os.environ['NIAMOTO_HOME'] = old_home
+
+    def test_config_initialization(self):
+        # Test with default configuration file creation
+        config = Config(create_default=True)
+        self.assertTrue(os.path.exists(os.path.join(self.test_dir, "config.yml")))
+
+        # Test without default configuration file creation
+        os.remove(os.path.join(self.test_dir, "config.yml"))
+        with self.assertRaises(FileNotFoundError):
+            Config(create_default=False)
+
+    def test_data_sources_property(self):
         config = Config()
-        assert config.validate_config() is not None
+        sources = config.data_sources
+        self.assertIn("taxonomy", sources)
+        self.assertIn("plots", sources)
+
+    def test_output_paths_property(self):
+        config = Config()
+        outputs = config.output_paths
+        self.assertIn("static_site", outputs)
+        self.assertIn("static_api", outputs)
+
+    def test_create_config_file(self):
+        custom_config = {
+            "test": {
+                "key": "value"
+            }
+        }
+        config = Config()
+        config.create_config_file(custom_config)
+
+        with open(config.config_path, 'r') as f:
+            loaded_config = yaml.safe_load(f)
+
+        self.assertEqual(loaded_config, custom_config)
 
 
-def test_invalid_config(tmp_path):
-    """
-    Test case for validating an incorrect configuration of the application.
-
-    Args:
-        tmp_path: A pytest fixture that provides a temporary directory unique to the test invocation.
-    """
-    invalid_config = {
-        "database": {"path": ""},
-        "sources": {
-            "taxonomy": "",
-            "plots": "",
-            "occurrences": "",
-            "occurrence-plots": "",
-            "raster": "",
-        },
-        "web": {
-            "static_pages": "",
-            "api": "",
-        },
-        "logs": {"path": ""},
-    }
-    config_path = tmp_path / "invalid_config.yml"
-    with open(config_path, "w") as f:
-        yaml.dump(invalid_config, f)
-
-    config = Config(str(config_path))
-    with pytest.raises(ValueError) as e:
-        config.validate_config()
-    assert "Error validating configuration file" in str(e.value)
+if __name__ == '__main__':
+    unittest.main()

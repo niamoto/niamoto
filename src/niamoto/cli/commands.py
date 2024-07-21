@@ -60,8 +60,8 @@ class RichCLI(click.Group):
         """
         Override the format_help method to integrate our command table.
 
-        This method customizes the help message displayed when the user runs the CLI with the --help option.
-        It includes a custom usage message, a description of the CLI, available options, and a table of available commands.
+        This method customizes the help message displayed when the user runs the CLI with the --help option. It
+        includes a custom usage message, a description of the CLI, available options, and a table of available commands.
 
         Args:
             ctx (click.Context): The click context object.
@@ -219,10 +219,10 @@ def init(reset: bool) -> None:
     Raises:
         None
 
-    Note:
-        - If the Niamoto environment already exists and the `--reset` flag is not provided, the command will abort and display a warning message.
-        - If the `--reset` flag is provided and the environment exists, the command will reset the environment by removing existing files and reinitializing the project.
-        - If the Niamoto environment does not exist, the command will initialize a new environment with default configuration settings.
+    Note: - If the Niamoto environment already exists and the `--reset` flag is not provided, the command will abort
+    and display a warning message. - If the `--reset` flag is provided and the environment exists, the command will
+    reset the environment by removing existing files and reinitializing the project. - If the Niamoto environment
+    does not exist, the command will initialize a new environment with default configuration settings.
     """
     console = Console()
     niamoto_home = Config.get_niamoto_home()
@@ -376,9 +376,8 @@ def import_taxonomy(csvfile: str, ranks: str) -> None:
     Returns:
         None
 
-    Raises:
-        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
-        ValueError: If the provided ranks do not match the columns in the CSV file.
+    Raises: FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the
+    configuration. ValueError: If the provided ranks do not match the columns in the CSV file.
 
     Note:
         The CSV file should have a header row specifying the column names.
@@ -443,9 +442,8 @@ def import_plots(csvfile: str, plot_identifier: str, location_field: str) -> Non
     Returns:
         None
 
-    Raises:
-        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
-        ValueError: If the specified plot identifier column is not found in the CSV file.
+    Raises: FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the
+    configuration. ValueError: If the specified plot identifier column is not found in the CSV file.
 
 
     Note:
@@ -528,10 +526,9 @@ def import_occurrences(
     Returns:
         None
 
-    Raises:
-        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
-        ValueError: If the specified taxon identifier column is not found in the CSV file.
-        Exception: If an error occurs during the import process.
+    Raises: FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the
+    configuration. ValueError: If the specified taxon identifier column is not found in the CSV file. Exception: If
+    an error occurs during the import process.
 
     Note:
         - The CSV file should have a header row specifying the column names.
@@ -591,10 +588,9 @@ def import_occurrence_plot_links(csvfile: str) -> None:
     Returns:
         None
 
-    Raises:
-        FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the configuration.
-        ValueError: If the CSV file does not contain the required columns for occurrence-plot links.
-        Exception: If an error occurs during the import process.
+    Raises: FileNotFoundError: If the specified CSV file does not exist and no default path is provided in the
+    configuration. ValueError: If the CSV file does not contain the required columns for occurrence-plot links.
+    Exception: If an error occurs during the import process.
 
     Note:
         - The CSV file should have a header row specifying the column names.
@@ -855,9 +851,9 @@ def generate_mapping(
         reference_table_name (str, optional): The name of the reference table in the database.
         reference_data_path (str, optional): The path to the reference table file (e.g., GeoPackage).
 
-    Examples:
-        $ niamoto generate-mapping --data-source occurrences.csv --mapping-group taxon --reference-table-name taxon_ref
-        $ niamoto generate-mapping --data-source plot_data.csv --mapping-group plot --reference-table-name plot_ref --reference-data-path plot_ref.gpkg
+    Examples: $ niamoto generate-mapping --data-source occurrences.csv --mapping-group taxon --reference-table-name
+    taxon_ref $ niamoto generate-mapping --data-source plot_data.csv --mapping-group plot --reference-table-name
+    plot_ref --reference-data-path plot_ref.gpkg
 
     Raises:
         click.UsageError: If no CSV file is provided to generate the mapping from.
