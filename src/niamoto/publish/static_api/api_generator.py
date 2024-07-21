@@ -164,6 +164,7 @@ class ApiGenerator(BaseGenerator):
         return {
             "id": int(taxon.id),
             "name": str(taxon.full_name),
+            "metadata": taxon.extra_data,
             "endpoint": f"/api/taxon/{taxon.id}.json",
         }
 

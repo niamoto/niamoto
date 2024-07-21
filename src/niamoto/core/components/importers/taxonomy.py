@@ -144,8 +144,8 @@ class TaxonomyImporter:
                 session.add(taxon)
 
             taxon.full_name = row["full_name"]
-            taxon.authors = row["authors"]
-            taxon.rank_name = row["rank"]
+            taxon.authors = row["authors"] if pd.notna(row["authors"]) else None
+            taxon.rank_name = row["rank_name"]
 
             parent_id = row["parent_id"]
             if not pd.isna(parent_id):
