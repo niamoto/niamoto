@@ -122,7 +122,9 @@ class TaxonomyImporter:
                 session.commit()
                 self._update_nested_set_values(session)
 
-    def _create_or_update_taxon(self, row: Any, session: Any, ranks: Tuple[str, ...]) -> Optional[TaxonRef]:
+    def _create_or_update_taxon(
+        self, row: Any, session: Any, ranks: Tuple[str, ...]
+    ) -> Optional[TaxonRef]:
         """
         Create or update a taxon.
 
@@ -152,10 +154,13 @@ class TaxonomyImporter:
                 taxon.parent_id = int(parent_id)
 
             # Store extra data in JSON format
-            standard_fields = ['id_taxon', 'full_name', 'authors', 'rank', 'parent_id']
+            standard_fields = ["id_taxon", "full_name", "authors", "rank", "parent_id"]
             all_ignored_fields = set(standard_fields).union(ranks)
-            extra_data = {key: (None if pd.isna(value) else self._convert_to_correct_type(value)) for key, value in
-                          row.items() if key not in all_ignored_fields}
+            extra_data = {
+                key: (None if pd.isna(value) else self._convert_to_correct_type(value))
+                for key, value in row.items()
+                if key not in all_ignored_fields
+            }
             taxon.extra_data = extra_data
 
             session.flush()

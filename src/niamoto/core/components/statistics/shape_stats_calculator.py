@@ -52,11 +52,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
     """
 
     def __init__(
-            self,
-            db: Database,
-            mapper_service: MapperService,
-            occurrences: list[dict[Hashable, Any]],
-            group_by: str,
+        self,
+        db: Database,
+        mapper_service: MapperService,
+        occurrences: list[dict[Hashable, Any]],
+        group_by: str,
     ):
         super().__init__(
             db, mapper_service, occurrences, group_by, log_component="shape_stats"
@@ -74,10 +74,10 @@ class ShapeStatsCalculator(StatisticsCalculator):
             self.initialize_stats_table()
 
             with Progress(
-                    SpinnerColumn(),
-                    BarColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    TimeElapsedColumn(),
+                SpinnerColumn(),
+                BarColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                TimeElapsedColumn(),
             ) as progress:
                 task = progress.add_task(
                     "[green]Calculating shape statistics...", total=len(shapes)
@@ -189,7 +189,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         return occurrences_within_shape
 
-    def calculate_stats(self, group_id: int, group_occurrences: List[Dict[Hashable, Any]]) -> Dict[str, Any]:
+    def calculate_stats(
+        self, group_id: int, group_occurrences: List[Dict[Hashable, Any]]
+    ) -> Dict[str, Any]:
         """
         Calculate statistics for a given shape and its occurrences.
 
@@ -240,15 +242,16 @@ class ShapeStatsCalculator(StatisticsCalculator):
                                 f"Empty GeoDataFrame for {layer_name} in shape {group_id}"
                             )
                     elif (
-                            data_source.get("type") == "shape"
-                            and data_source.get("name") == "self" and shape_ref is not None
+                        data_source.get("type") == "shape"
+                        and data_source.get("name") == "self"
+                        and shape_ref is not None
                     ):
                         stats.update(
                             self.process_shape_stats(shape_ref, field, transformations)
                         )
                     elif (
-                            data_source.get("type") == "source"
-                            and data_source.get("name") == "occurrences"
+                        data_source.get("type") == "source"
+                        and data_source.get("name") == "occurrences"
                     ):
                         stats.update(
                             self.process_occurrence_stats(
@@ -262,9 +265,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         return stats
 
-    def load_all_layers(
-            self, shape_gdf: Any
-    ) -> Dict[str, Any]:
+    def load_all_layers(self, shape_gdf: Any) -> Dict[str, Any]:
         """
         Load all layers based on the configuration.
 
@@ -287,13 +288,15 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     if layer_name not in loaded_layers:
                         layer_type = self.mapper_service.get_layer_type(layer_name)
                         if layer_type is not None:
-                            gdf = self.load_layer_as_gdf(shape_gdf, layer_name, layer_type)
+                            gdf = self.load_layer_as_gdf(
+                                shape_gdf, layer_name, layer_type
+                            )
                             loaded_layers[layer_name] = gdf
 
         return loaded_layers
 
     def load_layer_as_gdf(
-            self, shape_gdf: Any, layer_name: str, layer_type: str
+        self, shape_gdf: Any, layer_name: str, layer_type: str
     ) -> Any:
         """
         Load a layer as a GeoDataFrame and clip it to the shape geometry.
@@ -436,7 +439,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
             # Simplify large geometries
             if area_km2 > LARGE_SHAPE_THRESHOLD_KM2:
-                tolerance = 0.001 * (area_km2 ** 0.5)
+                tolerance = 0.001 * (area_km2**0.5)
                 geometry = geometry.simplify(tolerance, preserve_topology=True)
 
                 if isinstance(geometry, Polygon):
@@ -485,11 +488,11 @@ class ShapeStatsCalculator(StatisticsCalculator):
         return geom
 
     def process_layer_stats(
-            self,
-            shape_ref: ShapeRef,
-            gdf: Any,
-            field: str,
-            transformations: List[Dict[str, Any]],
+        self,
+        shape_ref: ShapeRef,
+        gdf: Any,
+        field: str,
+        transformations: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
         Process statistics for a layer.
@@ -600,7 +603,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         total_area = areas_ha.sum()
 
         # Calculate the sum of squared areas
-        sum_squared_areas = (areas_ha ** 2).sum()
+        sum_squared_areas = (areas_ha**2).sum()
 
         if total_area > 0:
             # Calculate the Effective Mesh Size (MEFF) in hectares
@@ -615,7 +618,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             return 0.0
 
     def calculate_fragmentation_distribution_from_gdf(
-            self, gdf: Any, field_config: Dict[str, Any]
+        self, gdf: Any, field_config: Dict[str, Any]
     ) -> Dict[str, float]:
         """
         Calculate the fragmentation distribution from a GeoDataFrame.
@@ -664,10 +667,10 @@ class ShapeStatsCalculator(StatisticsCalculator):
         for bin_val in bins:
             bin_sum = fragment_areas[
                 (fragment_areas > last_bin) & (fragment_areas <= bin_val)
-                ].sum()
+            ].sum()
             cumulative_area += bin_sum
             bin_areas[str(bin_val)] = (
-                    cumulative_area / total_area * 100
+                cumulative_area / total_area * 100
             )  # Convert to percentage
             last_bin = bin_val
 
@@ -703,8 +706,10 @@ class ShapeStatsCalculator(StatisticsCalculator):
             return {str(bin_edges[i]): int(hist[i]) for i in range(len(hist))}
 
     def process_shape_stats(
-            self, shape_ref: ShapeRef, field: str, transformations: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:  # This indicates that the returned dictionary can have any type of values.
+        self, shape_ref: ShapeRef, field: str, transformations: List[Dict[str, Any]]
+    ) -> Dict[
+        str, Any
+    ]:  # This indicates that the returned dictionary can have any type of values.
         """
         Process shape statistics for a given field.
 
@@ -723,14 +728,16 @@ class ShapeStatsCalculator(StatisticsCalculator):
             if transform_name == "area":
                 stats[column_name] = self.calculate_area(str(shape_ref.location))
             elif transform_name == "coordinates":
-                stats[column_name] = self.get_simplified_coordinates(str(shape_ref.location))
+                stats[column_name] = self.get_simplified_coordinates(
+                    str(shape_ref.location)
+                )
         return stats
 
     def process_occurrence_stats(
-            self,
-            group_occurrences: List[Dict[Hashable, Any]],
-            field: str,
-            transformations: List[Dict[str, Any]],
+        self,
+        group_occurrences: List[Dict[Hashable, Any]],
+        field: str,
+        transformations: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
         Process occurrence statistics for a given field.
@@ -757,7 +764,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         return stats
 
     def calculate_unique_taxonomic_count(
-            self, occurrences: List[Dict[Hashable, Any]], target_ranks: List[str]
+        self, occurrences: List[Dict[Hashable, Any]], target_ranks: List[str]
     ) -> int:
         """
         Calculate the unique count of taxonomic ranks in the occurrences.
@@ -796,7 +803,8 @@ class ShapeStatsCalculator(StatisticsCalculator):
             parent_ids = {
                 taxon.parent_id
                 for taxon in parent_taxons
-                if taxon.parent_id is not None and int(taxon.parent_id) not in taxon_dict
+                if taxon.parent_id is not None
+                and int(taxon.parent_id) not in taxon_dict
             }
 
         unique_taxons = set()
@@ -888,7 +896,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 if shape_geom is not None:
                     shape_geom = shape_geom.to_crs(elevation_src.crs)
                 else:
-                    self.logger.error("Shape geometry is None, cannot proceed with elevation distribution calculation.")
+                    self.logger.error(
+                        "Shape geometry is None, cannot proceed with elevation distribution calculation."
+                    )
                     return {}
 
                 # Mask the elevation data with the shape geometry
@@ -949,8 +959,8 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 # Determine the number of intervals (aim for about 20 intervals)
                 target_intervals = 20
                 interval = (
-                        np.ceil((max_elevation - min_elevation) / target_intervals / 100)
-                        * 100
+                    np.ceil((max_elevation - min_elevation) / target_intervals / 100)
+                    * 100
                 )  # Round to the nearest hundred
 
                 # Ensure the interval is not zero or too small
@@ -985,7 +995,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
                 # Convert the histograms to areas in hectares
                 pixel_area_ha = (
-                        abs(elevation_src.transform[0] * elevation_src.transform[4]) / 10000
+                    abs(elevation_src.transform[0] * elevation_src.transform[4]) / 10000
                 )
                 forest_areas = forest_hist * pixel_area_ha
                 non_forest_areas = non_forest_hist * pixel_area_ha
@@ -1141,9 +1151,9 @@ class ShapeStatsCalculator(StatisticsCalculator):
             if isinstance(occurrence, dict):
                 point_wkt = occurrence.get(occurrence_location_field)
                 if (
-                        point_wkt is not None
-                        and isinstance(point_wkt, str)
-                        and point_wkt.startswith("POINT")
+                    point_wkt is not None
+                    and isinstance(point_wkt, str)
+                    and point_wkt.startswith("POINT")
                 ):
                     try:
                         # Use string manipulation instead of wkt_loads for faster processing

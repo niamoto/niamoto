@@ -64,7 +64,9 @@ class BaseGenerator:
         plot_dict = {
             "id": plot.id,
             "locality": plot.locality,
-            "geometry": mapping(wkt.loads(geometry_str)) if geometry_str is not None else None,
+            "geometry": mapping(wkt.loads(geometry_str))
+            if geometry_str is not None
+            else None,
         }
 
         if stats:

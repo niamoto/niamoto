@@ -82,7 +82,9 @@ class MappingManager:
         """
         config = self.get_config()
         aggregations = config.get("aggregations", [])
-        if isinstance(aggregations, list) and all(isinstance(item, dict) for item in aggregations):
+        if isinstance(aggregations, list) and all(
+            isinstance(item, dict) for item in aggregations
+        ):
             return aggregations
         else:
             return []

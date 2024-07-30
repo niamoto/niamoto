@@ -6,7 +6,11 @@ from niamoto.cli.commands import cli
 from niamoto.core.utils.logging_utils import setup_logging
 
 
-def handle_exception(exc_type: Type[BaseException], exc_value: BaseException, exc_traceback: Optional[Any]) -> None:
+def handle_exception(
+    exc_type: Type[BaseException],
+    exc_value: BaseException,
+    exc_traceback: Optional[Any],
+) -> None:
     """
     Global exception handler to log uncaught exceptions.
 

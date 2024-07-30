@@ -1,24 +1,24 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import patch, mock_open, Mock
+from unittest.mock import Mock
 import yaml
 from niamoto.common.config import Config
 
 
 class TestConfig(unittest.TestCase):
-
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.old_niamoto_home = os.environ.get('NIAMOTO_HOME')
-        os.environ['NIAMOTO_HOME'] = self.test_dir
+        self.old_niamoto_home = os.environ.get("NIAMOTO_HOME")
+        os.environ["NIAMOTO_HOME"] = self.test_dir
 
     def tearDown(self):
         if self.old_niamoto_home:
-            os.environ['NIAMOTO_HOME'] = self.old_niamoto_home
+            os.environ["NIAMOTO_HOME"] = self.old_niamoto_home
         else:
-            os.environ.pop('NIAMOTO_HOME', None)
+            os.environ.pop("NIAMOTO_HOME", None)
         import shutil
+
         shutil.rmtree(self.test_dir)
 
     def test_init_with_default_config(self):
@@ -30,6 +30,7 @@ class TestConfig(unittest.TestCase):
         custom_path = os.path.join(self.test_dir, "custom_config.yml")
         config = Config(config_path=custom_path, create_default=True)
         self.assertTrue(os.path.exists(custom_path))
+        self.assertIsNotNone(config)
 
     def test_get_section(self):
         config = Config()
@@ -67,10 +68,10 @@ class TestConfig(unittest.TestCase):
                 "occurrences": {"path": "data/sources/occurrences.csv"},
                 "occurrence-plots": {"path": "data/sources/occurrence-plots.csv"},
                 "shapes": {"path": "data/sources/shapes.csv"},
-                "rasters": {"path": "data/sources/rasters"}
+                "rasters": {"path": "data/sources/rasters"},
             },
             "outputs": {"static_site": "outputs", "static_api": "outputs/api"},
-            "aggregations": []
+            "aggregations": [],
         }
 
         # Create a mock Config instance with the invalid configuration
@@ -90,17 +91,19 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(Config.get_niamoto_home(), self.test_dir)
 
         # Test without NIAMOTO_HOME environment variable
-        old_home = os.environ.pop('NIAMOTO_HOME', None)
+        old_home = os.environ.pop("NIAMOTO_HOME", None)
         try:
             self.assertEqual(Config.get_niamoto_home(), os.getcwd())
         finally:
             if old_home:
-                os.environ['NIAMOTO_HOME'] = old_home
+                os.environ["NIAMOTO_HOME"] = old_home
 
     def test_config_initialization(self):
         # Test with default configuration file creation
         config = Config(create_default=True)
         self.assertTrue(os.path.exists(os.path.join(self.test_dir, "config.yml")))
+        # Assert that config is an instance of Config
+        self.assertIsInstance(config, Config)
 
         # Test without default configuration file creation
         os.remove(os.path.join(self.test_dir, "config.yml"))
@@ -120,19 +123,15 @@ class TestConfig(unittest.TestCase):
         self.assertIn("static_api", outputs)
 
     def test_create_config_file(self):
-        custom_config = {
-            "test": {
-                "key": "value"
-            }
-        }
+        custom_config = {"test": {"key": "value"}}
         config = Config()
         config.create_config_file(custom_config)
 
-        with open(config.config_path, 'r') as f:
+        with open(config.config_path, "r") as f:
             loaded_config = yaml.safe_load(f)
 
         self.assertEqual(loaded_config, custom_config)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

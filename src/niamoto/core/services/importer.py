@@ -62,12 +62,14 @@ class ImporterService:
         Returns:
             str: The detected separator.
         """
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             first_line = file.readline()
             dialect = csv.Sniffer().sniff(first_line)
             return str(dialect.delimiter)
 
-    def _validate_csv_format(self, file_path: str, separator: str, ranks: Tuple[str, ...]) -> bool:
+    def _validate_csv_format(
+        self, file_path: str, separator: str, ranks: Tuple[str, ...]
+    ) -> bool:
         """
         Validate the format of the CSV file to ensure it contains the required standard fields and ranks.
 
@@ -79,11 +81,11 @@ class ImporterService:
         Returns:
             bool: True if the CSV file contains the required standard fields and ranks, False otherwise.
         """
-        required_fields = {'id_taxon', 'full_name', 'authors'}
+        required_fields = {"id_taxon", "full_name", "authors"}
         required_fields.update(ranks)
 
         try:
-            df = pd.read_csv(file_path, sep=separator, on_bad_lines='warn')
+            df = pd.read_csv(file_path, sep=separator, on_bad_lines="warn")
         except pd.errors.ParserError as e:
             self.logger.error(f"Error reading CSV file: {e}")
             return False
@@ -91,7 +93,9 @@ class ImporterService:
         csv_fields = set(df.columns)
         if not required_fields.issubset(csv_fields):
             missing_fields = required_fields - csv_fields
-            self.logger.error(f"Missing required fields in CSV file: {', '.join(missing_fields)}")
+            self.logger.error(
+                f"Missing required fields in CSV file: {', '.join(missing_fields)}"
+            )
             return False
         return True
 

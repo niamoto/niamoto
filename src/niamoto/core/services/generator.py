@@ -76,7 +76,9 @@ class GeneratorService:
         except Exception as e:
             logger.exception(f"Error generating content: {e}")
 
-    def generate_group_content(self, group_by: str, group_config: Dict[str, Any]) -> None:
+    def generate_group_content(
+        self, group_by: str, group_config: Dict[str, Any]
+    ) -> None:
         """
         Generate content for a given group.
 
@@ -95,7 +97,9 @@ class GeneratorService:
         else:
             raise ValueError(f"Unknown group_by: {group_by}")
 
-        for entity in track(entities, description=f"Generating {group_by} static content"):
+        for entity in track(
+            entities, description=f"Generating {group_by} static content"
+        ):
             with self.repository.db.engine.connect() as connection:
                 result = connection.execute(
                     text(f"SELECT * FROM {group_by}_stats WHERE {group_by}_id = :id"),

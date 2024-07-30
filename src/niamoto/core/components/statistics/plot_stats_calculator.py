@@ -5,7 +5,7 @@ import time
 from collections import Counter
 from typing import List, Dict, Any, Hashable, Union, cast, Optional
 
-import geopandas as gpd # type: ignore
+import geopandas as gpd  # type: ignore
 import pandas as pd
 from rich.progress import track
 from sqlalchemy import Table, MetaData, Column, Integer
@@ -86,7 +86,9 @@ class PlotStatsCalculator(StatisticsCalculator):
                 return
 
             plot_source_identifier = getattr(plot, self.plot_identifier)
-            plot_occurrences = self.get_plot_occurrences(plot_source_identifier, self.source_filter)
+            plot_occurrences = self.get_plot_occurrences(
+                plot_source_identifier, self.source_filter
+            )
             if not plot_occurrences:
                 return
 
@@ -116,7 +118,11 @@ class PlotStatsCalculator(StatisticsCalculator):
         df_occurrences = pd.DataFrame(group_occurrences)
 
         # Retrieve the plot object using group_id
-        plot = self.db.session.query(PlotRef).filter(PlotRef.id_locality == group_id).first()
+        plot = (
+            self.db.session.query(PlotRef)
+            .filter(PlotRef.id_locality == group_id)
+            .first()
+        )
         plot_data = (
             self.plots_data[self.plots_data[self.plot_identifier] == group_id].iloc[0]
             if plot
@@ -251,7 +257,7 @@ class PlotStatsCalculator(StatisticsCalculator):
             return {"type": "Unknown", "coordinates": []}
 
     def get_plot_occurrences(
-            self, plot_id: int, source_filter: Optional[Dict[str, Any]] = None
+        self, plot_id: int, source_filter: Optional[Dict[str, Any]] = None
     ) -> list[dict[Hashable, Any]]:
         """
         Get plot occurrences.
@@ -271,9 +277,9 @@ class PlotStatsCalculator(StatisticsCalculator):
             Column("id_plot", Integer, primary_key=True),
         )
 
-        occurrence_query = self.db.session.query(occurrences_plots.c.id_occurrence).filter(
-            occurrences_plots.c.id_plot == plot_id
-        )
+        occurrence_query = self.db.session.query(
+            occurrences_plots.c.id_occurrence
+        ).filter(occurrences_plots.c.id_plot == plot_id)
 
         # Apply additional source filter if provided
         if source_filter:

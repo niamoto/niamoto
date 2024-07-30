@@ -4,7 +4,7 @@ This module contains the StatisticsCalculator class, which is an abstract base c
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Dict, Any, Hashable, Tuple, Optional
+from typing import List, Dict, Any, Hashable, Tuple
 
 import duckdb
 import pandas as pd

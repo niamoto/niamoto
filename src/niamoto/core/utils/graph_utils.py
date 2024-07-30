@@ -18,7 +18,9 @@ class GraphGenerator:
         """
         self.config = config
 
-    def generate_graph(self, data: Dict[str, Any], transformation: Dict[str, Any]) -> None:
+    def generate_graph(
+        self, data: Dict[str, Any], transformation: Dict[str, Any]
+    ) -> None:
         """
         Generate a graph based on the provided data and transformation options.
 
@@ -91,7 +93,9 @@ class GraphGenerator:
         plt.tight_layout()
         plt.show()
 
-    def plot_stacked_bar_chart(self, data: Dict[str, Any], options: Dict[str, Any]) -> None:
+    def plot_stacked_bar_chart(
+        self, data: Dict[str, Any], options: Dict[str, Any]
+    ) -> None:
         categories = options.get("categories", [])
         values = data["values"]
 

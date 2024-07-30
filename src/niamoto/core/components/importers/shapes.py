@@ -8,7 +8,7 @@ import tempfile
 import zipfile
 from typing import List, Dict, Any
 
-import fiona # type: ignore
+import fiona  # type: ignore
 from pyproj import Transformer, CRS
 from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
 
@@ -200,7 +200,9 @@ class ShapeImporter:
         x, y = coord_transformer.transform(xx=x, yy=y)
         return Point(x, y)
 
-    def transform_linestring(self, linestring: LineString, transformer: Transformer) -> LineString:
+    def transform_linestring(
+        self, linestring: LineString, transformer: Transformer
+    ) -> LineString:
         """
         Transform a linestring to WGS84.
         Args:

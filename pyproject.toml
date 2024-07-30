@@ -72,7 +72,7 @@ duckdb-engine = "^0.13.0"
 # ---------------------
 # leafmap - Interactive mapping library with ease of use for geospatial analysis.
 # Documentation: https://leafmap.org/#key-features
-leafmap = "^0.35.0"
+leafmap = "^0.36.2"
 
 # geopandas - Extends pandas for spatial data operations.
 # Documentation: https://geopandas.org/
@@ -101,7 +101,7 @@ pandas = "^2.2.1"
 
 # pyarrow - Python bindings for Apache Arrow. required by pandas.
 # Documentation: https://arrow.apache.org/docs/python/
-pyarrow = "16.1.0"
+pyarrow = "^17.0.0"
 
 # numpy - Fundamental package for scientific computing in Python.
 # Documentation: https://numpy.org/

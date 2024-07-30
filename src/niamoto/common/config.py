@@ -197,7 +197,10 @@ class Config:
 
                 if keys:
                     for key in keys:
-                        if key not in self.config[section] or not self.config[section][key]:
+                        if (
+                            key not in self.config[section]
+                            or not self.config[section][key]
+                        ):
                             raise ValueError(
                                 f"Missing or empty key '{key}' in section '{section}'"
                             )

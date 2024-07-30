@@ -34,7 +34,9 @@ class CustomFilter(logging.Filter):
         )
 
 
-def setup_logging(log_directory: str = "logs", component_name: Optional[str] = None) -> logging.Logger:
+def setup_logging(
+    log_directory: str = "logs", component_name: Optional[str] = None
+) -> logging.Logger:
     """
     Set up the custom logging filter to suppress specific warnings and configure file logging.
 
