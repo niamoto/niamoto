@@ -316,11 +316,11 @@ class StatisticsCalculator(ABC):
                 if item_name:
                     item_counts[item_name] = item_counts.get(item_name, 0) + 1
 
-        top_items = dict(
-            sorted(item_counts.items(), key=lambda item: item[1], reverse=True)[
-                :top_count
-            ]
-        )
+        # Sort the items by count in descending order
+        sorted_items = sorted(item_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # Take the top 'top_count' items
+        top_items = dict(sorted_items[:top_count])
         return top_items
 
     @staticmethod

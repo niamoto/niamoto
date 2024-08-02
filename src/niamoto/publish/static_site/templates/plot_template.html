@@ -29,6 +29,14 @@
             position: relative;
             height: 400px;
         }
+
+        .chart-container {
+            position: relative;
+            height: 400px; /* Fix the height */
+            width: 100%; /* Ensure full width */
+            max-width: 600px; /* Set a max-width to prevent it from being too wide */
+            margin: 0 auto; /* Center the chart container */
+          }
     </style>
 {% endblock %}
 
@@ -76,7 +84,7 @@
     {% elif transformation.chart_type == 'gauge' %}
         <div class="gauge" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge"></div>
     {% elif transformation.chart_type == 'bar' %}
-        <canvas id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
+        <canvas class="chart-container" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
     {% endif %}
     {% endmacro %}
 
@@ -116,6 +124,58 @@
 
     function loadPlotCharts(plot, mapping) {
         var frequencies = plot.frequencies;
+
+        function generateColors(count, defaultColor) {
+    if (defaultColor) {
+        return Array(count).fill(defaultColor);
+    }
+
+    // Function to convert HSL to RGB
+    function hslToRgb(h, s, l) {
+        let r, g, b;
+
+        if (s === 0) {
+            r = g = b = l; // achromatic
+        } else {
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            };
+
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            r = hue2rgb(p, q, h + 1/3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1/3);
+        }
+
+        return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    }
+
+    // Function to convert RGB to Hex
+    function rgbToHex(r, g, b) {
+        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    // Generate harmonious colors
+    return Array.from({ length: count }, (_, i) => {
+        // Use golden ratio to spread hues evenly
+        const hue = (i * 0.618033988749895) % 1;
+
+        // Vary saturation slightly
+        const saturation = 0.5 + (i % 3) * 0.1;
+
+        // Vary lightness to create contrast
+        const lightness = 0.4 + (i % 2) * 0.2;
+
+        const [r, g, b] = hslToRgb(hue, saturation, lightness);
+        return rgbToHex(r, g, b);
+    });
+}
 
         Object.entries(mapping.fields).forEach(function([field_key, field]) {
             if (field.field_type !== 'GEOGRAPHY') {
@@ -192,29 +252,82 @@
 
                         createGauge(gaugeOptions);
                     } else if (transformation.chart_type === 'bar') {
-                        var barData = {
-                            labels: Object.keys(plot[valueKey] || {}),
-                            datasets: [{
-                                label: field.label,
-                                data: Object.values(plot[valueKey] || {}),
-                                backgroundColor: getColor(0).background,
-                                borderColor: getColor(0).border,
-                                borderWidth: 1
-                            }]
-                        };
+                    var sortedData = Object.entries(plot[field_key+'_'+ transformation.name] || {})
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, transformation.count || 10);
 
-                        var barConfig = {
-                            type: 'bar',
-                            data: barData,
-                            options: transformation.chart_options
-                        };
-                        var fieldId = field_key + transformation.name;
-                        var barCtx = document.getElementById(fieldId + 'BarChart');
-                        if (barCtx) {
-                            barCtx = barCtx.getContext('2d');
-                            new Chart(barCtx, barConfig);
+                    var defaultColor = transformation.chart_options.defaultColor;
+                    var colors = generateColors(sortedData.length, defaultColor);
+
+                    var barData = {
+                        labels: sortedData.map(item => item[0]),
+                        datasets: [{
+                            label: field.label,
+                            data: sortedData.map(item => item[1]),
+                            backgroundColor: colors,
+                            borderColor: colors,
+                            borderWidth: 1
+                        }]
+                    };
+
+                    var barConfig = {
+                        type: 'bar',
+                        data: barData,
+                        options: {
+                            indexAxis: 'y',
+                            responsive: false,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                title: {
+                                    display: true,
+                                    text: transformation.chart_options.title || 'Main Sub-taxa',
+                                    font: {
+                                        size: 16,
+                                        weight: 'bold'
+                                    },
+                                    padding: {
+                                        top: 10,
+                                        bottom: 30
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Count',
+                                        font: {
+                                            weight: 'bold'
+                                        }
+                                    },
+                                    ticks: {
+                                        font: {
+                                            weight: 'bold'
+                                        }
+                                    }
+                                },
+                                y: {
+                                    ticks: {
+                                        font: {
+                                            weight: 'bold'
+                                        }
+                                    }
+                                }
+                            }
                         }
+                    };
+
+                    var fieldKey = field_key + transformation.name;
+                    var barCtxElement = document.getElementById(fieldKey + 'BarChart');
+                    if (barCtxElement) {
+                        barCtxElement.style.height = '400px';  // Adjust height as needed
+                        var barCtx = barCtxElement.getContext('2d');
+                        new Chart(barCtx, barConfig);
                     }
+                }
                 });
             }
         });

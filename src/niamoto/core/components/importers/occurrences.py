@@ -180,15 +180,15 @@ class OccurrenceImporter:
             self.con.execute(drop_table_sql)
 
             # Create the 'occurrences' table with the foreign key constraint
-            # create_table_sql = (
-            #     f"CREATE TABLE IF NOT EXISTS occurrences ({columns_sql});"
-            # )
-            create_table_sql = f"""
-                    CREATE TABLE IF NOT EXISTS occurrences (
-                        {columns_sql},
-                        location VARCHAR
-                    );
-                    """
+            create_table_sql = (
+                f"CREATE TABLE IF NOT EXISTS occurrences ({columns_sql});"
+            )
+            # create_table_sql = f"""
+            #         CREATE TABLE IF NOT EXISTS occurrences (
+            #             {columns_sql},
+            #             location VARCHAR
+            #         );
+            #         """
             self.con.execute(create_table_sql)
 
             df = pd.read_csv(csvfile, low_memory=False)
@@ -235,8 +235,8 @@ class OccurrenceImporter:
                     print(f"Error processing geometry: {e}")
                     return None
 
-            # Appliquer la fonction à la colonne de localisation
-            df["location"] = df[location_column].apply(process_geometry)
+            # Apply the process_geometry function to the location column
+            # df["location"] = df[location_column].apply(process_geometry)
 
             # Define the size of each "chunk" for insertion
             chunk_size = 1000
@@ -253,16 +253,16 @@ class OccurrenceImporter:
                     chunk.to_sql("occurrences", engine, if_exists="append", index=False)
                     progress.update(task, advance=1)
 
-            convert_to_geometry_sql = """
-                    ALTER TABLE occurrences
-                    ALTER COLUMN location TYPE GEOMETRY
-                    USING CASE 
-                        WHEN location IS NOT NULL AND location != '' 
-                        THEN ST_GeomFromText(location)
-                        ELSE NULL
-                    END;
-                    """
-            self.con.execute(convert_to_geometry_sql)
+            # convert_to_geometry_sql = """
+            #         ALTER TABLE occurrences
+            #         ALTER COLUMN location TYPE GEOMETRY
+            #         USING CASE
+            #             WHEN location IS NOT NULL AND location != ''
+            #             THEN ST_GeomFromText(location)
+            #             ELSE NULL
+            #         END;
+            #         """
+            # self.con.execute(convert_to_geometry_sql)
 
             # Count the number of valid imported occurrences
             count_sql = "SELECT COUNT(*) FROM occurrences;"

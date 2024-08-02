@@ -79,6 +79,15 @@
         #taxonomy-tree .level-3,
         #taxonomy-tree .level-4,
         #taxonomy-tree .level-5 { font-size: 12px; }
+
+        .chart-container {
+            position: relative;
+            height: 400px; /* Fix the height */
+            width: 100%; /* Ensure full width */
+            max-width: 600px; /* Set a max-width to prevent it from being too wide */
+            margin: 0 auto; /* Center the chart container */
+          }
+
     </style>
     <script>
         const taxonId = {{ taxon.id }};
@@ -137,7 +146,7 @@
                 {% elif transformation.chart_type == 'gauge' %}
                     <div class="gauge" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge"></div>
                 {% elif transformation.chart_type == 'bar' %}
-                    <canvas id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
+                    <canvas class="chart-container" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
                 {% endif %}
             {% endmacro %}
 
