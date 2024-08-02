@@ -2,50 +2,79 @@ function loadCharts(item, mapping) {
     var frequencies = item.frequencies;
 
     function generateColors(count, defaultColor) {
-    if (defaultColor) {
-        return Array(count).fill(defaultColor);
-    }
+            if (defaultColor) {
+                return Array(count).fill(defaultColor);
+            }
 
-    // Predefined color palette (you can adjust these colors as needed)
-    const baseColors = [
-        '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
-        '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'
-    ];
+            // Function to convert HSL to RGB
+            function hslToRgb(h, s, l) {
+                let r, g, b;
 
-    // Function to adjust brightness
-    function adjustBrightness(hex, factor) {
-        let r = parseInt(hex.slice(1, 3), 16);
-        let g = parseInt(hex.slice(3, 5), 16);
-        let b = parseInt(hex.slice(5, 7), 16);
+                if (s === 0) {
+                    r = g = b = l; // achromatic
+                } else {
+                    const hue2rgb = (p, q, t) => {
+                        if (t < 0) t += 1;
+                        if (t > 1) t -= 1;
+                        if (t < 1/6) return p + (q - p) * 6 * t;
+                        if (t < 1/2) return q;
+                        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                        return p;
+                    };
 
-        r = Math.round(r * factor);
-        g = Math.round(g * factor);
-        b = Math.round(b * factor);
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+                    r = hue2rgb(p, q, h + 1/3);
+                    g = hue2rgb(p, q, h);
+                    b = hue2rgb(p, q, h - 1/3);
+                }
 
-        r = Math.min(255, Math.max(0, r));
-        g = Math.min(255, Math.max(0, g));
-        b = Math.min(255, Math.max(0, b));
+                return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+            }
 
-        return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-    }
+            // Function to convert RGB to Hex
+            function rgbToHex(r, g, b) {
+                return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+            }
 
-    // Generate colors
-    return Array.from({ length: count }, (_, i) => {
-        const baseColor = baseColors[i % baseColors.length];
-        const brightnessAdjustment = 0.8 + (0.4 * (i % 3)) / 2; // Vary brightness slightly
-        return adjustBrightness(baseColor, brightnessAdjustment);
-    });
-}
+            // Generate harmonious colors
+            return Array.from({ length: count }, (_, i) => {
+                // Use golden ratio to spread hues evenly
+                const hue = (i * 0.618033988749895) % 1;
+
+                // Vary saturation slightly
+                const saturation = 0.5 + (i % 3) * 0.1;
+
+                // Vary lightness to create contrast
+                const lightness = 0.4 + (i % 2) * 0.2;
+
+                const [r, g, b] = hslToRgb(hue, saturation, lightness);
+                return rgbToHex(r, g, b);
+            });
+        }
 
     Object.entries(mapping.fields).forEach(function ([field_key, field]) {
         if (field.field_type !== 'GEOGRAPHY') {
             // Chart for bins
             if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field.source_field]) {
+                // Sort the bin data
+                var sortedFrequencies;
+
+                if (field.bins.chart_options.indexAxis === 'y') {
+                    console.log(field.bins.chart_options.indexAxis);
+                    // Sort the bin data and reverse the order
+                    sortedFrequencies = Object.entries(frequencies[field_key])
+                        .sort(([, a], [, b]) => a - b) // Sort ascending
+                        ; // Reverse to descending
+                }else {
+                    sortedFrequencies = Object.entries(frequencies[field_key]);
+                }
+
                 var binData = {
-                    labels: Object.keys(frequencies[field_key]),
+                    labels: sortedFrequencies.map(([label]) => label),
                     datasets: [{
                         label: field.label,
-                        data: Object.values(frequencies[field_key]),
+                        data: sortedFrequencies.map(([, value]) => value),
                         backgroundColor: field.bins.chart_options.color
                     }]
                 };
