@@ -89,17 +89,23 @@
     {% endmacro %}
 
     {% macro render_field(field_key, field) %}
-    <div class="w-1/2 px-2 mb-4">
-        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-            {% if field.bins and field.bins.values is defined %}
-                <h2 class="font-bold text-xl mb-2">{{ field.bins.chart_options.title }}</h2>
-                <canvas id="{{ field_key }}BinChart"></canvas>
+        {% if field.bins and field.bins.values is defined %}
+            <div class="w-1/2 px-2 mb-4">
+                <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                    <h2 class="font-bold text-xl mb-2">{{ field.bins.chart_options.title }}</h2>
+                    <canvas id="{{ field.source_field }}BinChart"></canvas>
+                </div>
+            </div>
+        {% endif %}
+        {% for transformation in field.transformations %}
+            {% if transformation.chart_options is defined %}
+            <div class="w-1/2 px-2 mb-4">
+                <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                    {{ render_chart(transformation, field_key) }}
+                </div>
+            </div>
             {% endif %}
-            {% for transformation in field.transformations %}
-                {{ render_chart(transformation, field_key) }}
-            {% endfor %}
-        </div>
-    </div>
+        {% endfor %}
     {% endmacro %}
 
     {% for field_key, field in mapping.fields.items() %}
@@ -180,28 +186,74 @@
         Object.entries(mapping.fields).forEach(function([field_key, field]) {
             if (field.field_type !== 'GEOGRAPHY') {
                 // Chart for bins
-                if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field_key]) {
-                    var binData = {
-                        labels: Object.keys(frequencies[field_key]),
-                        datasets: [{
-                            label: field.label,
-                            data: Object.values(frequencies[field_key]),
-                            backgroundColor: field.bins.chart_options.color
-                        }]
-                    };
+                if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field.source_field]) {
+                var labels, values;
 
-                    var binConfig = {
-                        type: field.bins.chart_type,
-                        data: binData,
-                        options: field.bins.chart_options
-                    };
+                // If labels and values are specified in the config, use them
+                if (field.bins.labels && field.bins.values) {
+                    labels = field.bins.labels;
+                    values = field.bins.values.map(value => frequencies[field_key][value] || 0);
+                } else {
+                    // Otherwise, use the sorted frequencies
+                    var sortedFrequencies;
 
-                    var binCtx = document.getElementById(field_key + 'BinChart');
-                    if (binCtx) {
-                        binCtx = binCtx.getContext('2d');
-                        new Chart(binCtx, binConfig);
+                    if (field.bins.chart_options.indexAxis === 'y') {
+                        // Sort the bin data
+                        sortedFrequencies = Object.entries(frequencies[field_key])
+                            .sort(([, a], [, b]) => a - b); // Sort ascending
+                    } else {
+                        sortedFrequencies = Object.entries(frequencies[field_key]);
                     }
+
+                    labels = sortedFrequencies.map(([label]) => label);
+                    values = sortedFrequencies.map(([, value]) => value);
                 }
+
+                var binData = {
+                    labels: labels,
+                    datasets: [{
+                        label: field.label,
+                        data: values,
+                        backgroundColor: field.bins.chart_options.color
+                    }]
+                };
+
+                var binConfig = {
+                    type: field.bins.chart_type,
+                    data: binData,
+                    options: Object.assign({}, field.bins.chart_options, {
+                        scales: {
+                            x: {
+                                stacked: field.bins.chart_options.stacked || false
+                            },
+                            y: {
+                                stacked: field.bins.chart_options.stacked || false
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        const value = context.raw;
+                                        return `${value}%`;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                display: true,
+                                align: 'center',
+                                color: 'black',
+                                formatter: function (value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    })
+                };
+
+                var binCtx = document.getElementById(field_key + 'BinChart').getContext('2d');
+                new Chart(binCtx, binConfig);
+            }
 
                 // Charts for transformations
                 field.transformations.forEach(function(transformation) {

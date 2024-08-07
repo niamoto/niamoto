@@ -57,24 +57,33 @@ function loadCharts(item, mapping) {
         if (field.field_type !== 'GEOGRAPHY') {
             // Chart for bins
             if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field.source_field]) {
-                // Sort the bin data
-                var sortedFrequencies;
+                var labels, values;
 
-                if (field.bins.chart_options.indexAxis === 'y') {
-                    console.log(field.bins.chart_options.indexAxis);
-                    // Sort the bin data and reverse the order
-                    sortedFrequencies = Object.entries(frequencies[field_key])
-                        .sort(([, a], [, b]) => a - b) // Sort ascending
-                        ; // Reverse to descending
-                }else {
-                    sortedFrequencies = Object.entries(frequencies[field_key]);
+                // If labels and values are specified in the config, use them
+                if (field.bins.labels && field.bins.values) {
+                    labels = field.bins.labels;
+                    values = field.bins.values.map(value => frequencies[field_key][value] || 0);
+                } else {
+                    // Otherwise, use the sorted frequencies
+                    var sortedFrequencies;
+
+                    if (field.bins.chart_options.indexAxis === 'y') {
+                        // Sort the bin data
+                        sortedFrequencies = Object.entries(frequencies[field_key])
+                            .sort(([, a], [, b]) => a - b); // Sort ascending
+                    } else {
+                        sortedFrequencies = Object.entries(frequencies[field_key]);
+                    }
+
+                    labels = sortedFrequencies.map(([label]) => label);
+                    values = sortedFrequencies.map(([, value]) => value);
                 }
 
                 var binData = {
-                    labels: sortedFrequencies.map(([label]) => label),
+                    labels: labels,
                     datasets: [{
                         label: field.label,
-                        data: sortedFrequencies.map(([, value]) => value),
+                        data: values,
                         backgroundColor: field.bins.chart_options.color
                     }]
                 };
@@ -82,7 +91,34 @@ function loadCharts(item, mapping) {
                 var binConfig = {
                     type: field.bins.chart_type,
                     data: binData,
-                    options: field.bins.chart_options
+                    options: Object.assign({}, field.bins.chart_options, {
+                        scales: {
+                            x: {
+                                stacked: field.bins.chart_options.stacked || false
+                            },
+                            y: {
+                                stacked: field.bins.chart_options.stacked || false
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        const value = context.raw;
+                                        return `${value}%`;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                display: true,
+                                align: 'center',
+                                color: 'black',
+                                formatter: function (value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    })
                 };
 
                 var binCtx = document.getElementById(field_key + 'BinChart').getContext('2d');
@@ -172,12 +208,82 @@ function loadCharts(item, mapping) {
                     };
 
                     createGauge(gaugeOptions);
-                } else if (transformation.chart_type === 'bar') {
+                }
+
+                else if (transformation.name === 'temporal_phenology') {
+                    var phenologyData = item[field_key + '_temporal_phenology'];
+                    if (phenologyData && phenologyData.data && phenologyData.labels) {
+
+                        var datasets = Object.entries(phenologyData.data).map(([key, values], dataIndex) => {
+                        // Utiliser la couleur de la configuration si elle existe, sinon utiliser getColor
+                        var color = (transformation.chart_options.colors && transformation.chart_options.colors[key])
+                            ? transformation.chart_options.colors[key]
+                            : getColor(dataIndex);
+
+                        return {
+                            label: key.charAt(0).toUpperCase() + key.slice(1),
+                            data: values,
+                            backgroundColor: color,
+                            borderColor: color,
+                            borderWidth: 1
+                        };
+                    });
+
+                        var chartData = {
+                            labels: phenologyData.labels,
+                            datasets: datasets
+                        };
+
+                        var chartConfig = {
+                        type: 'bar',
+                        data: chartData,
+                        options: {
+                            responsive: false,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    grid: {
+                                        display: false
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Frequency (%)'
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.1)'
+                                    },
+                                    ticks: {
+                                        stepSize: 5
+                                    }
+                                }
+                            },
+                            barPercentage: 0.8,
+                            categoryPercentage: 0.9
+                        }
+                    };
+
+                        var chartCanvas = document.getElementById(field_key + 'TemporalPhenologyChart');
+                        if (chartCanvas) {
+                            new Chart(chartCanvas.getContext('2d'), chartConfig);
+                        }
+                    }
+                }
+
+
+                else if (transformation.name !== 'temporal_phenology' && transformation.chart_type === 'bar') {
                     var sortedData = Object.entries(item[field_key+'_'+ transformation.name] || {})
                         .sort((a, b) => b[1] - a[1])
                         .slice(0, transformation.count || 10);
 
-                    var defaultColor = transformation.chart_options.defaultColor;
+                    var defaultColor = transformation.chart_options.color;
                     var colors = generateColors(sortedData.length, defaultColor);
 
                     var barData = {
@@ -202,18 +308,6 @@ function loadCharts(item, mapping) {
                                 legend: {
                                     display: false
                                 },
-                                title: {
-                                    display: true,
-                                    text: transformation.chart_options.title || 'Main Sub-taxa',
-                                    font: {
-                                        size: 16,
-                                        weight: 'bold'
-                                    },
-                                    padding: {
-                                        top: 10,
-                                        bottom: 30
-                                    }
-                                }
                             },
                             scales: {
                                 x: {
@@ -248,6 +342,7 @@ function loadCharts(item, mapping) {
                         var barCtx = barCtxElement.getContext('2d');
                         new Chart(barCtx, barConfig);
                     }
+
                 }
             });
         }

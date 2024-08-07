@@ -7,6 +7,7 @@
 <style>
     #shape-type-list li, #shape-list li {
         list-style: none;
+        text-transform: capitalize;
     }
 
     .shape-type-link, .shape-link {
@@ -167,315 +168,304 @@
 {% block extra_scripts %}
 <script>
     var shape = {{ shape | tojson | safe }};
-var mapping = {{ mapping | tojson | safe }};
+    var mapping = {{ mapping | tojson | safe }};
+    var currentShapeType = "{{ shape.type }}";
 
-console.log(shape);
-console.log(mapping);
+    document.addEventListener('DOMContentLoaded', function () {
+        loadShapeCharts(shape, mapping);
+        loadShapeTypeList();
+        initShapeMaps(mapping, shape);
+        loadAllShapesMap(shape);
+    });
 
-document.addEventListener('DOMContentLoaded', function () {
-    loadShapeCharts(shape, mapping);
-    loadShapeTypeList();
-    initShapeMaps(mapping, shape);
-    loadAllShapesMap(shape);
-});
-
-function loadShapeCharts(shape, mapping) {
-    Object.entries(mapping.fields).forEach(function([field_key, field]) {
-        if (field.field_type !== 'TEXT' && shape[field_key] !== null) {
-            // Handle bins chart if present
-            if (field.bins && field.bins.values && field.bins.values.length > 0) {
-                var binChartId = field_key + 'BinChart';
-                var binCtx = document.getElementById(binChartId);
-                if (binCtx) {
-                    createBinChart(binCtx, field, shape);
-                }
-            }
-
-            // Handle transformations
-            field.transformations.forEach(function(transformation) {
-                var transformationName = transformation.name ? transformation.name : '';
-                var valueKey = field_key + '_' + transformationName;
-
-                if (shape[valueKey] !== null) {
-                    switch(transformation.chart_type) {
-                        case 'pie':
-                            var pieChartId = field_key + 'PieChart';
-                            var pieCtx = document.getElementById(pieChartId);
-                            if (pieCtx) {
-                                createPieChart(pieCtx, transformation, shape[valueKey]);
-                            }
-                            break;
-                        case 'gauge':
-                            var gaugeId = field_key + transformationName + 'Gauge';
-                            var gaugeElement = document.getElementById(gaugeId);
-                            if (gaugeElement) {
-                                createGauge({
-                                    id: gaugeId,
-                                    value: parseFloat(shape[valueKey]),
-                                    min: 0,
-                                    max: transformation.chart_options.max,
-                                    title: transformation.chart_options.title,
-                                    label: transformation.chart_options.label
-                                });
-                            }
-                            break;
-                        case 'bar':
-                            var barChartId = field_key + transformationName + 'BarChart';
-                            var barCtx = document.getElementById(barChartId);
-                            if (barCtx) {
-                                createBarChart(barCtx, field, transformation, shape[valueKey]);
-                            }
-                            break;
-                        case 'stacked_bar':
-                            if (field_key === 'elevation' && transformationName === 'elevation_distribution') {
-                                var stackedBarChartId = 'elevationDistributionChart';
-                                var stackedBarCtx = document.getElementById(stackedBarChartId);
-                                if (stackedBarCtx) {
-                                    createElevationDistributionChart(stackedBarCtx, shape.elevation_elevation_distribution, transformation);
-                                }
-                            }
-                            break;
-                        case 'line':
-                            if (field_key === 'forest_fragmentation' && transformationName === 'fragment_size_distribution') {
-                                var lineChartId = 'forestFragmentationChart';
-                                var lineCtx = document.getElementById(lineChartId);
-                                if (lineCtx) {
-                                    createForestFragmentationChart(lineCtx, shape.forest_fragmentation_fragment_size_distribution, transformation);
-                                }
-                            }
-                            break;
+    function loadShapeCharts(shape, mapping) {
+        Object.entries(mapping.fields).forEach(function([field_key, field]) {
+            if (field.field_type !== 'TEXT' && shape[field_key] !== null) {
+                // Handle bins chart if present
+                if (field.bins && field.bins.values && field.bins.values.length > 0) {
+                    var binChartId = field_key + 'BinChart';
+                    var binCtx = document.getElementById(binChartId);
+                    if (binCtx) {
+                        createBinChart(binCtx, field, shape);
                     }
                 }
-            });
-        }
-    });
-}
 
-function createBinChart(ctx, field, shape) {
-    var binData = {
-        labels: field.bins.values,
-        datasets: [{
-            label: field.label,
-            data: field.bins.values.map(value => shape.frequencies[field.field_key][value] || 0),
-            backgroundColor: field.bins.chart_options.color
-        }]
-    };
+                // Handle transformations
+                field.transformations.forEach(function(transformation) {
+                    var transformationName = transformation.name ? transformation.name : '';
+                    var valueKey = field_key + '_' + transformationName;
 
-    new Chart(ctx, {
-        type: field.bins.chart_type,
-        data: binData,
-        options: field.bins.chart_options
-    });
-}
-
-function createPieChart(ctx, transformation, data) {
-    new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: ['True', 'False'],
-            datasets: [{
-                data: [data.true || 0, data.false || 0],
-                backgroundColor: ['#FF6384', '#36A2EB']
-            }]
-        },
-        options: {
-            title: {
-                display: true,
-                text: transformation.chart_options.title
+                    if (shape[valueKey] !== null) {
+                        switch(transformation.chart_type) {
+                            case 'pie':
+                                var pieChartId = field_key + 'PieChart';
+                                var pieCtx = document.getElementById(pieChartId);
+                                if (pieCtx) {
+                                    createPieChart(pieCtx, transformation, shape[valueKey]);
+                                }
+                                break;
+                            case 'gauge':
+                                var gaugeId = field_key + transformationName + 'Gauge';
+                                var gaugeElement = document.getElementById(gaugeId);
+                                if (gaugeElement) {
+                                    createGauge({
+                                        id: gaugeId,
+                                        value: parseFloat(shape[valueKey]),
+                                        min: 0,
+                                        max: transformation.chart_options.max,
+                                        title: transformation.chart_options.title,
+                                        label: transformation.chart_options.label
+                                    });
+                                }
+                                break;
+                            case 'bar':
+                                var barChartId = field_key + transformationName + 'BarChart';
+                                var barCtx = document.getElementById(barChartId);
+                                if (barCtx) {
+                                    createBarChart(barCtx, field, transformation, shape[valueKey]);
+                                }
+                                break;
+                            case 'stacked_bar':
+                                if (field_key === 'elevation' && transformationName === 'elevation_distribution') {
+                                    var stackedBarChartId = 'elevationDistributionChart';
+                                    var stackedBarCtx = document.getElementById(stackedBarChartId);
+                                    if (stackedBarCtx) {
+                                        createElevationDistributionChart(stackedBarCtx, shape.elevation_elevation_distribution, transformation);
+                                    }
+                                }
+                                break;
+                            case 'line':
+                                if (field_key === 'forest_fragmentation' && transformationName === 'fragment_size_distribution') {
+                                    var lineChartId = 'forestFragmentationChart';
+                                    var lineCtx = document.getElementById(lineChartId);
+                                    if (lineCtx) {
+                                        createForestFragmentationChart(lineCtx, shape.forest_fragmentation_fragment_size_distribution, transformation);
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                });
             }
-        }
-    });
-}
+        });
+    }
 
-function createBarChart(ctx, field, transformation, data) {
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: Object.keys(data),
+    function createBinChart(ctx, field, shape) {
+        var binData = {
+            labels: field.bins.values,
             datasets: [{
                 label: field.label,
-                data: Object.values(data),
-                backgroundColor: getColor(0).background,
-                borderColor: getColor(0).border,
-                borderWidth: 1
+                data: field.bins.values.map(value => shape.frequencies[field.field_key][value] || 0),
+                backgroundColor: field.bins.chart_options.color
             }]
-        },
-        options: transformation.chart_options
-    });
-}
+        };
 
-function createElevationDistributionChart(ctx, elevationData, chartConfig) {
-    // Inverser les données pour qu'elles soient dans l'ordre croissant d'altitude
-    const altitudes = elevationData.altitudes.reverse();
-    const forestData = elevationData.forest.reverse();
-    const nonForestData = elevationData.non_forest.reverse();
+        new Chart(ctx, {
+            type: field.bins.chart_type,
+            data: binData,
+            options: field.bins.chart_options
+        });
+    }
 
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: altitudes,
-            datasets: [
-                {
-                    label: 'Forêt',
-                    data: forestData,
-                    backgroundColor: '#4CAF50', // Vert pour la forêt
-                    stack: 'Stack 0',
-                },
-                {
-                    label: 'Hors-forêt',
-                    data: nonForestData,
-                    backgroundColor: '#FFF59D', // Jaune clair pour hors-forêt
-                    stack: 'Stack 0',
+    function createPieChart(ctx, transformation, data) {
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['True', 'False'],
+                datasets: [{
+                    data: [data.true || 0, data.false || 0],
+                    backgroundColor: ['#FF6384', '#36A2EB']
+                }]
+            },
+            options: {
+                title: {
+                    display: true,
+                    text: transformation.chart_options.title
                 }
-            ]
-        },
-        options: {
-            indexAxis: 'y', // Ceci rend le graphique horizontal
-            responsive: true,
-            scales: {
-                x: {
-                    stacked: true,
-                    title: {
-                        display: true,
-                        text: 'Superficie (ha)'
+            }
+        });
+    }
+
+    function createBarChart(ctx, field, transformation, data) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    label: field.label,
+                    data: Object.values(data),
+                    backgroundColor: getColor(0).background,
+                    borderColor: getColor(0).border,
+                    borderWidth: 1
+                }]
+            },
+            options: transformation.chart_options
+        });
+    }
+
+    function createElevationDistributionChart(ctx, elevationData, chartConfig) {
+        const altitudes = elevationData.altitudes.reverse();
+        const forestData = elevationData.forest.reverse();
+        const nonForestData = elevationData.non_forest.reverse();
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: altitudes,
+                datasets: [
+                    {
+                        label: 'Forest',
+                        data: forestData,
+                        backgroundColor: '#4CAF50',
+                        stack: 'Stack 0',
                     },
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString(); // Format les grands nombres
+                    {
+                        label: 'Non-Forest',
+                        data: nonForestData,
+                        backgroundColor: '#FFF59D',
+                        stack: 'Stack 0',
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                scales: {
+                    x: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            text: 'Area (ha)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString(); // Format les grands nombres
+                            }
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            text: 'Elevation (m)'
+                        },
+                        reverse: false
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                layout: {
+                    padding: {
+                        left: 10,
+                        right: 10,
+                        top: 0,
+                        bottom: 10
+                    }
+                }
+            }
+        });
+    }
+
+    function createForestFragmentationChart(ctx, fragmentationData, chartConfig) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Object.keys(fragmentationData),
+                datasets: [{
+                    label: 'Cumulative Area (%)',
+                    data: Object.values(fragmentationData),
+                    borderColor: '#4BC0C0',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: chartConfig.chart_options.x_label
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: chartConfig.chart_options.y_label
                         }
                     }
                 },
-                y: {
-                    stacked: true,
+                plugins: {
                     title: {
                         display: true,
-                        text: 'Altitude (m)'
-                    },
-                    reverse: false // Assurez-vous que l'axe n'est pas inversé
-                }
-            },
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Distribution altitudinale',
-                    font: {
-                        size: 16,
-                        weight: 'bold'
+                        text: chartConfig.chart_options.title
                     }
-                },
-                legend: {
-                    position: 'bottom'
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            },
-            layout: {
-                padding: {
-                    left: 10,
-                    right: 10,
-                    top: 0,
-                    bottom: 10
                 }
             }
-        }
-    });
-}
+        });
+    }
 
-function createForestFragmentationChart(ctx, fragmentationData, chartConfig) {
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: Object.keys(fragmentationData),
-            datasets: [{
-                label: 'Cumulative Area (%)',
-                data: Object.values(fragmentationData),
-                borderColor: '#4BC0C0',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: chartConfig.chart_options.x_label
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: chartConfig.chart_options.y_label
-                    }
-                }
+    function createGauge(options) {
+        new JustGage({
+            id: options.id,
+            value: options.value || 0,
+            min: options.min || 0,
+            max: options.max,
+            title: options.title,
+            label: options.label,
+            pointer: true,
+            pointerOptions: {
+                toplength: 10,
+                bottomlength: 10,
+                bottomwidth: 2,
+                color: '#8e8e93',
+                stroke: '#ffffff',
+                stroke_width: 3,
+                stroke_linecap: 'round'
             },
-            plugins: {
-                title: {
-                    display: true,
-                    text: chartConfig.chart_options.title
-                }
+            gaugeWidthScale: 0.6,
+            counter: true,
+            donut: true,
+            relativeGaugeSize: true,
+            donutStartAngle: 270,
+            hideInnerShadow: true,
+            customSectors: [{
+                color: "#ff0000",
+                lo: 0,
+                hi: options.max * 0.33
+            }, {
+                color: "#ffff00",
+                lo: options.max * 0.33,
+                hi: options.max * 0.66
+            }, {
+                color: "#00ff00",
+                lo: options.max * 0.66,
+                hi: options.max
+            }],
+            humanFriendly: true,
+            formatNumber: true,
+            textRenderer: function (val) {
+                return parseFloat(val).toFixed(2);
             }
-        }
-    });
-}
+        });
+    }
 
-function createGauge(options) {
-    new JustGage({
-        id: options.id,
-        value: options.value || 0,
-        min: options.min || 0,
-        max: options.max,
-        title: options.title,
-        label: options.label,
-        pointer: true,
-        pointerOptions: {
-            toplength: 10,
-            bottomlength: 10,
-            bottomwidth: 2,
-            color: '#8e8e93',
-            stroke: '#ffffff',
-            stroke_width: 3,
-            stroke_linecap: 'round'
-        },
-        gaugeWidthScale: 0.6,
-        counter: true,
-        donut: true,
-        relativeGaugeSize: true,
-        donutStartAngle: 270,
-        hideInnerShadow: true,
-        customSectors: [{
-            color: "#ff0000",
-            lo: 0,
-            hi: options.max * 0.33
-        }, {
-            color: "#ffff00",
-            lo: options.max * 0.33,
-            hi: options.max * 0.66
-        }, {
-            color: "#00ff00",
-            lo: options.max * 0.66,
-            hi: options.max
-        }],
-        humanFriendly: true,
-        formatNumber: true,
-        textRenderer: function (val) {
-            return parseFloat(val).toFixed(2);
-        }
-    });
-}
-
-// Function to get a color based on the index
-function getColor(index) {
-    var colors = [
-        {background: 'rgba(54, 162, 235, 0.6)', border: 'rgba(54, 162, 235, 1)'},
-        {background: 'rgba(75, 192, 192, 0.6)', border: 'rgba(75, 192, 192, 1)'},
-        {background: 'rgba(255, 99, 132, 0.6)', border: 'rgba(255, 99, 132, 1)'}
-    ];
-    return colors[index % colors.length];
-}
+    // Function to get a color based on the index
+    function getColor(index) {
+        var colors = [
+            {background: 'rgba(54, 162, 235, 0.6)', border: 'rgba(54, 162, 235, 1)'},
+            {background: 'rgba(75, 192, 192, 0.6)', border: 'rgba(75, 192, 192, 1)'},
+            {background: 'rgba(255, 99, 132, 0.6)', border: 'rgba(255, 99, 132, 1)'}
+        ];
+        return colors[index % colors.length];
+    }
 
 // Rest of the code (loadShapeTypeList, initShapeMaps, loadAllShapesMap) remains the same...
 
@@ -654,38 +644,44 @@ function getColor(index) {
     }
 
     function loadShapeTypeList() {
-        var shapeTypeListElement = document.getElementById("shape-type-list");
-        shapeTypes.forEach(function(shapeTypeItem) {
-            var li = document.createElement("li");
-            var a = document.createElement("a");
-            a.href = "javascript:void(0)";
-            a.textContent = shapeTypeItem.type;
-            a.className = "shape-type-link";
-            a.onclick = function() {
-                if (shapeTypeItem.shapes.length > 0) {
-                    // Redirect to the first shape of the selected type
-                    window.location.href = "../shape/" + shapeTypeItem.shapes[0].id + ".html";
+            var shapeTypeListElement = document.getElementById("shape-type-list");
+            shapeTypes.forEach(function (shapeTypeItem) {
+                var li = document.createElement("li");
+                var a = document.createElement("a");
+                a.href = "javascript:void(0)";
+                a.textContent = shapeTypeItem.type;
+                a.className = "shape-type-link";
+                if (shapeTypeItem.type === currentShapeType) {
+                    a.classList.add("active");
                 }
-                loadShapeList(shapeTypeItem.shapes);
-            };
-            li.appendChild(a);
-            shapeTypeListElement.appendChild(li);
-        });
-    }
+                a.onclick = function () {
+                    if (shapeTypeItem.shapes.length > 0) {
+                        // Redirect to the first shape of the selected type
+                        window.location.href = "../shape/" + shapeTypeItem.shapes[0].id + ".html";
+                    }
+                    loadShapeList(shapeTypeItem.shapes);
+                };
+                li.appendChild(a);
+                shapeTypeListElement.appendChild(li);
+            });
+        }
 
-    function loadShapeList(shapes) {
-        var shapeListElement = document.getElementById("shape-list");
-        shapeListElement.innerHTML = ''; // Clear the previous list
-        shapes.forEach(function(shapeItem) {
-            var li = document.createElement("li");
-            var a = document.createElement("a");
-            a.href = "../shape/" + shapeItem.id + ".html";
-            a.textContent = shapeItem.name;
-            a.className = "shape-link";
-            li.appendChild(a);
-            shapeListElement.appendChild(li);
-        });
-    }
+        function loadShapeList(shapes) {
+            var shapeListElement = document.getElementById("shape-list");
+            shapeListElement.innerHTML = ''; // Clear the previous list
+            shapes.forEach(function (shapeItem) {
+                var li = document.createElement("li");
+                var a = document.createElement("a");
+                a.href = "../shape/" + shapeItem.id + ".html";
+                a.textContent = shapeItem.name;
+                a.className = "shape-link";
+                if (shapeItem.id === shape.id) {
+                    a.classList.add("active");
+                }
+                li.appendChild(a);
+                shapeListElement.appendChild(li);
+            });
+        }
 
 </script>
 {% endblock %}

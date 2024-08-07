@@ -9,6 +9,7 @@
             position: relative;
             height: 400px;
         }
+
         #taxonomy-sidebar {
             display: flex;
             flex-direction: column;
@@ -73,12 +74,23 @@
         }
 
         /* Styles pour différents niveaux de profondeur */
-        #taxonomy-tree .level-0 { font-size: 16px; }
-        #taxonomy-tree .level-1 { font-size: 14px; }
-        #taxonomy-tree .level-2 { font-size: 13px; }
+        #taxonomy-tree .level-0 {
+            font-size: 16px;
+        }
+
+        #taxonomy-tree .level-1 {
+            font-size: 14px;
+        }
+
+        #taxonomy-tree .level-2 {
+            font-size: 13px;
+        }
+
         #taxonomy-tree .level-3,
         #taxonomy-tree .level-4,
-        #taxonomy-tree .level-5 { font-size: 12px; }
+        #taxonomy-tree .level-5 {
+            font-size: 12px;
+        }
 
         .chart-container {
             position: relative;
@@ -86,7 +98,7 @@
             width: 100%; /* Ensure full width */
             max-width: 600px; /* Set a max-width to prevent it from being too wide */
             margin: 0 auto; /* Center the chart container */
-          }
+        }
 
     </style>
     <script>
@@ -145,23 +157,31 @@
                     <canvas id="{{ field_key }}PieChart"></canvas>
                 {% elif transformation.chart_type == 'gauge' %}
                     <div class="gauge" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge"></div>
+                {% elif transformation.name == 'temporal_phenology' %}
+                    <canvas class="chart-container" id="{{ field_key }}TemporalPhenologyChart"></canvas>
                 {% elif transformation.chart_type == 'bar' %}
                     <canvas class="chart-container" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
                 {% endif %}
             {% endmacro %}
 
             {% macro render_field(field_key, field) %}
-                <div class="w-1/2 px-2 mb-4">
-                    <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-                        {% if field.bins and field.bins.values is defined %}
+                {% if field.bins and field.bins.values is defined %}
+                    <div class="w-1/2 px-2 mb-4">
+                        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
                             <h2 class="font-bold text-xl mb-2">{{ field.bins.chart_options.title }}</h2>
                             <canvas id="{{ field.source_field }}BinChart"></canvas>
-                        {% endif %}
-                        {% for transformation in field.transformations %}
-                            {{ render_chart(transformation, field_key) }}
-                        {% endfor %}
+                        </div>
                     </div>
-                </div>
+                {% endif %}
+                {% for transformation in field.transformations %}
+                    {% if transformation.chart_options is defined %}
+                        <div class="w-1/2 px-2 mb-4">
+                            <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
+                                {{ render_chart(transformation, field_key) }}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
             {% endmacro %}
 
             {% for field_key, field in mapping.fields.items() %}

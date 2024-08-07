@@ -2,6 +2,7 @@
 Taxonomy statistics calculator module.
 """
 import time
+from calendar import month_abbr
 from typing import List, Dict, Any, Hashable, Union, Optional
 
 import pandas as pd
@@ -114,6 +115,10 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                             stats[column_name] = self.calculate_top_items(
                                 group_occurrences, field_config
                             )
+                        elif transform_name == "temporal_phenology":
+                            stats[column_name] = self.calculate_temporal_phenology(
+                                group_occurrences, field_config
+                            )
 
             elif source_field in df_occurrences.columns:
                 # Binary field (ex: um_occurrences)
@@ -172,6 +177,60 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                             stats[f"{field}_bins"] = bin_percentages
 
         return stats
+
+    @staticmethod
+    def calculate_temporal_phenology(
+        occurrences: list[dict[Hashable, Any]], field_config: dict
+    ) -> Dict[str, Any]:
+        """
+            Calculate temporal phenology.
+        Args:
+            occurrences(list[dict[Hashable, Any]]): The occurrences data.
+            field_config(dict): The field configuration.
+
+        Returns:
+            Dict[str, Any]: The temporal phenology data.
+
+        """
+        df = pd.DataFrame(occurrences)
+        time_config = field_config["time_grouping"]
+        time_field = time_config["field"]
+        grouping_type = time_config["type"]
+
+        # Get the field names from the configuration
+        source_fields = field_config["source_fields"]
+
+        # Verify all required fields are present
+        required_fields = [time_field] + list(source_fields.values())
+        for field in required_fields:
+            if field not in df.columns:
+                raise ValueError(
+                    f"'{field}' column is missing from the occurrences data"
+                )
+
+        df[time_field] = pd.to_numeric(df[time_field], errors="coerce")
+
+        if grouping_type == "month":
+            groups = range(1, 13)  # 1 to 12 for months
+            labels = month_abbr[1:]  # Jan, Feb, Mar, etc.
+        else:
+            raise ValueError(f"Unsupported grouping type: {grouping_type}")
+
+        phenology_data = {field_name: [] for field_name in source_fields.keys()}
+
+        for month in groups:
+            month_data = df[df[time_field] == month]
+            total_obs = len(month_data)
+
+            if total_obs > 0:
+                for field_name, field_column in source_fields.items():
+                    field_percent = month_data[field_column].sum() / total_obs * 100
+                    phenology_data[field_name].append(round(field_percent, 2))
+            else:
+                for field_name in source_fields.keys():
+                    phenology_data[field_name].append(0)
+
+        return {"data": phenology_data, "labels": labels}
 
     def get_taxon_occurrences(self, taxon: TaxonRef) -> list[dict[Hashable, Any]]:
         """
