@@ -1006,7 +1006,7 @@ def generate_content(mapping_group: Optional[str]) -> None:
     "--repo-url", help="GitHub repository URL (required if provider is 'github')."
 )
 @click.option(
-    "--branch", default="main", help="Branch to deploy to (default is 'main')."
+    "--branch", default="gh-pages", help="Branch to deploy to (default is 'main')."
 )
 @click.option("--site-id", help="Netlify site ID (required if provider is 'netlify').")
 def deploy(
@@ -1047,44 +1047,55 @@ def deploy(
         console.print(f"An error occurred while deploying: {e}", style="bold red")
 
 
-def deploy_to_github(output_dir: str, repo_url: str, branch: str) -> None:
+def deploy_to_github(output_dir: str, repo_url: str, branch: str = "gh-pages") -> None:
     """
-    Deploy generated static_files files to GitHub Pages.
+    Deploy generated static files to GitHub Pages using the gh-pages branch.
 
     Args:
         output_dir (str): Path to the directory containing generated files.
         repo_url (str): GitHub repository URL.
-        branch (str): Branch to deploy to (default is 'main').
-
+        branch (str): Branch to deploy to (default is 'gh-pages').
     """
+    console = Console()
     try:
         os.chdir(output_dir)
 
-        # Initialize git repository if not already initialized
-        if not os.path.exists(os.path.join(output_dir, ".git")):
-            subprocess.run(["git", "init"], check=True)
+        # Initialize a new git repository
+        subprocess.run(["git", "init"], check=True)
 
-        # Check if the remote 'origin' is already set
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"], capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            subprocess.run(["git", "remote", "add", "origin", repo_url], check=True)
-        else:
-            subprocess.run(["git", "remote", "set-url", "origin", repo_url], check=True)
+        # Create and switch to a new 'gh-pages' branch
+        subprocess.run(["git", "checkout", "-b", branch], check=True)
 
+        # Add all files
         subprocess.run(["git", "add", "."], check=True)
-        subprocess.run(["git", "commit", "-m", "Deploy static_files site"], check=True)
+
+        # Commit changes
+        try:
+            subprocess.run(["git", "commit", "-m", "Deploy to GitHub Pages"], check=True)
+        except subprocess.CalledProcessError:
+            console.print("No changes to commit. Skipping deployment.", style="yellow")
+            return
+
+        # Add the remote repository
+        subprocess.run(["git", "remote", "add", "origin", repo_url], check=True)
+
+        # Set HTTP buffer size for large commits
+        subprocess.run(["git", "config", "http.postBuffer", "157286400"], check=True)
+
+        # Push to the gh-pages branch, force push to overwrite history
         subprocess.run(["git", "push", "--force", "origin", branch], check=True)
 
-        console = Console()
         console.print("Deployment to GitHub Pages successful.", style="italic green")
-    except subprocess.CalledProcessError as e:
-        console = Console()
-        console.print(
-            f"An error occurred while deploying to GitHub: {e}", style="bold red"
-        )
+        console.print(f"Your site should be live at https://[username].github.io/[repository]/", style="italic blue")
 
+    except subprocess.CalledProcessError as e:
+        console.print(f"An error occurred while deploying to GitHub Pages: {e}", style="bold red")
+        if e.stderr:
+            console.print("Error details:", e.stderr.decode(), style="red")
+
+    finally:
+        # Clean up: remove the temporary git repository
+        subprocess.run(["rm", "-rf", ".git"], check=True)
 
 def deploy_to_netlify(output_dir: str, site_id: str) -> None:
     """
