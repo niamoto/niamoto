@@ -80,16 +80,26 @@
     <script src="{% block justgage_js %}{{ depth }}js/vendor/justgage/1.6.1_justgage.js{% endblock %}"></script>
     <script src="{% block leaflet_js %}{{ depth }}js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
     <script>
+        document.addEventListener('DOMContentLoaded', () => {
         const buttonContainer = document.getElementById('buttonContainer');
-        const buttonContainerOffset = buttonContainer.offsetTop;
 
-        window.onscroll = () => {
-            if (window.pageYOffset > buttonContainerOffset-60) {
-                buttonContainer.classList.add('fixed');
-            } else {
-                buttonContainer.classList.remove('fixed');
+            // Only proceed if the button container exists
+            if (buttonContainer) {
+                const buttonContainerOffset = buttonContainer.offsetTop;
+                const navHeight = 60; // Adjust this value to match your navigation height
+
+                window.onscroll = () => {
+                    if (window.pageYOffset > buttonContainerOffset - navHeight) {
+                        buttonContainer.classList.add('fixed');
+                    } else {
+                        buttonContainer.classList.remove('fixed');
+                    }
+                };
+
+                // Initial check in case the page is loaded scrolled
+                window.onscroll();
             }
-        };
+        });
     </script>
     {% block extra_scripts %}
     {% endblock %}
