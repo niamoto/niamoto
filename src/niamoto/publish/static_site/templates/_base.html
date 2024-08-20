@@ -47,6 +47,19 @@
                 transform: rotate(360deg);
             }
         }
+        .button-container {
+            transition: all 0.3s ease;
+        }
+        .button-container.fixed {
+            position: fixed;
+            top: 60px; /* Adjust this value to match the height of your navigation menu */
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background-color: white;
+            padding: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -66,6 +79,18 @@
     <script src="{% block raphael_js %}{{ depth }}js/vendor/raphael/2.3.0_raphael.js{% endblock %}"></script>
     <script src="{% block justgage_js %}{{ depth }}js/vendor/justgage/1.6.1_justgage.js{% endblock %}"></script>
     <script src="{% block leaflet_js %}{{ depth }}js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
+    <script>
+        const buttonContainer = document.getElementById('buttonContainer');
+        const buttonContainerOffset = buttonContainer.offsetTop;
+
+        window.onscroll = () => {
+            if (window.pageYOffset > buttonContainerOffset-60) {
+                buttonContainer.classList.add('fixed');
+            } else {
+                buttonContainer.classList.remove('fixed');
+            }
+        };
+    </script>
     {% block extra_scripts %}
     {% endblock %}
 </body>

@@ -170,11 +170,17 @@ class TaxonomyStatsCalculator(StatisticsCalculator):
                     bins_config = field_config.get("bins")
                     if bins_config:
                         bins = bins_config["values"]
+                        self.logger.debug(f"Bins for field {field}: {bins}")
                         if bins and len(field_values) > 0:
-                            bin_percentages = self.calculate_bins(
-                                field_values.tolist(), bins
-                            )
-                            stats[f"{field}_bins"] = bin_percentages
+                            try:
+                                bin_percentages = self.calculate_bins(
+                                    field_values.tolist(), bins
+                                )
+                                stats[f"{field}_bins"] = bin_percentages
+                            except ValueError as e:
+                                self.logger.error(
+                                    f"Error calculating bins for field {field}: {e}"
+                                )
 
         return stats
 

@@ -47,6 +47,16 @@
         flex: 1 1 calc(33.333% - 10px);
         margin: 5px;
     }
+    .custom-tooltip {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    padding: 5px;
+    border-radius: 5px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    font-size: 12px;
+    max-width: 300px;
+    word-wrap: break-word;
+}
 </style>
 {% endblock %}
 
@@ -605,7 +615,7 @@
 
                     // Highlight current shape
                     if (shapeItem.id === currentShape.id) {
-                        layer.setStyle({color: 'red', weight: 5, fillOpacity: 0.4});
+                        layer.setStyle({color: 'red', weight: 3, fillOpacity: 0.4});
                         layer.bringToFront(); // Ensure the highlighted shape is on top
                     } else {
                         layer.setStyle({fillOpacity: 0.2}); // Reduce opacity for other shapes
@@ -614,20 +624,32 @@
                     // Show tooltip on hover with additional content
                     var tooltipContent = "<strong>" + shapeItem.name + "</strong><br>";
 
-                    Object.entries(mapping.fields).forEach(function([fieldKey, field]) {
+                    {#Object.entries(mapping.fields).forEach(function([fieldKey, field]) {
                         field.transformations.forEach(function(transformation) {
                             if (transformation.chart_type === 'text') {
-                                var value = shapeItem[fieldKey] || shape[fieldKey + '_' + transformation.name];
+                                var value = shapeItem[fieldKey + '_' + transformation.name] || shape[fieldKey + '_' + transformation.name];
                                 if (value !== undefined && value !== null) {
-                                    tooltipContent += field.label + " (" + transformation.chart_options.title + "): " + value + "<br>";
+                                    tooltipContent += field.label + " : " + value + "<br>";
                                 }
                             }
                         });
+                    });#}
+
+
+                    layer.bindTooltip(tooltipContent, {
+                        permanent: false,
+                        direction: 'right',
+                        offset: L.point(10, 0),
+                        opacity: 0.9,
+                        className: 'custom-tooltip'
                     });
 
-                    layer.bindTooltip(tooltipContent, {permanent: false, direction: 'top', offset: [0, -10]});
 
-                    // Show popup on click
+                    layer.on('mousemove', function(e) {
+                        var tooltip = e.target.getTooltip();
+                        tooltip.setLatLng(e.latlng);
+                    });
+
                     layer.on('click', function() {
                         window.location.href = '../shape/' + shapeItem.id + '.html';
                     });
