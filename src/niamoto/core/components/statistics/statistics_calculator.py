@@ -9,6 +9,9 @@ from typing import List, Dict, Any, Hashable, Tuple
 import duckdb
 import pandas as pd
 from rich.console import Console
+from shapely import Point
+from shapely.wkb import loads as load_wkb
+from shapely.wkt import loads as load_wkt
 
 from niamoto.common.database import Database
 from ...models import TaxonRef
@@ -231,7 +234,7 @@ class StatisticsCalculator(ABC):
 
     @staticmethod
     def extract_coordinates(
-        filtered_data: Any, source_field: str
+            filtered_data: Any, source_field: str
     ) -> List[Dict[str, Any]]:
         """
         Extract unique geographic coordinates and their occurrence counts from the filtered data.
@@ -247,12 +250,38 @@ class StatisticsCalculator(ABC):
 
         for point in filtered_data[source_field]:
             if pd.notna(point):  # Check that the point is not NaN
-                coordinates = tuple(
-                    map(
-                        float,
-                        str(point).replace("POINT (", "").replace(")", "").split(),
-                    )
-                )
+                if isinstance(point, Point):
+                    # If the point is a shapely Point object
+                    coordinates = (point.x, point.y)
+                else:
+                    try:
+                        # Attempt to parse the point as WKB hex string
+                        geom = load_wkb(bytes.fromhex(point))
+                    except (ValueError, TypeError):
+                        try:
+                            # Attempt to parse as WKT
+                            geom = load_wkt(point)
+                        except Exception:
+                            # Fall back to assuming the point is a string in the format 'POINT (x y)'
+                            try:
+                                coordinates = tuple(
+                                    map(
+                                        float,
+                                        str(point).replace("POINT (", "").replace(")", "").split(),
+                                    )
+                                )
+                            except ValueError:
+                                continue  # Skip the point if it can't be parsed
+                        else:
+                            if isinstance(geom, Point):
+                                coordinates = (geom.x, geom.y)
+                            else:
+                                continue  # Skip if it's not a Point geometry
+                    else:
+                        if isinstance(geom, Point):
+                            coordinates = (geom.x, geom.y)
+                        else:
+                            continue  # Skip if it's not a Point geometry
                 coordinate_counts[coordinates] += 1
 
         return [

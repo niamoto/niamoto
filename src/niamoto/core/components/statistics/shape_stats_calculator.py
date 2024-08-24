@@ -33,7 +33,8 @@ from shapely.errors import ShapelyError
 from shapely.geometry import mapping, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
-from shapely.wkt import loads as wkt_loads
+from shapely.wkb import loads as load_wkb
+from shapely.wkt import loads as load_wkt
 
 from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef, TaxonRef
@@ -170,7 +171,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
             """
             try:
-                point_geom = wkt_loads(wkt_str)
+                point_geom = load_wkt(wkt_str)
                 return prepared_shape.contains(point_geom)
             except ShapelyError:
                 self.logger.warning(f"Invalid WKT: {wkt_str}")
@@ -377,7 +378,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             Any: The loaded geometry as a GeoDataFrame or None if loading fails.
         """
         try:
-            geometry = wkt_loads(wkt_str)
+            geometry = load_wkt(wkt_str)
 
             # Attempt to make the geometry valid
             if not geometry.is_valid:
@@ -1149,20 +1150,48 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         for pos, occurrence in enumerate(self.occurrences):
             if isinstance(occurrence, dict):
-                point_wkt = occurrence.get(occurrence_location_field)
-                if (
-                    point_wkt is not None
-                    and isinstance(point_wkt, str)
-                    and point_wkt.startswith("POINT")
-                ):
+                point_str = occurrence.get(occurrence_location_field)
+                if pd.notna(point_str):  # Check that the point_str is not NaN
                     try:
-                        # Use string manipulation instead of wkt_loads for faster processing
-                        coords = point_wkt.strip("POINT ()").split()
-                        x, y = float(coords[0]), float(coords[1])
-                        idx.insert(pos, (x, y, x, y))
-                    except (ValueError, IndexError) as e:
-                        self.logger.error(
-                            f"Error processing occurrence at position {pos} with value {point_wkt}: {e}"
-                        )
+                        # First, try to load the point as WKB hex string
+                        geom = load_wkb(bytes.fromhex(point_str))
+                    except (ValueError, TypeError):
+                        try:
+                            # Then, try to load as WKT if it starts with 'POINT'
+                            geom = load_wkt(point_str)
+                        except Exception:
+                            # Fall back to assuming the point is a string in the format 'POINT (x y)'
+                            try:
+                                coords = tuple(
+                                    map(
+                                        float,
+                                        point_str.replace("POINT (", "").replace(")", "").split(),
+                                    )
+                                )
+                                if len(coords) == 2:
+                                    x, y = coords
+                                    idx.insert(pos, (x, y, x, y))
+                                continue
+                            except ValueError:
+                                self.logger.error(
+                                    f"Error processing occurrence at position {pos} with value {point_str}: unable to parse coordinates."
+                                )
+                                continue
+                        else:
+                            if isinstance(geom, Point):
+                                x, y = geom.x, geom.y
+                                idx.insert(pos, (x, y, x, y))
+                            else:
+                                self.logger.error(
+                                    f"Error processing occurrence at position {pos} with value {point_str}: not a Point geometry."
+                                )
+                    else:
+                        if isinstance(geom, Point):
+                            x, y = geom.x, geom.y
+                            idx.insert(pos, (x, y, x, y))
+                        else:
+                            self.logger.error(
+                                f"Error processing occurrence at position {pos} with value {point_str}: not a Point geometry."
+                            )
 
         return idx
