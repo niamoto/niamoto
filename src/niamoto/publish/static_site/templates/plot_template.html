@@ -475,10 +475,12 @@
                 }
             }).addTo(map);
             map.fitBounds(geoJsonLayer.getBounds());
+            var currentZoom = map.getZoom();
+            map.setZoom(currentZoom - 3);
         } else {
             console.warn("No geographic coordinates found.");
             // Set default view if no geometry is found
-            map.setView([-21.291237, 165.516418], 10);
+            map.setView([-21.291237, 165.516418], 8);
         }
     }
 

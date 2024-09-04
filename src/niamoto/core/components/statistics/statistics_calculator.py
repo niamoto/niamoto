@@ -234,7 +234,7 @@ class StatisticsCalculator(ABC):
 
     @staticmethod
     def extract_coordinates(
-            filtered_data: Any, source_field: str
+        filtered_data: Any, source_field: str
     ) -> List[Dict[str, Any]]:
         """
         Extract unique geographic coordinates and their occurrence counts from the filtered data.
@@ -267,7 +267,10 @@ class StatisticsCalculator(ABC):
                                 coordinates = tuple(
                                     map(
                                         float,
-                                        str(point).replace("POINT (", "").replace(")", "").split(),
+                                        str(point)
+                                        .replace("POINT (", "")
+                                        .replace(")", "")
+                                        .split(),
                                     )
                                 )
                             except ValueError:

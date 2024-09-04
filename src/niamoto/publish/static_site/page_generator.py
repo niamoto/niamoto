@@ -201,17 +201,20 @@ class PageGenerator(BaseGenerator):
         Args:
             shapes (List[niamoto.core.models.Shape]): A list of shape objects.
         """
-        shape_dict: Dict[str, List[Dict[str, Any]]] = {}
+        shape_dict: Dict[str, Dict[str, Any]] = {}
         for shape in shapes:
             if shape.type not in shape_dict:
-                shape_dict[shape.type] = []
+                shape_dict[shape.type] = {
+                    "type_label": shape.type_label,  # Assuming shape objects have a type_label attribute
+                    "shapes": [],
+                }
             geom = wkt.loads(shape.location)
             simplified_geom = geom.simplify(
                 0.01, preserve_topology=True
             )  # Simplify geometry
             geojson_geom = mapping(simplified_geom)
 
-            shape_dict[shape.type].append(
+            shape_dict[shape.type]["shapes"].append(
                 {
                     "id": shape.id,
                     "name": shape.label,
@@ -220,8 +223,12 @@ class PageGenerator(BaseGenerator):
             )
 
         shape_types = [
-            {"type": type_name, "shapes": shapes}
-            for type_name, shapes in shape_dict.items()
+            {
+                "type": type_name,
+                "type_label": type_info["type_label"],
+                "shapes": type_info["shapes"],
+            }
+            for type_name, type_info in shape_dict.items()
         ]
 
         shape_list_path = os.path.join(self.output_dir, "js", "shape_list.js")

@@ -987,8 +987,20 @@ def generate_content(mapping_group: Optional[str]) -> None:
             style="italic green",
         )
 
+        # Ajout du lien vers le fichier index.html
+        home_directory = config.get_niamoto_home()
+        index_file_path = os.path.join(home_directory, "outputs", "index.html")
+
+        if os.path.exists(index_file_path):
+            console.print(
+                f"[bold green]Link to your generated content:[/bold green] file://{index_file_path}"
+            )
+        else:
+            console.print(
+                f"[bold red]Error:[/bold red] The file {index_file_path} does not exist."
+            )
+
     except Exception as e:
-        console = Console()
         console.print(f"Error while generating static content: {e}", style="bold red")
 
 
@@ -1071,7 +1083,9 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str = "gh-pages") -
 
         # Commit changes
         try:
-            subprocess.run(["git", "commit", "-m", "Deploy to GitHub Pages"], check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "Deploy to GitHub Pages"], check=True
+            )
         except subprocess.CalledProcessError:
             console.print("No changes to commit. Skipping deployment.", style="yellow")
             return
@@ -1086,16 +1100,22 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str = "gh-pages") -
         subprocess.run(["git", "push", "--force", "origin", branch], check=True)
 
         console.print("Deployment to GitHub Pages successful.", style="italic green")
-        console.print(f"Your site should be live at https://[username].github.io/[repository]/", style="italic blue")
+        console.print(
+            "Your site should be live at https://[username].github.io/[repository]/",
+            style="italic blue",
+        )
 
     except subprocess.CalledProcessError as e:
-        console.print(f"An error occurred while deploying to GitHub Pages: {e}", style="bold red")
+        console.print(
+            f"An error occurred while deploying to GitHub Pages: {e}", style="bold red"
+        )
         if e.stderr:
             console.print("Error details:", e.stderr.decode(), style="red")
 
     finally:
         # Clean up: remove the temporary git repository
         subprocess.run(["rm", "-rf", ".git"], check=True)
+
 
 def deploy_to_netlify(output_dir: str, site_id: str) -> None:
     """

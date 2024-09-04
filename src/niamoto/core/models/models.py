@@ -109,12 +109,14 @@ class ShapeRef(Base):
     id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     label = Column(String(50), nullable=False)
     type = Column(String(50))
+    type_label = Column(String(50))
     location = Column(String, nullable=False)
 
     __table_args__ = (
         Index("ix_shape_ref_id", "id"),
         Index("ix_shape_ref_label", "label"),
         Index("ix_shape_ref_type", "type"),
+        Index("ix_shape_ref_type_label", "type_label"),
         Index(
             "ix_shape_ref_label_type", "label", "type", unique=True
         ),  # Unique constraint on label and type

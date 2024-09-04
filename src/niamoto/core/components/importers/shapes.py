@@ -61,6 +61,7 @@ class ShapeImporter:
 
                 for shape_info in shapes_config:
                     shape_category = shape_info["category"]
+                    shape_category_label = shape_info["label"]
                     file_path = shape_info["path"]
                     name_field = shape_info["name_field"]
 
@@ -139,6 +140,7 @@ class ShapeImporter:
                                         new_shape = ShapeRef(
                                             label=label,
                                             type=shape_category,
+                                            type_label=shape_category_label,
                                             location=geom_wkt,
                                         )
                                         self.db.session.add(new_shape)

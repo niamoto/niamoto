@@ -58,15 +58,23 @@ class GeneratorService:
                 self.generate_group_content(group_by, group_config)
 
             # Generate the taxonomy tree
-            taxons = self.repository.get_entities(
-                TaxonRef, order_by=asc(TaxonRef.full_name)
+            taxons = self.filter_entities_with_stats(
+                self.repository.get_entities(
+                    TaxonRef, order_by=asc(TaxonRef.full_name)
+                ),
+                "taxon",
             )
             self.generate_taxonomy_tree(taxons)
 
-            plots = self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id))
+            plots = self.filter_entities_with_stats(
+                self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id)), "plot"
+            )
             self.generate_plot_list(plots)
 
-            shapes = self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id))
+            shapes = self.filter_entities_with_stats(
+                self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id)),
+                "shape",
+            )
             self.generate_shape_list(shapes)
 
             self.generate_all_plots_json(plots)
@@ -75,6 +83,29 @@ class GeneratorService:
 
         except Exception as e:
             logger.exception(f"Error generating content: {e}")
+
+    def filter_entities_with_stats(self, entities, group_by: str) -> List[Any]:
+        """
+        Filters the entities to include only those with associated stats.
+
+        Args:
+            entities (List[Any]): The list of entities to filter.
+            group_by (str): The group type ('plot', 'shape', or 'taxon').
+
+        Returns:
+            List[Any]: The filtered list of entities with associated stats.
+        """
+        filtered_entities = []
+        for entity in entities:
+            with self.repository.db.engine.connect() as connection:
+                result = connection.execute(
+                    text(f"SELECT * FROM {group_by}_stats WHERE {group_by}_id = :id"),
+                    {"id": entity.id},
+                )
+                stats_row = result.fetchone()
+                if stats_row:
+                    filtered_entities.append(entity)
+        return filtered_entities
 
     def generate_group_content(
         self, group_by: str, group_config: Dict[str, Any]
@@ -87,12 +118,21 @@ class GeneratorService:
             group_config (dict): The configuration for the group.
         """
         if group_by == "plot":
-            entities = self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id))
+            entities = self.filter_entities_with_stats(
+                self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id)),
+                group_by,
+            )
         elif group_by == "shape":
-            entities = self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id))
+            entities = self.filter_entities_with_stats(
+                self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id)),
+                group_by,
+            )
         elif group_by == "taxon":
-            entities = self.repository.get_entities(
-                TaxonRef, order_by=asc(TaxonRef.full_name)
+            entities = self.filter_entities_with_stats(
+                self.repository.get_entities(
+                    TaxonRef, order_by=asc(TaxonRef.full_name)
+                ),
+                group_by,
             )
         else:
             raise ValueError(f"Unknown group_by: {group_by}")
@@ -108,15 +148,16 @@ class GeneratorService:
                 stats_row = result.fetchone()
                 stats_dict = dict(zip(result.keys(), stats_row)) if stats_row else {}
 
-                if group_by == "plot":
-                    self.generate_page_for_plot(entity, stats_dict, group_config)
-                    self.generate_json_for_plot(entity, stats_dict)
-                elif group_by == "shape":
-                    self.generate_page_for_shape(entity, stats_dict, group_config)
-                    self.generate_json_for_shape(entity, stats_dict)
-                elif group_by == "taxon":
-                    self.generate_page_for_taxon(entity, stats_dict, group_config)
-                    self.generate_json_for_taxon(entity, stats_dict)
+                if stats_dict:
+                    if group_by == "plot":
+                        self.generate_page_for_plot(entity, stats_dict, group_config)
+                        self.generate_json_for_plot(entity, stats_dict)
+                    elif group_by == "shape":
+                        self.generate_page_for_shape(entity, stats_dict, group_config)
+                        self.generate_json_for_shape(entity, stats_dict)
+                    elif group_by == "taxon":
+                        self.generate_page_for_taxon(entity, stats_dict, group_config)
+                        self.generate_json_for_taxon(entity, stats_dict)
 
     def generate_page(
         self,

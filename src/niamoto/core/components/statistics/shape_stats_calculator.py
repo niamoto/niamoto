@@ -3,7 +3,7 @@ Shape statistics calculator module.
 """
 import logging
 import time
-from typing import List, Dict, Any, Hashable, Optional, cast
+from typing import List, Dict, Any, Hashable, Optional, cast, Union
 
 import geopandas as gpd  # type: ignore
 import numpy as np
@@ -29,12 +29,11 @@ from shapely import (
     make_valid,
     unary_union,
 )
-from shapely.errors import ShapelyError
 from shapely.geometry import mapping, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
-from shapely.wkb import loads as load_wkb
-from shapely.wkt import loads as load_wkt
+from shapely import wkt
+from shapely.wkb import loads as wkb_loads
 
 from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef, TaxonRef
@@ -160,21 +159,31 @@ class ShapeStatsCalculator(StatisticsCalculator):
             return []
 
         # Check if occurrences are within the shape
-        def is_within_shape(wkt_str: str) -> bool:
+        def is_within_shape(geo_str: str) -> bool:
             """
             Check if a point is within the shape.
             Args:
-                wkt_str (str): The WKT representation of the point.
+                geo_str (str): The geometric representation of the point.
 
             Returns:
                 bool: True if the point is within the shape, False otherwise.
 
             """
             try:
-                point_geom = load_wkt(wkt_str)
+                # Try to parse as WKT (POINT format)
+                if geo_str.startswith("POINT"):
+                    point_geom = wkt.loads(geo_str)
+                # Try to parse as WKB (hexadecimal format)
+                else:
+                    point_geom = wkb_loads(geo_str, hex=True)
+
+                # If the geometry is not a Point, create a Point from its centroid
+                if not isinstance(point_geom, Point):
+                    point_geom = Point(point_geom.centroid)
+
                 return prepared_shape.contains(point_geom)
-            except ShapelyError:
-                self.logger.warning(f"Invalid WKT: {wkt_str}")
+            except Exception as er:
+                self.logger.warning(f"Invalid geometry string: {geo_str}. Error: {er}")
                 return False
 
         # Apply the filtering function to the DataFrame
@@ -378,7 +387,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             Any: The loaded geometry as a GeoDataFrame or None if loading fails.
         """
         try:
-            geometry = load_wkt(wkt_str)
+            geometry = wkt.loads(wkt_str)
 
             # Attempt to make the geometry valid
             if not geometry.is_valid:
@@ -552,18 +561,27 @@ class ShapeStatsCalculator(StatisticsCalculator):
         return stats
 
     @staticmethod
-    def calculate_area_from_gdf(gdf: Any) -> float:
+    def calculate_area_from_gdf(gdf: Any) -> int:
         """
-        Calculate the total area from a GeoDataFrame.
+        Calculate the total area from a GeoDataFrame and round to the nearest integer.
 
         Args:
             gdf (Any): The GeoDataFrame containing geometries.
 
         Returns:
-            float: The total area in hectares.
+            int: The total area in hectares, rounded to the nearest integer.
         """
+        # Project the GeoDataFrame to a suitable UTM projection
         gdf_proj = gdf.to_crs(gdf.estimate_utm_crs())
-        return float(gdf_proj.area.sum() / 10000)
+
+        # Calculate the total area in square meters
+        total_area_sqm = gdf_proj.area.sum()
+
+        # Convert to hectares and round to the nearest integer
+        total_area_hectares = total_area_sqm / 10000
+        rounded_area = round(total_area_hectares)
+
+        return rounded_area
 
     @staticmethod
     def get_coordinates_from_gdf(gdf: Any) -> Dict[str, Any]:
@@ -678,33 +696,35 @@ class ShapeStatsCalculator(StatisticsCalculator):
         return bin_areas
 
     @staticmethod
-    def calculate_raster_statistics(gdf: Any, statistic: str) -> Any:
+    def calculate_raster_statistics(
+        gdf: Any, statistic: str
+    ) -> Union[int, Dict[str, Union[int, float]]]:
         """
-        Calculate raster statistics from a GeoDataFrame.
+        Calculate raster statistics from a GeoDataFrame and round the results.
 
         Args:
             gdf (Any): The GeoDataFrame containing raster values.
             statistic (str): The type of statistic to calculate ('mean', 'median', 'max', 'range', 'distribution').
 
         Returns:
-            Any: The calculated statistic.
+            Union[int, Dict[str, Union[int, float]]]: The calculated statistic, rounded to the nearest integer.
         """
         raster_values = gdf["value"].to_numpy()
 
         if statistic == "mean":
-            return float(np.mean(raster_values))
+            return round(float(np.mean(raster_values)))
         elif statistic == "median":
-            return float(np.median(raster_values))
+            return round(float(np.median(raster_values)))
         elif statistic == "max":
-            return float(np.max(raster_values))
+            return round(float(np.max(raster_values)))
         elif statistic == "range":
             return {
-                "min": float(np.min(raster_values)),
-                "max": float(np.max(raster_values)),
+                "min": round(float(np.min(raster_values))),
+                "max": round(float(np.max(raster_values))),
             }
         elif statistic == "distribution":
             hist, bin_edges = np.histogram(raster_values, bins="auto")
-            return {str(bin_edges[i]): int(hist[i]) for i in range(len(hist))}
+            return {str(round(bin_edges[i])): int(hist[i]) for i in range(len(hist))}
 
     def process_shape_stats(
         self, shape_ref: ShapeRef, field: str, transformations: List[Dict[str, Any]]
@@ -843,20 +863,20 @@ class ShapeStatsCalculator(StatisticsCalculator):
             # Handle the case where geom is None. This could involve logging an error or returning an empty dict.
             return {}
 
-    def calculate_area(self, wkt_geometry: str) -> float:
+    def calculate_area(self, wkt_geometry: str) -> int:
         """
-        Calculate the area of a geometry in hectares.
+        Calculate the area of a geometry in hectares and round to the nearest integer.
 
         Args:
             wkt_geometry (str): The WKT representation of the geometry.
 
         Returns:
-            float: The area of the geometry in hectares.
+            int: The rounded area of the geometry in hectares.
         """
         try:
             gdf = self.load_shape_geometry(wkt_geometry)
             if gdf is None or gdf.empty:
-                return 0.0
+                return 0
 
             # Project to a suitable UTM projection
             gdf_projected = gdf.to_crs(gdf.estimate_utm_crs())
@@ -865,12 +885,16 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
             if np.isnan(area_sqm) or np.isinf(area_sqm):
                 self.logger.warning(f"Invalid area calculated: {area_sqm}")
-                return 0.0
+                return 0
 
-            return float(area_sqm / 10000)  # Convert to hectares
+            # Convert to hectares and round to the nearest integer
+            area_hectares = area_sqm / 10000
+            rounded_area = round(area_hectares)
+
+            return rounded_area
         except Exception as e:
             self.logger.error(f"Error calculating area: {str(e)}")
-            return 0.0
+            return 0
 
     def calculate_elevation_distribution(self, shape_ref: ShapeRef) -> Dict[str, Any]:
         """
@@ -1148,50 +1172,64 @@ class ShapeStatsCalculator(StatisticsCalculator):
         idx = index.Index()
         occurrence_location_field = self.group_config.get("source_location_field")
 
+        def parse_geometry(geo_str: str) -> Point:
+            """
+            Parse geometry string to Point object.
+
+            Args:
+                geo_str (str): The geometric representation of the point.
+
+            Returns:
+                Point: Shapely Point object.
+
+            Raises:
+                ValueError: If the geometry cannot be parsed or is not a Point.
+            """
+            if pd.isna(geo_str):
+                raise ValueError("Invalid geometry: NaN value")
+
+            try:
+                # Try to parse as WKT (POINT format)
+                if isinstance(geo_str, str) and geo_str.upper().startswith("POINT"):
+                    geom = wkt.loads(geo_str)
+                # Try to parse as WKB (hexadecimal format)
+                elif isinstance(geo_str, str):
+                    geom = wkb_loads(geo_str, hex=True)
+                else:
+                    raise ValueError(f"Unexpected geometry type: {type(geo_str)}")
+
+                # If the geometry is not a Point, create a Point from its centroid
+                if not isinstance(geom, Point):
+                    geom = Point(geom.centroid)
+
+                return geom
+            except Exception as e:
+                raise ValueError(f"Failed to parse geometry: {e}")
+
+        nan_count = 0
         for pos, occurrence in enumerate(self.occurrences):
             if isinstance(occurrence, dict):
                 point_str = occurrence.get(occurrence_location_field)
-                if pd.notna(point_str):  # Check that the point_str is not NaN
-                    try:
-                        # First, try to load the point as WKB hex string
-                        geom = load_wkb(bytes.fromhex(point_str))
-                    except (ValueError, TypeError):
-                        try:
-                            # Then, try to load as WKT if it starts with 'POINT'
-                            geom = load_wkt(point_str)
-                        except Exception:
-                            # Fall back to assuming the point is a string in the format 'POINT (x y)'
-                            try:
-                                coords = tuple(
-                                    map(
-                                        float,
-                                        point_str.replace("POINT (", "").replace(")", "").split(),
-                                    )
-                                )
-                                if len(coords) == 2:
-                                    x, y = coords
-                                    idx.insert(pos, (x, y, x, y))
-                                continue
-                            except ValueError:
-                                self.logger.error(
-                                    f"Error processing occurrence at position {pos} with value {point_str}: unable to parse coordinates."
-                                )
-                                continue
-                        else:
-                            if isinstance(geom, Point):
-                                x, y = geom.x, geom.y
-                                idx.insert(pos, (x, y, x, y))
-                            else:
-                                self.logger.error(
-                                    f"Error processing occurrence at position {pos} with value {point_str}: not a Point geometry."
-                                )
-                    else:
-                        if isinstance(geom, Point):
-                            x, y = geom.x, geom.y
-                            idx.insert(pos, (x, y, x, y))
-                        else:
-                            self.logger.error(
-                                f"Error processing occurrence at position {pos} with value {point_str}: not a Point geometry."
+                try:
+                    point = parse_geometry(point_str)
+                    idx.insert(pos, (point.x, point.y, point.x, point.y))
+                except ValueError as e:
+                    if "NaN value" in str(e):
+                        nan_count += 1
+                        if nan_count <= 10:  # Log only the first 10 NaN errors
+                            self.logger.warning(
+                                f"NaN value encountered at position {pos}. Skipping this occurrence."
                             )
+                        elif nan_count == 11:
+                            self.logger.warning(
+                                "Additional NaN values encountered. Suppressing further NaN warnings."
+                            )
+                    else:
+                        self.logger.error(
+                            f"Error processing occurrence at position {pos}: {e}"
+                        )
+
+        if nan_count > 0:
+            self.logger.info(f"Total NaN values encountered: {nan_count}")
 
         return idx
