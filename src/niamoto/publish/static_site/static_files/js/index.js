@@ -64,19 +64,21 @@ function loadCharts(item, mapping) {
                     labels = field.bins.labels;
                     values = field.bins.values.map(value => frequencies[field_key][value] || 0);
                 } else {
-                    // Otherwise, use the sorted frequencies
-                    var sortedFrequencies;
+                    // Create an array of objects with label and value
+                    var dataArray = Object.entries(frequencies[field_key]).map(([label, value]) => ({label, value}));
 
-                    if (field.bins.chart_options.indexAxis === 'y') {
-                        // Sort the bin data
-                        sortedFrequencies = Object.entries(frequencies[field_key])
-                            .sort(([, a], [, b]) => a - b); // Sort ascending
-                    } else {
-                        sortedFrequencies = Object.entries(frequencies[field_key]);
-                    }
+                    // Sort the data array based on the numeric value of the label
+                    dataArray.sort((a, b) => parseFloat(a.label) - parseFloat(b.label));
 
-                    labels = sortedFrequencies.map(([label]) => label);
-                    values = sortedFrequencies.map(([, value]) => value);
+                    // Extract sorted labels and values
+                    labels = dataArray.map(item => item.label);
+                    values = dataArray.map(item => item.value);
+                }
+
+                // Reverse the order if indexAxis is 'y'
+                if (field.bins.chart_options.indexAxis === 'y') {
+                    labels.reverse();
+                    values.reverse();
                 }
 
                 var binData = {

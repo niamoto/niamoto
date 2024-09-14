@@ -32,8 +32,7 @@ from shapely import (
 from shapely.geometry import mapping, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
-from shapely import wkt
-from shapely.wkb import loads as wkb_loads
+from shapely import wkt, wkb
 
 from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef, TaxonRef
@@ -175,7 +174,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     point_geom = wkt.loads(geo_str)
                 # Try to parse as WKB (hexadecimal format)
                 else:
-                    point_geom = wkb_loads(geo_str, hex=True)
+                    point_geom = wkb.loads(geo_str, hex=True)
 
                 # If the geometry is not a Point, create a Point from its centroid
                 if not isinstance(point_geom, Point):
@@ -429,14 +428,14 @@ class ShapeStatsCalculator(StatisticsCalculator):
                         # Try to fix invalid polygons
                         boundary = poly.boundary
                         if boundary.is_valid:
-                            fixed_polygons = list(polygonize(boundary))  # type: ignore
+                            fixed_polygons = list(polygonize(boundary))
                             clean_polygons.extend(fixed_polygons)
                 geometry = MultiPolygon(clean_polygons)
             elif isinstance(geometry, Polygon):
                 if not geometry.is_valid:
                     boundary = geometry.boundary
                     if boundary.is_valid:
-                        fixed_polygons = list(polygonize(boundary))  # type: ignore
+                        fixed_polygons = list(polygonize(boundary))
                         if len(fixed_polygons) == 1:
                             geometry = fixed_polygons[0]
                         else:
@@ -447,9 +446,13 @@ class ShapeStatsCalculator(StatisticsCalculator):
             area_m2 = abs(geod.geometry_area_perimeter(geometry)[0])
             area_km2 = area_m2 / 1_000_000  # Convert m² to km²
 
-            # Simplify large geometries
+            # Simplify large geometries with adjusted tolerance
             if area_km2 > LARGE_SHAPE_THRESHOLD_KM2:
-                tolerance = 0.001 * (area_km2**0.5)
+                base_tolerance = 0.0001  # Reduced base tolerance
+                area_factor = (
+                    area_km2 / LARGE_SHAPE_THRESHOLD_KM2
+                ) ** 0.25  # Adjusted scaling
+                tolerance = base_tolerance * area_factor
                 geometry = geometry.simplify(tolerance, preserve_topology=True)
 
                 if isinstance(geometry, Polygon):
@@ -857,7 +860,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         """
         geom = self.load_shape_geometry(wkt_geometry)
         if geom is not None:
-            simplified_geom = geom.simplify(tolerance=0.001, preserve_topology=True)
+            simplified_geom = geom.simplify(tolerance=0.0001, preserve_topology=True)
             return mapping(simplified_geom)
         else:
             # Handle the case where geom is None. This could involve logging an error or returning an empty dict.
@@ -1194,7 +1197,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     geom = wkt.loads(geo_str)
                 # Try to parse as WKB (hexadecimal format)
                 elif isinstance(geo_str, str):
-                    geom = wkb_loads(geo_str, hex=True)
+                    geom = wkb.loads(geo_str, hex=True)
                 else:
                     raise ValueError(f"Unexpected geometry type: {type(geo_str)}")
 

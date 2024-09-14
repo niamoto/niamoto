@@ -102,7 +102,8 @@ class BaseGenerator:
         }
 
         if stats:
-            simplify_tolerance = 0.01  # Adjust tolerance as needed
+            simplify_tolerance = 0.0001  # Reduced tolerance for better detail
+
             if "shape_coordinates" in stats and stats["shape_coordinates"]:
                 try:
                     shape_coords = json.loads(stats["shape_coordinates"])

@@ -9,6 +9,7 @@ without directly interacting with the underlying Python code.
 """
 
 import os
+import shutil
 import subprocess
 import time
 from typing import Optional, List
@@ -974,6 +975,7 @@ def generate_content(mapping_group: Optional[str]) -> None:
         - The database connection settings are retrieved from the configuration file.
         - The command may take some time to complete, depending on the number of groups in the database.
     """
+    console = Console()
     try:
         start_time = time.time()
         config = Config()
@@ -981,13 +983,12 @@ def generate_content(mapping_group: Optional[str]) -> None:
         generator_service.generate_content(mapping_group)
 
         duration = time.time() - start_time
-        console = Console()
+
         console.print(
             f"🌱 Content generation completed in {duration:.2f} seconds.",
             style="italic green",
         )
 
-        # Ajout du lien vers le fichier index.html
         home_directory = config.get_niamoto_home()
         index_file_path = os.path.join(home_directory, "outputs", "index.html")
 
@@ -1061,7 +1062,7 @@ def deploy(
 
 def deploy_to_github(output_dir: str, repo_url: str, branch: str = "gh-pages") -> None:
     """
-    Deploy generated static files to GitHub Pages using the gh-pages branch.
+    Deploy generated static files to GitHub Pages using an orphan branch.
 
     Args:
         output_dir (str): Path to the directory containing generated files.
@@ -1075,8 +1076,8 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str = "gh-pages") -
         # Initialize a new git repository
         subprocess.run(["git", "init"], check=True)
 
-        # Create and switch to a new 'gh-pages' branch
-        subprocess.run(["git", "checkout", "-b", branch], check=True)
+        # Create a new orphan branch
+        subprocess.run(["git", "checkout", "--orphan", branch], check=True)
 
         # Add all files
         subprocess.run(["git", "add", "."], check=True)
@@ -1096,12 +1097,12 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str = "gh-pages") -
         # Set HTTP buffer size for large commits
         subprocess.run(["git", "config", "http.postBuffer", "157286400"], check=True)
 
-        # Push to the gh-pages branch, force push to overwrite history
-        subprocess.run(["git", "push", "--force", "origin", branch], check=True)
+        # Force push to the specified branch, overwriting any existing history
+        subprocess.run(["git", "push", "-f", "origin", branch], check=True)
 
         console.print("Deployment to GitHub Pages successful.", style="italic green")
         console.print(
-            "Your site should be live at https://[username].github.io/[repository]/",
+            f"Your site should be live at https://[username].github.io/[repository]/ on the {branch} branch",
             style="italic blue",
         )
 
@@ -1114,7 +1115,7 @@ def deploy_to_github(output_dir: str, repo_url: str, branch: str = "gh-pages") -
 
     finally:
         # Clean up: remove the temporary git repository
-        subprocess.run(["rm", "-rf", ".git"], check=True)
+        shutil.rmtree(".git", ignore_errors=True)
 
 
 def deploy_to_netlify(output_dir: str, site_id: str) -> None:

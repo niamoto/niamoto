@@ -180,25 +180,11 @@
         </div>
     </div>
 
-    <!-- Section for shape map -->
-    <div>
-        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-            <h2 class="font-bold text-xl mb-2">Shape Map</h2>
-            <div id="shapeMap" style="height: 400px; position: relative;">
-                <div class="loader-container" id="shapeMapLoader">
-                    <div class="loader"></div>
-                </div>
-                <!-- The Leaflet map will be loaded here -->
-            </div>
-        </div>
-    </div>
 
-    <!-- Section for forest map -->
     <div>
         <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-            <h2 class="font-bold text-xl mb-2">Forest Map</h2>
-            <div id="forestMap" style="height: 400px; position: relative;">
-                <div class="loader-container" id="forestMapLoader">
+            <div id="combinedMap" style="height: 400px; position: relative;">
+                <div class="loader-container" id="combinedMapLoader">
                     <div class="loader"></div>
                 </div>
                 <!-- The Leaflet map will be loaded here -->
@@ -268,7 +254,12 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         loadShapeCharts(shape, mapping);
-        initShapeMaps(mapping, shape);
+        if (typeof L !== 'undefined') {
+            console.log("Leaflet is loaded");
+            initShapeMaps(mapping, shape);
+        } else {
+            console.error("Leaflet is not loaded!");
+        }
         loadAllShapesMap(shape);
 
         const treeContainer = document.getElementById('shape-tree');
@@ -630,189 +621,214 @@
 
     let maps = {};  // Object to keep track of initialized maps
 
-    function initMap(field_key, geometry) {
-        const mapId = field_key + 'Map';
-        const mapLoaderId = field_key + 'MapLoader';
+    function initShapeMaps(mapping, shape) {
+        // Initialize the combined map
+        initCombinedMap(mapping, shape);
+    }
+
+    function initCombinedMap(mapping, shape) {
+        const mapId = 'combinedMap';
+        const mapLoaderId = 'combinedMapLoader';
+        // Check if the map container exists
+        const mapContainer = document.getElementById(mapId);
+        if (!mapContainer) {
+            console.error("Map container not found!");
+            return;
+        }
 
         // Check if the map already exists
         if (maps[mapId]) {
-            return; // Map is already initialized, so do nothing
+            return;
         }
 
-        const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        });
-        const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        });
-        const map = L.map(mapId, {
-            layers: [carte, satellite],
-            scrollWheelZoom: false
-        });
-        map.attributionControl.setPrefix(false); // Remove the "Powered by Leaflet" prefix
-        map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
+        try {
+            const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+                layers: '0',
+                format: 'image/png',
+                transparent: true,
+                attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+            });
+            const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
+                layers: '0',
+                format: 'image/png',
+                transparent: true,
+                attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+            });
 
-        const baseMaps = {
-            "Carte": carte,
-            "Satellite": satellite,
-        };
+            // Initialize the map with a default view of New Caledonia
+            const map = L.map(mapId, {
+                layers: [satellite],
+                center: [-21.3, 165.3],  // Approximate center of New Caledonia
+                zoom: 7,  // A zoom level that shows most of New Caledonia
+                scrollWheelZoom: false
+            });
 
-        L.control.layers(baseMaps).addTo(map);
+            map.attributionControl.setPrefix(false);
+            map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
 
-        map.on('load', function () {
-            document.getElementById(mapLoaderId).style.display = 'none';
-        });
+            const baseMaps = {
+                "Carte": carte,
+                "Satellite": satellite,
+            };
 
-        if (geometry) {
-            const geoJsonLayer = L.geoJSON(geometry, {
-                style: function() {
-                    return {
-                        color: '#228b22', // Border color
-                        weight: 2,       // Border width
-                        fillColor: '#228b22cc', // Fill color with opacity
-                        fillOpacity: 0.8 // Fill opacity
-                    };
-                }
-            }).addTo(map);
-            map.fitBounds(geoJsonLayer.getBounds());
-        } else {
-            console.warn("No geographic coordinates found.");
-            // Set default view if no geometry is found
-            map.setView([-21.291237, 165.516418], 10);
-        }
+            L.control.layers(baseMaps).addTo(map);
 
-        // Store the map instance in the maps object
-        maps[mapId] = map;
-    }
+            let allLayers = [];
 
-    function initShapeMaps(mapping, shape) {
-        Object.entries(mapping.fields).forEach(function([field_key, field]) {
-            field.transformations.forEach(function(transformation) {
-                if (transformation.chart_type === 'map') {
-                    var coordinatesField = transformation.chart_options.coordinates_field;
-                    var geometry = shape[coordinatesField];
+            // Find and add shape and forest layers
+            Object.entries(mapping.fields).forEach(function([field_key, field]) {
+                field.transformations.forEach(function(transformation) {
+                    if (transformation.chart_type === 'map') {
+                        var coordinatesField = transformation.chart_options.coordinates_field;
+                        var geometry = shape[coordinatesField];
 
-                    // Check if geometry is a string, if so, parse it as JSON
-                    if (typeof geometry === 'string') {
-                        try {
-                            geometry = JSON.parse(geometry);
-                        } catch (e) {
-                            console.error("Invalid JSON for field", coordinatesField, ":", geometry);
-                            return; // Skip this field if JSON is invalid
+                        // Check if geometry is a string, if so, parse it as JSON
+                        if (typeof geometry === 'string') {
+                            try {
+                                geometry = JSON.parse(geometry);
+                            } catch (e) {
+                                console.error("Invalid JSON for field", coordinatesField, ":", geometry);
+                                return; // Skip this field if JSON is invalid
+                            }
+                        }
+
+                        if (geometry) {
+                            const layer = L.geoJSON(geometry, {
+                                style: function() {
+                                    return {
+                                        color: field_key.includes('forest') ? '#228b22' : '#1fb99d',
+                                        weight: field_key.includes('forest') ? 0.3 : 2,
+                                        fillColor: field_key.includes('forest') ? '#228b22cc' : '#1fb99d',
+                                        fillOpacity: field_key.includes('forest') ? 0.8 : 0
+                                    };
+                                }
+                            }).addTo(map);
+                            allLayers.push(layer);
+                        } else {
+                            console.warn(`No geometry found for field: ${field_key}`);
                         }
                     }
-
-                    // Initialize the map with the parsed geometry
-                    initMap(field_key, geometry);
-                }
+                });
             });
-        });
+
+            // Fit the map to the bounds of all layers
+            if (allLayers.length > 0) {
+                const group = L.featureGroup(allLayers);
+                map.fitBounds(group.getBounds());
+            } else {
+                console.warn("No layers added to the map");
+            }
+
+            // Store the map instance in the maps object
+            maps[mapId] = map;
+
+            // Hide the loader
+            const loader = document.getElementById(mapLoaderId);
+            if (loader) {
+                loader.style.display = 'none';
+            }
+
+        } catch (error) {
+            console.error("Error initializing map:", error);
+        }
+    }
+
+    function bringLayerToFront(layer) {
+        if (!layer._map) return;
+            layer.bringToFront();
+        if (layer.eachLayer) {
+            layer.eachLayer(bringLayerToFront);
+        }
     }
 
     function loadAllShapesMap(currentShape) {
-        const mapId = 'allShapesMap';
-        const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        });
-        const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        });
-        const map = L.map(mapId, {
-            layers: [carte, satellite],
-            scrollWheelZoom: false
-        });
-        map.attributionControl.setPrefix(false); // Remove the "Powered by Leaflet" prefix
-        map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
+    const mapId = 'allShapesMap';
+    const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+        layers: '0',
+        format: 'image/png',
+        transparent: true,
+        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+    });
+    const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
+        layers: '0',
+        format: 'image/png',
+        transparent: true,
+        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+    });
+    const map = L.map(mapId, {
+        layers: [carte, satellite],
+        scrollWheelZoom: false
+    });
+    map.attributionControl.setPrefix(false);
+    map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
 
-        const baseMaps = {
-            "Carte": carte,
-            "Satellite": satellite,
-        };
+    const baseMaps = {
+        "Carte": carte,
+        "Satellite": satellite,
+    };
 
-        L.control.layers(baseMaps).addTo(map);
+    L.control.layers(baseMaps).addTo(map);
 
-        var group = L.featureGroup(); // Create a group to hold all the layers
+    var group = L.featureGroup();
+    var currentShapeLayer;
 
-        shapeTypes.forEach(function(shapeTypeItem) {
-            if (shapeTypeItem.type === currentShape.type) {
-                shapeTypeItem.shapes.forEach(function(shapeItem) {
-                    var geometry = shapeItem.geometry;
-                    // No need to parse geometry if it's already GeoJSON
-                    var layer = L.geoJSON(geometry, {
-                        style: function() {
-                            return {
-                                color: '#228b22', // Border color
-                                weight: 2,       // Border width
-                                fillColor: '#228b22cc', // Fill color with opacity
-                                fillOpacity: 0.8 // Fill opacity
-                            };
-                        }
-                    }).addTo(map);
-                    group.addLayer(layer); // Add each layer to the group
-
-                    // Highlight current shape
-                    if (shapeItem.id === currentShape.id) {
-                        layer.setStyle({color: 'red', weight: 3, fillOpacity: 0.4});
-                        layer.bringToFront(); // Ensure the highlighted shape is on top
-                    } else {
-                        layer.setStyle({fillOpacity: 0.2}); // Reduce opacity for other shapes
+    shapeTypes.forEach(function(shapeTypeItem) {
+        if (shapeTypeItem.type === currentShape.type) {
+            shapeTypeItem.shapes.forEach(function(shapeItem) {
+                var geometry = shapeItem.geometry;
+                var layer = L.geoJSON(geometry, {
+                    style: function() {
+                        return {
+                            color: '#228b22',
+                            weight: 2,
+                            fillColor: '#228b22cc',
+                            fillOpacity: 0.2 // Reduced default opacity
+                        };
                     }
-
-                    // Show tooltip on hover with additional content
-                    var tooltipContent = "<strong>" + shapeItem.name + "</strong><br>";
-
-                    {#Object.entries(mapping.fields).forEach(function([fieldKey, field]) {
-                        field.transformations.forEach(function(transformation) {
-                            if (transformation.chart_type === 'text') {
-                                var value = shapeItem[fieldKey + '_' + transformation.name] || shape[fieldKey + '_' + transformation.name];
-                                if (value !== undefined && value !== null) {
-                                    tooltipContent += field.label + " : " + value + "<br>";
-                                }
-                            }
-                        });
-                    });#}
-
-
-                    layer.bindTooltip(tooltipContent, {
-                        permanent: false,
-                        direction: 'right',
-                        offset: L.point(10, 0),
-                        opacity: 0.9,
-                        className: 'custom-tooltip'
-                    });
-
-
-                    layer.on('mousemove', function(e) {
-                        var tooltip = e.target.getTooltip();
-                        tooltip.setLatLng(e.latlng);
-                    });
-
-                    layer.on('click', function() {
-                        window.location.href = '../shape/' + shapeItem.id + '.html';
-                    });
                 });
-            }
+
+                if (shapeItem.id === currentShape.id) {
+                    currentShapeLayer = layer;
+                }
+
+                group.addLayer(layer);
+
+                var tooltipContent = "<strong>" + shapeItem.name + "</strong><br>";
+                layer.bindTooltip(tooltipContent, {
+                    permanent: false,
+                    direction: 'right',
+                    offset: L.point(10, 0),
+                    opacity: 0.9,
+                    className: 'custom-tooltip'
+                });
+
+                layer.on('mousemove', function(e) {
+                    var tooltip = e.target.getTooltip();
+                    tooltip.setLatLng(e.latlng);
+                });
+
+                layer.on('click', function() {
+                    window.location.href = '../shape/' + shapeItem.id + '.html';
+                });
+            });
+        }
+    });
+
+    group.addTo(map);
+    map.fitBounds(group.getBounds());
+
+    // Highlight current shape after all layers are added
+    if (currentShapeLayer) {
+        currentShapeLayer.setStyle({
+            color: '#1fb99d',
+            weight: 3,
+            fillOpacity: 0.4
         });
-
-        map.fitBounds(group.getBounds()); // Adjust the view to fit the bounds of the group
-
-        map.attributionControl.setPrefix(false);
-        map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
-
-        maps['allShapesMap'] = map;
+        bringLayerToFront(currentShapeLayer);
     }
+
+    maps['allShapesMap'] = map;
+}
 
     function loadShapeTypeList() {
         var shapeTypeListElement = document.getElementById("shape-type-list");
