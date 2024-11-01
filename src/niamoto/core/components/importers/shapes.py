@@ -164,13 +164,14 @@ class ShapeImporter:
         self, geom: BaseGeometry, transformer: Transformer
     ) -> BaseGeometry:
         """
-        Transform the geometry to WGS84.
+        Transform the geometry to WGS84 and ensure it is a MultiPolygon.
+
         Args:
             geom (BaseGeometry): The geometry to transform.
             transformer (Transformer): The transformer to use.
 
         Returns:
-            BaseGeometry: The transformed geometry.
+            BaseGeometry: The transformed geometry as MultiPolygon.
 
         """
         if isinstance(geom, Point):
@@ -178,7 +179,8 @@ class ShapeImporter:
         elif isinstance(geom, LineString):
             return self.transform_linestring(geom, transformer)
         elif isinstance(geom, Polygon):
-            return self.transform_polygon(geom, transformer)
+            # Convert Polygon to MultiPolygon by wrapping it in a MultiPolygon
+            return MultiPolygon([self.transform_polygon(geom, transformer)])
         elif isinstance(geom, MultiPolygon):
             return MultiPolygon(
                 [self.transform_polygon(poly, transformer) for poly in geom.geoms]

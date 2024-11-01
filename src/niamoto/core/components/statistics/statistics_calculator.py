@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import List, Dict, Any, Hashable, Tuple
 
-import duckdb
 import pandas as pd
 from rich.console import Console
 from shapely import Point
@@ -14,8 +13,8 @@ from shapely.wkb import loads as load_wkb
 from shapely.wkt import loads as load_wkt
 
 from niamoto.common.database import Database
-from ...models import TaxonRef
 from niamoto.core.services.mapper import MapperService
+from ...models import TaxonRef
 from ...utils.logging_utils import setup_logging
 
 
@@ -25,7 +24,6 @@ class StatisticsCalculator(ABC):
 
     Attributes:
         db (Database): The database connection.
-        con (duckdb.DuckDBPyConnection): The DuckDB connection.
         mapper_service (MapperService): The mapper service.
         occurrences (list[dict[Hashable, Any]]): The occurrences.
         group_by (str): The group by field.
@@ -55,7 +53,6 @@ class StatisticsCalculator(ABC):
         """
 
         self.db = db
-        self.con = duckdb.connect(self.db.db_path)
         self.mapper_service = mapper_service
         self.occurrences = occurrences
         self.group_by = group_by
@@ -137,65 +134,96 @@ class StatisticsCalculator(ABC):
 
     def create_stats_table(self, table_name: str, initialize: bool = False) -> None:
         """
-        Create a statistics table.
+        Create a statistics table with complex field handling for DuckDB.
 
         Args:
             table_name (str): The table name.
             initialize (bool, optional): Whether to initialize the table. Defaults to False.
         """
+        # If initialize is True and table exists, drop it
         if initialize:
             drop_query = f"DROP TABLE IF EXISTS {table_name}"
-            self.con.execute(drop_query)
+            self.db.execute_sql(drop_query)
 
-        fields_sql = [f"{self.group_by}_id INTEGER PRIMARY KEY"]
+        # Create the table using raw SQL for DuckDB compatibility
+        create_table_query = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            {self.group_by}_id INTEGER PRIMARY KEY"""
 
+        # Add fields based on configuration
         for field, config in self.fields.items():
             source_field = config.get("source_field")
             transformations = config.get("transformations", [])
             field_type = config.get("field_type", "TEXT")
 
-            # Handle fields without a source field (e.g., calculated fields)
             if source_field is None:
+                # Handle fields without direct source
                 if transformations:
                     for transformation in transformations:
                         transform_name = transformation.get("name")
-                        fields_sql.append(f"{field}_{transform_name} {field_type}")
+                        sql_type = self._get_sql_type(field_type)
+                        create_table_query += (
+                            f",\n        {field}_{transform_name} {sql_type}"
+                        )
                 else:
-                    fields_sql.append(f"{field} {field_type}")
+                    sql_type = self._get_sql_type(field_type)
+                    create_table_query += f",\n        {field} {sql_type}"
 
             else:
-                # Binary field (ex: um_occurrences)
-                if config.get("field_type") == "BOOLEAN":
-                    fields_sql.append(f"{field}_true INTEGER")
-                    fields_sql.append(f"{field}_false INTEGER")
+                # Handle specific types
+                if field_type == "BOOLEAN":
+                    create_table_query += f",\n        {field}_true INTEGER"
+                    create_table_query += f",\n        {field}_false INTEGER"
 
-                # Geolocation field (ex: occurrence_location)
-                elif config.get("field_type") == "GEOGRAPHY":
+                elif field_type == "GEOGRAPHY":
                     if transformations:
                         for transformation in transformations:
                             transform_name = transformation.get("name")
-                            fields_sql.append(f"{field}_{transform_name} TEXT")
+                            create_table_query += (
+                                f",\n        {field}_{transform_name} VARCHAR"
+                            )
+
                 else:
                     if transformations:
                         for transformation in transformations:
-                            transform_name = transformation.get("name")
-                            if transform_name:
-                                field_name = f"{field}_{transform_name}"
-                            else:
-                                field_name = f"{field}"  # Use field name directly if transform_name is null
-                            fields_sql.append(
-                                f"{field_name} {config.get('field_type', 'DOUBLE')}"
+                            transform_name = transformation.get("name", "")
+                            field_name = (
+                                f"{field}_{transform_name}" if transform_name else field
                             )
+                            sql_type = self._get_sql_type(field_type)
+                            create_table_query += f",\n        {field_name} {sql_type}"
 
-                    # Generate a column for the bins, if specified and not empty
                     bins = config.get("bins", [])
-                    if bins:  # Check if bins is not an empty list
-                        bins_field_name = f"{field}_bins"
-                        fields_sql.append(f"{bins_field_name} TEXT")
+                    if bins:
+                        create_table_query += f",\n        {field}_bins VARCHAR"
 
-        # Creating the table with all necessary columns
-        create_query = f"CREATE TABLE {table_name} ({', '.join(fields_sql)})"
-        self.con.execute(create_query)
+        create_table_query += "\n    )"
+
+        try:
+            self.db.execute_sql(create_table_query)
+        except Exception as e:
+            self.logger.error(f"Error creating table {table_name}: {e}")
+            raise
+
+    @staticmethod
+    def _get_sql_type(field_type: str) -> str:
+        """
+        Maps a string-based field type to a DuckDB SQL type.
+
+        Args:
+            field_type (str): The field type as a string.
+
+        Returns:
+            str: The corresponding DuckDB SQL type.
+        """
+        type_mapping = {
+            "INTEGER": "INTEGER",
+            "BOOLEAN": "BOOLEAN",
+            "DOUBLE": "DOUBLE",
+            "TEXT": "VARCHAR",
+            "GEOGRAPHY": "VARCHAR",
+        }
+        return type_mapping.get(field_type, "VARCHAR")
 
     @staticmethod
     def calculate_bins(values: List[float], bins: List[float]) -> dict[str, float]:
