@@ -91,6 +91,14 @@ class PlotRef(Base):
     locality = Column(String, nullable=False)
     geometry = Column(String)
 
+    __table_args__ = (
+        Index("ix_plot_ref_id", "id"),
+        Index("ix_plot_ref_locality", "locality"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PlotRef(id={self.id}, locality={self.locality})>"
+
 
 class ShapeRef(Base):
     """
@@ -105,7 +113,7 @@ class ShapeRef(Base):
 
     __tablename__ = "shape_ref"
 
-    id_seq = Sequence("shape_id_seq")
+    id_seq: Sequence = Sequence("shape_id_seq")
     id = Column(Integer, id_seq, server_default=id_seq.next_value(), primary_key=True)
     label = Column(String(50), nullable=False)
     type = Column(String(50))

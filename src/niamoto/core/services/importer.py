@@ -26,7 +26,7 @@ class ImporterService:
         self.db = Database(db_path)
         self.logger = setup_logging(component_name="importer_service")
         self.taxonomy_importer = TaxonomyImporter(self.db)
-        self.occurrence_importer = OccurrenceImporter(db_path)
+        self.occurrence_importer = OccurrenceImporter(self.db)
         self.plot_importer = PlotImporter(self.db)
         self.shape_importer = ShapeImporter(self.db)
 

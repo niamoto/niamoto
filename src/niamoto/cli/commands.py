@@ -15,7 +15,6 @@ import time
 from typing import Optional, List
 
 import click
-import duckdb
 from loguru import logger
 from rich.console import Console
 from rich.table import Table
@@ -742,53 +741,12 @@ def import_all() -> None:
 
     console.print("All data sources imported successfully.", style="bold green")
 
-
-def reset_table(db_path: str, table_name: str) -> None:
-    """
-    Reset a single table using DuckDB and recreate it using SQLAlchemy models if applicable.
-
-    Args:
-        db_path (str): The path to the DuckDB database file.
-        table_name (str): The name of the table to reset.
-
-    Returns:
-        None
-
-    Raises:
-        Exception: If an error occurs during the reset process.
-    """
-    console = Console()
-    duckdb_connection = duckdb.connect(db_path)  # Connect directly to DuckDB
-
-    try:
-        # Drop the table
-        duckdb_connection.execute(f"DROP TABLE IF EXISTS {table_name}")
-
-    except Exception as e:
-        console.print(f"Error resetting table {table_name}: {e}", style="bold red")
-        raise
-    finally:
-        duckdb_connection.close()
-
-    # Recreate the table using SQLAlchemy models if the model exists
-    try:
-        db = Database(db_path)
-        engine = db.engine
-
-        if table_name in Base.metadata.tables:
-            Base.metadata.create_all(engine, tables=[Base.metadata.tables[table_name]])
-
-    except Exception as e:
-        console.print(f"Error recreating table {table_name}: {e}", style="bold red")
-        raise
-
-
 def reset_tables(db_path: str) -> None:
     """
-    Reset the tables using DuckDB and recreate them using SQLAlchemy models.
+    Reset the tables using and recreate them using SQLAlchemy models.
 
     Args:
-        db_path (str): The path to the DuckDB database file.
+        db_path (str): The path to the database file.
 
     Returns:
         None
@@ -796,6 +754,9 @@ def reset_tables(db_path: str) -> None:
     Raises:
         Exception: If an error occurs during the reset process.
     """
+    # Fermer toutes les connexions existantes à la base de données
+    Database(db_path).session.close_all()
+
     table_names = [
         "occurrences_plots",
         "occurrences",
@@ -809,6 +770,42 @@ def reset_tables(db_path: str) -> None:
 
     for table_name in table_names:
         reset_table(db_path, table_name)
+
+def reset_table(db_path: str, table_name: str) -> None:
+    """
+    Reset a single table and recreate it using SQLAlchemy models if applicable.
+
+    Args:
+        db_path (str): The path to the database file.
+        table_name (str): The name of the table to reset.
+
+    Returns:
+        None
+
+    Raises:
+        Exception: If an error occurs during the reset process.
+    """
+    console = Console()
+    db = Database(db_path)
+
+    try:
+        # Drop the table
+        db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+
+    except Exception as e:
+        console.print(f"Error resetting table {table_name}: {e}", style="bold red")
+        raise
+
+    # Recreate the table using SQLAlchemy models if the model exists
+    try:
+        engine = db.engine
+
+        if table_name in Base.metadata.tables:
+            Base.metadata.create_all(engine, tables=[Base.metadata.tables[table_name]])
+
+    except Exception as e:
+        console.print(f"Error recreating table {table_name}: {e}", style="bold red")
+        raise
 
 
 @cli.command(name="generate-mapping")

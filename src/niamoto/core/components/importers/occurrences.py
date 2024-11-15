@@ -1,7 +1,6 @@
 """
 A module for importing occurrence data from a CSV file into the database.
 """
-import json
 from typing import Any
 
 import duckdb
@@ -9,9 +8,8 @@ import pandas as pd
 import sqlalchemy
 from rich.console import Console
 from rich.progress import Progress
-from shapely import wkt
-from shapely.geometry import shape
 
+from niamoto.common.database import Database
 from niamoto.core.utils.logging_utils import setup_logging
 
 
@@ -20,13 +18,12 @@ class OccurrenceImporter:
     A class used to import occurrence data from a CSV file into the database.
 
     Attributes:
-        db_path (str): The path to the database file.
-        con (duckdb.Connection): The connection to the DuckDB database.
+        db (Database): The database connection.
     """
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self.con = duckdb.connect(self.db_path)
+    def __init__(self, db: Database):
+        self.db = db
+        self.db_path = self.db.db_path
         self.logger = setup_logging(component_name="occurrences_import")
 
     @staticmethod
@@ -83,11 +80,11 @@ class OccurrenceImporter:
 
             # Drop the existing occurrences table if it exists
             drop_table_sql = "DROP TABLE IF EXISTS occurrences;"
-            self.con.execute(drop_table_sql)
+            self.db.execute_sql(drop_table_sql)
 
             # Create the 'occurrences' table with a foreign key to 'taxon_ref'
             create_table_sql = f"CREATE TABLE occurrences ({columns_sql});"
-            self.con.execute(create_table_sql)
+            self.db.execute_sql(create_table_sql)
 
             # Import the data with a spinner
             with Console().status(
@@ -116,11 +113,11 @@ class OccurrenceImporter:
                         LEFT JOIN taxon_ref ON csv.{taxon_id_column} = taxon_ref.id
                         ON CONFLICT (id) DO NOTHING;
                         """
-                self.con.execute(import_csv_sql)
+                self.db.execute_sql(import_csv_sql)
 
             # Count the number of imported occurrences
             count_sql = "SELECT COUNT(*) FROM occurrences;"
-            result = self.con.execute(count_sql).fetchone()
+            result = self.db.execute_sql(count_sql).fetchone()
             if result is not None:
                 imported_count = result[0]
             else:
@@ -154,7 +151,6 @@ class OccurrenceImporter:
             ValueError: If the specified taxon ID column is not found in the CSV file.
         """
         try:
-            self.con.execute("LOAD spatial;")
             # Analyse the CSV file to get the schema
             column_schema = self.analyze_data(csvfile)
 
@@ -177,19 +173,13 @@ class OccurrenceImporter:
 
             # Drop the existing occurrences table if it exists
             drop_table_sql = "DROP TABLE IF EXISTS occurrences;"
-            self.con.execute(drop_table_sql)
+            self.db.execute_sql(drop_table_sql)
 
             # Create the 'occurrences' table with the foreign key constraint
             create_table_sql = (
                 f"CREATE TABLE IF NOT EXISTS occurrences ({columns_sql});"
             )
-            # create_table_sql = f"""
-            #         CREATE TABLE IF NOT EXISTS occurrences (
-            #             {columns_sql},
-            #             location VARCHAR
-            #         );
-            #         """
-            self.con.execute(create_table_sql)
+            self.db.execute_sql(create_table_sql)
 
             df = pd.read_csv(csvfile, low_memory=False)
             engine = sqlalchemy.create_engine(f"duckdb:///{self.db_path}")
@@ -207,37 +197,6 @@ class OccurrenceImporter:
             # Add a 'taxon_ref_id' column
             df["taxon_ref_id"] = df[taxon_id_column]
 
-            def process_geometry(geom_string: str) -> Any:
-                """
-                Process the geometry string and return a valid WKT string.
-                Args:
-                    geom_string (str): The geometry string to be processed.
-
-                Returns:
-                    Any: A valid WKT string or None if the geometry is invalid.
-
-                """
-                if pd.isna(geom_string):
-                    return None
-                try:
-                    if isinstance(geom_string, str) and geom_string.strip():
-                        if geom_string.startswith("{"):  # C'est probablement du GeoJSON
-                            geom = shape(json.loads(geom_string))
-                        else:  # On suppose que c'est du WKT
-                            geom = wkt.loads(geom_string)
-
-                        if not geom.is_valid:
-                            return None
-                        return geom.wkt  # Retournons du WKT valide
-                    else:
-                        return None
-                except Exception as e:
-                    print(f"Error processing geometry: {e}")
-                    return None
-
-            # Apply the process_geometry function to the location column
-            # df["location"] = df[location_column].apply(process_geometry)
-
             # Define the size of each "chunk" for insertion
             chunk_size = 1000
             num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
@@ -253,20 +212,9 @@ class OccurrenceImporter:
                     chunk.to_sql("occurrences", engine, if_exists="append", index=False)
                     progress.update(task, advance=1)
 
-            # convert_to_geometry_sql = """
-            #         ALTER TABLE occurrences
-            #         ALTER COLUMN location TYPE GEOMETRY
-            #         USING CASE
-            #             WHEN location IS NOT NULL AND location != ''
-            #             THEN ST_GeomFromText(location)
-            #             ELSE NULL
-            #         END;
-            #         """
-            # self.con.execute(convert_to_geometry_sql)
-
             # Count the number of valid imported occurrences
             count_sql = "SELECT COUNT(*) FROM occurrences;"
-            result = self.con.execute(count_sql).fetchone()
+            result = self.db.execute_sql(count_sql, fetch=True)
             if result is not None:
                 imported_count = result[0]
             else:
@@ -300,7 +248,7 @@ class OccurrenceImporter:
 
             # Drop the existing occurrences table if it exists
             drop_table_sql = "DROP TABLE IF EXISTS occurrences_plots;"
-            self.con.execute(drop_table_sql)
+            self.db.execute_sql(drop_table_sql)
 
             # Create the 'occurrences_plots' table
             columns_sql = ", ".join(
@@ -309,7 +257,7 @@ class OccurrenceImporter:
             create_table_sql = (
                 f"CREATE TABLE IF NOT EXISTS occurrences_plots ({columns_sql})"
             )
-            self.con.execute(create_table_sql)
+            self.db.execute_sql(create_table_sql)
 
             df = pd.read_csv(csvfile)
             engine = sqlalchemy.create_engine(f"duckdb:///{self.db_path}")
@@ -333,7 +281,7 @@ class OccurrenceImporter:
 
             # Count the number of imported links
             count_sql = "SELECT COUNT(*) FROM occurrences_plots;"
-            result = self.con.execute(count_sql).fetchone()
+            result = self.db.execute_sql(count_sql, fetch=True)
             if result is not None:
                 imported_count = result[0]
             else:

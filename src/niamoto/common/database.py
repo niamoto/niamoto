@@ -1,5 +1,5 @@
 """
-This module provides a Database class for connecting to and interacting with a DuckDB database.
+This module provides a Database class for connecting to and interacting with a database.
 
 The Database class offers methods to establish a connection, get new sessions, 
 add instances to the database, and close sessions.
@@ -41,39 +41,10 @@ class Database:
             self.session = scoped_session(self.session_factory)
             self.active_transaction = False
 
-            # Load the spatial extension
-            self.load_spatial_extension()
         except exc.SQLAlchemyError as e:
             raise Exception(
                 f"SQLAlchemy error during database initialization: {e}"
             ) from e
-
-    def load_spatial_extension(self) -> None:
-        """
-        Install and load the DuckDB spatial extension.
-        """
-        try:
-            with self.engine.connect() as connection:
-                connection.execute(text("INSTALL spatial"))
-                connection.execute(text("LOAD spatial"))
-        except exc.SQLAlchemyError as e:
-            raise Exception(f"Error loading spatial extension: {e}") from e
-
-    def check_spatial_extension_loaded(self) -> bool:
-        """
-        Check if the DuckDB spatial extension is loaded.
-        """
-        try:
-            with self.engine.connect() as connection:
-                result = connection.execute(
-                    text(
-                        "SELECT * FROM duckdb_extensions() WHERE extension_name = 'spatial'"
-                    )
-                )
-                return result.fetchone() is not None
-        except exc.SQLAlchemyError as e:
-            print(f"Error checking spatial extension: {e}")
-            return False
 
     def has_table(self, table_name: str) -> bool:
         """
@@ -147,21 +118,26 @@ class Database:
             self.__handle_db_errors(e)
             return None
 
-    def execute_sql(self, sql: str) -> Optional[Any]:
+    def execute_sql(self, sql: str, fetch: bool = False) -> Optional[Any]:
         """
         Execute a raw SQL query using the database engine.
 
         Args:
             sql (str): A string containing the SQL query to be executed.
+            fetch (bool): Whether to fetch one row from the result set if the query returns data.
 
         Returns:
-            Optional[Any]: The result of the query if successful, None otherwise.
+            Optional[Any]: The result of the query if `fetch` is True and a result is available, or None otherwise.
         """
         try:
             with self.engine.connect() as connection:
                 result = connection.execute(text(sql))
+
+                # Fetch result only if requested and applicable
+                if fetch:
+                    return result.fetchone() if fetch else result.fetchall()
                 connection.commit()
-                return result
+                return result  # Return the raw result for other operations
         except (duckdb.duckdb.IOException, exc.SQLAlchemyError) as e:  # type: ignore
             print(f"Exception occurred: {e}")
             self.__handle_db_errors(e)

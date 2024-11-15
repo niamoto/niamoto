@@ -125,6 +125,7 @@ class PageGenerator(BaseGenerator):
         Returns:
             str: The path of the generated webpage.
         """
+
         template = self.template_env.get_template("plot_template.html")
         plot_dict = self.plot_to_dict(plot, stats)
         context = {
@@ -157,6 +158,40 @@ class PageGenerator(BaseGenerator):
         Returns:
             str: The path of the generated webpage.
         """
+
+        def from_json(value):
+            """
+            Converts a JSON string to a Python object.
+            Args:
+                value (str): The JSON string to be converted.
+            Returns:
+                Any: The converted object.
+            """
+            import json
+
+            try:
+                return json.loads(value)
+            except (ValueError, TypeError):
+                return value
+
+        def numberformat(value):
+            """
+            Formats a number as a string with commas.
+            Args:
+                value (str): The number to be formatted.
+
+            Returns:
+                str: The formatted number as a string with commas.
+            """
+            try:
+                return "{:,.0f}".format(float(value)).replace(",", " ")
+            except (ValueError, TypeError):
+                return value
+
+        # Ajout des filtres à l'environnement Jinja
+        self.template_env.filters["from_json"] = from_json
+        self.template_env.filters["numberformat"] = numberformat
+
         template = self.template_env.get_template("shape_template.html")
         shape_dict = self.shape_to_dict(shape, stats)
 
