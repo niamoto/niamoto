@@ -1,7 +1,9 @@
 """
 Shape statistics calculator module.
 """
+import json
 import logging
+import os
 import time
 from typing import List, Dict, Any, Hashable, Optional, cast, Union
 
@@ -93,6 +95,124 @@ class ShapeStatsCalculator(StatisticsCalculator):
                 f"⏱ Total processing time: {total_time:.2f} seconds",
                 style="italic blue",
             )
+
+    def create_stats_table(self, table_name: str, initialize: bool = False) -> None:
+        """
+        Create a statistics table.
+
+        Args:
+            table_name (str): The table name.
+            initialize (bool, optional): Whether to initialize the table. Defaults to False.
+        """
+        try:
+            # If initialize is True and table exists, drop it
+            if initialize:
+                self.logger.info(f"Dropping existing table {table_name} if it exists")
+                drop_query = f"DROP TABLE IF EXISTS {table_name}"
+                self.db.execute_sql(drop_query)
+                self.db.commit_session()
+
+            # Create the table with our new structure for shape stats
+            self.logger.info(f"Creating table {table_name}")
+            create_table_query = f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                {self.group_by}_id INTEGER PRIMARY KEY,
+                geography VARCHAR,
+                general_info VARCHAR,
+                land_use VARCHAR,
+                forest_cover VARCHAR,
+                forest_cover_by_elevation VARCHAR,
+                elevation_distribution VARCHAR,
+                forest_types VARCHAR,
+                forest_types_by_elevation VARCHAR,
+                holdridge VARCHAR,
+                fragmentation VARCHAR,
+                fragmentation_distribution VARCHAR,
+               
+            )
+            """
+            self.db.execute_sql(create_table_query)
+            self.db.commit_session()
+
+        except Exception as e:
+            self.logger.error(f"Error creating table {table_name}: {e}")
+            raise
+
+    def create_or_update_stats_entry(
+        self, group_id: int, stats: Dict[str, Any]
+    ) -> None:
+        """
+        Create or update a statistics entry.
+
+        Args:
+            group_id (int): The group id.
+            stats (Dict[str, Any]): The statistics.
+        """
+        table_name = f"{self.group_by}_stats"
+        # Check if the table exists, otherwise create it
+        if not self.db.has_table(table_name):
+            self.create_stats_table(table_name)
+
+        # Check if an entry exists for this group
+        query = f"""
+            SELECT COUNT(*) FROM {table_name} WHERE {self.group_by}_id = {group_id}
+        """
+        result = self.db.execute_select(query)
+
+        if result is not None:
+            count = result.scalar()
+            if count is not None and count > 0:
+                # Update the existing entry
+                update_query = f"""
+                    UPDATE {table_name}
+                    SET 
+                        geography = '{stats["geography"]}',
+                        general_info = '{stats["general_info"]}',
+                        land_use = '{stats["land_use"]}',
+                        forest_cover = '{stats["forest_cover"]}',
+                        forest_cover_by_elevation = '{stats["forest_cover_by_elevation"]}',
+                        elevation_distribution = '{stats["elevation_distribution"]}',
+                        forest_types = '{stats["forest_types"]}',
+                        forest_types_by_elevation = '{stats["forest_types_by_elevation"]}',
+                        holdridge = '{stats["holdridge"]}'
+                        fragmentation = '{stats["fragmentation"]}',
+                        fragmentation_distribution = '{stats["fragmentation_distribution"]}',
+                        
+                    WHERE {self.group_by}_id = {group_id}
+                """
+                self.db.execute_sql(update_query)
+            else:
+                # Insert a new entry
+                insert_query = f"""
+                  INSERT INTO {table_name} (
+                    {self.group_by}_id,
+                    geography,
+                    general_info,
+                    land_use,
+                    forest_cover,
+                    forest_cover_by_elevation,
+                    elevation_distribution,
+                    forest_types,
+                    forest_types_by_elevation,
+                    holdridge,
+                    fragmentation,
+                    fragmentation_distribution
+                  ) VALUES (
+                    {group_id},
+                    '{stats["geography"]}',
+                    '{stats["general_info"]}',
+                    '{stats["land_use"]}',
+                    '{stats["forest_cover"]}',
+                    '{stats["forest_cover_by_elevation"]}',
+                    '{stats["elevation_distribution"]}',
+                    '{stats["forest_types"]}',
+                    '{stats["forest_types_by_elevation"]}',
+                    '{stats["holdridge"]}',
+                    '{stats["fragmentation"]}',
+                    '{stats["fragmentation_distribution"]}'
+                  )
+                """
+                self.db.execute_sql(insert_query)
 
     def process_shape(self, shape_ref: ShapeRef) -> None:
         """
@@ -1236,3 +1356,491 @@ class ShapeStatsCalculator(StatisticsCalculator):
             self.logger.info(f"Total NaN values encountered: {nan_count}")
 
         return idx
+
+    def _convert_to_native_types(self, obj: Any) -> Any:
+        """
+        Convert numpy/pandas types to Python native types for JSON serialization.
+
+        Args:
+            obj: The object to convert
+
+        Returns:
+            The converted object with native Python types
+        """
+        if isinstance(obj, dict):
+            return {
+                key: self._convert_to_native_types(value) for key, value in obj.items()
+            }
+        elif isinstance(obj, list):
+            return [self._convert_to_native_types(item) for item in obj]
+        elif isinstance(obj, (np.integer, np.int64)):
+            return int(obj)
+        elif isinstance(obj, (np.floating, np.float64)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return self._convert_to_native_types(obj.tolist())
+        elif pd.isna(obj):
+            return None
+        return obj
+
+    def process_legacy_shape_data(self, shape_data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Process legacy shape data and organize it for visualization.
+
+        Args:
+            shape_data (pd.DataFrame): DataFrame containing shape data
+
+        Returns:
+            Dict[str, Any]: Processed stats ready for visualization
+        """
+        stats = {}
+        shape_id = int(shape_data["id"].iloc[0])
+
+        # Get shape reference and forest coverage
+        shape_ref = (
+            self.db.session.query(ShapeRef).filter(ShapeRef.id == shape_id).first()
+        )
+        if not shape_ref:
+            raise ValueError(f"Shape {shape_id} not found in database")
+
+        # Load geometries
+        shape_gdf = self.load_shape_geometry(str(shape_ref.location))
+        if shape_gdf is None or shape_gdf.empty:
+            self.logger.error(f"Invalid or empty geometry for shape {shape_id}")
+            return stats
+
+        # Load forest layer
+        try:
+            forest_path = self.mapper_service.get_layer_path("forest_cover")
+            if forest_path:
+                forest_gdf = self.load_layer_as_gdf(shape_gdf, "forest_cover", "vector")
+                forest_coords = (
+                    self.get_coordinates_from_gdf(forest_gdf)
+                    if not forest_gdf.empty
+                    else {}
+                )
+            else:
+                forest_coords = {}
+                self.logger.warning(
+                    "Forest cover layer path not found in configuration"
+                )
+        except Exception as e:
+            self.logger.error(f"Error loading forest cover layer: {e}")
+            forest_coords = {}
+
+        # Add shape coordinates
+        stats["geography"] = {
+            "shape_coords": self.get_simplified_coordinates(str(shape_ref.location)),
+            "forest_coords": forest_coords,
+        }
+
+        # General information
+        stats["general_info"] = {
+            "name": shape_id,
+            "surface_totale": float(
+                shape_data[shape_data["class_object"] == "land_area_ha"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "surface_foret": float(
+                shape_data[shape_data["class_object"] == "forest_area_ha"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "nb_familles": int(
+                shape_data[shape_data["class_object"] == "nb_families"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "nb_especes": int(
+                shape_data[shape_data["class_object"] == "nb_species"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "nb_occurrences": int(
+                shape_data[shape_data["class_object"] == "nb_occurrences"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "pluviometrie": {
+                "min": int(
+                    shape_data[shape_data["class_object"] == "rainfall_min"][
+                        "class_value"
+                    ].iloc[0]
+                ),
+                "max": int(
+                    shape_data[shape_data["class_object"] == "rainfall_max"][
+                        "class_value"
+                    ].iloc[0]
+                ),
+            },
+            "altitude": {
+                "median": int(
+                    shape_data[shape_data["class_object"] == "elevation_median"][
+                        "class_value"
+                    ].iloc[0]
+                ),
+                "max": int(
+                    shape_data[shape_data["class_object"] == "elevation_max"][
+                        "class_value"
+                    ].iloc[0]
+                ),
+            },
+        }
+
+        # Forest cover distribution
+        cover_forest = shape_data.loc[shape_data["class_object"] == "cover_forest"]
+        cover_forestum = shape_data.loc[shape_data["class_object"] == "cover_forestum"]
+        cover_forestnum = shape_data.loc[
+            shape_data["class_object"] == "cover_forestnum"
+        ]
+
+        stats["forest_cover"] = {
+            "foret": float(
+                cover_forest.loc[
+                    cover_forest["class_name"] == "Forêt", "class_value"
+                ].iloc[0]
+            ),
+            "hors_foret": float(
+                cover_forest.loc[
+                    cover_forest["class_name"] == "Hors-forêt", "class_value"
+                ].iloc[0]
+            ),
+            "um": {
+                "foret": float(
+                    cover_forestum.loc[
+                        cover_forestum["class_name"] == "Forêt", "class_value"
+                    ].iloc[0]
+                ),
+                "hors_foret": float(
+                    cover_forestum.loc[
+                        cover_forestum["class_name"] == "Hors-forêt", "class_value"
+                    ].iloc[0]
+                ),
+            },
+            "num": {
+                "foret": float(
+                    cover_forestnum.loc[
+                        cover_forestnum["class_name"] == "Forêt", "class_value"
+                    ].iloc[0]
+                ),
+                "hors_foret": float(
+                    cover_forestnum.loc[
+                        cover_forestnum["class_name"] == "Hors-forêt", "class_value"
+                    ].iloc[0]
+                ),
+            },
+        }
+
+        # Elevation distribution
+        forest_elev = shape_data[
+            shape_data["class_object"] == "forest_elevation"
+        ].copy()
+        land_elev = shape_data[shape_data["class_object"] == "land_elevation"].copy()
+
+        # Convert class_name to numeric using .loc
+        forest_elev.loc[:, "class_name"] = pd.to_numeric(forest_elev["class_name"])
+        land_elev.loc[:, "class_name"] = pd.to_numeric(land_elev["class_name"])
+
+        # Sort both DataFrames by class_name
+        forest_elev = forest_elev.sort_values("class_name")
+        land_elev = land_elev.sort_values("class_name")
+
+        # Reset index to ensure proper alignment
+        forest_elev = forest_elev.reset_index(drop=True)
+        land_elev = land_elev.reset_index(drop=True)
+
+        stats["elevation_distribution"] = {
+            "altitudes": forest_elev["class_name"].tolist(),
+            "forest": forest_elev["class_value"].astype(float).tolist(),
+            "non_forest": (
+                land_elev["class_value"].astype(float)
+                - forest_elev["class_value"].astype(float)
+            ).tolist(),
+        }
+
+        # Forest types
+        forest_types = shape_data[shape_data["class_object"] == "cover_foresttype"]
+        stats["forest_types"] = {
+            "secondaire": float(
+                forest_types[forest_types["class_name"] == "Forêt secondaire"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "mature": float(
+                forest_types[forest_types["class_name"] == "Forêt mature"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "coeur": float(
+                forest_types[forest_types["class_name"] == "Forêt coeur"][
+                    "class_value"
+                ].iloc[0]
+            ),
+        }
+
+        # Forest types by elevation
+        def get_elevation_ratio(ratio_type: str) -> List[float]:
+            ratio_data = shape_data.loc[
+                shape_data["class_object"] == ratio_type
+            ].sort_values("class_name")
+            return ratio_data["class_value"].astype(float).tolist()
+
+        # Get all elevation values and sort them
+        elevation_data = shape_data.loc[
+            shape_data["class_object"] == "ratio_forest_secondary_elevation"
+        ].sort_values("class_name")
+        elevations = elevation_data["class_name"].astype(float).tolist()
+
+        stats["forest_types_by_elevation"] = {
+            "altitudes": elevations,
+            "secondaire": get_elevation_ratio("ratio_forest_secondary_elevation"),
+            "mature": get_elevation_ratio("ratio_forest_mature_elevation"),
+            "coeur": get_elevation_ratio("ratio_forest_core_elevation"),
+        }
+
+        # Distribution de la couverture forestière par altitude
+        forest_um = shape_data[
+            shape_data["class_object"] == "ratio_forest_um_elevation"
+        ].copy()
+        forest_num = shape_data[
+            shape_data["class_object"] == "ratio_forest_num_elevation"
+        ].copy()
+
+        # Convertir et trier par altitude
+        forest_um["class_name"] = pd.to_numeric(forest_um["class_name"])
+        forest_num["class_name"] = pd.to_numeric(forest_num["class_name"])
+        forest_um = forest_um.sort_values("class_name").reset_index(drop=True)
+        forest_num = forest_num.sort_values("class_name").reset_index(drop=True)
+
+        # Renommer les colonnes
+        forest_um.rename(columns={"class_value": "class_value_um"}, inplace=True)
+        forest_num.rename(columns={"class_value": "class_value_num"}, inplace=True)
+
+        # Fusionner les données sur 'class_name' (altitude)
+        merged_data = pd.merge(
+            forest_um[["class_name", "class_value_um"]],
+            forest_num[["class_name", "class_value_num"]],
+            on="class_name",
+            how="outer",
+        )
+
+        # Calculer 'hors_foret_um' et 'hors_foret_num'
+        merged_data["hors_foret_um"] = merged_data["class_value_um"].apply(
+            lambda x: 100 if not pd.isnull(x) else 0
+        )
+
+        merged_data["hors_foret_num"] = merged_data["class_value_num"].apply(
+            lambda x: 100 if not pd.isnull(x) else 0
+        )
+
+        # Remplacer les valeurs manquantes par 0 pour 'class_value_um' et 'class_value_num'
+        merged_data["class_value_um"] = merged_data["class_value_um"].fillna(0)
+        merged_data["class_value_num"] = merged_data["class_value_num"].fillna(0)
+
+        # Préparer les données pour le graphique
+        stats["forest_cover_by_elevation"] = {
+            "altitudes": merged_data["class_name"].tolist(),
+            "um": (merged_data["class_value_um"] * 100).tolist(),
+            "num": (merged_data["class_value_num"] * 100).tolist(),
+            "hors_foret_um": merged_data["hors_foret_um"].tolist(),
+            "hors_foret_num": merged_data["hors_foret_num"].tolist(),
+        }
+
+        # Environmental zones (Holdridge)
+        holdridge = shape_data.loc[shape_data["class_object"] == "holdridge_forest"]
+        hold_out = shape_data.loc[shape_data["class_object"] == "holdridge_forest_out"]
+
+        stats["holdridge"] = {
+            "forest": {
+                "sec": float(
+                    holdridge.loc[holdridge["class_name"] == "Sec", "class_value"].iloc[
+                        0
+                    ]
+                ),
+                "humide": float(
+                    holdridge.loc[
+                        holdridge["class_name"] == "Humide", "class_value"
+                    ].iloc[0]
+                ),
+                "tres_humide": float(
+                    holdridge.loc[
+                        holdridge["class_name"] == "Très Humide", "class_value"
+                    ].iloc[0]
+                ),
+            },
+            "non_forest": {
+                "sec": float(
+                    hold_out.loc[hold_out["class_name"] == "Sec", "class_value"].iloc[0]
+                ),
+                "humide": float(
+                    hold_out.loc[
+                        hold_out["class_name"] == "Humide", "class_value"
+                    ].iloc[0]
+                ),
+                "tres_humide": float(
+                    hold_out.loc[
+                        hold_out["class_name"] == "Très Humide", "class_value"
+                    ].iloc[0]
+                ),
+            },
+        }
+
+        # Fragmentation
+        stats["fragmentation"] = {
+            "meff": float(
+                shape_data[shape_data["class_object"] == "fragment_meff_cbc"][
+                    "class_value"
+                ].iloc[0]
+            )
+        }
+        fragmentation_dist = shape_data[
+            shape_data["class_object"] == "forest_fragmentation"
+        ].sort_values("class_name")
+
+        stats["fragmentation_distribution"] = {
+            "sizes": fragmentation_dist["class_name"].astype(float).tolist(),
+            "values": fragmentation_dist["class_value"].astype(float).tolist(),
+        }
+
+        # Land use distribution
+        land_use = shape_data[shape_data["class_object"] == "land_use"]
+
+        # Définir les catégories à inclure dans l'ordre souhaité
+        categories_to_include = [
+            "NUM",
+            "UM",
+            "Sec",
+            "Humide",
+            "Très Humide",
+            "Réserve",
+            "PPE",
+            "Concessions",
+            "Forêt",
+        ]
+
+        # Filtrer les données pour ne conserver que les catégories souhaitées
+        land_use_filtered = land_use[land_use["class_name"].isin(categories_to_include)]
+
+        # Assurer l'ordre des catégories
+        land_use_filtered["class_name"] = pd.Categorical(
+            land_use_filtered["class_name"],
+            categories=categories_to_include,
+            ordered=True,
+        )
+        land_use_filtered = land_use_filtered.sort_values("class_name")
+
+        # Organiser les données
+        stats["land_use"] = {
+            "categories": land_use_filtered["class_name"].tolist(),
+            "values": land_use_filtered["class_value"].astype(float).tolist(),
+        }
+
+        return stats
+
+    def _get_elevation_values(
+        self, shape_data: pd.DataFrame, ratio_type: str, elevations: List[float]
+    ) -> List[float]:
+        """Helper function to get elevation values for a specific forest type ratio"""
+        ratio_data = shape_data[shape_data["class_object"] == ratio_type].sort_values(
+            "class_name"
+        )
+        values = []
+        for elev in elevations:
+            try:
+                value = float(
+                    ratio_data[ratio_data["class_name"].astype(float) == elev][
+                        "class_value"
+                    ].iloc[0]
+                )
+            except (IndexError, ValueError):
+                value = 0.0
+            values.append(value)
+        return values
+
+    def import_legacy_shape_stats(self) -> None:
+        """
+        Import and process legacy shape statistics from the configured raw data file.
+        """
+        try:
+            # Get the raw data path from configuration
+            shapes_config = self.mapper_service.get_group_config("shape")
+            raw_data_path = shapes_config.get("raw_data")
+
+            if not raw_data_path:
+                raise ValueError("Raw data path not found in configuration")
+
+            if not os.path.exists(raw_data_path):
+                raise FileNotFoundError(f"Raw data file not found: {raw_data_path}")
+
+            # Read the CSV file
+            self.logger.info(f"Reading legacy shape stats from {raw_data_path}")
+            df = pd.read_csv(raw_data_path, sep=";")
+
+            # Get list of shape IDs
+            shape_ids = df["id"].unique()
+
+            # Initialize the table first
+            table_name = f"{self.group_by}_stats"
+            self.logger.info(f"Creating/resetting table {table_name}")
+            self.create_stats_table(table_name, initialize=True)
+
+            # Process each shape
+            with Progress(
+                SpinnerColumn(),
+                BarColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                TimeElapsedColumn(),
+            ) as progress:
+                task = progress.add_task(
+                    "[green]Processing shapes...", total=len(shape_ids)
+                )
+
+                for shape_id in shape_ids:
+                    try:
+                        shape_data = df[df["id"] == shape_id]
+                        processed_stats = self.process_legacy_shape_data(shape_data)
+
+                        # Convert complex data structures to JSON for storage
+                        stats_for_db = {
+                            "geography": json.dumps(
+                                processed_stats.get("geography", {})
+                            ),
+                            "general_info": json.dumps(processed_stats["general_info"]),
+                            "land_use": json.dumps(processed_stats["land_use"]),
+                            "forest_cover": json.dumps(processed_stats["forest_cover"]),
+                            "forest_cover_by_elevation": json.dumps(
+                                processed_stats["forest_cover_by_elevation"]
+                            ),
+                            "elevation_distribution": json.dumps(
+                                processed_stats["elevation_distribution"]
+                            ),
+                            "forest_types": json.dumps(processed_stats["forest_types"]),
+                            "forest_types_by_elevation": json.dumps(
+                                processed_stats["forest_types_by_elevation"]
+                            ),
+                            "holdridge": json.dumps(processed_stats["holdridge"]),
+                            "fragmentation": json.dumps(
+                                processed_stats["fragmentation"]
+                            ),
+                            "fragmentation_distribution": json.dumps(
+                                processed_stats["fragmentation_distribution"]
+                            ),
+                        }
+
+                        # Store in database
+                        self.create_or_update_stats_entry(shape_id, stats_for_db)
+
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error processing shape {shape_id}: {str(e)}"
+                        )
+
+                    progress.advance(task)
+
+            self.logger.info("Legacy shape stats import completed")
+
+        except Exception as e:
+            self.logger.error(f"Failed to import legacy shape stats: {str(e)}")
+            self.logger.error("Full error details:", exc_info=True)
+            raise

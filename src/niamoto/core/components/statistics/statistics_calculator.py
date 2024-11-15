@@ -134,7 +134,7 @@ class StatisticsCalculator(ABC):
 
     def create_stats_table(self, table_name: str, initialize: bool = False) -> None:
         """
-        Create a statistics table with complex field handling for DuckDB.
+        Create a statistics table.
 
         Args:
             table_name (str): The table name.
@@ -145,7 +145,7 @@ class StatisticsCalculator(ABC):
             drop_query = f"DROP TABLE IF EXISTS {table_name}"
             self.db.execute_sql(drop_query)
 
-        # Create the table using raw SQL for DuckDB compatibility
+        # Create the table using raw SQL
         create_table_query = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             {self.group_by}_id INTEGER PRIMARY KEY"""

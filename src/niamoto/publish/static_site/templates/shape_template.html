@@ -1,897 +1,1454 @@
 {% extends '_base.html' %}
 
 {% block title %}Niamoto - {{ shape.name }}{% endblock %}
+
 {% block extra_head %}
 <script src="{{ depth }}js/shape_list.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.6.1/justgage.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
 
 <style>
+/* Sidebar styles */
+#shape-sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    padding-top: 1rem;
+}
+
+#shape-tree ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin-bottom: 0;
+}
+
+.shape-type-link {
+    display: flex;
+    align-items: center;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #343a40;
+    padding: 10px 15px;
+    border-bottom: 1px solid #dee2e6;
+    transition: background-color 0.2s, color 0.2s;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.shape-type-link:hover {
+    background-color: #e9ecef;
+    color: #007bff;
+}
+
+.shape-type-link::before {
+    content: '\25B6';
+    margin-right: 10px;
+    transition: transform 0.3s ease-in-out;
+}
+
+.shape-type-link.open::before {
+    transform: rotate(90deg);
+}
+
+.shape-link {
+    display: block;
+    padding: 8px 15px 8px 45px;
+    color: #495057;
+    transition: background-color 0.2s, color 0.2s;
+    text-decoration: none;
+    font-size: 0.95em;
+}
+
+.shape-link:hover {
+    background-color: #e9ecef;
+    color: #007bff;
+}
+
+.current-shape {
+    background-color: #007bff;
+    color: white !important;
+    font-weight: bold;
+}
+
+.badge {
+    background-color: #6c757d;
+    color: white;
+    padding: 3px 7px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    margin-left: auto;
+}
+
+/* Map styles */
+.map-container {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Chart styles */
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin-bottom: 1rem;
+}
+
+/* Info panel styles */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.info-item {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background-color: #f8f9fa;
+}
+
+.info-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.info-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #212529;
+}
+
+.tooltip-content {
+    position: absolute;
+    top: 110%; /* Assure que le tooltip est bien en-dessous */
+    left: 50%;
+    transform: translateX(-100%);
+    background-color: #ffffff;
+    color: #333333;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    white-space: normal;
+    width: 20rem;
+    z-index: 9999;
+    display: none;
+}
+.group:hover .tooltip-content {
+    display: block;
+}
 
 
-    /* Styles pour la barre latérale */
+@media (max-width: 768px) {
     #shape-sidebar {
-        background-color: #f8f9fa;
-        border-right: 1px solid #dee2e6;
-        height: 100vh;
-        overflow-y: auto;
-        padding-top: 1rem;
-    }
-
-    /* Styles pour l'arborescence des shapes */
-    #shape-tree ul {
-        list-style-type: none;
-        padding-left: 0;
-        margin-bottom: 0;
-    }
-
-    /* Styles pour les liens de type de shape */
-    .shape-type-link {
-        display: flex;
-        align-items: center;
-        font-size: 1.1em;
-        font-weight: bold;
-        color: #343a40;
-        padding: 10px 15px;
+        height: auto;
+        border-right: none;
         border-bottom: 1px solid #dee2e6;
-        transition: background-color 0.2s, color 0.2s;
-        text-decoration: none;
-        cursor: pointer;
     }
 
-    .shape-type-link:hover {
-        background-color: #e9ecef;
-        color: #007bff;
+    .info-grid {
+        grid-template-columns: 1fr;
     }
 
-    .shape-type-link::before {
-        content: '\25B6'; /* Unicode pour une flèche triangulaire pointant vers la droite */
-        margin-right: 10px;
-        transition: transform 0.3s ease-in-out;
-    }
-
-    .shape-type-link.open::before {
-        transform: rotate(90deg);
-    }
-
-    .shape-type-link i {
-        margin-right: 10px;
-        width: 20px;
-        text-align: center;
-    }
-
-    /* Styles pour les liens de shape */
-    .shape-link {
-        display: block;
-        padding: 8px 15px 8px 45px;
-        color: #495057;
-        transition: background-color 0.2s, color 0.2s;
-        text-decoration: none;
-        font-size: 0.95em;
-    }
-
-    .shape-link:hover {
-        background-color: #e9ecef;
-        color: #007bff;
-    }
-
-    /* Style pour le shape actuel */
-    .current-shape {
-        background-color: #007bff;
-        color: white !important;
-        font-weight: bold;
-    }
-
-    .current-shape:hover {
-        background-color: #0056b3;
-    }
-
-    /* Style pour les badges */
-    .badge {
-        background-color: #6c757d;
-        color: white;
-        padding: 3px 7px;
-        border-radius: 10px;
-        font-size: 0.8em;
-        margin-left: auto;
-    }
-
-
-    /* Styles pour les cartes et les graphiques */
-    #shapeMap, #allShapesMap {
-        position: relative;
+    .map-container {
         height: 300px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     }
+}
 
-    #allShapesMap {
-        height: 400px;
-    }
-
-    .chart-container {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-    }
-
-    .chart-container > div {
-        flex: 1 1 calc(33.333% - 10px);
-        margin: 5px;
-    }
-
-    /* Style pour les info-bulles personnalisées */
-    .custom-tooltip {
-        background-color: rgba(255, 255, 255, 0.9);
-        border: 1px solid #ccc;
-        padding: 5px;
-        border-radius: 5px;
-        box-shadow: 0 0 15px rgba(0,0,0,0.2);
-        font-size: 12px;
-        max-width: 300px;
-        word-wrap: break-word;
-    }
-
-    /* Responsive design pour les petits écrans */
-    @media (max-width: 768px) {
-        #shape-sidebar {
-            height: auto;
-            border-right: none;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .chart-container > div {
-            flex: 1 1 100%;
-        }
-    }
 </style>
 {% endblock %}
 
 {% block sidebar %}
-    <div class="w-1/4 p-4 mt-28" id="shape-sidebar">
-        <div id="shape-tree">
-            <!-- The shape tree will be loaded here -->
-        </div>
+<div class="w-1/4 p-4 mt-28" id="shape-sidebar">
+    <div id="shape-tree">
+        <!-- The shape tree will be loaded here -->
     </div>
+</div>
 {% endblock %}
 
 {% block content %}
-<div id="allShapesMap" class="mt-28"></div>
-
-<div class="rounded overflow-hidden shadow-lg mb-2 mt-8">
-    <div class="px-6 py-4">
-        <div class="font-bold text-4xl mb-2">{{ shape.name }}</div>
-    </div>
+<!-- Overview Map -->
+<div class="mt-28">
+    <div class="map-container" id="allShapesMap"></div>
 </div>
 
-<div class="chart-container">
-    <!-- Section for general information -->
-    <div>
-        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-            <h2 class="font-bold text-xl mb-2">General Information</h2>
-            {% for field_key, field in mapping.fields.items() %}
-                {% for transformation in field.transformations %}
-                    {% if transformation.chart_type == 'text' %}
-                        {% set value = shape[field_key + '_' + transformation.name] %}
-                        {% if value %}
-                            <p>{{ transformation.chart_options.title }} : {{ value }}</p>
-                        {% endif %}
-                    {% endif %}
-                {% endfor %}
-            {% endfor %}
-        </div>
-    </div>
+<!-- Main Content -->
+<div class="container mx-auto px-4 py-8">
+    <!-- Grid principal -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-
-    <div>
-        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-            <div id="combinedMap" style="height: 400px; position: relative;">
-                <div class="loader-container" id="combinedMapLoader">
-                    <div class="loader"></div>
-                </div>
-                <!-- The Leaflet map will be loaded here -->
+        <!-- Informations générales -->
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Informations générales</h2>
             </div>
-        </div>
-    </div>
-</div>
+            <div class="p-4">
+                <!-- Titre principal -->
+                <h3 class="text-lg font-bold text-gray-800 mb-4">{{ shape.name }}</h3>
 
-<div class="flex flex-wrap -mx-2">
-    {% macro render_chart(transformation, field_key) %}
-    {% if transformation.chart_options is defined %}
-        {% if transformation.chart_type != 'text' %}
-            <h2 class="font-bold text-xl mb-2">{{ transformation.chart_options.title }}</h2>
-        {% endif %}
-    {% endif %}
-    {% if transformation.chart_type == 'pie' %}
-        <canvas id="{{ field_key }}PieChart"></canvas>
-    {% elif transformation.chart_type == 'gauge' %}
-        <div class="gauge" id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge"></div>
-    {% elif transformation.chart_type == 'bar' %}
-        <canvas id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart"></canvas>
-    {% elif transformation.chart_type == 'stacked_bar' and field_key == 'elevation' %}
-        <canvas id="elevationDistributionChart"></canvas>
-    {% elif transformation.chart_type == 'line' and field_key == 'forest_fragmentation' %}
-        <canvas id="forestFragmentationChart"></canvas>
-    {% endif %}
-    {% endmacro %}
-
-    {% macro render_field(field_key, field) %}
-
-            {% if field.bins and field.bins.values is defined %}
-                <div class="w-1/2 px-2 mb-4">
-                    <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-                        <h2 class="font-bold text-xl mb-2">{{ field.bins.chart_options.title }}</h2>
-                        <canvas id="{{ field_key }}BinChart"></canvas>
-                    </div>
-                </div>
-            {% endif %}
-            {% for transformation in field.transformations %}
-                {% if transformation.chart_type != 'text' and shape[field_key + '_' + transformation.name] is not none %}
-                    <div class="w-1/2 px-2 mb-4">
-                        <div class="rounded overflow-hidden shadow-lg p-4 bg-white">
-                            {{ render_chart(transformation, field_key) }}
+                <!-- Liste des informations -->
+                <div class="space-y-3">
+                    <!-- Surface -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Superficie de l'emprise</span>
+                            <span class="font-medium">{{ (shape.general_info.surface_totale | round) | numberformat }} ha</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Superficie de forêt</span>
+                            <span class="font-medium">{{ (shape.general_info.surface_foret | round) | numberformat }} ha</span>
                         </div>
                     </div>
-                {% endif %}
-            {% endfor %}
 
-    {% endmacro %}
+                    <!-- Biodiversité -->
+                    <div class="space-y-2 pt-2 border-t border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Nombre de familles</span>
+                            <span class="font-medium">{{ shape.general_info.nb_familles | numberformat }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Nombre d'espèces</span>
+                            <span class="font-medium">{{ shape.general_info.nb_especes | numberformat }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Nombre d'occurrences</span>
+                            <span class="font-medium">{{ shape.general_info.nb_occurrences | numberformat }}</span>
+                        </div>
+                    </div>
 
-    {% set rendered_fields = [] %}
-    {% for field_key, field in mapping.fields.items() %}
-        {% if field.field_type != 'TEXT' and shape[field_key] is not none and field_key not in rendered_fields %}
-            {% set rendered_fields = rendered_fields.append(field_key) %}
-            {{ render_field(field_key, field) }}
+                    <!-- Caractéristiques environnementales -->
+                    <div class="space-y-2 pt-2 border-t border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Précipitation annuelle</span>
+                            <span class="font-medium">{{ shape.general_info.pluviometrie.min | numberformat }} - {{ shape.general_info.pluviometrie.max | numberformat }} mm/an</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Altitude médiane</span>
+                            <span class="font-medium">{{ shape.general_info.altitude.median | numberformat }} m</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-600">Altitude maximale</span>
+                            <span class="font-medium">{{ shape.general_info.altitude.max | numberformat }} m</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Localisation -->
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden col-span-2">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Localisation</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.map_panel.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="h-96">
+                <div id="combinedMap" class="w-full h-full"></div>
+            </div>
+        </div>
+
+        <!-- Couverture forestière -->
+        {% if shape.forest_cover %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Couverture forestière</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.forest_cover.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="forestCoverChart"></canvas>
+                </div>
+            </div>
+        </div>
         {% endif %}
-    {% endfor %}
+
+        <!-- Land Use Chart -->
+        {% if shape.land_use %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Occupation du sol</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.land_use.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="landUseChart"></canvas>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Distribution altitudinale -->
+        {% if shape.elevation_distribution %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Distribution altitudinale</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.elevation_distribution.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="elevationDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Forêt et milieux de vie -->
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Forêt et milieux de vie</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.holdridge_distribution.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="holdridgeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Types forestiers -->
+        {% if shape.forest_types %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Types forestiers</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.forest_types.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="forestTypesChart"></canvas>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Forest Cover by Elevation -->
+        {% if shape.forest_cover_by_elevation %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+             <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Couverture forestière par altitude</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.forest_cover_by_elevation.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 350px;">
+                    <canvas id="forestCoverByElevationChart"></canvas>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Types forestiers par altitude -->
+        {% if shape.forest_types_by_elevation %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Types forestiers par altitude</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.forest_types_by_elevation.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="forestTypesByElevationChart"></canvas>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Fragmentation -->
+        {% if shape.fragmentation %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Fragmentation</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.fragmentation.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="gauge-container" style="height: 300px;">
+                    <div id="fragmentationGauge"></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Distribution de la fragmentation -->
+        {% if shape.fragmentation_distribution %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">Fragments forestiers</h2>
+                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                    <i class="fas fa-info"></i>
+                    <span class="tooltip-content">
+                        {{ mapping.widgets.fragmentation_distribution.description }}
+                    </span>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="fragmentationDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
-
 {% block extra_scripts %}
 <script>
-    var shape = {{ shape | tojson | safe }};
-    var mapping = {{ mapping | tojson | safe }};
-    var currentShapeType = "{{ shape.type }}";
-    var currentShapeId = {{ shape.id }};
+const shape = {{ shape|tojson|safe }};
+const mapping = {{ mapping|tojson|safe }};
+const currentShapeType = "{{ shape.type }}";
+const currentShapeId = {{ shape.id }};
 
-    document.addEventListener('DOMContentLoaded', function () {
-        loadShapeCharts(shape, mapping);
-        if (typeof L !== 'undefined') {
-            console.log("Leaflet is loaded");
-            initShapeMaps(mapping, shape);
-        } else {
-            console.error("Leaflet is not loaded!");
-        }
-        loadAllShapesMap(shape);
-
-        const treeContainer = document.getElementById('shape-tree');
-        createShapeTree(treeContainer, shapeTypes);
-    });
-
-    function createShapeTree(container, shapeTypes) {
-        const baseUrl = getBaseUrl();
-
-        function createList(data) {
-            const $ul = $('<ul class="mb-3"></ul>');
-            $.each(data, function (i, typeItem) {
-                const $li = $('<li></li>');
-                const $typeLink = $('<a href="javascript:void(0)" class="shape-type-link"></a>');
-
-                $typeLink.text(typeItem.type_label.charAt(0).toUpperCase() + typeItem.type_label.slice(1));
-                $typeLink.append($('<span class="badge">' + typeItem.shapes.length + '</span>'));
-
-                const $childUl = $('<ul style="display:none;"></ul>');
-
-                typeItem.shapes.sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
-
-                typeItem.shapes.forEach(function (shape) {
-                    const $shapeLi = $('<li></li>');
-                    const $shapeA = $('<a></a>', {
-                        'href': `${baseUrl}${shape.id}.html`,
-                        'text': shape.name.charAt(0).toUpperCase() + shape.name.slice(1).toLowerCase(),
-                        'data-id': shape.id,
-                        'class': 'shape-link'
-                    });
-
-                    if (shape.id == currentShapeId) {
-                        $shapeA.addClass('current-shape');
-                    }
-
-                    $shapeLi.append($shapeA);
-                    $childUl.append($shapeLi);
-                });
-
-                $typeLink.click(function (event) {
-                    event.stopPropagation();
-                    $childUl.slideToggle();
-                    $(this).toggleClass('open');
-
-                    // Ouvrir la page du premier shape
-                    if (typeItem.shapes.length > 0) {
-                        window.location.href = `${baseUrl}${typeItem.shapes[0].id}.html`;
-                    }
-                });
-
-                $li.append($typeLink).append($childUl);
-                $ul.append($li);
-
-                if (typeItem.type === currentShapeType) {
-                    $childUl.show();
-                    $typeLink.addClass('open');
-                }
-            });
-            return $ul;
-        }
-
-        const $tree = createList(shapeTypes);
-        $(container).append($tree);
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize maps
+    if (mapping.widgets.map_panel) {
+        initShapeMaps(mapping, shape);
     }
 
-    function getBaseUrl() {
-        const pathArray = window.location.pathname.split('/');
-        pathArray.pop();
-        return pathArray.join('/') + '/';
+    // Initialize tree
+    createShapeTree(document.getElementById('shape-tree'), shapeTypes);
+
+    // Initialize charts based on widget configuration
+    initializeCharts(mapping.widgets, shape);
+});
+
+// Maps initialization
+function initShapeMaps(mapping, shape) {
+    if (mapping.widgets.map_panel) {
+        // Initialize main map with widget config
+        initMapFromConfig('combinedMap', shape, mapping.widgets.map_panel);
+
+        // Initialize overview map
+        initOverviewMap('allShapesMap', shape, mapping.widgets.map_panel);
     }
-    function loadShapeCharts(shape, mapping) {
-        Object.entries(mapping.fields).forEach(function([field_key, field]) {
-            if (field.field_type !== 'TEXT' && shape[field_key] !== null) {
-                // Handle bins chart if present
-                if (field.bins && field.bins.values && field.bins.values.length > 0) {
-                    var binChartId = field_key + 'BinChart';
-                    var binCtx = document.getElementById(binChartId);
-                    if (binCtx) {
-                        createBinChart(binCtx, field, shape);
-                    }
-                }
+}
 
-                // Handle transformations
-                field.transformations.forEach(function(transformation) {
-                    var transformationName = transformation.name ? transformation.name : '';
-                    var valueKey = field_key + '_' + transformationName;
+function initMapFromConfig(mapId, shape, mapConfig) {
+    const mapContainer = document.getElementById(mapId);
+    if (!mapContainer || maps[mapId]) return;
 
-                    if (shape[valueKey] !== null) {
-                        switch(transformation.chart_type) {
-                            case 'pie':
-                                var pieChartId = field_key + 'PieChart';
-                                var pieCtx = document.getElementById(pieChartId);
-                                if (pieCtx) {
-                                    createPieChart(pieCtx, transformation, shape[valueKey]);
-                                }
-                                break;
-                            case 'gauge':
-                                var gaugeId = field_key + transformationName + 'Gauge';
-                                var gaugeElement = document.getElementById(gaugeId);
-                                if (gaugeElement) {
-                                    createGauge({
-                                        id: gaugeId,
-                                        value: parseFloat(shape[valueKey]),
-                                        min: 0,
-                                        max: transformation.chart_options.max,
-                                        title: transformation.chart_options.title,
-                                        label: transformation.chart_options.label
-                                    });
-                                }
-                                break;
-                            case 'bar':
-                                var barChartId = field_key + transformationName + 'BarChart';
-                                var barCtx = document.getElementById(barChartId);
-                                if (barCtx) {
-                                    createBarChart(barCtx, field, transformation, shape[valueKey]);
-                                }
-                                break;
-                            case 'stacked_bar':
-                                if (field_key === 'elevation' && transformationName === 'elevation_distribution') {
-                                    var stackedBarChartId = 'elevationDistributionChart';
-                                    var stackedBarCtx = document.getElementById(stackedBarChartId);
-                                    if (stackedBarCtx) {
-                                        createElevationDistributionChart(stackedBarCtx, shape.elevation_elevation_distribution, transformation);
-                                    }
-                                }
-                                break;
-                            case 'line':
-                                if (field_key === 'forest_fragmentation' && transformationName === 'fragment_size_distribution') {
-                                    var lineChartId = 'forestFragmentationChart';
-                                    var lineCtx = document.getElementById(lineChartId);
-                                    if (lineCtx) {
-                                        createForestFragmentationChart(lineCtx, shape.forest_fragmentation_fragment_size_distribution, transformation);
-                                    }
-                                }
-                                break;
-                        }
-                    }
-                });
-            }
-        });
-    }
+    // Base configuration
+    const defaultCenter = [-21.3, 165.3];
+    const defaultZoom = 7;
 
-    function createBinChart(ctx, field, shape) {
-        var binData = {
-            labels: field.bins.values,
-            datasets: [{
-                label: field.label,
-                data: field.bins.values.map(value => shape.frequencies[field.field_key][value] || 0),
-                backgroundColor: field.bins.chart_options.color
-            }]
-        };
-
-        new Chart(ctx, {
-            type: field.bins.chart_type,
-            data: binData,
-            options: field.bins.chart_options
-        });
-    }
-
-    function createPieChart(ctx, transformation, data) {
-        new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: ['True', 'False'],
-                datasets: [{
-                    data: [data.true || 0, data.false || 0],
-                    backgroundColor: ['#FF6384', '#36A2EB']
-                }]
-            },
-            options: {
-                title: {
-                    display: true,
-                    text: transformation.chart_options.title
-                }
-            }
-        });
-    }
-
-    function createBarChart(ctx, field, transformation, data) {
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(data),
-                datasets: [{
-                    label: field.label,
-                    data: Object.values(data),
-                    backgroundColor: getColor(0).background,
-                    borderColor: getColor(0).border,
-                    borderWidth: 1
-                }]
-            },
-            options: transformation.chart_options
-        });
-    }
-
-    function createElevationDistributionChart(ctx, elevationData, chartConfig) {
-        const altitudes = elevationData.altitudes.reverse();
-        const forestData = elevationData.forest.reverse();
-        const nonForestData = elevationData.non_forest.reverse();
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: altitudes,
-                datasets: [
-                    {
-                        label: 'Forest',
-                        data: forestData,
-                        backgroundColor: '#4CAF50',
-                        stack: 'Stack 0',
-                    },
-                    {
-                        label: 'Non-Forest',
-                        data: nonForestData,
-                        backgroundColor: '#FFF59D',
-                        stack: 'Stack 0',
-                    }
-                ]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                scales: {
-                    x: {
-                        stacked: true,
-                        title: {
-                            display: true,
-                            text: 'Area (ha)'
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return value.toLocaleString(); // Format les grands nombres
-                            }
-                        }
-                    },
-                    y: {
-                        stacked: true,
-                        title: {
-                            display: true,
-                            text: 'Elevation (m)'
-                        },
-                        reverse: false
-                    }
-                },
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
-                    }
-                },
-                layout: {
-                    padding: {
-                        left: 10,
-                        right: 10,
-                        top: 0,
-                        bottom: 10
-                    }
-                }
-            }
-        });
-    }
-
-    function createForestFragmentationChart(ctx, fragmentationData, chartConfig) {
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Object.keys(fragmentationData),
-                datasets: [{
-                    label: 'Cumulative Area (%)',
-                    data: Object.values(fragmentationData),
-                    borderColor: '#4BC0C0',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    tension: 0.1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: chartConfig.chart_options.x_label
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: chartConfig.chart_options.y_label
-                        }
-                    }
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: chartConfig.chart_options.title
-                    }
-                }
-            }
-        });
-    }
-
-    function createGauge(options) {
-        new JustGage({
-            id: options.id,
-            value: options.value || 0,
-            min: options.min || 0,
-            max: options.max,
-            title: options.title,
-            label: options.label,
-            pointer: true,
-            pointerOptions: {
-                toplength: 10,
-                bottomlength: 10,
-                bottomwidth: 2,
-                color: '#8e8e93',
-                stroke: '#ffffff',
-                stroke_width: 3,
-                stroke_linecap: 'round'
-            },
-            gaugeWidthScale: 0.6,
-            counter: true,
-            donut: true,
-            relativeGaugeSize: true,
-            donutStartAngle: 270,
-            hideInnerShadow: true,
-            customSectors: [{
-                color: "#ff0000",
-                lo: 0,
-                hi: options.max * 0.33
-            }, {
-                color: "#ffff00",
-                lo: options.max * 0.33,
-                hi: options.max * 0.66
-            }, {
-                color: "#00ff00",
-                lo: options.max * 0.66,
-                hi: options.max
-            }],
-            humanFriendly: true,
-            formatNumber: true,
-            textRenderer: function (val) {
-                return parseFloat(val).toFixed(2);
-            }
-        });
-    }
-
-    // Function to get a color based on the index
-    function getColor(index) {
-        var colors = [
-            {background: 'rgba(54, 162, 235, 0.6)', border: 'rgba(54, 162, 235, 1)'},
-            {background: 'rgba(75, 192, 192, 0.6)', border: 'rgba(75, 192, 192, 1)'},
-            {background: 'rgba(255, 99, 132, 0.6)', border: 'rgba(255, 99, 132, 1)'}
-        ];
-        return colors[index % colors.length];
-    }
-
-    let maps = {};  // Object to keep track of initialized maps
-
-    function initShapeMaps(mapping, shape) {
-        // Initialize the combined map
-        initCombinedMap(mapping, shape);
-    }
-
-    function initCombinedMap(mapping, shape) {
-        const mapId = 'combinedMap';
-        const mapLoaderId = 'combinedMapLoader';
-        // Check if the map container exists
-        const mapContainer = document.getElementById(mapId);
-        if (!mapContainer) {
-            console.error("Map container not found!");
-            return;
-        }
-
-        // Check if the map already exists
-        if (maps[mapId]) {
-            return;
-        }
-
-        try {
-            const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-                layers: '0',
-                format: 'image/png',
-                transparent: true,
-                attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-            });
-            const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-                layers: '0',
-                format: 'image/png',
-                transparent: true,
-                attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-            });
-
-            // Initialize the map with a default view of New Caledonia
-            const map = L.map(mapId, {
-                layers: [satellite],
-                center: [-21.3, 165.3],  // Approximate center of New Caledonia
-                zoom: 7,  // A zoom level that shows most of New Caledonia
-                scrollWheelZoom: false
-            });
-
-            map.attributionControl.setPrefix(false);
-            map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
-
-            const baseMaps = {
-                "Carte": carte,
-                "Satellite": satellite,
-            };
-
-            L.control.layers(baseMaps).addTo(map);
-
-            let allLayers = [];
-
-            // Find and add shape and forest layers
-            Object.entries(mapping.fields).forEach(function([field_key, field]) {
-                field.transformations.forEach(function(transformation) {
-                    if (transformation.chart_type === 'map') {
-                        var coordinatesField = transformation.chart_options.coordinates_field;
-                        var geometry = shape[coordinatesField];
-
-                        // Check if geometry is a string, if so, parse it as JSON
-                        if (typeof geometry === 'string') {
-                            try {
-                                geometry = JSON.parse(geometry);
-                            } catch (e) {
-                                console.error("Invalid JSON for field", coordinatesField, ":", geometry);
-                                return; // Skip this field if JSON is invalid
-                            }
-                        }
-
-                        if (geometry) {
-                            const layer = L.geoJSON(geometry, {
-                                style: function() {
-                                    return {
-                                        color: field_key.includes('forest') ? '#228b22' : '#1fb99d',
-                                        weight: field_key.includes('forest') ? 0.3 : 2,
-                                        fillColor: field_key.includes('forest') ? '#228b22cc' : '#1fb99d',
-                                        fillOpacity: field_key.includes('forest') ? 0.8 : 0
-                                    };
-                                }
-                            }).addTo(map);
-                            allLayers.push(layer);
-                        } else {
-                            console.warn(`No geometry found for field: ${field_key}`);
-                        }
-                    }
-                });
-            });
-
-            // Fit the map to the bounds of all layers
-            if (allLayers.length > 0) {
-                const group = L.featureGroup(allLayers);
-                map.fitBounds(group.getBounds());
-            } else {
-                console.warn("No layers added to the map");
-            }
-
-            // Store the map instance in the maps object
-            maps[mapId] = map;
-
-            // Hide the loader
-            const loader = document.getElementById(mapLoaderId);
-            if (loader) {
-                loader.style.display = 'none';
-            }
-
-        } catch (error) {
-            console.error("Error initializing map:", error);
-        }
-    }
-
-    function bringLayerToFront(layer) {
-        if (!layer._map) return;
-            layer.bringToFront();
-        if (layer.eachLayer) {
-            layer.eachLayer(bringLayerToFront);
-        }
-    }
-
-    function loadAllShapesMap(currentShape) {
-    const mapId = 'allShapesMap';
-    const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-        layers: '0',
-        format: 'image/png',
-        transparent: true,
-        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-    });
-    const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-        layers: '0',
-        format: 'image/png',
-        transparent: true,
-        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-    });
-    const map = L.map(mapId, {
-        layers: [carte, satellite],
-        scrollWheelZoom: false
-    });
-    map.attributionControl.setPrefix(false);
-    map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
-
-    const baseMaps = {
-        "Carte": carte,
-        "Satellite": satellite,
+    // Base layers
+    const baseLayers = {
+        "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        }),
+        "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        })
     };
 
-    L.control.layers(baseMaps).addTo(map);
+    // Create map
+    const map = L.map(mapId, {
+        layers: [baseLayers["Satellite"]],
+        center: defaultCenter,
+        zoom: defaultZoom,
+        scrollWheelZoom: false
+    });
 
-    var group = L.featureGroup();
-    var currentShapeLayer;
+    L.control.layers(baseLayers).addTo(map);
+    map.attributionControl.setPrefix(false);
 
-    shapeTypes.forEach(function(shapeTypeItem) {
-        if (shapeTypeItem.type === currentShape.type) {
-            shapeTypeItem.shapes.forEach(function(shapeItem) {
-                var geometry = shapeItem.geometry;
-                var layer = L.geoJSON(geometry, {
-                    style: function() {
-                        return {
-                            color: '#228b22',
-                            weight: 2,
-                            fillColor: '#228b22cc',
-                            fillOpacity: 0.2 // Reduced default opacity
-                        };
-                    }
-                });
-
-                if (shapeItem.id === currentShape.id) {
-                    currentShapeLayer = layer;
-                }
-
-                group.addLayer(layer);
-
-                var tooltipContent = "<strong>" + shapeItem.name + "</strong><br>";
-                layer.bindTooltip(tooltipContent, {
-                    permanent: false,
-                    direction: 'right',
-                    offset: L.point(10, 0),
-                    opacity: 0.9,
-                    className: 'custom-tooltip'
-                });
-
-                layer.on('mousemove', function(e) {
-                    var tooltip = e.target.getTooltip();
-                    tooltip.setLatLng(e.latlng);
-                });
-
-                layer.on('click', function() {
-                    window.location.href = '../shape/' + shapeItem.id + '.html';
-                });
-            });
+    // Add configured layers
+    const layers = [];
+    mapConfig.layers.forEach(layer => {
+        const sourceData = _.get(shape, layer.source);
+        if (sourceData) {
+            try {
+                const geometry = typeof sourceData === 'string' ? JSON.parse(sourceData) : sourceData;
+                const geoLayer = L.geoJSON(geometry, {
+                    style: layer.style
+                }).addTo(map);
+                layers.push(geoLayer);
+            } catch (e) {
+                console.error(`Error loading layer ${layer.id}:`, e);
+            }
         }
     });
+
+    // Adjust view
+    if (layers.length > 0) {
+        const group = L.featureGroup(layers);
+        map.fitBounds(group.getBounds());
+    }
+
+    maps[mapId] = map;
+}
+
+function initOverviewMap(mapId, currentShape, mapConfig) {
+    const mapContainer = document.getElementById(mapId);
+    if (!mapContainer || maps[mapId]) return;
+
+    // Create map with same base layers
+    const map = L.map(mapId, { scrollWheelZoom: false });
+    map.attributionControl.setPrefix(false);
+
+    L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+        layers: '0',
+        format: 'image/png',
+        transparent: true,
+        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+    }).addTo(map);
+
+    // Add shapes of same category
+    const group = L.featureGroup();
+    let currentShapeLayer;
+
+    if (shapeTypes && Array.isArray(shapeTypes)) {
+        shapeTypes.forEach(typeItem => {
+            if (typeItem.type === currentShape.type) {
+                typeItem.shapes.forEach(shapeItem => {
+                    if (shapeItem.geometry) {
+                        const style = shapeItem.id === currentShape.id ?
+                            { ...mapConfig.layers[0].style, fillOpacity: 0.7 } :
+                            { ...mapConfig.layers[0].style, fillOpacity: 0.2 };
+
+                        const layer = L.geoJSON(shapeItem.geometry, { style });
+
+                        if (shapeItem.id === currentShape.id) {
+                            currentShapeLayer = layer;
+                        }
+
+                        layer.bindTooltip(shapeItem.name, {
+                            permanent: false,
+                            direction: 'right',
+                            className: 'custom-tooltip'
+                        });
+
+                        layer.on('click', () => {
+                            window.location.href = `../shape/${shapeItem.id}.html`;
+                        });
+
+                        group.addLayer(layer);
+                    }
+                });
+            }
+        });
+    }
 
     group.addTo(map);
     map.fitBounds(group.getBounds());
 
-    // Highlight current shape after all layers are added
     if (currentShapeLayer) {
-        currentShapeLayer.setStyle({
-            color: '#1fb99d',
-            weight: 3,
-            fillOpacity: 0.4
-        });
-        bringLayerToFront(currentShapeLayer);
+        currentShapeLayer.bringToFront();
     }
 
-    maps['allShapesMap'] = map;
+    maps[mapId] = map;
 }
 
-    function loadShapeTypeList() {
-        var shapeTypeListElement = document.getElementById("shape-type-list");
-
-        shapeTypes.forEach(function (shapeTypeItem) {
-            var li = document.createElement("li");
-
-            // Create the shape type link
-            var typeLink = document.createElement("a");
-            typeLink.href = "javascript:void(0)";
-            typeLink.textContent = shapeTypeItem.type_label;
-            typeLink.className = "shape-type-link";
-            li.appendChild(typeLink);
-
-            // Create the list for shapes under this type
-            var shapeListUl = document.createElement("ul");
-            shapeListUl.style.display = "none";  // Initially hidden
-            shapeListUl.classList.add("pl-5");
-
-            // Populate the shape list under this type
-            shapeTypeItem.shapes.forEach(function (shapeItem) {
-                var shapeLi = document.createElement("li");
-                var shapeLink = document.createElement("a");
-                shapeLink.href = "../shape/" + shapeItem.id + ".html";
-                shapeLink.textContent = shapeItem.name;
-                shapeLink.className = "shape-link";
-                if (shapeItem.id === shape.id) {
-                    shapeLink.classList.add("active");
-                }
-                shapeLi.appendChild(shapeLink);
-                shapeListUl.appendChild(shapeLi);
-            });
-
-            li.appendChild(shapeListUl);
-            shapeTypeListElement.appendChild(li);
-
-            // Toggle the display of the shapes when the shape type is clicked
-            typeLink.addEventListener("click", function () {
-                if (shapeListUl.style.display === "none") {
-                    shapeListUl.style.display = "block";
-                } else {
-                    shapeListUl.style.display = "none";
-                }
-            });
-        });
+function initializeCharts(widgets, stats) {
+    if (widgets.land_use) {
+        initLandUseChart('landUseChart', stats.land_use, widgets.land_use);
     }
 
-    function loadShapeList(shapes) {
-        var shapeListElement = document.getElementById("shape-list");
-        shapeListElement.innerHTML = ''; // Clear the previous list
-        shapes.forEach(function (shapeItem) {
-            var li = document.createElement("li");
-            var a = document.createElement("a");
-            a.href = "../shape/" + shapeItem.id + ".html";
-            a.textContent = shapeItem.name;
-            a.className = "shape-link";
-            if (shapeItem.id === shape.id) {
-                a.classList.add("active");
+    if (widgets.forest_cover) {
+        initForestCoverChart('forestCoverChart', stats.forest_cover, widgets.forest_cover);
+    }
+
+    if (widgets.elevation_distribution) {
+        initElevationChart('elevationDistributionChart', stats.elevation_distribution, widgets.elevation_distribution);
+    }
+
+    if (widgets.forest_types) {
+        initForestTypesChart('forestTypesChart', stats.forest_types, widgets.forest_types);
+    }
+
+    if (widgets.forest_cover_by_elevation) {
+        initForestCoverByElevationChart('forestCoverByElevationChart', stats.forest_cover_by_elevation, widgets.forest_cover_by_elevation);
+    }
+
+    if (widgets.forest_types_by_elevation) {
+        initForestTypesByElevationChart('forestTypesByElevationChart', stats.forest_types_by_elevation,
+            widgets.forest_types_by_elevation);
+    }
+
+    if (widgets.holdridge_distribution) {
+        initHoldridgeChart('holdridgeChart', stats.holdridge, widgets.holdridge_distribution);
+    }
+
+    if (widgets.fragmentation) {
+        initFragmentationGauge('fragmentationGauge', stats.fragmentation, widgets.fragmentation);
+    }
+
+    if (widgets.fragmentation_distribution) {
+        initFragmentationDistributionChart('fragmentationDistributionChart', stats.fragmentation_distribution, widgets.fragmentation_distribution);
+    }
+}
+
+function initLandUseChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    const colors = config.series[0].colors;
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.categories,
+            datasets: [{
+                data: data.values,
+                backgroundColor: data.categories.map(cat => colors[cat]),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        autoSkip: false,
+                        maxRotation: 45,
+                        minRotation: 45
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: '#e5e5e5',
+                        borderDash: [2, 2]
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            if (value >= 1000000) {
+                                return (value / 1000000).toFixed(1) + 'M';
+                            }
+                            if (value >= 1000) {
+                                return (value / 1000).toFixed(0) + 'k';
+                            }
+                            return value;
+                        }
+                    }
+                }
             }
-            li.appendChild(a);
-            shapeListElement.appendChild(li);
-        });
-    }
+        }
+    });
+}
 
+// Chart initialization functions
+function initForestCoverChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Préparation des données
+    const communeData = [Math.round(data.foret * 10) / 10, Math.round(data.hors_foret * 10) / 10];
+    const numData = [Math.round(data.num.foret * 10) / 10, Math.round(data.num.hors_foret * 10) / 10];
+    const umData = [Math.round(data.um.foret * 10) / 10, Math.round(data.um.hors_foret * 10) / 10];
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [
+                {
+                    label: 'Commune',
+                    data: communeData,
+                    backgroundColor: ['#2E7D32', '#F4E4BC'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    radius: '100%',
+                    spacing: 0
+                },
+                {
+                    label: 'NUM',
+                    data: numData,
+                    backgroundColor: ['#2E7D32', '#C5A98B'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    radius: '100%',
+                    spacing: 0
+                },
+                {
+                    label: 'UM',
+                    data: umData,
+                    backgroundColor: ['#2E7D32', '#8B7355'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    radius: '100%',
+                    spacing: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '20%',
+            rotation: -90,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    enabled: false
+                }
+            }
+        },
+        plugins: [{
+            id: 'customLabels',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.font = '11px system-ui';
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'center';
+
+                // Labels et pourcentages pour chaque anneau
+                const datasets = chart.data.datasets;
+                const meta = chart.getDatasetMeta(0);
+                const centerX = meta.data[0].x;
+                const centerY = meta.data[0].y;
+
+                // Pour chaque dataset (anneau)
+                datasets.forEach((dataset, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    const percentage = dataset.data[0];
+                    const element = meta.data[0];
+
+                    // Position pour le pourcentage (à gauche de la section verte)
+                    const percentageAngle = -Math.PI + 0.2; // -45 degrés
+                    console.log(percentageAngle)
+                    const radius = (element.innerRadius + element.outerRadius) / 2;
+                    const x = centerX + Math.cos(percentageAngle) * radius;
+                    const y = centerY + Math.sin(percentageAngle) * radius;
+
+                    // Affichage du pourcentage
+                    ctx.fillText(percentage + '%', x, y);
+
+                    // Position pour le label (à droite)
+                    if (i === 0) {
+                        ctx.fillText('Commune', centerX, centerY + element.outerRadius - 13);
+                    } else if (i === 1) {
+                        ctx.fillText('NUM', centerX, centerY + element.outerRadius - 10);
+                    } else {
+                        ctx.fillText('UM', centerX, centerY + element.outerRadius - 10);
+                    }
+                });
+
+                ctx.restore();
+            }
+        }]
+    });
+}
+
+function initElevationChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.altitudes,
+            datasets: [
+                {
+                    label: 'Forêt',
+                    data: data.forest,
+                    backgroundColor: '#2E7D32', // Vert plus foncé
+                    stack: 'Stack 0'
+                },
+                {
+                    label: 'Hors-forêt',
+                    data: data.non_forest,
+                    backgroundColor: '#F4E4BC', // Beige plus clair
+                    stack: 'Stack 0'
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            scales: {
+                x: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Superficie (ha)'
+                    },
+                    grid: {
+                        display: false // Masquer la grille verticale
+                    }
+                },
+                y: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Altitude (m)'
+                    },
+                    reverse: true, // Inverser l'axe des altitudes pour avoir les plus hautes en haut
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            },
+            maintainAspectRatio: false
+        }
+    });
+}
+
+function initForestTypesChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // S'assurer que les données sont arrondies à 1 décimale
+    const forestData = {
+        secondaire: data.secondaire.toFixed(1),
+        mature: data.mature.toFixed(1),
+        coeur: data.coeur.toFixed(1)
+    };
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Forêt secondaire', 'Forêt mature', 'Forêt de coeur'],
+            datasets: [{
+                data: [
+                    forestData.secondaire,
+                    forestData.mature,
+                    forestData.coeur
+                ],
+                backgroundColor: [
+                    '#C5E1A5', // Vert clair pour forêt secondaire
+                    '#7CB342', // Vert moyen pour forêt mature
+                    '#2E7D32'  // Vert foncé pour forêt de coeur
+                ],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 12
+                        },
+                        usePointStyle: false,
+                        boxWidth: 15
+                    }
+                },
+                title: {
+                    display: false // Le titre est géré dans le template HTML
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.raw + '%';
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [{
+            id: 'text',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                chart.data.datasets.forEach(function(dataset, i) {
+                    const meta = chart.getDatasetMeta(i);
+                    meta.data.forEach(function(element, index) {
+                        const value = dataset.data[index];
+                        const position = element.getCenterPoint();
+
+                        // Draw value
+                        ctx.save();
+                        ctx.fillStyle = '#000000';
+                        ctx.font = '12px system-ui';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(value + '%', position.x, position.y);
+                        ctx.restore();
+                    });
+                });
+            }
+        }]
+    });
+}
+
+function initForestCoverByElevationChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Traitement des données
+    const umData = data.um.map(value => isNaN(value) ? 0 : -value);
+    const numData = data.num.map(value => isNaN(value) ? 0 : value);
+    const horsForetUMData = data.hors_foret_um.map(value => isNaN(value) ? 0 : value);
+    const horsForetNUMData = data.hors_foret_num.map(value => isNaN(value) ? 0 : value);
+
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.altitudes,
+            datasets: [
+                {
+                    label: 'Forêt (UM)',
+                    data: umData,
+                    backgroundColor: '#90EE90',
+                },
+                {
+                    label: 'Forêt (NUM)',
+                    data: numData,
+                    backgroundColor: '#2E7D32',
+                },
+                {
+                    label: 'Hors-forêt (UM)',
+                    data: horsForetUMData.map(value => -value),
+                    backgroundColor: '#F4E4BC',
+                },
+                {
+                    label: 'Hors-forêt (NUM)',
+                    data: horsForetNUMData,
+                    backgroundColor: '#F4E4BC',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            scales: {
+                x: {
+                    stacked: true,
+                    position: 'top',
+                    min: -100,
+                    max: 100,
+                    grid: {
+                        lineWidth: 1,
+                        drawTicks: false,
+                        borderDash: [5, 5]
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return Math.abs(value);
+                        },
+                        stepSize: 20,
+                        font: {
+                            size: 10
+                        }
+                    },
+                    border: {
+                        display: false
+                    }
+                },
+                y: {
+                    stacked: true,
+                    position: 'left',
+                    reverse: true,
+                    grid: {
+                        display: true,
+                        lineWidth: 1,
+                        drawTicks: false,
+                        borderDash: [5, 5]
+                    },
+                    ticks: {
+                        font: {
+                            size: 12
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Altitude (m)',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    border: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    align: 'center',
+                    labels: {
+                        boxWidth: 10,
+                        padding: 15,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'Couverture (%)',
+                    position: 'top',
+                    align: 'center',
+                    font: {
+                        size: 12
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + Math.abs(context.raw).toFixed(1) + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initForestTypesByElevationChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Trier les données par altitude croissante
+    const indices = data.altitudes.map((v, i) => i);
+    indices.sort((a, b) => data.altitudes[a] - data.altitudes[b]);
+
+    // Réorganiser toutes les données dans l'ordre des altitudes
+    const sortedData = {
+        altitudes: indices.map(i => data.altitudes[i]),
+        coeur: indices.map(i => data.coeur[i] * 100),
+        mature: indices.map(i => data.mature[i] * 100),
+        secondaire: indices.map(i => data.secondaire[i] * 100)
+    };
+
+    new Chart(ctx, {
+        type: 'line', // Changé en 'line' pour avoir des aires
+        data: {
+            labels: sortedData.altitudes.map(alt => alt.toString()),
+            datasets: [
+                {
+                    label: 'Forêt secondaire',
+                    data: sortedData.secondaire,
+                    backgroundColor: '#C5E1A5',
+                    borderColor: '#C5E1A5',
+                    fill: true,
+                    pointRadius: 0,
+                    tension: 0.4
+                },
+                {
+                    label: 'Forêt mature',
+                    data: sortedData.mature,
+                    backgroundColor: '#7CB342',
+                    borderColor: '#7CB342',
+                    fill: true,
+                    pointRadius: 0,
+                    tension: 0.4
+                },
+                {
+                    label: 'Forêt de coeur',
+                    data: sortedData.coeur,
+                    backgroundColor: '#2E7D32',
+                    borderColor: '#2E7D32',
+                    fill: true,
+                    pointRadius: 0,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Altitude (m)',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    stacked: true,
+                    grid: {
+                        color: '#e5e5e5',
+                        borderDash: [2, 2]
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Fréquence (%)',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    min: 0,
+                    max: 100
+                }
+            },
+            plugins: {
+                title: {
+                    display: false // Géré dans le HTML
+                },
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: false,
+                        boxWidth: 15
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
+                        }
+                    }
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            }
+        }
+    });
+}
+
+function initHoldridgeChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Préparer les données
+    const labels = ['Sec', 'Humide', 'Très Humide'];
+    const forestData = [
+        data.forest.sec * 100,
+        data.forest.humide * 100,
+        data.forest.tres_humide * 100
+    ];
+    const nonForestData = [
+        data.non_forest.sec * 100,
+        data.forest.humide * 100,
+        data.non_forest.tres_humide * 100
+    ];
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Forêt',
+                    data: forestData,
+                    backgroundColor: '#2E7D32',
+                    stack: 'Stack 0'
+                },
+                {
+                    label: 'Hors-forêt',
+                    data: nonForestData,
+                    backgroundColor: '#F4E4BC',
+                    stack: 'Stack 0'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    stacked: true,
+                    grid: {
+                        color: '#e5e5e5',
+                        borderDash: [2, 2]
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    max: 100,
+                    min: 0,
+                    title: {
+                        display: true,
+                        text: 'Fréquence (%)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    align: 'end'
+                },
+                title: {
+                    display: true,
+                    text: 'Forêt et milieux de vie',
+                    font: {
+                        size: 16
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initFragmentationGauge(canvasId, data, config) {
+    const container = document.getElementById(canvasId);
+    if (!container) return;
+
+    // S'assurer que la valeur est arrondie à 1 décimale
+    const value = parseFloat(data.meff.toFixed(1));
+
+    const gauge = new JustGage({
+        id: canvasId,
+        value: value,
+        min: config.options.min,
+        max: config.options.max,
+        title: config.title,
+        label: "km²",
+        titleFontColor: "#333",
+        valueFontColor: "#333",
+        labelFontColor: "#666",
+        titleFontFamily: "system-ui, -apple-system, sans-serif",
+        valueFontFamily: "system-ui, -apple-system, sans-serif",
+        labelFontFamily: "system-ui, -apple-system, sans-serif",
+        gaugeColor: "#eee",
+        levelColors: config.options.sectors.map(s => s.color),
+        showMinMax: false,
+        decimals: 1,
+        gaugeWidthScale: 0.6,
+        counter: true,
+        pointer: true,
+        pointerOptions: {
+            toplength: 8,
+            bottomlength: -20,
+            bottomwidth: 6,
+            color: '#8e8e93'
+        },
+        donut: false,
+        relativeGaugeSize: true,
+    });
+
+    // Ajouter le texte de la valeur en dessous du gauge
+    const valueText = document.createElement('p');
+    valueText.textContent = `Taille effective de maillage: ${value} km²`;
+    valueText.style.textAlign = 'center';
+    valueText.style.marginTop = '20px';
+    valueText.style.fontSize = '16px';
+    valueText.style.color = '#333';
+    container.parentNode.appendChild(valueText);
+}
+
+function initFragmentationDistributionChart(canvasId, data, config) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Trier les données
+    const sortedData = data.sizes.map((size, index) => ({
+        size: size,
+        value: data.values[index]
+    })).sort((a, b) => a.size - b.size);
+
+    // Séparer les données triées
+    const sortedSizes = sortedData.map(d => d.size);
+    const sortedValues = sortedData.map(d => d.value);
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sortedSizes,
+            datasets: [{
+                label: 'Aire Cumulée',
+                data: sortedValues.map(v => v * 100),
+                borderColor: '#2E7D32',
+                backgroundColor: '#2E7D32',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 0,
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    type: 'logarithmic',
+                    title: {
+                        display: true,
+                        text: 'Surperficie (ha)',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        callback: value => value.toString()
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Fréquence (%)',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: '#e5e5e5',
+                        borderDash: [2, 2]
+                    },
+                    ticks: {
+                        callback: value => value + '%'
+                    },
+                    min: 0,
+                    max: 100,
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: false,
+                        boxWidth: 15,
+                        padding: 20
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'Fragments forestiers',
+                    font: {
+                        size: 16,
+                        weight: 'normal'
+                    },
+                    padding: {
+                        bottom: 30
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createShapeTree(container, shapeTypes) {
+    const $ul = $('<ul class="mb-3"></ul>');
+
+    shapeTypes.forEach(typeItem => {
+        const $li = $('<li></li>');
+        const $typeLink = $('<a href="javascript:void(0)" class="shape-type-link"></a>')
+            .text(typeItem.type_label)
+            .append($('<span class="badge"></span>').text(typeItem.shapes.length));
+
+        const $childUl = $('<ul style="display:none;"></ul>');
+
+        // Sort shapes alphabetically
+        typeItem.shapes.sort((a, b) => a.name.localeCompare(b.name));
+
+        typeItem.shapes.forEach(shapeItem => {
+            const $shapeLi = $('<li></li>');
+            const $shapeLink = $('<a></a>')
+                .attr('href', `../shape/${shapeItem.id}.html`)
+                .text(shapeItem.name)
+                .addClass('shape-link');
+
+            if (shapeItem.id === currentShapeId) {
+                $shapeLink.addClass('current-shape');
+            }
+
+            $shapeLi.append($shapeLink);
+            $childUl.append($shapeLi);
+        });
+
+        $typeLink.on('click', function(e) {
+            e.stopPropagation();
+            $childUl.slideToggle();
+            $(this).toggleClass('open');
+        });
+
+        if (typeItem.type === currentShapeType) {
+            $childUl.show();
+            $typeLink.addClass('open');
+        }
+
+        $li.append($typeLink).append($childUl);
+        $ul.append($li);
+    });
+
+    $(container).append($ul);
+}
+
+let maps = {};  // Store map instances
 </script>
 {% endblock %}
