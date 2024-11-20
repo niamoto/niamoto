@@ -1447,18 +1447,18 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     "class_value"
                 ].iloc[0]
             ),
-            "nb_familles": int(
-                shape_data[shape_data["class_object"] == "nb_families"][
+            "forest_mining_ha": int(
+                shape_data[shape_data["class_object"] == "forest_mining_ha"][
                     "class_value"
                 ].iloc[0]
             ),
-            "nb_especes": int(
-                shape_data[shape_data["class_object"] == "nb_species"][
+            "forest_reserve_ha": int(
+                shape_data[shape_data["class_object"] == "forest_reserve_ha"][
                     "class_value"
                 ].iloc[0]
             ),
-            "nb_occurrences": int(
-                shape_data[shape_data["class_object"] == "nb_occurrences"][
+            "forest_ppe_ha": int(
+                shape_data[shape_data["class_object"] == "forest_ppe_ha"][
                     "class_value"
                 ].iloc[0]
             ),
@@ -1491,40 +1491,43 @@ class ShapeStatsCalculator(StatisticsCalculator):
         # Forest cover distribution
         cover_forest = shape_data.loc[shape_data["class_object"] == "cover_forest"]
         cover_forestum = shape_data.loc[shape_data["class_object"] == "cover_forestum"]
-        cover_forestnum = shape_data.loc[
-            shape_data["class_object"] == "cover_forestnum"
-        ]
+        cover_forestnum = shape_data.loc[shape_data["class_object"] == "cover_forestnum"]
 
+        # Fonction pour convertir une valeur en pourcentage
+        def to_percentage(value):
+            return round(value * 100, 2)
+
+        # Mettre à jour les statistiques avec les valeurs en pourcentage
         stats["forest_cover"] = {
-            "foret": float(
+            "foret": to_percentage(
                 cover_forest.loc[
                     cover_forest["class_name"] == "Forêt", "class_value"
                 ].iloc[0]
             ),
-            "hors_foret": float(
+            "hors_foret": to_percentage(
                 cover_forest.loc[
                     cover_forest["class_name"] == "Hors-forêt", "class_value"
                 ].iloc[0]
             ),
             "um": {
-                "foret": float(
+                "foret": to_percentage(
                     cover_forestum.loc[
                         cover_forestum["class_name"] == "Forêt", "class_value"
                     ].iloc[0]
                 ),
-                "hors_foret": float(
+                "hors_foret": to_percentage(
                     cover_forestum.loc[
                         cover_forestum["class_name"] == "Hors-forêt", "class_value"
                     ].iloc[0]
                 ),
             },
             "num": {
-                "foret": float(
+                "foret": to_percentage(
                     cover_forestnum.loc[
                         cover_forestnum["class_name"] == "Forêt", "class_value"
                     ].iloc[0]
                 ),
-                "hors_foret": float(
+                "hors_foret": to_percentage(
                     cover_forestnum.loc[
                         cover_forestnum["class_name"] == "Hors-forêt", "class_value"
                     ].iloc[0]
@@ -1561,21 +1564,16 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         # Forest types
         forest_types = shape_data[shape_data["class_object"] == "cover_foresttype"]
+
         stats["forest_types"] = {
-            "secondaire": float(
-                forest_types[forest_types["class_name"] == "Forêt secondaire"][
-                    "class_value"
-                ].iloc[0]
+            "secondaire": to_percentage(
+                forest_types[forest_types["class_name"] == "Forêt secondaire"]["class_value"].iloc[0]
             ),
-            "mature": float(
-                forest_types[forest_types["class_name"] == "Forêt mature"][
-                    "class_value"
-                ].iloc[0]
+            "mature": to_percentage(
+                forest_types[forest_types["class_name"] == "Forêt mature"]["class_value"].iloc[0]
             ),
-            "coeur": float(
-                forest_types[forest_types["class_name"] == "Forêt coeur"][
-                    "class_value"
-                ].iloc[0]
+            "coeur": to_percentage(
+                forest_types[forest_types["class_name"] == "Forêt coeur"]["class_value"].iloc[0]
             ),
         }
 

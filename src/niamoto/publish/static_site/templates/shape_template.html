@@ -208,16 +208,16 @@
                     <!-- Biodiversité -->
                     <div class="space-y-2 pt-2 border-t border-gray-100">
                         <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Nombre de familles</span>
-                            <span class="font-medium">{{ shape.general_info.nb_familles | numberformat }}</span>
+                            <span class="text-gray-600">Forêt sur mine</span>
+                            <span class="font-medium">{{ shape.general_info.forest_mining_ha | numberformat }} ha</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Nombre d'espèces</span>
-                            <span class="font-medium">{{ shape.general_info.nb_especes | numberformat }}</span>
+                            <span class="text-gray-600">Forêt en réserve</span>
+                            <span class="font-medium">{{ shape.general_info.forest_reserve_ha | numberformat }} ha</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Nombre d'occurrences</span>
-                            <span class="font-medium">{{ shape.general_info.nb_occurrences | numberformat }}</span>
+                            <span class="text-gray-600">Forêt sur captage (PPE)</span>
+                            <span class="font-medium">{{ shape.general_info.forest_ppe_ha | numberformat }} ha</span>
                         </div>
                     </div>
 
@@ -243,7 +243,7 @@
         <!-- Localisation -->
         <div class="bg-white rounded-lg shadow-lg overflow-hidden col-span-2">
             <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Localisation</h2>
+                <h2 class="text-lg">Distribution de la forêt</h2>
                 <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
                     <i class="fas fa-info"></i>
                     <span class="tooltip-content">
@@ -672,6 +672,10 @@ function initLandUseChart(canvasId, data, config) {
                         color: '#e5e5e5',
                         borderDash: [2, 2]
                     },
+                    title: {
+                        display: true,
+                        text: 'Superficie (ha)'
+                    },
                     ticks: {
                         callback: function(value) {
                             if (value >= 1000000) {
@@ -704,7 +708,7 @@ function initForestCoverChart(canvasId, data, config) {
         data: {
             datasets: [
                 {
-                    label: 'Commune',
+                    label: 'Emprise',
                     data: communeData,
                     backgroundColor: ['#2E7D32', '#F4E4BC'],
                     borderColor: '#ffffff',
@@ -779,7 +783,7 @@ function initForestCoverChart(canvasId, data, config) {
 
                     // Position pour le label (à droite)
                     if (i === 0) {
-                        ctx.fillText('Commune', centerX, centerY + element.outerRadius - 13);
+                        ctx.fillText('Emprise', centerX, centerY + element.outerRadius - 13);
                     } else if (i === 1) {
                         ctx.fillText('NUM', centerX, centerY + element.outerRadius - 10);
                     } else {
@@ -958,7 +962,7 @@ function initForestCoverByElevationChart(canvasId, data, config) {
                     data: numData,
                     backgroundColor: '#2E7D32',
                 },
-                {
+                {#{
                     label: 'Hors-forêt (UM)',
                     data: horsForetUMData.map(value => -value),
                     backgroundColor: '#F4E4BC',
@@ -967,7 +971,7 @@ function initForestCoverByElevationChart(canvasId, data, config) {
                     label: 'Hors-forêt (NUM)',
                     data: horsForetNUMData,
                     backgroundColor: '#F4E4BC',
-                }
+                }#}
             ]
         },
         options: {
@@ -1193,7 +1197,7 @@ function initHoldridgeChart(canvasId, data, config) {
     ];
     const nonForestData = [
         data.non_forest.sec * 100,
-        data.forest.humide * 100,
+        data.non_forest.humide * 100,
         data.non_forest.tres_humide * 100
     ];
 
