@@ -1,10 +1,11 @@
 {% extends '_base.html' %}
+{% import '_widgets.html' as widgets %}
 
 {% block title %}Niamoto - {{ shape.name }}{% endblock %}
 
 {% block extra_head %}
 <script src="{{ depth }}js/shape_list.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.6/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.6.1/justgage.min.js"></script>
@@ -181,269 +182,48 @@
 <div class="container mx-auto px-4 py-8">
     <!-- Grid principal -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <!-- Informations générales -->
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Informations générales</h2>
-            </div>
-            <div class="p-4">
-                <!-- Titre principal -->
-                <h3 class="text-lg font-bold text-gray-800 mb-4">{{ shape.name }}</h3>
-
-                <!-- Liste des informations -->
-                <div class="space-y-3">
-                    <!-- Surface -->
-                    <div class="space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Superficie de l'emprise</span>
-                            <span class="font-medium">{{ (shape.general_info.surface_totale | round) | numberformat }} ha</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Superficie de forêt</span>
-                            <span class="font-medium">{{ (shape.general_info.surface_foret | round) | numberformat }} ha</span>
-                        </div>
-                    </div>
-
-                    <!-- Biodiversité -->
-                    <div class="space-y-2 pt-2 border-t border-gray-100">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Forêt sur mine</span>
-                            <span class="font-medium">{{ shape.general_info.forest_mining_ha | numberformat }} ha</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Forêt en réserve</span>
-                            <span class="font-medium">{{ shape.general_info.forest_reserve_ha | numberformat }} ha</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Forêt sur captage (PPE)</span>
-                            <span class="font-medium">{{ shape.general_info.forest_ppe_ha | numberformat }} ha</span>
-                        </div>
-                    </div>
-
-                    <!-- Caractéristiques environnementales -->
-                    <div class="space-y-2 pt-2 border-t border-gray-100">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Précipitation annuelle</span>
-                            <span class="font-medium">{{ shape.general_info.pluviometrie.min | numberformat }} - {{ shape.general_info.pluviometrie.max | numberformat }} mm/an</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Altitude médiane</span>
-                            <span class="font-medium">{{ shape.general_info.altitude.median | numberformat }} m</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-600">Altitude maximale</span>
-                            <span class="font-medium">{{ shape.general_info.altitude.max | numberformat }} m</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Localisation -->
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden col-span-2">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Distribution de la forêt</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.map_panel.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="h-96">
-                <div id="combinedMap" class="w-full h-full"></div>
-            </div>
-        </div>
-
-        <!-- Couverture forestière -->
-        {% if shape.forest_cover %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Couverture forestière</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.forest_cover.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="forestCoverChart"></canvas>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Land Use Chart -->
-        {% if shape.land_use %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Occupation du sol</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.land_use.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 400px;">
-                    <canvas id="landUseChart"></canvas>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Distribution altitudinale -->
-        {% if shape.elevation_distribution %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Distribution altitudinale</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.elevation_distribution.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="elevationDistributionChart"></canvas>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Forêt et milieux de vie -->
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Forêt et milieux de vie</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.holdridge_distribution.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="holdridgeChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Types forestiers -->
-        {% if shape.forest_types %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Types forestiers</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.forest_types.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="forestTypesChart"></canvas>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Forest Cover by Elevation -->
-        {% if shape.forest_cover_by_elevation %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-             <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Couverture forestière par altitude</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.forest_cover_by_elevation.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 350px;">
-                    <canvas id="forestCoverByElevationChart"></canvas>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Types forestiers par altitude -->
-        {% if shape.forest_types_by_elevation %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Types forestiers par altitude</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.forest_types_by_elevation.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="forestTypesByElevationChart"></canvas>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Fragmentation -->
-        {% if shape.fragmentation %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Fragmentation</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.fragmentation.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="gauge-container" style="height: 300px;">
-                    <div id="fragmentationGauge"></div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Distribution de la fragmentation -->
-        {% if shape.fragmentation_distribution %}
-        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
-                <h2 class="text-lg">Fragments forestiers</h2>
-                <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
-                    <i class="fas fa-info"></i>
-                    <span class="tooltip-content">
-                        {{ mapping.widgets.fragmentation_distribution.description }}
-                    </span>
-                </button>
-            </div>
-            <div class="p-4">
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="fragmentationDistributionChart"></canvas>
-                </div>
-            </div>
-        </div>
-        {% endif %}
+        {% for widget_key, widget in mapping.widgets.items() %}
+            {% if widget.type == 'info_panel' %}
+                {% set content = widgets.render_info_panel_content(widget, stats[widget_key]|from_json ) %}
+                {{ widgets.render_widget(widget, content) }}
+            {% elif '_chart' in widget.type %}
+                {% set content = widgets.render_chart_content(widget, widget_key) %}
+                {{ widgets.render_widget(widget, content) }}
+            {% elif widget.type == 'gauge' %}
+                {% set content = widgets.render_gauge_content(widget, widget_key) %}
+                {{ widgets.render_widget(widget, content) }}
+            {% elif widget.type == 'map_panel' %}
+                {% set content = widgets.render_map_content(widget, widget_key) %}
+                {{ widgets.render_widget(widget, content) }}
+            {% endif %}
+        {% endfor %}
     </div>
+
 </div>
 {% endblock %}
 {% block extra_scripts %}
 <script>
+// =====================================
+// Constants & Initial Setup
+// =====================================
 const shape = {{ shape|tojson|safe }};
 const mapping = {{ mapping|tojson|safe }};
 const currentShapeType = "{{ shape.type }}";
 const currentShapeId = {{ shape.id }};
+let maps = {};  // Store map instances
 
+// =====================================
+// Core Initialization
+// =====================================
+/**
+ * Initialize all components when DOM is loaded
+ * - Maps initialization
+ * - Shape tree creation
+ * - Widgets initialization
+ */
 document.addEventListener('DOMContentLoaded', function() {
+
+
     // Initialize maps
     if (mapping.widgets.map_panel) {
         initShapeMaps(mapping, shape);
@@ -453,20 +233,355 @@ document.addEventListener('DOMContentLoaded', function() {
     createShapeTree(document.getElementById('shape-tree'), shapeTypes);
 
     // Initialize charts based on widget configuration
-    initializeCharts(mapping.widgets, shape);
+    initializeWidgets(mapping.widgets, shape);
 });
 
-// Maps initialization
+// =====================================
+// Chart Type Management & Data Processing
+// =====================================
+/**
+ * Maps widget types to Chart.js chart types
+ * @param {string} widgetType - Type from widget configuration
+ * @returns {string} Corresponding Chart.js type
+ */
+function getChartTypeFromWidgetType(widgetType) {
+    const typeMapping = {
+        'doughnut_chart': 'doughnut',
+        'pie_chart': 'pie',
+        'bar_chart': 'bar',
+        'line_chart': 'line',
+        'stacked_bar_chart': 'bar', // Les barres empilées sont des graphiques 'bar' avec des options supplémentaires
+        'gauge': 'gauge', // Spécifique pour les jauges
+        // Ajoutez d'autres types de widgets si nécessaire
+    };
+    return typeMapping[widgetType] || 'bar'; // Par défaut, retourner 'bar' si le type n'est pas trouvé
+}
+
+/**
+ * Prepares data for chart rendering, including sorting and transformation
+ * @param {Object} config - Widget configuration
+ * @param {Object} data - Raw data for the chart
+ * @returns {Object} Formatted data for Chart.js
+ */
+function prepareChartData(config, data) {
+    const datasets = [];
+    let labels = [];
+
+    if (!config.datasets || !Array.isArray(config.datasets)) {
+        console.warn('No datasets configuration provided');
+        return { labels: [], datasets: [] };
+    }
+
+    // Get and sort data if needed
+    let sortedData = data;
+    let sortedIndices = null;
+    if (config.sortBy) {
+        const values = _.get(data, config.sortBy, []);
+        sortedIndices = values.map((v, i) => i);
+        sortedIndices.sort((a, b) => values[a] - values[b]);
+
+        // Create new sorted data object
+        sortedData = Object.keys(data).reduce((acc, key) => {
+            if (Array.isArray(data[key])) {
+                acc[key] = sortedIndices.map(i => data[key][i]);
+            } else {
+                acc[key] = data[key];
+            }
+            return acc;
+        }, {});
+    }
+
+    // Get labels before dataset processing
+    labels = config.labels_key ?
+        _.get(sortedData, config.labels_key, []).map(v => v.toString()) :
+        config.labels ? config.labels :
+        [];
+
+    config.datasets.forEach((datasetConfig) => {
+        const dataset = {
+            label: datasetConfig.label,
+            data: [],
+            backgroundColor: [],
+            borderColor: [],
+            borderWidth: datasetConfig.borderWidth ?? 1,
+            fill: datasetConfig.fill ?? false,
+            tension: datasetConfig.tension ?? 0,
+            stack: datasetConfig.stack,
+            pointRadius: datasetConfig.pointRadius ?? undefined,
+            pointHoverRadius: datasetConfig.pointHoverRadius ?? undefined,
+            pointHoverBackgroundColor: datasetConfig.pointHoverBackgroundColor ?? undefined,
+        };
+
+        // Process data
+        dataset.data = processDataset(datasetConfig, sortedData, config.type);
+
+        // Transform data if needed
+        if (datasetConfig.transformData) {
+            dataset.data = dataset.data.map(value => transformDataValue(value, datasetConfig.transformData));
+        }
+
+        // Process colors after data is loaded
+        processColors(dataset, datasetConfig, labels);
+
+        datasets.push(dataset);
+    });
+
+    return { labels, datasets };
+}
+
+/**
+ * Prepares chart options by merging defaults with configuration
+ * Handles scales, plugins, and callbacks configuration
+ * @param {Object} config - Widget configuration
+ * @returns {Object} Complete Chart.js options
+ */
+function prepareChartOptions(config) {
+    // Default options restent les mêmes
+    const defaultOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: false,
+                    boxWidth: 15,
+                },
+            },
+            title: {
+                display: false,
+            },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+            },
+        },
+        scales: {},
+    };
+
+    // Merge custom options with defaults
+    const options = _.merge({}, defaultOptions, config.options);
+
+    // Handle scales configuration
+    if (config.options && config.options.scales) {
+        Object.keys(options.scales || {}).forEach(scaleKey => {
+        const scale = options.scales[scaleKey];
+        if (scale.ticks && scale.ticks.callback) {
+            const callbackName = scale.ticks.callback;
+            if (typeof window[callbackName] === 'function') {
+                scale.ticks.callback = window[callbackName];
+            }
+        }
+    });
+    }
+
+    // Handle stacked charts
+    if (config.type === 'stacked_bar_chart' || (config.options && config.options.stacked)) {
+        if (options.scales.x) options.scales.x.stacked = true;
+        if (options.scales.y) options.scales.y.stacked = true;
+    }
+
+    // Process plugin callbacks
+    if (options.plugins) {
+        for (const pluginKey in options.plugins) {
+            const plugin = options.plugins[pluginKey];
+            if (plugin.callbacks) {
+                for (const callbackKey in plugin.callbacks) {
+                    const callbackName = plugin.callbacks[callbackKey];
+                    if (typeof callbackName === 'string' && typeof window[callbackName] === 'function') {
+                        plugin.callbacks[callbackKey] = window[callbackName];
+                    }
+                }
+            }
+        }
+    }
+
+    return options;
+}
+
+/**
+ * Process dataset values according to chart type
+ */
+function processDataset(datasetConfig, data, chartType) {
+    let processedData = [];
+
+    if (datasetConfig.data_keys && Array.isArray(datasetConfig.data_keys)) {
+        processedData = datasetConfig.data_keys.map(key => {
+            const value = parseFloat(_.get(data, key, 0)) || 0;
+            return formatValue(value, chartType);
+        });
+    } else if (datasetConfig.data_key) {
+        const values = _.get(data, datasetConfig.data_key, []);
+        processedData = Array.isArray(values) ?
+            values.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+            [formatValue(parseFloat(values) || 0, chartType)];
+    } else if (datasetConfig.data) {
+        processedData = Array.isArray(datasetConfig.data) ?
+            datasetConfig.data.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+            [formatValue(parseFloat(datasetConfig.data) || 0, chartType)];
+    }
+
+    return processedData;
+}
+
+/**
+ * Process colors for chart datasets
+ */
+function processColors(dataset, datasetConfig, labels) {
+    if (datasetConfig.color_mapping && labels) {
+        // Pour le color_mapping, on utilise les labels pour mapper les couleurs
+        dataset.backgroundColor = Array.isArray(dataset.data) ?
+            dataset.data.map((_, index) => {
+                const label = labels[index];
+                return datasetConfig.color_mapping[label] || '#000000';
+            }) :
+            datasetConfig.color_mapping[labels[0]] || '#000000';
+
+        dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
+    } else if (datasetConfig.backgroundColors) {
+        dataset.backgroundColor = datasetConfig.backgroundColors;
+        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
+    } else if (datasetConfig.backgroundColor) {
+        dataset.backgroundColor = datasetConfig.backgroundColor;
+        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
+    } else {
+        dataset.backgroundColor = '#000000';
+        dataset.borderColor = '#000000';
+    }
+}
+
+// =====================================
+// Widget Initialization
+// =====================================
+/**
+ * Main widgets initialization router
+ * Handles different widget types initialization
+ */
+function initializeWidgets(widgets, stats) {
+    // Mapping des types vers leurs fonctions d'initialisation
+    const initializerMap = {
+        'bar_chart': initChart,
+        'line_chart': initChart,
+        'pie_chart': initChart,
+        'doughnut_chart': initChart,
+        'gauge': initChart,
+        'map_panel': initMapFromConfig
+    };
+
+    Object.entries(widgets)
+        .filter(([_, config]) => config.type in initializerMap)  // Ignore les types non gérés
+        .forEach(([widgetKey, config]) => {
+            // Génère l'ID du widget automatiquement si non spécifié
+            const suffix = config.type.includes('chart') ? 'Chart' :
+                          config.type === 'gauge' ? 'Gauge' : 'Map';
+            const widgetId = config.id || `${widgetKey}${suffix}`;
+
+            // Pour les cartes, on passe directement stats
+            if (config.type === 'map_panel') {
+                initializerMap[config.type](widgetId, stats, config);
+                return;
+            }
+
+            // Pour les autres widgets, on vérifie la source dans stats
+            const data = _.get(stats, config.source);
+            if (!data) return;  // Skip si pas de données
+
+            // Initialise le widget avec la fonction appropriée
+            initializerMap[config.type](widgetId, data, config);
+        });
+}
+
+/**
+ * Initialize chart widgets including gauges
+ * Handles both Chart.js charts and JustGage gauges
+ */
+function initChart(widgetId, data, config) {
+    const ctx = document.getElementById(widgetId);
+    if (!ctx) return;
+
+    const chartType = getChartTypeFromWidgetType(config.type);
+
+    if (chartType === 'gauge') {
+        const value = parseFloat(_.get(data, config.value_key, 0).toFixed(1));
+
+        const gaugeOptions = {
+            id: widgetId,
+            value: value,
+            min: config.options.min,
+            max: config.options.max,
+            label: config.options.units,
+            title: config.title,
+            gaugeColor: "#eee",
+            levelColors: config.options.sectors.map(s => s.color),
+            decimals: 1,
+            gaugeWidthScale: 0.6,
+            counter: true,
+            pointer: true,
+            pointerOptions: {
+                toplength: 8,
+                bottomlength: -20,
+                bottomwidth: 6,
+                color: '#8e8e93'
+            },
+            // Default options that don't need to be in config
+            showMinMax: false,
+            donut: false,
+            relativeGaugeSize: true,
+            // Font colors that don't need to be in config
+            titleFontColor: "#333",
+            valueFontColor: "#333",
+            labelFontColor: "#666"
+        };
+
+        const gauge = new JustGage(gaugeOptions);
+
+        // Add value text below
+        const valueText = document.createElement('p');
+        valueText.textContent = `Taille effective de maillage: ${value} ${config.options.units}`;
+        valueText.className = 'text-center mt-5 text-lg text-gray-700';
+        ctx.parentNode.appendChild(valueText);
+
+        return;
+    }
+
+    // Pour les autres types de graphiques...
+    const chartData = prepareChartData(config, data);
+    const chartOptions = prepareChartOptions(config);
+    const plugins = [];
+
+    if (config.customPlugin && typeof window[config.customPlugin] === 'object') {
+        plugins.push(window[config.customPlugin]);
+    }
+
+    new Chart(ctx, {
+        type: chartType,
+        data: chartData,
+        options: chartOptions,
+        plugins: plugins,
+    });
+}
+
+// =====================================
+// Map Management
+// =====================================
+/**
+ * Initialize maps based on configuration
+ */
 function initShapeMaps(mapping, shape) {
     if (mapping.widgets.map_panel) {
         // Initialize main map with widget config
-        initMapFromConfig('combinedMap', shape, mapping.widgets.map_panel);
+        //initMapFromConfig('map_panelMap', shape, mapping.widgets.map_panel);
 
         // Initialize overview map
         initOverviewMap('allShapesMap', shape, mapping.widgets.map_panel);
     }
 }
 
+/**
+ * Initialize main map with configured layers
+ */
 function initMapFromConfig(mapId, shape, mapConfig) {
     const mapContainer = document.getElementById(mapId);
     if (!mapContainer || maps[mapId]) return;
@@ -528,6 +643,9 @@ function initMapFromConfig(mapId, shape, mapConfig) {
     maps[mapId] = map;
 }
 
+/**
+ * Initialize overview map showing all shapes of same type
+ */
 function initOverviewMap(mapId, currentShape, mapConfig) {
     const mapContainer = document.getElementById(mapId);
     if (!mapContainer || maps[mapId]) return;
@@ -589,823 +707,13 @@ function initOverviewMap(mapId, currentShape, mapConfig) {
     maps[mapId] = map;
 }
 
-function initializeCharts(widgets, stats) {
-    if (widgets.land_use) {
-        initLandUseChart('landUseChart', stats.land_use, widgets.land_use);
-    }
-
-    if (widgets.forest_cover) {
-        initForestCoverChart('forestCoverChart', stats.forest_cover, widgets.forest_cover);
-    }
-
-    if (widgets.elevation_distribution) {
-        initElevationChart('elevationDistributionChart', stats.elevation_distribution, widgets.elevation_distribution);
-    }
-
-    if (widgets.forest_types) {
-        initForestTypesChart('forestTypesChart', stats.forest_types, widgets.forest_types);
-    }
-
-    if (widgets.forest_cover_by_elevation) {
-        initForestCoverByElevationChart('forestCoverByElevationChart', stats.forest_cover_by_elevation, widgets.forest_cover_by_elevation);
-    }
-
-    if (widgets.forest_types_by_elevation) {
-        initForestTypesByElevationChart('forestTypesByElevationChart', stats.forest_types_by_elevation,
-            widgets.forest_types_by_elevation);
-    }
-
-    if (widgets.holdridge_distribution) {
-        initHoldridgeChart('holdridgeChart', stats.holdridge, widgets.holdridge_distribution);
-    }
-
-    if (widgets.fragmentation) {
-        initFragmentationGauge('fragmentationGauge', stats.fragmentation, widgets.fragmentation);
-    }
-
-    if (widgets.fragmentation_distribution) {
-        initFragmentationDistributionChart('fragmentationDistributionChart', stats.fragmentation_distribution, widgets.fragmentation_distribution);
-    }
-}
-
-function initLandUseChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    const colors = config.series[0].colors;
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.categories,
-            datasets: [{
-                data: data.values,
-                backgroundColor: data.categories.map(cat => colors[cat]),
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                title: {
-                    display: false
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        autoSkip: false,
-                        maxRotation: 45,
-                        minRotation: 45
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: '#e5e5e5',
-                        borderDash: [2, 2]
-                    },
-                    title: {
-                        display: true,
-                        text: 'Superficie (ha)'
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            if (value >= 1000000) {
-                                return (value / 1000000).toFixed(1) + 'M';
-                            }
-                            if (value >= 1000) {
-                                return (value / 1000).toFixed(0) + 'k';
-                            }
-                            return value;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-// Chart initialization functions
-function initForestCoverChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    // Préparation des données
-    const communeData = [Math.round(data.foret * 10) / 10, Math.round(data.hors_foret * 10) / 10];
-    const numData = [Math.round(data.num.foret * 10) / 10, Math.round(data.num.hors_foret * 10) / 10];
-    const umData = [Math.round(data.um.foret * 10) / 10, Math.round(data.um.hors_foret * 10) / 10];
-
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            datasets: [
-                {
-                    label: 'Emprise',
-                    data: communeData,
-                    backgroundColor: ['#2E7D32', '#F4E4BC'],
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                    radius: '100%',
-                    spacing: 0
-                },
-                {
-                    label: 'NUM',
-                    data: numData,
-                    backgroundColor: ['#2E7D32', '#C5A98B'],
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                    radius: '100%',
-                    spacing: 0
-                },
-                {
-                    label: 'UM',
-                    data: umData,
-                    backgroundColor: ['#2E7D32', '#8B7355'],
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                    radius: '100%',
-                    spacing: 0
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '20%',
-            rotation: -90,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    enabled: false
-                }
-            }
-        },
-        plugins: [{
-            id: 'customLabels',
-            afterDraw: function(chart) {
-                const ctx = chart.ctx;
-                ctx.save();
-                ctx.font = '11px system-ui';
-                ctx.textBaseline = 'middle';
-                ctx.textAlign = 'center';
-
-                // Labels et pourcentages pour chaque anneau
-                const datasets = chart.data.datasets;
-                const meta = chart.getDatasetMeta(0);
-                const centerX = meta.data[0].x;
-                const centerY = meta.data[0].y;
-
-                // Pour chaque dataset (anneau)
-                datasets.forEach((dataset, i) => {
-                    const meta = chart.getDatasetMeta(i);
-                    const percentage = dataset.data[0];
-                    const element = meta.data[0];
-
-                    // Position pour le pourcentage (à gauche de la section verte)
-                    const percentageAngle = -Math.PI + 0.2; // -45 degrés
-                    console.log(percentageAngle)
-                    const radius = (element.innerRadius + element.outerRadius) / 2;
-                    const x = centerX + Math.cos(percentageAngle) * radius;
-                    const y = centerY + Math.sin(percentageAngle) * radius;
-
-                    // Affichage du pourcentage
-                    ctx.fillText(percentage + '%', x, y);
-
-                    // Position pour le label (à droite)
-                    if (i === 0) {
-                        ctx.fillText('Emprise', centerX, centerY + element.outerRadius - 13);
-                    } else if (i === 1) {
-                        ctx.fillText('NUM', centerX, centerY + element.outerRadius - 10);
-                    } else {
-                        ctx.fillText('UM', centerX, centerY + element.outerRadius - 10);
-                    }
-                });
-
-                ctx.restore();
-            }
-        }]
-    });
-}
-
-function initElevationChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.altitudes,
-            datasets: [
-                {
-                    label: 'Forêt',
-                    data: data.forest,
-                    backgroundColor: '#2E7D32', // Vert plus foncé
-                    stack: 'Stack 0'
-                },
-                {
-                    label: 'Hors-forêt',
-                    data: data.non_forest,
-                    backgroundColor: '#F4E4BC', // Beige plus clair
-                    stack: 'Stack 0'
-                }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            scales: {
-                x: {
-                    stacked: true,
-                    title: {
-                        display: true,
-                        text: 'Superficie (ha)'
-                    },
-                    grid: {
-                        display: false // Masquer la grille verticale
-                    }
-                },
-                y: {
-                    stacked: true,
-                    title: {
-                        display: true,
-                        text: 'Altitude (m)'
-                    },
-                    reverse: true, // Inverser l'axe des altitudes pour avoir les plus hautes en haut
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            },
-            maintainAspectRatio: false
-        }
-    });
-}
-
-function initForestTypesChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    // S'assurer que les données sont arrondies à 1 décimale
-    const forestData = {
-        secondaire: data.secondaire.toFixed(1),
-        mature: data.mature.toFixed(1),
-        coeur: data.coeur.toFixed(1)
-    };
-
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Forêt secondaire', 'Forêt mature', 'Forêt de coeur'],
-            datasets: [{
-                data: [
-                    forestData.secondaire,
-                    forestData.mature,
-                    forestData.coeur
-                ],
-                backgroundColor: [
-                    '#C5E1A5', // Vert clair pour forêt secondaire
-                    '#7CB342', // Vert moyen pour forêt mature
-                    '#2E7D32'  // Vert foncé pour forêt de coeur
-                ],
-                borderWidth: 2,
-                borderColor: '#ffffff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '60%',
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        padding: 20,
-                        font: {
-                            size: 12
-                        },
-                        usePointStyle: false,
-                        boxWidth: 15
-                    }
-                },
-                title: {
-                    display: false // Le titre est géré dans le template HTML
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.raw + '%';
-                        }
-                    }
-                }
-            }
-        },
-        plugins: [{
-            id: 'text',
-            afterDraw: function(chart) {
-                const ctx = chart.ctx;
-                chart.data.datasets.forEach(function(dataset, i) {
-                    const meta = chart.getDatasetMeta(i);
-                    meta.data.forEach(function(element, index) {
-                        const value = dataset.data[index];
-                        const position = element.getCenterPoint();
-
-                        // Draw value
-                        ctx.save();
-                        ctx.fillStyle = '#000000';
-                        ctx.font = '12px system-ui';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(value + '%', position.x, position.y);
-                        ctx.restore();
-                    });
-                });
-            }
-        }]
-    });
-}
-
-function initForestCoverByElevationChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    // Traitement des données
-    const umData = data.um.map(value => isNaN(value) ? 0 : -value);
-    const numData = data.num.map(value => isNaN(value) ? 0 : value);
-    const horsForetUMData = data.hors_foret_um.map(value => isNaN(value) ? 0 : value);
-    const horsForetNUMData = data.hors_foret_num.map(value => isNaN(value) ? 0 : value);
-
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.altitudes,
-            datasets: [
-                {
-                    label: 'Forêt (UM)',
-                    data: umData,
-                    backgroundColor: '#90EE90',
-                },
-                {
-                    label: 'Forêt (NUM)',
-                    data: numData,
-                    backgroundColor: '#2E7D32',
-                },
-                {#{
-                    label: 'Hors-forêt (UM)',
-                    data: horsForetUMData.map(value => -value),
-                    backgroundColor: '#F4E4BC',
-                },
-                {
-                    label: 'Hors-forêt (NUM)',
-                    data: horsForetNUMData,
-                    backgroundColor: '#F4E4BC',
-                }#}
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: 'y',
-            scales: {
-                x: {
-                    stacked: true,
-                    position: 'top',
-                    min: -100,
-                    max: 100,
-                    grid: {
-                        lineWidth: 1,
-                        drawTicks: false,
-                        borderDash: [5, 5]
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            return Math.abs(value);
-                        },
-                        stepSize: 20,
-                        font: {
-                            size: 10
-                        }
-                    },
-                    border: {
-                        display: false
-                    }
-                },
-                y: {
-                    stacked: true,
-                    position: 'left',
-                    reverse: true,
-                    grid: {
-                        display: true,
-                        lineWidth: 1,
-                        drawTicks: false,
-                        borderDash: [5, 5]
-                    },
-                    ticks: {
-                        font: {
-                            size: 12
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Altitude (m)',
-                        font: {
-                            size: 12
-                        }
-                    },
-                    border: {
-                        display: false
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    align: 'center',
-                    labels: {
-                        boxWidth: 10,
-                        padding: 15,
-                        font: {
-                            size: 12
-                        }
-                    }
-                },
-                title: {
-                    display: true,
-                    text: 'Couverture (%)',
-                    position: 'top',
-                    align: 'center',
-                    font: {
-                        size: 12
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.dataset.label + ': ' + Math.abs(context.raw).toFixed(1) + '%';
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-function initForestTypesByElevationChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    // Trier les données par altitude croissante
-    const indices = data.altitudes.map((v, i) => i);
-    indices.sort((a, b) => data.altitudes[a] - data.altitudes[b]);
-
-    // Réorganiser toutes les données dans l'ordre des altitudes
-    const sortedData = {
-        altitudes: indices.map(i => data.altitudes[i]),
-        coeur: indices.map(i => data.coeur[i] * 100),
-        mature: indices.map(i => data.mature[i] * 100),
-        secondaire: indices.map(i => data.secondaire[i] * 100)
-    };
-
-    new Chart(ctx, {
-        type: 'line', // Changé en 'line' pour avoir des aires
-        data: {
-            labels: sortedData.altitudes.map(alt => alt.toString()),
-            datasets: [
-                {
-                    label: 'Forêt secondaire',
-                    data: sortedData.secondaire,
-                    backgroundColor: '#C5E1A5',
-                    borderColor: '#C5E1A5',
-                    fill: true,
-                    pointRadius: 0,
-                    tension: 0.4
-                },
-                {
-                    label: 'Forêt mature',
-                    data: sortedData.mature,
-                    backgroundColor: '#7CB342',
-                    borderColor: '#7CB342',
-                    fill: true,
-                    pointRadius: 0,
-                    tension: 0.4
-                },
-                {
-                    label: 'Forêt de coeur',
-                    data: sortedData.coeur,
-                    backgroundColor: '#2E7D32',
-                    borderColor: '#2E7D32',
-                    fill: true,
-                    pointRadius: 0,
-                    tension: 0.4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Altitude (m)',
-                        font: {
-                            size: 12
-                        }
-                    },
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        maxRotation: 0
-                    }
-                },
-                y: {
-                    stacked: true,
-                    grid: {
-                        color: '#e5e5e5',
-                        borderDash: [2, 2]
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            return value + '%';
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Fréquence (%)',
-                        font: {
-                            size: 12
-                        }
-                    },
-                    min: 0,
-                    max: 100
-                }
-            },
-            plugins: {
-                title: {
-                    display: false // Géré dans le HTML
-                },
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        padding: 20,
-                        usePointStyle: false,
-                        boxWidth: 15
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
-                        }
-                    }
-                }
-            },
-            interaction: {
-                mode: 'nearest',
-                axis: 'x',
-                intersect: false
-            }
-        }
-    });
-}
-
-function initHoldridgeChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    // Préparer les données
-    const labels = ['Sec', 'Humide', 'Très Humide'];
-    const forestData = [
-        data.forest.sec * 100,
-        data.forest.humide * 100,
-        data.forest.tres_humide * 100
-    ];
-    const nonForestData = [
-        data.non_forest.sec * 100,
-        data.non_forest.humide * 100,
-        data.non_forest.tres_humide * 100
-    ];
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Forêt',
-                    data: forestData,
-                    backgroundColor: '#2E7D32',
-                    stack: 'Stack 0'
-                },
-                {
-                    label: 'Hors-forêt',
-                    data: nonForestData,
-                    backgroundColor: '#F4E4BC',
-                    stack: 'Stack 0'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    stacked: true,
-                    grid: {
-                        color: '#e5e5e5',
-                        borderDash: [2, 2]
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            return value + '%';
-                        }
-                    },
-                    max: 100,
-                    min: 0,
-                    title: {
-                        display: true,
-                        text: 'Fréquence (%)'
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    align: 'end'
-                },
-                title: {
-                    display: true,
-                    text: 'Forêt et milieux de vie',
-                    font: {
-                        size: 16
-                    }
-                }
-            }
-        }
-    });
-}
-
-function initFragmentationGauge(canvasId, data, config) {
-    const container = document.getElementById(canvasId);
-    if (!container) return;
-
-    // S'assurer que la valeur est arrondie à 1 décimale
-    const value = parseFloat(data.meff.toFixed(1));
-
-    const gauge = new JustGage({
-        id: canvasId,
-        value: value,
-        min: config.options.min,
-        max: config.options.max,
-        title: config.title,
-        label: "km²",
-        titleFontColor: "#333",
-        valueFontColor: "#333",
-        labelFontColor: "#666",
-        titleFontFamily: "system-ui, -apple-system, sans-serif",
-        valueFontFamily: "system-ui, -apple-system, sans-serif",
-        labelFontFamily: "system-ui, -apple-system, sans-serif",
-        gaugeColor: "#eee",
-        levelColors: config.options.sectors.map(s => s.color),
-        showMinMax: false,
-        decimals: 1,
-        gaugeWidthScale: 0.6,
-        counter: true,
-        pointer: true,
-        pointerOptions: {
-            toplength: 8,
-            bottomlength: -20,
-            bottomwidth: 6,
-            color: '#8e8e93'
-        },
-        donut: false,
-        relativeGaugeSize: true,
-    });
-
-    // Ajouter le texte de la valeur en dessous du gauge
-    const valueText = document.createElement('p');
-    valueText.textContent = `Taille effective de maillage: ${value} km²`;
-    valueText.style.textAlign = 'center';
-    valueText.style.marginTop = '20px';
-    valueText.style.fontSize = '16px';
-    valueText.style.color = '#333';
-    container.parentNode.appendChild(valueText);
-}
-
-function initFragmentationDistributionChart(canvasId, data, config) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    // Trier les données
-    const sortedData = data.sizes.map((size, index) => ({
-        size: size,
-        value: data.values[index]
-    })).sort((a, b) => a.size - b.size);
-
-    // Séparer les données triées
-    const sortedSizes = sortedData.map(d => d.size);
-    const sortedValues = sortedData.map(d => d.value);
-
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: sortedSizes,
-            datasets: [{
-                label: 'Aire Cumulée',
-                data: sortedValues.map(v => v * 100),
-                borderColor: '#2E7D32',
-                backgroundColor: '#2E7D32',
-                fill: true,
-                tension: 0.3,
-                pointRadius: 0,
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    type: 'logarithmic',
-                    title: {
-                        display: true,
-                        text: 'Surperficie (ha)',
-                        font: {
-                            size: 12
-                        }
-                    },
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        callback: value => value.toString()
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Fréquence (%)',
-                        font: {
-                            size: 12
-                        }
-                    },
-                    grid: {
-                        color: '#e5e5e5',
-                        borderDash: [2, 2]
-                    },
-                    ticks: {
-                        callback: value => value + '%'
-                    },
-                    min: 0,
-                    max: 100,
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        usePointStyle: false,
-                        boxWidth: 15,
-                        padding: 20
-                    }
-                },
-                title: {
-                    display: true,
-                    text: 'Fragments forestiers',
-                    font: {
-                        size: 16,
-                        weight: 'normal'
-                    },
-                    padding: {
-                        bottom: 30
-                    }
-                }
-            }
-        }
-    });
-}
-
+// =====================================
+// Shape Tree Management
+// =====================================
+/**
+ * Creates hierarchical tree view of shapes
+ * Handles shape type grouping and current selection
+ */
 function createShapeTree(container, shapeTypes) {
     const $ul = $('<ul class="mb-3"></ul>');
 
@@ -1453,6 +761,140 @@ function createShapeTree(container, shapeTypes) {
     $(container).append($ul);
 }
 
-let maps = {};  // Store map instances
+
+// =====================================
+// Value Formatters
+// =====================================
+// Various formatters for different data types
+window.formatLogValue = function(value) {
+    return value.toString();
+};
+window.formatSurfaceValue = function(value) {
+    if (value >= 1000000) {
+        return (value / 1000000).toFixed(1) + 'M';
+    }
+    if (value >= 1000) {
+        return (value / 1000).toFixed(0) + 'k';
+    }
+    return value;
+};
+window.formatPercentageValue = function(value) {
+    return (value * 100) + '%';
+};
+window.formatPercentage = function(value) {
+    return value.toFixed(0) + '%';
+};
+window.formatForestTypeTooltip = function(context) {
+    return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
+};
+window.formatTooltipLabel = function (context) {
+    return `${context.label}: ${context.parsed}%`;
+};
+window.formatForestTypeTooltip = function(context) {
+    const value = Math.round(context.raw);  // ou .toFixed(0) pour aucune décimale
+    return context.dataset.label + ': ' + value + '%';
+};
+window.formatAbsoluteValue = function(value) {
+    // Si c'est zéro, on l'affiche au centre
+    if (value === 0) return '0';
+    // Pour les autres valeurs, on affiche la valeur absolue
+    return Math.abs(value).toString();
+};
+
+window.formatForestCoverTooltip = function(context) {
+    const label = context.dataset.label;
+    const value = Math.abs(context.raw).toFixed(1);
+    return `${label}: ${value}%`;
+};
+
+function transformDataValue(value, transform) {
+    if (!transform) return value;
+
+    switch(transform) {
+        case 'negateValues':
+            return isNaN(value) ? 0 : -value;
+        case 'toPercentage':
+            return isNaN(value) ? 0 : value * 100;
+        default:
+            return value;
+    }
+}
+function formatValue(value, chartType) {
+    switch(chartType) {
+        case 'doughnut_chart':
+        case 'pie_chart':
+            return Number(value).toFixed(1);
+        default:
+            return value;
+    }
+}
+
+// =====================================
+// Custom Plugins
+// =====================================
+/**
+ * Custom plugin for drawing labels on doughnut charts
+ */
+window.customLabels = {
+    id: 'customLabels',
+    afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.font = '11px system-ui';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        const datasets = chart.data.datasets;
+        const meta = chart.getDatasetMeta(0);
+        const centerX = meta.data[0].x;
+        const centerY = meta.data[0].y;
+
+        datasets.forEach((dataset, i) => {
+            const meta = chart.getDatasetMeta(i);
+            const percentage = dataset.data[0];
+            const element = meta.data[0];
+
+            const percentageAngle = -Math.PI + 0.2;
+            const radius = (element.innerRadius + element.outerRadius) / 2;
+            const x = centerX + Math.cos(percentageAngle) * radius;
+            const y = centerY + Math.sin(percentageAngle) * radius;
+
+            ctx.fillText(percentage + '%', x, y);
+
+            // Affichage du label
+            ctx.fillText(dataset.label, centerX, centerY + element.outerRadius - 10);
+        });
+
+        ctx.restore();
+    }
+};
+
+/**
+ * Custom plugin for drawing percentage labels on forest type charts
+ */
+window.forestTypeLabelsPlugin = {
+    id: 'text',
+    afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        chart.data.datasets.forEach(function(dataset, i) {
+            const meta = chart.getDatasetMeta(i);
+            meta.data.forEach(function(element, index) {
+                const value = dataset.data[index];
+                const position = element.getCenterPoint();
+
+                // Draw value
+                ctx.save();
+                ctx.fillStyle = '#000000';
+                ctx.font = '12px system-ui';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(value + '%', position.x, position.y);
+                ctx.restore();
+            });
+        });
+    }
+};
+
+
 </script>
 {% endblock %}

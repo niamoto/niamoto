@@ -1,0 +1,62 @@
+{% macro render_widget(widget, content) %}
+<div class="bg-white rounded-lg shadow-lg overflow-hidden">
+    <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+        <h2 class="text-lg">{{ widget.title }}</h2>
+        {% if widget.description %}
+        <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+            <i class="fas fa-info"></i>
+            <span class="tooltip-content">{{ widget.description }}</span>
+        </button>
+        {% endif %}
+    </div>
+    <div class="p-4">
+        {{ content }}
+    </div>
+</div>
+{% endmacro %}
+
+{% macro render_info_panel_content(widget, data) %}
+<!-- Titre principal (si disponible) -->
+{% if data.name %}
+<h3 class="text-lg font-bold text-gray-800 mb-4">{{ data.name }}</h3>
+{% endif %}
+
+<!-- Liste des informations -->
+<div class="space-y-3">
+    {% for item in widget.fields %}
+    <div class="flex items-center justify-between">
+        <span class="text-gray-600">{{ item.label }}</span>
+        <span class="font-medium">
+            {% if item.format == 'range' and data[item.source] %}
+                {{ data[item.source].min  }} - {{ data[item.source].max  }}{{ item.suffix or '' }}
+            {% elif item.format == 'number' and data[item.source] is not none %}
+                {{ data[item.source] | numberformat }}{{ item.suffix or '' }}
+            {% elif data[item.source] is not none %}
+                {{ data[item.source] }}{{ item.suffix or '' }}
+            {% else %}
+                N/A
+            {% endif %}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+
+{% endmacro %}
+
+{% macro render_chart_content(widget, widget_key) %}
+    <div class="chart-container" style="height: {{ widget.height or '300px' }};">
+        <canvas id="{{ widget.id or widget_key + 'Chart' }}"></canvas>
+    </div>
+{% endmacro %}
+
+{% macro render_gauge_content(widget, widget_key) %}
+    <div class="gauge-container" style="height: {{ widget.height or '300px' }};">
+        <div id="{{ widget.id or widget_key + 'Gauge' }}"></div>
+    </div>
+{% endmacro %}
+
+{% macro render_map_content(widget, widget_key) %}
+    <div class="h-96">
+        <div id="{{ widget.id or widget_key + 'Map' }}" class="w-full h-full"></div>
+    </div>
+{% endmacro %}

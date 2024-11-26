@@ -35,6 +35,8 @@ from shapely.geometry import mapping, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
 from shapely import wkt, wkb
+from sqlalchemy import bindparam
+from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef, TaxonRef
@@ -1397,11 +1399,19 @@ class ShapeStatsCalculator(StatisticsCalculator):
         shape_id = int(shape_data["id"].iloc[0])
 
         # Get shape reference and forest coverage
-        shape_ref = (
-            self.db.session.query(ShapeRef).filter(ShapeRef.id == shape_id).first()
-        )
-        if not shape_ref:
-            raise ValueError(f"Shape {shape_id} not found in database")
+        try:
+            shape_ref = (
+                self.db.session.query(ShapeRef)
+                .filter(ShapeRef.id == bindparam("shape_id", shape_id))
+                .first()
+            )
+            if not shape_ref:
+                raise ValueError(f"Shape {shape_id} not found in database")
+        except SQLAlchemyError as e:
+            self.logger.error(
+                f"Database error when fetching shape {shape_id}: {str(e)}"
+            )
+            return stats
 
         # Load geometries
         shape_gdf = self.load_shape_geometry(str(shape_ref.location))
@@ -1436,7 +1446,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         # General information
         stats["general_info"] = {
-            "name": shape_id,
+            "name": shape_ref.label.replace("'", "''"),
             "surface_totale": float(
                 shape_data[shape_data["class_object"] == "land_area_ha"][
                     "class_value"
@@ -1474,24 +1484,24 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     ].iloc[0]
                 ),
             },
-            "altitude": {
-                "median": int(
-                    shape_data[shape_data["class_object"] == "elevation_median"][
-                        "class_value"
-                    ].iloc[0]
-                ),
-                "max": int(
-                    shape_data[shape_data["class_object"] == "elevation_max"][
-                        "class_value"
-                    ].iloc[0]
-                ),
-            },
+            "altitude_median": int(
+                shape_data[shape_data["class_object"] == "elevation_median"][
+                    "class_value"
+                ].iloc[0]
+            ),
+            "altitude_max": int(
+                shape_data[shape_data["class_object"] == "elevation_max"][
+                    "class_value"
+                ].iloc[0]
+            ),
         }
 
         # Forest cover distribution
         cover_forest = shape_data.loc[shape_data["class_object"] == "cover_forest"]
         cover_forestum = shape_data.loc[shape_data["class_object"] == "cover_forestum"]
-        cover_forestnum = shape_data.loc[shape_data["class_object"] == "cover_forestnum"]
+        cover_forestnum = shape_data.loc[
+            shape_data["class_object"] == "cover_forestnum"
+        ]
 
         # Fonction pour convertir une valeur en pourcentage
         def to_percentage(value):
@@ -1567,13 +1577,19 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         stats["forest_types"] = {
             "secondaire": to_percentage(
-                forest_types[forest_types["class_name"] == "Forêt secondaire"]["class_value"].iloc[0]
+                forest_types[forest_types["class_name"] == "Forêt secondaire"][
+                    "class_value"
+                ].iloc[0]
             ),
             "mature": to_percentage(
-                forest_types[forest_types["class_name"] == "Forêt mature"]["class_value"].iloc[0]
+                forest_types[forest_types["class_name"] == "Forêt mature"][
+                    "class_value"
+                ].iloc[0]
             ),
             "coeur": to_percentage(
-                forest_types[forest_types["class_name"] == "Forêt coeur"]["class_value"].iloc[0]
+                forest_types[forest_types["class_name"] == "Forêt coeur"][
+                    "class_value"
+                ].iloc[0]
             ),
         }
 
