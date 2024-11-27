@@ -195,9 +195,6 @@ function loadCharts(item, mapping) {
                     var pieCtx = document.getElementById(field_key + 'PieChart').getContext('2d');
                     new Chart(pieCtx, pieConfig);
 
-                    // Set the size of the chart container
-                    pieCtx.canvas.parentNode.style.height = '468px';
-                    pieCtx.canvas.parentNode.style.width = '100%';
 
                 } else if (transformation.chart_type === 'gauge') {
                     var gaugeOptions = {
@@ -206,7 +203,7 @@ function loadCharts(item, mapping) {
                         min: 0,
                         max: transformation.chart_options.max,
                         title: transformation.chart_options.title,
-                        label: transformation.chart_options.label
+                        label: transformation.chart_options.label,
                     };
 
                     createGauge(gaugeOptions);
@@ -315,7 +312,6 @@ function loadCharts(item, mapping) {
                                 x: {
                                     title: {
                                         display: true,
-                                        text: 'Count',
                                         font: {
                                             weight: 'bold'
                                         }
@@ -359,37 +355,28 @@ function createGauge(options) {
         max: options.max,
         title: options.title,
         label: options.label,
-        pointer: true,
-        pointerOptions: {
-            toplength: 10,
-            bottomlength: 10,
-            bottomwidth: 2,
-            color: '#8e8e93',
-            stroke: '#ffffff',
-            stroke_width: 3,
-            stroke_linecap: 'round'
-        },
-        gaugeWidthScale: 0.6,
-        counter: true,
-        donut: true,
-        relativeGaugeSize: true,
-        donutStartAngle: 270,
-        hideInnerShadow: true,
-        customSectors: [{
-            color: "#ff0000",
-            lo: 0,
-            hi: options.max * 0.33
-        }, {
-            color: "#ffff00",
-            lo: options.max * 0.33,
-            hi: options.max * 0.66
-        }, {
-            color: "#00ff00",
-            lo: options.max * 0.66,
-            hi: options.max
-        }],
-        humanFriendly: true,
-        formatNumber: true,
+        decimals: 1,
+            gaugeWidthScale: 0.6,
+            counter: true,
+            pointer: true,
+            pointerOptions: {
+        toplength: -15,
+        bottomlength: 10,
+        bottomwidth: 12,
+        color: '#8E8E93',
+        stroke: '#fff',
+        stroke_width: 3,
+        stroke_linecap: 'round'
+    },
+        levelColors: ["#e62c2a", "#f46708", "#dfd419", "#7fd742", "#00a94c"],
+            // Default options that don't need to be in config
+            showMinMax: false,
+            donut: false,
+            relativeGaugeSize: true,
+            // Font colors that don't need to be in config
+            titleFontColor: "#333",
+            valueFontColor: "#333",
+            labelFontColor: "#666"
     });
 }
 
@@ -553,7 +540,7 @@ function initMap() {
             transparent: true,
             attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
         });
-        const map = L.map('taxonMap', {
+        const map = L.map('mapContainer', {
             center: [-21.291237, 165.516418],
             minZoom: 6,
             maxZoom: 18,

@@ -1,11 +1,13 @@
 {% macro render_widget(widget, content) %}
-<div class="bg-white rounded-lg shadow-lg overflow-hidden">
+<div class="bg-white rounded-lg shadow-lg overflow-hidden mb-4 md:mb-0">
     <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
         <h2 class="text-lg">{{ widget.title }}</h2>
         {% if widget.description %}
         <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
             <i class="fas fa-info"></i>
-            <span class="tooltip-content">{{ widget.description }}</span>
+            <span class="tooltip-content hidden group-hover:block absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 md:w-64 bg-white p-2 rounded shadow-lg text-sm z-50">
+                {{ widget.description }}
+            </span>
         </button>
         {% endif %}
     </div>
@@ -16,35 +18,35 @@
 {% endmacro %}
 
 {% macro render_info_panel_content(widget, data) %}
-<!-- Titre principal (si disponible) -->
-{% if data.name %}
-<h3 class="text-lg font-bold text-gray-800 mb-4">{{ data.name }}</h3>
-{% endif %}
+    <!-- Title -->
+    {% if data.name %}
+    <h3 class="text-lg font-bold text-gray-800 mb-4">{{ data.name }}</h3>
+    {% endif %}
 
-<!-- Liste des informations -->
-<div class="space-y-3">
-    {% for item in widget.fields %}
-    <div class="flex items-center justify-between">
-        <span class="text-gray-600">{{ item.label }}</span>
-        <span class="font-medium">
-            {% if item.format == 'range' and data[item.source] %}
-                {{ data[item.source].min  }} - {{ data[item.source].max  }}{{ item.suffix or '' }}
-            {% elif item.format == 'number' and data[item.source] is not none %}
-                {{ data[item.source] | numberformat }}{{ item.suffix or '' }}
-            {% elif data[item.source] is not none %}
-                {{ data[item.source] }}{{ item.suffix or '' }}
-            {% else %}
-                N/A
-            {% endif %}
-        </span>
+    <!-- Information panel content -->
+    <div class="space-y-2 md:space-y-3">
+        {% for item in widget.fields %}
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2">
+            <span class="text-gray-600 text-sm md:text-base mb-1 sm:mb-0">{{ item.label }}</span>
+            <span class="font-medium text-sm md:text-base">
+                {% if item.format == 'range' and data[item.source] %}
+                    {{ data[item.source].min  }} - {{ data[item.source].max  }}{{ item.suffix or '' }}
+                {% elif item.format == 'number' and data[item.source] is not none %}
+                    {{ data[item.source] | numberformat }}{{ item.suffix or '' }}
+                {% elif data[item.source] is not none %}
+                    {{ data[item.source] }}{{ item.suffix or '' }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </span>
+        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
-</div>
 
 {% endmacro %}
 
 {% macro render_chart_content(widget, widget_key) %}
-    <div class="chart-container" style="height: {{ widget.height or '300px' }};">
+    <div class="chart-container h-48 sm:h-64 md:h-72 lg:h-80">
         <canvas id="{{ widget.id or widget_key + 'Chart' }}"></canvas>
     </div>
 {% endmacro %}
@@ -59,4 +61,101 @@
     <div class="h-96">
         <div id="{{ widget.id or widget_key + 'Map' }}" class="w-full h-full"></div>
     </div>
+{% endmacro %}
+
+
+<!-- Taxon and plot page macros -->
+
+{% macro render_geography_field(field_key) %}
+    <div class="w-full px-2 mb-4">
+        <div id="mapContainer" class="map-container" style="height: 400px; position: relative;">
+            <div class="loader-container" id="mapLoader">
+                <div class="loader"></div>
+            </div>
+            <!-- The Leaflet map will be loaded here -->
+        </div>
+    </div>
+{% endmacro %}
+
+{% macro render_info_widget(title, name, data) %}
+<div class="bg-white rounded-lg shadow-lg overflow-hidden">
+    <div class="bg-gray-600 text-white p-3">
+        <h2 class="text-lg">{{ title }}</h2>
+    </div>
+    <div class="p-6 space-y-4">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">{{ name }}</h3>
+        {% for item in data %}
+            <div class="flex justify-between items-start">
+                <span class="text-gray-600">{{ item.label }}:</span>
+                <span class="font-medium text-right">{{ item.value }}</span>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+
+{% macro render_chart(transformation, field_key) %}
+    {% if transformation.chart_type == 'text' %}
+        <div class="w-full">
+            <p id="{{ field_key }}Text"></p>
+        </div>
+    {% elif transformation.chart_type == 'pie' %}
+        <div class="h-64 w-full">
+            <canvas id="{{ field_key }}PieChart" class="w-full h-full"></canvas>
+        </div>
+    {% elif transformation.chart_type == 'gauge' %}
+        <div class="h-64 w-full">
+            <div id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}Gauge" class="w-full h-full"></div>
+        </div>
+    {% elif transformation.name == 'temporal_phenology' %}
+        <div class="h-64 w-full">
+            <canvas id="{{ field_key }}TemporalPhenologyChart" class="w-full h-full"></canvas>
+        </div>
+    {% elif transformation.chart_type == 'bar' %}
+        <div class="h-64 w-full">
+            <canvas id="{{ field_key }}{{ transformation.name if transformation.name is not none else '' }}BarChart" class="w-full h-full"></canvas>
+        </div>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_field(field_key, field) %}
+    {% if field.bins and field.bins.values is defined %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden mb-4 md:mb-0">
+            <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                <h2 class="text-lg">{{ field.bins.chart_options.title }}</h2>
+                {% if field.description %}
+                    <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                        <i class="fas fa-info"></i>
+                        <span class="tooltip-content hidden group-hover:block absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 md:w-64 bg-white p-2 rounded shadow-lg text-sm z-50">
+                            {{ field.description }}
+                        </span>
+                    </button>
+                    {% endif %}
+            </div>
+            <div class="p-4">
+                <canvas id="{{ field.source_field }}BinChart"></canvas>
+            </div>
+        </div>
+
+    {% endif %}
+    {% for transformation in field.transformations %}
+        {% if transformation.chart_options is defined and transformation.chart_type != 'text' %}
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden mb-4 md:mb-0">
+                <div class="bg-gray-600 text-white p-3 flex justify-between items-center">
+                    <h2 class="text-lg">{{ transformation.chart_options.title }}</h2>
+                    {% if field.description %}
+                    <button class="bg-white rounded-full w-6 h-6 flex items-center justify-center text-gray-600 relative group">
+                        <i class="fas fa-info"></i>
+                        <span class="tooltip-content hidden group-hover:block absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 md:w-64 bg-white p-2 rounded shadow-lg text-sm z-50">
+                            {{ field.description }}
+                        </span>
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="p-4">
+                    {{ render_chart(transformation, field_key) }}
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
 {% endmacro %}

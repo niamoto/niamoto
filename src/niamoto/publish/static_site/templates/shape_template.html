@@ -19,7 +19,26 @@
     overflow-y: auto;
     padding-top: 1rem;
 }
+#shape-tree {
+        transition: all 0.3s ease-in-out;
+    }
 
+@media (max-width: 1024px) {
+    #shape-tree:not(.hidden) {
+        animation: slideDown 0.3s ease-in-out;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 #shape-tree ul {
     list-style-type: none;
     padding-left: 0;
@@ -127,7 +146,7 @@
 
 .tooltip-content {
     position: absolute;
-    top: 110%; /* Assure que le tooltip est bien en-dessous */
+    top: 110%;
     left: 50%;
     transform: translateX(-100%);
     background-color: #ffffff;
@@ -165,23 +184,35 @@
 {% endblock %}
 
 {% block sidebar %}
-<div class="w-1/4 p-4 mt-28" id="shape-sidebar">
-    <div id="shape-tree">
-        <!-- The shape tree will be loaded here -->
+    <!-- Sidebar -->
+    <div class="w-full mt-16 lg:w-1/4 lg:min-h-screen bg-white shadow-md overflow-y-auto">
+        <!-- Menu button for mobile -->
+        <button id="sidebar-toggle"
+                class="lg:hidden w-full flex items-center justify-between p-4 text-gray-600 hover:bg-gray-50">
+            <span>Catégories</span>
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
+
+        <!-- Sidebar content -->
+        <div id="shape-tree" class="hidden lg:block p-4">
+            <!-- The shape list will be loaded here -->
+        </div>
     </div>
-</div>
 {% endblock %}
 
 {% block content %}
+    <div class="flex-1 p-4">
 <!-- Overview Map -->
-<div class="mt-28">
+<div class="mt-16">
     <div class="map-container" id="allShapesMap"></div>
 </div>
 
 <!-- Main Content -->
-<div class="container mx-auto px-4 py-8">
+<div class="container mx-auto px-4 md:px-6 py-4 md:py-8">
     <!-- Grid principal -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
         {% for widget_key, widget in mapping.widgets.items() %}
             {% if widget.type == 'info_panel' %}
                 {% set content = widgets.render_info_panel_content(widget, stats[widget_key]|from_json ) %}
@@ -200,9 +231,47 @@
     </div>
 
 </div>
+</div>
 {% endblock %}
 {% block extra_scripts %}
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion du toggle du menu mobile
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const shapeTree = document.getElementById('shape-tree');
+
+    if (sidebarToggle && shapeTree) {
+        sidebarToggle.addEventListener('click', function() {
+            // Toggle la classe hidden sur le shape-tree
+            shapeTree.classList.toggle('hidden');
+
+            // Toggle une classe pour indiquer l'état ouvert/fermé
+            this.classList.toggle('menu-open');
+
+            // Change l'icône si besoin
+            const svg = this.querySelector('svg');
+            if (this.classList.contains('menu-open')) {
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
+            } else {
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
+            }
+        });
+
+        // Fermer le menu au clic en dehors
+        document.addEventListener('click', function(e) {
+            if (!sidebarToggle.contains(e.target) &&
+                !shapeTree.contains(e.target) &&
+                !shapeTree.classList.contains('hidden') &&
+                window.innerWidth < 1024) {
+                shapeTree.classList.add('hidden');
+                sidebarToggle.classList.remove('menu-open');
+                const svg = sidebarToggle.querySelector('svg');
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
+            }
+        });
+    }
+});
+
 // =====================================
 // Constants & Initial Setup
 // =====================================
