@@ -83,7 +83,7 @@ class StatisticService:
                 shape_calculator = ShapeStatsCalculator(
                     self.db, self.mapper_service, occurrences, group_by
                 )
-                shape_calculator.calculate_shape_stats()
+                shape_calculator.import_legacy_shape_stats()
 
     def get_occurrences(
         self, group_by: Optional[str], csv_file: Optional[str]

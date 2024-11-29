@@ -11,10 +11,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
 
     <style>
-        .gauge {
-            height: 349px;
-        }
-
         ul {
             list-style-type: none;
         }
@@ -65,7 +61,7 @@
 </head>
 <body>
     {% include '_nav.html' %}
-    <div class="flex">
+    <div class="flex flex-col lg:flex-row">
         {% block sidebar %}
         {% endblock %}
         <div class="w-full">

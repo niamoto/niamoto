@@ -741,6 +741,7 @@ def import_all() -> None:
 
     console.print("All data sources imported successfully.", style="bold green")
 
+
 def reset_tables(db_path: str) -> None:
     """
     Reset the tables using and recreate them using SQLAlchemy models.
@@ -770,6 +771,7 @@ def reset_tables(db_path: str) -> None:
 
     for table_name in table_names:
         reset_table(db_path, table_name)
+
 
 def reset_table(db_path: str, table_name: str) -> None:
     """

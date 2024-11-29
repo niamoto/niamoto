@@ -50,115 +50,228 @@ class ShapeImporter:
             str: A message indicating the success of the import operation.
 
         Raises:
-            Exception: If an error occurs during the import operation.
+            ValueError: If configuration is invalid or required files are missing
+            FileNotFoundError: If specified files cannot be found
+            Exception: For other import operation errors
         """
         console = Console()
+        import_stats = {
+            "processed": 0,
+            "skipped": 0,
+            "updated": 0,
+            "added": 0,
+            "errors": [],
+        }
+
         try:
+            # Validate config structure
+            if not shapes_config:
+                raise ValueError("Empty shapes configuration provided")
+
+            for shape_info in shapes_config:
+                required_fields = ["category", "label", "path", "name_field"]
+                missing_fields = [
+                    field for field in required_fields if field not in shape_info
+                ]
+                if missing_fields:
+                    raise ValueError(
+                        f"Missing required fields in config: {', '.join(missing_fields)}"
+                    )
+
             with Progress(console=console) as progress:
                 task = progress.add_task(
                     "[green]Importing shapes...", total=len(shapes_config)
                 )
 
                 for shape_info in shapes_config:
-                    shape_category = shape_info["category"]
-                    shape_category_label = shape_info["label"]
-                    file_path = shape_info["path"]
-                    name_field = shape_info["name_field"]
+                    try:
+                        shape_category = shape_info["category"]
+                        shape_category_label = shape_info["label"]
+                        file_path = shape_info["path"]
+                        name_field = shape_info["name_field"]
 
-                    # Create a temporary directory to extract the files
-                    with tempfile.TemporaryDirectory() as tmpdirname:
-                        if file_path.endswith(".zip"):
-                            with zipfile.ZipFile(file_path, "r") as zip_ref:
-                                zip_ref.extractall(tmpdirname)
-                            file_path = next(
-                                (
-                                    os.path.join(root, file)
-                                    for root, _, files in os.walk(tmpdirname)
-                                    for file in files
-                                    if file.endswith(
-                                        (
-                                            ".gpkg",
-                                            ".shp",
-                                            ".geojson",
-                                            ".json",
-                                            ".tab",
-                                            ".mif",
-                                            ".mid",
-                                            ".gdb",
-                                        )
-                                    )
-                                ),
-                                shape_info["path"],
-                            )
-                        # If the file is GeoJSON, try to fix the formatting
-                        if file_path.endswith((".geojson", ".json")):
-                            with open(file_path, "r") as f:
-                                data = json.load(f)
-                            with open(file_path, "w") as f:
-                                json.dump(data, f)
+                        # Check if file exists
+                        if not os.path.exists(file_path):
+                            raise FileNotFoundError(f"File not found: {file_path}")
 
-                        with fiona.open(file_path, "r") as src:
-                            # Get the source CRS
-                            src_crs = CRS.from_string(src.crs_wkt)
-                            # Define the target CRS
-                            dst_crs = CRS.from_epsg(4326)
-
-                            # Create a transformer
-                            transformer = Transformer.from_crs(
-                                src_crs, dst_crs, always_xy=True
+                        # Create a temporary directory to extract the files
+                        with tempfile.TemporaryDirectory() as tmpdirname:
+                            actual_file_path = self._process_input_file(
+                                file_path, tmpdirname
                             )
 
-                            for feature in src:
-                                geom = shape(feature["geometry"])
-
-                                # Convert the 3D geometry to 2D if necessary and transform the coordinates
-                                geom_wgs84 = self.transform_geometry(geom, transformer)
-
-                                # Convert the geometry to WKT
-                                geom_wkt = geom_wgs84.wkt
-
-                                properties = feature["properties"]
-                                label = properties.get(name_field)
-                                label = str(label) if label is not None else None
-
-                                # Validate the properties
-                                if not isinstance(label, str):
-                                    logging.warning(
-                                        f"Skipping feature due to invalid properties: {properties} for "
-                                        f"{name_field}"
-                                    )
-                                    continue
-
-                                if label and geom_wkt:
-                                    existing_shape = (
-                                        self.db.session.query(ShapeRef)
-                                        .filter_by(label=label, type=shape_category)
-                                        .scalar()
-                                    )
-
-                                    if not existing_shape:
-                                        new_shape = ShapeRef(
-                                            label=label,
-                                            type=shape_category,
-                                            type_label=shape_category_label,
-                                            location=geom_wkt,
+                            # Validate the file can be opened with fiona
+                            try:
+                                with fiona.open(actual_file_path, "r") as src:
+                                    # Get and validate CRS
+                                    if not src.crs_wkt:
+                                        raise ValueError(
+                                            f"No CRS found in file: {actual_file_path}"
                                         )
-                                        self.db.session.add(new_shape)
-                                    else:
-                                        # Update the existing shape
-                                        existing_shape.location = geom_wkt
 
-                    progress.update(task, advance=1)
+                                    src_crs = CRS.from_string(src.crs_wkt)
+                                    dst_crs = CRS.from_epsg(4326)
+                                    transformer = Transformer.from_crs(
+                                        src_crs, dst_crs, always_xy=True
+                                    )
 
-            self.db.session.commit()
-            return "Shape data imported successfully."
+                                    # Process features
+                                    for feature in src:
+                                        import_stats["processed"] += 1
+
+                                        try:
+                                            if not feature.get("geometry"):
+                                                import_stats["errors"].append(
+                                                    "Missing geometry in feature"
+                                                )
+                                                import_stats["skipped"] += 1
+                                                continue
+
+                                            geom = shape(feature["geometry"])
+                                            geom_wgs84 = self.transform_geometry(
+                                                geom, transformer
+                                            )
+                                            geom_wkt = geom_wgs84.wkt
+
+                                            properties = feature["properties"]
+                                            if not properties:
+                                                import_stats["errors"].append(
+                                                    "No properties found in feature"
+                                                )
+                                                import_stats["skipped"] += 1
+                                                continue
+
+                                            label = properties.get(name_field)
+                                            label = (
+                                                str(label)
+                                                if label is not None
+                                                else None
+                                            )
+
+                                            if (
+                                                not isinstance(label, str)
+                                                or not label.strip()
+                                            ):
+                                                import_stats["errors"].append(
+                                                    f"Invalid or empty label in feature: {properties}"
+                                                )
+                                                import_stats["skipped"] += 1
+                                                continue
+
+                                            if geom_wkt:
+                                                existing_shape = (
+                                                    self.db.session.query(ShapeRef)
+                                                    .filter_by(
+                                                        label=label, type=shape_category
+                                                    )
+                                                    .scalar()
+                                                )
+
+                                                if not existing_shape:
+                                                    new_shape = ShapeRef(
+                                                        label=label,
+                                                        type=shape_category,
+                                                        type_label=shape_category_label,
+                                                        location=geom_wkt,
+                                                    )
+                                                    self.db.session.add(new_shape)
+                                                    import_stats["added"] += 1
+                                                else:
+                                                    existing_shape.location = geom_wkt
+                                                    import_stats["updated"] += 1
+
+                                        except Exception as feat_error:
+                                            import_stats["errors"].append(
+                                                f"Error processing feature: {str(feat_error)}"
+                                            )
+                                            import_stats["skipped"] += 1
+
+                            except fiona.errors.DriverError as e:
+                                raise ValueError(
+                                    f"Unable to open file {actual_file_path}: {str(e)}"
+                                )
+
+                    except Exception as shape_error:
+                        import_stats["errors"].append(
+                            f"Error processing shape {shape_category}: {str(shape_error)}"
+                        )
+                    finally:
+                        progress.update(task, advance=1)
+
+                self.db.session.commit()
+
+                # Prepare result message
+                result_message = (
+                    f"Import completed:\n"
+                    f"- Processed: {import_stats['processed']} features\n"
+                    f"- Added: {import_stats['added']} new shapes\n"
+                    f"- Updated: {import_stats['updated']} existing shapes\n"
+                    f"- Skipped: {import_stats['skipped']} invalid entries\n"
+                )
+                if import_stats["errors"]:
+                    result_message += "\nErrors encountered:\n"
+                    result_message += "\n".join(
+                        f"- {error}" for error in import_stats["errors"]
+                    )
+
+                return result_message
 
         except Exception as e:
             self.db.session.rollback()
             logging.error(f"Error during shapes data import: {e}")
-            raise e
+            raise
         finally:
             self.db.close_db_session()
+
+    @staticmethod
+    def _process_input_file(file_path: str, tmp_dir: str) -> str:
+        """
+        Process the input file and return the actual path to use.
+
+        Args:
+            file_path (str): Original file path
+            tmp_dir (str): Temporary directory path
+
+        Returns:
+            str: Actual file path to use
+        """
+        if file_path.endswith(".zip"):
+            with zipfile.ZipFile(file_path, "r") as zip_ref:
+                zip_ref.extractall(tmp_dir)
+            actual_path = next(
+                (
+                    os.path.join(root, file)
+                    for root, _, files in os.walk(tmp_dir)
+                    for file in files
+                    if file.endswith(
+                        (
+                            ".gpkg",
+                            ".shp",
+                            ".geojson",
+                            ".json",
+                            ".tab",
+                            ".mif",
+                            ".mid",
+                            ".gdb",
+                        )
+                    )
+                ),
+                None,
+            )
+            if not actual_path:
+                raise ValueError(f"No valid geospatial file found in zip: {file_path}")
+            return actual_path
+
+        elif file_path.endswith((".geojson", ".json")):
+            # Fix JSON formatting if needed
+            with open(file_path, "r") as f:
+                data = json.load(f)
+            tmp_path = os.path.join(tmp_dir, os.path.basename(file_path))
+            with open(tmp_path, "w") as f:
+                json.dump(data, f)
+            return tmp_path
+
+        return file_path
 
     def transform_geometry(
         self, geom: BaseGeometry, transformer: Transformer
