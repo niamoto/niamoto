@@ -55,79 +55,93 @@ function loadCharts(item, mapping) {
 
     Object.entries(mapping.fields).forEach(function ([field_key, field]) {
         if (field.field_type !== 'GEOGRAPHY') {
-            // Chart for bins
-            if (field.bins && field.bins.values && field.bins.values.length > 0 && frequencies && frequencies[field.source_field]) {
-                var labels, values;
-
-                // If labels and values are specified in the config, use them
-                if (field.bins.labels && field.bins.values) {
-                    labels = field.bins.labels;
-                    values = field.bins.values.map(value => frequencies[field_key][value] || 0);
-                } else {
-                    // Create an array of objects with label and value
-                    var dataArray = Object.entries(frequencies[field_key]).map(([label, value]) => ({label, value}));
-
-                    // Sort the data array based on the numeric value of the label
-                    dataArray.sort((a, b) => parseFloat(a.label) - parseFloat(b.label));
-
-                    // Extract sorted labels and values
-                    labels = dataArray.map(item => item.label);
-                    values = dataArray.map(item => item.value);
-                }
-
-                // Reverse the order if indexAxis is 'y'
-                if (field.bins.chart_options.indexAxis === 'y') {
-                    labels.reverse();
-                    values.reverse();
-                }
-
-                var binData = {
-                    labels: labels,
-                    datasets: [{
-                        label: field.label,
-                        data: values,
-                        backgroundColor: field.bins.chart_options.color
-                    }]
-                };
-
-                var binConfig = {
-                    type: field.bins.chart_type,
-                    data: binData,
-                    options: Object.assign({}, field.bins.chart_options, {
-                        scales: {
-                            x: {
-                                stacked: field.bins.chart_options.stacked || false
-                            },
-                            y: {
-                                stacked: field.bins.chart_options.stacked || false
-                            }
-                        },
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function (context) {
-                                        const value = context.raw;
-                                        return `${value}%`;
-                                    }
-                                }
-                            },
-                            datalabels: {
-                                display: true,
-                                align: 'center',
-                                color: 'black',
-                                formatter: function (value) {
-                                    return value + '%';
-                                }
-                            }
-                        }
-                    })
-                };
-
-                var binCtx = document.getElementById(field_key + 'BinChart').getContext('2d');
-                new Chart(binCtx, binConfig);
+            if (field.label === "DBH") {
+                console.log(field)
             }
 
-            // Charts for transformations
+            // Chart for bins
+            if (field.bins && field.bins.values && field.bins.values.length > 0) {
+                // Vérification des données de fréquence pour les bins
+                if (!frequencies || !frequencies[field.source_field] || Object.keys(frequencies[field.source_field]).length === 0) {
+                    var binContainer = document.getElementById(field_key + 'BinChart');
+                    if (binContainer) {
+                        var container = document.createElement('div');
+                        container.className = 'flex items-center justify-center h-64';
+                        container.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+                        binContainer.parentNode.replaceChild(container, binContainer);
+                    }
+                } else {
+                    // Création du graphique en barres si données présentes
+                    var labels, values;
+                    if (field.bins.labels && field.bins.values) {
+                        labels = field.bins.labels;
+                        values = field.bins.values.map(value => frequencies[field.source_field][value] || 0);
+                    } else {
+                        var dataArray = Object.entries(frequencies[field.source_field])
+                            .map(([label, value]) => ({label, value}))
+                            .sort((a, b) => parseFloat(a.label) - parseFloat(b.label));
+
+                        labels = dataArray.map(item => item.label);
+                        values = dataArray.map(item => item.value);
+                    }
+
+                    if (field.bins.chart_options.indexAxis === 'y') {
+                        labels.reverse();
+                        values.reverse();
+                    }
+
+                    var binData = {
+                        labels: labels,
+                        datasets: [{
+                            label: field.label,
+                            data: values,
+                            backgroundColor: field.bins.chart_options.color
+                        }]
+                    };
+
+                    var binConfig = {
+                        type: field.bins.chart_type,
+                        data: binData,
+                        options: Object.assign({}, field.bins.chart_options, {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    stacked: field.bins.chart_options.stacked || false
+                                },
+                                y: {
+                                    stacked: field.bins.chart_options.stacked || false
+                                }
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.raw}%`;
+                                        }
+                                    }
+                                },
+                                datalabels: {
+                                    display: true,
+                                    align: 'center',
+                                    color: 'black',
+                                    formatter: function(value) {
+                                        return value + '%';
+                                    }
+                                }
+                            }
+                        })
+                    };
+
+                    var binCtx = document.getElementById(field_key + 'BinChart');
+                    if (binCtx) {
+                        new Chart(binCtx.getContext('2d'), binConfig);
+                    }
+                }
+            }
+
+            if (field.transformations) {
+                // Charts for transformations
             field.transformations.forEach(function (transformation) {
                 if (transformation.chart_type === 'text') {
                     var textElement = document.getElementById(field_key + 'Text');
@@ -343,11 +357,23 @@ function loadCharts(item, mapping) {
 
                 }
             });
+            }
+
         }
     });
 }
 
 function createGauge(options) {
+    // Verify if value is a valid number
+    if (options.value === null || options.value === undefined || isNaN(options.value)) {
+        const container = document.getElementById(options.id);
+        if (container) {
+            container.className = 'flex items-center justify-center h-64';
+            container.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+        }
+        return;
+    }
+
     new JustGage({
         id: options.id,
         value: options.value,
