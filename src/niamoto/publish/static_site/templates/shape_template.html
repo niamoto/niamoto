@@ -1,3 +1,4 @@
+{# shape_template.html #}
 {% extends '_base.html' %}
 {% import '_widgets.html' as widgets %}
 
@@ -204,34 +205,28 @@
 
 {% block content %}
     <div class="flex-1 p-4">
-<!-- Overview Map -->
-<div class="mt-16">
-    <div class="map-container" id="allShapesMap"></div>
-</div>
+        <!-- Overview Map -->
+        <div class="mt-16">
+            <div class="map-container" id="allShapesMap"></div>
+        </div>
 
-<!-- Main Content -->
-<div class="container mx-auto px-4 md:px-6 py-4 md:py-8">
-    <!-- Grid principal -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-        {% for widget_key, widget in mapping.widgets.items() %}
-            {% if widget.type == 'info_panel' %}
-                {% set content = widgets.render_info_panel_content(widget, stats[widget_key]|from_json ) %}
-                {{ widgets.render_widget(widget, content) }}
-            {% elif '_chart' in widget.type %}
-                {% set content = widgets.render_chart_content(widget, widget_key) %}
-                {{ widgets.render_widget(widget, content) }}
-            {% elif widget.type == 'gauge' %}
-                {% set content = widgets.render_gauge_content(widget, widget_key) %}
-                {{ widgets.render_widget(widget, content) }}
-            {% elif widget.type == 'map_panel' %}
-                {% set content = widgets.render_map_content(widget, widget_key) %}
-                {{ widgets.render_widget(widget, content) }}
-            {% endif %}
-        {% endfor %}
+        <!-- Main Content -->
+        <div class="container mx-auto px-4 md:px-6">
+            {# Full width widgets #}
+            <div class="mt-16">
+                {% for widget_key, widget in mapping.widgets.items() if widget.layout == 'full_width' %}
+                    {{ widgets.render_widget_content(widget, widget_key, stats) }}
+                {% endfor %}
+            </div>
+
+            {# Grid layout widgets #}
+            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4 mt-4">
+                {% for widget_key, widget in mapping.widgets.items() if widget.layout != 'full_width' %}
+                    {{ widgets.render_widget_content(widget, widget_key, stats) }}
+                {% endfor %}
+            </div>
+        </div>
     </div>
-
-</div>
-</div>
 {% endblock %}
 {% block extra_scripts %}
 <script>
@@ -319,11 +314,10 @@ function getChartTypeFromWidgetType(widgetType) {
         'pie_chart': 'pie',
         'bar_chart': 'bar',
         'line_chart': 'line',
-        'stacked_bar_chart': 'bar', // Les barres empilées sont des graphiques 'bar' avec des options supplémentaires
-        'gauge': 'gauge', // Spécifique pour les jauges
-        // Ajoutez d'autres types de widgets si nécessaire
+        'stacked_bar_chart': 'bar',
+        'gauge': 'gauge'
     };
-    return typeMapping[widgetType] || 'bar'; // Par défaut, retourner 'bar' si le type n'est pas trouvé
+    return typeMapping[widgetType] || 'bar'; //
 }
 
 /**
@@ -386,7 +380,9 @@ function prepareChartData(config, data) {
 
         // Transform data if needed
         if (datasetConfig.transformData) {
-            dataset.data = dataset.data.map(value => transformDataValue(value, datasetConfig.transformData));
+            dataset.data = dataset.data.map((value, index) =>
+                transformDataValue(value, datasetConfig.transformData, index, sortedData)
+            );
         }
 
         // Process colors after data is loaded
@@ -847,9 +843,6 @@ window.formatSurfaceValue = function(value) {
     }
     return value;
 };
-window.formatPercentageValue = function(value) {
-    return (value * 100) + '%';
-};
 window.formatPercentage = function(value) {
     return value.toFixed(0) + '%';
 };
@@ -859,7 +852,7 @@ window.formatForestTypeTooltip = function(context) {
 window.formatTooltipLabel = function (context) {
     return `${context.label}: ${context.parsed}%`;
 };
-window.formatForestTypeTooltip = function(context) {
+window.formatForestTypeElevationTooltip = function(context) {
     const value = Math.round(context.raw);  // ou .toFixed(0) pour aucune décimale
     return context.dataset.label + ': ' + value + '%';
 };
@@ -876,7 +869,7 @@ window.formatForestCoverTooltip = function(context) {
     return `${label}: ${value}%`;
 };
 
-function transformDataValue(value, transform) {
+function transformDataValue(value, transform, valueIndex, allData) {
     if (!transform) return value;
 
     switch(transform) {
@@ -884,6 +877,10 @@ function transformDataValue(value, transform) {
             return isNaN(value) ? 0 : -value;
         case 'toPercentage':
             return isNaN(value) ? 0 : value * 100;
+        case 'stackedPercentage':
+            const total = ['secondaire', 'mature', 'coeur'].reduce((sum, key) =>
+                sum + (allData[key] ? allData[key][valueIndex] : 0), 0);
+            return total === 0 ? 0 : (value / total * 100);
         default:
             return value;
     }
@@ -892,7 +889,7 @@ function formatValue(value, chartType) {
     switch(chartType) {
         case 'doughnut_chart':
         case 'pie_chart':
-            return Number(value).toFixed(1);
+            return Number(value);
         default:
             return value;
     }
@@ -928,7 +925,7 @@ window.customLabels = {
             const x = centerX + Math.cos(percentageAngle) * radius;
             const y = centerY + Math.sin(percentageAngle) * radius;
 
-            ctx.fillText(percentage + '%', x, y);
+            ctx.fillText(percentage.toFixed(1) + '%', x, y);
 
             // Affichage du label
             ctx.fillText(dataset.label, centerX, centerY + element.outerRadius - 10);
@@ -957,7 +954,7 @@ window.forestTypeLabelsPlugin = {
                 ctx.font = '12px system-ui';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(value + '%', position.x, position.y);
+                ctx.fillText(value.toFixed(1) + '%', position.x, position.y);
                 ctx.restore();
             });
         });

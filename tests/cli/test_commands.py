@@ -258,16 +258,6 @@ class TestCommands(unittest.TestCase):
             )
             mock_importer_instance.import_shapes.assert_called_once()
 
-    @patch("niamoto.cli.commands.MapperService")
-    @patch("niamoto.cli.commands.Config")
-    def test_generate_mapping(self, mock_config, mock_mapper_service):
-        result = self.runner.invoke(
-            commands.generate_mapping,
-            ["--data-source", "test.csv", "--mapping-group", "taxon"],
-        )
-        self.assertEqual(result.exit_code, 0)
-        mock_mapper_service.return_value.generate_mapping.assert_called_once()
-
     @patch("niamoto.cli.commands.StatisticService")
     @patch("niamoto.cli.commands.Config")
     def test_calculate_statistics(self, mock_config, mock_statistic_service):

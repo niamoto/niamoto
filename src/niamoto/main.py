@@ -1,8 +1,12 @@
+"""
+Main entry point for the Niamoto CLI application.
+"""
+
 import sys
 import logging
 from typing import Type, Optional, Any
 
-from niamoto.cli.commands import cli
+from niamoto.cli import cli as create_cli
 from niamoto.core.utils.logging_utils import setup_logging
 
 
@@ -23,7 +27,6 @@ def handle_exception(
         This function will log all uncaught exceptions except for KeyboardInterrupt.
     """
     if issubclass(exc_type, KeyboardInterrupt):
-        # Special handling for keyboard interrupt (Ctrl+C)
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
 
@@ -42,7 +45,7 @@ def init_logging() -> None:
 
 def main() -> None:
     """
-    The main entry point for the NiamotoCore application.
+    The main entry point for the Niamoto application.
 
     This function initializes logging, sets up global exception handling,
     and runs the command-line interface. Any unhandled exceptions will be
@@ -61,11 +64,13 @@ def main() -> None:
         # Set up the global exception handler
         sys.excepthook = handle_exception
 
-        # Run the command-line interface
+        # Create and run the CLI
+        cli = create_cli()
         cli()
-    except Exception as e:
-        # Log any unexpected errors that occur in the main function
-        logging.error(f"An error occurred in the main function: {e}", exc_info=True)
+
+    except Exception:
+        # Log any unexpected errors
+        logging.error("An error occurred in the main function", exc_info=True)
         sys.exit(1)
 
 

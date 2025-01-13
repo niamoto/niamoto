@@ -4,7 +4,7 @@ This module contains the StatisticsCalculator class, which is an abstract base c
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Dict, Any, Hashable, Tuple
+from typing import List, Dict, Any, Hashable, Tuple, Union
 
 import pandas as pd
 from rich.console import Console
@@ -12,8 +12,8 @@ from shapely import Point
 from shapely.wkb import loads as load_wkb
 from shapely.wkt import loads as load_wkt
 
+from niamoto.common.config import Config
 from niamoto.common.database import Database
-from niamoto.core.services.mapper import MapperService
 from ...models import TaxonRef
 from ...utils.logging_utils import setup_logging
 
@@ -24,43 +24,39 @@ class StatisticsCalculator(ABC):
 
     Attributes:
         db (Database): The database connection.
-        mapper_service (MapperService): The mapper service.
         occurrences (list[dict[Hashable, Any]]): The occurrences.
         group_by (str): The group by field.
         group_config (dict[str, Any]): The group configuration.
-        identifier (str): The identifier.
-        reference_table_name (str): The reference table name.
-        reference_data_path (str): The reference data path.
-        fields (dict[str, Any]): The fields.
     """
 
     def __init__(
         self,
         db: Database,
-        mapper_service: MapperService,
         occurrences: list[dict[Hashable, Any]],
-        group_by: str,
+        group_config: dict,
         log_component: str = "statistics",
     ):
         """
-        Initializes the StatisticsCalculator with the database connection, mapper service, occurrences, and group by field.
+        Initializes the StatisticsCalculator.
 
         Args:
             db (Database): The database connection.
-            mapper_service (MapperService): The mapper service.
             occurrences (list[dict[Hashable, Any]]): The occurrences.
-            group_by (str): The group by field.
+            group_config (dict): Configuration for the group from stats.yml
+            log_component (str): Name of the logging component
         """
-
         self.db = db
-        self.mapper_service = mapper_service
         self.occurrences = occurrences
-        self.group_by = group_by
-        self.group_config = self.mapper_service.get_group_config(group_by)
-        self.identifier = self.group_config.get("identifier")
-        self.reference_table_name = self.group_config.get("reference_table_name")
-        self.reference_data_path = self.group_config.get("reference_data_path")
-        self.fields = self.mapper_service.get_fields(group_by)
+        self.group_config = group_config
+        self.group_by = group_config.get("group_by")
+        self.widgets_data = group_config.get("widgets_data", {})
+
+        self.config = Config()
+        sources_config = self.config.sources
+        occurrences_config = sources_config.get("occurrences", {})
+        self.occurrence_identifier = occurrences_config.get("identifier", "id_taxonref")
+
+        # Setup logging
         self.logger = setup_logging(component_name=log_component)
         self.console = Console()
 
@@ -101,10 +97,10 @@ class StatisticsCalculator(ABC):
 
         Args:
             group_id (int): The group id.
-            stats (Dict[str, Any]): The statistics.
+            stats (Dict[str, Any]): The statistics for each widget.
         """
         table_name = f"{self.group_by}_stats"
-        # Check if the table exists, otherwise create it
+        # Create table if it doesn't exist
         if not self.db.has_table(table_name):
             self.create_stats_table(table_name)
 
@@ -117,85 +113,54 @@ class StatisticsCalculator(ABC):
         if result is not None:
             count = result.scalar()
             if count is not None and count > 0:
-                # Update the existing entry
-                update_query = f"""
+                # Update existing entry
+                set_clauses = []
+                for widget_name, widget_data in stats.items():
+                    json_data = json.dumps(widget_data).replace("'", "''")
+                    set_clauses.append(f"{widget_name} = '{json_data}'")
+
+                if set_clauses:
+                    update_query = f"""
                         UPDATE {table_name}
-                        SET {', '.join(f"{key} = '{json.dumps(value)}'" if isinstance(value, dict) else f"{key} = '{value}'" for key, value in stats.items())}
+                        SET {', '.join(set_clauses)}
                         WHERE {self.group_by}_id = {group_id}
                     """
-                self.db.execute_sql(update_query)
+                    self.db.execute_sql(update_query)
             else:
-                # Insert a new entry
+                # Insert new entry
+                columns = [f"{self.group_by}_id"] + list(stats.keys())
+                escaped_values = [str(group_id)]
+                for value in stats.values():
+                    json_data = json.dumps(value).replace("'", "''")
+                    escaped_values.append(f"'{json_data}'")
+
                 insert_query = f"""
-                        INSERT INTO {table_name} ({self.group_by}_id, {', '.join(stats.keys())})
-                        VALUES ({group_id}, {', '.join(f"'{json.dumps(value)}'" if isinstance(value, dict) else f"'{value}'" for value in stats.values())})
-                    """
+                                INSERT INTO {table_name} ({', '.join(columns)})
+                                VALUES ({', '.join(escaped_values)})
+                            """
                 self.db.execute_sql(insert_query)
 
     def create_stats_table(self, table_name: str, initialize: bool = False) -> None:
         """
-        Create a statistics table.
+        Create a statistics table with JSON columns for each widget.
 
         Args:
             table_name (str): The table name.
-            initialize (bool, optional): Whether to initialize the table. Defaults to False.
+            initialize (bool): Whether to initialize the table. Defaults to False.
         """
-        # If initialize is True and table exists, drop it
+        # Drop table if initialize is True
         if initialize:
             drop_query = f"DROP TABLE IF EXISTS {table_name}"
             self.db.execute_sql(drop_query)
 
-        # Create the table using raw SQL
+        # Create table with primary key and JSON columns for each widget
         create_table_query = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             {self.group_by}_id INTEGER PRIMARY KEY"""
 
-        # Add fields based on configuration
-        for field, config in self.fields.items():
-            source_field = config.get("source_field")
-            transformations = config.get("transformations", [])
-            field_type = config.get("field_type", "TEXT")
-
-            if source_field is None:
-                # Handle fields without direct source
-                if transformations:
-                    for transformation in transformations:
-                        transform_name = transformation.get("name")
-                        sql_type = self._get_sql_type(field_type)
-                        create_table_query += (
-                            f",\n        {field}_{transform_name} {sql_type}"
-                        )
-                else:
-                    sql_type = self._get_sql_type(field_type)
-                    create_table_query += f",\n        {field} {sql_type}"
-
-            else:
-                # Handle specific types
-                if field_type == "BOOLEAN":
-                    create_table_query += f",\n        {field}_true INTEGER"
-                    create_table_query += f",\n        {field}_false INTEGER"
-
-                elif field_type == "GEOGRAPHY":
-                    if transformations:
-                        for transformation in transformations:
-                            transform_name = transformation.get("name")
-                            create_table_query += (
-                                f",\n        {field}_{transform_name} VARCHAR"
-                            )
-
-                else:
-                    if transformations:
-                        for transformation in transformations:
-                            transform_name = transformation.get("name", "")
-                            field_name = (
-                                f"{field}_{transform_name}" if transform_name else field
-                            )
-                            sql_type = self._get_sql_type(field_type)
-                            create_table_query += f",\n        {field_name} {sql_type}"
-
-                    bins = config.get("bins", [])
-                    if bins:
-                        create_table_query += f",\n        {field}_bins VARCHAR"
+        # Add a JSON column for each widget in widgets_data
+        for widget_name in self.widgets_data.keys():
+            create_table_query += f",\n        {widget_name} JSON"
 
         create_table_query += "\n    )"
 
@@ -204,26 +169,6 @@ class StatisticsCalculator(ABC):
         except Exception as e:
             self.logger.error(f"Error creating table {table_name}: {e}")
             raise
-
-    @staticmethod
-    def _get_sql_type(field_type: str) -> str:
-        """
-        Maps a string-based field type to a DuckDB SQL type.
-
-        Args:
-            field_type (str): The field type as a string.
-
-        Returns:
-            str: The corresponding DuckDB SQL type.
-        """
-        type_mapping = {
-            "INTEGER": "INTEGER",
-            "BOOLEAN": "BOOLEAN",
-            "DOUBLE": "DOUBLE",
-            "TEXT": "VARCHAR",
-            "GEOGRAPHY": "VARCHAR",
-        }
-        return type_mapping.get(field_type, "VARCHAR")
 
     @staticmethod
     def calculate_bins(values: List[float], bins: List[float]) -> dict[str, float]:
@@ -289,7 +234,7 @@ class StatisticsCalculator(ABC):
                         try:
                             # Attempt to parse as WKT
                             geom = load_wkt(point)
-                        except Exception:
+                        except (ValueError, TypeError):
                             # Fall back to assuming the point is a string in the format 'POINT (x y)'
                             try:
                                 coordinates = tuple(
@@ -321,23 +266,23 @@ class StatisticsCalculator(ABC):
         ]
 
     def calculate_top_items(
-        self, occurrences: list[dict[Hashable, Any]], field_config: dict[str, Any]
-    ) -> Dict[str, int]:
+        self, occurrences: list[dict[Hashable, Any]], transform: dict
+    ) -> Union[dict[Any, Any], dict[str, Union[list[str], list[int]]]]:
         """
-        Calculate the top most frequent items in the occurrences based on target ranks.
+        Calculate the top most frequent items in the occurrences.
 
         Args:
-            field_config:
-            occurrences (list[dict[Hashable, Any]]): The occurrences to calculate statistics for.
-
-        Returns:
-            Dict[str, int]: A dictionary with the top items and their counts.
+            occurrences: List of occurrences to analyze
+            transform: The transformation configuration
         """
         taxon_ids = {
-            occ.get("taxon_ref_id") for occ in occurrences if occ.get("taxon_ref_id")
+            occ.get(self.occurrence_identifier)
+            for occ in occurrences
+            if occ.get(self.occurrence_identifier)
         }
-        target_ranks = field_config["transformations"][0]["target_ranks"]
-        top_count = field_config["transformations"][0]["count"]
+
+        target_ranks = transform.get("target_ranks", [])
+        top_count = transform.get("count", 10)
 
         if not taxon_ids:
             return {}
@@ -369,7 +314,7 @@ class StatisticsCalculator(ABC):
         item_counts: dict[str, int] = {}
 
         for occ in occurrences:
-            taxon_id = occ.get("taxon_ref_id")
+            taxon_id = occ.get(self.occurrence_identifier)
             if taxon_id and taxon_id in taxon_dict:
                 taxon = taxon_dict[taxon_id]
                 item_name = self.find_item_name(taxon, taxon_dict, target_ranks)
@@ -380,8 +325,14 @@ class StatisticsCalculator(ABC):
         sorted_items = sorted(item_counts.items(), key=lambda x: x[1], reverse=True)
 
         # Take the top 'top_count' items
-        top_items = dict(sorted_items[:top_count])
-        return top_items
+        top_items = sorted_items[:top_count]
+
+        # Separate the names and counts into two lists
+        tops = [item[0] for item in top_items]
+        counts = [item[1] for item in top_items]
+
+        # Return the result in the desired format
+        return {"tops": tops, "counts": counts}
 
     @staticmethod
     def find_item_name(

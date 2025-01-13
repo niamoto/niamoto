@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from typing import Any, List, Optional, Dict
+from typing import Any, List, Optional, Dict, Callable
 
 import jinja2
 import rjsmin  # type: ignore
@@ -42,7 +42,7 @@ class PageGenerator(BaseGenerator):
         self.static_src_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "static_files"
         )
-        self.output_dir = self.config.get("outputs", "static_site")
+        self.output_dir = self.config.output_paths.get("static_site")
         self.json_output_dir = os.path.join(self.output_dir, "json")
 
         template_loader = jinja2.FileSystemLoader(searchpath=self.template_dir)
@@ -79,143 +79,85 @@ class PageGenerator(BaseGenerator):
             file.write(html_output)
         return output_path
 
+    @staticmethod
+    def _from_json(value):
+        """Converts a JSON string to a Python object."""
+        try:
+            return json.loads(value)
+        except (ValueError, TypeError):
+            return value
+
+    @staticmethod
+    def _numberformat(value):
+        """Formats a number as a string with commas."""
+        try:
+            return "{:,.0f}".format(float(value)).replace(",", " ")
+        except (ValueError, TypeError):
+            return value
+
+    def _generate_item_page(
+        self,
+        item: Any,
+        stats: Optional[Any],
+        mapping_group: Dict[Any, Any],
+        page_type: str,
+        to_dict_method: Callable,
+    ) -> str:
+        """
+        Generic method to generate a webpage for any type of item.
+
+        Args:
+            item: The object (taxon, plot, or shape) for which the webpage is generated
+            stats (dict, optional): A dictionary containing statistics
+            mapping_group (dict): The mapping dictionary containing the configuration
+            page_type (str): Type of page ('taxon', 'plot', 'shape')
+            to_dict_method (Callable): Method to convert the item to a dictionary
+
+        Returns:
+            str: The path of the generated webpage
+        """
+        # Add filters
+        self.template_env.filters["from_json"] = self._from_json
+        self.template_env.filters["numberformat"] = self._numberformat
+
+        # Convert item to dictionary and prepare context
+        item_dict = to_dict_method(item, stats)
+        context = {page_type: item_dict, "stats": stats, "mapping": mapping_group}
+
+        # Use existing generate_page method
+        output_path = self.generate_page(
+            template_name=f"{page_type}_template.html",
+            output_name=f"{page_type}/{item.id}.html",
+            depth="../",
+            context=context,
+        )
+
+        self.copy_static_files()
+        return output_path
+
     def generate_taxon_page(
         self, taxon: TaxonRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
     ) -> str:
-        """
-        Generates a webpage for a given taxon object.
-
-        Args:
-            taxon (niamoto.core.models.models.TaxonRef): The taxon object for which the webpage is generated.
-            stats (dict, optional): A dictionary containing statistics for the taxon.
-            mapping_group (dict): The mapping dictionary containing the configuration for generating the webpage.
-
-        Returns:
-            str: The path of the generated webpage.
-        """
-        template = self.template_env.get_template("taxon_template.html")
-        taxon_dict = self.taxon_to_dict(taxon, stats)
-        context = {
-            "taxon": taxon_dict,
-            "stats": stats,
-            "mapping": mapping_group,
-            "depth": "../",  # This assumes taxon pages are one level deep
-        }
-
-        html_output = template.render(context)
-        taxon_output_dir = os.path.join(self.output_dir, "taxon")
-        os.makedirs(taxon_output_dir, exist_ok=True)
-        output_path = os.path.join(taxon_output_dir, f"{taxon.id}.html")
-        with open(output_path, "w") as file:
-            file.write(html_output)
-        self.copy_static_files()
-        return output_path
+        """Generates a webpage for a given taxon object."""
+        return self._generate_item_page(
+            taxon, stats, mapping_group, "taxon", self.taxon_to_dict
+        )
 
     def generate_plot_page(
         self, plot: PlotRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
     ) -> str:
-        """
-        Generates a webpage for a given plot object.
-
-        Args:
-            plot (niamoto.core.models.models.PlotRef): The plot object for which the webpage is generated.
-            stats (dict, optional): A dictionary containing statistics for the plot.
-            mapping_group (dict): The mapping dictionary containing the configuration for generating the webpage.
-
-        Returns:
-            str: The path of the generated webpage.
-        """
-
-        template = self.template_env.get_template("plot_template.html")
-        plot_dict = self.plot_to_dict(plot, stats)
-        context = {
-            "plot": plot_dict,
-            "stats": stats,
-            "mapping": mapping_group,
-            "depth": "../",  # This assumes plot pages are one level deep
-        }
-
-        html_output = template.render(context)
-        plot_output_dir = os.path.join(self.output_dir, "plot")
-        os.makedirs(plot_output_dir, exist_ok=True)
-        output_path = os.path.join(plot_output_dir, f"{plot.id}.html")
-        with open(output_path, "w") as file:
-            file.write(html_output)
-        self.copy_static_files()
-        return output_path
+        """Generates a webpage for a given plot object."""
+        return self._generate_item_page(
+            plot, stats, mapping_group, "plot", self.plot_to_dict
+        )
 
     def generate_shape_page(
         self, shape: ShapeRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
     ) -> str:
-        """
-        Generates a webpage for a given shape object.
-
-        Args:
-            shape (niamoto.core.models.models.ShapeRef): The shape object for which the webpage is generated.
-            stats (dict, optional): A dictionary containing statistics for the shape.
-            mapping_group (dict): The mapping dictionary containing the configuration for generating the webpage.
-
-        Returns:
-            str: The path of the generated webpage.
-        """
-
-        def from_json(value):
-            """
-            Converts a JSON string to a Python object.
-            Args:
-                value (str): The JSON string to be converted.
-            Returns:
-                Any: The converted object.
-            """
-            import json
-
-            try:
-                return json.loads(value)
-            except (ValueError, TypeError):
-                return value
-
-        def numberformat(value):
-            """
-            Formats a number as a string with commas.
-            Args:
-                value (str): The number to be formatted.
-
-            Returns:
-                str: The formatted number as a string with commas.
-            """
-            try:
-                return "{:,.0f}".format(float(value)).replace(",", " ")
-            except (ValueError, TypeError):
-                return value
-
-        # Ajout des filtres à l'environnement Jinja
-        self.template_env.filters["from_json"] = from_json
-        self.template_env.filters["numberformat"] = numberformat
-
-        template = self.template_env.get_template("shape_template.html")
-        shape_dict = self.shape_to_dict(shape, stats)
-
-        # Here you should retrieve all the shape types for the sidebar
-        shape_types = (
-            self.get_all_shape_types()
-        )  # Ensure you have a method to get all shape types
-
-        context = {
-            "shape": shape_dict,
-            "stats": stats,
-            "mapping": mapping_group,
-            "depth": "../",  # This assumes shape pages are one level deep
-            "shape_types": shape_types,  # Add shape_types to the context
-        }
-
-        html_output = template.render(context)
-        shape_output_dir = os.path.join(self.output_dir, "shape")
-        os.makedirs(shape_output_dir, exist_ok=True)
-        output_path = os.path.join(shape_output_dir, f"{shape.id}.html")
-        with open(output_path, "w") as file:
-            file.write(html_output)
-        self.copy_static_files()
-        return output_path
+        """Generates a webpage for a given shape object."""
+        return self._generate_item_page(
+            shape, stats, mapping_group, "shape", self.shape_to_dict
+        )
 
     def get_all_shape_types(self) -> List[str]:
         """

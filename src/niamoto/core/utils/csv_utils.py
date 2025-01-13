@@ -1,5 +1,5 @@
 from typing import List, Tuple
-import duckdb
+import pandas as pd
 from loguru import logger
 
 
@@ -13,43 +13,48 @@ def analyze_csv_data_types(csv_file: str) -> List[Tuple[str, str]]:
     Returns:
         List[Tuple[str, str]]: A list of tuples with column names and types.
     """
-
     try:
-        con = duckdb.connect()
-        con.execute(
-            f"CREATE TEMPORARY TABLE temp_csv AS SELECT * FROM READ_CSV_AUTO('{csv_file}')"
-        )
-        types_info = con.execute("DESCRIBE temp_csv").fetchall()
-        con.close()
-        return [(col_info[0], col_info[1]) for col_info in types_info]
+        # Read the CSV file with pandas
+        df = pd.read_csv(
+            csv_file, nrows=1000
+        )  # Read first 1000 rows for type inference
+
+        # Map pandas dtypes to SQLite types
+        type_mapping = {
+            "int64": "INTEGER",
+            "float64": "REAL",
+            "object": "TEXT",
+            "bool": "INTEGER",
+            "datetime64[ns]": "TEXT",
+            "category": "TEXT",
+        }
+
+        types_info = []
+        for column in df.columns:
+            pandas_type = str(df[column].dtype)
+            sqlite_type = type_mapping.get(pandas_type, "TEXT")
+            types_info.append((column, sqlite_type))
+
+        return types_info
     except Exception as e:
-        logger.exception(f"Error analyzing CSV file with DuckDB: {e}")
+        logger.exception(f"Error analyzing CSV file: {e}")
         raise ValueError("Unable to analyze CSV file") from e
 
 
-def is_duckdb_type_numeric(duckdb_type: str) -> bool:
+def is_sqlite_type_numeric(sqlite_type: str) -> bool:
     """
-    Check if a DuckDB data type is numeric.
+    Check if a SQLite data type is numeric.
 
     Args:
-        duckdb_type (str): The data type of the column in DuckDB.
+        sqlite_type (str): The data type of the column in SQLite.
 
     Returns:
         bool: True if the type is numeric, False otherwise.
     """
     numeric_types = [
-        "TINYINT",
-        "SMALLINT",
         "INTEGER",
-        "BIGINT",
-        "HUGEINT",
-        "UTINYINT",
-        "USMALLINT",
-        "UINTEGER",
-        "UBIGINT",
-        "UHUGEINT",
-        "DECIMAL",
         "REAL",
-        "DOUBLE",
+        "DECIMAL",
+        "NUMERIC",
     ]
-    return duckdb_type.upper() in numeric_types
+    return sqlite_type.upper() in numeric_types

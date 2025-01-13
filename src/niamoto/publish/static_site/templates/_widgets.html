@@ -17,6 +17,19 @@
 </div>
 {% endmacro %}
 
+{% macro render_widget_content(widget, widget_key, stats) %}
+    {% if widget.type == 'map_panel' %}
+        {% set content = render_map_content(widget, widget_key) %}
+    {% elif widget.type == 'info_panel' %}
+        {% set content = render_info_panel_content(widget, stats[widget_key]|from_json) %}
+    {% elif '_chart' in widget.type %}
+        {% set content = render_chart_content(widget, widget_key) %}
+    {% elif widget.type == 'gauge' %}
+        {% set content = render_gauge_content(widget, widget_key) %}
+    {% endif %}
+    {{ render_widget(widget, content) }}
+{% endmacro %}
+
 {% macro render_info_panel_content(widget, data) %}
     <!-- Title -->
     {% if data.name %}
