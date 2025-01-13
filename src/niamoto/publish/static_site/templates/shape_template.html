@@ -5,183 +5,180 @@
 {% block title %}Niamoto - {{ shape.name }}{% endblock %}
 
 {% block extra_head %}
-<script src="{{ depth }}js/shape_list.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.6/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.6.1/justgage.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="{{ depth }}js/shape_list.js"></script>
+
+    <style>
+        /* Sidebar styles */
+        #shape-sidebar {
+            height: 100vh;
+            overflow-y: auto;
+            padding-top: 1rem;
+        }
+
+        #shape-tree {
+            transition: all 0.3s ease-in-out;
+        }
+
+        @media (max-width: 1024px) {
+            #shape-tree:not(.hidden) {
+                animation: slideDown 0.3s ease-in-out;
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #shape-tree ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin-bottom: 0;
+        }
+
+        .shape-type-link {
+            display: flex;
+            align-items: center;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #343a40;
+            padding: 10px 15px;
+            border-bottom: 1px solid #dee2e6;
+            transition: background-color 0.2s, color 0.2s;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .shape-type-link:hover {
+            background-color: #e9ecef;
+            color: #007bff;
+        }
+
+        .shape-type-link::before {
+            content: '\25B6';
+            margin-right: 10px;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .shape-type-link.open::before {
+            transform: rotate(90deg);
+        }
+
+        .shape-link {
+            display: block;
+            padding: 8px 15px 8px 45px;
+            color: #495057;
+            transition: background-color 0.2s, color 0.2s;
+            text-decoration: none;
+            font-size: 0.95em;
+        }
+
+        .shape-link:hover {
+            background-color: #e9ecef;
+            color: #007bff;
+        }
+
+        .current-shape {
+            background-color: #007bff;
+            color: white !important;
+            font-weight: bold;
+        }
+
+        .badge {
+            background-color: #6c757d;
+            color: white;
+            padding: 3px 7px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin-left: auto;
+        }
+
+        /* Map styles */
+        .map-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Chart styles */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 1rem;
+        }
+
+        /* Info panel styles */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background-color: #f8f9fa;
+        }
+
+        .info-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .tooltip-content {
+            position: absolute;
+            top: 110%;
+            left: 50%;
+            transform: translateX(-100%);
+            background-color: #ffffff;
+            color: #333333;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            white-space: normal;
+            width: 20rem;
+            z-index: 9999;
+            display: none;
+        }
+
+        .group:hover .tooltip-content {
+            display: block;
+        }
 
 
-<style>
-/* Sidebar styles */
-#shape-sidebar {
-    height: 100vh;
-    overflow-y: auto;
-    padding-top: 1rem;
-}
-#shape-tree {
-        transition: all 0.3s ease-in-out;
-    }
+        @media (max-width: 768px) {
+            #shape-sidebar {
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid #dee2e6;
+            }
 
-@media (max-width: 1024px) {
-    #shape-tree:not(.hidden) {
-        animation: slideDown 0.3s ease-in-out;
-    }
-}
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
 
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-#shape-tree ul {
-    list-style-type: none;
-    padding-left: 0;
-    margin-bottom: 0;
-}
+            .map-container {
+                height: 300px;
+            }
+        }
 
-.shape-type-link {
-    display: flex;
-    align-items: center;
-    font-size: 1.1em;
-    font-weight: bold;
-    color: #343a40;
-    padding: 10px 15px;
-    border-bottom: 1px solid #dee2e6;
-    transition: background-color 0.2s, color 0.2s;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-.shape-type-link:hover {
-    background-color: #e9ecef;
-    color: #007bff;
-}
-
-.shape-type-link::before {
-    content: '\25B6';
-    margin-right: 10px;
-    transition: transform 0.3s ease-in-out;
-}
-
-.shape-type-link.open::before {
-    transform: rotate(90deg);
-}
-
-.shape-link {
-    display: block;
-    padding: 8px 15px 8px 45px;
-    color: #495057;
-    transition: background-color 0.2s, color 0.2s;
-    text-decoration: none;
-    font-size: 0.95em;
-}
-
-.shape-link:hover {
-    background-color: #e9ecef;
-    color: #007bff;
-}
-
-.current-shape {
-    background-color: #007bff;
-    color: white !important;
-    font-weight: bold;
-}
-
-.badge {
-    background-color: #6c757d;
-    color: white;
-    padding: 3px 7px;
-    border-radius: 10px;
-    font-size: 0.8em;
-    margin-left: auto;
-}
-
-/* Map styles */
-.map-container {
-    position: relative;
-    width: 100%;
-    height: 400px;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Chart styles */
-.chart-container {
-    position: relative;
-    height: 300px;
-    margin-bottom: 1rem;
-}
-
-/* Info panel styles */
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-}
-
-.info-item {
-    padding: 1rem;
-    border-radius: 0.5rem;
-    background-color: #f8f9fa;
-}
-
-.info-label {
-    font-size: 0.9rem;
-    color: #6c757d;
-    margin-bottom: 0.25rem;
-}
-
-.info-value {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #212529;
-}
-
-.tooltip-content {
-    position: absolute;
-    top: 110%;
-    left: 50%;
-    transform: translateX(-100%);
-    background-color: #ffffff;
-    color: #333333;
-    padding: 0.5rem;
-    border-radius: 0.25rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    white-space: normal;
-    width: 20rem;
-    z-index: 9999;
-    display: none;
-}
-.group:hover .tooltip-content {
-    display: block;
-}
-
-
-@media (max-width: 768px) {
-    #shape-sidebar {
-        height: auto;
-        border-right: none;
-        border-bottom: 1px solid #dee2e6;
-    }
-
-    .info-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .map-container {
-        height: 300px;
-    }
-}
-
-</style>
+    </style>
 {% endblock %}
 
 {% block sidebar %}
@@ -229,738 +226,739 @@
     </div>
 {% endblock %}
 {% block extra_scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Gestion du toggle du menu mobile
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    const shapeTree = document.getElementById('shape-tree');
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Gestion du toggle du menu mobile
+            const sidebarToggle = document.getElementById('sidebar-toggle');
+            const shapeTree = document.getElementById('shape-tree');
 
-    if (sidebarToggle && shapeTree) {
-        sidebarToggle.addEventListener('click', function() {
-            // Toggle la classe hidden sur le shape-tree
-            shapeTree.classList.toggle('hidden');
+            if (sidebarToggle && shapeTree) {
+                sidebarToggle.addEventListener('click', function () {
+                    // Toggle la classe hidden sur le shape-tree
+                    shapeTree.classList.toggle('hidden');
 
-            // Toggle une classe pour indiquer l'état ouvert/fermé
-            this.classList.toggle('menu-open');
+                    // Toggle une classe pour indiquer l'état ouvert/fermé
+                    this.classList.toggle('menu-open');
 
-            // Change l'icône si besoin
-            const svg = this.querySelector('svg');
-            if (this.classList.contains('menu-open')) {
-                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
-            } else {
-                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
-            }
-        });
-
-        // Fermer le menu au clic en dehors
-        document.addEventListener('click', function(e) {
-            if (!sidebarToggle.contains(e.target) &&
-                !shapeTree.contains(e.target) &&
-                !shapeTree.classList.contains('hidden') &&
-                window.innerWidth < 1024) {
-                shapeTree.classList.add('hidden');
-                sidebarToggle.classList.remove('menu-open');
-                const svg = sidebarToggle.querySelector('svg');
-                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
-            }
-        });
-    }
-});
-
-// =====================================
-// Constants & Initial Setup
-// =====================================
-const shape = {{ shape|tojson|safe }};
-const mapping = {{ mapping|tojson|safe }};
-const currentShapeType = "{{ shape.type }}";
-const currentShapeId = {{ shape.id }};
-let maps = {};  // Store map instances
-
-// =====================================
-// Core Initialization
-// =====================================
-/**
- * Initialize all components when DOM is loaded
- * - Maps initialization
- * - Shape tree creation
- * - Widgets initialization
- */
-document.addEventListener('DOMContentLoaded', function() {
-
-
-    // Initialize maps
-    if (mapping.widgets.map_panel) {
-        initShapeMaps(mapping, shape);
-    }
-
-    // Initialize tree
-    createShapeTree(document.getElementById('shape-tree'), shapeTypes);
-
-    // Initialize charts based on widget configuration
-    initializeWidgets(mapping.widgets, shape);
-});
-
-// =====================================
-// Chart Type Management & Data Processing
-// =====================================
-/**
- * Maps widget types to Chart.js chart types
- * @param {string} widgetType - Type from widget configuration
- * @returns {string} Corresponding Chart.js type
- */
-function getChartTypeFromWidgetType(widgetType) {
-    const typeMapping = {
-        'doughnut_chart': 'doughnut',
-        'pie_chart': 'pie',
-        'bar_chart': 'bar',
-        'line_chart': 'line',
-        'stacked_bar_chart': 'bar',
-        'gauge': 'gauge'
-    };
-    return typeMapping[widgetType] || 'bar'; //
-}
-
-/**
- * Prepares data for chart rendering, including sorting and transformation
- * @param {Object} config - Widget configuration
- * @param {Object} data - Raw data for the chart
- * @returns {Object} Formatted data for Chart.js
- */
-function prepareChartData(config, data) {
-    const datasets = [];
-    let labels = [];
-
-    if (!config.datasets || !Array.isArray(config.datasets)) {
-        console.warn('No datasets configuration provided');
-        return { labels: [], datasets: [] };
-    }
-
-    // Get and sort data if needed
-    let sortedData = data;
-    let sortedIndices = null;
-    if (config.sortBy) {
-        const values = _.get(data, config.sortBy, []);
-        sortedIndices = values.map((v, i) => i);
-        sortedIndices.sort((a, b) => values[a] - values[b]);
-
-        // Create new sorted data object
-        sortedData = Object.keys(data).reduce((acc, key) => {
-            if (Array.isArray(data[key])) {
-                acc[key] = sortedIndices.map(i => data[key][i]);
-            } else {
-                acc[key] = data[key];
-            }
-            return acc;
-        }, {});
-    }
-
-    // Get labels before dataset processing
-    labels = config.labels_key ?
-        _.get(sortedData, config.labels_key, []).map(v => v.toString()) :
-        config.labels ? config.labels :
-        [];
-
-    config.datasets.forEach((datasetConfig) => {
-        const dataset = {
-            label: datasetConfig.label,
-            data: [],
-            backgroundColor: [],
-            borderColor: [],
-            borderWidth: datasetConfig.borderWidth ?? 1,
-            fill: datasetConfig.fill ?? false,
-            tension: datasetConfig.tension ?? 0,
-            stack: datasetConfig.stack,
-            pointRadius: datasetConfig.pointRadius ?? undefined,
-            pointHoverRadius: datasetConfig.pointHoverRadius ?? undefined,
-            pointHoverBackgroundColor: datasetConfig.pointHoverBackgroundColor ?? undefined,
-        };
-
-        // Process data
-        dataset.data = processDataset(datasetConfig, sortedData, config.type);
-
-        // Transform data if needed
-        if (datasetConfig.transformData) {
-            dataset.data = dataset.data.map((value, index) =>
-                transformDataValue(value, datasetConfig.transformData, index, sortedData)
-            );
-        }
-
-        // Process colors after data is loaded
-        processColors(dataset, datasetConfig, labels);
-
-        datasets.push(dataset);
-    });
-
-    return { labels, datasets };
-}
-
-/**
- * Prepares chart options by merging defaults with configuration
- * Handles scales, plugins, and callbacks configuration
- * @param {Object} config - Widget configuration
- * @returns {Object} Complete Chart.js options
- */
-function prepareChartOptions(config) {
-    // Default options restent les mêmes
-    const defaultOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: true,
-                position: 'bottom',
-                labels: {
-                    padding: 20,
-                    usePointStyle: false,
-                    boxWidth: 15,
-                },
-            },
-            title: {
-                display: false,
-            },
-            tooltip: {
-                mode: 'index',
-                intersect: false,
-            },
-        },
-        scales: {},
-    };
-
-    // Merge custom options with defaults
-    const options = _.merge({}, defaultOptions, config.options);
-
-    // Handle scales configuration
-    if (config.options && config.options.scales) {
-        Object.keys(options.scales || {}).forEach(scaleKey => {
-        const scale = options.scales[scaleKey];
-        if (scale.ticks && scale.ticks.callback) {
-            const callbackName = scale.ticks.callback;
-            if (typeof window[callbackName] === 'function') {
-                scale.ticks.callback = window[callbackName];
-            }
-        }
-    });
-    }
-
-    // Handle stacked charts
-    if (config.type === 'stacked_bar_chart' || (config.options && config.options.stacked)) {
-        if (options.scales.x) options.scales.x.stacked = true;
-        if (options.scales.y) options.scales.y.stacked = true;
-    }
-
-    // Process plugin callbacks
-    if (options.plugins) {
-        for (const pluginKey in options.plugins) {
-            const plugin = options.plugins[pluginKey];
-            if (plugin.callbacks) {
-                for (const callbackKey in plugin.callbacks) {
-                    const callbackName = plugin.callbacks[callbackKey];
-                    if (typeof callbackName === 'string' && typeof window[callbackName] === 'function') {
-                        plugin.callbacks[callbackKey] = window[callbackName];
+                    // Change l'icône si besoin
+                    const svg = this.querySelector('svg');
+                    if (this.classList.contains('menu-open')) {
+                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
+                    } else {
+                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
                     }
-                }
-            }
-        }
-    }
+                });
 
-    return options;
-}
-
-/**
- * Process dataset values according to chart type
- */
-function processDataset(datasetConfig, data, chartType) {
-    let processedData = [];
-
-    if (datasetConfig.data_keys && Array.isArray(datasetConfig.data_keys)) {
-        processedData = datasetConfig.data_keys.map(key => {
-            const value = parseFloat(_.get(data, key, 0)) || 0;
-            return formatValue(value, chartType);
-        });
-    } else if (datasetConfig.data_key) {
-        const values = _.get(data, datasetConfig.data_key, []);
-        processedData = Array.isArray(values) ?
-            values.map(value => formatValue(parseFloat(value) || 0, chartType)) :
-            [formatValue(parseFloat(values) || 0, chartType)];
-    } else if (datasetConfig.data) {
-        processedData = Array.isArray(datasetConfig.data) ?
-            datasetConfig.data.map(value => formatValue(parseFloat(value) || 0, chartType)) :
-            [formatValue(parseFloat(datasetConfig.data) || 0, chartType)];
-    }
-
-    return processedData;
-}
-
-/**
- * Process colors for chart datasets
- */
-function processColors(dataset, datasetConfig, labels) {
-    if (datasetConfig.color_mapping && labels) {
-        // Pour le color_mapping, on utilise les labels pour mapper les couleurs
-        dataset.backgroundColor = Array.isArray(dataset.data) ?
-            dataset.data.map((_, index) => {
-                const label = labels[index];
-                return datasetConfig.color_mapping[label] || '#000000';
-            }) :
-            datasetConfig.color_mapping[labels[0]] || '#000000';
-
-        dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
-    } else if (datasetConfig.backgroundColors) {
-        dataset.backgroundColor = datasetConfig.backgroundColors;
-        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
-    } else if (datasetConfig.backgroundColor) {
-        dataset.backgroundColor = datasetConfig.backgroundColor;
-        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
-    } else {
-        dataset.backgroundColor = '#000000';
-        dataset.borderColor = '#000000';
-    }
-}
-
-// =====================================
-// Widget Initialization
-// =====================================
-/**
- * Main widgets initialization router
- * Handles different widget types initialization
- */
-function initializeWidgets(widgets, stats) {
-    // Mapping des types vers leurs fonctions d'initialisation
-    const initializerMap = {
-        'bar_chart': initChart,
-        'line_chart': initChart,
-        'pie_chart': initChart,
-        'doughnut_chart': initChart,
-        'gauge': initChart,
-        'map_panel': initMapFromConfig
-    };
-
-    Object.entries(widgets)
-        .filter(([_, config]) => config.type in initializerMap)  // Ignore les types non gérés
-        .forEach(([widgetKey, config]) => {
-            // Génère l'ID du widget automatiquement si non spécifié
-            const suffix = config.type.includes('chart') ? 'Chart' :
-                          config.type === 'gauge' ? 'Gauge' : 'Map';
-            const widgetId = config.id || `${widgetKey}${suffix}`;
-
-            // Pour les cartes, on passe directement stats
-            if (config.type === 'map_panel') {
-                initializerMap[config.type](widgetId, stats, config);
-                return;
-            }
-
-            // Pour les autres widgets, on vérifie la source dans stats
-            const data = _.get(stats, config.source);
-            if (!data) return;  // Skip si pas de données
-
-            // Initialise le widget avec la fonction appropriée
-            initializerMap[config.type](widgetId, data, config);
-        });
-}
-
-/**
- * Initialize chart widgets including gauges
- * Handles both Chart.js charts and JustGage gauges
- */
-function initChart(widgetId, data, config) {
-    const ctx = document.getElementById(widgetId);
-    if (!ctx) return;
-
-    const chartType = getChartTypeFromWidgetType(config.type);
-
-    if (chartType === 'gauge') {
-        const value = parseFloat(_.get(data, config.value_key, 0).toFixed(1));
-
-        const gaugeOptions = {
-            id: widgetId,
-            value: value,
-            min: config.options.min,
-            max: config.options.max,
-            label: config.options.units,
-            title: config.title,
-            gaugeColor: "#eee",
-            levelColors: config.options.sectors.map(s => s.color),
-            decimals: 1,
-            gaugeWidthScale: 0.6,
-            counter: true,
-            pointer: true,
-            pointerOptions: {
-                toplength: 8,
-                bottomlength: -20,
-                bottomwidth: 6,
-                color: '#8e8e93'
-            },
-            // Default options that don't need to be in config
-            showMinMax: false,
-            donut: false,
-            relativeGaugeSize: true,
-            // Font colors that don't need to be in config
-            titleFontColor: "#333",
-            valueFontColor: "#333",
-            labelFontColor: "#666"
-        };
-
-        const gauge = new JustGage(gaugeOptions);
-
-        // Add value text below
-        const valueText = document.createElement('p');
-        valueText.textContent = `Taille effective de maillage: ${value} ${config.options.units}`;
-        valueText.className = 'text-center mt-5 text-lg text-gray-700';
-        ctx.parentNode.appendChild(valueText);
-
-        return;
-    }
-
-    // Pour les autres types de graphiques...
-    const chartData = prepareChartData(config, data);
-    const chartOptions = prepareChartOptions(config);
-    const plugins = [];
-
-    if (config.customPlugin && typeof window[config.customPlugin] === 'object') {
-        plugins.push(window[config.customPlugin]);
-    }
-
-    new Chart(ctx, {
-        type: chartType,
-        data: chartData,
-        options: chartOptions,
-        plugins: plugins,
-    });
-}
-
-// =====================================
-// Map Management
-// =====================================
-/**
- * Initialize maps based on configuration
- */
-function initShapeMaps(mapping, shape) {
-    if (mapping.widgets.map_panel) {
-        // Initialize main map with widget config
-        //initMapFromConfig('map_panelMap', shape, mapping.widgets.map_panel);
-
-        // Initialize overview map
-        initOverviewMap('allShapesMap', shape, mapping.widgets.map_panel);
-    }
-}
-
-/**
- * Initialize main map with configured layers
- */
-function initMapFromConfig(mapId, shape, mapConfig) {
-    const mapContainer = document.getElementById(mapId);
-    if (!mapContainer || maps[mapId]) return;
-
-    // Base configuration
-    const defaultCenter = [-21.3, 165.3];
-    const defaultZoom = 7;
-
-    // Base layers
-    const baseLayers = {
-        "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        }),
-        "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        })
-    };
-
-    // Create map
-    const map = L.map(mapId, {
-        layers: [baseLayers["Satellite"]],
-        center: defaultCenter,
-        zoom: defaultZoom,
-        scrollWheelZoom: false
-    });
-
-    L.control.layers(baseLayers).addTo(map);
-    map.attributionControl.setPrefix(false);
-
-    // Add configured layers
-    const layers = [];
-    mapConfig.layers.forEach(layer => {
-        const sourceData = _.get(shape, layer.source);
-        if (sourceData) {
-            try {
-                const geometry = typeof sourceData === 'string' ? JSON.parse(sourceData) : sourceData;
-                const geoLayer = L.geoJSON(geometry, {
-                    style: layer.style
-                }).addTo(map);
-                layers.push(geoLayer);
-            } catch (e) {
-                console.error(`Error loading layer ${layer.id}:`, e);
-            }
-        }
-    });
-
-    // Adjust view
-    if (layers.length > 0) {
-        const group = L.featureGroup(layers);
-        map.fitBounds(group.getBounds());
-    }
-
-    maps[mapId] = map;
-}
-
-/**
- * Initialize overview map showing all shapes of same type
- */
-function initOverviewMap(mapId, currentShape, mapConfig) {
-    const mapContainer = document.getElementById(mapId);
-    if (!mapContainer || maps[mapId]) return;
-
-    // Create map with same base layers
-    const map = L.map(mapId, { scrollWheelZoom: false });
-    map.attributionControl.setPrefix(false);
-
-    L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-        layers: '0',
-        format: 'image/png',
-        transparent: true,
-        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-    }).addTo(map);
-
-    // Add shapes of same category
-    const group = L.featureGroup();
-    let currentShapeLayer;
-
-    if (shapeTypes && Array.isArray(shapeTypes)) {
-        shapeTypes.forEach(typeItem => {
-            if (typeItem.type === currentShape.type) {
-                typeItem.shapes.forEach(shapeItem => {
-                    if (shapeItem.geometry) {
-                        const style = shapeItem.id === currentShape.id ?
-                            { ...mapConfig.layers[0].style, fillOpacity: 0.7 } :
-                            { ...mapConfig.layers[0].style, fillOpacity: 0.2 };
-
-                        const layer = L.geoJSON(shapeItem.geometry, { style });
-
-                        if (shapeItem.id === currentShape.id) {
-                            currentShapeLayer = layer;
-                        }
-
-                        layer.bindTooltip(shapeItem.name, {
-                            permanent: false,
-                            direction: 'right',
-                            className: 'custom-tooltip'
-                        });
-
-                        layer.on('click', () => {
-                            window.location.href = `../shape/${shapeItem.id}.html`;
-                        });
-
-                        group.addLayer(layer);
+                // Fermer le menu au clic en dehors
+                document.addEventListener('click', function (e) {
+                    if (!sidebarToggle.contains(e.target) &&
+                        !shapeTree.contains(e.target) &&
+                        !shapeTree.classList.contains('hidden') &&
+                        window.innerWidth < 1024) {
+                        shapeTree.classList.add('hidden');
+                        sidebarToggle.classList.remove('menu-open');
+                        const svg = sidebarToggle.querySelector('svg');
+                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
                     }
                 });
             }
         });
-    }
 
-    group.addTo(map);
-    map.fitBounds(group.getBounds());
+        // =====================================
+        // Constants & Initial Setup
+        // =====================================
+        const shape = {{ shape|tojson|safe }};
+        const mapping = {{ mapping|tojson|safe }};
+        const currentShapeType = "{{ shape.type }}";
+        const currentShapeId = {{ shape.id }};
+        let maps = {};  // Store map instances
 
-    if (currentShapeLayer) {
-        currentShapeLayer.bringToFront();
-    }
+        // =====================================
+        // Core Initialization
+        // =====================================
+        /**
+         * Initialize all components when DOM is loaded
+         * - Maps initialization
+         * - Shape tree creation
+         * - Widgets initialization
+         */
+        document.addEventListener('DOMContentLoaded', function () {
 
-    maps[mapId] = map;
-}
 
-// =====================================
-// Shape Tree Management
-// =====================================
-/**
- * Creates hierarchical tree view of shapes
- * Handles shape type grouping and current selection
- */
-function createShapeTree(container, shapeTypes) {
-    const $ul = $('<ul class="mb-3"></ul>');
-
-    shapeTypes.forEach(typeItem => {
-        const $li = $('<li></li>');
-        const $typeLink = $('<a href="javascript:void(0)" class="shape-type-link"></a>')
-            .text(typeItem.type_label)
-            .append($('<span class="badge"></span>').text(typeItem.shapes.length));
-
-        const $childUl = $('<ul style="display:none;"></ul>');
-
-        // Sort shapes alphabetically
-        typeItem.shapes.sort((a, b) => a.name.localeCompare(b.name));
-
-        typeItem.shapes.forEach(shapeItem => {
-            const $shapeLi = $('<li></li>');
-            const $shapeLink = $('<a></a>')
-                .attr('href', `../shape/${shapeItem.id}.html`)
-                .text(shapeItem.name)
-                .addClass('shape-link');
-
-            if (shapeItem.id === currentShapeId) {
-                $shapeLink.addClass('current-shape');
+            // Initialize maps
+            if (mapping.widgets.map_panel) {
+                initShapeMaps(mapping, shape);
             }
 
-            $shapeLi.append($shapeLink);
-            $childUl.append($shapeLi);
+            // Initialize tree
+            createShapeTree(document.getElementById('shape-tree'), shapeTypes);
+
+            // Initialize charts based on widget configuration
+            initializeWidgets(mapping.widgets, shape);
         });
 
-        $typeLink.on('click', function(e) {
-            e.stopPropagation();
-            $childUl.slideToggle();
-            $(this).toggleClass('open');
-        });
-
-        if (typeItem.type === currentShapeType) {
-            $childUl.show();
-            $typeLink.addClass('open');
+        // =====================================
+        // Chart Type Management & Data Processing
+        // =====================================
+        /**
+         * Maps widget types to Chart.js chart types
+         * @param {string} widgetType - Type from widget configuration
+         * @returns {string} Corresponding Chart.js type
+         */
+        function getChartTypeFromWidgetType(widgetType) {
+            const typeMapping = {
+                'doughnut_chart': 'doughnut',
+                'pie_chart': 'pie',
+                'bar_chart': 'bar',
+                'line_chart': 'line',
+                'stacked_bar_chart': 'bar',
+                'gauge': 'gauge'
+            };
+            return typeMapping[widgetType] || 'bar'; //
         }
 
-        $li.append($typeLink).append($childUl);
-        $ul.append($li);
-    });
+        /**
+         * Prepares data for chart rendering, including sorting and transformation
+         * @param {Object} config - Widget configuration
+         * @param {Object} data - Raw data for the chart
+         * @returns {Object} Formatted data for Chart.js
+         */
+        function prepareChartData(config, data) {
+            const datasets = [];
+            let labels = [];
 
-    $(container).append($ul);
-}
+            if (!config.datasets || !Array.isArray(config.datasets)) {
+                console.warn('No datasets configuration provided');
+                return {labels: [], datasets: []};
+            }
 
+            // Get and sort data if needed
+            let sortedData = data;
+            let sortedIndices = null;
+            if (config.sortBy) {
+                const values = _.get(data, config.sortBy, []);
+                sortedIndices = values.map((v, i) => i);
+                sortedIndices.sort((a, b) => values[a] - values[b]);
 
-// =====================================
-// Value Formatters
-// =====================================
-// Various formatters for different data types
-window.formatLogValue = function(value) {
-    return value.toString();
-};
-window.formatSurfaceValue = function(value) {
-    if (value >= 1000000) {
-        return (value / 1000000).toFixed(1) + 'M';
-    }
-    if (value >= 1000) {
-        return (value / 1000).toFixed(0) + 'k';
-    }
-    return value;
-};
-window.formatPercentage = function(value) {
-    return value.toFixed(0) + '%';
-};
-window.formatForestTypeTooltip = function(context) {
-    return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
-};
-window.formatTooltipLabel = function (context) {
-    return `${context.label}: ${context.parsed}%`;
-};
-window.formatForestTypeElevationTooltip = function(context) {
-    const value = Math.round(context.raw);  // ou .toFixed(0) pour aucune décimale
-    return context.dataset.label + ': ' + value + '%';
-};
-window.formatAbsoluteValue = function(value) {
-    // Si c'est zéro, on l'affiche au centre
-    if (value === 0) return '0';
-    // Pour les autres valeurs, on affiche la valeur absolue
-    return Math.abs(value).toString();
-};
+                // Create new sorted data object
+                sortedData = Object.keys(data).reduce((acc, key) => {
+                    if (Array.isArray(data[key])) {
+                        acc[key] = sortedIndices.map(i => data[key][i]);
+                    } else {
+                        acc[key] = data[key];
+                    }
+                    return acc;
+                }, {});
+            }
 
-window.formatForestCoverTooltip = function(context) {
-    const label = context.dataset.label;
-    const value = Math.abs(context.raw).toFixed(1);
-    return `${label}: ${value}%`;
-};
+            // Get labels before dataset processing
+            labels = config.labels_key ?
+                _.get(sortedData, config.labels_key, []).map(v => v.toString()) :
+                config.labels ? config.labels :
+                    [];
 
-function transformDataValue(value, transform, valueIndex, allData) {
-    if (!transform) return value;
+            config.datasets.forEach((datasetConfig) => {
+                const dataset = {
+                    label: datasetConfig.label,
+                    data: [],
+                    backgroundColor: [],
+                    borderColor: [],
+                    borderWidth: datasetConfig.borderWidth ?? 1,
+                    fill: datasetConfig.fill ?? false,
+                    tension: datasetConfig.tension ?? 0,
+                    stack: datasetConfig.stack,
+                    pointRadius: datasetConfig.pointRadius ?? undefined,
+                    pointHoverRadius: datasetConfig.pointHoverRadius ?? undefined,
+                    pointHoverBackgroundColor: datasetConfig.pointHoverBackgroundColor ?? undefined,
+                };
 
-    switch(transform) {
-        case 'negateValues':
-            return isNaN(value) ? 0 : -value;
-        case 'toPercentage':
-            return isNaN(value) ? 0 : value * 100;
-        case 'stackedPercentage':
-            const total = ['secondaire', 'mature', 'coeur'].reduce((sum, key) =>
-                sum + (allData[key] ? allData[key][valueIndex] : 0), 0);
-            return total === 0 ? 0 : (value / total * 100);
-        default:
-            return value;
-    }
-}
-function formatValue(value, chartType) {
-    switch(chartType) {
-        case 'doughnut_chart':
-        case 'pie_chart':
-            return Number(value);
-        default:
-            return value;
-    }
-}
+                // Process data
+                dataset.data = processDataset(datasetConfig, sortedData, config.type);
 
-// =====================================
-// Custom Plugins
-// =====================================
-/**
- * Custom plugin for drawing labels on doughnut charts
- */
-window.customLabels = {
-    id: 'customLabels',
-    afterDraw: function(chart) {
-        const ctx = chart.ctx;
-        ctx.save();
-        ctx.font = '11px system-ui';
-        ctx.textBaseline = 'middle';
-        ctx.textAlign = 'center';
+                // Transform data if needed
+                if (datasetConfig.transformData) {
+                    dataset.data = dataset.data.map((value, index) =>
+                        transformDataValue(value, datasetConfig.transformData, index, sortedData)
+                    );
+                }
 
-        const datasets = chart.data.datasets;
-        const meta = chart.getDatasetMeta(0);
-        const centerX = meta.data[0].x;
-        const centerY = meta.data[0].y;
+                // Process colors after data is loaded
+                processColors(dataset, datasetConfig, labels);
 
-        datasets.forEach((dataset, i) => {
-            const meta = chart.getDatasetMeta(i);
-            const percentage = dataset.data[0];
-            const element = meta.data[0];
-
-            const percentageAngle = -Math.PI + 0.2;
-            const radius = (element.innerRadius + element.outerRadius) / 2;
-            const x = centerX + Math.cos(percentageAngle) * radius;
-            const y = centerY + Math.sin(percentageAngle) * radius;
-
-            ctx.fillText(percentage.toFixed(1) + '%', x, y);
-
-            // Affichage du label
-            ctx.fillText(dataset.label, centerX, centerY + element.outerRadius - 10);
-        });
-
-        ctx.restore();
-    }
-};
-
-/**
- * Custom plugin for drawing percentage labels on forest type charts
- */
-window.forestTypeLabelsPlugin = {
-    id: 'text',
-    afterDraw: function(chart) {
-        const ctx = chart.ctx;
-        chart.data.datasets.forEach(function(dataset, i) {
-            const meta = chart.getDatasetMeta(i);
-            meta.data.forEach(function(element, index) {
-                const value = dataset.data[index];
-                const position = element.getCenterPoint();
-
-                // Draw value
-                ctx.save();
-                ctx.fillStyle = '#000000';
-                ctx.font = '12px system-ui';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(value.toFixed(1) + '%', position.x, position.y);
-                ctx.restore();
+                datasets.push(dataset);
             });
-        });
-    }
-};
+
+            return {labels, datasets};
+        }
+
+        /**
+         * Prepares chart options by merging defaults with configuration
+         * Handles scales, plugins, and callbacks configuration
+         * @param {Object} config - Widget configuration
+         * @returns {Object} Complete Chart.js options
+         */
+        function prepareChartOptions(config) {
+            // Default options restent les mêmes
+            const defaultOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: false,
+                            boxWidth: 15,
+                        },
+                    },
+                    title: {
+                        display: false,
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                },
+                scales: {},
+            };
+
+            // Merge custom options with defaults
+            const options = _.merge({}, defaultOptions, config.options);
+
+            // Handle scales configuration
+            if (config.options && config.options.scales) {
+                Object.keys(options.scales || {}).forEach(scaleKey => {
+                    const scale = options.scales[scaleKey];
+                    if (scale.ticks && scale.ticks.callback) {
+                        const callbackName = scale.ticks.callback;
+                        if (typeof window[callbackName] === 'function') {
+                            scale.ticks.callback = window[callbackName];
+                        }
+                    }
+                });
+            }
+
+            // Handle stacked charts
+            if (config.type === 'stacked_bar_chart' || (config.options && config.options.stacked)) {
+                if (options.scales.x) options.scales.x.stacked = true;
+                if (options.scales.y) options.scales.y.stacked = true;
+            }
+
+            // Process plugin callbacks
+            if (options.plugins) {
+                for (const pluginKey in options.plugins) {
+                    const plugin = options.plugins[pluginKey];
+                    if (plugin.callbacks) {
+                        for (const callbackKey in plugin.callbacks) {
+                            const callbackName = plugin.callbacks[callbackKey];
+                            if (typeof callbackName === 'string' && typeof window[callbackName] === 'function') {
+                                plugin.callbacks[callbackKey] = window[callbackName];
+                            }
+                        }
+                    }
+                }
+            }
+
+            return options;
+        }
+
+        /**
+         * Process dataset values according to chart type
+         */
+        function processDataset(datasetConfig, data, chartType) {
+            let processedData = [];
+
+            if (datasetConfig.data_keys && Array.isArray(datasetConfig.data_keys)) {
+                processedData = datasetConfig.data_keys.map(key => {
+                    const value = parseFloat(_.get(data, key, 0)) || 0;
+                    return formatValue(value, chartType);
+                });
+            } else if (datasetConfig.data_key) {
+                const values = _.get(data, datasetConfig.data_key, []);
+                processedData = Array.isArray(values) ?
+                    values.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+                    [formatValue(parseFloat(values) || 0, chartType)];
+            } else if (datasetConfig.data) {
+                processedData = Array.isArray(datasetConfig.data) ?
+                    datasetConfig.data.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+                    [formatValue(parseFloat(datasetConfig.data) || 0, chartType)];
+            }
+
+            return processedData;
+        }
+
+        /**
+         * Process colors for chart datasets
+         */
+        function processColors(dataset, datasetConfig, labels) {
+            if (datasetConfig.color_mapping && labels) {
+                // Pour le color_mapping, on utilise les labels pour mapper les couleurs
+                dataset.backgroundColor = Array.isArray(dataset.data) ?
+                    dataset.data.map((_, index) => {
+                        const label = labels[index];
+                        return datasetConfig.color_mapping[label] || '#000000';
+                    }) :
+                    datasetConfig.color_mapping[labels[0]] || '#000000';
+
+                dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
+            } else if (datasetConfig.backgroundColors) {
+                dataset.backgroundColor = datasetConfig.backgroundColors;
+                dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
+            } else if (datasetConfig.backgroundColor) {
+                dataset.backgroundColor = datasetConfig.backgroundColor;
+                dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
+            } else {
+                dataset.backgroundColor = '#000000';
+                dataset.borderColor = '#000000';
+            }
+        }
+
+        // =====================================
+        // Widget Initialization
+        // =====================================
+        /**
+         * Main widgets initialization router
+         * Handles different widget types initialization
+         */
+        function initializeWidgets(widgets, stats) {
+            // Mapping des types vers leurs fonctions d'initialisation
+            const initializerMap = {
+                'bar_chart': initChart,
+                'line_chart': initChart,
+                'pie_chart': initChart,
+                'doughnut_chart': initChart,
+                'gauge': initChart,
+                'map_panel': initMapFromConfig
+            };
+
+            Object.entries(widgets)
+                .filter(([_, config]) => config.type in initializerMap)  // Ignore les types non gérés
+                .forEach(([widgetKey, config]) => {
+                    // Génère l'ID du widget automatiquement si non spécifié
+                    const suffix = config.type.includes('chart') ? 'Chart' :
+                        config.type === 'gauge' ? 'Gauge' : 'Map';
+                    const widgetId = config.id || `${widgetKey}${suffix}`;
+
+                    // Pour les cartes, on passe directement stats
+                    if (config.type === 'map_panel') {
+                        initializerMap[config.type](widgetId, stats, config);
+                        return;
+                    }
+
+                    // Pour les autres widgets, on vérifie la source dans stats
+                    const data = _.get(stats, config.source);
+                    if (!data) return;  // Skip si pas de données
+
+                    // Initialise le widget avec la fonction appropriée
+                    initializerMap[config.type](widgetId, data, config);
+                });
+        }
+
+        /**
+         * Initialize chart widgets including gauges
+         * Handles both Chart.js charts and JustGage gauges
+         */
+        function initChart(widgetId, data, config) {
+            const ctx = document.getElementById(widgetId);
+            if (!ctx) return;
+
+            const chartType = getChartTypeFromWidgetType(config.type);
+
+            if (chartType === 'gauge') {
+                const value = parseFloat(_.get(data, config.value_key, 0).toFixed(1));
+
+                const gaugeOptions = {
+                    id: widgetId,
+                    value: value,
+                    min: config.options.min,
+                    max: config.options.max,
+                    label: config.options.units,
+                    title: config.title,
+                    gaugeColor: "#eee",
+                    levelColors: config.options.sectors.map(s => s.color),
+                    decimals: 1,
+                    gaugeWidthScale: 0.6,
+                    counter: true,
+                    pointer: true,
+                    pointerOptions: {
+                        toplength: 8,
+                        bottomlength: -20,
+                        bottomwidth: 6,
+                        color: '#8e8e93'
+                    },
+                    // Default options that don't need to be in config
+                    showMinMax: false,
+                    donut: false,
+                    relativeGaugeSize: true,
+                    // Font colors that don't need to be in config
+                    titleFontColor: "#333",
+                    valueFontColor: "#333",
+                    labelFontColor: "#666"
+                };
+
+                const gauge = new JustGage(gaugeOptions);
+
+                // Add value text below
+                const valueText = document.createElement('p');
+                valueText.textContent = `Taille effective de maillage: ${value} ${config.options.units}`;
+                valueText.className = 'text-center mt-5 text-lg text-gray-700';
+                ctx.parentNode.appendChild(valueText);
+
+                return;
+            }
+
+            // Pour les autres types de graphiques...
+            const chartData = prepareChartData(config, data);
+            const chartOptions = prepareChartOptions(config);
+            const plugins = [];
+
+            if (config.customPlugin && typeof window[config.customPlugin] === 'object') {
+                plugins.push(window[config.customPlugin]);
+            }
+
+            new Chart(ctx, {
+                type: chartType,
+                data: chartData,
+                options: chartOptions,
+                plugins: plugins,
+            });
+        }
+
+        // =====================================
+        // Map Management
+        // =====================================
+        /**
+         * Initialize maps based on configuration
+         */
+        function initShapeMaps(mapping, shape) {
+            if (mapping.widgets.map_panel) {
+                // Initialize main map with widget config
+                //initMapFromConfig('map_panelMap', shape, mapping.widgets.map_panel);
+
+                // Initialize overview map
+                initOverviewMap('allShapesMap', shape, mapping.widgets.map_panel);
+            }
+        }
+
+        /**
+         * Initialize main map with configured layers
+         */
+        function initMapFromConfig(mapId, shape, mapConfig) {
+            const mapContainer = document.getElementById(mapId);
+            if (!mapContainer || maps[mapId]) return;
+
+            // Base configuration
+            const defaultCenter = [-21.3, 165.3];
+            const defaultZoom = 7;
+
+            // Base layers
+            const baseLayers = {
+                "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+                    layers: '0',
+                    format: 'image/png',
+                    transparent: true,
+                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+                }),
+                "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
+                    layers: '0',
+                    format: 'image/png',
+                    transparent: true,
+                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+                })
+            };
+
+            // Create map
+            const map = L.map(mapId, {
+                layers: [baseLayers["Satellite"]],
+                center: defaultCenter,
+                zoom: defaultZoom,
+                scrollWheelZoom: false
+            });
+
+            L.control.layers(baseLayers).addTo(map);
+            map.attributionControl.setPrefix(false);
+
+            // Add configured layers
+            const layers = [];
+            mapConfig.layers.forEach(layer => {
+                const sourceData = _.get(shape, layer.source);
+                if (sourceData) {
+                    try {
+                        const geometry = typeof sourceData === 'string' ? JSON.parse(sourceData) : sourceData;
+                        const geoLayer = L.geoJSON(geometry, {
+                            style: layer.style
+                        }).addTo(map);
+                        layers.push(geoLayer);
+                    } catch (e) {
+                        console.error(`Error loading layer ${layer.id}:`, e);
+                    }
+                }
+            });
+
+            // Adjust view
+            if (layers.length > 0) {
+                const group = L.featureGroup(layers);
+                map.fitBounds(group.getBounds());
+            }
+
+            maps[mapId] = map;
+        }
+
+        /**
+         * Initialize overview map showing all shapes of same type
+         */
+        function initOverviewMap(mapId, currentShape, mapConfig) {
+            const mapContainer = document.getElementById(mapId);
+            if (!mapContainer || maps[mapId]) return;
+
+            // Create map with same base layers
+            const map = L.map(mapId, {scrollWheelZoom: false});
+            map.attributionControl.setPrefix(false);
+
+            L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+                layers: '0',
+                format: 'image/png',
+                transparent: true,
+                attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+            }).addTo(map);
+
+            // Add shapes of same category
+            const group = L.featureGroup();
+            let currentShapeLayer;
+
+            if (shapeTypes && Array.isArray(shapeTypes)) {
+                shapeTypes.forEach(typeItem => {
+                    if (typeItem.type === currentShape.type) {
+                        typeItem.shapes.forEach(shapeItem => {
+                            if (shapeItem.geometry) {
+                                const style = shapeItem.id === currentShape.id ?
+                                    {...mapConfig.layers[0].style, fillOpacity: 0.7} :
+                                    {...mapConfig.layers[0].style, fillOpacity: 0.2};
+
+                                const layer = L.geoJSON(shapeItem.geometry, {style});
+
+                                if (shapeItem.id === currentShape.id) {
+                                    currentShapeLayer = layer;
+                                }
+
+                                layer.bindTooltip(shapeItem.name, {
+                                    permanent: false,
+                                    direction: 'right',
+                                    className: 'custom-tooltip'
+                                });
+
+                                layer.on('click', () => {
+                                    window.location.href = `../shape/${shapeItem.id}.html`;
+                                });
+
+                                group.addLayer(layer);
+                            }
+                        });
+                    }
+                });
+            }
+
+            group.addTo(map);
+            map.fitBounds(group.getBounds());
+
+            if (currentShapeLayer) {
+                currentShapeLayer.bringToFront();
+            }
+
+            maps[mapId] = map;
+        }
+
+        // =====================================
+        // Shape Tree Management
+        // =====================================
+        /**
+         * Creates hierarchical tree view of shapes
+         * Handles shape type grouping and current selection
+         */
+        function createShapeTree(container, shapeTypes) {
+            const $ul = $('<ul class="mb-3"></ul>');
+
+            shapeTypes.forEach(typeItem => {
+                const $li = $('<li></li>');
+                const $typeLink = $('<a href="javascript:void(0)" class="shape-type-link"></a>')
+                    .text(typeItem.type_label)
+                    .append($('<span class="badge"></span>').text(typeItem.shapes.length));
+
+                const $childUl = $('<ul style="display:none;"></ul>');
+
+                // Sort shapes alphabetically
+                typeItem.shapes.sort((a, b) => a.name.localeCompare(b.name));
+
+                typeItem.shapes.forEach(shapeItem => {
+                    const $shapeLi = $('<li></li>');
+                    const $shapeLink = $('<a></a>')
+                        .attr('href', `../shape/${shapeItem.id}.html`)
+                        .text(shapeItem.name)
+                        .addClass('shape-link');
+
+                    if (shapeItem.id === currentShapeId) {
+                        $shapeLink.addClass('current-shape');
+                    }
+
+                    $shapeLi.append($shapeLink);
+                    $childUl.append($shapeLi);
+                });
+
+                $typeLink.on('click', function (e) {
+                    e.stopPropagation();
+                    $childUl.slideToggle();
+                    $(this).toggleClass('open');
+                });
+
+                if (typeItem.type === currentShapeType) {
+                    $childUl.show();
+                    $typeLink.addClass('open');
+                }
+
+                $li.append($typeLink).append($childUl);
+                $ul.append($li);
+            });
+
+            $(container).append($ul);
+        }
 
 
-</script>
+        // =====================================
+        // Value Formatters
+        // =====================================
+        // Various formatters for different data types
+        window.formatLogValue = function (value) {
+            return value.toString();
+        };
+        window.formatSurfaceValue = function (value) {
+            if (value >= 1000000) {
+                return (value / 1000000).toFixed(1) + 'M';
+            }
+            if (value >= 1000) {
+                return (value / 1000).toFixed(0) + 'k';
+            }
+            return value;
+        };
+        window.formatPercentage = function (value) {
+            return value.toFixed(0) + '%';
+        };
+        window.formatForestTypeTooltip = function (context) {
+            return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
+        };
+        window.formatTooltipLabel = function (context) {
+            return `${context.label}: ${context.parsed}%`;
+        };
+        window.formatForestTypeElevationTooltip = function (context) {
+            const value = Math.round(context.raw);  // ou .toFixed(0) pour aucune décimale
+            return context.dataset.label + ': ' + value + '%';
+        };
+        window.formatAbsoluteValue = function (value) {
+            // Si c'est zéro, on l'affiche au centre
+            if (value === 0) return '0';
+            // Pour les autres valeurs, on affiche la valeur absolue
+            return Math.abs(value).toString();
+        };
+
+        window.formatForestCoverTooltip = function (context) {
+            const label = context.dataset.label;
+            const value = Math.abs(context.raw).toFixed(1);
+            return `${label}: ${value}%`;
+        };
+
+        function transformDataValue(value, transform, valueIndex, allData) {
+            if (!transform) return value;
+
+            switch (transform) {
+                case 'negateValues':
+                    return isNaN(value) ? 0 : -value;
+                case 'toPercentage':
+                    return isNaN(value) ? 0 : value * 100;
+                case 'stackedPercentage':
+                    const total = ['secondaire', 'mature', 'coeur'].reduce((sum, key) =>
+                        sum + (allData[key] ? allData[key][valueIndex] : 0), 0);
+                    return total === 0 ? 0 : (value / total * 100);
+                default:
+                    return value;
+            }
+        }
+
+        function formatValue(value, chartType) {
+            switch (chartType) {
+                case 'doughnut_chart':
+                case 'pie_chart':
+                    return Number(value);
+                default:
+                    return value;
+            }
+        }
+
+        // =====================================
+        // Custom Plugins
+        // =====================================
+        /**
+         * Custom plugin for drawing labels on doughnut charts
+         */
+        window.customLabels = {
+            id: 'customLabels',
+            afterDraw: function (chart) {
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.font = '11px system-ui';
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'center';
+
+                const datasets = chart.data.datasets;
+                const meta = chart.getDatasetMeta(0);
+                const centerX = meta.data[0].x;
+                const centerY = meta.data[0].y;
+
+                datasets.forEach((dataset, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    const percentage = dataset.data[0];
+                    const element = meta.data[0];
+
+                    const percentageAngle = -Math.PI + 0.2;
+                    const radius = (element.innerRadius + element.outerRadius) / 2;
+                    const x = centerX + Math.cos(percentageAngle) * radius;
+                    const y = centerY + Math.sin(percentageAngle) * radius;
+
+                    ctx.fillText(percentage.toFixed(1) + '%', x, y);
+
+                    // Affichage du label
+                    ctx.fillText(dataset.label, centerX, centerY + element.outerRadius - 10);
+                });
+
+                ctx.restore();
+            }
+        };
+
+        /**
+         * Custom plugin for drawing percentage labels on forest type charts
+         */
+        window.forestTypeLabelsPlugin = {
+            id: 'text',
+            afterDraw: function (chart) {
+                const ctx = chart.ctx;
+                chart.data.datasets.forEach(function (dataset, i) {
+                    const meta = chart.getDatasetMeta(i);
+                    meta.data.forEach(function (element, index) {
+                        const value = dataset.data[index];
+                        const position = element.getCenterPoint();
+
+                        // Draw value
+                        ctx.save();
+                        ctx.fillStyle = '#000000';
+                        ctx.font = '12px system-ui';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(value.toFixed(1) + '%', position.x, position.y);
+                        ctx.restore();
+                    });
+                });
+            }
+        };
+
+
+    </script>
 {% endblock %}

@@ -8,7 +8,7 @@
     {% endblock %}
     <link rel="stylesheet" href="{{ depth }}js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
     <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.9.4_leaflet.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ depth }}css/font-awesome/6.6.0_all.min.css">
 
     <style>
         ul {
@@ -73,6 +73,7 @@
     <script src="{% block chart_js %}{{ depth }}js/vendor/chart/4.4.2_chart.js{% endblock %}"></script>
     <script src="{% block d3_js %}{{ depth }}js/vendor/d3/7.8.5_d3.js{% endblock %}"></script>
     <script src="{% block jquery_js %}{{ depth }}js/vendor/jquery/3.6.0_jquery.js{% endblock %}"></script>
+    <script src="{% block lodash %}{{ depth }}js/vendor/lodash/4.17.21_lodash.min.js{% endblock %}"></script>
     <script src="{% block raphael_js %}{{ depth }}js/vendor/raphael/2.3.0_raphael.js{% endblock %}"></script>
     <script src="{% block justgage_js %}{{ depth }}js/vendor/justgage/1.6.1_justgage.js{% endblock %}"></script>
     <script src="{% block leaflet_js %}{{ depth }}js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
