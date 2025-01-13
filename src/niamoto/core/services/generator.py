@@ -4,7 +4,6 @@ from niamoto.common.config import Config
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
 from niamoto.publish import PageGenerator
 from niamoto.publish.static_api import ApiGenerator
-from niamoto.core.services.mapper import MapperService
 from loguru import logger
 from sqlalchemy import asc
 from sqlalchemy.sql import text
@@ -13,151 +12,199 @@ from rich.progress import track
 
 class GeneratorService:
     """
-    The GeneratorService class provides methods to generate pages and JSON files.
+    Service to generate static pages and JSON files based on presentation configuration.
     """
 
     def __init__(self, config: Config):
         """
-        Initializes a new instance of the GeneratorService class.
+        Initialize the service with project configuration
 
         Args:
-            config (Config): The configuration settings for the Niamoto project.
+            config (Config): Project configuration settings
         """
         self.config = config
-        self.db_path = config.get("database", "path")
+        self.db_path = config.database_path
         self.page_generator = PageGenerator(config)
         self.api_generator = ApiGenerator(config)
-        self.mapper_service = MapperService(self.db_path)
         self.repository = NiamotoRepository(self.db_path)
+        # Get presentation configuration directly from config object
+        self.presentation_config = config.get_presentation_config()
 
-    def generate_content(self, mapping_group: Optional[str] = None) -> None:
+    def generate_content(self, group: Optional[str] = None) -> None:
         """
-        Generates content based on the mapping group specified.
+        Generate static content based on presentation configuration.
 
         Args:
-            mapping_group (Optional[str]): The specific group to generate content for.
-                                           If not provided, content will be generated for all groups.
+            group (Optional[str]): If specified, only generate content for this group.
+                                 Must be one of: 'taxon', 'plot', 'shape'
         """
         try:
-            # Generate static pages
-            self.generate_page("index.html", "index.html", depth="")
-            self.generate_page("methodology.html", "methodology.html", depth="")
-            self.generate_page("resources.html", "resources.html", depth="")
-            self.generate_page("construction.html", "construction.html", depth="")
-            self.generate_page("trees.html", "trees.html", depth="")
-            self.generate_page("plots.html", "plots.html", depth="")
-            self.generate_page("forests.html", "forests.html", depth="")
+            # Generate static pages (toujours nécessaires même avec un groupe spécifique)
+            self._generate_static_pages()
 
-            if mapping_group:
-                group_configs = [self.mapper_service.get_group_config(mapping_group)]
+            # Filtre la configuration selon le groupe si spécifié
+            if group:
+                group_configs = [
+                    config
+                    for config in self.presentation_config
+                    if config.get("group_by") == group
+                ]
+                if not group_configs:
+                    logger.warning(f"No configuration found for group: {group}")
+                    return
             else:
-                group_configs = self.mapper_service.get_aggregations()
+                group_configs = self.presentation_config
 
+            # Generate content for filtered groups
             for group_config in group_configs:
-                group_by = group_config["group_by"]
-                self.generate_group_content(group_by, group_config)
+                group_by = group_config.get("group_by")
+                if group_by:
+                    self._generate_group_content(group_by, group_config)
 
-            # Generate the taxonomy tree
-            taxons = self.filter_entities_with_stats(
-                self.repository.get_entities(
-                    TaxonRef, order_by=asc(TaxonRef.full_name)
-                ),
-                "taxon",
-            )
-            self.generate_taxonomy_tree(taxons)
-
-            plots = self.filter_entities_with_stats(
-                self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id)), "plot"
-            )
-            self.generate_plot_list(plots)
-
-            shapes = self.filter_entities_with_stats(
-                self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id)),
-                "shape",
-            )
-            self.generate_shape_list(shapes)
-
-            self.generate_all_plots_json(plots)
-            self.generate_all_shapes_json(shapes)
-            self.generate_all_taxa_json(taxons)
+            # Generate additional content selon le groupe
+            if not group:
+                # Si aucun groupe spécifié, génère tout le contenu additionnel
+                self._generate_additional_content()
+            else:
+                # Sinon, génère uniquement le contenu additionnel pour le groupe spécifié
+                if group == "taxon":
+                    taxons = self._get_entities_for_group("taxon")
+                    self.generate_taxonomy_tree(taxons)
+                    self.generate_all_taxa_json(taxons)
+                elif group == "plot":
+                    plots = self._get_entities_for_group("plot")
+                    self.generate_plot_list(plots)
+                    self.generate_all_plots_json(plots)
+                elif group == "shape":
+                    shapes = self._get_entities_for_group("shape")
+                    self.generate_shape_list(shapes)
+                    self.generate_all_shapes_json(shapes)
 
         except Exception as e:
             logger.exception(f"Error generating content: {e}")
 
-    def filter_entities_with_stats(self, entities, group_by: str) -> List[Any]:
+    def _generate_static_pages(self) -> None:
         """
-        Filters the entities to include only those with associated stats.
+        Generate basic static pages
+        """
+        static_pages = [
+            "index.html",
+            "methodology.html",
+            "resources.html",
+            "construction.html",
+            "trees.html",
+            "plots.html",
+            "forests.html",
+        ]
+        for page in static_pages:
+            self.generate_page(page, page, depth="")
+
+    def _get_entities_for_group(self, group_by: str) -> List[Any]:
+        """
+        Get filtered entities based on group type
 
         Args:
-            entities (List[Any]): The list of entities to filter.
-            group_by (str): The group type ('plot', 'shape', or 'taxon').
+            group_by (str): Type of group ('plot', 'shape', or 'taxon')
 
         Returns:
-            List[Any]: The filtered list of entities with associated stats.
-        """
-        filtered_entities = []
-        for entity in entities:
-            with self.repository.db.engine.connect() as connection:
-                result = connection.execute(
-                    text(f"SELECT * FROM {group_by}_stats WHERE {group_by}_id = :id"),
-                    {"id": entity.id},
-                )
-                stats_row = result.fetchone()
-                if stats_row:
-                    filtered_entities.append(entity)
-        return filtered_entities
-
-    def generate_group_content(
-        self, group_by: str, group_config: Dict[str, Any]
-    ) -> None:
-        """
-        Generate content for a given group.
-
-        Args:
-            group_by (str): The parameter to group the occurrences by.
-            group_config (dict): The configuration for the group.
+            List[Any]: Filtered list of entities
         """
         if group_by == "plot":
-            entities = self.filter_entities_with_stats(
-                self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id)),
-                group_by,
-            )
+            entities = self.repository.get_entities(PlotRef, order_by=asc(PlotRef.id))
         elif group_by == "shape":
-            entities = self.filter_entities_with_stats(
-                self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id)),
-                group_by,
-            )
+            entities = self.repository.get_entities(ShapeRef, order_by=asc(ShapeRef.id))
         elif group_by == "taxon":
-            entities = self.filter_entities_with_stats(
-                self.repository.get_entities(
-                    TaxonRef, order_by=asc(TaxonRef.full_name)
-                ),
-                group_by,
+            entities = self.repository.get_entities(
+                TaxonRef, order_by=asc(TaxonRef.full_name)
             )
         else:
             raise ValueError(f"Unknown group_by: {group_by}")
 
-        for entity in track(
-            entities, description=f"Generating {group_by} static content"
-        ):
-            with self.repository.db.engine.connect() as connection:
-                result = connection.execute(
-                    text(f"SELECT * FROM {group_by}_stats WHERE {group_by}_id = :id"),
-                    {"id": entity.id},
-                )
-                stats_row = result.fetchone()
-                stats_dict = dict(zip(result.keys(), stats_row)) if stats_row else {}
+        return self.filter_entities_with_stats(entities, group_by)
 
-                if stats_dict:
-                    if group_by == "plot":
-                        self.generate_page_for_plot(entity, stats_dict, group_config)
-                        self.generate_json_for_plot(entity, stats_dict)
-                    elif group_by == "shape":
-                        self.generate_page_for_shape(entity, stats_dict, group_config)
-                        self.generate_json_for_shape(entity, stats_dict)
-                    elif group_by == "taxon":
-                        self.generate_page_for_taxon(entity, stats_dict, group_config)
-                        self.generate_json_for_taxon(entity, stats_dict)
+    def _generate_group_content(
+        self, group_by: str, group_config: Dict[str, Any]
+    ) -> None:
+        """
+        Generate content for a specific group
+
+        Args:
+            group_by (str): Type of group
+            group_config (Dict): Configuration for the group
+        """
+        entities = self._get_entities_for_group(group_by)
+
+        # Process each entity
+        for entity in track(entities, description=f"Generating {group_by} content"):
+            stats = self._get_entity_stats(entity, group_by)
+            if stats:
+                # Generate page and JSON based on entity type
+                if group_by == "plot":
+                    self.generate_page_for_plot(entity, stats, group_config)
+                    self.generate_json_for_plot(entity, stats)
+                elif group_by == "shape":
+                    self.generate_page_for_shape(entity, stats, group_config)
+                    self.generate_json_for_shape(entity, stats)
+                elif group_by == "taxon":
+                    self.generate_page_for_taxon(entity, stats, group_config)
+                    self.generate_json_for_taxon(entity, stats)
+
+    def _generate_additional_content(self) -> None:
+        """
+        Generate additional required content like taxonomies and lists
+        """
+        # Generate taxonomy tree
+        taxons = self._get_entities_for_group("taxon")
+        self.generate_taxonomy_tree(taxons)
+        self.generate_all_taxa_json(taxons)
+
+        # Generate plot content
+        plots = self._get_entities_for_group("plot")
+        self.generate_plot_list(plots)
+        self.generate_all_plots_json(plots)
+
+        # Generate shape content
+        shapes = self._get_entities_for_group("shape")
+        self.generate_shape_list(shapes)
+        self.generate_all_shapes_json(shapes)
+
+    def _get_entity_stats(self, entity: Any, group_by: str) -> Optional[Dict]:
+        """
+        Get statistics for an entity
+
+        Args:
+            entity (Any): Entity to get stats for
+            group_by (str): Type of group
+
+        Returns:
+            Optional[Dict]: Entity statistics if available
+        """
+        with self.repository.db.engine.connect() as connection:
+            result = connection.execute(
+                text(f"SELECT * FROM {group_by}_stats WHERE {group_by}_id = :id"),
+                {"id": entity.id},
+            )
+            stats_row = result.fetchone()
+            return dict(zip(result.keys(), stats_row)) if stats_row else None
+
+    def filter_entities_with_stats(
+        self, entities: List[Any], group_by: str
+    ) -> List[Any]:
+        """
+        Filter entities to only include those with statistics
+
+        Args:
+            entities (List[Any]): List of entities to filter
+            group_by (str): Type of group
+
+        Returns:
+            List[Any]: Filtered list of entities
+        """
+        return [
+            entity
+            for entity in entities
+            if self._get_entity_stats(entity, group_by) is not None
+        ]
 
     def generate_page(
         self,
@@ -322,13 +369,3 @@ class GeneratorService:
             taxons (List[TaxonRef]): The list of taxon entities.
         """
         self.api_generator.generate_all_taxa_json(taxons)
-
-    def copy_template_page(self, template_name: str, output_name: str) -> None:
-        """
-        Copies a template page to the output directory.
-
-        Args:
-            template_name (str): The name of the template page to copy.
-            output_name (str): The name of the output page.
-        """
-        self.page_generator.copy_template_page(template_name, output_name)

@@ -66,8 +66,8 @@ class PlotImporter:
                         geometry=wkt_geometry,
                     )
                     self.db.session.add(plot)
-            self.db.session.commit()
 
+            self.db.session.commit()
             return f"Data from {gpkg_path} imported successfully into table plot_ref."
 
         except Exception as e:

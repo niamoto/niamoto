@@ -4,7 +4,11 @@
 {% block title %}Niamoto - Parcelle {{ plot.locality }}{% endblock %}
 {% block extra_head %}
 <script src="{{ depth }}js/plot_list.js"></script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.6/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.6.1/justgage.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <style>
         #plot-list li {
             list-style: none;
@@ -114,82 +118,414 @@
 
 {% block content %}
     <div class="flex-1 p-4">
+        <div class="container mx-auto px-4 md:px-6 py-4 md:py-8">
+        {# Full width widgets #}
         <div class="mt-16">
-            {% for field_key, field in mapping.fields.items() %}
-                {% if field.field_type == 'GEOGRAPHY' %}
-                    {{ widgets.render_geography_field(field_key) }}
-                {% endif %}
+            {% for widget_key, widget in mapping.widgets.items() if widget.layout == 'full_width' %}
+                {{ widgets.render_widget_content(widget, widget_key, stats) }}
             {% endfor %}
         </div>
-        <div class="container mx-auto px-4 md:px-6 py-4 md:py-8">
-            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-            {#{{ render_info_widget("Informations générales", plot, [
-                    {'label': 'Rang', 'value': taxon.rank_name},
-                    {'label': "Nombre d'occurrences", 'value': taxon.total_occurrences_count},
-                ]) }}#}
-                    {% for field_key, field in mapping.fields.items() %}
-                        {% if field.field_type != 'GEOGRAPHY' %}
-                            {{ widgets.render_field(field_key, field) }}
-                        {% endif %}
-                    {% endfor %}
-            </div>
+
+        {# Grid layout widgets #}
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4 mt-4">
+            {% for widget_key, widget in mapping.widgets.items() if widget.layout != 'full_width' %}
+                {{ widgets.render_widget_content(widget, widget_key, stats) }}
+            {% endfor %}
         </div>
+    </div>
     </div>
 {% endblock %}
 
 
 {% block extra_scripts %}
 <script>
-    var plot = {{ plot | tojson | safe }};
-    var mapping = {{ mapping | tojson | safe }};
+// =====================================
+// Constants & Initial Setup
+// =====================================
+var plot = {{ plot | tojson | safe }};
+var mapping = {{ mapping | tojson | safe }};
 
     document.addEventListener('DOMContentLoaded', function () {
-        loadPlotCharts(plot, mapping);
+
         loadPlotList(); // Chargement de la liste des plots
-        setTimeout(initPlotMap, 0.5);
+        //setTimeout(initMap, 0.5);
+
+        // Initialize all widgets
+        initializeWidgets(mapping.widgets, plot);
     });
 
-    document.addEventListener('DOMContentLoaded', function() {
-        // Gestion du toggle du menu mobile
-        const sidebarToggle = document.getElementById('sidebar-toggle');
-        const shapeTree = document.getElementById('plot-list-container');
+// =====================================
+// Sidebar Management
+// =====================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion du toggle du menu mobile
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const shapeTree = document.getElementById('plot-list-container');
 
-        if (sidebarToggle && shapeTree) {
-            sidebarToggle.addEventListener('click', function() {
-                // Toggle la classe hidden sur le plot-list-container
-                shapeTree.classList.toggle('hidden');
+    if (sidebarToggle && shapeTree) {
+        sidebarToggle.addEventListener('click', function() {
+            // Toggle la classe hidden sur le plot-list-container
+            shapeTree.classList.toggle('hidden');
 
-                // Toggle une classe pour indiquer l'état ouvert/fermé
-                this.classList.toggle('menu-open');
+            // Toggle une classe pour indiquer l'état ouvert/fermé
+            this.classList.toggle('menu-open');
 
-                // Change l'icône si besoin
-                const svg = this.querySelector('svg');
-                if (this.classList.contains('menu-open')) {
-                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
-                } else {
-                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
+            // Change l'icône si besoin
+            const svg = this.querySelector('svg');
+            if (this.classList.contains('menu-open')) {
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
+            } else {
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
+            }
+        });
+
+        // Fermer le menu au clic en dehors
+        document.addEventListener('click', function(e) {
+            if (!sidebarToggle.contains(e.target) &&
+                !shapeTree.contains(e.target) &&
+                !shapeTree.classList.contains('hidden') &&
+                window.innerWidth < 1024) {
+                shapeTree.classList.add('hidden');
+                sidebarToggle.classList.remove('menu-open');
+                const svg = sidebarToggle.querySelector('svg');
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
+            }
+        });
+    }
+});
+
+// =====================================
+// Widget Management
+// =====================================
+function initializeWidgets(widgets, stats) {
+    // Mapping des types vers leurs fonctions d'initialisation
+    const initializerMap = {
+        'bar_chart': initChart,
+        'line_chart': initChart,
+        'pie_chart': initChart,
+        'doughnut_chart': initChart,
+        'gauge': initChart,
+        'map_panel': initMap
+    };
+
+    Object.entries(widgets)
+        .filter(([_, config]) => config.type in initializerMap)  // Ignore les types non gérés
+        .forEach(([widgetKey, config]) => {
+            // Génère l'ID du widget automatiquement si non spécifié
+            const suffix = config.type.includes('chart') ? 'Chart' :
+                          config.type === 'gauge' ? 'Gauge' : 'Map';
+            const widgetId = config.id || `${widgetKey}${suffix}`;
+
+            // Pour les cartes, on passe directement stats
+            if (config.type === 'map_panel') {
+                initializerMap[config.type](widgetId, stats, config);
+                return;
+            }
+
+            // Pour les autres widgets, on vérifie la source dans stats
+            const data = _.get(stats, config.source);
+            if (!data) return;  // Skip si pas de données
+
+            // Initialise le widget avec la fonction appropriée
+            initializerMap[config.type](widgetId, data, config);
+        });
+}
+
+// =====================================
+// Map Management
+// =====================================
+
+function initMap(mapId, data, mapConfig) {
+        const mapContainer = document.getElementById(mapId);
+
+        var geometry = plot.geometry;
+
+        const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        });
+        const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        });
+        const map = L.map(mapId, {
+            layers: [carte, satellite],
+            scrollWheelZoom: false
+        });
+        map.attributionControl.setPrefix(false); // Remove the "Powered by Leaflet" prefix
+        map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
+
+        const baseMaps = {
+            "Carte": carte,
+            "Satellite": satellite,
+        };
+
+        L.control.layers(baseMaps).addTo(map);
+
+        if (geometry) {
+            const geoJsonLayer = L.geoJSON(geometry, {
+                style: function() {
+                    return {
+                        color: '#228b22', // Border color
+                        weight: 2,       // Border width
+                        fillColor: '#228b22cc', // Fill color with opacity
+                        fillOpacity: 0.8 // Fill opacity
+                    };
                 }
-            });
+            }).addTo(map);
+            map.fitBounds(geoJsonLayer.getBounds());
+            var currentZoom = map.getZoom();
+            map.setZoom(currentZoom - 3);
+        } else {
+            console.warn("No geographic coordinates found.");
+            // Set default view if no geometry is found
+            map.setView([-21.291237, 165.516418], 8);
+        }
+    }
 
-            // Fermer le menu au clic en dehors
-            document.addEventListener('click', function(e) {
-                if (!sidebarToggle.contains(e.target) &&
-                    !shapeTree.contains(e.target) &&
-                    !shapeTree.classList.contains('hidden') &&
-                    window.innerWidth < 1024) {
-                    shapeTree.classList.add('hidden');
-                    sidebarToggle.classList.remove('menu-open');
-                    const svg = sidebarToggle.querySelector('svg');
-                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
-                }
-            });
+    function loadPlotList() {
+        var plotListElement = document.getElementById("plot-list");
+        plotList.forEach(function(plotItem) {
+            var li = document.createElement("li");
+            var a = document.createElement("a");
+            a.href = "../plot/" + plotItem.id + ".html";
+            a.textContent = plotItem.name;
+            a.className = "plot-link" + (plotItem.id === plot.id ? " active" : "");
+            li.appendChild(a);
+            plotListElement.appendChild(li);
+        });
+    }
+
+
+
+    // =====================================
+// Chart Type Management & Data Processing
+// =====================================
+/**
+ * Maps widget types to Chart.js chart types
+ * @param {string} widgetType - Type from widget configuration
+ * @returns {string} Corresponding Chart.js type
+ */
+function getChartTypeFromWidgetType(widgetType) {
+    const typeMapping = {
+        'doughnut_chart': 'doughnut',
+        'pie_chart': 'pie',
+        'bar_chart': 'bar',
+        'line_chart': 'line',
+        'stacked_bar_chart': 'bar',
+        'gauge': 'gauge'
+    };
+    return typeMapping[widgetType] || 'bar'; //
+}
+
+/**
+ * Prepares data for chart rendering, including sorting and transformation
+ * @param {Object} config - Widget configuration
+ * @param {Object} data - Raw data for the chart
+ * @returns {Object} Formatted data for Chart.js
+ */
+function prepareChartData(config, data) {
+    const datasets = [];
+    let labels = [];
+
+    if (!config.datasets || !Array.isArray(config.datasets)) {
+        console.warn('No datasets configuration provided');
+        return { labels: [], datasets: [] };
+    }
+
+    // Get and sort data if needed
+    let sortedData = data;
+    let sortedIndices = null;
+    if (config.sortBy) {
+        const values = _.get(data, config.sortBy, []);
+        sortedIndices = values.map((v, i) => i);
+        sortedIndices.sort((a, b) => values[a] - values[b]);
+
+        // Create new sorted data object
+        sortedData = Object.keys(data).reduce((acc, key) => {
+            if (Array.isArray(data[key])) {
+                acc[key] = sortedIndices.map(i => data[key][i]);
+            } else {
+                acc[key] = data[key];
+            }
+            return acc;
+        }, {});
+    }
+
+    // Get labels before dataset processing
+    labels = config.labels_key ?
+        _.get(sortedData, config.labels_key, []).map(v => v.toString()) :
+        config.labels ? config.labels :
+        [];
+
+    config.datasets.forEach((datasetConfig) => {
+        const dataset = {
+            label: datasetConfig.label,
+            data: [],
+            backgroundColor: [],
+            borderColor: [],
+            borderWidth: datasetConfig.borderWidth ?? 1,
+            fill: datasetConfig.fill ?? false,
+            tension: datasetConfig.tension ?? 0,
+            stack: datasetConfig.stack,
+            pointRadius: datasetConfig.pointRadius ?? undefined,
+            pointHoverRadius: datasetConfig.pointHoverRadius ?? undefined,
+            pointHoverBackgroundColor: datasetConfig.pointHoverBackgroundColor ?? undefined,
+        };
+
+        // Process data
+        dataset.data = processDataset(datasetConfig, sortedData, config.type);
+
+        // Transform data if needed
+        if (datasetConfig.transformData) {
+            dataset.data = dataset.data.map((value, index) =>
+                transformDataValue(value, datasetConfig.transformData, index, sortedData)
+            );
+        }
+
+        // Process colors after data is loaded
+        processColors(dataset, datasetConfig, labels);
+
+        datasets.push(dataset);
+    });
+
+    return { labels, datasets };
+}
+
+/**
+ * Prepares chart options by merging defaults with configuration
+ * Handles scales, plugins, and callbacks configuration
+ * @param {Object} config - Widget configuration
+ * @returns {Object} Complete Chart.js options
+ */
+function prepareChartOptions(config) {
+    // Default options restent les mêmes
+    const defaultOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: false,
+                    boxWidth: 15,
+                },
+            },
+            title: {
+                display: false,
+            },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+            },
+        },
+        scales: {},
+    };
+
+    // Merge custom options with defaults
+    const options = _.merge({}, defaultOptions, config.options);
+
+    // Handle scales configuration
+    if (config.options && config.options.scales) {
+        Object.keys(options.scales || {}).forEach(scaleKey => {
+        const scale = options.scales[scaleKey];
+        if (scale.ticks && scale.ticks.callback) {
+            const callbackName = scale.ticks.callback;
+            if (typeof window[callbackName] === 'function') {
+                scale.ticks.callback = window[callbackName];
+            }
         }
     });
+    }
 
-    function loadPlotCharts(plot, mapping) {
-        var frequencies = plot.frequencies;
+    // Handle stacked charts
+    if (config.type === 'stacked_bar_chart' || (config.options && config.options.stacked)) {
+        if (options.scales.x) options.scales.x.stacked = true;
+        if (options.scales.y) options.scales.y.stacked = true;
+    }
 
-        function generateColors(count, defaultColor) {
+    // Process plugin callbacks
+    if (options.plugins) {
+        for (const pluginKey in options.plugins) {
+            const plugin = options.plugins[pluginKey];
+            if (plugin.callbacks) {
+                for (const callbackKey in plugin.callbacks) {
+                    const callbackName = plugin.callbacks[callbackKey];
+                    if (typeof callbackName === 'string' && typeof window[callbackName] === 'function') {
+                        plugin.callbacks[callbackKey] = window[callbackName];
+                    }
+                }
+            }
+        }
+    }
+
+    return options;
+}
+
+/**
+ * Process dataset values according to chart type
+ */
+function processDataset(datasetConfig, data, chartType) {
+    let processedData = [];
+
+    if (datasetConfig.data_keys && Array.isArray(datasetConfig.data_keys)) {
+        processedData = datasetConfig.data_keys.map(key => {
+            const value = parseFloat(_.get(data, key, 0)) || 0;
+            return formatValue(value, chartType);
+        });
+    } else if (datasetConfig.data_key) {
+        const values = _.get(data, datasetConfig.data_key, []);
+        processedData = Array.isArray(values) ?
+            values.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+            [formatValue(parseFloat(values) || 0, chartType)];
+    } else if (datasetConfig.data) {
+        processedData = Array.isArray(datasetConfig.data) ?
+            datasetConfig.data.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+            [formatValue(parseFloat(datasetConfig.data) || 0, chartType)];
+    }
+
+    return processedData;
+}
+
+/**
+ * Process colors for chart datasets
+ */
+function processColors(dataset, datasetConfig, labels) {
+    if (datasetConfig.generateColors) {
+        // Génère autant de couleurs que de données
+        dataset.backgroundColor = generateColors(dataset.data.length);
+        dataset.borderColor = dataset.backgroundColor;
+        return;
+    }
+
+    if (datasetConfig.color_mapping && labels) {
+        dataset.backgroundColor = Array.isArray(dataset.data) ?
+            dataset.data.map((_, index) => {
+                const label = labels[index];
+                return datasetConfig.color_mapping[label] || '#000000';
+            }) :
+            datasetConfig.color_mapping[labels[0]] || '#000000';
+
+        dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
+    } else if (datasetConfig.backgroundColors) {
+        dataset.backgroundColor = datasetConfig.backgroundColors;
+        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
+    } else if (datasetConfig.backgroundColor) {
+        dataset.backgroundColor = datasetConfig.backgroundColor;
+        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
+    } else {
+        dataset.backgroundColor = '#000000';
+        dataset.borderColor = '#000000';
+    }
+}
+
+function generateColors(count, defaultColor) {
             if (defaultColor) {
                 return Array(count).fill(defaultColor);
             }
@@ -241,254 +577,51 @@
             });
         }
 
-        Object.entries(mapping.fields).forEach(function([field_key, field]) {
-            if (field.field_type !== 'GEOGRAPHY') {
-                // Chart for bins
-                if (field.bins && field.bins.values && field.bins.values.length > 0) {
-                    // Check if we have data first
-                    if (!frequencies || !frequencies[field.source_field] || Object.keys(frequencies[field.source_field]).length === 0) {
-                        var binContainer = document.getElementById(field_key + 'BinChart');
-                        if (binContainer) {
-                            // Create container with same height as charts for consistency
-                            var container = document.createElement('div');
-                            container.style.height = '300px';
-                            container.className = 'flex items-center justify-center';
-                            container.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
-                            binContainer.parentNode.replaceChild(container, binContainer);
-                        }
-                        return;
-                    }
+/**
+ * Initialize chart widgets including gauges
+ * Handles both Chart.js charts and JustGage gauges
+ */
+function initChart(widgetId, data, config) {
+    const ctx = document.getElementById(widgetId);
+    if (!ctx) return;
 
-                    // If we have data, create the chart
-                    var labels, values;
-                    if (field.bins.labels && field.bins.values) {
-                        labels = field.bins.labels;
-                        values = field.bins.values.map(value => frequencies[field.source_field][value] || 0);
-                    } else {
-                        var dataArray = Object.entries(frequencies[field.source_field])
-                            .map(([label, value]) => ({label, value}))
-                            .sort((a, b) => parseFloat(a.label) - parseFloat(b.label));
+    const chartType = getChartTypeFromWidgetType(config.type);
 
-                        labels = dataArray.map(item => item.label);
-                        values = dataArray.map(item => item.value);
-                    }
+    if (chartType === 'gauge') {
+        const rawValue = _.get(data, config.value_key);
 
-                    if (field.bins.chart_options.indexAxis === 'y') {
-                        labels.reverse();
-                        values.reverse();
-                    }
-
-                    var binData = {
-                        labels: labels,
-                        datasets: [{
-                            label: field.label,
-                            data: values,
-                            backgroundColor: field.bins.chart_options.color
-                        }]
-                    };
-
-                    var binConfig = {
-                        type: field.bins.chart_type,
-                        data: binData,
-                        options: Object.assign({}, field.bins.chart_options, {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                x: {
-                                    stacked: field.bins.chart_options.stacked || false
-                                },
-                                y: {
-                                    stacked: field.bins.chart_options.stacked || false
-                                }
-                            },
-                            plugins: {
-                                tooltip: {
-                                    callbacks: {
-                                        label: function (context) {
-                                            const value = context.raw;
-                                            return `${value}%`;
-                                        }
-                                    }
-                                },
-                                datalabels: {
-                                    display: true,
-                                    align: 'center',
-                                    color: 'black',
-                                    formatter: function (value) {
-                                        return value + '%';
-                                    }
-                                }
-                            }
-                        })
-                    };
-
-                    var binCtx = document.getElementById(field_key + 'BinChart');
-                    if (binCtx) {
-                        new Chart(binCtx.getContext('2d'), binConfig);
-                    }
-                }
-
-
-                // Charts for transformations
-                field.transformations.forEach(function(transformation) {
-                    var transformationName = transformation.name ? transformation.name : '';
-                    var valueKey = transformation.name ? field_key + '_' + transformationName : field_key;
-                    if (transformation.chart_type === 'text') {
-                        var textElement = document.getElementById(field_key + 'Text');
-                        if (textElement) {
-                            textElement.textContent = plot[field_key];
-                        }
-                    } else if (transformation.chart_type === 'pie') {
-                        var pieData = {
-                            labels: ['True', 'False'],
-                            datasets: [{
-                                data: [
-                                    plot[field_key + '_true'] || 0,
-                                    plot[field_key + '_false'] || 0
-                                ],
-                                backgroundColor: ['#FF6384', '#36A2EB']
-                            }]
-                        };
-
-                        var pieConfig = {
-                            type: 'pie',
-                            data: pieData,
-                            options: {
-                                title: {
-                                    display: true,
-                                    text: transformation.chart_options.title
-                                }
-                            }
-                        };
-
-                        var pieCtx = document.getElementById(field_key + 'PieChart');
-                        if (pieCtx) {
-                            pieCtx = pieCtx.getContext('2d');
-                            new Chart(pieCtx, pieConfig);
-                        }
-                    } else if (transformation.chart_type === 'gauge') {
-                        var gaugeOptions = {
-                            id: field_key + transformationName + 'Gauge',
-                            value: parseFloat(plot[valueKey]),
-                            min: 0,
-                            max: transformation.chart_options.max,
-                            title: transformation.chart_options.title,
-                            label: transformation.chart_options.label
-                        };
-
-                        createGauge(gaugeOptions);
-                    } else if (transformation.chart_type === 'bar') {
-                    var sortedData = Object.entries(plot[field_key+'_'+ transformation.name] || {})
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, transformation.count || 10);
-
-                    var defaultColor = transformation.chart_options.defaultColor;
-                    var colors = generateColors(sortedData.length, defaultColor);
-
-                    var barData = {
-                        labels: sortedData.map(item => item[0]),
-                        datasets: [{
-                            label: field.label,
-                            data: sortedData.map(item => item[1]),
-                            backgroundColor: colors,
-                            borderColor: colors,
-                            borderWidth: 1
-                        }]
-                    };
-
-                    var barConfig = {
-                        type: 'bar',
-                        data: barData,
-                        options: {
-                            indexAxis: 'y',
-                            responsive: false,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                },
-                                title: {
-                                    display: true,
-                                    font: {
-                                        size: 16,
-                                        weight: 'bold'
-                                    },
-                                    padding: {
-                                        top: 1,
-                                        bottom: 0
-                                    }
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    title: {
-                                        display: true,
-                                        font: {
-                                            weight: 'bold'
-                                        }
-                                    },
-                                    ticks: {
-                                        font: {
-                                            weight: 'bold'
-                                        }
-                                    }
-                                },
-                                y: {
-                                    ticks: {
-                                        font: {
-                                            weight: 'bold'
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    };
-
-                    var fieldKey = field_key + transformation.name;
-                    var barCtxElement = document.getElementById(fieldKey + 'BarChart');
-                    if (barCtxElement) {
-                        barCtxElement.style.height = '400px';  // Adjust height as needed
-                        var barCtx = barCtxElement.getContext('2d');
-                        new Chart(barCtx, barConfig);
-                    }
-                }
-                });
-            }
-        });
-    }
-
-    function createGauge(options) {
-        // Verify if value is a valid number
-        if (options.value === null || options.value === undefined || isNaN(options.value)) {
-            const container = document.getElementById(options.id);
-            if (container) {
-                container.className = 'flex items-center justify-center h-64';
-                container.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+        if (rawValue === null || rawValue === undefined || isNaN(rawValue)) {
+            if (ctx) {
+                ctx.className = 'flex items-center justify-center h-64';
+                ctx.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
             }
             return;
         }
 
-        new JustGage({
-            id: options.id,
-        value: options.value,
-        min: options.min || 0,
-        max: options.max,
-        title: options.title,
-        label: options.label,
-        decimals: 1,
+        const value = parseFloat(rawValue.toFixed(1));
+
+        const gaugeOptions = {
+            id: widgetId,
+            value: value,
+            min: config.options.min,
+            max: config.options.max,
+            label: config.options.units,
+            title: config.title,
+            gaugeColor: "#eee",
+            levelColors: config.options.sectors.map(s => s.color),
+            decimals: 1,
             gaugeWidthScale: 0.6,
             counter: true,
             pointer: true,
             pointerOptions: {
-        toplength: -15,
-        bottomlength: 10,
-        bottomwidth: 12,
-        color: '#8E8E93',
-        stroke: '#fff',
-        stroke_width: 3,
-        stroke_linecap: 'round'
-    },
-        levelColors: ["#e62c2a", "#f46708", "#dfd419", "#7fd742", "#00a94c"],
+                toplength: -15,
+                bottomlength: 10,
+                bottomwidth: 12,
+                color: '#8E8E93',
+                stroke: '#fff',
+                stroke_width: 3,
+                stroke_linecap: 'round'
+            },
             // Default options that don't need to be in config
             showMinMax: false,
             donut: false,
@@ -496,89 +629,168 @@
             // Font colors that don't need to be in config
             titleFontColor: "#333",
             valueFontColor: "#333",
-            labelFontColor: "#666",
-            textRenderer: function (val) {
-                return parseFloat(val).toFixed(2); // Ensure value is displayed with 2 decimal places
-            }
-        });
-    }
-
-    function initPlotMap() {
-        var geometry = plot.geometry;
-
-        const satellite = L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        });
-        const carte = L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-            layers: '0',
-            format: 'image/png',
-            transparent: true,
-            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
-        });
-        const map = L.map('mapContainer', {
-            layers: [carte, satellite],
-            scrollWheelZoom: false
-        });
-        map.attributionControl.setPrefix(false); // Remove the "Powered by Leaflet" prefix
-        map.attributionControl.addAttribution("<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>");
-
-        const baseMaps = {
-            "Carte": carte,
-            "Satellite": satellite,
+            labelFontColor: "#666"
         };
 
-        L.control.layers(baseMaps).addTo(map);
+        const gauge = new JustGage(gaugeOptions);
 
-        map.on('load', function () {
-            document.getElementById('mapLoader').style.display = 'none';
+        // Add value text below
+        const valueText = document.createElement('p');
+        valueText.className = 'text-center mt-5 text-lg text-gray-700';
+        ctx.parentNode.appendChild(valueText);
+
+        return;
+    }
+
+    // Pour les autres types de graphiques...
+    const chartData = prepareChartData(config, data);
+    const chartOptions = prepareChartOptions(config);
+    const plugins = [];
+
+    if (config.customPlugin && typeof window[config.customPlugin] === 'object') {
+        plugins.push(window[config.customPlugin]);
+    }
+
+    new Chart(ctx, {
+        type: chartType,
+        data: chartData,
+        options: chartOptions,
+        plugins: plugins,
+    });
+}
+
+// =====================================
+// Value Formatters
+// =====================================
+// Various formatters for different data types
+window.formatLogValue = function(value) {
+    return value.toString();
+};
+window.formatSurfaceValue = function(value) {
+    if (value >= 1000000) {
+        return (value / 1000000).toFixed(1) + 'M';
+    }
+    if (value >= 1000) {
+        return (value / 1000).toFixed(0) + 'k';
+    }
+    return value;
+};
+window.formatPercentage = function(value) {
+    return value.toFixed(0) + '%';
+};
+window.formatForestTypeTooltip = function(context) {
+    return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
+};
+window.formatTooltipLabel = function (context) {
+    return `${context.label}: ${context.parsed}%`;
+};
+window.formatForestTypeElevationTooltip = function(context) {
+    const value = Math.round(context.raw);  // ou .toFixed(0) pour aucune décimale
+    return context.dataset.label + ': ' + value + '%';
+};
+window.formatAbsoluteValue = function(value) {
+    // Si c'est zéro, on l'affiche au centre
+    if (value === 0) return '0';
+    // Pour les autres valeurs, on affiche la valeur absolue
+    return Math.abs(value).toString();
+};
+
+window.formatForestCoverTooltip = function(context) {
+    const label = context.dataset.label;
+    const value = Math.abs(context.raw).toFixed(1);
+    return `${label}: ${value}%`;
+};
+
+function transformDataValue(value, transform, valueIndex, allData) {
+    if (!transform) return value;
+
+    switch(transform) {
+        case 'negateValues':
+            return isNaN(value) ? 0 : -value;
+        case 'toPercentage':
+            return isNaN(value) ? 0 : value * 100;
+        case 'stackedPercentage':
+            const total = ['secondaire', 'mature', 'coeur'].reduce((sum, key) =>
+                sum + (allData[key] ? allData[key][valueIndex] : 0), 0);
+            return total === 0 ? 0 : (value / total * 100);
+        default:
+            return value;
+    }
+}
+function formatValue(value, chartType) {
+    switch(chartType) {
+        case 'doughnut_chart':
+        case 'pie_chart':
+            return Number(value);
+        default:
+            return value;
+    }
+}
+
+// =====================================
+// Custom Plugins
+// =====================================
+/**
+ * Custom plugin for drawing labels on doughnut charts
+ */
+window.customLabels = {
+    id: 'customLabels',
+    afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.font = '11px system-ui';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        const datasets = chart.data.datasets;
+        const meta = chart.getDatasetMeta(0);
+        const centerX = meta.data[0].x;
+        const centerY = meta.data[0].y;
+
+        datasets.forEach((dataset, i) => {
+            const meta = chart.getDatasetMeta(i);
+            const percentage = dataset.data[0];
+            const element = meta.data[0];
+
+            const percentageAngle = -Math.PI + 0.2;
+            const radius = (element.innerRadius + element.outerRadius) / 2;
+            const x = centerX + Math.cos(percentageAngle) * radius;
+            const y = centerY + Math.sin(percentageAngle) * radius;
+
+            ctx.fillText(percentage.toFixed(1) + '%', x, y);
+
+            // Affichage du label
+            ctx.fillText(dataset.label, centerX, centerY + element.outerRadius - 10);
         });
 
-        if (geometry) {
-            const geoJsonLayer = L.geoJSON(geometry, {
-                style: function() {
-                    return {
-                        color: '#228b22', // Border color
-                        weight: 2,       // Border width
-                        fillColor: '#228b22cc', // Fill color with opacity
-                        fillOpacity: 0.8 // Fill opacity
-                    };
-                }
-            }).addTo(map);
-            map.fitBounds(geoJsonLayer.getBounds());
-            var currentZoom = map.getZoom();
-            map.setZoom(currentZoom - 3);
-        } else {
-            console.warn("No geographic coordinates found.");
-            // Set default view if no geometry is found
-            map.setView([-21.291237, 165.516418], 8);
-        }
+        ctx.restore();
     }
+};
 
-    function loadPlotList() {
-        var plotListElement = document.getElementById("plot-list");
-        plotList.forEach(function(plotItem) {
-            var li = document.createElement("li");
-            var a = document.createElement("a");
-            a.href = "../plot/" + plotItem.id + ".html";
-            a.textContent = plotItem.name;
-            a.className = "plot-link" + (plotItem.id === plot.id ? " active" : "");
-            li.appendChild(a);
-            plotListElement.appendChild(li);
+/**
+ * Custom plugin for drawing percentage labels on forest type charts
+ */
+window.forestTypeLabelsPlugin = {
+    id: 'text',
+    afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        chart.data.datasets.forEach(function(dataset, i) {
+            const meta = chart.getDatasetMeta(i);
+            meta.data.forEach(function(element, index) {
+                const value = dataset.data[index];
+                const position = element.getCenterPoint();
+
+                // Draw value
+                ctx.save();
+                ctx.fillStyle = '#000000';
+                ctx.font = '12px system-ui';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(value.toFixed(1) + '%', position.x, position.y);
+                ctx.restore();
+            });
         });
     }
-
-    // Function to get a color based on the index
-    function getColor(index) {
-        var colors = [
-            {background: 'rgba(54, 162, 235, 0.6)', border: 'rgba(54, 162, 235, 1)'},
-            {background: 'rgba(75, 192, 192, 0.6)', border: 'rgba(75, 192, 192, 1)'},
-            {background: 'rgba(255, 99, 132, 0.6)', border: 'rgba(255, 99, 132, 1)'}
-            // Add more colors if necessary
-        ];
-        return colors[index % colors.length]; // Repeat colors if more keys than defined colors
-    }
+};
 </script>
 {% endblock %}

@@ -30,7 +30,7 @@ classifiers = [
 ]
 
 [tool.poetry.scripts]
-niamoto = "niamoto.cli.commands:cli"
+niamoto = "niamoto.cli:cli"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"

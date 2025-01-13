@@ -24,7 +24,7 @@ class ApiGenerator(BaseGenerator):
         """
         self.config = config
         self.json_output_dir: str = cast(
-            str, os.path.join(self.config.get("outputs", "static_api"))
+            str, os.path.join(self.config.output_paths.get("static_api"))
         )
 
     def generate_taxon_json(self, taxon: TaxonRef, stats: Optional[Any]) -> str:

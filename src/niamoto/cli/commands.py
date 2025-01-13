@@ -26,7 +26,6 @@ from niamoto.common.environment import Environment
 from niamoto.core.models import Base
 from niamoto.core.services.generator import GeneratorService
 from niamoto.core.services.importer import ImporterService
-from niamoto.core.services.mapper import MapperService
 from niamoto.core.services.statistics import StatisticService
 
 NIAMOTO_ASCII_ART = """
@@ -808,80 +807,6 @@ def reset_table(db_path: str, table_name: str) -> None:
     except Exception as e:
         console.print(f"Error recreating table {table_name}: {e}", style="bold red")
         raise
-
-
-@cli.command(name="generate-mapping")
-@click.option(
-    "--data-source",
-    type=str,
-    help="Path to the CSV file to generate mapping from.",
-)
-@click.option(
-    "--mapping-group",
-    type=str,
-    required=True,
-    help="The type of grouping to generate the mapping for (e.g., taxon, plot, commune).",
-)
-@click.option(
-    "--reference-table-name",
-    type=str,
-    help="The name of the reference table in the database.",
-)
-@click.option(
-    "--reference-data-path",
-    type=str,
-    help="The path to the reference table file (e.g., GeoPackage).",
-)
-def generate_mapping(
-    data_source: str,
-    mapping_group: str,
-    reference_table_name: Optional[str],
-    reference_data_path: Optional[str],
-) -> None:
-    """
-    Generate a mapping from a CSV file based on the specified grouping criteria.
-
-    This command generates a mapping between the data in the CSV file and the specified grouping criteria.
-    It allows for the creation of mappings based on different entities such as taxon, plot, or commune.
-    If a reference table and data path are provided, they will be used to enhance the mapping process.
-
-    Args:
-        data_source (str): Path to the CSV file containing the data to generate the mapping from.
-        mapping_group (str): The type of grouping to generate the mapping for (e.g., taxon, plot, commune).
-        reference_table_name (str, optional): The name of the reference table in the database.
-        reference_data_path (str, optional): The path to the reference table file (e.g., GeoPackage).
-
-    Examples: $ niamoto generate-mapping --data-source occurrences.csv --mapping-group taxon --reference-table-name
-    taxon_ref $ niamoto generate-mapping --data-source plot_data.csv --mapping-group plot --reference-table-name
-    plot_ref --reference-data-path plot_ref.gpkg
-
-    Raises:
-        click.UsageError: If no CSV file is provided to generate the mapping from.
-        Exception: If an error occurs during the mapping generation process.
-
-    Note:
-        - The CSV file should have a header row specifying the column names.
-        - The mapping group should correspond to a valid entity type (e.g., taxon, plot, commune).
-        - If a reference table and data path are provided, ensure that they are valid and accessible.
-    """
-    try:
-        config = Config()
-        db_path = config.get("database", "path")
-        api_mapper = MapperService(db_path)
-        if data_source:
-            api_mapper.generate_mapping(
-                data_source, mapping_group, reference_table_name, reference_data_path
-            )
-        else:
-            raise click.UsageError(
-                "Please provide a CSV file to generate mapping from."
-            )
-    except click.UsageError as e:
-        console = Console()
-        console.print(f"Usage error: {e}", style="bold red")
-    except Exception as e:
-        console = Console()
-        console.print(f"Error while generating mapping: {e}", style="bold red")
 
 
 @cli.command(name="calculate-statistics")

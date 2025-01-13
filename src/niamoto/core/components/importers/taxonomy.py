@@ -131,6 +131,7 @@ class TaxonomyImporter:
         Args:
             row (Any): The row to create or update the taxon from.
             session (Any): The session to use.
+            ranks (Tuple[str, ...]): The taxonomy ranks.
 
         Returns:
             Optional[TaxonRef]: The created or updated taxon, or None if an error occurred.
@@ -153,11 +154,11 @@ class TaxonomyImporter:
             if not pd.isna(parent_id):
                 taxon.parent_id = int(parent_id)
 
-            # Store extra data in JSON format
+            # Store extra data
             standard_fields = ["id_taxon", "full_name", "authors", "rank", "parent_id"]
             all_ignored_fields = set(standard_fields).union(ranks)
             extra_data = {
-                key: (None if pd.isna(value) else self._convert_to_correct_type(value))
+                key: None if pd.isna(value) else self._convert_to_correct_type(value)
                 for key, value in row.items()
                 if key not in all_ignored_fields
             }

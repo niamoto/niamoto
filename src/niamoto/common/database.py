@@ -5,7 +5,7 @@ The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
 from typing import TypeVar, Any, Optional, List
-import duckdb
+from sqlite3 import OperationalError
 from sqlalchemy import create_engine, exc, text, inspect
 from sqlalchemy.orm import scoped_session, sessionmaker, Query, Session
 
@@ -35,7 +35,7 @@ class Database:
 
         try:
             self.db_path = db_path
-            self.connection_string = f"duckdb:///{db_path}"
+            self.connection_string = f"sqlite:///{db_path}"
             self.engine = create_engine(self.connection_string, echo=False)
             self.session_factory = sessionmaker(bind=self.engine)
             self.session = scoped_session(self.session_factory)
@@ -95,7 +95,7 @@ class Database:
         """
         try:
             return query.all()
-        except (duckdb.duckdb.IOException, exc.SQLAlchemyError) as e:  # type: ignore
+        except exc.SQLAlchemyError as e:
             Database.__handle_db_errors(e)
             return None
 
@@ -113,7 +113,7 @@ class Database:
             with self.engine.connect() as connection:
                 result = connection.execute(text(sql))
                 return result
-        except (duckdb.duckdb.IOException, exc.SQLAlchemyError) as e:  # type: ignore
+        except exc.SQLAlchemyError as e:
             print(f"Exception occurred: {e}")
             self.__handle_db_errors(e)
             return None
@@ -138,7 +138,7 @@ class Database:
                     return result.fetchone() if fetch else result.fetchall()
                 connection.commit()
                 return result  # Return the raw result for other operations
-        except (duckdb.duckdb.IOException, exc.SQLAlchemyError) as e:  # type: ignore
+        except exc.SQLAlchemyError as e:
             print(f"Exception occurred: {e}")
             self.__handle_db_errors(e)
             return None
@@ -149,7 +149,7 @@ class Database:
         """
         try:
             self.session.commit()
-        except (duckdb.duckdb.IOException, exc.SQLAlchemyError) as e:  # type: ignore
+        except exc.SQLAlchemyError as e:
             self.session.rollback()
             Database.__handle_db_errors(e)
 
@@ -159,13 +159,6 @@ class Database:
         """
         try:
             self.session.rollback()
-        except duckdb.duckdb.IOException as e:  # type: ignore
-            if "Resource temporarily unavailable" in str(e):
-                raise Exception(
-                    "Database is currently in use by another application. Please try again later."
-                ) from e
-            else:
-                raise Exception(f"Unexpected IO error with the database: {e}") from e
         except exc.SQLAlchemyError as e:
             raise Exception(f"SQLAlchemy error during database operation: {e}") from e
 
@@ -193,7 +186,7 @@ class Database:
             try:
                 self.session.commit()
                 self.active_transaction = False
-            except (duckdb.duckdb.IOException, exc.SQLAlchemyError) as e:  # type: ignore
+            except exc.SQLAlchemyError as e:
                 self.__handle_db_errors(e)
         else:
             raise Exception("No active transaction to commit.")
@@ -206,7 +199,7 @@ class Database:
             try:
                 self.session.rollback()
                 self.active_transaction = False
-            except (duckdb.duckdb.IOException, exc.SQLAlchemyError) as e:  # type: ignore
+            except exc.SQLAlchemyError as e:
                 self.__handle_db_errors(e)
         else:
             raise Exception("No active transaction to rollback.")
@@ -222,15 +215,13 @@ class Database:
         Raises:
             Exception: Raises an appropriate exception based on the error type.
         """
-        if isinstance(error, duckdb.duckdb.IOException):  # type: ignore
-            if "Resource temporarily unavailable" in str(error):
+        if isinstance(error, OperationalError):
+            if "database is locked" in str(error):
                 raise Exception(
                     "Database is currently in use by another application. Please try again later."
                 ) from error
             else:
-                raise Exception(
-                    f"Unexpected IO error with the database: {error}"
-                ) from error
+                raise Exception(f"Unexpected database error: {error}") from error
         elif isinstance(error, exc.SQLAlchemyError):
             raise Exception(
                 f"SQLAlchemy error during database operation: {error}"

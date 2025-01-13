@@ -2,256 +2,924 @@
 {% import '_widgets.html' as widgets %}
 
 {% block title %}Niamoto - {{ taxon.full_name }}{% endblock %}
+
 {% block extra_head %}
-    <script src="{{ depth }}js/index.js"></script>
-    <script src="{{ depth }}js/taxonomy_tree.js"></script>
-    <style>
-        #taxonMap {
-            position: relative;
-            height: 400px;
-        }
+<script src="{{ depth }}js/taxonomy_tree.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.6/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/justgage/1.6.1/justgage.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
-        .search-container {
-            position: relative;
-            width: 100%;
-            margin-bottom: 1rem;
-        }
+<style>
+    /* Sidebar styles */
+    #taxonomy-tree-container {
+        height: 100vh;
+        overflow-y: auto;
+        padding-top: 1rem;
+    }
 
-        #taxonSearch {
-            width: 100%;
-            padding: 0.5rem 0.5rem 0.5rem 2.5rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
-        }
+    #taxonomy-tree {
+        transition: all 0.3s ease-in-out;
+    }
 
-        .search-icon {
-            position: absolute;
-            left: 0.75rem;
-            top: 23%;
-            color: #666;
-            pointer-events: none;
+    @media (max-width: 1024px) {
+        #taxonomy-tree:not(.hidden) {
+            animation: slideDown 0.3s ease-in-out;
         }
+    }
 
-        #taxonomy-tree {
-            flex-grow: 1;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
         }
-
-        #taxonomy-tree ul {
-            list-style-type: none;
-            padding-left: 20px;
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
+    }
 
-        #taxonomy-tree li {
-            margin: 5px 0;
-        }
+    .search-container {
+        position: relative;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
 
-        #taxonomy-tree .toggle {
-            cursor: pointer;
-            margin-right: 5px;
-        }
+    #taxonSearch {
+        width: 100%;
+        padding: 0.5rem 0.5rem 0.5rem 2.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
 
-        #taxonomy-tree a {
-            text-decoration: none;
-            color: #333;
-        }
+    .search-icon {
+        position: absolute;
+        left: 0.75rem;
+        top: 23%;
+        color: #666;
+        pointer-events: none;
+    }
 
-        #taxonomy-tree a:hover {
-            text-decoration: underline;
-        }
+    #taxonomy-tree ul {
+        list-style-type: none;
+        padding-left: 20px;
+    }
 
-        #taxonomy-tree .current-taxon {
-            font-weight: bold;
-            color: #007bff;
-        }
+    #taxonomy-tree li {
+        margin: 5px 0;
+    }
 
-        #taxonomy-tree .level-0 {
-            font-size: 16px;
-        }
+    #taxonomy-tree .toggle {
+        cursor: pointer;
+        margin-right: 5px;
+    }
 
-        #taxonomy-tree .level-1 {
-            font-size: 14px;
-        }
+    #taxonomy-tree a {
+        text-decoration: none;
+        color: #333;
+    }
 
-        #taxonomy-tree .level-2 {
-            font-size: 13px;
-        }
+    #taxonomy-tree a:hover {
+        text-decoration: underline;
+    }
 
-        #taxonomy-tree .level-3,
-        #taxonomy-tree .level-4,
-        #taxonomy-tree .level-5 {
-            font-size: 12px;
-        }
+    #taxonomy-tree .current-taxon {
+        font-weight: bold;
+        color: #007bff;
+    }
 
-        .map-container {
-            position: relative;
-            width: 100%;
-            height: 400px;
-            border-radius: 0.5rem;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+    /* Map styles */
+    .map-container {
+        position: relative;
+        width: 100%;
+        height: 400px;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
 
-        .chart-container {
-            @apply relative w-full;
-            min-height: 300px;
-        }
+    /* Chart styles */
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin-bottom: 1rem;
+    }
 
-        /* Specific chart types adjustments */
-        [id$='PieChart'],
-        [id$='BarChart'],
-        [id$='Gauge'],
-        [id*='Chart'] {
-            width: 100% !important;
-            height: 100% !important;
-        }
+    /* Widget styles */
+    .widget-container {
+        @apply bg-white rounded-lg shadow-lg overflow-hidden mb-4 md:mb-0;
+    }
 
-        /* Widget styles */
-        .widget-container {
-            @apply bg-white rounded-lg shadow-lg overflow-hidden;
-        }
+    .widget-header {
+        @apply bg-gray-600 text-white p-3;
+    }
 
-        .widget-header {
-            @apply bg-gray-600 text-white p-3;
+    .widget-content {
+        @apply p-4;
+        min-height: 300px;
+    }
+
+    .tooltip-content {
+        position: absolute;
+        top: 110%;
+        left: 50%;
+        transform: translateX(-100%);
+        background-color: #ffffff;
+        color: #333333;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        white-space: normal;
+        width: 20rem;
+        z-index: 9999;
+        display: none;
+    }
+
+    .group:hover .tooltip-content {
+        display: block;
+    }
+
+    @media (max-width: 768px) {
+        #taxonomy-tree-container {
+            height: auto;
+            border-right: none;
+            border-bottom: 1px solid #dee2e6;
         }
 
         .widget-content {
-            @apply p-4;
-            min-height: 300px;
+            min-height: 250px;
         }
 
-        @media (max-width: 768px) {
-            .widget-content {
-                min-height: 250px;
-            }
+        .map-container {
+            height: 300px;
         }
+    }
+</style>
 
-        .tooltip-content {
-            position: absolute;
-            top: 110%;
-            left: 50%;
-            transform: translateX(-100%);
-            background-color: #ffffff;
-            color: #333333;
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            white-space: normal;
-            width: 20rem;
-            z-index: 9999;
-            display: none;
-        }
-    </style>
-    <script>
-        const taxonId = {{ taxon.id }};
-    </script>
+<script>
+    const taxonId = {{ taxon.id }};
+</script>
 {% endblock %}
+
 {% block sidebar %}
-    <div class="w-full mt-16 lg:w-1/4 lg:min-h-screen bg-white shadow-md overflow-y-auto">
+<div class="w-full mt-16 lg:w-1/4 lg:min-h-screen bg-white shadow-md overflow-y-auto">
+    <button id="sidebar-toggle"
+            class="lg:hidden w-full flex items-center justify-between p-4 text-gray-600 hover:bg-gray-50">
+        <span>Taxonomie</span>
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+    </button>
 
-        <button id="sidebar-toggle"
-                class="lg:hidden w-full flex items-center justify-between p-4 text-gray-600 hover:bg-gray-50">
-            <span>Taxonomie</span>
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path d="M4 6h16M4 12h16M4 18h16"></path>
-            </svg>
-        </button>
-
-        <div id="taxonomy-tree-container" class="hidden lg:block p-4">
-            <label for="taxonSearch"></label>
-            <div class="search-container">
-                <input type="text" id="taxonSearch" class="w-full mb-4 pl-10" aria-label="Search taxon">
-                <i class="fas fa-search search-icon" aria-hidden="true"></i>
-            </div>
-            <div id="taxonomy-tree">
-                <!-- The taxonomic tree will be loaded here -->
-            </div>
+    <div id="taxonomy-tree-container" class="hidden lg:block p-4">
+        <label for="taxonSearch"></label>
+        <div class="search-container">
+            <input type="text" id="taxonSearch" class="w-full mb-4 pl-10" aria-label="Search taxon">
+            <i class="fas fa-search search-icon" aria-hidden="true"></i>
         </div>
-
+        <div id="taxonomy-tree">
+            <!-- The taxonomic tree will be loaded here -->
+        </div>
     </div>
+</div>
 {% endblock %}
 
 {% block content %}
-    <div class="flex-1 p-4">
-
+<div class="flex-1 p-4">
+    <div class="container mx-auto px-4 md:px-6 py-4 md:py-8">
+        {# Full width widgets #}
         <div class="mt-16">
-            {% for field_key, field in mapping.fields.items() %}
-                {% if field.field_type == 'GEOGRAPHY' %}
-                    {{ widgets.render_geography_field(field_key) }}
-                {% endif %}
+            {% for widget_key, widget in mapping.widgets.items() if widget.layout == 'full_width' %}
+                {{ widgets.render_widget_content(widget, widget_key, stats) }}
             {% endfor %}
         </div>
 
-        <div class="container mx-auto px-4 md:px-6 py-4 md:py-8">
-            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
-                    {{ widgets.render_info_widget(
-                        "Informations générales",
-                        taxon.full_name,
-                        [
-                            {'label': 'Rang', 'value': taxon.rank_name},
-                            {'label': "Nombre d'occurrences", 'value': taxon.total_occurrences_count},
-                        ])
-                    }}
-                    {% for field_key, field in mapping.fields.items() %}
-                        {% if field.field_type != 'GEOGRAPHY' %}
-                            {{ widgets.render_field(field_key, field) }}
-                        {% endif %}
-                    {% endfor %}
-            </div>
+        {# Grid layout widgets #}
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4 mt-4">
+            {% for widget_key, widget in mapping.widgets.items() if widget.layout != 'full_width' %}
+                {{ widgets.render_widget_content(widget, widget_key, stats) }}
+            {% endfor %}
         </div>
     </div>
-
+</div>
 {% endblock %}
+
 {% block extra_scripts %}
-    <script>
-        const taxon = {{ taxon | tojson | safe }};
-        const mapping = {{ mapping | tojson | safe }};
+<script>
+// =====================================
+// Constants & Initial Setup
+// =====================================
+const taxon = {{ taxon | tojson | safe }};
+const mapping = {{ mapping | tojson | safe }};
 
-        document.addEventListener('DOMContentLoaded', function () {
-            const treeContainer = document.getElementById('taxonomy-tree');
-            createTree(treeContainer, taxonomyData);
-            loadCharts(taxon, mapping)
-            setTimeout(initMap, 0.5);
-        });
+// =====================================
+// Core Initialization
+// =====================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize sidebar
+    initializeSidebar();
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // Gestion du toggle du menu mobile
-            const sidebarToggle = document.getElementById('sidebar-toggle');
-            const shapeTree = document.getElementById('taxonomy-tree-container');
+    // Initialize tree
+    const treeContainer = document.getElementById('taxonomy-tree');
+    if (treeContainer) {
+        createTree(treeContainer, taxonomyData);
+    }
 
-            if (sidebarToggle && shapeTree) {
-                sidebarToggle.addEventListener('click', function() {
-                    // Toggle la classe hidden sur le taxonomy-tree-container
-                    shapeTree.classList.toggle('hidden');
+    // Initialize all widgets
+    initializeWidgets(mapping.widgets, taxon);
+});
 
-                    // Toggle une classe pour indiquer l'état ouvert/fermé
-                    this.classList.toggle('menu-open');
+// =====================================
+// Sidebar Management
+// =====================================
+function initializeSidebar() {
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const taxonomyTree = document.getElementById('taxonomy-tree-container');
 
-                    // Change l'icône si besoin
-                    const svg = this.querySelector('svg');
-                    if (this.classList.contains('menu-open')) {
-                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
-                    } else {
-                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
-                    }
-                });
+    if (sidebarToggle && taxonomyTree) {
+        sidebarToggle.addEventListener('click', function() {
+            taxonomyTree.classList.toggle('hidden');
+            this.classList.toggle('menu-open');
 
-                // Fermer le menu au clic en dehors
-                document.addEventListener('click', function(e) {
-                    if (!sidebarToggle.contains(e.target) &&
-                        !shapeTree.contains(e.target) &&
-                        !shapeTree.classList.contains('hidden') &&
-                        window.innerWidth < 1024) {
-                        shapeTree.classList.add('hidden');
-                        sidebarToggle.classList.remove('menu-open');
-                        const svg = sidebarToggle.querySelector('svg');
-                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
-                    }
-                });
+            const svg = this.querySelector('svg');
+            if (this.classList.contains('menu-open')) {
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
+            } else {
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
             }
         });
-    </script>
+
+        // Close menu on outside click for mobile
+        document.addEventListener('click', function(e) {
+            if (!sidebarToggle.contains(e.target) &&
+                !taxonomyTree.contains(e.target) &&
+                !taxonomyTree.classList.contains('hidden') &&
+                window.innerWidth < 1024) {
+                taxonomyTree.classList.add('hidden');
+                sidebarToggle.classList.remove('menu-open');
+                const svg = sidebarToggle.querySelector('svg');
+                svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
+            }
+        });
+    }
+}
+
+// =====================================
+// Widget Management
+// =====================================
+function initializeWidgets(widgets, stats) {
+    // Mapping des types vers leurs fonctions d'initialisation
+    const initializerMap = {
+        'bar_chart': initChart,
+        'line_chart': initChart,
+        'pie_chart': initChart,
+        'doughnut_chart': initChart,
+        'gauge': initChart,
+        'map_panel': initMap
+    };
+
+    Object.entries(widgets)
+        .filter(([_, config]) => config.type in initializerMap)  // Ignore les types non gérés
+        .forEach(([widgetKey, config]) => {
+            // Génère l'ID du widget automatiquement si non spécifié
+            const suffix = config.type.includes('chart') ? 'Chart' :
+                          config.type === 'gauge' ? 'Gauge' : 'Map';
+            const widgetId = config.id || `${widgetKey}${suffix}`;
+
+            // Pour les cartes, on passe directement stats
+            if (config.type === 'map_panel') {
+                initializerMap[config.type](widgetId, stats, config);
+                return;
+            }
+
+            // Pour les autres widgets, on vérifie la source dans stats
+            const data = _.get(stats, config.source);
+            if (!data) return;  // Skip si pas de données
+
+            // Initialise le widget avec la fonction appropriée
+            initializerMap[config.type](widgetId, data, config);
+        });
+}
+
+
+// =====================================
+// Tree Management
+// =====================================
+function getBaseUrl() {
+    const pathArray = window.location.pathname.split('/');
+    pathArray.pop();
+    return pathArray.join('/') + '/';
+}
+
+function openCurrentNode($ul, currentId) {
+    const $currentLink = $ul.find(`a[data-id='${currentId}']`);
+    if ($currentLink.length > 0) {
+        $currentLink.parents('ul').each(function () {
+            $(this).show();
+            $(this).siblings('span').text('▾');
+        });
+    }
+}
+
+function createTree(container, taxonomyData) {
+    const baseUrl = getBaseUrl();
+
+    function createList(data) {
+        const $ul = $('<ul></ul>');
+        $.each(data, function (i, item) {
+            const $li = $('<li></li>');
+            const $a = $('<a></a>', {
+                'href': `${baseUrl}${item.id}.html`,
+                'text': item.name,
+                'data-id': item.id
+            });
+
+            if (item.id == taxonId) {
+                $a.css({
+                    'font-weight': 'bold',
+                });
+            }
+
+            if (item.children && item.children.length > 0) {
+                const $span = $('<span>▸</span>').css({
+                    'cursor': 'pointer',
+                    'margin-right': '5px'
+                });
+
+                const $childUl = createList(item.children).hide();
+                $span.click(function (event) {
+                    event.stopPropagation();
+                    $childUl.toggle();
+                    $(this).text($childUl.is(":visible") ? '▾' : '▸');
+                });
+
+                $li.append($span).append($a).append($childUl);
+            } else {
+                $li.append($a);
+            }
+            $ul.append($li);
+        });
+        return $ul;
+    }
+
+    const $tree = createList(taxonomyData);
+    $(container).append($tree);
+    openCurrentNode($tree, taxonId);
+}
+
+
+// =====================================
+// Map Management
+// =====================================
+function initMap(mapId, data, mapConfig) {
+    const mapContainer = document.getElementById(mapId);
+    if (!mapContainer) return;
+
+    // Base configuration
+    const defaultCenter = [-21.3, 165.3];
+    const defaultZoom = 7;
+
+    // Base layers
+    const baseLayers = {
+        "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        }),
+        "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
+            layers: '0',
+            format: 'image/png',
+            transparent: true,
+            attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+        })
+    };
+
+    // Create map
+    const map = L.map(mapId, {
+        layers: [baseLayers["Satellite"]],
+        center: defaultCenter,
+        zoom: defaultZoom,
+        scrollWheelZoom: false
+    });
+
+    L.control.layers(baseLayers).addTo(map);
+    map.attributionControl.setPrefix(false);
+
+    // Déterminer la source des données à partir de mapConfig
+    const dataSource = mapConfig.source;
+    const coordinatesSource = mapConfig.layers[0].source;
+
+    // Pour les données de points
+    if (data && data[dataSource] && data[dataSource][coordinatesSource]) {
+        data[dataSource][coordinatesSource].forEach(point => {
+            L.circle([point.coordinates[1], point.coordinates[0]], {
+                ...mapConfig.layers[0].style,
+
+            })
+            .bindPopup(`Occurrences: ${point.count}`)
+            .addTo(map);
+        });
+
+        // Ajuster la vue
+        const bounds = L.latLngBounds(
+            data[dataSource][coordinatesSource].map(point => [point.coordinates[1], point.coordinates[0]])
+        );
+        map.fitBounds(bounds);
+    }
+}
+
+// =====================================
+// Chart Type Management & Data Processing
+// =====================================
+/**
+ * Maps widget types to Chart.js chart types
+ * @param {string} widgetType - Type from widget configuration
+ * @returns {string} Corresponding Chart.js type
+ */
+function getChartTypeFromWidgetType(widgetType) {
+    const typeMapping = {
+        'doughnut_chart': 'doughnut',
+        'pie_chart': 'pie',
+        'bar_chart': 'bar',
+        'line_chart': 'line',
+        'stacked_bar_chart': 'bar',
+        'gauge': 'gauge'
+    };
+    return typeMapping[widgetType] || 'bar'; //
+}
+
+/**
+ * Prepares data for chart rendering, including sorting and transformation
+ * @param {Object} config - Widget configuration
+ * @param {Object} data - Raw data for the chart
+ * @returns {Object} Formatted data for Chart.js
+ */
+function prepareChartData(config, data) {
+    const datasets = [];
+    let labels = [];
+
+    if (!config.datasets || !Array.isArray(config.datasets)) {
+        console.warn('No datasets configuration provided');
+        return { labels: [], datasets: [] };
+    }
+
+    // Get and sort data if needed
+    let sortedData = data;
+    let sortedIndices = null;
+    if (config.sortBy) {
+        const values = _.get(data, config.sortBy, []);
+        sortedIndices = values.map((v, i) => i);
+        sortedIndices.sort((a, b) => values[a] - values[b]);
+
+        // Create new sorted data object
+        sortedData = Object.keys(data).reduce((acc, key) => {
+            if (Array.isArray(data[key])) {
+                acc[key] = sortedIndices.map(i => data[key][i]);
+            } else {
+                acc[key] = data[key];
+            }
+            return acc;
+        }, {});
+    }
+
+    // Get labels before dataset processing
+    labels = config.labels_key ?
+        _.get(sortedData, config.labels_key, []).map(v => v.toString()) :
+        config.labels ? config.labels :
+        [];
+
+    config.datasets.forEach((datasetConfig) => {
+        const dataset = {
+            label: datasetConfig.label,
+            data: [],
+            backgroundColor: [],
+            borderColor: [],
+            borderWidth: datasetConfig.borderWidth ?? 1,
+            fill: datasetConfig.fill ?? false,
+            tension: datasetConfig.tension ?? 0,
+            stack: datasetConfig.stack,
+            pointRadius: datasetConfig.pointRadius ?? undefined,
+            pointHoverRadius: datasetConfig.pointHoverRadius ?? undefined,
+            pointHoverBackgroundColor: datasetConfig.pointHoverBackgroundColor ?? undefined,
+        };
+
+        // Process data
+        dataset.data = processDataset(datasetConfig, sortedData, config.type);
+
+        // Transform data if needed
+        if (datasetConfig.transformData) {
+            dataset.data = dataset.data.map((value, index) =>
+                transformDataValue(value, datasetConfig.transformData, index, sortedData)
+            );
+        }
+
+        // Process colors after data is loaded
+        processColors(dataset, datasetConfig, labels);
+
+        datasets.push(dataset);
+    });
+
+    return { labels, datasets };
+}
+
+/**
+ * Prepares chart options by merging defaults with configuration
+ * Handles scales, plugins, and callbacks configuration
+ * @param {Object} config - Widget configuration
+ * @returns {Object} Complete Chart.js options
+ */
+function prepareChartOptions(config) {
+    // Default options restent les mêmes
+    const defaultOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: false,
+                    boxWidth: 15,
+                },
+            },
+            title: {
+                display: false,
+            },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+            },
+        },
+        scales: {},
+    };
+
+    // Merge custom options with defaults
+    const options = _.merge({}, defaultOptions, config.options);
+
+    // Handle scales configuration
+    if (config.options && config.options.scales) {
+        Object.keys(options.scales || {}).forEach(scaleKey => {
+        const scale = options.scales[scaleKey];
+        if (scale.ticks && scale.ticks.callback) {
+            const callbackName = scale.ticks.callback;
+            if (typeof window[callbackName] === 'function') {
+                scale.ticks.callback = window[callbackName];
+            }
+        }
+    });
+    }
+
+    // Handle stacked charts
+    if (config.type === 'stacked_bar_chart' || (config.options && config.options.stacked)) {
+        if (options.scales.x) options.scales.x.stacked = true;
+        if (options.scales.y) options.scales.y.stacked = true;
+    }
+
+    // Process plugin callbacks
+    if (options.plugins) {
+        for (const pluginKey in options.plugins) {
+            const plugin = options.plugins[pluginKey];
+            if (plugin.callbacks) {
+                for (const callbackKey in plugin.callbacks) {
+                    const callbackName = plugin.callbacks[callbackKey];
+                    if (typeof callbackName === 'string' && typeof window[callbackName] === 'function') {
+                        plugin.callbacks[callbackKey] = window[callbackName];
+                    }
+                }
+            }
+        }
+    }
+
+    return options;
+}
+
+/**
+ * Process dataset values according to chart type
+ */
+function processDataset(datasetConfig, data, chartType) {
+    let processedData = [];
+
+    if (datasetConfig.data_keys && Array.isArray(datasetConfig.data_keys)) {
+        processedData = datasetConfig.data_keys.map(key => {
+            const value = parseFloat(_.get(data, key, 0)) || 0;
+            return formatValue(value, chartType);
+        });
+    } else if (datasetConfig.data_key) {
+        const values = _.get(data, datasetConfig.data_key, []);
+        processedData = Array.isArray(values) ?
+            values.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+            [formatValue(parseFloat(values) || 0, chartType)];
+    } else if (datasetConfig.data) {
+        processedData = Array.isArray(datasetConfig.data) ?
+            datasetConfig.data.map(value => formatValue(parseFloat(value) || 0, chartType)) :
+            [formatValue(parseFloat(datasetConfig.data) || 0, chartType)];
+    }
+
+    return processedData;
+}
+
+/**
+ * Process colors for chart datasets
+ */
+function processColors(dataset, datasetConfig, labels) {
+    if (datasetConfig.generateColors) {
+        // Génère autant de couleurs que de données
+        dataset.backgroundColor = generateColors(dataset.data.length);
+        dataset.borderColor = dataset.backgroundColor;
+        return;
+    }
+
+    if (datasetConfig.color_mapping && labels) {
+        dataset.backgroundColor = Array.isArray(dataset.data) ?
+            dataset.data.map((_, index) => {
+                const label = labels[index];
+                return datasetConfig.color_mapping[label] || '#000000';
+            }) :
+            datasetConfig.color_mapping[labels[0]] || '#000000';
+
+        dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
+    } else if (datasetConfig.backgroundColors) {
+        dataset.backgroundColor = datasetConfig.backgroundColors;
+        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
+    } else if (datasetConfig.backgroundColor) {
+        dataset.backgroundColor = datasetConfig.backgroundColor;
+        dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
+    } else {
+        dataset.backgroundColor = '#000000';
+        dataset.borderColor = '#000000';
+    }
+}
+
+function generateColors(count, defaultColor) {
+            if (defaultColor) {
+                return Array(count).fill(defaultColor);
+            }
+
+            // Function to convert HSL to RGB
+            function hslToRgb(h, s, l) {
+                let r, g, b;
+
+                if (s === 0) {
+                    r = g = b = l; // achromatic
+                } else {
+                    const hue2rgb = (p, q, t) => {
+                        if (t < 0) t += 1;
+                        if (t > 1) t -= 1;
+                        if (t < 1/6) return p + (q - p) * 6 * t;
+                        if (t < 1/2) return q;
+                        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                        return p;
+                    };
+
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+                    r = hue2rgb(p, q, h + 1/3);
+                    g = hue2rgb(p, q, h);
+                    b = hue2rgb(p, q, h - 1/3);
+                }
+
+                return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+            }
+
+            // Function to convert RGB to Hex
+            function rgbToHex(r, g, b) {
+                return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+            }
+
+            // Generate harmonious colors
+            return Array.from({ length: count }, (_, i) => {
+                // Use golden ratio to spread hues evenly
+                const hue = (i * 0.618033988749895) % 1;
+
+                // Vary saturation slightly
+                const saturation = 0.5 + (i % 3) * 0.1;
+
+                // Vary lightness to create contrast
+                const lightness = 0.4 + (i % 2) * 0.2;
+
+                const [r, g, b] = hslToRgb(hue, saturation, lightness);
+                return rgbToHex(r, g, b);
+            });
+        }
+
+/**
+ * Initialize chart widgets including gauges
+ * Handles both Chart.js charts and JustGage gauges
+ */
+function initChart(widgetId, data, config) {
+    const ctx = document.getElementById(widgetId);
+    if (!ctx) return;
+
+    const chartType = getChartTypeFromWidgetType(config.type);
+
+    if (chartType === 'gauge') {
+        const rawValue = _.get(data, config.value_key);
+
+        if (rawValue === null || rawValue === undefined || isNaN(rawValue)) {
+            if (ctx) {
+                ctx.className = 'flex items-center justify-center h-64';
+                ctx.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+            }
+            return;
+        }
+
+        const value = parseFloat(rawValue.toFixed(1));
+
+        const gaugeOptions = {
+            id: widgetId,
+            value: value,
+            min: config.options.min,
+            max: config.options.max,
+            label: config.options.units,
+            title: config.title,
+            gaugeColor: "#eee",
+            levelColors: config.options.sectors.map(s => s.color),
+            decimals: 1,
+            gaugeWidthScale: 0.6,
+            counter: true,
+            pointer: true,
+            pointerOptions: {
+                toplength: -15,
+                bottomlength: 10,
+                bottomwidth: 12,
+                color: '#8E8E93',
+                stroke: '#fff',
+                stroke_width: 3,
+                stroke_linecap: 'round'
+            },
+            // Default options that don't need to be in config
+            showMinMax: false,
+            donut: false,
+            relativeGaugeSize: true,
+            // Font colors that don't need to be in config
+            titleFontColor: "#333",
+            valueFontColor: "#333",
+            labelFontColor: "#666"
+        };
+
+        const gauge = new JustGage(gaugeOptions);
+
+        // Add value text below
+        const valueText = document.createElement('p');
+        valueText.className = 'text-center mt-5 text-lg text-gray-700';
+        ctx.parentNode.appendChild(valueText);
+
+        return;
+    }
+
+    // Pour les autres types de graphiques...
+    const chartData = prepareChartData(config, data);
+    const chartOptions = prepareChartOptions(config);
+    const plugins = [];
+
+    if (config.customPlugin && typeof window[config.customPlugin] === 'object') {
+        plugins.push(window[config.customPlugin]);
+    }
+
+    new Chart(ctx, {
+        type: chartType,
+        data: chartData,
+        options: chartOptions,
+        plugins: plugins,
+    });
+}
+
+// =====================================
+// Value Formatters
+// =====================================
+// Various formatters for different data types
+window.formatLogValue = function(value) {
+    return value.toString();
+};
+window.formatSurfaceValue = function(value) {
+    if (value >= 1000000) {
+        return (value / 1000000).toFixed(1) + 'M';
+    }
+    if (value >= 1000) {
+        return (value / 1000).toFixed(0) + 'k';
+    }
+    return value;
+};
+window.formatPercentage = function(value) {
+    return value.toFixed(0) + '%';
+};
+window.formatForestTypeTooltip = function(context) {
+    return context.dataset.label + ': ' + context.raw.toFixed(1) + '%';
+};
+window.formatTooltipLabel = function (context) {
+    return `${context.label}: ${context.parsed}%`;
+};
+window.formatForestTypeElevationTooltip = function(context) {
+    const value = Math.round(context.raw);  // ou .toFixed(0) pour aucune décimale
+    return context.dataset.label + ': ' + value + '%';
+};
+window.formatAbsoluteValue = function(value) {
+    // Si c'est zéro, on l'affiche au centre
+    if (value === 0) return '0';
+    // Pour les autres valeurs, on affiche la valeur absolue
+    return Math.abs(value).toString();
+};
+
+window.formatForestCoverTooltip = function(context) {
+    const label = context.dataset.label;
+    const value = Math.abs(context.raw).toFixed(1);
+    return `${label}: ${value}%`;
+};
+
+function transformDataValue(value, transform, valueIndex, allData) {
+    if (!transform) return value;
+
+    switch(transform) {
+        case 'negateValues':
+            return isNaN(value) ? 0 : -value;
+        case 'toPercentage':
+            return isNaN(value) ? 0 : value * 100;
+        case 'stackedPercentage':
+            const total = ['secondaire', 'mature', 'coeur'].reduce((sum, key) =>
+                sum + (allData[key] ? allData[key][valueIndex] : 0), 0);
+            return total === 0 ? 0 : (value / total * 100);
+        default:
+            return value;
+    }
+}
+function formatValue(value, chartType) {
+    switch(chartType) {
+        case 'doughnut_chart':
+        case 'pie_chart':
+            return Number(value);
+        default:
+            return value;
+    }
+}
+
+// =====================================
+// Custom Plugins
+// =====================================
+/**
+ * Custom plugin for drawing labels on doughnut charts
+ */
+window.customLabels = {
+    id: 'customLabels',
+    afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.font = '11px system-ui';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        const datasets = chart.data.datasets;
+        const meta = chart.getDatasetMeta(0);
+        const centerX = meta.data[0].x;
+        const centerY = meta.data[0].y;
+
+        datasets.forEach((dataset, i) => {
+            const meta = chart.getDatasetMeta(i);
+            const percentage = dataset.data[0];
+            const element = meta.data[0];
+
+            const percentageAngle = -Math.PI + 0.2;
+            const radius = (element.innerRadius + element.outerRadius) / 2;
+            const x = centerX + Math.cos(percentageAngle) * radius;
+            const y = centerY + Math.sin(percentageAngle) * radius;
+
+            ctx.fillText(percentage.toFixed(1) + '%', x, y);
+
+            // Affichage du label
+            ctx.fillText(dataset.label, centerX, centerY + element.outerRadius - 10);
+        });
+
+        ctx.restore();
+    }
+};
+
+/**
+ * Custom plugin for drawing percentage labels on forest type charts
+ */
+window.forestTypeLabelsPlugin = {
+    id: 'text',
+    afterDraw: function(chart) {
+        const ctx = chart.ctx;
+        chart.data.datasets.forEach(function(dataset, i) {
+            const meta = chart.getDatasetMeta(i);
+            meta.data.forEach(function(element, index) {
+                const value = dataset.data[index];
+                const position = element.getCenterPoint();
+
+                // Draw value
+                ctx.save();
+                ctx.fillStyle = '#000000';
+                ctx.font = '12px system-ui';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(value.toFixed(1) + '%', position.x, position.y);
+                ctx.restore();
+            });
+        });
+    }
+};
+</script>
 {% endblock %}

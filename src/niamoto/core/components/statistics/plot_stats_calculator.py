@@ -2,63 +2,67 @@
 Plot statistics calculator module.
 """
 import time
-from collections import Counter
-from typing import List, Dict, Any, Hashable, Union, cast, Optional
+from typing import List, Dict, Any, Hashable
 
 import geopandas as gpd  # type: ignore
+import numpy as np
 import pandas as pd
 from rich.progress import track
 from sqlalchemy import Table, MetaData, Column, Integer
 
+from niamoto.common.config import Config
 from niamoto.common.database import Database
-from niamoto.core.models import PlotRef, TaxonRef
+from niamoto.core.models import PlotRef
 from .statistics_calculator import StatisticsCalculator
-from ...services.mapper import MapperService
 
 
 class PlotStatsCalculator(StatisticsCalculator):
     """
     A class used to calculate statistics for plots.
-
-    Inherits from:
-        StatisticsCalculator
     """
 
     def __init__(
-        self,
-        db: Database,
-        mapper_service: MapperService,
-        occurrences: list[dict[Hashable, Any]],
-        group_by: str,
+        self, db: Database, occurrences: list[dict[Hashable, Any]], group_config: dict
     ):
         super().__init__(
-            db, mapper_service, occurrences, group_by, log_component="plot_stats"
+            db=db,
+            occurrences=occurrences,
+            group_config=group_config,
+            log_component="plot_stats",
         )
-        self.plot_identifier = self.mapper_service.get_source_identifier("plots")
-        self.plots_data = self.load_plots_data()
-        self.source_filter = self.mapper_service.get_group_filter("plots")
+        self.config = Config()
+        plots_config = self.config.sources.get("plots", {})
+        plots_path = plots_config.get("path")
+        if not plots_path:
+            raise ValueError("No path configured for plots source in sources.yml")
 
-    def load_plots_data(self) -> pd.DataFrame:
+        self.plots_data = self.load_plots_data(plots_path)
+        self.identifier = group_config.get("identifier", "id_source")
+
+    def load_plots_data(self, plots_path: str) -> pd.DataFrame:
         """
-        Load plot data from the source.
+        Load plot data from GeoPackage file.
+
+        Args:
+            plots_path: Path to the GeoPackage file
 
         Returns:
-            pd.DataFrame: The plot data.
+            DataFrame containing plots data
         """
-        plots_path = self.mapper_service.get_source_path("plots")
-        gdf = gpd.read_file(plots_path)
-        assert isinstance(gdf, pd.DataFrame), "gdf must be a pandas DataFrame"
-        return gdf
+        try:
+            gdf = gpd.read_file(plots_path)
+            assert isinstance(gdf, pd.DataFrame), "gdf must be a pandas DataFrame"
+            return gdf
+        except Exception as e:
+            self.logger.error(f"Error loading plots data from {plots_path}: {e}")
+            raise
 
     def calculate_plot_stats(self) -> None:
-        """
-        Calculate statistics for all plots.
-        """
+        """Calculate statistics for all plots."""
         start_time = time.time()
 
         try:
             plots = self._retrieve_all_plots()
-
             self.initialize_stats_table()
 
             for plot in track(plots, description="Processing Plots..."):
@@ -74,274 +78,330 @@ class PlotStatsCalculator(StatisticsCalculator):
             )
 
     def process_plot(self, plot: PlotRef) -> None:
-        """
-        Process a plot.
-
-        Args:
-            plot ('niamoto.core.models.models.PlotRef'): The plot to process.
-        """
+        """Process a plot."""
         try:
+            # Extract the plot ID
             plot_id = self._extract_plot_id(plot)
+
             if plot_id is None:
                 return
 
-            plot_source_identifier = getattr(plot, self.plot_identifier)
-            plot_occurrences = self.get_plot_occurrences(
-                plot_source_identifier, self.source_filter
-            )
+            # Get plot identifier from plot object
+            plot_identifier = getattr(plot, "id_locality", None)
+
+            if plot_identifier is None:
+                return
+
+            # Get plot occurrences
+            plot_occurrences = self.get_plot_occurrences(plot_identifier)
+
             if not plot_occurrences:
                 return
 
-            stats = self.calculate_stats(plot_source_identifier, plot_occurrences)
+            # Calculate stats using plot_identifier
+            stats = self.calculate_stats(plot_identifier, plot_occurrences)
 
+            # Create/update stats entry using plot_id
             self.create_or_update_stats_entry(plot_id, stats)
 
         except Exception as e:
+            print(f"Error processing plot {plot.id}: {e}")  # Debug
             self.logger.error(f"Failed to process plot {plot.id}: {e}")
+            self.logger.exception("Full error details:")
+
+    @staticmethod
+    def _extract_plot_id(plot: PlotRef) -> int:
+        """Extract the plot ID value."""
+        return plot.id
 
     def calculate_stats(
         self, group_id: int, group_occurrences: list[dict[Hashable, Any]]
     ) -> Dict[str, Any]:
-        """
-        Calculate statistics for a group.
-
-        Args:
-            group_id (int): The group id.
-            group_occurrences (list[dict[Hashable, Any]]): The group occurrences.
-
-        Returns:
-            Dict[str, Any]: The statistics.
-        """
-        stats: Dict[str, Union[int, Dict[str, Any], pd.Series[Any], float]] = {}
-
-        # Convert occurrences to pandas DataFrame
+        """Calculate statistics for each widget."""
+        stats = {}
         df_occurrences = pd.DataFrame(group_occurrences)
 
-        # Retrieve the plot object using group_id
-        plot = (
-            self.db.session.query(PlotRef)
-            .filter(PlotRef.id_locality == group_id)
-            .first()
-        )
-        plot_data = (
-            self.plots_data[self.plots_data[self.plot_identifier] == group_id].iloc[0]
-            if plot
-            else None
-        )
+        for widget_name, widget_config in self.widgets_data.items():
+            for transform in widget_config.get("transformations", []):
+                transform_name = transform.get("name")
 
-        # Iterate over fields in the mapping
-        for field, field_config in self.fields.items():
-            source_field = field_config.get("source_field")
-            source = field_config.get("source")
-            transformations = field_config.get("transformations", [])
+                # 1. General info widget
+                if transform_name == "collect_fields":
+                    stats[widget_name] = self._process_collect_fields(
+                        transform.get("items", []), df_occurrences, group_id
+                    )
 
-            if source_field is None:
-                # Special field without source_field (ex: total_occurrences)
-                if transformations:
-                    for transformation in transformations:
-                        transform_name = transformation.get("name")
-                        column_name = f"{field}_{transform_name}"
-                        if transform_name == "count":
-                            stats[column_name] = len(group_occurrences)
-                            break
-                        elif transform_name == "top":
-                            stats[column_name] = self.calculate_top_items(
-                                group_occurrences, field_config
-                            )
+                # 2. Map panel widget
+                elif transform_name == "get_geometry":
+                    stats[widget_name] = self._process_geometry(group_id)
 
-            elif source == "occurrences":
-                # Binary field (ex: um_occurrences)
-                if (
-                    field_config.get("field_type") == "BOOLEAN"
-                    and source_field in df_occurrences.columns
-                ):
-                    value_counts = df_occurrences[source_field].value_counts()
-                    stats[f"{field}_true"] = value_counts.get(True, 0)
-                    stats[f"{field}_false"] = value_counts.get(False, 0)
+                # 3. Top families and species widgets
+                elif transform_name == "top":
+                    stats[widget_name] = self.calculate_top_items(
+                        group_occurrences, transform
+                    )
 
-                # Geolocation field (ex: occurrence_location)
-                elif (
-                    field_config.get("field_type") == "GEOGRAPHY"
-                    and source_field in df_occurrences.columns
-                ):
-                    coordinates = self.extract_coordinates(df_occurrences, source_field)
-                    stats[field] = {
-                        "type": "MultiPoint",
-                        "coordinates": coordinates,
-                    }
+                # 4. Distribution widgets (dbh, strata)
+                elif transform_name in ["dbh_bins", "histogram"]:
+                    source_field = transform.get("source_field")
+                    if source_field and source_field in df_occurrences.columns:
+                        stats[widget_name] = self._process_histogram(
+                            df_occurrences[source_field],
+                            transform.get("bins", []),
+                            transform.get("labels", []),
+                        )
 
-                else:
-                    # Other fields
-                    field_values = df_occurrences[source_field]
-                    field_values = field_values[
-                        (field_values != 0) & (field_values.notnull())
-                    ]
+                # 5. Gauge widgets (mean value)
+                elif transform_name == "mean_value":
+                    source_field = transform.get("source_field")
+                    if source_field and source_field in df_occurrences.columns:
+                        stats[widget_name] = self._process_mean_value(
+                            df_occurrences[source_field], transform
+                        )
 
-                    # Calculate transformations
-                    if transformations:
-                        for transformation in transformations:
-                            transform_name = transformation.get("name")
-                            field_name = (
-                                f"{field}_{transform_name}"
-                                if transform_name
-                                else f"{field}"
-                            )
-
-                            if (
-                                hasattr(pd.Series, transform_name)
-                                and len(field_values) > 0
-                            ):
-                                transform_func = getattr(pd.Series, transform_name)
-                                transform_result = transform_func(field_values)
-                                if isinstance(transform_result, pd.Series):
-                                    stats[field_name] = transform_result.round(2)
-                                else:
-                                    stats[field_name] = round(transform_result, 2)
-
-                    # Calculate bins
-                    bins_config = field_config.get("bins")
-                    if bins_config:
-                        bins = bins_config["values"]
-                        if bins and len(field_values) > 0:
-                            bin_percentages = self.calculate_bins(
-                                field_values.tolist(), bins
-                            )
-                            stats[f"{field}_bins"] = bin_percentages
-
-            elif source == "plots" and plot_data is not None:
-                if source_field:
-                    if field_config.get("field_type") == "GEOGRAPHY":
-                        if transformations:
-                            for transformation in transformations:
-                                transform_name = transformation.get("name")
-                                column_name = f"{field}_{transform_name}"
-                                stats[
-                                    column_name
-                                ] = self.extract_coordinates_from_geometry(
-                                    plot_data[source_field]
-                                )
-                    else:
-                        stats[field] = plot_data[source_field]
-                else:
-                    stats[field] = plot_data[field]
+                # 6. Identity value widgets (values from plots)
+                elif transform_name == "identity_value":
+                    source_field = transform.get("source_field")
+                    if source_field:
+                        stats[widget_name] = self._process_identity_value(
+                            group_id, source_field, transform
+                        )
 
         return stats
 
-    @staticmethod
-    def extract_coordinates_from_geometry(geometry: Any) -> Dict[str, Any]:
+    def _process_collect_fields(
+        self, items: list, df: pd.DataFrame, plot_id: int
+    ) -> Dict[str, Any]:
+        """Process collect_fields transformation."""
+        result = {}
+
+        for item in items:
+            source = item.get("source")
+            field = item.get("field")
+            value = None
+
+            if source == "plot_ref":
+                value = self._get_plot_field(field, plot_id)
+            elif source == "plots":
+                plot_data = self.plots_data[self.plots_data["id_locality"] == plot_id]
+                if not plot_data.empty and field in plot_data.columns:
+                    value = plot_data[field].iloc[0]
+
+                    # Conversion des types numpy en types Python standard
+                    if pd.notna(value):
+                        if isinstance(value, (np.integer, np.int32, np.int64)):
+                            value = int(value)
+                        elif isinstance(value, (np.float32, np.float64)):
+                            value = float(value)
+
+                        if item.get("labels"):
+                            labels = item.get("labels", {})
+                            if isinstance(
+                                labels, dict
+                            ):  # Pour le cas des mappings type substrat
+                                value = labels.get(str(value), str(value))
+                            else:  # Pour le cas des listes type holdridge
+                                try:
+                                    value = labels[int(value) - 1]
+                                except (IndexError, ValueError):
+                                    value = str(value)
+                        elif item.get("units"):
+                            value = f"{value} {item.get('units')}"
+
+            elif source == "occurrences":
+                transform = item.get("transformation")
+                if transform == "count":
+                    value = int(len(df))  # Conversion explicite en int standard
+
+            key = item.get("key", field)
+            result[key] = value if pd.notna(value) else ""
+
+        return result
+
+    def _process_identity_value(
+        self, plot_id: int, field: str, transform: dict
+    ) -> Dict[str, Any]:
         """
-        Extract coordinates from GeoDataFrame geometry.
+        Process identity value from plots GeoPackage data.
 
         Args:
-            geometry (Any): The geometry object.
-
-        Returns:
-            Dict[str, Any]: The type of geometry and the coordinates.
+            plot_id: Plot identifier
+            field: Field name to get from plots data
+            transform: Transformation config containing units and max_value
         """
-        if geometry.geom_type == "Point":
-            return {"type": "Point", "coordinates": [geometry.x, geometry.y]}
-        elif geometry.geom_type == "LineString":
-            return {
-                "type": "LineString",
-                "coordinates": [[point.x, point.y] for point in geometry.coords],
-            }
-        elif geometry.geom_type == "Polygon":
-            return {
-                "type": "Polygon",
-                "coordinates": [
-                    [[point.x, point.y] for point in ring.coords]
-                    for ring in geometry.interiors
-                ],
-            }
-        else:
-            return {"type": "Unknown", "coordinates": []}
+        try:
+            # Récupérer la donnée depuis le GeoPackage
+            plot_data = self.plots_data[self.plots_data["id_locality"] == plot_id]
+            if plot_data.empty or field not in plot_data.columns:
+                return {"value": None, "max": None, "units": transform.get("units", "")}
 
-    def get_plot_occurrences(
-        self, plot_id: int, source_filter: Optional[Dict[str, Any]] = None
-    ) -> list[dict[Hashable, Any]]:
+            value = plot_data[field].iloc[0]
+            if pd.isna(value):
+                return {"value": None, "max": None, "units": transform.get("units", "")}
+
+            value = float(value)
+            return {
+                "value": value,
+                "max": transform.get("max_value", value * 1.2),
+                "units": transform.get("units", ""),
+            }
+
+        except Exception as e:
+            self.logger.error(
+                f"Error processing identity value for plot {plot_id}, field {field}: {e}"
+            )
+            return {"value": None, "max": None, "units": transform.get("units", "")}
+
+    def _get_plot_field(self, field: str, plot_id: int) -> Any:
         """
-        Get plot occurrences.
+        Get a field value from the plot_ref table.
 
         Args:
-            plot_id (int): The plot ID to get occurrences for.
-            source_filter (Dict[str, Any], optional): The source filter to apply.
+            field: Field name to get
+            plot_id: Plot identifier (id)
+        """
+        plot = self.db.session.query(PlotRef).filter(PlotRef.id == plot_id).first()
+        return getattr(plot, field, None)
+
+    def _get_plot_data_field(self, field: str, plot_id: int) -> Any:
+        """
+        Get a field value from the plots GeoPackage data.
+
+        Args:
+            field: Field name to get
+            plot_id: Plot identifier
 
         Returns:
-            list[dict[Hashable, Any]]: The plot occurrences.
+            Field value or None if not found
         """
+        try:
+            plot_data = self.plots_data[self.plots_data["id"] == plot_id]
+            if not plot_data.empty and field in plot_data.columns:
+                return plot_data[field].iloc[0]
+        except Exception as e:
+            self.logger.error(
+                f"Error getting plot data field {field} for plot {plot_id}: {e}"
+            )
+            return None
+        return None
 
+    def _process_histogram(
+        self, series: pd.Series, bins: List[float], labels: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Process histogram data.
+
+        Args:
+            series: Data series to process
+            bins: List of bin boundaries
+            labels: Optional list of labels for bins
+
+        Returns:
+            Dictionary containing histogram data
+        """
+        hist, bin_edges = np.histogram(series.dropna(), bins=bins)
+        result = {"bins": bins[:-1], "counts": hist.tolist()}
+        if labels:
+            result["labels"] = labels
+        return result
+
+    def get_plot_occurrences(self, plot_id: int) -> list[dict[Hashable, Any]]:
+        """Get plot occurrences using pivot table."""
         occurrences_plots = Table(
-            "occurrences_plots",
+            self.group_config["pivot_table_name"],
             MetaData(),
             Column("id_occurrence", Integer, primary_key=True),
             Column("id_plot", Integer, primary_key=True),
         )
 
-        occurrence_query = self.db.session.query(
-            occurrences_plots.c.id_occurrence
-        ).filter(occurrences_plots.c.id_plot == plot_id)
+        # Base query
+        query = self.db.session.query(occurrences_plots.c.id_occurrence).filter(
+            occurrences_plots.c.id_plot == plot_id
+        )
 
-        # Apply additional source filter if provided
-        if source_filter:
-            field = source_filter.get("field")
-            value = source_filter.get("value")
-            if field and value:
-                occurrence_query = occurrence_query.filter(
-                    occurrences_plots.c[field] == value
-                )
+        # Apply filter if present in config
+        # if "filter" in self.group_config:
+        #     field = self.group_config["filter"].get("field")
+        #     value = self.group_config["filter"].get("value")
+        #     if field and value:
+        #         query = query.filter(
+        #             getattr(occurrences_plots.c, field) == value
+        #         )
 
-        occurrence_ids = occurrence_query.all()
-        occurrence_ids = [op[0] for op in occurrence_ids]
-
+        occurrence_ids = [id[0] for id in query.all()]
         return [
             occ for occ in self.occurrences if occ[self.identifier] in occurrence_ids
         ]
 
     def _retrieve_all_plots(self) -> List[PlotRef]:
-        """
-        Retrieve all plots from the database.
-
-        Returns:
-            List[PlotRef]: A list of plot references.
-        """
+        """Retrieve all plots from the database."""
         return self.db.session.query(PlotRef).all()
 
+    def _process_geometry(self, plot_id: int) -> Dict[str, Any]:
+        """Process geometry transformation."""
+        plot = (
+            self.db.session.query(PlotRef)
+            .filter(PlotRef.id_locality == plot_id)
+            .first()
+        )
+        if plot and plot.geometry:
+            return {
+                "type": "Feature",
+                "geometry": plot.geometry,
+                "properties": {"id": plot.id, "name": plot.locality},
+            }
+        return {}
+
     @staticmethod
-    def _extract_plot_id(plot: PlotRef) -> int:
+    def _process_mean_value(series: pd.Series, transform: dict) -> Dict[str, Any]:
         """
-        Extract the plot ID value.
+        Process mean value with units from config.
 
         Args:
-            plot (PlotRef): The plot from which to extract the ID.
-
-        Returns:
-            int: The plot ID.
+            series: Data series to process
+            transform: Transformation config containing units and max_value
         """
-        return cast(int, plot.id)
+        mean_val = series.mean()
+        if pd.isna(mean_val):
+            return {"value": None, "max": None, "units": transform.get("units", "")}
 
-    def calculate_top_values(
-        self, plot_occurrences: list[dict[Hashable, Any]], field_config: Dict[str, Any]
-    ) -> Dict[str, int]:
+        mean_val = float(mean_val)
+        return {
+            "value": mean_val,
+            "max": transform.get("max_value", mean_val * 1.2),
+            "units": transform.get("units", ""),
+        }
+
+    def _process_identity_value(
+        self, plot_id: int, field: str, transform: dict
+    ) -> Dict[str, Any]:
         """
-        Calculate the top values based on the configuration.
+        Process identity value from plots GeoPackage data.
 
         Args:
-            plot_occurrences (list[dict[Hashable, Any]]): The plot occurrences.
-            field_config (dict): The field configuration.
-
-        Returns:
-            dict: The top values.
+            plot_id: Plot identifier
+            field: Field name to get from plots data
+            transform: Transformation config containing units and max_value
         """
-        target_ranks = field_config["transformations"][0]["target_ranks"]
-        count = field_config["transformations"][0]["count"]
+        try:
+            # Récupérer la donnée depuis le GeoPackage
+            plot_data = self.plots_data[self.plots_data["id_locality"] == plot_id]
+            if plot_data.empty or field not in plot_data.columns:
+                return {"value": None, "max": None, "units": transform.get("units", "")}
 
-        counts: Counter[str] = Counter()
-        for occ in plot_occurrences:
-            taxon_id = occ.get("taxon_ref_id")
-            if taxon_id:
-                taxon = self.db.session.query(TaxonRef).get(taxon_id)
-                if taxon and taxon.rank_name in target_ranks:
-                    counts[taxon.full_name] += 1
+            value = plot_data[field].iloc[0]
+            if pd.isna(value):
+                return {"value": None, "max": None, "units": transform.get("units", "")}
 
-        top_values = counts.most_common(count)
-        return {f"{rank}": value for rank, value in top_values}
+            value = float(value)
+            return {
+                "value": value,
+                "max": transform.get("max_value", value * 1.2),
+                "units": transform.get("units", ""),
+            }
+
+        except Exception as e:
+            self.logger.error(
+                f"Error processing identity value for plot {plot_id}, field {field}: {e}"
+            )
+            return {"value": None, "max": None, "units": transform.get("units", "")}

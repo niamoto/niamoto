@@ -4,11 +4,12 @@ import pandas as pd
 import sqlalchemy
 
 from loguru import logger
+
+from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.core.components.statistics.shape_stats_calculator import (
     ShapeStatsCalculator,
 )
-from niamoto.core.services.mapper import MapperService
 from niamoto.core.components.statistics.taxonomy_stats_calculator import (
     TaxonomyStatsCalculator,
 )
@@ -20,101 +21,98 @@ class StatisticService:
     The StatisticService class provides methods to calculate statistics.
     """
 
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, config: Config):
         """
-        Initializes a new instance of the StatisticService with a given database path.
+        Initializes a new instance of the StatisticService.
 
         Args:
             db_path (str): The path to the database file.
+            config (Config): The configuration instance.
         """
         self.db_path = db_path
         self.db = Database(db_path)
-        self.mapper_service = MapperService(db_path)
+        self.config = config
 
     def calculate_statistics(
         self, csv_file: Optional[str] = None, group_by: Optional[str] = None
     ) -> None:
         """
-        Calculates group statistics using the StatisticService.
+        Calculates statistics based on configuration.
 
         Args:
-            group_by (str): The type of grouping to calculate the statistics for (e.g., taxon, plot, shape).
-            csv_file (Optional[str]): Path to the CSV file to be used for calculating statistics.
+            group_by (str): The type of grouping (e.g., taxon, plot, shape).
+            csv_file (Optional[str]): Optional CSV file path to use instead of configured source.
         """
         try:
+            # Get occurrences data
             occurrences = self.get_occurrences(group_by, csv_file)
-            mapping_data = self.mapper_service.get_aggregations()
+
+            # Get stats configuration
+            stats_config = self.config.get_stats_config()
 
             if group_by:
-                # Calculate statistics for the specified group_by
-                self.calculate_group_statistics(occurrences, group_by)
+                # Calculate for specific group
+                group_stats = next(
+                    (g for g in stats_config if g["group_by"] == group_by), None
+                )
+                if group_stats:
+                    self.calculate_group_statistics(occurrences, group_stats)
             else:
-                # Calculate statistics for all group_by in the configuration
-                for group_config in mapping_data:
-                    group_by = group_config["group_by"]
-                    self.calculate_group_statistics(occurrences, group_by)
+                # Calculate for all groups
+                for group_stats in stats_config:
+                    self.calculate_group_statistics(occurrences, group_stats)
+
         except Exception as e:
             logger.exception(f"Error calculating statistics: {e}")
-
-    def calculate_group_statistics(
-        self, occurrences: list[dict[Hashable, Any]], group_by: Optional[str]
-    ) -> None:
-        """
-        Calculate group statistics for a given list of occurrences and a group by parameter.
-
-        Args:
-            occurrences (list[dict[Hashable, Any]]): The list of occurrences to calculate statistics for.
-            group_by (str): The parameter to group the occurrences by.
-        """
-        group_config = self.mapper_service.get_group_config(group_by)
-
-        if group_config:
-            if group_by == "taxon":
-                taxon_calculator = TaxonomyStatsCalculator(
-                    self.db, self.mapper_service, occurrences, group_by
-                )
-                taxon_calculator.calculate_taxonomy_stats()
-            elif group_by == "plot":
-                plot_calculator = PlotStatsCalculator(
-                    self.db, self.mapper_service, occurrences, group_by
-                )
-                plot_calculator.calculate_plot_stats()
-            elif group_by == "shape":
-                shape_calculator = ShapeStatsCalculator(
-                    self.db, self.mapper_service, occurrences, group_by
-                )
-                shape_calculator.import_legacy_shape_stats()
 
     def get_occurrences(
         self, group_by: Optional[str], csv_file: Optional[str]
     ) -> list[dict[Hashable, Any]]:
         """
-        Retrieves occurrences either from a CSV file or from the database.
+        Retrieves occurrences data.
 
         Args:
-            group_by (Optional[str]): The type of grouping to retrieve the occurrences for (e.g., taxon, plot, commune).
-            csv_file (Optional[str]): Path to the CSV file to be used for retrieving occurrences.
+            group_by (Optional[str]): Optional group by parameter.
+            csv_file (Optional[str]): Optional CSV file path.
 
         Returns:
-            list[dict[Hashable, Any]]: A list of occurrences.
+            list[dict[Hashable, Any]]: List of occurrences.
         """
         if csv_file:
-            # Load occurrences from the specified CSV file
-            occurrences = self.load_occurrences_from_csv(csv_file)
-        else:
-            # Retrieve the target table name from the mapping
-            mapper_service = MapperService(self.db_path)
-            if group_by:
-                group_config = mapper_service.get_group_config(group_by)
-                source_table_name = group_config.get("source_table_name")
-            else:
-                mapping = mapper_service.get_aggregations()
-                source_table_name = mapping[0].get("source_table_name")
+            return self.load_occurrences_from_csv(csv_file)
 
-            # Retrieve the occurrences from the target table
-            occurrences = self.load_occurrences_from_database(source_table_name)
+        # Get source path from configuration
+        source_config = self.config.data_sources.get("occurrences", {})
+        source_path = source_config.get("path")
 
-        return occurrences
+        if not source_path:
+            raise ValueError("No occurrence source path configured")
+
+        return self.load_occurrences_from_csv(source_path)
+
+    def calculate_group_statistics(
+        self, occurrences: list[dict[Hashable, Any]], group_config: dict
+    ) -> None:
+        """
+        Calculate statistics for a group based on configuration.
+
+        Args:
+            occurrences (list[dict[Hashable, Any]]): The occurrences data.
+            group_config (dict): Configuration for the group.
+        """
+        group_by = group_config["group_by"]
+
+        if group_by == "taxon":
+            taxon_calculator = TaxonomyStatsCalculator(
+                self.db, occurrences, group_config
+            )
+            taxon_calculator.calculate_taxonomy_stats()
+        elif group_by == "plot":
+            plot_calculator = PlotStatsCalculator(self.db, occurrences, group_config)
+            plot_calculator.calculate_plot_stats()
+        elif group_by == "shape":
+            shape_calculator = ShapeStatsCalculator(self.db, occurrences, group_config)
+            shape_calculator.calculate_shape_stats()
 
     @staticmethod
     def load_occurrences_from_csv(csv_file: str) -> list[dict[Hashable, Any]]:
@@ -148,7 +146,7 @@ class StatisticService:
             list[dict[Hashable, Any]]: A list of occurrences.
         """
         # Create a connection to the database
-        engine = sqlalchemy.create_engine(f"duckdb:///{self.db_path}")
+        engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
 
         # Execute a SQL query to retrieve all occurrences from the specified table
         df = pd.read_sql(f"SELECT * FROM {table_name}", engine)

@@ -1,9 +1,7 @@
 """
 A module for importing occurrence data from a CSV file into the database.
 """
-from typing import Any
-
-import duckdb
+from typing import List, Tuple
 import pandas as pd
 import sqlalchemy
 from rich.console import Console
@@ -27,7 +25,7 @@ class OccurrenceImporter:
         self.logger = setup_logging(component_name="occurrences_import")
 
     @staticmethod
-    def analyze_data(csvfile: str) -> Any:
+    def analyze_data(csvfile: str) -> List[Tuple[str, str]]:
         """
         Analyzes the data types of columns in a CSV file.
 
@@ -37,14 +35,26 @@ class OccurrenceImporter:
         Returns:
             List[Tuple[str, str]]: A list of tuples with column names and types.
         """
-        con = duckdb.connect()
-        con.execute(
-            f"CREATE TEMPORARY TABLE temp_csv AS SELECT * FROM READ_CSV_AUTO('{csvfile}')"
-        )
-        types_info = con.execute("DESCRIBE temp_csv").fetchall()
-        con.close()
+        # Read the first few rows of the CSV to infer types
+        df = pd.read_csv(csvfile, nrows=1000)
 
-        return [(col_info[0], col_info[1]) for col_info in types_info]
+        # Map pandas dtypes to SQLite types
+        type_mapping = {
+            "int64": "INTEGER",
+            "float64": "REAL",
+            "object": "TEXT",
+            "bool": "INTEGER",
+            "datetime64": "TIMESTAMP",
+        }
+
+        # Get column types
+        types_info = []
+        for column in df.columns:
+            pandas_type = str(df[column].dtype)
+            sql_type = type_mapping.get(pandas_type, "TEXT")
+            types_info.append((column, sql_type))
+
+        return types_info
 
     def import_occurrences(self, csvfile: str, taxon_id_column: str) -> str:
         """
@@ -75,8 +85,8 @@ class OccurrenceImporter:
                 [f"{col_name} {col_type}" for col_name, col_type in column_schema]
             )
             if not id_column_exists:
-                columns_sql = f"id BIGINT PRIMARY KEY, {columns_sql}"
-            columns_sql += ", taxon_ref_id BIGINT REFERENCES taxon_ref(id)"
+                columns_sql = f"id INTEGER PRIMARY KEY, {columns_sql}"
+            columns_sql += ", taxon_ref_id INTEGER REFERENCES taxon_ref(id)"
 
             # Drop the existing occurrences table if it exists
             drop_table_sql = "DROP TABLE IF EXISTS occurrences;"
@@ -168,8 +178,8 @@ class OccurrenceImporter:
                 [f"{col_name} {col_type}" for col_name, col_type in column_schema]
             )
             if not id_column_exists:
-                columns_sql = f"id BIGINT PRIMARY KEY, {columns_sql}"
-            columns_sql += ", taxon_ref_id BIGINT"
+                columns_sql = f"id INTEGER PRIMARY KEY, {columns_sql}"
+            columns_sql += ", taxon_ref_id INTEGER"
 
             # Drop the existing occurrences table if it exists
             drop_table_sql = "DROP TABLE IF EXISTS occurrences;"
@@ -182,7 +192,7 @@ class OccurrenceImporter:
             self.db.execute_sql(create_table_sql)
 
             df = pd.read_csv(csvfile, low_memory=False)
-            engine = sqlalchemy.create_engine(f"duckdb:///{self.db_path}")
+            engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
 
             if only_existing_taxons:
                 # Filter to include only rows with existing taxons
@@ -260,7 +270,7 @@ class OccurrenceImporter:
             self.db.execute_sql(create_table_sql)
 
             df = pd.read_csv(csvfile)
-            engine = sqlalchemy.create_engine(f"duckdb:///{self.db_path}")
+            engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
 
             # Define the size of each "chunk" for insertion
             chunk_size = 1000

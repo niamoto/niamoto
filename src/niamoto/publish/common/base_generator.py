@@ -35,7 +35,7 @@ class BaseGenerator:
             dict: The dictionary representation of the TaxonRef object.
 
         """
-        taxon_dict = {
+        stats_dict = {
             "id": taxon.id,
             "full_name": taxon.full_name,
             "authors": taxon.authors,
@@ -48,18 +48,13 @@ class BaseGenerator:
         }
 
         if stats:
-            frequencies = {}
+            # Parse les champs JSON
+            parsed_stats = {}
             for key, value in stats.items():
-                if key.endswith("_bins"):
-                    freq_key = key[:-5]
-                    if value is not None:
-                        frequencies[freq_key] = json.loads(value.replace("'", '"'))
-                else:
-                    taxon_dict[key] = self.parse_json_field(value)
+                parsed_stats[key] = self.parse_json_field(value)
+            stats_dict.update(parsed_stats)
 
-            taxon_dict["frequencies"] = frequencies
-
-        return taxon_dict
+        return stats_dict
 
     def plot_to_dict(self, plot: PlotRef, stats: Optional[Any]) -> Dict[str, Any]:
         """
@@ -73,7 +68,7 @@ class BaseGenerator:
 
         """
         geometry_str = str(plot.geometry) if plot.geometry is not None else None
-        plot_dict = {
+        stats_dict = {
             "id": plot.id,
             "locality": plot.locality,
             "geometry": mapping(wkt.loads(geometry_str))
@@ -82,18 +77,13 @@ class BaseGenerator:
         }
 
         if stats:
-            frequencies = {}
+            # Parse les champs JSON
+            parsed_stats = {}
             for key, value in stats.items():
-                if key.endswith("_bins"):
-                    freq_key = key[:-5]
-                    if value is not None:
-                        frequencies[freq_key] = json.loads(value.replace("'", '"'))
-                else:
-                    plot_dict[key] = self.parse_json_field(value)
+                parsed_stats[key] = self.parse_json_field(value)
+            stats_dict.update(parsed_stats)
 
-            plot_dict["frequencies"] = frequencies
-
-        return plot_dict
+        return stats_dict
 
     def shape_to_dict(self, shape: ShapeRef, stats: Optional[Any]) -> Dict[str, Any]:
         """
@@ -108,7 +98,7 @@ class BaseGenerator:
         """
 
         # Conversion en dictionnaire de base
-        shape_dict = {
+        stats_dict = {
             "id": shape.id,
             "name": shape.label,
             "type": shape.type,
@@ -120,6 +110,6 @@ class BaseGenerator:
             parsed_stats = {}
             for key, value in stats.items():
                 parsed_stats[key] = self.parse_json_field(value)
-            shape_dict.update(parsed_stats)
+            stats_dict.update(parsed_stats)
 
-        return shape_dict
+        return stats_dict
