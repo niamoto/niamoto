@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "niamoto"
-version = "0.3.2"
+version = "0.3.3"
 description = ""
 authors = ["Julien Barbe <julien.barbe@me.com>"]
 readme = "README.md"
