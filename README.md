@@ -11,24 +11,18 @@
 - [Initial Configuration](#initial-configuration)
 - [Development Environment Configuration](#development-environment-configuration)
 - [CSV File Format for Import](#csv-file-format-for-import)
-- [Niamoto CLI Command Examples](#niamoto-cli-command-examples)
-  - [Initialize or Reset the Environment](#1-initialize-or-reset-the-environment)
-  - [Import Taxonomy Data](#2-import-taxonomy-data)
-  - [Import Plot Data](#3-import-plot-data)
-  - [Import Occurrences Data](#4-import-occurrences-data)
-  - [Import Occurrence-Plot Links](#5-import-occurrence-plot-links)
-  - [Generate Mapping](#6-generate-mapping)
-  - [Calculate Statistics](#7-calculate-statistics)
-  - [Generate Static Site](#8-generate-static-site)
-- [Mapping Configuration](#mapping-configuration)
-  - [Structure of the Mapping](#structure-of-the-mapping)
-  - [Field Configuration](#field-configuration)
-  - [Special Fields](#special-fields)
+- [Niamoto CLI Commands](#niamoto-cli-commands)
+  - [Environment Management](#environment-management)
+  - [Data Import](#Data-Import)
+  - [Statistics Generation](#Statistics-Generation)
+  - [Content Generation and Deployment](#content-generation-and-deployment)
+- [Niamoto Configuration Overview](#niamoto-configuration-overview)
 - [Static Type Checking and Testing with mypy and pytest](#static-type-checking-and-testing-with-mypy-and-pytest)
   - [Using mypy for Static Type Checking](#using-mypy-for-static-type-checking)
   - [Running Tests with pytest](#running-tests-with-pytest)
 - [License](#license)
-- [Contribution](#contribution)
+- [Appendix](#appendix)
+  - [Complete Configuration Examples](#complete-configuration-examples)
 
 ## Introduction
 
@@ -110,83 +104,64 @@ To import taxonomic data into Niamoto, you must provide a structured CSV file wi
 | `authors`      | Authors of the taxon name                             |
 
 
-### Niamoto CLI Command Examples
+### Niamoto CLI Commands
 
-This markdown summarizes the command-line interface (CLI) commands available in the Niamoto system, which helps users manage database operations and data imports without direct code interaction.
+This section describes the command-line interface (CLI) commands available in Niamoto for managing your environment, importing data, and generating content.
 
-#### 1. Initialize or Reset the Environment
-**Command:**
+#### Environment Management
+
 ```bash
-$ niamoto init [--reset]
-```
-**Explanation:**
-Initializes or resets the Niamoto environment. Use the `--reset` option to reset the environment if it already exists, clearing all data and configurations to start fresh.
+# Initialize new Niamoto environment
+$ niamoto init setup
 
-#### 2. Import All Data
-**Command:**
+# Check environment status
+$ niamoto init status
+
+# Reset existing environment (use with caution)
+$ niamoto init setup --reset
+```
+
+### Data Import
+
 ```bash
-$ niamoto import-all
+# Import taxonomy data
+$ niamoto import taxonomy [<file>] [--ranks <ranks>]
+
+# Import plot data
+$ niamoto import plots [<file>] [--id-field <field>] [--location-field <field>]
+
+# Import occurrence data
+$ niamoto import occurrences [<file>] [--taxon-id <field>] [--location-field <field>]
+
+# Import occurrence-plot links
+$ niamoto import occurrence-plots [<file>]
+
+# Import shape files (from config)
+$ niamoto import shapes
+
+# Import all data sources defined in config
+$ niamoto import all
 ```
 
-**Explanation:**
-Imports all data from CSV files and GeoPackage files into the database. This command is a shortcut to import taxonomy, plot, occurrences, and occurrence-plot links data in one go.
-Assuming the following files are present in the current source directory and specified in the configuration file
+### Statistics Generation
 
-#### 3. Import Taxonomy Data
-**Command:**
 ```bash
-$ niamoto import-taxonomy <csvfile> [--ranks <ranks>]
-```
-**Explanation:**
-Imports taxonomy data from a specified CSV file. The `--ranks` option allows specifying the order of taxonomic ranks as they appear in the CSV file.
+# Calculate statistics for a specific group
+$ niamoto stats calculate --group <group>
 
-#### 4. Import Plot Data
-**Command:**
-```bash
-$ niamoto import-plots <gpkg_file>
+# Calculate statistics with custom data file
+$ niamoto stats calculate --csv-file <file>
 ```
-**Explanation:**
-Imports plot data from a GeoPackage file into the database, which should contain plot geometries and associated attributes.
 
-#### 5. Import Occurrences Data
-**Command:**
-```bash
-$ niamoto import-occurrences <csvfile> --taxon-id-column <column_name>
-```
-**Explanation:**
-Imports occurrences data from a CSV file. The `--taxon-id-column` option specifies the CSV column containing the taxon IDs needed to link occurrences to taxons.
+### Content Generation and Deployment
 
-#### 6. Import Occurrence-Plot Links
-**Command:**
 ```bash
-$ niamoto import-occurrence-plots <csvfile>
-```
-**Explanation:**
-Imports links between occurrences and plots from a CSV file, establishing relational data within the database.
+# Generate static site
+$ niamoto generate site [--group <group>]
 
-#### 7. Generate Mapping
-**Command:**
-```bash
-$ niamoto generate-mapping --data-source <csv_file> --mapping-group <group> [--reference-table-name <table_name> --reference-data-path <path>]
+# Deploy to GitHub Pages
+$ niamoto deploy github --repo <url> [--branch <branch>]
 ```
-**Explanation:**
-Generates mappings from a CSV file based on specified grouping criteria. Optional parameters allow linking to reference data for enhanced mapping accuracy.
-
-#### 8. Calculate Statistics
-**Command:**
-```bash
-$ niamoto calculate-statistics [--mapping-group <group> --csv-file <file>]
-```
-**Explanation:**
-Calculates statistics based on the provided mapping file and optional group or CSV file specifics.
-
-#### 9. Generate Static Site
-**Command:**
-```bash
-$ niamoto generate-static_files-site
-```
-**Explanation:**
-Generates a static website for each taxon in the database, providing a visual and informational representation of taxonomic data.
 
 
 ## Niamoto Configuration Overview
@@ -211,7 +186,7 @@ By splitting these responsibilities, Niamoto provides a more modular, maintainab
 
 ---
 
-## 1) `data_config.yaml` – Data Sources
+### 1) `data_config.yaml` – Data Sources
 
 The **data configuration** file focuses on **where** each data source resides and how to interpret it.  
 Typical structure might look like:
@@ -453,18 +428,15 @@ make markdown
 
 `niamoto` is distributed under the terms of the [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html) license.
 
-## Contribution
 
-Instructions for contributing to the Niamoto project.
+## Appendix
 
-
-## Appendix: Complete Configuration Examples
-
+### Complete Configuration Examples
 This appendix provides complete examples of the three main configuration files 
 used in Niamoto: config.yml, sources.yml, stats.yml, and presentation.yml.
 Complete Example 1: Species Distribution Analysis
 
-## config.yml   
+### config.yml   
 ```yaml
 database:
   path: data/db/niamoto.db
@@ -475,7 +447,7 @@ outputs:
   static_api: outputs/api
 ```
 
-## sources.yml
+### sources.yml
 ```yaml
 # 1) The main basic "entities"
 taxonomy:
@@ -585,7 +557,7 @@ layers:
     description: "Holdridge"
 ```
 
-## stats.yml
+### stats.yml
 ```yaml
 ##################################################################
 # 1) CONFIG POUR LES TAXONS
@@ -1084,7 +1056,7 @@ layers:
 
 ```
 
-## presentation.yml
+### presentation.yml
 ```yaml
 ##################################################################
 # 1) PRÉSENTATION POUR LES TAXONS

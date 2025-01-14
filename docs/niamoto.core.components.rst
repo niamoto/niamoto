@@ -8,7 +8,6 @@ Subpackages
    :maxdepth: 4
 
    niamoto.core.components.importers
-   niamoto.core.components.mappers
    niamoto.core.components.statistics
 
 Module contents

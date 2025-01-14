@@ -12,14 +12,6 @@ niamoto.core.services.importer module
    :undoc-members:
    :show-inheritance:
 
-niamoto.core.services.mapper module
------------------------------------
-
-.. automodule:: niamoto.core.services.mapper
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 niamoto.core.services.statistics module
 ---------------------------------------
 
