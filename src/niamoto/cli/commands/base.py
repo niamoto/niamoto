@@ -169,10 +169,10 @@ def display_next_steps() -> None:
         {
             "title": "Transform data",
             "commands": [
-                "niamoto transforms --group taxon # Transform data by taxon",
-                "niamoto transforms --group plot  # Transform data by plot",
-                "niamoto transforms --group shape # Transform data by shape",
-                "niamoto transforms # Transform for all groups",
+                "niamoto transform --group taxon # Transform data by taxon",
+                "niamoto transform --group plot  # Transform data by plot",
+                "niamoto transform --group shape # Transform data by shape",
+                "niamoto transform # Transform for all groups",
             ],
         },
         {
