@@ -5,9 +5,18 @@ The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
 from typing import TypeVar, Any, Optional, List
-from sqlite3 import OperationalError
+
 from sqlalchemy import create_engine, exc, text, inspect
 from sqlalchemy.orm import scoped_session, sessionmaker, Query, Session
+
+from niamoto.common.exceptions import (
+    DatabaseError,
+    DatabaseConnectionError,
+    DatabaseQueryError,
+    DatabaseWriteError,
+    TransactionError,
+)
+from niamoto.common.utils import error_handler
 
 T = TypeVar("T")
 
@@ -16,12 +25,9 @@ class Database:
     """
     A class that provides a connection to a database and offers methods
     to interact with it.
-
-    Attributes:
-    - engine: The database engine connection.
-    - session: A scoped session for creating new database sessions.
     """
 
+    @error_handler(log=True, raise_error=True)
     def __init__(
         self,
         db_path: str,
@@ -40,12 +46,13 @@ class Database:
             self.session_factory = sessionmaker(bind=self.engine)
             self.session = scoped_session(self.session_factory)
             self.active_transaction = False
-
         except exc.SQLAlchemyError as e:
-            raise Exception(
-                f"SQLAlchemy error during database initialization: {e}"
-            ) from e
+            raise DatabaseConnectionError(
+                message="Failed to initialize database connection",
+                details={"path": db_path, "error": str(e)},
+            )
 
+    @error_handler(log=True, raise_error=True)
     def has_table(self, table_name: str) -> bool:
         """
         Check if a table exists in the database.
@@ -59,6 +66,7 @@ class Database:
         inspector = inspect(self.engine)
         return table_name in inspector.get_table_names()
 
+    @error_handler(log=True, raise_error=True)
     def get_new_session(self) -> scoped_session[Session]:
         """
         Get a new session from the session factory.
@@ -66,8 +74,14 @@ class Database:
         Returns:
             scoped_session[Session]: A new session.
         """
-        return self.session
+        try:
+            return self.session
+        except Exception as e:
+            raise DatabaseConnectionError(
+                message="Failed to create new session", details={"error": str(e)}
+            )
 
+    @error_handler(log=True, raise_error=True)
     def add_instance_and_commit(self, instance: Any) -> None:
         """
         Add an instance to the session and commit.
@@ -80,9 +94,14 @@ class Database:
             self.session.commit()
         except exc.SQLAlchemyError as e:
             self.session.rollback()
-            print(f"Error while adding and committing: {e}")
+            raise DatabaseWriteError(
+                table_name=instance.__tablename__,
+                message="Failed to add and commit instance",
+                details={"error": str(e)},
+            )
 
     @staticmethod
+    @error_handler(log=True, raise_error=True)
     def execute_query(query: Query[T]) -> Optional[List[Any]]:
         """
         Execute a given query and handle any database-related exceptions.
@@ -96,9 +115,13 @@ class Database:
         try:
             return query.all()
         except exc.SQLAlchemyError as e:
-            Database.__handle_db_errors(e)
-            return None
+            raise DatabaseQueryError(
+                query=str(query),
+                message="Query execution failed",
+                details={"error": str(e)},
+            )
 
+    @error_handler(log=True, raise_error=True)
     def execute_select(self, sql: str) -> Optional[Any]:
         """
         Execute a SELECT query using the database engine.
@@ -111,13 +134,13 @@ class Database:
         """
         try:
             with self.engine.connect() as connection:
-                result = connection.execute(text(sql))
-                return result
+                return connection.execute(text(sql))
         except exc.SQLAlchemyError as e:
-            print(f"Exception occurred: {e}")
-            self.__handle_db_errors(e)
-            return None
+            raise DatabaseQueryError(
+                query=sql, message="SELECT query failed", details={"error": str(e)}
+            )
 
+    @error_handler(log=True, raise_error=True)
     def execute_sql(self, sql: str, fetch: bool = False) -> Optional[Any]:
         """
         Execute a raw SQL query using the database engine.
@@ -132,16 +155,16 @@ class Database:
         try:
             with self.engine.connect() as connection:
                 result = connection.execute(text(sql))
-
-                # Fetch result only if requested and applicable
                 if fetch:
                     return result.fetchone() if fetch else result.fetchall()
                 connection.commit()
-                return result  # Return the raw result for other operations
+                return result
         except exc.SQLAlchemyError as e:
-            print(f"Exception occurred: {e}")
-            self.__handle_db_errors(e)
-            return None
+            raise DatabaseQueryError(
+                query=sql,
+                message="SQL execution failed",
+                details={"fetch": fetch, "error": str(e)},
+            )
 
     def commit_session(self) -> None:
         """
@@ -151,7 +174,11 @@ class Database:
             self.session.commit()
         except exc.SQLAlchemyError as e:
             self.session.rollback()
-            Database.__handle_db_errors(e)
+            raise DatabaseWriteError(
+                table_name="session",
+                message="Failed to commit session",
+                details={"error": str(e)},
+            )
 
     def rollback_session(self) -> None:
         """
@@ -160,73 +187,73 @@ class Database:
         try:
             self.session.rollback()
         except exc.SQLAlchemyError as e:
-            raise Exception(f"SQLAlchemy error during database operation: {e}") from e
+            raise DatabaseError(
+                message="Failed to rollback session", details={"error": str(e)}
+            )
 
+    @error_handler(log=True, raise_error=True)
     def close_db_session(self) -> None:
         """
         Close the database session.
         """
-        self.session.remove()
+        try:
+            self.session.remove()
+        except exc.SQLAlchemyError as e:
+            raise DatabaseError(
+                message="Failed to close database session", details={"error": str(e)}
+            )
 
+    @error_handler(log=True, raise_error=True)
     def begin_transaction(self) -> None:
         """
         Begin a new transaction.
         """
-        if not self.active_transaction:
+        if self.active_transaction:
+            raise TransactionError(
+                message="Cannot begin transaction",
+                details={"reason": "A transaction is already active"},
+            )
+        try:
             self.session.begin()
             self.active_transaction = True
-        else:
-            raise Exception("A transaction is already active.")
+        except exc.SQLAlchemyError as e:
+            raise DatabaseError(
+                message="Failed to begin transaction", details={"error": str(e)}
+            )
 
+    @error_handler(log=True, raise_error=True)
     def commit_transaction(self) -> None:
         """
         Commit the current transaction.
         """
-        if self.active_transaction:
-            try:
-                self.session.commit()
-                self.active_transaction = False
-            except exc.SQLAlchemyError as e:
-                self.__handle_db_errors(e)
-        else:
-            raise Exception("No active transaction to commit.")
+        if not self.active_transaction:
+            raise TransactionError(
+                message="Cannot commit transaction",
+                details={"reason": "No active transaction"},
+            )
+        try:
+            self.session.commit()
+            self.active_transaction = False
+        except exc.SQLAlchemyError as e:
+            self.session.rollback()
+            raise DatabaseError(
+                message="Failed to commit transaction", details={"error": str(e)}
+            )
 
+    @error_handler(log=True, raise_error=True)
     def rollback_transaction(self) -> None:
         """
         Rollback the current transaction.
         """
-        if self.active_transaction:
-            try:
-                self.session.rollback()
-                self.active_transaction = False
-            except exc.SQLAlchemyError as e:
-                self.__handle_db_errors(e)
-        else:
-            raise Exception("No active transaction to rollback.")
-
-    @staticmethod
-    def __handle_db_errors(error: Exception) -> None:
-        """
-        Private helper method to handle database-related errors.
-
-        Args:
-            error (Exception): The exception object that was raised.
-
-        Raises:
-            Exception: Raises an appropriate exception based on the error type.
-        """
-        if isinstance(error, OperationalError):
-            if "database is locked" in str(error):
-                raise Exception(
-                    "Database is currently in use by another application. Please try again later."
-                ) from error
-            else:
-                raise Exception(f"Unexpected database error: {error}") from error
-        elif isinstance(error, exc.SQLAlchemyError):
-            raise Exception(
-                f"SQLAlchemy error during database operation: {error}"
-            ) from error
-        else:
-            raise Exception(
-                f"Unexpected error during database operation: {error}"
-            ) from error
+        if not self.active_transaction:
+            raise TransactionError(
+                message="Cannot rollback transaction",
+                details={"reason": "No active transaction"},
+            )
+        try:
+            self.session.rollback()
+            self.active_transaction = False
+        except exc.SQLAlchemyError as e:
+            raise DatabaseError(
+                message="Failed to rollback transaction", details={"error": str(e)}
+            )

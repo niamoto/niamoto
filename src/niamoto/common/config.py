@@ -1,17 +1,26 @@
 import os
 import yaml
 from typing import Any, Dict, Optional, List
+from niamoto.common.exceptions import (
+    ConfigurationError,
+    FileReadError,
+    FileWriteError,
+    FileFormatError,
+    EnvironmentSetupError,
+)
+from niamoto.common.utils import error_handler
 
 
 class Config:
     """
     Class to manage all Niamoto configuration files:
      - config.yml (global env settings: database, logs, outputs, etc.)
-     - sources.yml (data sources)
-     - stats.yml (transformations)
-     - presentation.yml (widgets)
+     - import.yml (data sources)
+     - transform.yml (transformations)
+     - export.yml (widgets)
     """
 
+    @error_handler(log=True, raise_error=True)
     def __init__(
         self, config_dir: Optional[str] = None, create_default: bool = True
     ) -> None:
@@ -22,47 +31,50 @@ class Config:
             config_dir (str): Path to the directory containing the 4 config files.
             create_default (bool): If True, create default configs if not found.
         """
-        if not config_dir:
-            # default to <NIAMOTO_HOME>/config
-            config_dir = os.path.join(self.get_niamoto_home(), "config")
-        self.config_dir = config_dir
-        self.config: Dict[str, Any] = {}  # For global environment config (config.yml)
-        self.sources: Dict[str, Any] = {}  # For sources.yml
-        self.stats_config: Any = {}  # For stats.yml
-        self.presentation_config: Any = {}  # For presentation.yml
+        try:
+            if not config_dir:
+                config_dir = os.path.join(self.get_niamoto_home(), "config")
+            self.config_dir = config_dir
+            self.config: Dict[str, Any] = {}
+            self.imports: Dict[str, Any] = {}
+            self.transforms: Any = {}
+            self.exports: Any = {}
 
-        # Possibly load each file
-        self._load_files(create_default)
+            self._load_files(create_default)
+        except Exception as e:
+            raise ConfigurationError(
+                config_key="initialization",
+                message="Failed to initialize configuration",
+                details={"config_dir": config_dir, "error": str(e)},
+            )
 
+    @error_handler(log=True, raise_error=True)
     def _load_files(self, create_default: bool) -> None:
-        """
-        Internal method to load (or create) the config files.
-        """
-        # 1) Load global environment config (config.yml)
-        config_path = os.path.join(self.config_dir, "config.yml")
-        self.config = self._load_yaml_with_defaults(
-            config_path, self._default_config(), create_default
-        )
+        """Load or create the config files."""
+        config_files = {
+            "config.yml": (self._default_config, "config"),
+            "import.yml": (self._default_imports, "imports"),
+            "transform.yml": (self._default_transforms, "transforms"),
+            "export.yml": (self._default_exports, "exports"),
+        }
 
-        # 2) Load sources.yml
-        sources_path = os.path.join(self.config_dir, "sources.yml")
-        self.sources = self._load_yaml_with_defaults(
-            sources_path, self._default_sources(), create_default
-        )
-
-        # 3) Load stats.yml
-        stats_path = os.path.join(self.config_dir, "stats.yml")
-        self.stats_config = self._load_yaml_with_defaults(
-            stats_path, self._default_stats(), create_default
-        )
-
-        # 4) Load presentation.yml
-        presentation_path = os.path.join(self.config_dir, "presentation.yml")
-        self.presentation_config = self._load_yaml_with_defaults(
-            presentation_path, self._default_presentation(), create_default
-        )
+        for filename, (default_func, attr_name) in config_files.items():
+            file_path = os.path.join(self.config_dir, filename)
+            try:
+                file_path = os.path.join(self.config_dir, filename)
+                config_data = self._load_yaml_with_defaults(
+                    file_path, default_func(), create_default
+                )
+                setattr(self, attr_name, config_data)
+            except Exception as e:
+                raise ConfigurationError(
+                    config_key=filename,
+                    message="Failed to load configuration file",
+                    details={"file": file_path, "error": str(e)},
+                )
 
     @staticmethod
+    @error_handler(log=True, raise_error=True)
     def get_niamoto_home() -> str:
         """
         Return the Niamoto home directory.
@@ -71,31 +83,56 @@ class Config:
         If it is, returns that path; otherwise, falls back to the current working directory.
         """
         niamoto_home = os.environ.get("NIAMOTO_HOME")
-        if niamoto_home:
-            return niamoto_home
-        else:
-            return os.getcwd()
+        if not niamoto_home:
+            niamoto_home = os.getcwd()
+        if not os.path.exists(niamoto_home):
+            raise EnvironmentSetupError(
+                message="NIAMOTO_HOME directory not found",
+                details={"path": niamoto_home},
+            )
+        return niamoto_home
 
     @staticmethod
+    @error_handler(log=True, raise_error=True)
     def _load_yaml_with_defaults(
         file_path: str, default_data: Dict[str, Any], create_if_missing: bool
     ) -> Dict[str, Any]:
         """
         Loads a YAML file or creates it from defaults if not found.
         """
-        if os.path.exists(file_path):
-            with open(file_path, "r") as f:
-                return yaml.safe_load(f) or {}
-        else:
-            if create_if_missing:
-                os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                with open(file_path, "w") as f:
-                    yaml.dump(
-                        default_data, f, default_flow_style=False, sort_keys=False
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, "r") as f:
+                    try:
+                        data = yaml.safe_load(f)
+                    except yaml.YAMLError as e:
+                        raise FileFormatError(
+                            file_path=file_path,
+                            message="Invalid YAML format",
+                            details={"error": str(e)},
+                        )
+                    return data or {}
+            elif create_if_missing:
+                try:
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    with open(file_path, "w") as f:
+                        yaml.dump(
+                            default_data, f, default_flow_style=False, sort_keys=False
+                        )
+                    return default_data
+                except Exception as e:
+                    raise FileWriteError(
+                        file_path=file_path,
+                        message="Failed to create config file",
+                        details={"error": str(e)},
                     )
-                return default_data
-            else:
-                return {}
+            return {}
+        except OSError as e:
+            raise FileReadError(
+                file_path=file_path,
+                message="Failed to access config file",
+                details={"error": str(e)},
+            )
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
@@ -103,32 +140,38 @@ class Config:
         Default content for config.yml (database, logs, outputs).
         """
         return {
-            "database": {"path": "data/db/niamoto.db"},
+            "database": {"path": "db/niamoto.db"},
             "logs": {"path": "logs"},
-            "outputs": {"static_site": "outputs", "static_api": "outputs/api"},
+            "exports": {
+                "web": "exports",
+                "api": "exports/api",
+                "files": "exports/files",
+            },
         }
 
     @staticmethod
-    def _default_sources() -> Dict[str, Any]:
+    def _default_imports() -> Dict[str, Any]:
         """
-        Default content for sources.yml (taxonomy, occurrences, etc.).
+        Default content for import.yml (taxonomy, occurrences, etc.).
         """
         return {
-            "taxonomy": {"type": "csv", "path": "data/sources/taxonomy.csv"},
-            "occurrences": {"type": "csv", "path": "data/sources/occurrences.csv"},
+            "taxonomy": {"type": "csv", "path": "imports/taxonomy.csv"},
+            "occurrences": {"type": "csv", "path": "imports/occurrences.csv"},
+            "plots": {"type": "vector", "path": "imports/plots.gpkg"},
+            "occurrence_plots": {"type": "csv", "path": "imports/occurrence-plots.csv"},
         }
 
     @staticmethod
-    def _default_stats() -> Dict[str, Any]:
+    def _default_transforms() -> Dict[str, Any]:
         """
-        Default stats transformations. Possibly an empty dict or minimal.
+        Default transformations. Possibly an empty dict or minimal.
         """
         return {}
 
     @staticmethod
-    def _default_presentation() -> Dict[str, Any]:
+    def _default_exports() -> Dict[str, Any]:
         """
-        Default presentation config. Possibly an empty dict or minimal.
+        Default export config. Possibly an empty dict or minimal.
         """
         return {}
 
@@ -137,29 +180,101 @@ class Config:
     # ===============================
 
     @property
+    @error_handler(log=True, raise_error=True)
     def database_path(self) -> str:
-        return self.config.get("database", {}).get("path", "data/db/niamoto.db")
+        """
+        Get the database path from config.yml.
+        Returns:
+            str: database path
+        """
+        path = self.config.get("database", {}).get("path")
+        if not path:
+            raise ConfigurationError(
+                config_key="database.path",
+                message="Database path not configured",
+                details={"config": self.config.get("database", {})},
+            )
+        return path
 
     @property
+    @error_handler(log=True, raise_error=True)
     def logs_path(self) -> str:
-        return self.config.get("logs", {}).get("path", "logs")
+        """
+        Get the logs path from config.yml.
+        Returns:
+            str: logs path
+
+        """
+        path = self.config.get("logs", {}).get("path")
+        if not path:
+            raise ConfigurationError(
+                config_key="logs.path",
+                message="Logs path not configured",
+                details={"config": self.config.get("logs", {})},
+            )
+        return path
 
     @property
-    def output_paths(self) -> Dict[str, str]:
-        return self.config.get("outputs", {})
+    @error_handler(log=True, raise_error=True)
+    def get_export_config(self) -> Dict[str, str]:
+        """
+        Get the output paths from config.yml.
+        Returns:
+            Dict[str, str]: output paths
+        """
+        exports = self.config.get("exports", {})
+        if not exports:
+            raise ConfigurationError(
+                config_key="exports",
+                message="No export paths configured",
+                details={"config": self.config},
+            )
+        return exports
 
-    # Example: sources are directly in self.sources
     @property
-    def data_sources(self) -> Dict[str, Any]:
+    @error_handler(log=True, raise_error=True)
+    def get_imports_config(self) -> Dict[str, Any]:
         """
-        If you're calling self.sources 'data_sources', you can rename
-        or adapt as needed.
+        Get the data sources from import.yml.
+        Returns:
+            Dict[str, Any]: data sources
+
         """
-        return self.sources
+        if not self.imports:
+            raise ConfigurationError(
+                config_key="imports",
+                message="No import sources configured",
+                details={"imports_file": "import.yml"},
+            )
+        return self.imports
 
-    # Provide getters for stats/presentation if needed
-    def get_stats_config(self) -> List[Dict[str, Any]]:
-        return self.stats_config
+    @error_handler(log=True, raise_error=True)
+    def get_transforms_config(self) -> List[Dict[str, Any]]:
+        """
+        Get the transformations config from transform.yml.
+        Returns:
+            List[Dict[str, Any]]: transformations config
+        """
 
-    def get_presentation_config(self) -> List[Dict[str, Any]]:
-        return self.presentation_config
+        if not self.transforms:
+            raise ConfigurationError(
+                config_key="transforms",
+                message="No transforms configuration found",
+                details={"transforms_file": "transform.yml"},
+            )
+        return self.transforms
+
+    @error_handler(log=True, raise_error=True)
+    def get_exports_config(self) -> List[Dict[str, Any]]:
+        """
+        Get the transforms config from export.yml.
+        Returns:
+            List[Dict[str, Any]]: transforms config
+        """
+        if not self.exports:
+            raise ConfigurationError(
+                config_key="transforms",
+                message="No transforms configuration found",
+                details={"transforms": "export.yml"},
+            )
+        return self.exports

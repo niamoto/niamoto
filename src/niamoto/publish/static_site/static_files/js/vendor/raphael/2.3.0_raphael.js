@@ -41,7 +41,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /******/ 		// Flag the module as loaded
 /******/ 		module.l = true;
 /******/
-/******/ 		// Return the exports of the module
+/******/ 		// Return the transforms of the module
 /******/ 		return module.exports;
 /******/ 	}
 /******/
@@ -52,14 +52,14 @@ return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// expose the module cache
 /******/ 	__webpack_require__.c = installedModules;
 /******/
-/******/ 	// define getter function for harmony exports
+/******/ 	// define getter function for harmony transforms
 /******/ 	__webpack_require__.d = function(exports, name, getter) {
 /******/ 		if(!__webpack_require__.o(exports, name)) {
 /******/ 			Object.defineProperty(exports, name, { enumerable: true, get: getter });
 /******/ 		}
 /******/ 	};
 /******/
-/******/ 	// define __esModule on exports
+/******/ 	// define __esModule on transforms
 /******/ 	__webpack_require__.r = function(exports) {
 /******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
 /******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
@@ -99,7 +99,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/
-/******/ 	// Load entry module and return exports
+/******/ 	// Load entry module and return transforms
 /******/ 	return __webpack_require__(__webpack_require__.s = "./dev/raphael.amd.js");
 /******/ })
 /************************************************************************/
@@ -109,7 +109,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /*!****************************!*\
   !*** ./dev/raphael.amd.js ***!
   \****************************/
-/*! no static_files exports found */
+/*! no static_files transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! ./raphael.core */ "./dev/raphael.core.js"), __webpack_require__(/*! ./raphael.svg */ "./dev/raphael.svg.js"), __webpack_require__(/*! ./raphael.vml */ "./dev/raphael.vml.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(R) {
@@ -125,7 +125,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!*****************************!*\
   !*** ./dev/raphael.core.js ***!
   \*****************************/
-/*! no static_files exports found */
+/*! no static_files transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! eve */ "./node_modules/eve-raphael/eve.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(eve) {
@@ -1244,7 +1244,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
      **
      * Parses given path string into an array of transformations.
      > Parameters
-     - TString (string|array) transform string or array of transformations (in the last case it will be returned straight away)
+     - TString (string|array) transforms string or array of transformations (in the last case it will be returned straight away)
      = (array) array of transformations.
     \*/
     R.parseTransformString = cacher(function (TString) {
@@ -2326,7 +2326,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
          * Returns matrix of transformations applied to a given path
          > Parameters
          - path (string) path string
-         - transform (string|array) transformation string
+         - transforms (string|array) transformation string
          = (object) @Matrix
         \*/
         toMatrix = R.toMatrix = function (path, transform) {
@@ -2351,7 +2351,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
          * Returns path transformed by a given transformation
          > Parameters
          - path (string) path string
-         - transform (string|array) transformation string
+         - transforms (string|array) transformation string
          = (string) path
         \*/
         transformPath = R.transformPath = function (path, transform) {
@@ -2808,8 +2808,8 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
          * Matrix.toTransformString
          [ method ]
          **
-         * Return transform string that represents given matrix
-         = (string) transform string
+         * Return transforms string that represents given matrix
+         = (string) transforms string
         \*/
         matrixproto.toTransformString = function (shorter) {
             var s = shorter || this[split]();
@@ -5553,7 +5553,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!****************************!*\
   !*** ./dev/raphael.svg.js ***!
   \****************************/
-/*! no static_files exports found */
+/*! no static_files transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! ./raphael.core */ "./dev/raphael.core.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(R) {
@@ -6291,7 +6291,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
      * Element.rotate
      [ method ]
      **
-     * Deprecated! Use @Element.transform instead.
+     * Deprecated! Use @Element.transforms instead.
      * Adds rotation by given angle around given point to the list of
      * transformations of the element.
      > Parameters
@@ -6324,7 +6324,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
      * Element.scale
      [ method ]
      **
-     * Deprecated! Use @Element.transform instead.
+     * Deprecated! Use @Element.transforms instead.
      * Adds scale by given amount relative to given point to the list of
      * transformations of the element.
      > Parameters
@@ -6360,7 +6360,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
      * Element.translate
      [ method ]
      **
-     * Deprecated! Use @Element.transform instead.
+     * Deprecated! Use @Element.transforms instead.
      * Adds translation by given amount to the list of transformations of the element.
      > Parameters
      - dx (number) horisontal shift
@@ -6381,7 +6381,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
         return this;
     };
     /*\
-     * Element.transform
+     * Element.transforms
      [ method ]
      **
      * Adds transformation to the element which is separate to other attributes,
@@ -6400,16 +6400,16 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
      > Usage
      | var el = paper.rect(10, 20, 300, 200);
      | // translate 100, 100, rotate 45°, translate -100, 0
-     | el.transform("t100,100r45t-100,0");
+     | el.transforms("t100,100r45t-100,0");
      | // if you want you can append or prepend transformations
-     | el.transform("...t50,50");
-     | el.transform("s2...");
+     | el.transforms("...t50,50");
+     | el.transforms("s2...");
      | // or even wrap
-     | el.transform("t50,50...t-50-50");
+     | el.transforms("t50,50...t-50-50");
      | // to reset transformation call method with empty string
-     | el.transform("");
+     | el.transforms("");
      | // to get current value call it without parameters
-     | console.log(el.transform());
+     | console.log(el.transforms());
      > Parameters
      - tstr (string) #optional transformation string
      * If tstr isn’t specified
@@ -6574,7 +6574,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
      o text (string) contents of the text element. Use `\n` for multiline text
      o text-anchor (string) [“`start`”, “`middle`”, “`end`”], default is “`middle`”
      o title (string) will create tooltip with a given text
-     o transform (string) see @Element.transform
+     o transforms (string) see @Element.transforms
      o width (number)
      o x (number)
      o y (number)
@@ -6989,7 +6989,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!****************************!*\
   !*** ./dev/raphael.vml.js ***!
   \****************************/
-/*! no static_files exports found */
+/*! no static_files transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! ./raphael.core */ "./dev/raphael.core.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(R) {
@@ -8000,7 +8000,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!*****************************************!*\
   !*** ./node_modules/eve-raphael/eve.js ***!
   \*****************************************/
-/*! no static_files exports found */
+/*! no static_files transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;// Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.

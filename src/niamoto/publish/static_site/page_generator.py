@@ -1,16 +1,31 @@
+"""
+Module for generating static HTML pages and assets.
+"""
+import gzip
 import json
 import os
 import shutil
+from pathlib import Path
 from typing import Any, List, Optional, Dict, Callable
 
+import geopandas as gpd
 import jinja2
-import rjsmin  # type: ignore
-from shapely import wkt
+import rjsmin
+import topojson
+from shapely import wkb
 from shapely.geometry import mapping
 
-from niamoto.common.database import Database
-from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from niamoto.common.config import Config
+from niamoto.common.database import Database
+from niamoto.common.exceptions import (
+    GenerationError,
+    TemplateError,
+    OutputError,
+    DatabaseError,
+    DataValidationError,
+)
+from niamoto.common.utils import error_handler
+from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from niamoto.publish.common.base_generator import BaseGenerator
 
 
@@ -33,21 +48,39 @@ class PageGenerator(BaseGenerator):
         Also configures the Jinja2 template environment.
         """
 
+        super().__init__()
         self.config = config
         self.db = Database(config.database_path)
 
-        self.template_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "templates"
-        )
-        self.static_src_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "static_files"
-        )
-        self.output_dir = self.config.output_paths.get("static_site")
-        self.json_output_dir = os.path.join(self.output_dir, "json")
+        # Setup paths
+        module_path = Path(__file__).parent
+        self.template_dir = module_path / "templates"
+        self.static_src_dir = module_path / "static_files"
+        self.output_dir = Path(config.get_export_config.get("web", ""))
+        self.json_output_dir = self.output_dir / "json"
 
-        template_loader = jinja2.FileSystemLoader(searchpath=self.template_dir)
-        self.template_env = jinja2.Environment(loader=template_loader)
+        # Validate paths
+        if not self.template_dir.exists():
+            raise TemplateError(str(self.template_dir), "Template directory not found")
+        if not self.static_src_dir.exists():
+            raise TemplateError(
+                str(self.static_src_dir), "Static files directory not found"
+            )
 
+        # Setup Jinja environment
+        try:
+            loader = jinja2.FileSystemLoader(searchpath=str(self.template_dir))
+            self.template_env = jinja2.Environment(loader=loader)
+            # Add custom filters
+            self.template_env.filters["from_json"] = self._from_json
+            self.template_env.filters["numberformat"] = self._numberformat
+        except Exception as e:
+            raise TemplateError(
+                str(self.template_dir),
+                f"Failed to setup template environment: {str(e)}",
+            )
+
+    @error_handler(log=True, raise_error=True)
     def generate_page(
         self,
         template_name: str,
@@ -56,28 +89,42 @@ class PageGenerator(BaseGenerator):
         context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
-        Generates a static page using Jinja2 templates.
+        Generate a static page from template.
 
         Args:
-            template_name (str): The name of the template file.
-            output_name (str): The name of the output file.
-            depth (str): The relative path to the root (e.g., '../../' for two levels up).
-            context (dict, optional): A dictionary of context variables for the template.
+            template_name: Template file name
+            output_name: Output file name
+            depth: Relative path to root
+            context: Template context variables
 
         Returns:
-            str: The path of the generated page.
-        """
-        if context is None:
-            context = {}
+            Generated page path
 
-        context["depth"] = depth  # Add the depth variable to the context
-        template = self.template_env.get_template(template_name)
-        html_output = template.render(context)
-        output_path = os.path.join(self.output_dir, output_name)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "w") as file:
-            file.write(html_output)
-        return output_path
+        Raises:
+            TemplateError: If template processing fails
+            OutputError: If file generation fails
+        """
+        context = context or {}
+        context["depth"] = depth
+        output_path = self.output_dir / output_name
+
+        try:
+            # Render template
+            template = self.template_env.get_template(template_name)
+            html_output = template.render(context)
+
+            # Write output
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(html_output)
+
+            return str(output_path)
+
+        except jinja2.TemplateError as e:
+            raise TemplateError(template_name, f"Template processing failed: {str(e)}")
+        except Exception as e:
+            raise OutputError(
+                str(output_path), f"Failed to write output file: {str(e)}"
+            )
 
     @staticmethod
     def _from_json(value):
@@ -95,6 +142,7 @@ class PageGenerator(BaseGenerator):
         except (ValueError, TypeError):
             return value
 
+    @error_handler(log=True, raise_error=True)
     def _generate_item_page(
         self,
         item: Any,
@@ -104,36 +152,41 @@ class PageGenerator(BaseGenerator):
         to_dict_method: Callable,
     ) -> str:
         """
-        Generic method to generate a webpage for any type of item.
+        Generate a page for a specific item.
 
         Args:
-            item: The object (taxon, plot, or shape) for which the webpage is generated
-            stats (dict, optional): A dictionary containing statistics
-            mapping_group (dict): The mapping dictionary containing the configuration
-            page_type (str): Type of page ('taxon', 'plot', 'shape')
-            to_dict_method (Callable): Method to convert the item to a dictionary
+            item: Object to generate page for
+            stats: Statistics data
+            mapping_group: Template mapping config
+            page_type: Type of page
+            to_dict_method: Method to convert item to dict
 
         Returns:
-            str: The path of the generated webpage
+            Generated page path
+
+        Raises:
+            TemplateError: If page generation fails
         """
-        # Add filters
-        self.template_env.filters["from_json"] = self._from_json
-        self.template_env.filters["numberformat"] = self._numberformat
+        try:
+            item_dict = to_dict_method(item, stats)
+            context = {page_type: item_dict, "stats": stats, "mapping": mapping_group}
 
-        # Convert item to dictionary and prepare context
-        item_dict = to_dict_method(item, stats)
-        context = {page_type: item_dict, "stats": stats, "mapping": mapping_group}
+            output_path = self.generate_page(
+                template_name=f"{page_type}_template.html",
+                output_name=f"{page_type}/{item.id}.html",
+                depth="../",
+                context=context,
+            )
 
-        # Use existing generate_page method
-        output_path = self.generate_page(
-            template_name=f"{page_type}_template.html",
-            output_name=f"{page_type}/{item.id}.html",
-            depth="../",
-            context=context,
-        )
+            self.copy_static_files()
+            return output_path
 
-        self.copy_static_files()
-        return output_path
+        except Exception as e:
+            raise TemplateError(
+                f"{page_type}_template.html",
+                f"Failed to generate {page_type} page: {str(e)}",
+                details={"item_id": item.id},
+            )
 
     def generate_taxon_page(
         self, taxon: TaxonRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
@@ -159,188 +212,357 @@ class PageGenerator(BaseGenerator):
             shape, stats, mapping_group, "shape", self.shape_to_dict
         )
 
+    @error_handler(log=True, raise_error=True)
     def get_all_shape_types(self) -> List[str]:
         """
-        Retrieve all unique shape types from the database.
+        Get all unique shape types.
 
         Returns:
-            List[str]: A list of unique shape types.
+            List of shape types
+
+        Raises:
+            DatabaseError: If database query fails
         """
         session = self.db.session()
-        shape_types = session.query(ShapeRef.type).distinct().all()
-        session.close()
-        return [shape_type[0] for shape_type in shape_types]
+        try:
+            shape_types = session.query(ShapeRef.type).distinct().all()
+            return [shape_type[0] for shape_type in shape_types]
+        except Exception as e:
+            raise DatabaseError(
+                "Failed to retrieve shape types", details={"error": str(e)}
+            )
+        finally:
+            session.close()
 
+    @error_handler(log=True, raise_error=True)
     def generate_shape_list_js(self, shapes: List[Any]) -> None:
         """
-        Generates a JavaScript file containing the list of shapes grouped by type.
+        Generate shape list JavaScript file.
 
         Args:
-            shapes (List[niamoto.core.models.Shape]): A list of shape objects.
+            shapes: List of shapes to process
+
+        Raises:
+            GenerationError: If generation fails
+            OutputError: If file writing fails
         """
         shape_dict: Dict[str, Dict[str, Any]] = {}
-        for shape in shapes:
-            if shape.type not in shape_dict:
-                shape_dict[shape.type] = {
-                    "type_label": shape.type_label,  # Assuming shape objects have a type_label attribute
-                    "shapes": [],
-                }
-            geom = wkt.loads(shape.location)
-            simplified_geom = geom.simplify(
-                0.01, preserve_topology=True
-            )  # Simplify geometry
-            geojson_geom = mapping(simplified_geom)
+        js_path = self.output_dir / "js" / "shape_list.js"
 
-            shape_dict[shape.type]["shapes"].append(
-                {
-                    "id": shape.id,
-                    "name": shape.label,
-                    "geometry": geojson_geom,  # Use simplified GeoJSON geometry
-                }
+        try:
+            # Process shapes
+            for shape in shapes:
+                if shape.type not in shape_dict:
+                    shape_dict[shape.type] = {
+                        "type_label": shape.type_label,
+                        "features": [],
+                    }
+
+                try:
+                    # Load and process geometry
+                    geom = wkb.loads(shape.location, hex=True)
+                    feature = self._process_shape_geometry(geom, shape)
+                    if feature:
+                        shape_dict[shape.type]["features"].append(feature)
+
+                except Exception as e:
+                    raise DataValidationError(
+                        f"Invalid shape data for shape {shape.id}",
+                        [{"shape_id": shape.id, "error": str(e)}],
+                    )
+
+            # Convert to TopoJSON
+            for shape_type, type_info in shape_dict.items():
+                if type_info["features"]:
+                    feature_collection = {
+                        "type": "FeatureCollection",
+                        "features": type_info["features"],
+                    }
+                    try:
+                        topo = topojson.Topology(feature_collection, prequantize=True)
+                        type_info["shapes"] = topo.to_dict()
+                        del type_info["features"]
+                    except Exception as e:
+                        raise DataValidationError(
+                            f"TopoJSON conversion failed for shape type {shape_type}",
+                            [{"shape_type": shape_type, "error": str(e)}],
+                        )
+
+            # Write output
+            js_dir = self.output_dir / "js"
+            js_dir.mkdir(parents=True, exist_ok=True)
+
+            # Write regular JS file
+            js_content = f"const shapeTypes = {json.dumps(shape_dict, indent=2)};"
+            js_path.write_text(js_content)
+
+            # Write gzipped version
+            with gzip.open(str(js_path) + ".gz", "wt") as f:
+                f.write(f"const shapeTypes = {json.dumps(shape_dict)};")
+
+        except Exception as e:
+            if isinstance(e, (DataValidationError, OutputError)):
+                raise
+            raise GenerationError(
+                "Failed to generate shape list",
+                details={"error": str(e), "output_path": str(js_path)},
             )
 
-        shape_types = [
-            {
-                "type": type_name,
-                "type_label": type_info["type_label"],
-                "shapes": type_info["shapes"],
-            }
-            for type_name, type_info in shape_dict.items()
-        ]
+    @staticmethod
+    def _process_shape_geometry(geom: Any, shape: ShapeRef) -> Optional[Dict[str, Any]]:
+        """Process a single shape geometry."""
+        # Create GeoDataFrame
+        gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326")
 
-        shape_list_path = os.path.join(self.output_dir, "js", "shape_list.js")
-        with open(shape_list_path, "w") as shape_list_file:
-            shape_list_file.write(
-                f"const shapeTypes = {json.dumps(shape_types, indent=4)};"
-            )
+        # Get UTM zone
+        centroid = geom.centroid
+        zone_number = int((centroid.x + 180) // 6) + 1
+        zone_hemisphere = "N" if centroid.y >= 0 else "S"
+        utm_epsg = (
+            32600 + zone_number if zone_hemisphere == "N" else 32700 + zone_number
+        )
 
+        # Transform and simplify
+        gdf_utm = gdf.to_crs(f"EPSG:{utm_epsg}")
+        area_m2 = gdf_utm.geometry.area.iloc[0]
+        tolerance = (
+            5 * (area_m2 / (1000 * 1000000)) ** 0.25 if area_m2 > 1000000000 else 5
+        )
+
+        simplified_utm = gdf_utm.geometry.simplify(tolerance, preserve_topology=True)
+        gdf_utm.geometry = simplified_utm
+        gdf_wgs = gdf_utm.to_crs("EPSG:4326")
+
+        return {
+            "type": "Feature",
+            "id": shape.id,
+            "properties": {
+                "name": shape.label,
+            },
+            "geometry": mapping(gdf_wgs.geometry.iloc[0]),
+        }
+
+    @error_handler(log=True, raise_error=True)
     def generate_taxonomy_tree_js(self, taxons: List[TaxonRef]) -> None:
         """
-        Generates a JavaScript file containing the taxonomy tree data.
+        Generate taxonomy tree JavaScript file.
 
         Args:
-            taxons (List[niamoto.core.models.models.TaxonRef]): A list of taxon objects.
+            taxons (List[niamoto.core.models.models.TaxonRef]): List of taxons to process
+
+        Raises:
+            GenerationError: If generation fails
+            OutputError: If file writing fails
         """
-        tree = self.build_taxonomy_tree(taxons)
-        js_content = "const taxonomyData = " + json.dumps(tree, indent=4) + ";"
-        minified_js = rjsmin.jsmin(js_content)
+        js_path = self.output_dir / "js" / "taxonomy_tree.js"
 
-        js_dir = os.path.join(self.output_dir, "js")
-        os.makedirs(js_dir, exist_ok=True)  # Ensure the directory exists
-        js_path = os.path.join(js_dir, "taxonomy_tree.js")
-        with open(js_path, "w") as file:
-            file.write(minified_js)
+        try:
+            # Build tree structure
+            tree = self.build_taxonomy_tree(taxons)
 
+            # Generate and minify JavaScript
+            js_content = "const taxonomyData = " + json.dumps(tree, indent=4) + ";"
+            minified_js = rjsmin.jsmin(js_content)
+
+            # Write output
+            js_dir = js_path.parent
+            js_dir.mkdir(parents=True, exist_ok=True)
+            js_path.write_text(minified_js)
+
+        except Exception as e:
+            raise GenerationError(
+                "Failed to generate taxonomy tree",
+                details={"error": str(e), "output_path": str(js_path)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def generate_plot_list_js(self, plots: List[PlotRef]) -> None:
         """
-        Generates a JavaScript file containing the plot list data.
+        Generate plot list JavaScript file.
 
         Args:
-            plots (List[niamoto.core.models.models.PlotRef]): A list of plot objects.
+            plots (List[niamoto.core.models.models.PlotRef]): List of plots to process
+
+        Raises:
+            GenerationError: If generation fails
+            OutputError: If file writing fails
         """
-        plot_list = self.get_plot_list(plots)
-        js_content = "const plotList = " + json.dumps(plot_list, indent=4) + ";"
-        minified_js = rjsmin.jsmin(js_content)
+        js_path = self.output_dir / "js" / "plot_list.js"
 
-        js_dir = os.path.join(self.output_dir, "js")
-        os.makedirs(js_dir, exist_ok=True)
-        js_path = os.path.join(js_dir, "plot_list.js")
-        with open(js_path, "w") as file:
-            file.write(minified_js)
+        try:
+            # Get plot data
+            plot_list = self.get_plot_list(plots)
 
+            # Generate and minify JavaScript
+            js_content = "const plotList = " + json.dumps(plot_list, indent=4) + ";"
+            minified_js = rjsmin.jsmin(js_content)
+
+            # Write output
+            js_dir = js_path.parent
+            js_dir.mkdir(parents=True, exist_ok=True)
+            js_path.write_text(minified_js)
+
+        except Exception as e:
+            raise GenerationError(
+                "Failed to generate plot list",
+                details={"error": str(e), "output_path": str(js_path)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def build_taxonomy_tree(self, taxons: List[TaxonRef]) -> List[Dict[Any, Any]]:
         """
-        Builds a taxonomy tree from a list of taxon objects.
+        Build taxonomy tree structure.
 
         Args:
-            taxons (List[niamoto.core.models.models.TaxonRef]): A list of taxon objects.
+            taxons (List[niamoto.core.models.models.TaxonRef]): List of taxons
 
         Returns:
-            List[Dict[Any, Any]]: A list of dictionaries representing the taxonomy tree.
+            Tree structure as list of dictionaries
+
+        Raises:
+            GenerationError: If tree building fails
         """
-        taxons_by_id = {int(taxon.id): taxon for taxon in taxons}
-        tree = []
+        try:
+            taxons_by_id = {int(taxon.id): taxon for taxon in taxons}
+            tree = []
 
-        for taxon in taxons:
-            if taxon.parent_id is None:
-                tree.append(self.build_subtree(taxon, taxons_by_id))
+            for taxon in taxons:
+                if taxon.parent_id is None:
+                    tree.append(self.build_subtree(taxon, taxons_by_id))
 
-        return tree
+            return tree
+        except Exception as e:
+            raise GenerationError(
+                "Failed to build taxonomy tree", details={"error": str(e)}
+            )
 
+    @error_handler(log=True, raise_error=True)
     def build_subtree(
         self, taxon: TaxonRef, taxons_by_id: Dict[int, TaxonRef]
     ) -> Dict[str, Any]:
         """
-        Builds a subtree for a given taxon object.
+        Build subtree for a taxon.
 
         Args:
-            taxon (niamoto.core.models.models.TaxonRef): The taxon object for which the subtree is built.
-            taxons_by_id (Dict[int, niamoto.core.models.models.TaxonRef]): A dictionary mapping taxon IDs to taxon objects.
+            taxon ('niamoto.core.models.models.TaxonRef'): Root taxon for subtree
+            taxons_by_id (Dict[int, 'niamoto.core.models.models.TaxonRef']): Dictionary mapping taxon IDs to taxons
 
         Returns:
-            Dict[str, Any]: A dictionary representing the subtree.
+            Subtree structure as dictionary
+
+        Raises:
+            GenerationError: If subtree building fails
         """
-        node: Dict[str, Any] = {
-            "id": taxon.id,
-            "name": taxon.full_name,
-            "children": [],
-        }
+        try:
+            node = {
+                "id": taxon.id,
+                "name": taxon.full_name,
+                "children": [],
+            }
 
-        left = taxon.lft
-        right = taxon.rght
+            left = taxon.lft
+            right = taxon.rght
 
-        for child_id, child_taxon in taxons_by_id.items():
-            if (
-                child_taxon.parent_id == taxon.id
-                and left < child_taxon.lft < child_taxon.rght < right
-            ):
-                node["children"].append(self.build_subtree(child_taxon, taxons_by_id))
+            for child_id, child_taxon in taxons_by_id.items():
+                if (
+                    child_taxon.parent_id == taxon.id
+                    and left < child_taxon.lft < child_taxon.rght < right
+                ):
+                    node["children"].append(
+                        self.build_subtree(child_taxon, taxons_by_id)
+                    )
 
-        return node
+            return node
+
+        except Exception as e:
+            raise GenerationError(
+                f"Failed to build subtree for taxon {taxon.id}",
+                details={"error": str(e)},
+            )
 
     @staticmethod
+    @error_handler(log=True, raise_error=True)
     def get_plot_list(plots: List[PlotRef]) -> List[Dict[str, Any]]:
         """
-        Retrieves a list of plots and formats it for the template.
-
-        Returns:
-            List[Dict[str, Any]]: A list of dictionaries containing plot information.
-        """
-        plot_list = []
-        for plot in plots:
-            plot_list.append({"id": plot.id, "name": plot.locality})
-        return plot_list
-
-    def copy_static_files(self) -> None:
-        """
-        Copies static_files files to the destination directory, overwriting existing files.
-        """
-        # Create the destination directory if it does not exist
-        os.makedirs(self.output_dir, exist_ok=True)
-
-        # Copy each item in the source directory
-        for item in os.listdir(self.static_src_dir):
-            src_path = os.path.join(self.static_src_dir, item)
-            dest_path = os.path.join(self.output_dir, item)
-
-            if os.path.isdir(src_path):
-                # shutil.copytree will overwrite files in the destination directory if dirs_exist_ok=True
-                shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
-            else:
-                shutil.copy2(src_path, dest_path)
-
-    def copy_template_page(self, template_name: str, output_name: str) -> None:
-        """
-        Copies a template page to the output directory.
+        Get formatted plot list.
 
         Args:
-            template_name (str): The name of the template file to be copied.
-            output_name (str): The name of the output file.
+            plots (List[niamoto.core.models.models.PlotRef]): List of plots
 
         Returns:
-            None
+            List of plot data dictionaries
+
+        Raises:
+            GenerationError: If formatting fails
         """
-        template_path = os.path.join(self.template_dir, template_name)
-        output_path = os.path.join(self.output_dir, output_name)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        shutil.copy2(template_path, output_path)
+        try:
+            return [{"id": plot.id, "name": plot.locality} for plot in plots]
+        except Exception as e:
+            raise GenerationError(
+                "Failed to format plot list", details={"error": str(e)}
+            )
+
+    @error_handler(log=True, raise_error=True)
+    def copy_static_files(self) -> None:
+        """
+        Copy static files to output directory.
+
+        Raises:
+            OutputError: If copy operation fails
+        """
+        try:
+            # Create output directory
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy each item
+            for item in os.listdir(self.static_src_dir):
+                src_path = self.static_src_dir / item
+                dest_path = self.output_dir / item
+
+                if src_path.is_dir():
+                    shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(src_path, dest_path)
+
+        except Exception as e:
+            raise OutputError(
+                str(self.output_dir),
+                "Failed to copy static files",
+                details={"error": str(e), "source": str(self.static_src_dir)},
+            )
+
+    @error_handler(log=True, raise_error=True)
+    def copy_template_page(self, template_name: str, output_name: str) -> None:
+        """
+        Copy template to output directory.
+
+        Args:
+            template_name: Name of template file
+            output_name: Target output name
+
+        Raises:
+            TemplateError: If template not found
+            OutputError: If copy fails
+        """
+        template_path = self.template_dir / template_name
+        output_path = self.output_dir / output_name
+
+        try:
+            # Verify template exists
+            if not template_path.exists():
+                raise TemplateError(str(template_path), "Template file not found")
+
+            # Create output directory
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Copy template
+            shutil.copy2(template_path, output_path)
+
+        except Exception as e:
+            if isinstance(e, TemplateError):
+                raise
+            raise OutputError(
+                str(output_path),
+                "Failed to copy template",
+                details={"error": str(e), "template": str(template_path)},
+            )

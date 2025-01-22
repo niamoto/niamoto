@@ -1,6 +1,6 @@
 import os
 import unittest
-from niamoto.core.components.importers.occurrences import OccurrenceImporter
+from niamoto.core.components.imports.occurrences import OccurrenceImporter
 
 
 class TestOccurrenceImporter(unittest.TestCase):

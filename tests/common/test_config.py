@@ -112,13 +112,13 @@ class TestConfig(unittest.TestCase):
 
     def test_data_sources_property(self):
         config = Config()
-        sources = config.data_sources
+        sources = config.get_imports_config
         self.assertIn("taxonomy", sources)
         self.assertIn("plots", sources)
 
     def test_output_paths_property(self):
         config = Config()
-        outputs = config.output_paths
+        outputs = config.get_export_config
         self.assertIn("static_site", outputs)
         self.assertIn("static_api", outputs)
 

@@ -146,10 +146,10 @@ $ niamoto import all
 ### Statistics Generation
 
 ```bash
-# Calculate statistics for a specific group
+# Calculate transforms for a specific group
 $ niamoto stats calculate --group <group>
 
-# Calculate statistics with custom data file
+# Calculate transforms with custom data file
 $ niamoto stats calculate --csv-file <file>
 ```
 
@@ -286,7 +286,7 @@ Niamoto (or your stats calculator classes) will:
 
 ---
 
-## 3) `presentation_config.yaml` – Visualization
+## 3) `presentation.yaml` – Visualization
 
 Lastly, the **presentation configuration** describes each **widget**’s **visual layout**:
 

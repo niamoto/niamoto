@@ -5,7 +5,34 @@
 {% block title %}Niamoto - {{ shape.name }}{% endblock %}
 
 {% block extra_head %}
+    <script src="{{ depth }}js/vendor/topojson/3.1.0_topojson.js"></script>
     <script src="{{ depth }}js/shape_list.js"></script>
+
+    {#<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script>
+        async function loadCompressedFile(url) {
+            try {
+                // Télécharger le fichier .gz en tant que ArrayBuffer
+                const response = await fetch(url);
+                const compressedData = await response.arrayBuffer();
+
+                // Décompresser les données avec Pako
+                const decompressedData = pako.inflate(new Uint8Array(compressedData), { to: 'string' });
+
+                // Exécuter le contenu décompressé comme du JavaScript
+                const script = document.createElement('script');
+                script.textContent = decompressedData;
+                document.body.appendChild(script);
+            } catch (error) {
+                console.error('Erreur lors du chargement du fichier compressé :', error);
+            }
+        }
+
+        // Charger le fichier shape_list.gz
+        loadCompressedFile('js/shape_list.gz');
+    </script>#}
+
+
 
     <style>
         /* Sidebar styles */
@@ -727,46 +754,76 @@
             const group = L.featureGroup();
             let currentShapeLayer;
 
-            if (shapeTypes && Array.isArray(shapeTypes)) {
-                shapeTypes.forEach(typeItem => {
-                    if (typeItem.type === currentShape.type) {
-                        typeItem.shapes.forEach(shapeItem => {
-                            if (shapeItem.geometry) {
-                                const style = shapeItem.id === currentShape.id ?
-                                    {...mapConfig.layers[0].style, fillOpacity: 0.7} :
-                                    {...mapConfig.layers[0].style, fillOpacity: 0.2};
+            if (shapeTypes) {
+                Object.entries(shapeTypes).forEach(([typeName, typeInfo]) => {
+                    if (typeName === currentShape.type && typeInfo.shapes) {
+                        try {
+                            // Convertir TopoJSON en GeoJSON
+                            const features = topojson.feature(
+                                typeInfo.shapes,     // Le TopoJSON complet
+                                typeInfo.shapes.objects.data  // La référence aux données
+                            );
 
-                                const layer = L.geoJSON(shapeItem.geometry, {style});
+                            // Traiter chaque feature
+                            if (features && features.features && features.features.length > 0) {
+                                features.features.forEach(feature => {
+                                    if (!feature.geometry) return;
 
-                                if (shapeItem.id === currentShape.id) {
-                                    currentShapeLayer = layer;
-                                }
+                                    const shapeName = feature.properties.name;
+                                    const style = shapeName === currentShape.name ?
+                                        {...mapConfig.layers[0].style, fillOpacity: 0.7} :
+                                        {...mapConfig.layers[0].style, fillOpacity: 0.2};
 
-                                layer.bindTooltip(shapeItem.name, {
-                                    permanent: false,
-                                    direction: 'right',
-                                    className: 'custom-tooltip'
+                                    const layer = L.geoJSON(feature.geometry, {style});
+
+                                    if (shapeName === currentShape.name) {
+                                        currentShapeLayer = layer;
+                                    }
+
+                                    layer.bindTooltip(shapeName, {
+                                        permanent: false,
+                                        direction: 'right',
+                                        className: 'custom-tooltip'
+                                    });
+
+                                    layer.on('click', () => {
+                                        // Trouver l'ID à partir du nom
+                                        const clickedFeature = features.features.find(f => f.properties.name === shapeName);
+                                        if (clickedFeature && clickedFeature.id) {
+                                            window.location.href = `../shape/${clickedFeature.id}.html`;
+                                        }
+                                    });
+
+                                    group.addLayer(layer);
                                 });
-
-                                layer.on('click', () => {
-                                    window.location.href = `../shape/${shapeItem.id}.html`;
-                                });
-
-                                group.addLayer(layer);
                             }
-                        });
+                        } catch (error) {
+                            console.error("Error processing features:", error);
+                        }
                     }
                 });
             }
 
+            // Vérifier que le groupe a des couches avant de faire fitBounds
             group.addTo(map);
-            map.fitBounds(group.getBounds());
+            if (group.getLayers().length > 0) {
+                try {
+                    const bounds = group.getBounds();
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds);
+                    } else {
+                        console.warn("Invalid bounds, setting default view");
+                        map.setView([-21.3, 165.5], 7); // Vue par défaut sur la Nouvelle-Calédonie
+                    }
+                } catch (error) {
+                    console.error("Error fitting bounds:", error);
+                    map.setView([-21.3, 165.5], 7);
+                }
+            }
 
             if (currentShapeLayer) {
                 currentShapeLayer.bringToFront();
             }
-
-            maps[mapId] = map;
         }
 
         // =====================================
@@ -779,39 +836,55 @@
         function createShapeTree(container, shapeTypes) {
             const $ul = $('<ul class="mb-3"></ul>');
 
-            shapeTypes.forEach(typeItem => {
+            Object.entries(shapeTypes).forEach(([type, typeInfo]) => {
                 const $li = $('<li></li>');
                 const $typeLink = $('<a href="javascript:void(0)" class="shape-type-link"></a>')
-                    .text(typeItem.type_label)
-                    .append($('<span class="badge"></span>').text(typeItem.shapes.length));
+                    .text(typeInfo.type_label);
 
                 const $childUl = $('<ul style="display:none;"></ul>');
 
-                // Sort shapes alphabetically
-                typeItem.shapes.sort((a, b) => a.name.localeCompare(b.name));
+                try {
+                    // Convertir TopoJSON en GeoJSON
+                    const features = topojson.feature(
+                        typeInfo.shapes,
+                        typeInfo.shapes.objects.data
+                    );
 
-                typeItem.shapes.forEach(shapeItem => {
-                    const $shapeLi = $('<li></li>');
-                    const $shapeLink = $('<a></a>')
-                        .attr('href', `../shape/${shapeItem.id}.html`)
-                        .text(shapeItem.name)
-                        .addClass('shape-link');
+                    if (features && features.features) {
+                        // Ajouter le nombre de shapes
+                        $typeLink.append($('<span class="badge"></span>').text(features.features.length));
 
-                    if (shapeItem.id === currentShapeId) {
-                        $shapeLink.addClass('current-shape');
+                        // Trier par nom
+                        const sortedFeatures = [...features.features].sort((a, b) =>
+                            a.properties.name.localeCompare(b.properties.name)
+                        );
+
+                        sortedFeatures.forEach(feature => {
+                            const $shapeLi = $('<li></li>');
+                            const $shapeLink = $('<a></a>')
+                                .attr('href', `../shape/${feature.id}.html`)
+                                .text(feature.properties.name)
+                                .addClass('shape-link');
+
+                            if (feature.id === currentShapeId) {
+                                $shapeLink.addClass('current-shape');
+                            }
+
+                            $shapeLi.append($shapeLink);
+                            $childUl.append($shapeLi);
+                        });
                     }
+                } catch (error) {
+                    console.error("Error processing features for tree:", error);
+                }
 
-                    $shapeLi.append($shapeLink);
-                    $childUl.append($shapeLi);
-                });
-
-                $typeLink.on('click', function (e) {
+                $typeLink.on('click', function(e) {
                     e.stopPropagation();
                     $childUl.slideToggle();
                     $(this).toggleClass('open');
                 });
 
-                if (typeItem.type === currentShapeType) {
+                if (type === currentShapeType) {
                     $childUl.show();
                     $typeLink.addClass('open');
                 }

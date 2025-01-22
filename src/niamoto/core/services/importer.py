@@ -1,160 +1,281 @@
+"""
+Service for importing data into Niamoto.
+"""
 import csv
-from typing import Tuple, List, Dict, Any
+from pathlib import Path
+from typing import Tuple, List, Dict, Any, Set
 
 import pandas as pd
 
-from niamoto.core.components.importers.occurrences import OccurrenceImporter
-from niamoto.core.components.importers.plots import PlotImporter
-from niamoto.core.components.importers.taxonomy import TaxonomyImporter
-from niamoto.core.components.importers.shapes import ShapeImporter
+from niamoto.core.components.imports.occurrences import OccurrenceImporter
+from niamoto.core.components.imports.plots import PlotImporter
+from niamoto.core.components.imports.taxons import TaxonomyImporter
+from niamoto.core.components.imports.shapes import ShapeImporter
 from niamoto.common.database import Database
 from niamoto.core.utils.logging_utils import setup_logging
+from niamoto.common.utils import error_handler
+from niamoto.common.exceptions import (
+    FileReadError,
+    CSVError,
+    DataImportError,
+    ValidationError,
+)
 
 
 class ImporterService:
     """
-    The ImporterService class provides methods to import taxonomy, occurrences, plots, and shapes data.
+    Service providing methods to import taxonomy, occurrences, plots, and shapes data.
     """
 
     def __init__(self, db_path: str):
         """
-        Initializes a new instance of the ImporterService with a given database path.
+        Initialize the ImporterService.
 
         Args:
-            db_path (str): The path to the database file.
+            db_path: Path to the database file
         """
         self.db = Database(db_path)
-        self.logger = setup_logging(component_name="importer_service")
+        self.logger = setup_logging(component_name="import")
         self.taxonomy_importer = TaxonomyImporter(self.db)
         self.occurrence_importer = OccurrenceImporter(self.db)
         self.plot_importer = PlotImporter(self.db)
         self.shape_importer = ShapeImporter(self.db)
 
+    @error_handler(log=True, raise_error=True)
     def import_taxonomy(self, file_path: str, ranks: Tuple[str, ...]) -> str:
         """
         Import taxonomy data from a CSV file.
 
         Args:
-            file_path (str): The path to the CSV file to be imported.
-            ranks (tuple): The ranks to be imported.
+            file_path: Path to the CSV file
+            ranks: Taxonomy ranks to import
 
         Returns:
-            str: A message indicating the status of the import operation.
+            Success message
+
+        Raises:
+            ValidationError: If parameters are invalid
+            FileReadError: If file cannot be read
+            CSVError: If CSV format is invalid
+            DataImportError: If import operation fails
         """
-        separator = self._detect_separator(file_path)
-        try:
-            if self._validate_csv_format(file_path, separator, ranks):
-                return self.taxonomy_importer.import_from_csv(file_path, ranks)
-            else:
-                return "CSV file format is incorrect. Please ensure it contains the required standard fields."
-        except Exception as e:
-            self.logger.error(f"Error importing taxonomy data: {e}")
-            return "An error occurred during taxonomy data import."
+        # Validate input parameters
+        if not file_path:
+            raise ValidationError("file_path", "File path cannot be empty")
+        if not ranks:
+            raise ValidationError("ranks", "Ranks cannot be empty")
 
-    @staticmethod
-    def _detect_separator(file_path: str) -> str:
-        """
-        Detect the separator used in the CSV file.
-
-        Args:
-            file_path (str): The path to the CSV file.
-
-        Returns:
-            str: The detected separator.
-        """
-        with open(file_path, "r") as file:
-            first_line = file.readline()
-            dialect = csv.Sniffer().sniff(first_line)
-            return str(dialect.delimiter)
-
-    def _validate_csv_format(
-        self, file_path: str, separator: str, ranks: Tuple[str, ...]
-    ) -> bool:
-        """
-        Validate the format of the CSV file to ensure it contains the required standard fields and ranks.
-
-        Args:
-            file_path (str): The path to the CSV file to be validated.
-            separator (str): The separator used in the CSV file.
-            ranks (Tuple[str, ...]): The ranks to be validated.
-
-        Returns:
-            bool: True if the CSV file contains the required standard fields and ranks, False otherwise.
-        """
-        required_fields = {"id_taxon", "full_name", "authors"}
-        required_fields.update(ranks)
-
-        try:
-            df = pd.read_csv(file_path, sep=separator, on_bad_lines="warn")
-        except pd.errors.ParserError as e:
-            self.logger.error(f"Error reading CSV file: {e}")
-            return False
-
-        csv_fields = set(df.columns)
-        if not required_fields.issubset(csv_fields):
-            missing_fields = required_fields - csv_fields
-            self.logger.error(
-                f"Missing required fields in CSV file: {', '.join(missing_fields)}"
+        # Validate file exists
+        file_path = str(Path(file_path).resolve())
+        if not Path(file_path).exists():
+            raise FileReadError(
+                file_path, "File not found", details={"path": file_path}
             )
-            return False
-        return True
 
+        # Detect separator and validate format
+        try:
+            separator = self._detect_separator(file_path)
+            missing_fields = self._validate_csv_format(file_path, separator, ranks)
+            if missing_fields:
+                raise CSVError(
+                    file_path,
+                    "Invalid CSV format",
+                    details={"missing_fields": missing_fields},
+                )
+        except Exception as e:
+            raise CSVError(
+                file_path, "Failed to validate CSV file", details={"error": str(e)}
+            )
+
+        # Import the data
+        try:
+            result = self.taxonomy_importer.import_from_csv(file_path, ranks)
+            return result
+        except Exception as e:
+            raise DataImportError(
+                f"Failed to import taxonomy data: {str(e)}",
+                details={"file": file_path, "error": str(e)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def import_occurrences(
         self, csvfile: str, taxon_id_column: str, location_column: str
     ) -> str:
         """
-        Import occurrences data from a CSV file.
+        Import occurrences data.
 
         Args:
-            csvfile (str): The path to the CSV file to be imported.
-            taxon_id_column (str): The name of the column in the CSV file that contains the taxon IDs.
-            location_column (str): The name of the column in the CSV file that contains the location data.
+            csvfile: Path to CSV file
+            taxon_id_column: Name of taxon ID column
+            location_column: Name of location column
 
         Returns:
-            str: A message indicating the status of the import operation.
-        """
-        return self.occurrence_importer.import_valid_occurrences(
-            csvfile, taxon_id_column, location_column
-        )
+            Success message
 
+        Raises:
+            ValidationError: If parameters are invalid
+            FileReadError: If file cannot be read
+            DataImportError: If import fails
+        """
+        if not csvfile:
+            raise ValidationError("csvfile", "CSV file path cannot be empty")
+        if not taxon_id_column:
+            raise ValidationError(
+                "taxon_id_column", "Taxon ID column must be specified"
+            )
+        if not location_column:
+            raise ValidationError(
+                "location_column", "Location column must be specified"
+            )
+
+        if not Path(csvfile).exists():
+            raise FileReadError(csvfile, "File not found")
+
+        try:
+            return self.occurrence_importer.import_valid_occurrences(
+                csvfile, taxon_id_column, location_column
+            )
+        except Exception as e:
+            raise DataImportError(
+                "Failed to import occurrences", details={"error": str(e)}
+            )
+
+    @error_handler(log=True, raise_error=True)
     def import_plots(
         self, gpkg_path: str, plot_identifier: str, location_field: str
     ) -> str:
         """
-        Import plot data from a GeoPackage file.
+        Import plot data.
 
         Args:
-            gpkg_path (str): The path to the GeoPackage file to be imported.
-            plot_identifier (str): The name of the column in the GeoPackage file that contains the plot identifiers.
-            location_field (str): The name of the column in the GeoPackage file that contains the location data.
+            gpkg_path: Path to GeoPackage file
+            plot_identifier: Plot identifier field
+            location_field: Location field name
 
         Returns:
-            str: A message indicating the status of the import operation.
-        """
-        return self.plot_importer.import_from_gpkg(
-            gpkg_path, plot_identifier, location_field
-        )
+            Success message
 
+        Raises:
+            ValidationError: If parameters are invalid
+            FileReadError: If file cannot be read
+            DataImportError: If import fails
+        """
+        if not gpkg_path:
+            raise ValidationError("gpkg_path", "GeoPackage path cannot be empty")
+        if not plot_identifier:
+            raise ValidationError(
+                "plot_identifier", "Plot identifier field must be specified"
+            )
+
+        if not Path(gpkg_path).exists():
+            raise FileReadError(gpkg_path, "File not found")
+
+        try:
+            return self.plot_importer.import_from_gpkg(
+                gpkg_path, plot_identifier, location_field
+            )
+        except Exception as e:
+            raise DataImportError("Failed to import plots", details={"error": str(e)})
+
+    @error_handler(log=True, raise_error=True)
     def import_occurrence_plot_links(self, csvfile: str) -> str:
         """
-        Import occurrence-plot links from a CSV file.
+        Import occurrence-plot links.
 
         Args:
-            csvfile (str): The path to the CSV file to be imported.
+            csvfile: Path to CSV file
 
         Returns:
-            str: A message indicating the status of the import operation.
-        """
-        return self.occurrence_importer.import_occurrence_plot_links(csvfile)
+            Success message
 
+        Raises:
+            ValidationError: If parameters are invalid
+            FileReadError: If file cannot be read
+            DataImportError: If import fails
+        """
+        if not csvfile:
+            raise ValidationError("csvfile", "CSV file path cannot be empty")
+
+        if not Path(csvfile).exists():
+            raise FileReadError(csvfile, "File not found")
+
+        try:
+            return self.occurrence_importer.import_occurrence_plot_links(csvfile)
+        except Exception as e:
+            raise DataImportError(
+                "Failed to import occurrence-plot links", details={"error": str(e)}
+            )
+
+    @error_handler(log=True, raise_error=True)
     def import_shapes(self, shapes_config: List[Dict[str, Any]]) -> str:
         """
-        Import shape data from the configuration.
+        Import shape data.
 
         Args:
-            shapes_config (list): A list of dictionaries containing shape information.
+            shapes_config: List of shape configurations
 
         Returns:
-            str: A message indicating the status of the import operation.
+            Success message
+
+        Raises:
+            ValidationError: If config is invalid
+            DataImportError: If import fails
         """
-        return self.shape_importer.import_from_config(shapes_config)
+        if not shapes_config:
+            raise ValidationError(
+                "shapes_config", "Shapes configuration cannot be empty"
+            )
+
+        try:
+            return self.shape_importer.import_from_config(shapes_config)
+        except Exception as e:
+            raise DataImportError("Failed to import shapes", details={"error": str(e)})
+
+    def _detect_separator(self, file_path: str) -> str:
+        """
+        Detect CSV separator.
+
+        Args:
+            file_path: Path to CSV file
+
+        Returns:
+            Detected separator
+
+        Raises:
+            CSVError: If separator cannot be detected
+        """
+        try:
+            with open(file_path, "r") as file:
+                first_line = file.readline()
+                dialect = csv.Sniffer().sniff(first_line)
+                return str(dialect.delimiter)
+        except Exception as e:
+            raise CSVError(
+                file_path, "Failed to detect CSV separator", details={"error": str(e)}
+            )
+
+    def _validate_csv_format(
+        self, file_path: str, separator: str, ranks: Tuple[str, ...]
+    ) -> Set[str]:
+        """
+        Validate CSV format.
+
+        Args:
+            file_path: Path to CSV file
+            separator: CSV separator
+            ranks: Required ranks
+
+        Returns:
+            Set of missing fields if any
+
+        Raises:
+            CSVError: If CSV format is invalid
+        """
+        required_fields = {"id_taxon", "full_name", "authors"} | set(ranks)
+
+        try:
+            df = pd.read_csv(file_path, sep=separator, on_bad_lines="warn")
+            csv_fields = set(df.columns)
+            return required_fields - csv_fields
+        except pd.errors.ParserError as e:
+            raise CSVError(file_path, "Failed to parse CSV", details={"error": str(e)})

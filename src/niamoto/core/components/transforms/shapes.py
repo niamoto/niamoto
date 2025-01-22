@@ -1,51 +1,42 @@
 """
-Shape statistics calculator module.
+Shape transforms calculator module.
 """
-import logging
-import time
 from typing import List, Dict, Any, Hashable, Optional, cast
 
 import geopandas as gpd  # type: ignore
 import numpy as np
 import pandas as pd
-import pyproj
 import rasterio  # type: ignore
 from rasterio.mask import mask  # type: ignore
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
 from rtree import index
 from shapely import (
     MultiPolygon,
     GeometryCollection,
     Polygon,
-    polygonize,
     make_valid,
     unary_union,
 )
+from shapely import wkt, wkb
 from shapely.geometry import mapping, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.prepared import prep
-from shapely import wkt, wkb
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
+from niamoto.common.exceptions import DatabaseError, ProcessError
+from niamoto.common.utils.error_handler import error_handler
 from niamoto.core.models import ShapeRef
-from .statistics_calculator import StatisticsCalculator
+from .base_transformer import BaseTransformer
 
 LARGE_SHAPE_THRESHOLD_KM2 = 1000
 
 
-class ShapeStatsCalculator(StatisticsCalculator):
+class ShapeTransformer(BaseTransformer):
     """
-    A class used to calculate statistics for shapes.
+    A class used to calculate transforms for shapes.
 
     Inherits from:
-        StatisticsCalculator
+        BaseTransformer
     """
 
     def __init__(
@@ -55,43 +46,29 @@ class ShapeStatsCalculator(StatisticsCalculator):
             db=db,
             occurrences=occurrences,
             group_config=group_config,
-            log_component="shape_stats",
+            log_component="transform",
         )
         self.config = Config()
 
+    @error_handler(log=True, raise_error=True)
     def calculate_shape_stats(self) -> None:
         """
-        Calculate statistics for all shapes.
+        Calculate transforms for all shapes.
         """
-        start_time = time.time()
-
         try:
             shapes = self._retrieve_all_shapes()
+            self.initialize_group_table()
 
-            self.initialize_stats_table()
-
-            with Progress(
-                SpinnerColumn(),
-                BarColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                TimeElapsedColumn(),
-            ) as progress:
-                task = progress.add_task(
-                    "[green]Calculating shape statistics...", total=len(shapes)
-                )
-                for shape_ref in shapes:
-                    self.process_shape(shape_ref)
-                    progress.advance(task)
-
-        except Exception as e:
-            logging.error(f"An error occurred: {e}")
-        finally:
-            total_time = time.time() - start_time
-            self.console.print(
-                f"⏱ Total processing time: {total_time:.2f} seconds",
-                style="italic blue",
+            self._run_with_progress(
+                items=shapes,
+                description="Processing shapes...",
+                process_method=self.process_shape,
             )
 
+        except Exception as e:
+            raise ProcessError("Failed to calculate shape transforms") from e
+
+    @error_handler(log=True, raise_error=True)
     def process_shape(self, shape_ref: ShapeRef) -> None:
         """
         Process a shape.
@@ -108,18 +85,19 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
             shape_occurrences = []
 
-            stats = self.calculate_stats(shape_id, shape_occurrences)
+            stats = self.transform_group(shape_id, shape_occurrences)
 
-            self.create_or_update_stats_entry(shape_id, stats)
+            self.create_or_update_group_entry(shape_id, stats)
 
         except Exception as e:
-            self.logger.error(f"Failed to process shape {shape_ref.id}: {e}")
+            raise ProcessError(f"Failed to process shape {shape_ref.id}") from e
 
-    def calculate_stats(
+    @error_handler(log=True, raise_error=True)
+    def transform_group(
         self, group_id: int, group_occurrences: List[Dict[Hashable, Any]]
     ) -> Dict[str, Any]:
         """
-        Calculate statistics for a shape based on current configuration and raw data.
+        Calculate transforms for a shape based on current configuration and raw data.
         """
         stats: Dict[str, Any] = {}
 
@@ -128,38 +106,35 @@ class ShapeStatsCalculator(StatisticsCalculator):
             self.db.session.query(ShapeRef).filter(ShapeRef.id == group_id).first()
         )
         if not shape_ref:
-            self.logger.error(f"Shape with ID {group_id} not found.")
-            return stats
+            raise ValueError(f"Shape with ID {group_id} not found.")
 
+        # Load raw data for this shape
         try:
-            # Load raw data for this shape
             df = pd.read_csv(self.group_config["raw_data"], sep=";")
-            shape_data = df[df["id"] == group_id]
+        except FileNotFoundError:
+            raise ProcessError(
+                f"Input file not found: {self.group_config['raw_data']}. Please verify the file exists."
+            )
 
-            if shape_data.empty:
-                self.logger.error(f"No raw data found for shape {group_id}")
-                return stats
+        shape_data = df[df["id"] == group_id]
 
-            # Process each configured field
-            for field, field_config in self.widgets_data.items():
-                try:
-                    transformations = field_config.get("transformations", [])
-                    for transformation in transformations:
-                        transform_name = transformation.get("name")
-                        result = self._process_transformation(
-                            transform_name, transformation, shape_ref, shape_data
-                        )
-                        if result is not None:
-                            stats[field] = result
-                except Exception as e:
-                    self.logger.error(f"Error processing field {field}: {str(e)}")
+        if shape_data.empty:
+            raise ValueError(f"No raw data found for shape {group_id}")
 
-            return stats
+        # Process each configured field
+        for field, field_config in self.widgets_data.items():
+            transformations = field_config.get("transformations", [])
+            for transformation in transformations:
+                transform_name = transformation.get("name")
+                result = self._process_transformation(
+                    transform_name, transformation, shape_ref, shape_data
+                )
+                if result is not None:
+                    stats[field] = result
 
-        except Exception as e:
-            self.logger.error(f"Error processing shape {group_id}: {str(e)}")
-            return stats
+        return stats
 
+    @error_handler(log=True, raise_error=True)
     def _process_transformation(
         self,
         transform_name: str,
@@ -168,28 +143,26 @@ class ShapeStatsCalculator(StatisticsCalculator):
         shape_data: pd.DataFrame,
     ) -> Any:
         """Process a single transformation based on its type"""
-        try:
-            if transform_name == "collect_fields":
-                return self._process_collect_fields(config, shape_ref, shape_data)
-            elif transform_name == "geometry_coords":
-                return self._process_geometry_coords(shape_ref)
-            elif transform_name == "extract_multi_class_object":
-                return self._process_forest_cover(config, shape_data)
-            elif transform_name == "extract_by_class_object":
-                return self._process_class_object(config, shape_data)
-            elif transform_name == "extract_elevation_distribution":
-                return self._process_elevation_distribution(shape_data)
-            elif transform_name == "extract_holdridge":
-                return self._process_holdridge(shape_data)
-            elif transform_name == "extract_elevation_matrix":
-                return self._process_elevation_matrix(shape_data)
-            elif transform_name == "extract_forest_types_by_elevation":
-                return self._process_forest_types_elevation(shape_data)
-            elif transform_name == "extract_distribution":
-                return self._process_distribution(config, shape_data)
-        except Exception as e:
-            self.logger.error(f"Error in transformation {transform_name}: {str(e)}")
-            return None
+        if transform_name == "collect_fields":
+            return self._process_collect_fields(config, shape_ref, shape_data)
+        elif transform_name == "geometry_coords":
+            return self._process_geometry_coords(shape_ref)
+        elif transform_name == "extract_multi_class_object":
+            return self._process_forest_cover(config, shape_data)
+        elif transform_name == "extract_by_class_object":
+            return self._process_class_object(config, shape_data)
+        elif transform_name == "extract_elevation_distribution":
+            return self._process_elevation_distribution(shape_data)
+        elif transform_name == "extract_holdridge":
+            return self._process_holdridge(shape_data)
+        elif transform_name == "extract_elevation_matrix":
+            return self._process_elevation_matrix(shape_data)
+        elif transform_name == "extract_forest_types_by_elevation":
+            return self._process_forest_types_elevation(shape_data)
+        elif transform_name == "extract_distribution":
+            return self._process_distribution(config, shape_data)
+        else:
+            raise ValueError(f"Unknown transformation: {transform_name}")
 
     @staticmethod
     def _process_collect_fields(
@@ -223,6 +196,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
                     result[item["key"]] = value
         return result
 
+    @error_handler(log=True, raise_error=True)
     def _process_geometry_coords(self, shape_ref: ShapeRef) -> dict:
         """Process geometry_coords transformation"""
         shape_gdf = self.load_shape_geometry(str(shape_ref.location))
@@ -432,6 +406,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
             "values": data["class_value"].astype(float).tolist(),
         }
 
+    @error_handler(log=True, raise_error=True)
     def _get_shape_occurrences(self, shape_ref: ShapeRef) -> List[Dict[Hashable, Any]]:
         """
         Get shape occurrences.
@@ -442,19 +417,12 @@ class ShapeStatsCalculator(StatisticsCalculator):
         Returns:
             List[Dict[Hashable, Any]]: The shape occurrences.
         """
-        try:
-            shape_gdf = self.load_shape_geometry(str(shape_ref.location))
-            if shape_gdf is None or shape_gdf.empty:
-                self.logger.error(f"Invalid geometry for shape ID {shape_ref.id}.")
-                return []
+        shape_gdf = self.load_shape_geometry(str(shape_ref.location))
+        if shape_gdf is None or shape_gdf.empty:
+            raise ValueError(f"Invalid geometry for shape ID {shape_ref.id}.")
 
-            shape_geom = shape_gdf.geometry.iloc[0]
-            prepared_shape = prep(shape_geom)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to load shape geometry for shape ID {shape_ref.id}: {e}"
-            )
-            return []
+        shape_geom = shape_gdf.geometry.iloc[0]
+        prepared_shape = prep(shape_geom)
 
         occurrence_location_field = self.group_config.get("occurrence_location_field")
 
@@ -517,7 +485,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
     def _get_layer(self, layer_name: str) -> Optional[Dict[str, Any]]:
         """Get layer configuration by name."""
-        layers = self.config.sources.get("layers", [])
+        layers = self.config.imports.get("layers", [])
         return next(
             (layer for layer in layers if layer.get("name") == layer_name), None
         )
@@ -527,6 +495,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         layer = self._get_layer(layer_name)
         return layer.get("path") if layer else None
 
+    @error_handler(log=True, raise_error=True)
     def load_layer_as_gdf(
         self, shape_gdf: Any, layer_name: str, layer_type: str
     ) -> Any:
@@ -544,8 +513,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         layer_path = self._get_layer_path(layer_name)
 
         if not layer_path:
-            self.logger.warning(f"Path not found for layer {layer_name}")
-            return gpd.GeoDataFrame()
+            raise ValueError(f"Path not found for layer {layer_name}")
 
         if layer_type == "raster":
             with rasterio.open(layer_path) as src:
@@ -602,112 +570,47 @@ class ShapeStatsCalculator(StatisticsCalculator):
 
         return gpd.GeoDataFrame()
 
-    def load_shape_geometry(self, wkt_str: str) -> Optional[Any]:
+    @error_handler(log=True, raise_error=True)
+    def load_shape_geometry(self, wkb_str: str) -> Optional[Any]:
         """
-        Load a geometry from a WKT string.
+        Load a geometry from a WKB hex string..
 
         Args:
-            wkt_str (str): The WKT string.
+            wkb_str (str): The WKB hex string.
 
         Returns:
             Any: The loaded geometry as a GeoDataFrame or None if loading fails.
         """
-        try:
-            geometry = wkt.loads(wkt_str)
+        # Load and validate geometry from WKB
+        geometry = wkb.loads(wkb_str, hex=True)
 
-            # Attempt to make the geometry valid
-            if not geometry.is_valid:
-                self.logger.warning("Invalid geometry detected. Attempting to fix...")
-                geometry = make_valid(geometry)
+        # Make geometry valid if needed
+        if not geometry.is_valid:
+            geometry = make_valid(geometry)
 
-            if not geometry.is_valid:
-                self.logger.warning(
-                    "Geometry still invalid after make_valid(). Attempting buffer(0)..."
-                )
-                geometry = geometry.buffer(0)
+        # Handle GeometryCollection case
+        if isinstance(geometry, GeometryCollection):
+            polygons = [
+                geom
+                for geom in geometry.geoms
+                if isinstance(geom, (Polygon, MultiPolygon))
+            ]
+            if not polygons:
+                raise ValueError("No valid Polygons found in GeometryCollection")
+            geometry = unary_union(polygons)
 
-            if isinstance(geometry, GeometryCollection):
-                self.logger.warning(
-                    "GeometryCollection encountered, extracting Polygons and MultiPolygons"
-                )
-                polygons = [
-                    geom
-                    for geom in geometry.geoms
-                    if isinstance(geom, (Polygon, MultiPolygon))
-                ]
-                if polygons:
-                    geometry = unary_union(polygons)
-                else:
-                    self.logger.error("No valid Polygons found in GeometryCollection")
-                    return None
+        # Check if geometry type is supported
+        if not isinstance(geometry, (Polygon, MultiPolygon)):
+            raise ValueError(f"Unsupported geometry type: {geometry.geom_type}")
 
-            if not isinstance(geometry, (Polygon, MultiPolygon)):
-                self.logger.error(f"Unsupported geometry type: {geometry.geom_type}")
-                return None
+        # Create and validate GeoDataFrame
+        gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
+        gdf = gdf[gdf["geometry"].is_valid]
 
-            # Additional cleanup step
-            if isinstance(geometry, MultiPolygon):
-                clean_polygons = []
-                for poly in geometry.geoms:
-                    if poly.is_valid:
-                        clean_polygons.append(poly)
-                    else:
-                        # Try to fix invalid polygons
-                        boundary = poly.boundary
-                        if boundary.is_valid:
-                            fixed_polygons = list(polygonize(boundary))
-                            clean_polygons.extend(fixed_polygons)
-                geometry = MultiPolygon(clean_polygons)
-            elif isinstance(geometry, Polygon):
-                if not geometry.is_valid:
-                    boundary = geometry.boundary
-                    if boundary.is_valid:
-                        fixed_polygons = list(polygonize(boundary))
-                        if len(fixed_polygons) == 1:
-                            geometry = fixed_polygons[0]
-                        else:
-                            geometry = MultiPolygon(fixed_polygons)
+        if gdf.empty:
+            raise ValueError("Shape became invalid after processing.")
 
-            # Calculate area in km²
-            geod = pyproj.Geod(ellps="WGS84")
-            area_m2 = abs(geod.geometry_area_perimeter(geometry)[0])
-            area_km2 = area_m2 / 1_000_000  # Convert m² to km²
-
-            # Simplify large geometries with adjusted tolerance
-            if area_km2 > LARGE_SHAPE_THRESHOLD_KM2:
-                base_tolerance = 0.0001  # Reduced base tolerance
-                area_factor = (
-                    area_km2 / LARGE_SHAPE_THRESHOLD_KM2
-                ) ** 0.25  # Adjusted scaling
-                tolerance = base_tolerance * area_factor
-                geometry = geometry.simplify(tolerance, preserve_topology=True)
-
-                if isinstance(geometry, Polygon):
-                    self.logger.info(
-                        f"Geometry simplified. New vertex count: {len(geometry.exterior.coords)}"
-                    )
-                elif isinstance(geometry, MultiPolygon):
-                    total_vertices = sum(
-                        len(poly.exterior.coords) for poly in geometry.geoms
-                    )
-                    self.logger.info(
-                        f"Geometry simplified. New total vertex count: {total_vertices}"
-                    )
-
-            # Create a GeoDataFrame with the geometry and set its CRS
-            gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
-            # Clean the shape geometry
-            gdf["geometry"] = gdf["geometry"].apply(self.clean_geometry)
-            gdf = gdf[gdf["geometry"].is_valid]
-
-            if gdf.empty:
-                self.logger.warning("Shape became invalid after cleaning.")
-                return gpd.GeoDataFrame()
-
-            return gdf
-        except Exception as e:
-            self.logger.error(f"Failed to load geometry from WKT string: {str(e)}")
-            return None
+        return gdf
 
     @staticmethod
     def clean_geometry(geom: BaseGeometry) -> BaseGeometry:
@@ -727,41 +630,144 @@ class ShapeStatsCalculator(StatisticsCalculator):
             )
         return geom
 
-    @staticmethod
-    def get_coordinates_from_gdf(gdf: Any) -> Dict[str, Any]:
+    def _simplify_with_utm(
+        self, geometry: BaseGeometry, log_area: bool = False
+    ) -> BaseGeometry:
         """
-        Get the simplified coordinates of the union of geometries in the GeoDataFrame.
+        Simplify a geometry using UTM-based adaptive simplification.
+        The simplification is done in UTM projection to ensure accurate measurements and consistent simplification.
+
+        The process:
+        1. Converts the geometry to appropriate UTM zone based on its centroid
+        2. Calculates area and determines simplification tolerance:
+           - For areas > 1000 km², tolerance increases with area (adaptive)
+           - For smaller areas, uses fixed 5m tolerance
+        3. Simplifies in UTM coordinates then converts back to WGS84
 
         Args:
-            gdf (Any): The GeoDataFrame containing geometries.
+            geometry: The geometry to simplify (in WGS84 coordinates)
+            log_area: If True, logs the area of the geometry in km²
 
         Returns:
-            Dict[str, Any]: The simplified coordinates as a GeoJSON-like dictionary.
-        """
-        if gdf.empty:
-            return {}
-        simplified_geom = gdf.geometry.union_all().simplify(
-            tolerance=0.001, preserve_topology=True
-        )
-        return mapping(simplified_geom)
+            The simplified geometry in WGS84 coordinates
 
-    def get_simplified_coordinates(self, wkt_geometry: str) -> Dict[str, Any]:
+        Raises:
+            ValueError: If simplification process fails
         """
-        Get simplified coordinates for a WKT geometry.
+        try:
+            # Calculate centroid for UTM zone determination
+            # This is more accurate than using bounds for determining the appropriate zone
+            centroid = geometry.centroid
+
+            # Calculate UTM zone from longitude
+            # Formula: ((longitude + 180)/6) + 1
+            # This gives a zone number from 1-60
+            zone_number = int((centroid.x + 180) // 6) + 1
+
+            # Determine hemisphere from latitude
+            # UTM zones have different EPSG codes for North/South hemispheres
+            zone_hemisphere = "N" if centroid.y >= 0 else "S"
+
+            # Get EPSG code for the UTM zone
+            # Range: 32601-32660 for North, 32701-32760 for South
+            utm_epsg = (
+                32600 + zone_number if zone_hemisphere == "N" else 32700 + zone_number
+            )
+
+            # Convert geometry to calculated UTM zone
+            # This ensures measurements and simplification are done in meters
+            gdf_utm = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326").to_crs(
+                f"EPSG:{utm_epsg}"
+            )
+
+            # Calculate area in square meters and optionally log it
+            area_m2 = gdf_utm.geometry.area.iloc[0]
+            if log_area:
+                area_km2 = area_m2 / 1_000_000  # Convert to km²
+                self.logger.info(f"Processing geometry with area: {area_km2:.2f} km²")
+
+            # Calculate simplification tolerance
+            # The formula adapts the tolerance based on the area, following these rules:
+            # - Areas < 1000 km² : fixed 5m tolerance to preserve detail
+            # - Areas > 1000 km² : adaptive tolerance using the formula: 10 * (area_km²/1000)^0.25
+            #
+            # Examples of resulting tolerances:
+            # - 1000 km² → 10.00m (base tolerance)
+            # - 4000 km² → 14.14m
+            # - 9000 km² → 17.32m
+            # - 16000 km² → 20.00m
+            #
+            # This ensures:
+            # - Small areas keep high precision (5m minimum)
+            # - Large areas get proportionally simplified
+            # - Smooth progression (fourth root prevents aggressive simplification)
+            # - Topology preservation (no self-intersections)
+            if area_m2 > (1000 * 1000000):  # 1000 km²
+                # Adaptive formula: 20 * (area_ratio)^0.25
+                # The 0.25 power ensures tolerance doesn't grow too quickly with area
+                tolerance = 10 * (area_m2 / (1000 * 1000000)) ** 0.25
+            else:
+                tolerance = 5  # 5 meters minimum for small areas
+
+            # Perform simplification in UTM coordinates
+            # preserve_topology=True ensures no invalid geometries are created
+            simplified_utm = gdf_utm.geometry.simplify(
+                tolerance, preserve_topology=True
+            )
+            gdf_utm.geometry = simplified_utm
+
+            # Convert back to WGS84 (EPSG:4326) for storage/display
+            gdf_wgs = gdf_utm.to_crs("EPSG:4326")
+
+            return gdf_wgs.geometry.iloc[0]
+
+        except Exception as e:
+            raise ValueError(f"Error simplifying geometry: {e}")
+
+    def get_simplified_coordinates(self, geometry_location: str) -> Dict[str, Any]:
+        """
+        Get simplified coordinates for a geometry.
 
         Args:
-            wkt_geometry (str): The WKT representation of the geometry.
+            geometry_location (str): The WKB hex string of the geometry
 
         Returns:
-            dict: The simplified coordinates as a GeoJSON-like dictionary.
+            dict: GeoJSON-like dictionary of simplified coordinates
         """
-        geom = self.load_shape_geometry(wkt_geometry)
-        if geom is not None:
-            simplified_geom = geom.simplify(tolerance=0.0001, preserve_topology=True)
-            return mapping(simplified_geom)
-        else:
-            # Handle the case where geom is None. This could involve logging an error or returning an empty dict.
+        try:
+            gdf = self.load_shape_geometry(geometry_location)
+            if gdf is None or gdf.empty:
+                return {}
+
+            simplified = self._simplify_with_utm(gdf.geometry.iloc[0])
+            return mapping(simplified)
+
+        except Exception as e:
+            raise ValueError(f"Error simplifying geometry: {e}")
+
+    def get_coordinates_from_gdf(self, gdf: gpd.GeoDataFrame) -> Dict[str, Any]:
+        """
+        Get simplified coordinates from a GeoDataFrame, unifying geometries if multiple.
+
+        Args:
+            gdf (gpd.GeoDataFrame): GeoDataFrame containing the geometries
+
+        Returns:
+            dict: GeoJSON-like dictionary of simplified coordinates
+        """
+        if gdf is None or gdf.empty:
             return {}
+
+        try:
+            # GeoDataFrame contains multiple geometries
+            geometry = (
+                gdf.geometry.union_all() if len(gdf) > 1 else gdf.geometry.iloc[0]
+            )
+            simplified = self._simplify_with_utm(geometry)
+            return mapping(simplified)
+
+        except Exception as e:
+            raise ValueError(f"Error simplifying geometry: {e}")
 
     def _retrieve_all_shapes(self) -> List[ShapeRef]:
         """
@@ -770,7 +776,10 @@ class ShapeStatsCalculator(StatisticsCalculator):
         Returns:
             List[ShapeRef]: A list of shape references.
         """
-        return self.db.session.query(ShapeRef).all()
+        try:
+            return self.db.session.query(ShapeRef).all()
+        except Exception as e:
+            raise DatabaseError("Failed to retrieve all shapes") from e
 
     @staticmethod
     def _extract_shape_id(shape_ref: ShapeRef) -> int:
@@ -785,6 +794,7 @@ class ShapeStatsCalculator(StatisticsCalculator):
         """
         return cast(int, shape_ref.id)
 
+    @error_handler(log=True, raise_error=True)
     def build_spatial_index(self) -> index.Index:
         """
         Build a spatial index for all occurrences.
@@ -792,67 +802,72 @@ class ShapeStatsCalculator(StatisticsCalculator):
         Returns:
             index.Index: An R-tree spatial index.
         """
-        idx = index.Index()
-        occurrence_location_field = self.group_config.get("occurrence_location_field")
+        try:
+            idx = index.Index()
+            occurrence_location_field = self.group_config.get(
+                "occurrence_location_field"
+            )
 
-        def parse_geometry(geo_str: str) -> Point:
-            """
-            Parse geometry string to Point object.
+            def parse_geometry(geo_str: str) -> Point:
+                """
+                Parse geometry string to Point object.
 
-            Args:
-                geo_str (str): The geometric representation of the point.
+                Args:
+                    geo_str (str): The geometric representation of the point.
 
-            Returns:
-                Point: Shapely Point object.
+                Returns:
+                    Point: Shapely Point object.
 
-            Raises:
-                ValueError: If the geometry cannot be parsed or is not a Point.
-            """
-            if pd.isna(geo_str):
-                raise ValueError("Invalid geometry: NaN value")
+                Raises:
+                    ValueError: If the geometry cannot be parsed or is not a Point.
+                """
+                if pd.isna(geo_str):
+                    raise ValueError("Invalid geometry: NaN value")
 
-            try:
-                # Try to parse as WKT (POINT format)
-                if isinstance(geo_str, str) and geo_str.upper().startswith("POINT"):
-                    geom = wkt.loads(geo_str)
-                # Try to parse as WKB (hexadecimal format)
-                elif isinstance(geo_str, str):
-                    geom = wkb.loads(geo_str, hex=True)
-                else:
-                    raise ValueError(f"Unexpected geometry type: {type(geo_str)}")
-
-                # If the geometry is not a Point, create a Point from its centroid
-                if not isinstance(geom, Point):
-                    geom = Point(geom.centroid)
-
-                return geom
-            except Exception as e:
-                raise ValueError(f"Failed to parse geometry: {e}")
-
-        nan_count = 0
-        for pos, occurrence in enumerate(self.occurrences):
-            if isinstance(occurrence, dict):
-                point_str = occurrence.get(occurrence_location_field)
                 try:
-                    point = parse_geometry(point_str)
-                    idx.insert(pos, (point.x, point.y, point.x, point.y))
-                except ValueError as e:
-                    if "NaN value" in str(e):
-                        nan_count += 1
-                        if nan_count <= 10:  # Log only the first 10 NaN errors
-                            self.logger.warning(
-                                f"NaN value encountered at position {pos}. Skipping this occurrence."
-                            )
-                        elif nan_count == 11:
-                            self.logger.warning(
-                                "Additional NaN values encountered. Suppressing further NaN warnings."
-                            )
+                    # Try to parse as WKT (POINT format)
+                    if isinstance(geo_str, str) and geo_str.upper().startswith("POINT"):
+                        geom = wkt.loads(geo_str)
+                    # Try to parse as WKB (hexadecimal format)
+                    elif isinstance(geo_str, str):
+                        geom = wkb.loads(geo_str, hex=True)
                     else:
-                        self.logger.error(
-                            f"Error processing occurrence at position {pos}: {e}"
-                        )
+                        raise ValueError(f"Unexpected geometry type: {type(geo_str)}")
 
-        if nan_count > 0:
-            self.logger.info(f"Total NaN values encountered: {nan_count}")
+                    # If the geometry is not a Point, create a Point from its centroid
+                    if not isinstance(geom, Point):
+                        geom = Point(geom.centroid)
 
-        return idx
+                    return geom
+                except Exception as e:
+                    raise ValueError(f"Failed to parse geometry: {e}")
+
+            nan_count = 0
+            for pos, occurrence in enumerate(self.occurrences):
+                if isinstance(occurrence, dict):
+                    point_str = occurrence.get(occurrence_location_field)
+                    try:
+                        point = parse_geometry(point_str)
+                        idx.insert(pos, (point.x, point.y, point.x, point.y))
+                    except ValueError as e:
+                        if "NaN value" in str(e):
+                            nan_count += 1
+                            if nan_count <= 10:  # Log only the first 10 NaN errors
+                                self.logger.warning(
+                                    f"NaN value encountered at position {pos}. Skipping this occurrence."
+                                )
+                            elif nan_count == 11:
+                                self.logger.warning(
+                                    "Additional NaN values encountered. Suppressing further NaN warnings."
+                                )
+                        else:
+                            self.logger.error(
+                                f"Error processing occurrence at position {pos}: {e}"
+                            )
+
+            if nan_count > 0:
+                self.logger.info(f"Total NaN values encountered: {nan_count}")
+
+            return idx
+        except Exception as e:
+            raise DatabaseError("Failed to build spatial index") from e

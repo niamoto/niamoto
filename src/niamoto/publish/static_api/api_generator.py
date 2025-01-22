@@ -1,204 +1,346 @@
+"""
+Module for generating JSON API files.
+"""
 import json
-import os
-from typing import Any, List, Optional, cast, Dict, Union
+from pathlib import Path
+from typing import Any, List, Optional, Dict, Union
 
-from shapely import wkt
+from shapely import wkb
 from shapely.geometry import mapping
+from shapely.errors import WKBReadingError
 
 from niamoto.common.config import Config
 from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from niamoto.publish.common.base_generator import BaseGenerator
+from niamoto.common.utils import error_handler
+from niamoto.common.exceptions import (
+    GenerationError,
+    OutputError,
+    DataValidationError,
+    ConfigurationError,
+)
 
 
 class ApiGenerator(BaseGenerator):
-    """
-    The ApiGenerator class provides methods to generate JSON files for taxons and plots.
-    """
+    """Class for generating JSON API files."""
 
     def __init__(self, config: Config) -> None:
         """
-        Initializes the ApiGenerator class with the directory for JSON output.
+        Initialize the generator.
 
         Args:
-            config (Config): An instance of Config containing configuration settings.
-        """
-        self.config = config
-        self.json_output_dir: str = cast(
-            str, os.path.join(self.config.output_paths.get("static_api"))
-        )
+            config: Configuration settings
 
+        Raises:
+            ConfigurationError: If output path is missing
+        """
+        super().__init__()
+        self.config = config
+
+        # Get and validate output path
+        api_path = config.get_export_config.get("api")
+        if not api_path:
+            raise ConfigurationError("api", "Missing api output path in configuration")
+        self.json_output_dir = Path(api_path)
+
+    @error_handler(log=True, raise_error=True)
     def generate_taxon_json(self, taxon: TaxonRef, stats: Optional[Any]) -> str:
         """
-        Generates a JSON file for a given taxon object.
+        Generate JSON file for a taxon.
 
         Args:
-            taxon (niamoto.core.models.models.TaxonRef): The taxon object for which the JSON file is generated.
-            stats (dict, optional): A dictionary containing statistics for the taxon.
+            taxon: Taxon object to process
+            stats: Optional transforms data
 
         Returns:
-            str: The path of the generated JSON file.
-        """
-        taxon_dict = self.taxon_to_dict(taxon, stats)
-        taxon_output_dir = os.path.join(self.json_output_dir, "taxon")
-        os.makedirs(taxon_output_dir, exist_ok=True)
-        output_path = os.path.join(taxon_output_dir, f"{taxon.id}.json")
-        with open(output_path, "w") as file:
-            json.dump(taxon_dict, file, indent=4)
-        return output_path
+            Generated file path
 
+        Raises:
+            GenerationError: If JSON generation fails
+            OutputError: If file writing fails
+        """
+        output_path = self.json_output_dir / "taxon" / f"{taxon.id}.json"
+
+        try:
+            taxon_dict = self.taxon_to_dict(taxon, stats)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(output_path, "w") as file:
+                json.dump(taxon_dict, file, indent=4)
+
+            return str(output_path)
+
+        except Exception as e:
+            raise OutputError(
+                str(output_path),
+                "Failed to write taxon JSON",
+                details={"taxon_id": taxon.id, "error": str(e)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def generate_plot_json(self, plot: PlotRef, stats: Optional[Any]) -> str:
         """
-        Generates a JSON file for a given plot object.
+        Generate JSON file for a plot.
 
         Args:
-            plot (niamoto.core.models.models.PlotRef): The plot object for which the JSON file is generated.
-            stats (dict, optional): A dictionary containing statistics for the plot.
+            plot: Plot object to process
+            stats: Optional transforms data
 
         Returns:
-            str: The path of the generated JSON file.
-        """
-        plot_dict = self.plot_to_dict(plot, stats)
-        plot_output_dir = os.path.join(self.json_output_dir, "plot")
-        os.makedirs(plot_output_dir, exist_ok=True)
-        output_path = os.path.join(plot_output_dir, f"{plot.id}.json")
-        with open(output_path, "w") as file:
-            json.dump(plot_dict, file, indent=4)
-        return output_path
+            Generated file path
 
+        Raises:
+            GenerationError: If JSON generation fails
+            OutputError: If file writing fails
+        """
+        output_path = self.json_output_dir / "plot" / f"{plot.id}.json"
+
+        try:
+            plot_dict = self.plot_to_dict(plot, stats)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(output_path, "w") as file:
+                json.dump(plot_dict, file, indent=4)
+
+            return str(output_path)
+
+        except Exception as e:
+            raise OutputError(
+                str(output_path),
+                "Failed to write plot JSON",
+                details={"plot_id": plot.id, "error": str(e)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def generate_shape_json(self, shape: ShapeRef, stats: Optional[Any]) -> str:
         """
-        Generates a JSON file for a given shape object.
+        Generate JSON file for a shape.
 
         Args:
-            shape (niamoto.core.models.models.ShapeRef): The shape object for which the JSON file is generated.
-            stats (dict, optional): A dictionary containing statistics for the shape.
+            shape: Shape object to process
+            stats: Optional transforms data
 
         Returns:
-            str: The path of the generated JSON file.
+            Generated file path
+
+        Raises:
+            GenerationError: If JSON generation fails
+            DataValidationError: If geometry is invalid
+            OutputError: If file writing fails
         """
-        # Convert WKT to GeoJSON
-        if shape.location is not None:
-            geometry_str = str(shape.location)
-            geometry = wkt.loads(geometry_str)
-            geojson_geometry = mapping(geometry)
+        output_path = self.json_output_dir / "shape" / f"{shape.id}.json"
 
-        shape_dict = self.shape_to_dict(shape, stats)
-        if geojson_geometry is not None:
-            shape_dict["geometry"] = geojson_geometry
+        try:
+            shape_dict = self.shape_to_dict(shape, stats)
 
-        shape_output_dir = os.path.join(self.json_output_dir, "shape")
-        os.makedirs(shape_output_dir, exist_ok=True)
-        output_path = os.path.join(shape_output_dir, f"{shape.id}.json")
-        with open(output_path, "w") as file:
-            json.dump(shape_dict, file, indent=4)
-        return output_path
+            # Convert geometry if present
+            if shape.location is not None:
+                try:
+                    geometry = wkb.loads(shape.location, hex=True)
+                    shape_dict["geometry"] = mapping(geometry)
+                except WKBReadingError as e:
+                    raise DataValidationError(
+                        "Invalid geometry data",
+                        [{"shape_id": shape.id, "error": str(e)}],
+                    )
 
+            # Write output
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w") as file:
+                json.dump(shape_dict, file, indent=4)
+
+            return str(output_path)
+
+        except Exception as e:
+            if isinstance(e, DataValidationError):
+                raise
+            raise OutputError(
+                str(output_path),
+                "Failed to write shape JSON",
+                details={"shape_id": shape.id, "error": str(e)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def generate_all_taxa_json(self, taxa: List[TaxonRef]) -> str:
         """
-        Generates a JSON file that contains all taxon objects in a simplified format,
-        along with the total number of taxa.
+        Generate JSON file for all taxa.
 
         Args:
-            taxa (list of niamoto.core.models.models.TaxonRef): A list of taxon objects.
+            taxa: List of taxa to process
 
         Returns:
-            str: The path of the generated JSON file.
-        """
-        all_taxa = [self.taxon_to_simple_dict(taxon) for taxon in taxa]
-        output_data = {"total": len(all_taxa), "taxa": all_taxa}
-        os.makedirs(self.json_output_dir, exist_ok=True)
-        output_path = os.path.join(self.json_output_dir, "all_taxa.json")
-        with open(output_path, "w") as file:
-            json.dump(output_data, file, indent=4)
-        return output_path
+            Generated file path
 
+        Raises:
+            GenerationError: If JSON generation fails
+            OutputError: If file writing fails
+        """
+        output_path = self.json_output_dir / "all_taxa.json"
+
+        try:
+            all_taxa = [self.taxon_to_simple_dict(taxon) for taxon in taxa]
+            output_data = {"total": len(all_taxa), "taxa": all_taxa}
+
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w") as file:
+                json.dump(output_data, file, indent=4)
+
+            return str(output_path)
+
+        except Exception as e:
+            raise OutputError(
+                str(output_path),
+                "Failed to write taxa list JSON",
+                details={"error": str(e)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def generate_all_plots_json(self, plots: List[PlotRef]) -> str:
         """
-        Generates a JSON file that contains all plot objects in a simplified format,
-        along with the total number of plots.
+        Generate JSON file for all plots.
 
         Args:
-            plots (list of niamoto.core.models.models.PlotRef): A list of plot objects.
+            plots: List of plots to process
 
         Returns:
-            str: The path of the generated JSON file.
-        """
-        all_plots = [self.plot_to_simple_dict(plot) for plot in plots]
-        output_data = {"total": len(all_plots), "plots": all_plots}
-        os.makedirs(self.json_output_dir, exist_ok=True)
-        output_path = os.path.join(self.json_output_dir, "all_plots.json")
-        with open(output_path, "w") as file:
-            json.dump(output_data, file, indent=4)
-        return output_path
+            Generated file path
 
+        Raises:
+            GenerationError: If JSON generation fails
+            OutputError: If file writing fails
+        """
+        output_path = self.json_output_dir / "all_plots.json"
+
+        try:
+            all_plots = [self.plot_to_simple_dict(plot) for plot in plots]
+            output_data = {"total": len(all_plots), "plots": all_plots}
+
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w") as file:
+                json.dump(output_data, file, indent=4)
+
+            return str(output_path)
+
+        except Exception as e:
+            raise OutputError(
+                str(output_path),
+                "Failed to write plots list JSON",
+                details={"error": str(e)},
+            )
+
+    @error_handler(log=True, raise_error=True)
     def generate_all_shapes_json(self, shapes: List[ShapeRef]) -> str:
         """
-        Generates a JSON file that contains all shape objects in a simplified format,
-        along with the total number of shapes.
+        Generate JSON file for all shapes.
 
         Args:
-            shapes (list of niamoto.core.models.models.ShapeRef): A list of shape objects.
+            shapes: List of shapes to process
 
         Returns:
-            str: The path of the generated JSON file.
+            Generated file path
+
+        Raises:
+            GenerationError: If JSON generation fails
+            OutputError: If file writing fails
         """
-        all_shapes = [self.shape_to_simple_dict(shape) for shape in shapes]
-        output_data = {"total": len(all_shapes), "shapes": all_shapes}
-        os.makedirs(self.json_output_dir, exist_ok=True)
-        output_path = os.path.join(self.json_output_dir, "all_shapes.json")
-        with open(output_path, "w") as file:
-            json.dump(output_data, file, indent=4)
-        return output_path
+        output_path = self.json_output_dir / "all_shapes.json"
+
+        try:
+            all_shapes = [self.shape_to_simple_dict(shape) for shape in shapes]
+            output_data = {"total": len(all_shapes), "shapes": all_shapes}
+
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w") as file:
+                json.dump(output_data, file, indent=4)
+
+            return str(output_path)
+
+        except Exception as e:
+            raise OutputError(
+                str(output_path),
+                "Failed to write shapes list JSON",
+                details={"error": str(e)},
+            )
 
     @staticmethod
-    def taxon_to_simple_dict(taxon: TaxonRef) -> Dict[str, Union[str, int]]:
+    @error_handler(log=True, raise_error=True)
+    def taxon_to_simple_dict(taxon: TaxonRef) -> Dict[str, Union[str, int, Dict]]:
         """
-        Converts a TaxonRef object to a simplified dictionary.
+        Convert taxon to simplified dictionary.
 
         Args:
-            taxon (niamoto.core.models.models.TaxonRef): The taxon object to convert.
+            taxon: Taxon object to convert
 
         Returns:
-            dict: A dictionary representation of the taxon.
+            Simplified dictionary representation
+
+        Raises:
+            GenerationError: If conversion fails
         """
-        return {
-            "id": int(taxon.id),
-            "name": str(taxon.full_name),
-            "metadata": taxon.extra_data,
-            "endpoint": f"/api/taxon/{taxon.id}.json",
-        }
+        try:
+            return {
+                "id": int(taxon.id),
+                "name": str(taxon.full_name),
+                "metadata": taxon.extra_data or {},
+                "endpoint": f"/api/taxon/{taxon.id}.json",
+            }
+        except Exception as e:
+            raise GenerationError(
+                f"Failed to convert taxon {taxon.id} to dictionary",
+                details={"error": str(e)},
+            )
 
     @staticmethod
+    @error_handler(log=True, raise_error=True)
     def plot_to_simple_dict(plot: PlotRef) -> Dict[str, Union[str, int]]:
         """
-        Converts a PlotRef object to a simplified dictionary.
+        Convert plot to simplified dictionary.
 
         Args:
-            plot (niamoto.core.models.models.PlotRef): The plot object to convert.
+            plot: Plot object to convert
 
         Returns:
-            dict: A dictionary representation of the plot.
+            Simplified dictionary representation
+
+        Raises:
+            GenerationError: If conversion fails
         """
-        return {
-            "id": int(plot.id),
-            "name": str(plot.locality),
-            "endpoint": f"/api/plot/{plot.id}.json",
-        }
+        try:
+            return {
+                "id": int(plot.id),
+                "name": str(plot.locality),
+                "endpoint": f"/api/plot/{plot.id}.json",
+            }
+        except Exception as e:
+            raise GenerationError(
+                f"Failed to convert plot {plot.id} to dictionary",
+                details={"error": str(e)},
+            )
 
     @staticmethod
+    @error_handler(log=True, raise_error=True)
     def shape_to_simple_dict(shape: ShapeRef) -> Dict[str, Union[str, int]]:
         """
-        Converts a ShapeRef object to a simplified dictionary.
+        Convert shape to simplified dictionary.
 
         Args:
-            shape (niamoto.core.models.models.ShapeRef): The shape object to convert.
+            shape: Shape object to convert
 
         Returns:
-            dict: A dictionary representation of the shape.
+            Simplified dictionary representation
+
+        Raises:
+            GenerationError: If conversion fails
         """
-        return {
-            "id": int(shape.id),
-            "name": str(shape.label),
-            "type": str(shape.type),
-            "endpoint": f"/api/shape/{shape.id}.json",
-        }
+        try:
+            return {
+                "id": int(shape.id),
+                "name": str(shape.label),
+                "type": str(shape.type),
+                "endpoint": f"/api/shape/{shape.id}.json",
+            }
+        except Exception as e:
+            raise GenerationError(
+                f"Failed to convert shape {shape.id} to dictionary",
+                details={"error": str(e)},
+            )

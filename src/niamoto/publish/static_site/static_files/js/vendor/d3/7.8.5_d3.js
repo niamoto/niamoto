@@ -19850,7 +19850,7 @@ function zoom() {
       clearTimeout(g.wheel);
     }
 
-    // If this wheel event won’t trigger a transform change, ignore it.
+    // If this wheel event won’t trigger a transforms change, ignore it.
     else if (t.k === k) return;
 
     // Otherwise, capture the mouse point and location at the start.

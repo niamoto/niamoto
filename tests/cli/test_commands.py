@@ -258,19 +258,19 @@ class TestCommands(unittest.TestCase):
             )
             mock_importer_instance.import_shapes.assert_called_once()
 
-    @patch("niamoto.cli.commands.StatisticService")
+    @patch("niamoto.cli.commands.TransformerService")
     @patch("niamoto.cli.commands.Config")
     def test_calculate_statistics(self, mock_config, mock_statistic_service):
         result = self.runner.invoke(commands.calculate_statistics)
         self.assertEqual(result.exit_code, 0)
-        mock_statistic_service.return_value.calculate_statistics.assert_called_once()
+        mock_statistic_service.return_value.process_transformations.assert_called_once()
 
-    @patch("niamoto.cli.commands.GeneratorService")
+    @patch("niamoto.cli.commands.ExporterService")
     @patch("niamoto.cli.commands.Config")
     def test_generate_content(self, mock_config, mock_generator_service):
         result = self.runner.invoke(commands.generate_content)
         self.assertEqual(result.exit_code, 0)
-        mock_generator_service.return_value.generate_content.assert_called_once()
+        mock_generator_service.return_value.export_pages.assert_called_once()
 
     @patch("niamoto.cli.commands.deploy_to_github")
     def test_deploy_to_github(self, mock_deploy_to_github):

@@ -10,22 +10,22 @@ console = Console()
 
 def print_success(message: str) -> None:
     """Print a success message in green."""
-    console.print(f"✓ {message}", style="bold green")
+    console.print(f"[>] {message}", style="italic green")
 
 
 def print_error(message: str) -> None:
     """Print an error message in red."""
-    console.print(f"✗ {message}", style="bold red")
+    console.print(f"[x] {message}", style="bold red")
 
 
 def print_warning(message: str) -> None:
     """Print a warning message in yellow."""
-    console.print(f"! {message}", style="yellow")
+    console.print(f"[!] {message}", style="yellow")
 
 
 def print_info(message: str) -> None:
     """Print an info message in blue."""
-    console.print(f"ℹ {message}", style="blue")
+    console.print(f"{message}", style="blue")
 
 
 def print_table(data: list[dict[str, Any]], title: str) -> None:

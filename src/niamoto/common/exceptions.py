@@ -1,102 +1,238 @@
-# exceptions.py
+"""
+Custom exceptions for the Niamoto application.
+"""
+from typing import Optional, Any
 
 
-class FileReadError(Exception):
-    """
-    Exception raised when there is an error reading the file.
+class NiamotoError(Exception):
+    """Base exception class for all Niamoto errors."""
 
-    Attributes:
-        file_path (str): The path of the file that could not be read.
-    """
-
-    def __init__(self, file_path: str, message: str = "Error reading the file"):
+    def __init__(self, message: str, details: Optional[dict] = None):
         """
-        Initializes the FileReadError with the file path and an optional message.
+        Initialize the base exception.
 
         Args:
-            file_path (str): The path of the file that could not be read.
-            message (str, optional): The error message. Defaults to "Error reading the file".
+            message: Main error message
+            details: Optional dictionary with additional error details
         """
+        super().__init__(message)
+        self.details = details or {}
+
+    def get_user_message(self) -> str:
+        """Returns a user-friendly error message"""
+        return str(self)
+
+
+class CLIError(NiamotoError):
+    """Base class for CLI related errors."""
+
+    pass
+
+
+class CommandError(CLIError):
+    """Raised when a command fails to execute."""
+
+    def __init__(self, command: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+        self.command = command
+
+
+class ArgumentError(CLIError):
+    """Raised when command arguments are invalid."""
+
+    def __init__(self, argument: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+        self.argument = argument
+
+
+class VersionError(CLIError):
+    """Raised when version information cannot be retrieved."""
+
+    pass
+
+
+class LoggingError(NiamotoError):
+    """Exception raised for logging configuration and handling errors."""
+
+    pass
+
+
+class InputError(NiamotoError):
+    """Exception raised for errors in input data."""
+
+    pass
+
+
+class FileError(NiamotoError):
+    """Base class for file related errors."""
+
+    def __init__(self, file_path: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
         self.file_path = file_path
-        super().__init__(f"{message}: {file_path}")
 
 
-class DataValidationError(Exception):
-    """
-    Exception raised for data validation errors.
+class FileReadError(FileError):
+    """Exception raised when there is an error reading a file."""
 
-    Attributes:
-        errors (str): The validation errors.
-    """
-
-    def __init__(self, errors: str):
-        """
-        Initializes the DataValidationError with the validation errors.
-
-        Args:
-            errors (str): The validation errors.
-        """
-        self.errors = errors
-        super().__init__(f"Data validation error: {errors}")
+    pass
 
 
-class DatabaseWriteError(Exception):
-    """
-    Exception raised when writing to the database fails.
+class FileWriteError(FileError):
+    """Exception raised when there is an error writing a file."""
 
-    Attributes:
-        table_name (str): The name of the table where the write operation failed.
-    """
+    pass
+
+
+class FileFormatError(FileError):
+    """Exception raised when file format is invalid."""
+
+    pass
+
+
+class CSVError(FileError):
+    """Exception raised for CSV-specific errors."""
+
+    pass
+
+
+class DatabaseError(NiamotoError):
+    """Base class for database related errors."""
+
+    def __init__(self, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+
+
+class DatabaseConnectionError(DatabaseError):
+    """Exception raised when database connection fails."""
+
+    pass
+
+
+class DatabaseWriteError(DatabaseError):
+    """Exception raised when writing to database fails."""
+
+    def __init__(self, table_name: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+        self.table_name = table_name
+
+
+class DatabaseQueryError(DatabaseError):
+    """Exception raised when a database query fails."""
+
+    def __init__(self, query: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+        self.query = query
+
+
+class TransactionError(DatabaseError):
+    """Exception raised for transaction-related errors."""
+
+    pass
+
+
+class DataValidationError(NiamotoError):
+    """Exception raised for data validation errors."""
+
+    def __init__(self, message: str, validation_errors: list[dict[str, Any]]):
+        super().__init__(message, {"validation_errors": validation_errors})
+        self.validation_errors = validation_errors
+
+
+class ConfigurationError(NiamotoError):
+    """Exception raised for configuration errors."""
+
+    def __init__(self, config_key: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+        self.config_key = config_key
+
+
+class EnvironmentSetupError(NiamotoError):
+    """Exception raised for environment setup and configuration issues."""
+
+    pass
+
+
+class DataImportError(NiamotoError):
+    """Base class for import related errors."""
+
+    pass
+
+
+class TaxonomyImportError(DataImportError):
+    """Exception raised for taxonomy import errors."""
+
+    pass
+
+
+class OccurrenceImportError(DataImportError):
+    """Exception raised for occurrence import errors."""
+
+    pass
+
+
+class PlotImportError(DataImportError):
+    """Exception raised for plot import errors."""
+
+    pass
+
+
+class ShapeImportError(DataImportError):
+    """Exception raised for shape import errors."""
+
+    pass
+
+
+class GenerationError(NiamotoError):
+    """Base class for content generation errors."""
+
+    pass
+
+
+class TemplateError(GenerationError):
+    """Exception raised for template processing errors."""
 
     def __init__(
-        self, table_name: str, message: str = "Failed to write data to the database"
+        self, template_name: str, message: str, details: Optional[dict] = None
     ):
-        """
-        Initializes the DatabaseWriteError with the table name and an optional message.
-
-        Args:
-            table_name (str): The name of the table where the write operation failed.
-            message (str, optional): The error message. Defaults to "Failed to write data to the database".
-        """
-        self.table_name = table_name
-        super().__init__(f"{message}: Table {table_name}")
+        super().__init__(message, details)
+        self.template_name = template_name
 
 
-class ConfigurationError(Exception):
-    """
-    Exception raised for configuration errors.
+class OutputError(GenerationError):
+    """Exception raised for file generation and output errors."""
 
-    Attributes:
-        config_key (str): The configuration key that caused the error.
-    """
-
-    def __init__(self, config_key: str, message: str = "Configuration error"):
-        """
-        Initializes the ConfigurationError with the configuration key and an optional message.
-
-        Args:
-            config_key (str): The configuration key that caused the error.
-            message (str, optional): The error message. Defaults to "Configuration error".
-        """
-        self.config_key = config_key
-        super().__init__(f"{message}: {config_key} is missing or invalid")
+    def __init__(self, output_path: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+        self.output_path = output_path
 
 
-class DatabaseConnectionError(Exception):
-    """
-    Exception raised when connection to the database fails.
+class ProcessError(NiamotoError):
+    """Base class for transforms calculation errors."""
 
-    Attributes:
-        db_url (str): The URL of the database that could not be connected to.
-    """
+    pass
 
-    def __init__(self, db_url: str, message: str = "Failed to connect to the database"):
-        """
-        Initializes the DatabaseConnectionError with the database URL and an optional message.
 
-        Args:
-            db_url (str): The URL of the database that could not be connected to.
-            message (str, optional): The error message. Defaults to "Failed to connect to the database".
-        """
-        self.db_url = db_url
-        super().__init__(f"{message}: Unable to connect to {db_url}")
+class CalculationError(ProcessError):
+    """Exception raised for mathematical calculation errors."""
+
+    pass
+
+
+class DataTransformError(ProcessError):
+    """Exception raised for errors during data processing for transforms."""
+
+    pass
+
+
+class CLIError(NiamotoError):
+    """Base class for CLI related errors."""
+
+    pass
+
+
+class ValidationError(NiamotoError):
+    """Exception raised for validation errors."""
+
+    def __init__(self, field: str, message: str, details: Optional[dict] = None):
+        super().__init__(message, details)
+        self.field = field

@@ -5,7 +5,7 @@ import numpy as np
 from unittest.mock import MagicMock, patch
 
 from niamoto.common.database import Database
-from niamoto.core.components.importers.taxonomy import TaxonomyImporter
+from niamoto.core.components.imports.taxons import TaxonomyImporter
 
 
 class TestTaxonomyImporter(unittest.TestCase):
