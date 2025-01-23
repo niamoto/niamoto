@@ -1,9 +1,10 @@
 """
 This module provides a Database class for connecting to and interacting with a database.
 
-The Database class offers methods to establish a connection, get new sessions, 
+The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
+
 from typing import TypeVar, Any, Optional, List
 
 from sqlalchemy import create_engine, exc, text, inspect

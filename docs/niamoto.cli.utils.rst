@@ -12,22 +12,6 @@ niamoto.cli.utils.console module
    :undoc-members:
    :show-inheritance:
 
-niamoto.cli.utils.database module
----------------------------------
-
-.. automodule:: niamoto.cli.utils.database
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-niamoto.cli.utils.validators module
------------------------------------
-
-.. automodule:: niamoto.cli.utils.validators
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Module contents
 ---------------
 

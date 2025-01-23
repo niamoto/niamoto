@@ -1,12 +1,14 @@
 """
 Shape transforms calculator module.
 """
+
 from typing import List, Dict, Any, Hashable, Optional, cast
 
 import geopandas as gpd  # type: ignore
 import numpy as np
 import pandas as pd
 import rasterio  # type: ignore
+import topojson
 from rasterio.mask import mask  # type: ignore
 from rtree import index
 from shapely import (
@@ -724,50 +726,86 @@ class ShapeTransformer(BaseTransformer):
         except Exception as e:
             raise ValueError(f"Error simplifying geometry: {e}")
 
+    def _convert_to_topojson(self, geometry: BaseGeometry) -> Dict[str, Any]:
+        """
+        Convert a geometry to optimized TopoJSON format.
+
+        Args:
+            geometry: The geometry to convert
+
+        Returns:
+            dict: Optimized TopoJSON representation
+        """
+        # Convert to FeatureCollection format
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "properties": {}, "geometry": mapping(geometry)}
+            ],
+        }
+
+        # Convert to TopoJSON with optimization
+        topology = topojson.Topology(
+            data=feature_collection,
+            object_name="data",
+            prequantize=True,
+        ).to_dict()
+
+        # Optimize arcs by converting to integers
+        if "arcs" in topology:
+            topology["arcs"] = [
+                [[int(x), int(y)] for x, y in arc] for arc in topology["arcs"]
+            ]
+
+        return topology
+
     def get_simplified_coordinates(self, geometry_location: str) -> Dict[str, Any]:
         """
-        Get simplified coordinates for a geometry.
+        Get simplified coordinates for a geometry and convert to TopoJSON.
 
         Args:
             geometry_location (str): The WKB hex string of the geometry
 
         Returns:
-            dict: GeoJSON-like dictionary of simplified coordinates
+            dict: TopoJSON representation of the simplified geometry
         """
         try:
             gdf = self.load_shape_geometry(geometry_location)
             if gdf is None or gdf.empty:
                 return {}
 
+            # Simplify geometry using UTM projection
             simplified = self._simplify_with_utm(gdf.geometry.iloc[0])
-            return mapping(simplified)
+            return self._convert_to_topojson(simplified)
 
         except Exception as e:
-            raise ValueError(f"Error simplifying geometry: {e}")
+            raise ValueError(f"Error processing geometry: {e}")
 
     def get_coordinates_from_gdf(self, gdf: gpd.GeoDataFrame) -> Dict[str, Any]:
         """
-        Get simplified coordinates from a GeoDataFrame, unifying geometries if multiple.
+        Get simplified coordinates from a GeoDataFrame and convert to TopoJSON.
 
         Args:
             gdf (gpd.GeoDataFrame): GeoDataFrame containing the geometries
 
         Returns:
-            dict: GeoJSON-like dictionary of simplified coordinates
+            dict: TopoJSON representation of the simplified geometries
         """
         if gdf is None or gdf.empty:
             return {}
 
         try:
-            # GeoDataFrame contains multiple geometries
+            # Unify multiple geometries if needed
             geometry = (
                 gdf.geometry.union_all() if len(gdf) > 1 else gdf.geometry.iloc[0]
             )
+
+            # Simplify using UTM projection and convert to TopoJSON
             simplified = self._simplify_with_utm(geometry)
-            return mapping(simplified)
+            return self._convert_to_topojson(simplified)
 
         except Exception as e:
-            raise ValueError(f"Error simplifying geometry: {e}")
+            raise ValueError(f"Error processing geometry: {e}")
 
     def _retrieve_all_shapes(self) -> List[ShapeRef]:
         """

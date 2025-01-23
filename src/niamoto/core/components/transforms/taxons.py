@@ -1,6 +1,7 @@
 """
 Taxonomy transforms calculator module.
 """
+
 from calendar import month_abbr
 from typing import List, Dict, Any, Hashable, Optional
 
@@ -319,15 +320,14 @@ class TaxonTransformer(BaseTransformer):
     def calculate_temporal_phenology(
         occurrences: list[dict[Hashable, Any]], field_config: dict
     ) -> Dict[str, Any]:
-        """
-            Calculate temporal phenology.
+        """Calculate temporal phenology.
+
         Args:
             occurrences(list[dict[Hashable, Any]]): The occurrences data.
             field_config(dict): The field configuration.
 
         Returns:
             Dict[str, Any]: The temporal phenology data.
-
         """
         try:
             df = pd.DataFrame(occurrences)

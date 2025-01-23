@@ -1,6 +1,7 @@
 """
 Logging utilities for Niamoto application.
 """
+
 import os
 from pathlib import Path
 import logging

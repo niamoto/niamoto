@@ -1,6 +1,7 @@
 """
 This module contains the BaseTransformer class, which is an abstract base class for calculating transforms.
 """
+
 import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -138,7 +139,7 @@ class BaseTransformer(ABC):
                     if set_clauses:
                         update_query = f"""
                             UPDATE {table_name}
-                            SET {', '.join(set_clauses)}
+                            SET {", ".join(set_clauses)}
                             WHERE {self.group_by}_id = {group_id}
                         """
                         self.db.execute_sql(update_query)
@@ -151,8 +152,8 @@ class BaseTransformer(ABC):
                         escaped_values.append(f"'{json_data}'")
 
                     insert_query = f"""
-                                    INSERT INTO {table_name} ({', '.join(columns)})
-                                    VALUES ({', '.join(escaped_values)})
+                                    INSERT INTO {table_name} ({", ".join(columns)})
+                                    VALUES ({", ".join(escaped_values)})
                                 """
                     self.db.execute_sql(insert_query)
         except Exception as e:

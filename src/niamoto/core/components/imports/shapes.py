@@ -1,6 +1,7 @@
 """
 This module contains the ShapeImporter class used to import shape data from various geospatial files into the database.
 """
+
 import json
 from pathlib import Path
 from typing import List, Dict, Any

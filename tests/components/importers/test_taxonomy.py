@@ -45,11 +45,10 @@ class TestTaxonomyImporter(unittest.TestCase):
         """
         Test case for the import_from_csv method of the TaxonomyImporter class.
         """
-        with patch.object(
-            self.importer, "_prepare_dataframe"
-        ) as mock_prepare_dataframe, patch.object(
-            self.importer, "_process_dataframe"
-        ) as mock_process_dataframe:
+        with (
+            patch.object(self.importer, "_prepare_dataframe") as mock_prepare_dataframe,
+            patch.object(self.importer, "_process_dataframe") as mock_process_dataframe,
+        ):
             mock_prepare_dataframe.return_value = pd.DataFrame(
                 {"id_taxon": [1]}
             )  # Retourner un DataFrame non vide avec une colonne "id_taxon"

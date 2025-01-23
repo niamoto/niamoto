@@ -77,6 +77,10 @@ types-shapely = "^2.0.0"
 # Documentation: https://fiona.readthedocs.io/en/stable/
 fiona = "^1.9.6"
 
+# topojson - TopoJSON is an extension of GeoJSON that encodes topology.
+# Documentation: https://github.com/topojson/topojson
+topojson = "^1.9"
+
 # -------------------------
 # Data Processing libraries
 # -------------------------
@@ -137,8 +141,6 @@ sphinx-markdown-builder = "^0.6.6"
 rtree = "^1.3.0"
 matplotlib = "^3.10.0"
 bump2version = "^1.0.1"
-topojson = "^1.9"
-
 
 [tool.poetry.group.dev.dependencies]
 # -------------
@@ -220,6 +222,7 @@ pytest-stub = "^1.1.0"
 # ipython - Advanced interactive Python shell.
 # Documentation: https://ipython.org/
 ipython = "^8.17.2"
+setuptools = "^75.8.0"
 
 
 [build-system]

@@ -177,7 +177,21 @@ $ niamoto deploy netlify --site-id <id>
 ```
 
 
+## Project Structure
 
+```config/``` - YAML configuration files for data pipeline:
+- `config.yml`: Global configuration options
+- `import.yml`: Data source definitions (CSV, vector, raster)  
+- `transform.yml`: Data transformation rules and calculations
+- `export.yml`: Widget and chart configurations
+
+```db/``` - Database files and schemas
+
+```exports/``` - Generated widget data and statistics
+
+```imports/``` - Raw data files (CSV, shapefiles, rasters)
+
+```logs/``` - Application logs and debug information
 
 ## Niamoto Configuration Overview
 
@@ -364,7 +378,7 @@ Lastly, the **presentation configuration** describes each **widget**’s **visua
 ## Summary
 
 1. **`import.yml`** – Where are the raw data sources? (CSV, shapefile, DB table, etc.)  
-2. **`transform.yml`** – For each `group_by` (taxon, shape, plot), define `widgets_data` with transformations. Each widget becomes a JSON column in `_stats` table.  
+2. **`transform.yml`** – For each `group_by` (taxon, shape, plot), define `widgets_data` with transformations. Each widget becomes a JSON column in `_group_by` (taxon, shape, plot) table.  
 3. **`export.yml`** – For each widget, define how it’s displayed (chart type, datasets, axes, etc.), referencing the JSON column by `source:`.
 
 This **cleanly decouples** data sources, data calculations, and final presentation. You can **change** any of these layers independently:
