@@ -12,6 +12,7 @@ from rich import box
 from typing import List
 import tomllib
 from pathlib import Path
+from importlib import metadata
 
 from niamoto.common.exceptions import VersionError, CommandError
 from niamoto.common.utils import error_handler
@@ -27,29 +28,42 @@ NIAMOTO_ASCII_ART = """
 @error_handler(log=True, raise_error=True)
 def get_version_from_pyproject() -> str:
     """
-    Reads the version number from the pyproject.toml file.
+    Gets the version number of Niamoto.
+    First tries to get it from the installed package metadata,
+    falls back to pyproject.toml if in development mode.
 
     Returns:
-        str: The version string (e.g., '0.3.3') if found, or 'unknown' if the version can't be read.
+        str: The version string (e.g., '0.3.3')
     """
-    pyproject_path = Path(__file__).resolve().parents[4] / "pyproject.toml"
-    if not pyproject_path.exists():
-        raise VersionError(
-            message="pyproject.toml not found", details={"path": str(pyproject_path)}
-        )
-
     try:
-        with pyproject_path.open("rb") as f:
-            pyproject_data = tomllib.load(f)
-            version = pyproject_data.get("tool", {}).get("poetry", {}).get("version")
-            if not version:
-                raise VersionError(
-                    message="Version not found in pyproject.toml",
-                    details={"content": pyproject_data},
+        # Try to get version from installed package first
+        return metadata.version("niamoto")
+    except metadata.PackageNotFoundError:
+        # Fallback to pyproject.toml for development mode
+        pyproject_path = Path(__file__).resolve().parents[4] / "pyproject.toml"
+        if not pyproject_path.exists():
+            raise VersionError(
+                message="Version information not found - package not installed and pyproject.toml not found",
+                details={"path": str(pyproject_path)},
+            )
+
+        try:
+            with pyproject_path.open("rb") as f:
+                pyproject_data = tomllib.load(f)
+                version = (
+                    pyproject_data.get("tool", {}).get("poetry", {}).get("version")
                 )
-            return version
-    except Exception as e:
-        raise VersionError(message="Failed to read version", details={"error": str(e)})
+                if not version:
+                    raise VersionError(
+                        message="Version not found in pyproject.toml",
+                        details={"content": pyproject_data},
+                    )
+                return version
+        except Exception as e:
+            raise VersionError(
+                message="Error reading version from pyproject.toml",
+                details={"error": str(e)},
+            )
 
 
 # Get the version of the application
