@@ -5,17 +5,15 @@ build:
   tools:
     python: "3.11"
 
-poetry:
-  version: "2.0.1"
-
 sphinx:
   configuration: docs/conf.py
   fail_on_warning: false
 
 python:
   install:
-    - method: poetry
+    - method: pip
       path: .
+    - requirements: docs/requirements.txt
 
 formats:
   - pdf
