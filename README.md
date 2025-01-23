@@ -265,7 +265,7 @@ Typical structure might look like:
 
 ---
 
-## 2) `export.yaml` – Calculations & Transformations
+### 2) `transform.yml` – Calculations & Transformations
 
 The **stats configuration** replaces the older notion of a single `fields:` mapping with a more flexible concept of **widgets_data**:
 
@@ -312,7 +312,7 @@ Niamoto (or your stats calculator classes) will:
 
 ---
 
-## 3) `export.yml` – Visualization
+### 3) `export.yml` – Visualization
 
 Lastly, the **presentation configuration** describes each **widget**’s **visual layout**:
 
