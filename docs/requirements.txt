@@ -1,0 +1,6 @@
+sphinx>=7.3.7
+sphinx-markdown-builder>=0.6.8
+myst-parser>=3.0.1
+furo>=2024.1.29
+tomli>=2.0.1
+topojson>=1.5
