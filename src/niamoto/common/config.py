@@ -102,7 +102,7 @@ class Config:
         """
         try:
             if os.path.exists(file_path):
-                with open(file_path, "r") as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     try:
                         data = yaml.safe_load(f)
                     except yaml.YAMLError as e:
@@ -115,7 +115,7 @@ class Config:
             elif create_if_missing:
                 try:
                     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                    with open(file_path, "w") as f:
+                    with open(file_path, "w", encoding="utf-8") as f:
                         yaml.dump(
                             default_data, f, default_flow_style=False, sort_keys=False
                         )
