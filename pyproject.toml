@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "niamoto"
-version = "0.3.7"
+version = "0.3.8"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
