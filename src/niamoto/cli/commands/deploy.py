@@ -4,6 +4,7 @@ Commands for deploying generated content to various platforms.
 
 import os
 import subprocess
+from datetime import datetime
 
 import click
 
@@ -98,16 +99,15 @@ def deploy_to_netlify(site_id: str) -> None:
     config = Config()
     output_dir = get_output_dir(config)
 
-    if not output_dir or not os.path.exists(output_dir):
-        raise CommandError(
-            "netlify", "Output directory not found", details={"output_dir": output_dir}
-        )
-
-    # Vérifier que la CLI Netlify est installée
+    # Check if Netlify CLI is installed
     try:
-        subprocess.run(
-            ["netlify", "--version"], check=True, capture_output=True, text=True
+        version_check = subprocess.run(
+            ["netlify", "--version"],
+            check=True,
+            capture_output=True,
+            text=True
         )
+        print_success(f"Using Netlify CLI version: {version_check.stdout.strip()}")
     except (subprocess.CalledProcessError, FileNotFoundError):
         raise CommandError(
             "netlify",
@@ -115,25 +115,59 @@ def deploy_to_netlify(site_id: str) -> None:
             details={"setup": "https://docs.netlify.com/cli/get-started/"},
         )
 
+    # Check if the site ID exists
     try:
-        # Déploiement sur Netlify
-        deploy_result = subprocess.run(
-            ["netlify", "deploy", "--prod", "--dir", output_dir, "--site", site_id],
+        site_check = subprocess.run(
+            ["netlify", "sites:list"],
             check=True,
             capture_output=True,
-            text=True,
+            text=True
         )
-        print_success(f"Successfully deployed to Netlify site with ID: {site_id}")
+        if site_id not in site_check.stdout:
+            raise CommandError(
+                "netlify",
+                f"Site ID '{site_id}' not found in your Netlify account",
+                details={"available_sites": site_check.stdout}
+            )
+    except subprocess.CalledProcessError as e:
+        raise CommandError(
+            "netlify",
+            "Failed to verify site ID",
+            details={"error": e.stderr}
+        )
 
-        # Afficher l'URL du site déployé si disponible
-        if "Website Draft URL" in deploy_result.stdout:
-            for line in deploy_result.stdout.split("\n"):
-                if "Website Draft URL" in line:
-                    print_success(f"Site URL: {line.split(':')[1].strip()}")
+    # Deploy to Netlify with more verbose output
+    deploy_cmd = [
+        "netlify", "deploy",
+        "--prod",
+        "--dir", output_dir,
+        "--site", site_id,
+        "--message", f"Deploy from CLI at {datetime.now().isoformat()}"
+    ]
+    try:
+
+        deploy_result = subprocess.run(
+            deploy_cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+        print_success(f"Successfully deployed to Netlify site: {site_id}")
+
+        # Extract and display the deployment URL
+        for line in deploy_result.stdout.split("\n"):
+            if "Website URL:" in line or "Unique Deploy URL:" in line:
+                print_success(f"Deployment URL: {line.split(':')[1].strip()}")
 
     except subprocess.CalledProcessError as e:
         raise CommandError(
             "netlify",
             "Netlify deployment failed",
-            details={"command": " ".join(e.cmd), "output": e.stdout, "error": e.stderr},
+            details={
+                "command": " ".join(deploy_cmd),
+                "output": e.stdout,
+                "error": e.stderr,
+                "exit_code": e.returncode
+            }
         )
