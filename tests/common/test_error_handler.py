@@ -1,30 +1,26 @@
 """
 Tests for error handling utilities.
 """
-import logging
+
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from niamoto.common.utils.error_handler import (
     error_handler,
     handle_error,
     get_error_details,
-    format_error_message
+    format_error_message,
 )
 from niamoto.common.exceptions import (
-    NiamotoError,
     FileError,
     DatabaseError,
     ValidationError,
-    TemplateError,
-    OutputError,
-    CLIError,
     CommandError,
-    ArgumentError
 )
 
 
 def test_error_handler_decorator_with_logging():
     """Test error_handler decorator with logging enabled."""
+
     @error_handler(log=True, raise_error=False)
     def failing_function():
         raise ValueError("Test error")
@@ -36,6 +32,7 @@ def test_error_handler_decorator_with_logging():
 
 def test_error_handler_decorator_with_raise():
     """Test error_handler decorator with raise_error enabled."""
+
     @error_handler(log=False, raise_error=True)
     def failing_function():
         raise ValueError("Test error")
@@ -46,6 +43,7 @@ def test_error_handler_decorator_with_raise():
 
 def test_error_handler_decorator_without_raise():
     """Test error_handler decorator with raise_error disabled."""
+
     @error_handler(log=False, raise_error=False)
     def failing_function():
         raise ValueError("Test error")
@@ -59,7 +57,7 @@ def test_get_error_details_niamoto_error():
     """Test get_error_details with NiamotoError."""
     error = FileError("/test/path", "Test error", {"extra": "info"})
     details = get_error_details(error)
-    
+
     assert details["error_type"] == "FileError"
     assert "traceback" in details
     assert details["file_path"] == "/test/path"
@@ -70,7 +68,7 @@ def test_get_error_details_standard_error():
     """Test get_error_details with standard Python error."""
     error = ValueError("Test error")
     details = get_error_details(error)
-    
+
     assert details["error_type"] == "ValueError"
     assert "traceback" in details
 
@@ -97,7 +95,7 @@ def test_format_error_message():
 def test_handle_error_with_console():
     """Test handle_error with console output."""
     error = ValidationError("test_field", "Test error", {"detail": "value"})
-    
+
     with patch("rich.console.Console.print") as mock_print:
         handle_error(error, log=False, raise_error=False, console_output=True)
         assert mock_print.call_count >= 1
@@ -114,13 +112,14 @@ def test_handle_error_with_logging(mock_log):
 def test_handle_error_with_raise():
     """Test handle_error with raise_error enabled."""
     error = CommandError("test_cmd", "Test error")
-    
+
     with pytest.raises(CommandError):
         handle_error(error, log=False, raise_error=True, console_output=False)
 
 
 def test_error_handler_decorator_return_value():
     """Test error_handler decorator preserves return value."""
+
     @error_handler(log=False, raise_error=False)
     def successful_function():
         return "success"
@@ -131,6 +130,7 @@ def test_error_handler_decorator_return_value():
 
 def test_error_handler_decorator_with_args():
     """Test error_handler decorator with function arguments."""
+
     @error_handler(log=False, raise_error=False)
     def function_with_args(arg1, arg2=None):
         if arg2 is None:

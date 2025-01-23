@@ -1,6 +1,7 @@
 """
 Base class for data generation with shared utilities.
 """
+
 import json
 from typing import Optional, Any, Dict
 

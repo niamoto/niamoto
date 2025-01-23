@@ -4,6 +4,14 @@ niamoto.core.services package
 Submodules
 ----------
 
+niamoto.core.services.exporter module
+-------------------------------------
+
+.. automodule:: niamoto.core.services.exporter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 niamoto.core.services.importer module
 -------------------------------------
 
@@ -12,10 +20,10 @@ niamoto.core.services.importer module
    :undoc-members:
    :show-inheritance:
 
-niamoto.core.services.statistics module
----------------------------------------
+niamoto.core.services.transformer module
+----------------------------------------
 
-.. automodule:: niamoto.core.services.statistics
+.. automodule:: niamoto.core.services.transformer
    :members:
    :undoc-members:
    :show-inheritance:

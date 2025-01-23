@@ -1,6 +1,14 @@
 niamoto.common package
 ======================
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   niamoto.common.utils
+
 Submodules
 ----------
 

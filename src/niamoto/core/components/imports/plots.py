@@ -1,6 +1,7 @@
 """
 Module for importing plot data from GeoPackage files into the database.
 """
+
 from pathlib import Path
 from typing import Optional, Any
 

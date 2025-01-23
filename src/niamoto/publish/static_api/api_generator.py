@@ -1,13 +1,12 @@
 """
 Module for generating JSON API files.
 """
+
 import json
+import logging
 from pathlib import Path
 from typing import Any, List, Optional, Dict, Union
 
-from shapely import wkb
-from shapely.geometry import mapping
-from shapely.errors import WKBReadingError
 
 from niamoto.common.config import Config
 from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
@@ -114,7 +113,7 @@ class ApiGenerator(BaseGenerator):
     @error_handler(log=True, raise_error=True)
     def generate_shape_json(self, shape: ShapeRef, stats: Optional[Any]) -> str:
         """
-        Generate JSON file for a shape.
+        Generate JSON file for a shape with GeoJSON geometry.
 
         Args:
             shape: Shape object to process
@@ -131,29 +130,55 @@ class ApiGenerator(BaseGenerator):
         output_path = self.json_output_dir / "shape" / f"{shape.id}.json"
 
         try:
+            # Get data dictionary containing GeoJSON in "geography"
             shape_dict = self.shape_to_dict(shape, stats)
+            logging.debug(f"Shape dictionary for shape {shape.id}: {shape_dict}")
 
-            # Convert geometry if present
-            if shape.location is not None:
-                try:
-                    geometry = wkb.loads(shape.location, hex=True)
-                    shape_dict["geometry"] = mapping(geometry)
-                except WKBReadingError as e:
-                    raise DataValidationError(
-                        "Invalid geometry data",
-                        [{"shape_id": shape.id, "error": str(e)}],
+            geography_data = shape_dict.get("geography", {})
+            if not geography_data:
+                logging.warning(f"Empty geography data for shape {shape.id}")
+
+            # Validate GeoJSON structure for each coordinate type if present
+            for coord_type in ["shape_coords", "forest_coords"]:
+                if coord_type in geography_data and geography_data[coord_type]:
+                    coords_data = geography_data[coord_type]
+
+                    # Validate GeoJSON structure
+                    validation_errors = []
+                    if not isinstance(coords_data, dict):
+                        validation_errors.append(
+                            f"Invalid {coord_type} data type for shape {shape.id}. Expected dict, got {type(coords_data)}"
+                        )
+
+                    if isinstance(coords_data, dict) and "type" not in coords_data:
+                        validation_errors.append(
+                            f"Missing 'type' in {coord_type} for shape {shape.id}"
+                        )
+
+                    if validation_errors:
+                        raise DataValidationError(
+                            message=f"Validation failed for shape {shape.id}",
+                            validation_errors=validation_errors,
+                        )
+
+                    logging.debug(
+                        f"{coord_type} data for shape {shape.id}: {coords_data}"
                     )
 
-            # Write output
+            # Write minified output
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "w") as file:
-                json.dump(shape_dict, file, indent=4)
+                json.dump(
+                    shape_dict,
+                    file,
+                    indent=None,  # Remove indentation
+                    separators=(",", ":"),  # Remove whitespace in separators
+                )
 
             return str(output_path)
 
         except Exception as e:
-            if isinstance(e, DataValidationError):
-                raise
+            logging.error(f"Error processing shape {shape.id}: {str(e)}")
             raise OutputError(
                 str(output_path),
                 "Failed to write shape JSON",

@@ -712,8 +712,18 @@
                 const sourceData = _.get(shape, layer.source);
                 if (sourceData) {
                     try {
-                        const geometry = typeof sourceData === 'string' ? JSON.parse(sourceData) : sourceData;
-                        const geoLayer = L.geoJSON(geometry, {
+                        // Convert TopoJSON to GeoJSON if needed
+                        let geoJson;
+                        if (sourceData.type === 'Topology') {
+                            // Convert TopoJSON to GeoJSON
+                            const geometryKey = Object.keys(sourceData.objects)[0];
+                            geoJson = topojson.feature(sourceData, sourceData.objects[geometryKey]);
+                        } else {
+                            // Already GeoJSON
+                            geoJson = typeof sourceData === 'string' ? JSON.parse(sourceData) : sourceData;
+                        }
+
+                        const geoLayer = L.geoJSON(geoJson, {
                             style: layer.style
                         }).addTo(map);
                         layers.push(geoLayer);

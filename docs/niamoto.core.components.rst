@@ -7,8 +7,8 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   niamoto.core.components.importers
-   niamoto.core.components.statistics
+   niamoto.core.components.imports
+   niamoto.core.components.transforms
 
 Module contents
 ---------------

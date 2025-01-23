@@ -1,6 +1,7 @@
 """
 Custom exceptions for the Niamoto application.
 """
+
 from typing import Optional, Any
 
 

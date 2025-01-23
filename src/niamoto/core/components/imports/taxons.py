@@ -1,6 +1,7 @@
 """
 This module contains the TaxonomyImporter class used to import taxonomy data from a CSV file into the database.
 """
+
 from pathlib import Path
 from typing import Tuple, Optional, Any
 

@@ -1,6 +1,7 @@
 """
 Service for importing data into Niamoto.
 """
+
 import csv
 from pathlib import Path
 from typing import Tuple, List, Dict, Any, Set

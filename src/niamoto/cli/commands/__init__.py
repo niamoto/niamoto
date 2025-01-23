@@ -18,16 +18,15 @@ from .deploy import deploy_commands
 
 
 def create_cli() -> click.Group:
-    """
-    Create and configure the main CLI group with all commands.
+    """Create and configure the main CLI group with all commands.
 
     This function initializes the Niamoto command-line interface (CLI)
     by registering the following command groups:
-      - `init`: Initializes or resets the environment.
-      - `import`: Imports raw data into the system.
-      - `transforms`: Transforms and aggregates raw data for analysis.
-      - `export`: Generates static content using processed data.
-      - `deploy`: Deploys generated content to supported platforms.
+        - `init`: Initializes or resets the environment.
+        - `import`: Imports raw data into the system.
+        - `transforms`: Transforms and aggregates raw data for analysis.
+        - `export`: Generates static content using processed data.
+        - `deploy`: Deploys generated content to supported platforms.
 
     Returns:
         click.Group: The root command group for the Niamoto CLI.

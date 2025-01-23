@@ -1,6 +1,7 @@
 """
 Error handling utilities for Niamoto.
 """
+
 import logging
 import sys
 import traceback

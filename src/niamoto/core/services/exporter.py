@@ -1,6 +1,7 @@
 """
 Service for generating static content in Niamoto.
 """
+
 from typing import List, Optional, Any, Dict
 from rich.progress import track
 

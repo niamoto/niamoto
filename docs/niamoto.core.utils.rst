@@ -4,10 +4,10 @@ niamoto.core.utils package
 Submodules
 ----------
 
-niamoto.core.utils.csv\_utils module
-------------------------------------
+niamoto.core.utils.logging\_utils module
+----------------------------------------
 
-.. automodule:: niamoto.core.utils.csv_utils
+.. automodule:: niamoto.core.utils.logging_utils
    :members:
    :undoc-members:
    :show-inheritance:

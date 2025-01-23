@@ -1,6 +1,7 @@
 """
 Main entry point for the Niamoto CLI application.
 """
+
 import logging
 import sys
 

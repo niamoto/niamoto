@@ -1,6 +1,7 @@
 """
 Module for generating static HTML pages and assets.
 """
+
 import gzip
 import json
 import os
@@ -279,9 +280,21 @@ class PageGenerator(BaseGenerator):
                         "features": type_info["features"],
                     }
                     try:
-                        topo = topojson.Topology(feature_collection, prequantize=True)
-                        type_info["shapes"] = topo.to_dict()
+                        # topology = topojson.Topology(feature_collection, prequantize=True)
+                        topology = topojson.Topology(
+                            data=feature_collection, prequantize=True
+                        ).to_dict()
+
+                        # Additional optimization: convert coordinates to integers
+                        if "arcs" in topology:
+                            topology["arcs"] = [
+                                [[int(x), int(y)] for x, y in arc]
+                                for arc in topology["arcs"]
+                            ]
+
+                        type_info["shapes"] = topology
                         del type_info["features"]
+
                     except Exception as e:
                         raise DataValidationError(
                             f"TopoJSON conversion failed for shape type {shape_type}",
@@ -292,9 +305,21 @@ class PageGenerator(BaseGenerator):
             js_dir = self.output_dir / "js"
             js_dir.mkdir(parents=True, exist_ok=True)
 
-            # Write regular JS file
+            # Minified JSON string
+            minified_json = json.dumps(
+                shape_dict,
+                separators=(",", ":"),  # Remove whitespace
+                ensure_ascii=False,  # Allow UTF-8 characters
+            )
+
+            # Write development version (readable)
             js_content = f"const shapeTypes = {json.dumps(shape_dict, indent=2)};"
             js_path.write_text(js_content)
+
+            # Write minified version
+            minified_path = js_path.with_suffix(".min.js")
+            minified_content = f"const shapeTypes={minified_json};"
+            minified_path.write_text(minified_content)
 
             # Write gzipped version
             with gzip.open(str(js_path) + ".gz", "wt") as f:

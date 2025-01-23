@@ -1,16 +1,14 @@
 niamoto.cli package
 ===================
 
-Submodules
-----------
+Subpackages
+-----------
 
-niamoto.cli.commands module
----------------------------
+.. toctree::
+   :maxdepth: 4
 
-.. automodule:: niamoto.cli.commands
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   niamoto.cli.commands
+   niamoto.cli.utils
 
 Module contents
 ---------------

@@ -2,6 +2,7 @@
 Console output utilities for the Niamoto CLI.
 Provides consistent formatting for different types of messages.
 """
+
 from rich.console import Console
 from typing import Any
 

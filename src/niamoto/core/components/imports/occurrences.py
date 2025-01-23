@@ -1,6 +1,7 @@
 """
 A module for importing occurrence data from a CSV file into the database.
 """
+
 from pathlib import Path
 from typing import List, Tuple
 import pandas as pd

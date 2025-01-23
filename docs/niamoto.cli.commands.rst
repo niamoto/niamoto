@@ -20,18 +20,18 @@ niamoto.cli.commands.deploy module
    :undoc-members:
    :show-inheritance:
 
-niamoto.cli.commands.generate module
-------------------------------------
+niamoto.cli.commands.export module
+----------------------------------
 
-.. automodule:: niamoto.cli.commands.generate
+.. automodule:: niamoto.cli.commands.export
    :members:
    :undoc-members:
    :show-inheritance:
 
-niamoto.cli.commands.import\_data module
-----------------------------------------
+niamoto.cli.commands.imports module
+-----------------------------------
 
-.. automodule:: niamoto.cli.commands.import_data
+.. automodule:: niamoto.cli.commands.imports
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,10 +44,10 @@ niamoto.cli.commands.initialize module
    :undoc-members:
    :show-inheritance:
 
-niamoto.cli.commands.statistics module
---------------------------------------
+niamoto.cli.commands.transform module
+-------------------------------------
 
-.. automodule:: niamoto.cli.commands.statistics
+.. automodule:: niamoto.cli.commands.transform
    :members:
    :undoc-members:
    :show-inheritance:
