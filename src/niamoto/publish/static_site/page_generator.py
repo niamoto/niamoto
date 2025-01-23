@@ -116,7 +116,7 @@ class PageGenerator(BaseGenerator):
 
             # Write output
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(html_output)
+            output_path.write_text(html_output, encoding='utf-8')
 
             return str(output_path)
 
@@ -314,15 +314,15 @@ class PageGenerator(BaseGenerator):
 
             # Write development version (readable)
             js_content = f"const shapeTypes = {json.dumps(shape_dict, indent=2)};"
-            js_path.write_text(js_content)
+            js_path.write_text(js_content, encoding='utf-8')
 
             # Write minified version
             minified_path = js_path.with_suffix(".min.js")
             minified_content = f"const shapeTypes={minified_json};"
-            minified_path.write_text(minified_content)
+            minified_path.write_text(minified_content, encoding='utf-8')
 
             # Write gzipped version
-            with gzip.open(str(js_path) + ".gz", "wt") as f:
+            with gzip.open(str(js_path) + ".gz", "wt", encoding='utf-8') as f:
                 f.write(f"const shapeTypes = {json.dumps(shape_dict)};")
 
         except Exception as e:
@@ -392,7 +392,7 @@ class PageGenerator(BaseGenerator):
             # Write output
             js_dir = js_path.parent
             js_dir.mkdir(parents=True, exist_ok=True)
-            js_path.write_text(minified_js)
+            js_path.write_text(minified_js, encoding='utf-8')
 
         except Exception as e:
             raise GenerationError(
