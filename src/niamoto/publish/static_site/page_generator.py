@@ -333,73 +333,6 @@ class PageGenerator(BaseGenerator):
                 details={"error": str(e), "output_path": str(js_path)},
             )
 
-    @staticmethod
-    def _process_shape_geometry(geom: Any, shape: ShapeRef) -> Optional[Dict[str, Any]]:
-        """Process a single shape geometry."""
-        # Create GeoDataFrame
-        gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326")
-
-        # Get UTM zone
-        centroid = geom.centroid
-        zone_number = int((centroid.x + 180) // 6) + 1
-        zone_hemisphere = "N" if centroid.y >= 0 else "S"
-        utm_epsg = (
-            32600 + zone_number if zone_hemisphere == "N" else 32700 + zone_number
-        )
-
-        # Transform and simplify
-        gdf_utm = gdf.to_crs(f"EPSG:{utm_epsg}")
-        area_m2 = gdf_utm.geometry.area.iloc[0]
-        tolerance = (
-            5 * (area_m2 / (1000 * 1000000)) ** 0.25 if area_m2 > 1000000000 else 5
-        )
-
-        simplified_utm = gdf_utm.geometry.simplify(tolerance, preserve_topology=True)
-        gdf_utm.geometry = simplified_utm
-        gdf_wgs = gdf_utm.to_crs("EPSG:4326")
-
-        return {
-            "type": "Feature",
-            "id": shape.id,
-            "properties": {
-                "name": shape.label,
-            },
-            "geometry": mapping(gdf_wgs.geometry.iloc[0]),
-        }
-
-    @error_handler(log=True, raise_error=True)
-    def generate_taxonomy_tree_js(self, taxons: List[TaxonRef]) -> None:
-        """
-        Generate taxonomy tree JavaScript file.
-
-        Args:
-            taxons (List[niamoto.core.models.models.TaxonRef]): List of taxons to process
-
-        Raises:
-            GenerationError: If generation fails
-            OutputError: If file writing fails
-        """
-        js_path = self.output_dir / "js" / "taxonomy_tree.js"
-
-        try:
-            # Build tree structure
-            tree = self.build_taxonomy_tree(taxons)
-
-            # Generate and minify JavaScript
-            js_content = "const taxonomyData = " + json.dumps(tree, indent=4) + ";"
-            minified_js = rjsmin.jsmin(js_content)
-
-            # Write output
-            js_dir = js_path.parent
-            js_dir.mkdir(parents=True, exist_ok=True)
-            js_path.write_text(minified_js, encoding='utf-8')
-
-        except Exception as e:
-            raise GenerationError(
-                "Failed to generate taxonomy tree",
-                details={"error": str(e), "output_path": str(js_path)},
-            )
-
     @error_handler(log=True, raise_error=True)
     def generate_plot_list_js(self, plots: List[PlotRef]) -> None:
         """
@@ -425,7 +358,7 @@ class PageGenerator(BaseGenerator):
             # Write output
             js_dir = js_path.parent
             js_dir.mkdir(parents=True, exist_ok=True)
-            js_path.write_text(minified_js)
+            js_path.write_text(minified_js, encoding='utf-8')
 
         except Exception as e:
             raise GenerationError(
@@ -591,3 +524,102 @@ class PageGenerator(BaseGenerator):
                 "Failed to copy template",
                 details={"error": str(e), "template": str(template_path)},
             )
+
+    @error_handler(log=True, raise_error=True)
+    def generate_taxonomy_tree_js(self, taxons: List[TaxonRef]) -> None:
+        """
+        Generate taxonomy tree JavaScript file.
+
+        Args:
+            taxons (List[niamoto.core.models.models.TaxonRef]): List of taxons to process
+
+        Raises:
+            GenerationError: If generation fails
+            OutputError: If file writing fails
+        """
+        js_path = self.output_dir / "js" / "taxonomy_tree.js"
+
+        try:
+            # Build tree structure
+            tree = self.build_taxonomy_tree(taxons)
+
+            # Generate and minify JavaScript
+            js_content = "const taxonomyData = " + json.dumps(tree, indent=4) + ";"
+            minified_js = rjsmin.jsmin(js_content)
+
+            # Write output
+            js_dir = js_path.parent
+            js_dir.mkdir(parents=True, exist_ok=True)
+            js_path.write_text(minified_js, encoding='utf-8')
+
+        except Exception as e:
+            raise GenerationError(
+                "Failed to generate taxonomy tree",
+                details={"error": str(e), "output_path": str(js_path)},
+            )
+
+    @error_handler(log=True, raise_error=True)
+    def generate_plot_js(self, plots: List[PlotRef]) -> None:
+        """
+        Generate plot JavaScript file.
+
+        Args:
+            plots (List[niamoto.core.models.models.PlotRef]): List of plots to process
+
+        Raises:
+            GenerationError: If generation fails
+            OutputError: If file writing fails
+        """
+        js_path = self.output_dir / "js" / "plot.js"
+
+        try:
+            # Get plot data
+            plot_list = self.get_plot_list(plots)
+
+            # Generate and minify JavaScript
+            js_content = "const plotList = " + json.dumps(plot_list, indent=4) + ";"
+            minified_js = rjsmin.jsmin(js_content)
+
+            # Write output
+            js_dir = js_path.parent
+            js_dir.mkdir(parents=True, exist_ok=True)
+            js_path.write_text(minified_js, encoding='utf-8')
+
+        except Exception as e:
+            raise GenerationError(
+                "Failed to generate plot",
+                details={"error": str(e), "output_path": str(js_path)},
+            )
+
+    @staticmethod
+    def _process_shape_geometry(geom: Any, shape: ShapeRef) -> Optional[Dict[str, Any]]:
+        """Process a single shape geometry."""
+        # Create GeoDataFrame
+        gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326")
+
+        # Get UTM zone
+        centroid = geom.centroid
+        zone_number = int((centroid.x + 180) // 6) + 1
+        zone_hemisphere = "N" if centroid.y >= 0 else "S"
+        utm_epsg = (
+            32600 + zone_number if zone_hemisphere == "N" else 32700 + zone_number
+        )
+
+        # Transform and simplify
+        gdf_utm = gdf.to_crs(f"EPSG:{utm_epsg}")
+        area_m2 = gdf_utm.geometry.area.iloc[0]
+        tolerance = (
+            5 * (area_m2 / (1000 * 1000000)) ** 0.25 if area_m2 > 1000000000 else 5
+        )
+
+        simplified_utm = gdf_utm.geometry.simplify(tolerance, preserve_topology=True)
+        gdf_wgs = gdf_utm.to_crs("EPSG:4326")
+
+        return {
+            "type": "Feature",
+            "id": shape.id,
+            "properties": {
+                "name": shape.label,
+            },
+            "geometry": mapping(gdf_wgs.geometry.iloc[0]),
+        }

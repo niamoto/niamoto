@@ -246,7 +246,7 @@ class ImporterService:
             CSVError: If separator cannot be detected
         """
         try:
-            with open(file_path, "r") as file:
+            with open(file_path, "r", encoding='utf-8') as file:
                 first_line = file.readline()
                 dialect = csv.Sniffer().sniff(first_line)
                 return str(dialect.delimiter)
@@ -275,7 +275,7 @@ class ImporterService:
         required_fields = {"id_taxon", "full_name", "authors"} | set(ranks)
 
         try:
-            df = pd.read_csv(file_path, sep=separator, on_bad_lines="warn")
+            df = pd.read_csv(file_path, sep=separator, on_bad_lines="warn", encoding='utf-8')
             csv_fields = set(df.columns)
             return required_fields - csv_fields
         except pd.errors.ParserError as e:

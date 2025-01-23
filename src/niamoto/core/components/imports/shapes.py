@@ -328,11 +328,12 @@ class ShapeImporter:
         """
         try:
             if file_path.endswith((".geojson", ".json")):
-                with open(file_path, "r") as f:
-                    data = json.load(f)
+                with open(file_path, "r", encoding='utf-8') as f:
+                    content = f.read()
+
                 tmp_path = str(Path(tmp_dir) / Path(file_path).name)
-                with open(tmp_path, "w") as f:
-                    json.dump(data, f)
+                with open(tmp_path, "w", encoding='utf-8') as f:
+                    f.write(content)
                 return tmp_path
             return file_path
         except Exception as e:
