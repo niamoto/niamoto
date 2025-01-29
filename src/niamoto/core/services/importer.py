@@ -13,7 +13,7 @@ from niamoto.core.components.imports.plots import PlotImporter
 from niamoto.core.components.imports.taxons import TaxonomyImporter
 from niamoto.core.components.imports.shapes import ShapeImporter
 from niamoto.common.database import Database
-from niamoto.core.utils.logging_utils import setup_logging
+from niamoto.common.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     FileReadError,

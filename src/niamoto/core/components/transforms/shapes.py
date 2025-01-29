@@ -53,7 +53,7 @@ class ShapeTransformer(BaseTransformer):
         self.config = Config()
 
     @error_handler(log=True, raise_error=True)
-    def calculate_shape_stats(self) -> None:
+    def process_group_transformations(self) -> None:
         """
         Calculate transforms for all shapes.
         """
@@ -64,14 +64,14 @@ class ShapeTransformer(BaseTransformer):
             self._run_with_progress(
                 items=shapes,
                 description="Processing shapes...",
-                process_method=self.process_shape,
+                process_method=self.process_group,
             )
 
         except Exception as e:
             raise ProcessError("Failed to calculate shape transforms") from e
 
     @error_handler(log=True, raise_error=True)
-    def process_shape(self, shape_ref: ShapeRef) -> None:
+    def process_group(self, shape_ref: ShapeRef) -> None:
         """
         Process a shape.
 

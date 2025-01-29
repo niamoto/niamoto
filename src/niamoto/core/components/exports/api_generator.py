@@ -10,7 +10,7 @@ from typing import Any, List, Optional, Dict, Union
 
 from niamoto.common.config import Config
 from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
-from niamoto.publish.common.base_generator import BaseGenerator
+from niamoto.core.components.exports.base_generator import BaseGenerator
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     GenerationError,

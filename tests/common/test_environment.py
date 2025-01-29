@@ -57,7 +57,7 @@ class TestEnvironment(unittest.TestCase):
         with patch.object(self.environment, "initialize") as mock_initialize:
             self.environment.reset()
 
-            # Verify that the existing database, configuration, web and api static_files have been deleted
+            # Verify that the existing database, configuration, web and api assets have been deleted
             mock_remove.assert_called_once_with(self.mock_config.database_path)
             mock_rmtree.assert_any_call(self.mock_config.output_paths["static_site"])
             mock_rmtree.assert_any_call(self.mock_config.output_paths["static_api"])

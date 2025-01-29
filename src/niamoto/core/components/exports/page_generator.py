@@ -25,14 +25,15 @@ from niamoto.common.exceptions import (
     DatabaseError,
     DataValidationError,
 )
+from niamoto.common.paths import PROJECT_ROOT
 from niamoto.common.utils import error_handler
 from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
-from niamoto.publish.common.base_generator import BaseGenerator
+from niamoto.core.components.exports.base_generator import BaseGenerator
 
 
 class PageGenerator(BaseGenerator):
     """
-    The PageGenerator class provides methods to generate static_files webpages for taxons.
+    The PageGenerator class provides methods to generate assets webpages for taxons.
     """
 
     def __init__(self, config: Config) -> None:
@@ -45,7 +46,7 @@ class PageGenerator(BaseGenerator):
         Returns:
             None
 
-        Sets the template directory, static_files source directory, output directory, and static_files destination directory.
+        Sets the template directory, assets source directory, output directory, and assets destination directory.
         Also configures the Jinja2 template environment.
         """
 
@@ -54,31 +55,37 @@ class PageGenerator(BaseGenerator):
         self.db = Database(config.database_path)
 
         # Setup paths
-        module_path = Path(__file__).parent
-        self.template_dir = module_path / "templates"
-        self.static_src_dir = module_path / "static_files"
+        self.template_dir = PROJECT_ROOT / "publish" / "templates"
+        self.static_src_dir = PROJECT_ROOT / "publish" / "assets"
         self.output_dir = Path(config.get_export_config.get("web", ""))
         self.json_output_dir = self.output_dir / "json"
 
         # Validate paths
+        self._validate_paths()
+
+        # Setup Jinja environment
+        self._init_jinja()
+
+    def _validate_paths(self) -> None:
+        """Valide l'existence des répertoires critiques."""
         if not self.template_dir.exists():
             raise TemplateError(str(self.template_dir), "Template directory not found")
         if not self.static_src_dir.exists():
-            raise TemplateError(
-                str(self.static_src_dir), "Static files directory not found"
-            )
+            raise TemplateError(str(self.static_src_dir), "Static files directory not found")
 
-        # Setup Jinja environment
+    def _init_jinja(self) -> None:
+        """Configure l'environnement Jinja2 avec des filtres personnalisés."""
         try:
             loader = jinja2.FileSystemLoader(searchpath=str(self.template_dir))
             self.template_env = jinja2.Environment(loader=loader)
-            # Add custom filters
-            self.template_env.filters["from_json"] = self._from_json
-            self.template_env.filters["numberformat"] = self._numberformat
+            self.template_env.filters.update({
+                "from_json": self._from_json,
+                "numberformat": self._numberformat
+            })
         except Exception as e:
             raise TemplateError(
                 str(self.template_dir),
-                f"Failed to setup template environment: {str(e)}",
+                f"Jinja initialization failed: {str(e)}",
             )
 
     @error_handler(log=True, raise_error=True)
