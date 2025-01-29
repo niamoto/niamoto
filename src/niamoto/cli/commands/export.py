@@ -79,12 +79,12 @@ def export_pages(group: Optional[str]) -> None:
 
         if group:
             print_info(f"Generating static pages for group: {group}")
-            generator.generate_content(group)
+            generator.export_data(group)
         else:
             print_info("Starting full pages generation...")
             for group in ["taxon", "plot", "shape"]:
                 print_info(f"Generating static pages for group: {group}")
-                generator.generate_content(group)
+                generator.export_data(group)
 
         print_success("Static pages generation completed")
 

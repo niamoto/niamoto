@@ -2,7 +2,6 @@
 This module contains the ShapeImporter class used to import shape data from various geospatial files into the database.
 """
 
-import json
 from pathlib import Path
 from typing import List, Dict, Any
 import tempfile
@@ -16,7 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef
-from niamoto.core.utils.logging_utils import setup_logging
+from niamoto.common.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     ShapeImportError,

@@ -26,7 +26,7 @@ from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseError, ProcessError
 from niamoto.common.utils.error_handler import error_handler
 from ...models import TaxonRef
-from ...utils.logging_utils import setup_logging
+from niamoto.common.utils.logging_utils import setup_logging
 
 
 class BaseTransformer(ABC):

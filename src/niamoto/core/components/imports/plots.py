@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.database import Database
 from niamoto.core.models import PlotRef
-from niamoto.core.utils.logging_utils import setup_logging
+from niamoto.common.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     PlotImportError,

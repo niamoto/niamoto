@@ -98,7 +98,7 @@ def process_transformations(group: Optional[str], csv_file: Optional[str]) -> No
 
         # Calculate statistics
         print_info(f"Transforming data for group: {group or 'all'}")
-        service.calculate_statistics(group_by=group, csv_file=csv_file)
+        service.transform_data(group_by=group, csv_file=csv_file)
         print_success("Data transformation completed")
 
     except Exception as e:
@@ -124,13 +124,13 @@ def transform_all() -> None:
         service = TransformerService(config.database_path, config)
 
         # Transform taxonomy data
-        service.calculate_statistics(group_by="taxon")
+        service.transform_data(group_by="taxon")
 
         # Transform plot data
-        service.calculate_statistics(group_by="plot")
+        service.transform_data(group_by="plot")
 
         # Transform shape data
-        service.calculate_statistics(group_by="shape")
+        service.transform_data(group_by="shape")
 
         print_success("All transformations completed successfully")
 

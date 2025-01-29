@@ -352,30 +352,30 @@ Lastly, the **presentation configuration** describes each **widget**’s **visua
 
 ---
 
-## Special Fields & Transformations
+### Special Fields & Transformations
 
-### Calculated Fields
+#### Calculated Fields
 
 - Use transformations like `"count"`, `"mean"`, `"top"`, `"bins"` etc. in `stats_config`.
 - They produce a JSON result stored in a single widget field.
 
-### Boolean Fields
+#### Boolean Fields
 
 - A transformation can produce an object like `{ true: X, false: Y }`, which you can display with a pie chart, for instance.
 
-### Geographical Fields
+#### Geographical Fields
 
 - A transformation `"coordinates"` or `"geometry_coords"` can produce a set of features.  
 - The `presentation_config` might specify a `map_panel` widget referencing that JSON.
 
-### Bins & Distribution
+#### Bins & Distribution
 
 - If you want to discretize data (DBH, altitude, rainfall), use `"bins"` in `stats_config`.
 - The resulting JSON (e.g., `{ bins: [...], counts: [...] }`) becomes the data for a bar or line chart in `presentation_config`.
 
 ---
 
-## Summary
+### Summary
 
 1. **`import.yml`** – Where are the raw data sources? (CSV, shapefile, DB table, etc.)  
 2. **`transform.yml`** – For each `group_by` (taxon, shape, plot), define `widgets_data` with transformations. Each widget becomes a JSON column in `_group_by` (taxon, shape, plot) table.  

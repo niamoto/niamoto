@@ -67,7 +67,7 @@ class PlotTransformer(BaseTransformer):
             raise FileError(plots_path, f"Error loading plots data: {str(e)}")
 
     @error_handler(log=True, raise_error=True)
-    def calculate_plot_stats(self) -> None:
+    def process_group_transformations(self) -> None:
         """
         Calculate transforms for all plots.
         """
@@ -77,13 +77,13 @@ class PlotTransformer(BaseTransformer):
             self.initialize_group_table()
 
             # Use the generic progress method
-            self._run_with_progress(plots, "Processing plots...", self.process_plot)
+            self._run_with_progress(plots, "Processing plots...", self.process_group)
 
         except Exception as e:
             raise ProcessError("Failed to calculate plot transforms") from e
 
     @error_handler(log=True, raise_error=True)
-    def process_plot(self, plot: PlotRef) -> None:
+    def process_group(self, plot: PlotRef) -> None:
         """Process a plot."""
 
         # Extract the plot ID

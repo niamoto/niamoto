@@ -109,7 +109,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /*!****************************!*\
   !*** ./dev/raphael.amd.js ***!
   \****************************/
-/*! no static_files transforms found */
+/*! no assets transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! ./raphael.core */ "./dev/raphael.core.js"), __webpack_require__(/*! ./raphael.svg */ "./dev/raphael.svg.js"), __webpack_require__(/*! ./raphael.vml */ "./dev/raphael.vml.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(R) {
@@ -125,7 +125,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!*****************************!*\
   !*** ./dev/raphael.core.js ***!
   \*****************************/
-/*! no static_files transforms found */
+/*! no assets transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! eve */ "./node_modules/eve-raphael/eve.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(eve) {
@@ -5553,7 +5553,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!****************************!*\
   !*** ./dev/raphael.svg.js ***!
   \****************************/
-/*! no static_files transforms found */
+/*! no assets transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! ./raphael.core */ "./dev/raphael.core.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(R) {
@@ -6989,7 +6989,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!****************************!*\
   !*** ./dev/raphael.vml.js ***!
   \****************************/
-/*! no static_files transforms found */
+/*! no assets transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(/*! ./raphael.core */ "./dev/raphael.core.js")], __WEBPACK_AMD_DEFINE_RESULT__ = (function(R) {
@@ -8000,7 +8000,7 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_
 /*!*****************************************!*\
   !*** ./node_modules/eve-raphael/eve.js ***!
   \*****************************************/
-/*! no static_files transforms found */
+/*! no assets transforms found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;// Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.
