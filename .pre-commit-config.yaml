@@ -52,4 +52,4 @@ repos:
         language: python
         pass_filenames: false
         files: ^pyproject\.toml$
-        stages: [commit]
+        stages: [pre-commit]
