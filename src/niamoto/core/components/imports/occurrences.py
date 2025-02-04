@@ -7,11 +7,16 @@ from typing import List, Tuple
 import pandas as pd
 import sqlalchemy
 from rich.console import Console
-from rich.progress import Progress
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    BarColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.database import Database
-from niamoto.core.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     OccurrenceImportError,
@@ -33,7 +38,6 @@ class OccurrenceImporter:
     def __init__(self, db: Database):
         self.db = db
         self.db_path = self.db.db_path
-        self.logger = setup_logging(component_name="import")
 
     @error_handler(log=True, raise_error=True)
     def analyze_data(self, csvfile: str) -> List[Tuple[str, str]]:
@@ -311,7 +315,15 @@ class OccurrenceImporter:
             chunk_size = 1000
             num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
 
-            with Progress() as progress:
+            progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeRemainingColumn(),
+            )
+
+            with progress:
                 task = progress.add_task(
                     "[green]Importing occurrences...", total=num_chunks
                 )

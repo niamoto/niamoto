@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Hashable
 import geopandas as gpd  # type: ignore
 import numpy as np
 import pandas as pd
-from sqlalchemy import Table, MetaData, Column, Integer
+from sqlalchemy import text
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
@@ -270,33 +270,45 @@ class PlotTransformer(BaseTransformer):
     def get_plot_occurrences(self, plot_id: int) -> list[dict[Hashable, Any]]:
         """Get plot occurrences using pivot table."""
         try:
-            occurrences_plots = Table(
-                self.group_config["pivot_table_name"],
-                MetaData(),
-                Column("id_occurrence", Integer, primary_key=True),
-                Column("id_plot", Integer, primary_key=True),
+            # Get occurrence IDs from pivot table
+            query = text(
+                """
+                SELECT id_occurrence
+                FROM {}
+                WHERE id_plot = :plot_id
+            """.format(self.group_config["pivot_table_name"])
             )
 
-            # Base query
-            query = self.db.session.query(occurrences_plots.c.id_occurrence).filter(
-                occurrences_plots.c.id_plot == plot_id
-            )
+            result = self.db.session.execute(query, {"plot_id": plot_id})
+            occurrence_ids = [row[0] for row in result]
 
-            # Apply filter if present in config
-            # if "filter" in self.group_config:
-            #     field = self.group_config["filter"].get("field")
-            #     value = self.group_config["filter"].get("value")
-            #     if field and value:
-            #         query = query.filter(
-            #             getattr(occurrences_plots.c, field) == value
-            #         )
+            if not occurrence_ids:
+                return []
 
-            occurrence_ids = [id[0] for id in query.all()]
-            return [
-                occ
-                for occ in self.occurrences
-                if occ[self.identifier] in occurrence_ids
-            ]
+            # Process IDs in batches to avoid SQLite limitations
+            batch_size = 500
+            all_occurrences = []
+
+            for i in range(0, len(occurrence_ids), batch_size):
+                batch_ids = occurrence_ids[i : i + batch_size]
+                ids_string = ",".join(str(id) for id in batch_ids)
+
+                query_occurrences = text(f"""
+                    SELECT *
+                    FROM occurrences
+                    WHERE id IN ({ids_string})
+                """)
+
+                result_batch = self.db.session.execute(query_occurrences)
+
+                for row in result_batch:
+                    row_dict = {}
+                    for column in result_batch.keys():
+                        row_dict[column] = getattr(row, column)
+                    all_occurrences.append(row_dict)
+
+            return all_occurrences
+
         except Exception as e:
             raise DatabaseError(
                 f"Failed to get plot occurrences for plot {plot_id}"

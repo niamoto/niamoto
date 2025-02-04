@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+from importlib import metadata
 
 from niamoto.cli.commands.base import (
     get_version_from_pyproject,
@@ -13,13 +14,21 @@ from niamoto.cli.commands.base import (
     display_next_steps,
     confirm_action,
 )
+from niamoto.common.exceptions import VersionError
 
 
 def test_get_version_from_pyproject_success(tmp_path, monkeypatch):
     """Test successful version retrieval from pyproject.toml"""
+
+    # Mock metadata.version to raise PackageNotFoundError
+    def mock_version(name):
+        raise metadata.PackageNotFoundError
+
+    monkeypatch.setattr(metadata, "version", mock_version)
+
     # Create a mock pyproject.toml with a valid version
     mock_content = """
-[tool.poetry]
+[tool.project]
 version = "1.0.0"
     """
     pyproject_path = tmp_path / "pyproject.toml"
@@ -38,19 +47,33 @@ version = "1.0.0"
 
 def test_get_version_from_pyproject_file_not_found(tmp_path, monkeypatch):
     """Test version retrieval when pyproject.toml doesn't exist"""
+
+    # Mock metadata.version to raise PackageNotFoundError
+    def mock_version(name):
+        raise metadata.PackageNotFoundError
+
+    monkeypatch.setattr(metadata, "version", mock_version)
+
     # Mock the path resolution to return a non-existent file
     pyproject_path = tmp_path / "nonexistent.toml"
 
     monkeypatch.setattr(Path, "resolve", lambda self: self)
     monkeypatch.setattr(Path, "__truediv__", lambda self, other: pyproject_path)
 
-    # Since @error_handler doesn't re-raise NiamotoError, we expect None to be returned
-    result = get_version_from_pyproject()
-    assert result is None
+    with pytest.raises(VersionError) as cm:
+        get_version_from_pyproject()
+    assert "not found" in str(cm.value).lower()
 
 
 def test_get_version_from_pyproject_invalid_content(tmp_path, monkeypatch):
     """Test version retrieval with invalid pyproject.toml content"""
+
+    # Mock metadata.version to raise PackageNotFoundError
+    def mock_version(name):
+        raise metadata.PackageNotFoundError
+
+    monkeypatch.setattr(metadata, "version", mock_version)
+
     # Create a mock pyproject.toml with invalid content
     mock_content = """
 [tool]
@@ -62,9 +85,9 @@ def test_get_version_from_pyproject_invalid_content(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "resolve", lambda self: self)
     monkeypatch.setattr(Path, "__truediv__", lambda self, other: pyproject_path)
 
-    # Since @error_handler doesn't re-raise NiamotoError, we expect None to be returned
-    result = get_version_from_pyproject()
-    assert result is None
+    with pytest.raises(VersionError) as cm:
+        get_version_from_pyproject()
+    assert "error reading version" in str(cm.value).lower()
 
 
 class TestRichCLI:

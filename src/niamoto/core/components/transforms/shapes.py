@@ -468,9 +468,10 @@ class ShapeTransformer(BaseTransformer):
                     point_geom = Point(point_geom.centroid)
 
                 return prepared_shape.contains(point_geom)
-            except Exception as er:
-                self.logger.warning(f"Invalid geometry string: {geo_str}. Error: {er}")
-                return False
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to parse geometry: {geo_str}. Error: {str(e)}"
+                )
 
         # Apply the filtering function to the DataFrame
         df_occurrences["is_within_shape"] = df_occurrences[
@@ -528,9 +529,6 @@ class ShapeTransformer(BaseTransformer):
                     valid_data = out_image[out_image != src.nodata]
 
                     if valid_data.size == 0:
-                        self.logger.warning(
-                            f"No data found within the shape for {layer_name}."
-                        )
                         return gpd.GeoDataFrame()
 
                     # Create a GeoDataFrame with all valid pixel values
@@ -545,9 +543,6 @@ class ShapeTransformer(BaseTransformer):
                     return gdf
                 except ValueError as e:
                     if "Input shapes do not overlap raster" in str(e):
-                        self.logger.warning(
-                            f"Shape does not overlap with raster {layer_name}."
-                        )
                         return gpd.GeoDataFrame()
                     else:
                         raise
@@ -685,8 +680,7 @@ class ShapeTransformer(BaseTransformer):
             # Calculate area in square meters and optionally log it
             area_m2 = gdf_utm.geometry.area.iloc[0]
             if log_area:
-                area_km2 = area_m2 / 1_000_000  # Convert to km²
-                self.logger.info(f"Processing geometry with area: {area_km2:.2f} km²")
+                print(f"Area: {area_m2 / 1_000_000:.2f} km²")
 
             # Calculate simplification tolerance
             # The formula adapts the tolerance based on the area, following these rules:
@@ -888,23 +882,11 @@ class ShapeTransformer(BaseTransformer):
                         point = parse_geometry(point_str)
                         idx.insert(pos, (point.x, point.y, point.x, point.y))
                     except ValueError as e:
-                        if "NaN value" in str(e):
-                            nan_count += 1
-                            if nan_count <= 10:  # Log only the first 10 NaN errors
-                                self.logger.warning(
-                                    f"NaN value encountered at position {pos}. Skipping this occurrence."
-                                )
-                            elif nan_count == 11:
-                                self.logger.warning(
-                                    "Additional NaN values encountered. Suppressing further NaN warnings."
-                                )
-                        else:
-                            self.logger.error(
-                                f"Error processing occurrence at position {pos}: {e}"
-                            )
-
-            if nan_count > 0:
-                self.logger.info(f"Total NaN values encountered: {nan_count}")
+                        nan_count += 1
+                        if nan_count > 100:
+                            raise ValueError(
+                                "More than 100 occurrences have invalid geometries"
+                            ) from e
 
             return idx
         except Exception as e:

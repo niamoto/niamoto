@@ -26,7 +26,6 @@ from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseError, ProcessError
 from niamoto.common.utils.error_handler import error_handler
 from ...models import TaxonRef
-from ...utils.logging_utils import setup_logging
 
 
 class BaseTransformer(ABC):
@@ -45,7 +44,6 @@ class BaseTransformer(ABC):
         db: Database,
         occurrences: list[dict[Hashable, Any]],
         group_config: dict,
-        log_component: str = "process",
     ):
         """
         Initializes the BaseTransformer.
@@ -68,7 +66,6 @@ class BaseTransformer(ABC):
         self.occurrence_identifier = occurrences_config.get("identifier", "id_taxonref")
 
         # Setup logging
-        self.logger = setup_logging(component_name=log_component)
         self.console = Console()
 
     @abstractmethod
@@ -188,8 +185,7 @@ class BaseTransformer(ABC):
         try:
             self.db.execute_sql(create_table_query)
         except Exception as e:
-            self.logger.error(f"Error creating table {table_name}: {e}")
-            raise
+            raise DatabaseError(f"Failed to create stats table {table_name}") from e
 
     @error_handler(log=True, raise_error=True)
     def _run_with_progress(

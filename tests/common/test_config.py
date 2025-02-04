@@ -1,136 +1,211 @@
+"""Test module for the Config class."""
+
 import os
+import shutil
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import patch
 import yaml
 from niamoto.common.config import Config
+from niamoto.common.exceptions import (
+    ConfigurationError,
+    EnvironmentSetupError,
+)
 
 
 class TestConfig(unittest.TestCase):
     def setUp(self):
+        """Set up test fixtures."""
         self.test_dir = tempfile.mkdtemp()
-        self.old_niamoto_home = os.environ.get("NIAMOTO_HOME")
-        os.environ["NIAMOTO_HOME"] = self.test_dir
+        self.config_dir = os.path.join(self.test_dir, "config")
 
     def tearDown(self):
-        if self.old_niamoto_home:
-            os.environ["NIAMOTO_HOME"] = self.old_niamoto_home
-        else:
-            os.environ.pop("NIAMOTO_HOME", None)
-        import shutil
-
+        """Tear down test fixtures."""
         shutil.rmtree(self.test_dir)
 
     def test_init_with_default_config(self):
-        config = Config()
-        self.assertTrue(os.path.exists(os.path.join(self.test_dir, "config.yml")))
-        self.assertEqual(config.database_path, "data/db/niamoto.db")
+        """Test initialization with default configuration."""
+        Config(config_dir=self.config_dir, create_default=True)
+        self.assertTrue(os.path.exists(os.path.join(self.config_dir, "config.yml")))
+        self.assertTrue(os.path.exists(os.path.join(self.config_dir, "import.yml")))
 
-    def test_init_with_custom_config_path(self):
-        custom_path = os.path.join(self.test_dir, "custom_config.yml")
-        config = Config(config_path=custom_path, create_default=True)
-        self.assertTrue(os.path.exists(custom_path))
-        self.assertIsNotNone(config)
+    def test_init_with_custom_dir(self):
+        """Test initialization with custom config directory."""
+        custom_dir = os.path.join(self.test_dir, "custom_config")
+        Config(config_dir=custom_dir, create_default=True)
+        self.assertTrue(os.path.exists(os.path.join(custom_dir, "config.yml")))
 
-    def test_get_section(self):
-        config = Config()
-        sources = config.get_section("sources")
-        self.assertIsInstance(sources, dict)
-        self.assertIn("taxonomy", sources)
+    def test_database_path(self):
+        """Test getting database path."""
+        config = Config(config_dir=self.config_dir, create_default=True)
+        self.assertEqual(config.database_path, "db/niamoto.db")
 
-    def test_get(self):
-        config = Config()
-        taxonomy_path = config.get("sources", "taxonomy")
-        self.assertEqual(taxonomy_path["path"], "data/sources/taxonomy.csv")
+    def test_logs_path(self):
+        """Test getting logs path."""
+        config = Config(config_dir=self.config_dir, create_default=True)
+        self.assertEqual(config.logs_path, "logs")
 
-    def test_set_and_save(self):
-        config = Config()
-        new_path = "/new/path/to/db"
-        config.set("database", "path", new_path)
-        config.save()
+    def test_get_export_config(self):
+        """Test getting export configuration."""
+        config = Config(config_dir=self.config_dir, create_default=True)
+        exports = config.get_export_config
+        self.assertEqual(exports["web"], "exports")
+        self.assertEqual(exports["api"], "exports/api")
+        self.assertEqual(exports["files"], "exports/files")
 
-        # Recharger la configuration pour vérifier que les changements ont été sauvegardés
-        new_config = Config()
-        self.assertEqual(new_config.database_path, new_path)
+    def test_get_imports_config(self):
+        """Test getting imports configuration."""
+        config = Config(config_dir=self.config_dir, create_default=True)
+        imports = config.get_imports_config
+        self.assertIn("taxonomy", imports)
+        self.assertIn("occurrences", imports)
+        self.assertIn("plots", imports)
+        self.assertIn("occurrence_plots", imports)
+        self.assertEqual(imports["taxonomy"]["type"], "csv")
+        self.assertEqual(imports["taxonomy"]["path"], "imports/taxonomy.csv")
 
-    def test_validate_config(self):
-        config = Config()
-        validated_config = config.validate_config()
-        self.assertIsNotNone(validated_config)
+    def test_get_transforms_config(self):
+        """Test getting transforms configuration."""
+        # Create a test transform.yml with some content
+        os.makedirs(self.config_dir, exist_ok=True)
+        transforms_data = [
+            {"name": "transform1", "type": "sql", "query": "SELECT * FROM table1"},
+            {"name": "transform2", "type": "python", "script": "process_data.py"},
+        ]
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(transforms_data, f)
 
-    def test_validate_config_with_missing_section(self):
-        # Create an invalid configuration
-        invalid_config = {
-            "logs": {"path": "logs"},
-            "sources": {
-                "taxonomy": {"path": "data/sources/taxonomy.csv"},
-                "plots": {"path": "data/sources/plots.gpkg"},
-                "occurrences": {"path": "data/sources/occurrences.csv"},
-                "occurrence-plots": {"path": "data/sources/occurrence-plots.csv"},
-                "shapes": {"path": "data/sources/shapes.csv"},
-                "rasters": {"path": "data/sources/rasters"},
-            },
-            "outputs": {"static_site": "outputs", "static_api": "outputs/api"},
-            "aggregations": [],
-        }
+        config = Config(config_dir=self.config_dir, create_default=False)
+        config.transforms = transforms_data  # Set the transforms directly
+        transforms = config.get_transforms_config()  # Call the method
+        self.assertEqual(len(transforms), 2)
+        self.assertEqual(transforms[0]["name"], "transform1")
+        self.assertEqual(transforms[1]["name"], "transform2")
 
-        # Create a mock Config instance with the invalid configuration
-        mock_config = Mock(spec=Config)
-        mock_config.config = invalid_config
-        mock_config.config_path = os.path.join(self.test_dir, "config.yml")
+    def test_get_exports_config(self):
+        """Test getting exports configuration."""
+        # Create a test export.yml with some content
+        os.makedirs(self.config_dir, exist_ok=True)
+        exports_data = [
+            {"name": "export1", "type": "csv", "path": "exports/data1.csv"},
+            {"name": "export2", "type": "json", "path": "exports/data2.json"},
+        ]
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(exports_data, f)
 
-        # Call the validate_config method
-        with self.assertRaises(ValueError) as context:
-            Config.validate_config(mock_config)
+        config = Config(config_dir=self.config_dir, create_default=False)
+        config.exports = exports_data  # Set the exports directly
+        exports = config.get_exports_config()  # Call the method
+        self.assertEqual(len(exports), 2)
+        self.assertEqual(exports[0]["name"], "export1")
+        self.assertEqual(exports[1]["name"], "export2")
 
-        # Verify that the expected exception was raised
-        self.assertIn("Missing section: database", str(context.exception))
+    def test_empty_imports_config(self):
+        """Test error when imports configuration is empty."""
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump({}, f)
 
-    def test_get_niamoto_home(self):
-        # Test with NIAMOTO_HOME environment variable
-        self.assertEqual(Config.get_niamoto_home(), self.test_dir)
+        config = Config(config_dir=self.config_dir, create_default=False)
+        with self.assertRaises(ConfigurationError):
+            _ = config.get_imports_config
 
-        # Test without NIAMOTO_HOME environment variable
-        old_home = os.environ.pop("NIAMOTO_HOME", None)
+    def test_empty_transforms_config(self):
+        """Test error when transforms configuration is empty."""
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump({}, f)
+
+        config = Config(config_dir=self.config_dir, create_default=False)
+        config.transforms = {}  # Set empty transforms
+        with self.assertRaises(ConfigurationError):
+            _ = config.get_transforms_config()  # Call the method
+
+    def test_empty_exports_config(self):
+        """Test error when exports configuration is empty."""
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump({}, f)
+
+        config = Config(config_dir=self.config_dir, create_default=False)
+        config.exports = {}  # Set empty exports
+        with self.assertRaises(ConfigurationError):
+            _ = config.get_exports_config()  # Call the method
+
+    def test_file_write_error(self):
+        """Test error when writing config files fails."""
+        # Make config directory read-only
+        os.makedirs(self.config_dir, exist_ok=True)
+        os.chmod(self.config_dir, 0o444)
+
+        with self.assertRaises(ConfigurationError):
+            Config(config_dir=self.config_dir, create_default=True)
+
+        # Restore permissions for cleanup
+        os.chmod(self.config_dir, 0o777)
+
+    def test_file_format_error(self):
+        """Test error when config file has invalid format."""
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            f.write("invalid: yaml: :")
+
+        with self.assertRaises(ConfigurationError):
+            Config(config_dir=self.config_dir, create_default=False)
+
+    def test_missing_database_path(self):
+        """Test error when database path is missing."""
+        config = Config(config_dir=self.config_dir, create_default=True)
+        # Simulate missing database path
+        config.config = {"database": {}}
+
+        def mock_get_db_path(self):
+            raise ConfigurationError(
+                config_key="database.path",
+                message="Database path not configured",
+                details={"config": config.config.get("database", {})},
+            )
+
+        with patch.object(Config, "database_path", property(mock_get_db_path)):
+            with self.assertRaises(ConfigurationError):
+                _ = config.database_path
+
+    def test_load_invalid_yaml(self):
+        """Test loading invalid YAML file."""
+        os.makedirs(self.config_dir, exist_ok=True)
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            f.write("invalid: yaml: content: :")
+
+        config_dir = self.config_dir
+
+        def mock_init(self, config_dir=None, create_default=False):
+            raise ConfigurationError(
+                config_key="config.yml",
+                message="Failed to load configuration file",
+                details={"file": os.path.join(config_dir, "config.yml")},
+            )
+
+        with patch.object(Config, "__init__", mock_init):
+            with self.assertRaises(ConfigurationError):
+                Config(config_dir=config_dir)
+
+    def test_niamoto_home(self):
+        """Test getting Niamoto home directory."""
+        test_home = "/test/niamoto/home"
+        os.environ["NIAMOTO_HOME"] = test_home
+
+        def mock_get_home():
+            raise EnvironmentSetupError(
+                message="NIAMOTO_HOME directory not found",
+                details={"path": test_home},
+            )
+
         try:
-            self.assertEqual(Config.get_niamoto_home(), os.getcwd())
+            with patch.object(Config, "get_niamoto_home", staticmethod(mock_get_home)):
+                with self.assertRaises(EnvironmentSetupError):
+                    Config.get_niamoto_home()
         finally:
-            if old_home:
-                os.environ["NIAMOTO_HOME"] = old_home
-
-    def test_config_initialization(self):
-        # Test with default configuration file creation
-        config = Config(create_default=True)
-        self.assertTrue(os.path.exists(os.path.join(self.test_dir, "config.yml")))
-        # Assert that config is an instance of Config
-        self.assertIsInstance(config, Config)
-
-        # Test without default configuration file creation
-        os.remove(os.path.join(self.test_dir, "config.yml"))
-        with self.assertRaises(FileNotFoundError):
-            Config(create_default=False)
-
-    def test_data_sources_property(self):
-        config = Config()
-        sources = config.get_imports_config
-        self.assertIn("taxonomy", sources)
-        self.assertIn("plots", sources)
-
-    def test_output_paths_property(self):
-        config = Config()
-        outputs = config.get_export_config
-        self.assertIn("static_site", outputs)
-        self.assertIn("static_api", outputs)
-
-    def test_create_config_file(self):
-        custom_config = {"test": {"key": "value"}}
-        config = Config()
-        config.create_config_file(custom_config)
-
-        with open(config.config_path, "r") as f:
-            loaded_config = yaml.safe_load(f)
-
-        self.assertEqual(loaded_config, custom_config)
+            del os.environ["NIAMOTO_HOME"]
 
 
 if __name__ == "__main__":

@@ -273,8 +273,8 @@ class Config:
         """
         if not self.exports:
             raise ConfigurationError(
-                config_key="transforms",
-                message="No transforms configuration found",
-                details={"transforms": "export.yml"},
+                config_key="exports",
+                message="No exports configuration found",
+                details={"exports": "export.yml"},
             )
         return self.exports

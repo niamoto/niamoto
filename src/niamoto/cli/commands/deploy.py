@@ -36,7 +36,9 @@ def get_output_dir(config: Config) -> str:
     output_dir = config.get_export_config.get("web")
     if not output_dir or not os.path.exists(output_dir):
         raise CommandError(
-            "deploy", "Output directory not found", details={"output_dir": output_dir}
+            command="deploy",
+            message="Output directory not found",
+            details={"output_dir": output_dir},
         )
     return output_dir
 
@@ -52,16 +54,11 @@ def get_output_dir(config: Config) -> str:
     default="gh-pages",
     help="Branch to deploy to",
 )
-@error_handler(log=True, raise_error=False, console_output=True)
+@error_handler(log=True, raise_error=True)
 def deploy_to_github(repo: str, branch: str) -> None:
     """Deploy to GitHub Pages."""
     config = Config()
     output_dir = get_output_dir(config)
-
-    if not output_dir or not os.path.exists(output_dir):
-        raise CommandError(
-            "github", "Output directory not found", details={"output_dir": output_dir}
-        )
 
     os.chdir(output_dir)
 
@@ -81,8 +78,8 @@ def deploy_to_github(repo: str, branch: str) -> None:
 
     except subprocess.CalledProcessError as e:
         raise CommandError(
-            "github",
-            f"Git command failed: {e.cmd}",
+            command="github",
+            message=f"Git command failed: {e.cmd}",
             details={"command": " ".join(e.cmd), "output": e.output, "error": e.stderr},
         )
 
@@ -93,7 +90,7 @@ def deploy_to_github(repo: str, branch: str) -> None:
     required=True,
     help="Netlify site ID",
 )
-@error_handler(log=True, raise_error=False, console_output=True)
+@error_handler(log=True, raise_error=True)
 def deploy_to_netlify(site_id: str) -> None:
     """Deploy to Netlify."""
     config = Config()
@@ -102,55 +99,49 @@ def deploy_to_netlify(site_id: str) -> None:
     # Check if Netlify CLI is installed
     try:
         version_check = subprocess.run(
-            ["netlify", "--version"],
-            check=True,
-            capture_output=True,
-            text=True
+            ["netlify", "--version"], check=True, capture_output=True, text=True
         )
         print_success(f"Using Netlify CLI version: {version_check.stdout.strip()}")
     except (subprocess.CalledProcessError, FileNotFoundError):
         raise CommandError(
-            "netlify",
-            "Netlify CLI not found. Please install it with: npm install -g netlify-cli",
+            command="netlify",
+            message="Netlify CLI not found. Please install it with: npm install -g netlify-cli",
             details={"setup": "https://docs.netlify.com/cli/get-started/"},
         )
 
     # Check if the site ID exists
     try:
         site_check = subprocess.run(
-            ["netlify", "sites:list"],
-            check=True,
-            capture_output=True,
-            text=True
+            ["netlify", "sites:list"], check=True, capture_output=True, text=True
         )
         if site_id not in site_check.stdout:
             raise CommandError(
-                "netlify",
-                f"Site ID '{site_id}' not found in your Netlify account",
-                details={"available_sites": site_check.stdout}
+                command="netlify",
+                message=f"Site ID '{site_id}' not found in your Netlify account",
+                details={"available_sites": site_check.stdout},
             )
     except subprocess.CalledProcessError as e:
         raise CommandError(
-            "netlify",
-            "Failed to verify site ID",
-            details={"error": e.stderr}
+            command="netlify",
+            message="Failed to verify site ID",
+            details={"error": e.stderr},
         )
 
     # Deploy to Netlify with more verbose output
     deploy_cmd = [
-        "netlify", "deploy",
+        "netlify",
+        "deploy",
         "--prod",
-        "--dir", output_dir,
-        "--site", site_id,
-        "--message", f"Deploy from CLI at {datetime.now().isoformat()}"
+        "--dir",
+        output_dir,
+        "--site",
+        site_id,
+        "--message",
+        f"Deploy from CLI at {datetime.now().isoformat()}",
     ]
     try:
-
         deploy_result = subprocess.run(
-            deploy_cmd,
-            check=True,
-            capture_output=True,
-            text=True
+            deploy_cmd, check=True, capture_output=True, text=True
         )
 
         print_success(f"Successfully deployed to Netlify site: {site_id}")
@@ -162,12 +153,12 @@ def deploy_to_netlify(site_id: str) -> None:
 
     except subprocess.CalledProcessError as e:
         raise CommandError(
-            "netlify",
-            "Netlify deployment failed",
+            command="netlify",
+            message="Netlify deployment failed",
             details={
                 "command": " ".join(deploy_cmd),
                 "output": e.stdout,
                 "error": e.stderr,
-                "exit_code": e.returncode
-            }
+                "exit_code": e.returncode,
+            },
         )

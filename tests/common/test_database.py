@@ -1,13 +1,13 @@
 import pytest
 from typing import Any
-from sqlalchemy.exc import InvalidRequestError, ProgrammingError
+from sqlalchemy.exc import InvalidRequestError, OperationalError
 from sqlalchemy.sql import text
 from sqlalchemy.orm import scoped_session
 from niamoto.core.models import Base, TaxonRef
 from niamoto.common.database import Database
 
-# Assuming you're using an in-memory DuckDB database for testing
-TEST_DATABASE_URI = "duckdb:///:memory:"
+# Assuming you're using an in-memory SQLite database for testing
+TEST_DATABASE_URI = "sqlite:///:memory:"
 
 
 @pytest.fixture
@@ -71,9 +71,9 @@ def test_add_instance_and_commit(test_database: Any, session: scoped_session) ->
 def test_access_nonexistent_column(test_database: Any, session: scoped_session) -> None:
     """
     Attempt to access a column that does not exist.
-    This should raise a ProgrammingError.
+    This should raise an OperationalError.
     """
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(OperationalError):
         # Use raw SQL to bypass Python attribute checks
         session.execute(text("SELECT nonexistent_column FROM taxon_ref")).fetchall()
 
@@ -83,9 +83,9 @@ def test_use_incorrect_table_name_in_query(
 ) -> None:
     """
     Use an incorrect table name in a query.
-    This should raise a ProgrammingError.
+    This should raise an OperationalError.
     """
-    with pytest.raises(ProgrammingError):
+    with pytest.raises(OperationalError):
         # Directly using SQL expression to simulate incorrect table name
         result = session.execute(text("SELECT * FROM non_existent_table"))
         result.fetchall()
@@ -145,3 +145,134 @@ def test_commit_session(test_database: Any, session: scoped_session) -> None:
     result = session.query(TaxonRef).filter_by(full_name="test_commit").first()
     assert result is not None
     assert result.full_name == "test_commit"
+
+
+def test_has_table(test_database: Any) -> None:
+    """Test checking if a table exists."""
+    # TaxonRef table should exist as it was created in the fixture
+    assert test_database.has_table("taxon_ref") is True
+    # Non-existent table should return False
+    assert test_database.has_table("non_existent_table") is False
+
+
+def test_execute_select(test_database: Any, session: scoped_session) -> None:
+    """Test executing a SELECT query."""
+    # Add test data
+    dummy_instance = TaxonRef(full_name="test_select")
+    test_database.add_instance_and_commit(dummy_instance)
+
+    # Execute SELECT query
+    result = test_database.execute_select(
+        "SELECT full_name FROM taxon_ref WHERE full_name = 'test_select'"
+    )
+    assert result is not None
+    row = result.fetchone()
+    assert row is not None
+    assert row[0] == "test_select"
+
+    # Test with invalid SQL
+    with pytest.raises(Exception):
+        test_database.execute_select("SELECT * FROM non_existent_table")
+
+
+def test_execute_sql(test_database: Any, session: scoped_session) -> None:
+    """Test executing raw SQL queries."""
+    # Test INSERT
+    test_database.execute_sql("INSERT INTO taxon_ref (full_name) VALUES ('test_sql')")
+
+    # Test SELECT with fetch=True
+    result = test_database.execute_sql(
+        "SELECT full_name FROM taxon_ref WHERE full_name = 'test_sql'", fetch=True
+    )
+    assert result is not None
+    assert result[0] == "test_sql"
+
+    # Test invalid SQL
+    with pytest.raises(Exception):
+        test_database.execute_sql("SELECT * FROM non_existent_table")
+
+
+def test_rollback_session(test_database: Any, session: scoped_session) -> None:
+    """Test rolling back a session."""
+    # Add an instance but don't commit
+    dummy_instance = TaxonRef(full_name="test_rollback")
+    session.add(dummy_instance)
+
+    # Rollback the session
+    test_database.rollback_session()
+
+    # Verify the instance was not committed
+    result = session.query(TaxonRef).filter_by(full_name="test_rollback").first()
+    assert result is None
+
+
+def test_transaction_lifecycle(test_database: Any) -> None:
+    """Test the complete transaction lifecycle."""
+    # Begin transaction
+    test_database.begin_transaction()
+    assert test_database.active_transaction is True
+
+    # Try to begin another transaction (should fail)
+    with pytest.raises(Exception):
+        test_database.begin_transaction()
+
+    # Add some data
+    dummy_instance = TaxonRef(full_name="test_transaction")
+    test_database.session.add(dummy_instance)
+
+    # Commit transaction
+    test_database.commit_transaction()
+    assert test_database.active_transaction is False
+
+    # Verify data was committed
+    result = (
+        test_database.session.query(TaxonRef)
+        .filter_by(full_name="test_transaction")
+        .first()
+    )
+    assert result is not None
+    assert result.full_name == "test_transaction"
+
+
+def test_transaction_rollback(test_database: Any) -> None:
+    """Test rolling back a transaction."""
+    # Begin transaction
+    test_database.begin_transaction()
+    assert test_database.active_transaction is True
+
+    # Add some data
+    dummy_instance = TaxonRef(full_name="test_transaction_rollback")
+    test_database.session.add(dummy_instance)
+
+    # Rollback transaction
+    test_database.rollback_transaction()
+    assert test_database.active_transaction is False
+
+    # Verify data was not committed
+    result = (
+        test_database.session.query(TaxonRef)
+        .filter_by(full_name="test_transaction_rollback")
+        .first()
+    )
+    assert result is None
+
+
+def test_transaction_errors(test_database: Any) -> None:
+    """Test transaction error cases."""
+    # Try to commit without active transaction
+    with pytest.raises(Exception):
+        test_database.commit_transaction()
+
+    # Try to rollback without active transaction
+    with pytest.raises(Exception):
+        test_database.rollback_transaction()
+
+    # Begin transaction
+    test_database.begin_transaction()
+
+    # Try to begin another transaction
+    with pytest.raises(Exception):
+        test_database.begin_transaction()
+
+    # Clean up
+    test_database.rollback_transaction()

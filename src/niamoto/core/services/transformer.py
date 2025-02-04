@@ -9,7 +9,6 @@ import sqlalchemy
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
-from niamoto.core.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     ProcessError,
@@ -38,7 +37,6 @@ class TransformerService:
         self.db_path = db_path
         self.db = Database(db_path)
         self.config = config
-        self.logger = setup_logging(component_name="transform")
 
     @error_handler(log=True, raise_error=True)
     def calculate_statistics(

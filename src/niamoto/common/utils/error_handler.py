@@ -146,8 +146,8 @@ def handle_error(
         else:
             console.print(f"[red]✗ {error_message}[/red]")
 
-    # Only re-raise for unexpected errors
-    if raise_error and not isinstance(error, NiamotoError):
+    # Re-raise if requested
+    if raise_error:
         raise error
 
 
@@ -201,16 +201,11 @@ def setup_global_exception_handler() -> None:
         Global exception handler for unhandled exceptions.
         """
         if issubclass(exc_type, KeyboardInterrupt):
+            # Call the default handler for keyboard interrupt
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
 
-        logging.error(
-            "Unhandled exception",
-            exc_info=True,
-            extra={"error_details": get_error_details(exc_value)},
-        )
-        console.print(
-            "[red]An unexpected error occurred. Please check the logs for details.[/red]"
-        )
+        handle_error(exc_value, log=True, raise_error=False, console_output=True)
 
+    # Set the custom handler as the default
     sys.excepthook = global_exception_handler

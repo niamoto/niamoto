@@ -42,34 +42,49 @@ def import_taxonomy(csvfile: Optional[str], ranks: Optional[str]) -> None:
 
     If no file is provided, uses the path from import.yml.
     """
-    try:
-        config = Config()
+    # Get configuration
+    config = Config()
+
+    # Get file path and ranks from arguments or config
+    if csvfile is None or ranks is None:
         source_def = validate_source_config(
             config.imports, "taxonomy", ["path", "ranks"]
         )
-
-        # Get and validate path
-        file_path = csvfile or get_source_path(config, "taxonomy")
+        file_path = csvfile or source_def.get("path")
         rank_list = (ranks or source_def.get("ranks", "")).split(",")
+    else:
+        file_path = csvfile
+        rank_list = ranks.split(",")
 
-        if not rank_list:
-            raise ValidationError(
-                field="ranks",
-                message="Ranks must be specified",
-                details={"source": source_def},
-            )
+    # Validate file path
+    if not os.path.exists(file_path):
+        raise FileError(
+            file_path=file_path, message="File not found", details={"path": file_path}
+        )
 
-        # Import data
+    # Validate ranks
+    if not rank_list or not any(rank_list):
+        raise ValidationError(
+            field="taxonomy",
+            message="Missing required fields: ranks",
+            details={"missing": ["ranks"]},
+        )
+
+    # Import data
+    try:
         importer = ImporterService(config.database_path)
         reset_table(config.database_path, "taxon_ref")
-
         result = importer.import_taxonomy(file_path, tuple(rank_list))
         print_info(result)
-
+    except FileError as e:
+        raise FileError(
+            file_path=file_path,
+            message=f"File not found or has invalid format: {e}",
+            details={"path": file_path, "ranks": ranks},
+        )
     except Exception as e:
         raise DataImportError(
-            message="Taxonomy import failed",
-            details={"file": csvfile, "ranks": ranks, "error": str(e)},
+            message=str(e), details={"file": file_path, "ranks": ranks}
         )
 
 

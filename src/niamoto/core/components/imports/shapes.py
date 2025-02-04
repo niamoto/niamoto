@@ -2,21 +2,26 @@
 This module contains the ShapeImporter class used to import shape data from various geospatial files into the database.
 """
 
-import json
 from pathlib import Path
 from typing import List, Dict, Any
 import tempfile
 
 import fiona
 from pyproj import Transformer, CRS
-from rich.progress import Progress
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    BarColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
 from shapely.geometry.base import BaseGeometry
 from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.database import Database
 from niamoto.core.models import ShapeRef
-from niamoto.core.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     ShapeImportError,
@@ -43,7 +48,6 @@ class ShapeImporter:
             db (Database): The database connection.
         """
         self.db = db
-        self.logger = setup_logging(component_name="import")
 
     @error_handler(log=True, raise_error=True)
     def import_from_config(self, shapes_config: List[Dict[str, Any]]) -> str:
@@ -59,8 +63,9 @@ class ShapeImporter:
         Raises:
             ConfigurationError: If configuration is invalid
             FileReadError: If files cannot be read
-            ShapeImportError: If import fails
+            DataValidationError: If data is invalid
             DatabaseError: If database operations fail
+            ShapeImportError: If import operation fails
         """
         import_stats = {
             "processed": 0,
@@ -74,35 +79,108 @@ class ShapeImporter:
             # Validate configuration
             self._validate_config(shapes_config)
 
-            # Process each shape configuration
-            with Progress() as progress:
+            # Compter le nombre total de features
+            total_features = 0
+            for shape_info in shapes_config:
+                try:
+                    with fiona.open(shape_info["path"], "r") as src:
+                        total_features += len(src)
+                except Exception:
+                    # En cas d'erreur, on ignore pour le comptage
+                    pass
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TimeElapsedColumn(),
+                TextColumn("•"),
+                TimeRemainingColumn(),
+            ) as progress:
                 task = progress.add_task(
-                    "[green]Importing shapes...", total=len(shapes_config)
+                    description=f"[green]Importing {total_features} features...",
+                    total=total_features,
                 )
 
                 for shape_info in shapes_config:
-                    try:
-                        self._process_shape_file(shape_info, import_stats)
-                    except Exception as e:
-                        import_stats["errors"].append(
-                            f"Error processing {shape_info.get('category', 'unknown')}: {str(e)}"
-                        )
-                    finally:
-                        progress.update(task, advance=1)
+                    file_path = Path(shape_info["path"])
+                    # Vérifier explicitement que le fichier existe
+                    if not file_path.exists():
+                        raise FileReadError(str(file_path), "Shape file not found")
 
-                # Commit changes
+                    try:
+                        # Tenter d'ouvrir le fichier avec Fiona
+                        with fiona.open(shape_info["path"], "r") as src:
+                            # Vérifier que le fichier possède un CRS
+                            if not src.crs_wkt:
+                                raise DataValidationError(
+                                    "Invalid shape file",
+                                    [
+                                        {
+                                            "error": "No CRS found",
+                                            "file": str(shape_info["path"]),
+                                        }
+                                    ],
+                                )
+                            transformer = self._setup_transformer(src.crs_wkt)
+
+                            # Traiter chaque feature du fichier
+                            for feature in src:
+                                try:
+                                    if not self._is_valid_feature(feature):
+                                        import_stats["skipped"] += 1
+                                        continue
+
+                                    geom = shape(feature["geometry"])
+
+                                    # Correction automatique des géométries invalides
+                                    if not geom.is_valid:
+                                        from shapely.validation import make_valid
+
+                                        geom = make_valid(geom)
+
+                                    geom_wgs84 = self.transform_geometry(
+                                        geom, transformer
+                                    )
+                                    label = self._get_feature_label(feature, shape_info)
+                                    if not label:
+                                        import_stats["skipped"] += 1
+                                        continue
+
+                                    if self._update_or_create_shape(
+                                        label, shape_info, geom_wgs84, import_stats
+                                    ):
+                                        import_stats["added"] += 1
+                                    else:
+                                        import_stats["updated"] += 1
+
+                                    import_stats["processed"] += 1
+                                    progress.update(task, advance=1)
+                                except Exception as e:
+                                    import_stats["errors"].append(str(e))
+                                    import_stats["skipped"] += 1
+                    except Exception as e:
+                        # Pour toute erreur lors de l'ouverture ou du traitement du fichier,
+                        # lever une DataValidationError indiquant un format invalide.
+                        raise DataValidationError(
+                            "Invalid shape file format",
+                            [{"error": str(e), "file": str(shape_info["path"])}],
+                        )
+
                 try:
                     self.db.session.commit()
                 except SQLAlchemyError as e:
-                    raise DatabaseError(
-                        "Failed to commit changes", details={"error": str(e)}
-                    )
+                    raise DatabaseError(f"Database error: {str(e)}")
 
                 return self._format_result_message(import_stats)
 
         except Exception as e:
             self.db.session.rollback()
-            if isinstance(e, (ConfigurationError, FileReadError, DatabaseError)):
+            if isinstance(
+                e,
+                (ConfigurationError, FileReadError, DatabaseError, DataValidationError),
+            ):
                 raise
             raise ShapeImportError(
                 "Failed to import shapes",
@@ -127,6 +205,7 @@ class ShapeImporter:
 
         required_fields = ["category", "label", "path", "name_field"]
         for shape_info in shapes_config:
+            # Check for missing fields
             missing_fields = [
                 field for field in required_fields if field not in shape_info
             ]
@@ -135,6 +214,14 @@ class ShapeImporter:
                     "shapes",
                     "Missing required fields",
                     details={"missing_fields": missing_fields, "config": shape_info},
+                )
+
+            # Check for empty category
+            if not shape_info.get("category"):
+                raise ConfigurationError(
+                    "shapes",
+                    "Empty category field",
+                    details={"config": shape_info},
                 )
 
     @error_handler(log=True, raise_error=True)
@@ -253,7 +340,12 @@ class ShapeImporter:
     @staticmethod
     def _is_valid_feature(feature: Dict[str, Any]) -> bool:
         """Check if feature has required data."""
-        return bool(feature.get("geometry") and feature.get("properties"))
+        if not feature.get("geometry") or not feature.get("properties"):
+            return False
+
+        # Check for empty geometry
+        geom = shape(feature["geometry"])
+        return not geom.is_empty
 
     @staticmethod
     def _get_feature_label(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:
@@ -306,6 +398,9 @@ class ShapeImporter:
         msg = f"{total} shapes imported ("
         msg += f"{stats['added']} new, {stats['updated']} updated)"
 
+        if stats["skipped"] > 0:
+            msg += f", {stats['skipped']} skipped"
+
         if stats["errors"]:
             msg += "\nErrors encountered:\n"
             msg += "\n".join(f"- {error}" for error in stats["errors"])
@@ -328,11 +423,11 @@ class ShapeImporter:
         """
         try:
             if file_path.endswith((".geojson", ".json")):
-                with open(file_path, "r", encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
                 tmp_path = str(Path(tmp_dir) / Path(file_path).name)
-                with open(tmp_path, "w", encoding='utf-8') as f:
+                with open(tmp_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 return tmp_path
             return file_path

@@ -6,13 +6,18 @@ from pathlib import Path
 from typing import Tuple, Optional, Any
 
 import pandas as pd
-from rich.progress import track
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    BarColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.database import Database
 from niamoto.core.models import TaxonRef
-from niamoto.core.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     TaxonomyImportError,
@@ -38,7 +43,6 @@ class TaxonomyImporter:
             db (Database): The database connection.
         """
         self.db = db
-        self.logger = setup_logging(component_name="import")
 
     @error_handler(log=True, raise_error=True)
     def import_from_csv(self, file_path: str, ranks: Tuple[str, ...]) -> str:
@@ -177,14 +181,24 @@ class TaxonomyImporter:
 
         try:
             with self.db.session() as session:
-                for rank in ranks:
-                    rank_taxons = df[df["rank"] == rank]
+                # Calculer le nombre total de taxons à traiter
+                total_taxons = sum(len(df[df["rank"] == rank]) for rank in ranks)
 
-                    for _, row in track(
-                        rank_taxons.iterrows(),
-                        total=rank_taxons.shape[0],
-                        description=f"[green]Importing {rank}",
-                    ):
+                progress = Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                    TimeRemainingColumn(),
+                    refresh_per_second=10,  # Rafraîchir plus souvent
+                )
+
+                with progress:
+                    task = progress.add_task(
+                        "[green]Importing taxons", total=total_taxons
+                    )
+
+                    for _, row in df.iterrows():
                         try:
                             taxon = self._create_or_update_taxon(row, session, ranks)
                             if taxon is not None:
@@ -194,6 +208,15 @@ class TaxonomyImporter:
                                 f"Database error while processing taxon: {str(e)}",
                             )
 
+                        # Mise à jour de la barre de progression
+                        progress.update(task, advance=1)
+
+                        # Commit et mise à jour des valeurs nested set après chaque rang
+                        if imported_count > 0 and imported_count % 1000 == 0:
+                            session.commit()
+                            self._update_nested_set_values(session)
+
+                    # Commit final et mise à jour des valeurs nested set
                     session.commit()
                     self._update_nested_set_values(session)
 

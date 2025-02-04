@@ -13,7 +13,6 @@ from niamoto.common.config import Config
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
 from niamoto.publish import PageGenerator
 from niamoto.publish.static_api import ApiGenerator
-from niamoto.core.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     GenerationError,
@@ -40,7 +39,6 @@ class ExporterService:
         self.api_generator = ApiGenerator(config)
         self.repository = NiamotoRepository(self.db_path)
         self.exports_config = config.get_exports_config()
-        self.logger = setup_logging(component_name="export")
 
     @error_handler(log=True, raise_error=True)
     def generate_content(self, group: Optional[str] = None) -> None:

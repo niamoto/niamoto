@@ -13,7 +13,6 @@ from niamoto.core.components.imports.plots import PlotImporter
 from niamoto.core.components.imports.taxons import TaxonomyImporter
 from niamoto.core.components.imports.shapes import ShapeImporter
 from niamoto.common.database import Database
-from niamoto.core.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     FileReadError,
@@ -36,7 +35,6 @@ class ImporterService:
             db_path: Path to the database file
         """
         self.db = Database(db_path)
-        self.logger = setup_logging(component_name="import")
         self.taxonomy_importer = TaxonomyImporter(self.db)
         self.occurrence_importer = OccurrenceImporter(self.db)
         self.plot_importer = PlotImporter(self.db)
@@ -246,7 +244,7 @@ class ImporterService:
             CSVError: If separator cannot be detected
         """
         try:
-            with open(file_path, "r", encoding='utf-8') as file:
+            with open(file_path, "r", encoding="utf-8") as file:
                 first_line = file.readline()
                 dialect = csv.Sniffer().sniff(first_line)
                 return str(dialect.delimiter)
@@ -275,7 +273,9 @@ class ImporterService:
         required_fields = {"id_taxon", "full_name", "authors"} | set(ranks)
 
         try:
-            df = pd.read_csv(file_path, sep=separator, on_bad_lines="warn", encoding='utf-8')
+            df = pd.read_csv(
+                file_path, sep=separator, on_bad_lines="warn", encoding="utf-8"
+            )
             csv_fields = set(df.columns)
             return required_fields - csv_fields
         except pd.errors.ParserError as e:

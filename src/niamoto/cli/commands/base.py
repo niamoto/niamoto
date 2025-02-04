@@ -21,7 +21,7 @@ from niamoto.common.utils import error_handler
 NIAMOTO_ASCII_ART = """
 ┳┓┳┏┓┳┳┓┏┓┏┳┓┏┓
 ┃┃┃┣┫┃┃┃┃┃ ┃ ┃┃
-┛┗┻┛┗┛ ┗┗┛ ┻ ┗┛                                
+┛┗┻┛┗┛ ┗┗┛ ┻ ┗┛
 """
 
 
@@ -51,11 +51,11 @@ def get_version_from_pyproject() -> str:
             with pyproject_path.open("rb") as f:
                 pyproject_data = tomllib.load(f)
                 version = (
-                    pyproject_data.get("tool", {}).get("poetry", {}).get("version")
+                    pyproject_data.get("tool", {}).get("project", {}).get("version")
                 )
-                if not version:
+                if not isinstance(version, str):
                     raise VersionError(
-                        message="Version not found in pyproject.toml",
+                        message="Version not found or invalid in pyproject.toml",
                         details={"content": pyproject_data},
                     )
                 return version

@@ -78,6 +78,12 @@ class NiamotoRepository:
         Returns:
             list: A list of root nodes of the taxonomy tree.
         """
+        if taxons is None:
+            raise DataTransformError(
+                message="Failed to build taxonomy tree",
+                details={"error": "Input taxons cannot be None"},
+            )
+
         try:
             rank_order = {"Famille": 1, "Genus": 2, "Species": 3, "Variety": 4}
             sorted_taxons = sorted(taxons, key=lambda x: rank_order.get(x.rank_name, 5))
@@ -108,7 +114,10 @@ class NiamotoRepository:
         except Exception as e:
             raise DataTransformError(
                 message="Failed to build taxonomy tree",
-                details={"taxon_count": len(taxons), "error": str(e)},
+                details={
+                    "taxon_count": len(taxons) if taxons is not None else 0,
+                    "error": str(e),
+                },
             )
 
     @error_handler(log=True, raise_error=True)

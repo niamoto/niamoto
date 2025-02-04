@@ -44,4 +44,5 @@ def print_table(data: list[dict[str, Any]], title: str) -> None:
         for row in data:
             table.add_row(*[str(v) for v in row.values()])
 
-        console.print(table)
+    # Always print the table, even if empty
+    console.print(table)

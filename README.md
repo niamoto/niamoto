@@ -1,22 +1,33 @@
+# Niamoto
 
 [![PyPI - Version](https://img.shields.io/pypi/v/niamoto.svg)](https://pypi.org/project/niamoto)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/niamoto.svg)](https://pypi.org/project/niamoto)
+[![Tests](https://github.com/niamoto/niamoto/workflows/Tests/badge.svg)](https://github.com/niamoto/niamoto/actions)
+[![Documentation Status](https://readthedocs.org/projects/niamoto/badge/?version=latest)](https://niamoto.readthedocs.io/)
+[![Code Coverage](https://codecov.io/gh/niamoto/niamoto/branch/main/graph/badge.svg)](https://codecov.io/gh/niamoto/niamoto)
+
+Niamoto is a powerful CLI tool for managing and analyzing ecological data, with a focus on taxonomic data management, statistical analysis, and static website generation for ecological data visualization.
 
 -----
 
-**Table of Contents**
+## Table of Contents
 
 - [Introduction](#introduction)
 - [Installation](#installation)
 - [Initial Configuration](#initial-configuration)
 - [Development Environment Configuration](#development-environment-configuration)
-- [CSV File Format for Import](#csv-file-format-for-import)
+- [CSV File Format for Taxonomy Import](#csv-file-format-for-taxonomy-import)
 - [Niamoto CLI Commands](#niamoto-cli-commands)
-  - [Environment Management](#environment-management)
-  - [Data Import](#Data-Import)
-  - [Statistics Generation](#Statistics-Generation)
-  - [Content Generation and Deployment](#content-generation-and-deployment)
+  - [Environment Management](#1-initialize-or-check-your-environment)
+  - [Data Import](#2-import-data)
+  - [Data Transformation](#3-transform-data)
+  - [Content Export](#4-export-content)
+  - [Content Deployment](#5-deploy-content)
+- [Project Structure](#project-structure)
 - [Niamoto Configuration Overview](#niamoto-configuration-overview)
+  - [Import Configuration](#1-import-configuration)
+  - [Transform Configuration](#2-transform-configuration)
+  - [Export Configuration](#3-export-configuration)
 - [Static Type Checking and Testing with mypy and pytest](#static-type-checking-and-testing-with-mypy-and-pytest)
   - [Using mypy for Static Type Checking](#using-mypy-for-static-type-checking)
   - [Running Tests with pytest](#running-tests-with-pytest)
@@ -30,7 +41,7 @@ The Niamoto CLI is a tool designed to facilitate the configuration, initializati
 
 ## Installation
 
-```console
+```bash
 pip install niamoto
 ```
 
@@ -38,23 +49,22 @@ pip install niamoto
 
 After installation, initialize the Niamoto environment using the command:
 
-```
+```bash
 niamoto init
 ```
 
 This command will create the default configuration necessary for Niamoto to operate. Use the `--reset` option to reset the environment if it already exists.
 
-
 ## Development Environment Configuration
 
-To set up a development environment for Niamoto, you must have `Poetry` installed on your system. Poetry is a dependency management and packaging tool for Python.
+To set up a development environment for Niamoto, you must have `uv` installed on your system. UV is a fast Python package installer and resolver written in Rust.
 
-1. **Poetry Installation**:
+1. **UV Installation**:
 
-  To install Poetry, run the following command:
+  To install UV, run the following command:
 
   ```bash
-  curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+  curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 
 2. **Clone the Niamoto repository**:
@@ -65,28 +75,22 @@ To set up a development environment for Niamoto, you must have `Poetry` installe
   git clone https://github.com/niamoto/niamoto.git
   ```
 
-3. **Configure the development environment with Poetry**:
+3. **Configure the development environment with UV**:
 
-  Move into the cloned directory and install the dependencies with Poetry:
+  Move into the cloned directory and install the dependencies with UV:
+
   ```bash
   cd niamoto
-  poetry install
+  uv venv
+  source .venv/bin/activate  # On Unix/macOS
+  # or
+  .venv\Scripts\activate  # On Windows
+  uv pip install -e ".[dev]"
   ```
 
-4. **Activate the virtual environment**:
+4. **Editable Installation**:
 
-  Activate the virtual environment created by Poetry:
-  ```bash
-  poetry shell
-  ```
-
-5. **Editable Installation**:
-
-    If you want to install the project in editable mode (i.e., source code changes are immediately reflected without needing to reinstall the package), you can use the following command:
-
-```console
-pip install -e .
-```
+  The previous command already installed the project in editable mode (with the -e flag). This means source code changes are immediately reflected without needing to reinstall the package.
 
 ## CSV File Format for Taxonomy Import
 
@@ -102,7 +106,6 @@ To import taxonomic data into Niamoto, you must provide a structured CSV file wi
 | `id_species`   | Identifier of the species to which the taxon belongs  |
 | `id_infra`     | Infraspecific identifier of the taxon                 |
 | `authors`      | Authors of the taxon name                             |
-
 
 ### Niamoto CLI Commands
 
@@ -176,12 +179,12 @@ $ niamoto deploy github --repo <url>
 $ niamoto deploy netlify --site-id <id>
 ```
 
-
 ## Project Structure
 
 ```config/``` - YAML configuration files for data pipeline:
+
 - `config.yml`: Global configuration options
-- `import.yml`: Data source definitions (CSV, vector, raster)  
+- `import.yml`: Data source definitions (CSV, vector, raster)
 - `transform.yml`: Data transformation rules and calculations
 - `export.yml`: Widget and chart configurations
 
@@ -197,27 +200,27 @@ $ niamoto deploy netlify --site-id <id>
 
 Niamoto uses **three** primary YAML files to handle data ingestion, stats calculation, and page presentation:
 
-1. **`import.yml`** (Data Sources): 
-   - Lists and describes **where** to fetch the raw data (CSV paths, database tables, shapefiles, rasters, etc.).  
-   - Each source can specify type (`csv`, `vector`, `raster`), path, and any special parameters (identifiers, location fields, etc.).  
+1. **`import.yml`** (Data Sources):
+   - Lists and describes **where** to fetch the raw data (CSV paths, database tables, shapefiles, rasters, etc.).
+   - Each source can specify type (`csv`, `vector`, `raster`), path, and any special parameters (identifiers, location fields, etc.).
 
-2. **`transform.yml`** (Data Calculations): 
+2. **`transform.yml`** (Data Calculations):
    - Describes **what** computations or transformations to perform for each `group_by` (e.g., `taxon`, `plot`, `shape`).
    - Each block of `widgets_data` in the config defines **one output JSON field** (i.e., “widget data”) in the final stats table.
    - Transformations can be things like `count`, `bins`, `top`, `assemble_info`, or custom logic to produce aggregated results.
 
-3. **`export.yml`** (Widgets & Charts): 
+3. **`export.yml`** (Widgets & Charts):
    - Defines **which widgets** appear on the final pages and how they look (chart options, color schemes, labels, etc.).
    - Points to the JSON fields produced by the `import` via `source: my_widget_field`.
    - Contains chart.js–style configurations (datasets, labels, axes, legends, etc.).
 
 By splitting these responsibilities, Niamoto provides a more modular, maintainable, and scalable system.
 
----
+-----
 
-### 1) `import.yml` – Data Sources
+### 1. Import Configuration
 
-The **data configuration** file focuses on **where** each data source resides and how to interpret it.  
+The **data configuration** file focuses on **where** each data source resides and how to interpret it.
 Typical structure might look like:
 
 ```yaml
@@ -259,22 +262,22 @@ Typical structure might look like:
 
 ### Key Points
 
-- `type: "csv" | "vector" | "raster"` helps Niamoto decide which loader to use.  
-- Additional fields like `identifier`, `location_field`, or `name_field` specify how the data is keyed or geo-located.  
+- `type: "csv" | "vector" | "raster"` helps Niamoto decide which loader to use.
+- Additional fields like `identifier`, `location_field`, or `name_field` specify how the data is keyed or geo-located.
 - This config does **not** define transformations—just **data definitions** and **paths**.
 
----
+-----
 
-### 2) `transform.yml` – Calculations & Transformations
+### 2. Transform Configuration
 
 The **stats configuration** replaces the older notion of a single `fields:` mapping with a more flexible concept of **widgets_data**:
 
-- **`group_by`:** Identifies the entity type (e.g., `"taxon"`, `"plot"`, `"shape"`).  
-- **`identifier`:** The unique ID field for that entity.  
-- **`widgets_data`:** A dictionary (or list) of “widget names” (e.g., `general_info`, `dbh_distribution`) where each widget yields **one JSON** field in the final stats table.  
+- **`group_by`:** Identifies the entity type (e.g., `"taxon"`, `"plot"`, `"shape"`).
+- **`identifier`:** The unique ID field for that entity.
+- **`widgets_data`:** A dictionary (or list) of “widget names” (e.g., `general_info`, `dbh_distribution`) where each widget yields **one JSON** field in the final stats table.
 - **`transformations`:** A list of steps used to compute or aggregate data for that widget.
 
-### Example
+### import.yml Example
 
 ```yaml
   - group_by: "taxon"
@@ -283,6 +286,8 @@ The **stats configuration** replaces the older notion of a single `fields:` mapp
 
     widgets_data:
       general_info:
+        # On veut un champ JSON "general_info" qui combine plusieurs informations
+        # (ex: nom du taxon, rang, nombre d'occurrences…)
         transformations:
           - name: "collect_fields"
             fields:
@@ -306,25 +311,25 @@ The **stats configuration** replaces the older notion of a single `fields:` mapp
 
 Niamoto (or your stats calculator classes) will:
 
-1. Load data from the sources defined in `import.yml`.  
-2. For each widget in `widgets_data`, run the transformations.  
+1. Load data from the sources defined in `import.yml`.
+2. For each widget in `widgets_data`, run the transformations.
 3. Insert/Update a table named `{group_by}_stats` (e.g. `taxon_stats`) storing each widget’s output in a JSON field named after the widget (e.g. `general_info`, `dbh_distribution`, etc.).
 
----
+-----
 
-### 3) `export.yml` – Visualization
+### 3. Export Configuration
 
 Lastly, the **presentation configuration** describes each **widget**’s **visual layout**:
 
 - For a **given** `group_by`, we list multiple **widgets** (e.g., `general_info`, `map_panel`, `forest_cover`…).
 - Each widget has:
   - **`type:`** – `bar_chart`, `doughnut_chart`, `gauge`, `info_panel`, `map_panel`, etc.
-  - **`source:`** – The JSON field created by `stats_config`.  
+  - **`source:`** – The JSON field created by `stats_config`.
   - Chart.js–style `datasets:`, `options:` for advanced styling.
 
-### Example
+### export.yml Example
 
-```yam
+```yaml
   - group_by: "taxon"
     widgets:
       general_info:
@@ -350,7 +355,7 @@ Lastly, the **presentation configuration** describes each **widget**’s **visua
 
 **Key Takeaway**: The front-end or page generator uses these details to render each widget with the data from the corresponding JSON field (`source: dbh_distribution`).
 
----
+-----
 
 ## Special Fields & Transformations
 
@@ -365,7 +370,7 @@ Lastly, the **presentation configuration** describes each **widget**’s **visua
 
 ### Geographical Fields
 
-- A transformation `"coordinates"` or `"geometry_coords"` can produce a set of features.  
+- A transformation `"coordinates"` or `"geometry_coords"` can produce a set of features.
 - The `presentation_config` might specify a `map_panel` widget referencing that JSON.
 
 ### Bins & Distribution
@@ -373,12 +378,12 @@ Lastly, the **presentation configuration** describes each **widget**’s **visua
 - If you want to discretize data (DBH, altitude, rainfall), use `"bins"` in `stats_config`.
 - The resulting JSON (e.g., `{ bins: [...], counts: [...] }`) becomes the data for a bar or line chart in `presentation_config`.
 
----
+-----
 
 ## Summary
 
-1. **`import.yml`** – Where are the raw data sources? (CSV, shapefile, DB table, etc.)  
-2. **`transform.yml`** – For each `group_by` (taxon, shape, plot), define `widgets_data` with transformations. Each widget becomes a JSON column in `_group_by` (taxon, shape, plot) table.  
+1. **`import.yml`** – Where are the raw data sources? (CSV, shapefile, DB table, etc.)
+2. **`transform.yml`** – For each `group_by` (taxon, shape, plot), define `widgets_data` with transformations. Each widget becomes a JSON column in `_group_by` (taxon, shape, plot) table.
 3. **`export.yml`** – For each widget, define how it’s displayed (chart type, datasets, axes, etc.), referencing the JSON column by `source:`.
 
 This **cleanly decouples** data sources, data calculations, and final presentation. You can **change** any of these layers independently:
@@ -422,19 +427,39 @@ make html
 make markdown
 ```
 
+## Contributing
+
+We welcome contributions to Niamoto! Here's how you can help:
+
+1. Check for open issues or open a new issue to start a discussion around a feature idea or a bug
+2. Fork the repository on GitHub to start making your changes
+3. Write one or more tests which shows that the bug was fixed or that the feature works as expected
+4. Send a pull request and bug the maintainer until it gets merged and published 😉
+
+Please make sure to follow our coding standards:
+- Use [Black](https://github.com/psf/black) for code formatting
+- Add type hints to all functions
+- Write docstrings for all public functions
+- Add tests for new features
+
 ## License
 
 `niamoto` is distributed under the terms of the [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html) license.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each release.
 
 ## Appendix
 
 ### Complete Configuration Examples
-This appendix provides complete examples of the three main configuration files 
+
+This appendix provides complete examples of the three main configuration files
 used in Niamoto: config.yml, sources.yml, stats.yml, and presentation.yml.
 Complete Example 1: Species Distribution Analysis
 
-### config.yml   
+### config.yml
+
 ```yaml
 database:
   path: db/niamoto.db
@@ -447,6 +472,7 @@ exports:
 ```
 
 ### import.yml
+
 ```yaml
 # 1) The main basic "entities"
 taxonomy:
@@ -470,8 +496,8 @@ occurrences:
 occurrence_plots:
   type: "csv"
   path: "imports/occurrence-plots.csv"
-  role: "link"               
-  left_key: "id_occurrence"  
+  role: "link"
+  left_key: "id_occurrence"
   right_key: "id_plot"
 
 # 2) Multiple shapes (administrative areas, substrates, etc.)
@@ -557,6 +583,7 @@ layers:
 ```
 
 ### transform.yml
+
 ```yaml
 ##################################################################
 # 1) CONFIG POUR LES TAXONS
@@ -566,10 +593,10 @@ layers:
   source_table_name: occurrences
   source_location_field: geo_pt
   reference_table_name: taxon_ref
-  
+
   widgets_data:
     general_info:
-      # On veut un champ JSON "general_info" qui combine plusieurs informations 
+      # On veut un champ JSON "general_info" qui combine plusieurs informations
       # (ex: nom du taxon, rang, nombre d'occurrences…)
       transformations:
         - name: collect_fields
@@ -715,7 +742,7 @@ layers:
   source_table_name: occurrences
   reference_table_name: plot_ref
   pivot_table_name: occurrences_plots
-  filter: 
+  filter:
     field: source
     value: occ_ncpippn
 
@@ -726,7 +753,7 @@ layers:
         - name: collect_fields
           items:
             - source: plot_ref
-              field: locality 
+              field: locality
               key: "name"
             - source: plots
               field: elevation
@@ -739,11 +766,11 @@ layers:
             - source: plots
               field: holdridge
               key: "holdridge"
-              labels: ["Sec", "Humide", "Très humide"]
+              labels: ["Sec", "Humide", "Très Humide"]
             - source: plots
               field: substrat
               key: "substrat"
-              labels: 
+              labels:
                 UM: "Substrat ultramafique"
                 VS: "Substrat non ultramafique"
             - source: plots
@@ -760,9 +787,9 @@ layers:
       # Localisation de la parcelle
       transformations:
         - name: get_geometry
-          source: plots
-          source_field: geometry
-        # ex: un JSON "map" : { "coordinates": [...], "label": ... }
+          # Filtrer le shape_gdf pour en extraire shape_coords
+          # Filtrer forest_gdf pour en extraire forest_coords
+          # Renvoyer un JSON { "shape_coords": ..., "forest_coords": ... }
 
     top_families:
       transformations:
@@ -779,7 +806,7 @@ layers:
           target_ranks: ["espèce", "sous-espèce"]
           count: 10
         # ex: { "labels": [...], "values": [...] }
-        
+
 
     dbh_distribution:
       transformations:
@@ -852,7 +879,7 @@ layers:
           source_field: simpson
           max_value: 1
         # =>ex:{ "value": 0.5, "max": 1, "units": "" }
-        
+
 
     biomass:
       transformations:
@@ -886,7 +913,7 @@ layers:
               class_object: "land_area_ha"
               key: "land_area_ha"
               units: "ha"
-              format: "number"     
+              format: "number"
             - source: raw_data
               class_object: "forest_area_ha"
               key: "forest_area_ha"
@@ -957,7 +984,7 @@ layers:
               class_object: "cover_forestum"
             - label: "num"
               class_object: "cover_forestnum"
-          # Ton code itère sur param et lit row_shape_stats[(class_object == ...)] 
+          # Ton code itère sur param et lit row_shape_stats[(class_object == ...)]
           # pour "Forêt" et "Hors-forêt".
 
     # 4) CHAMP "land_use"
@@ -965,7 +992,7 @@ layers:
       transformations:
         - name: extract_by_class_object
           class_object: "land_use"
-          categories_order: 
+          categories_order:
             - "NUM"
             - "UM"
             - "Sec"
@@ -1048,6 +1075,7 @@ layers:
 ```
 
 ### export.yml
+
 ```yaml
 ##################################################################
 # 1) PRÉSENTATION POUR LES TAXONS
@@ -1092,7 +1120,7 @@ layers:
       datasets:
         - label: 'Occurrences'
           data_key: counts
-          generateColors: true 
+          generateColors: true
       labels_key: tops
       options:
         indexAxis: 'y'
@@ -1134,6 +1162,7 @@ layers:
           backgroundColor: "#4CAF50"
       labels_key: "bins"
       options:
+        indexAxis: "x"
         scales:
           y:
             title:
@@ -1145,20 +1174,20 @@ layers:
               text: "DBH (cm)"
 
     phenology_distribution:
-      type: line_chart   
+      type: line_chart
       title: "Phénologie"
       description: Phénologie des états fertiles (fleur, fruit) du taxon et de ses sous-taxons
       source: phenology_distribution
       datasets:
         - label: "Fleur"
           data_key: "month_data.fleur"
-          borderColor: "#FF9800"    
+          borderColor: "#FF9800"
           backgroundColor: "transparent"
           tension: 0.4
           pointRadius: 4
         - label: "Fruit"
           data_key: "month_data.fruit"
-          borderColor: "#4CAF50"    
+          borderColor: "#4CAF50"
           backgroundColor: "transparent"
           tension: 0.4
           pointRadius: 4
@@ -1193,12 +1222,9 @@ layers:
               usePointStyle: false
               padding: 20
               boxWidth: 30
-              color: '#666666'
-              font:
-                size: 12
-        layout:
-          padding:
-            top: 20
+          tooltip:
+            callbacks:
+              label: 'formatSubstratTooltip'
 
     holdridge_distribution:
       type: bar_chart
@@ -1440,7 +1466,7 @@ layers:
       datasets:
         - label: 'Occurrences'
           data_key: counts
-          generateColors: true 
+          generateColors: true
       labels_key: tops
       options:
         indexAxis: 'y'
@@ -1480,7 +1506,7 @@ layers:
       datasets:
         - label: 'Occurrences'
           data_key: counts
-          generateColors: true 
+          generateColors: true
       labels_key: tops
       options:
         indexAxis: 'y'
@@ -1718,7 +1744,7 @@ layers:
             range: [480, 640]
           - color: '#049f50'
             range: [640, 800]
-      
+
 ##################################################################
 # 3) PRÉSENTATION POUR LES SHAPES
 ##################################################################
@@ -1835,7 +1861,7 @@ layers:
             PPE: "#90CAF9"
             Concessions: "#E57373"
             Forêt: "#2E7D32"
-      labels_key: 'categories'
+      labels_key: 'categories'  # Utilise les catégories du JSON comme labels
       options:
         indexAxis: 'x'
         scales:
@@ -2066,8 +2092,6 @@ layers:
                 size: 12
             grid:
               display: false
-            ticks:
-              maxRotation: 0
           y:
             stacked: true
             grid:

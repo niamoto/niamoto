@@ -1,7 +1,7 @@
 """
 This test module contains unit tests for the Taxon model.
 It tests the basic CRUD operations (Create, Read, Update, Delete)
-on the TaxonRef model using a DuckDB in-memory database.
+on the TaxonRef model using a SQLite in-memory database.
 """
 
 import pytest
@@ -11,7 +11,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.engine import Engine
 from niamoto.core.models import Base, TaxonRef
 
-TEST_DATABASE_URI = "duckdb:///:memory:"  # or another test database URI
+TEST_DATABASE_URI = "sqlite:///:memory:"  # SQLite in-memory database for testing
 
 
 @pytest.fixture(scope="session")  # type: ignore
