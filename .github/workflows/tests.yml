@@ -37,16 +37,15 @@ jobs:
 
     - name: Run Ruff
       run: |
-        ruff check .
-        ruff format --check .
+        uv run ruff check .
 
 #    - name: Run MyPy
 #      run: |
-#        mypy src/niamoto
+#        uv run mypy src/niamoto
 
     - name: Run Tests
       run: |
-        pytest --cov=niamoto tests/ --cov-report=xml --cov-report=html
+        uv run pytest --cov=niamoto tests/ --cov-report=xml --cov-report=html
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
