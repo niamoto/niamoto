@@ -71,17 +71,18 @@ class PageGenerator(BaseGenerator):
         if not self.template_dir.exists():
             raise TemplateError(str(self.template_dir), "Template directory not found")
         if not self.static_src_dir.exists():
-            raise TemplateError(str(self.static_src_dir), "Static files directory not found")
+            raise TemplateError(
+                str(self.static_src_dir), "Static files directory not found"
+            )
 
     def _init_jinja(self) -> None:
         """Configure l'environnement Jinja2 avec des filtres personnalisés."""
         try:
             loader = jinja2.FileSystemLoader(searchpath=str(self.template_dir))
             self.template_env = jinja2.Environment(loader=loader)
-            self.template_env.filters.update({
-                "from_json": self._from_json,
-                "numberformat": self._numberformat
-            })
+            self.template_env.filters.update(
+                {"from_json": self._from_json, "numberformat": self._numberformat}
+            )
         except Exception as e:
             raise TemplateError(
                 str(self.template_dir),
@@ -123,7 +124,7 @@ class PageGenerator(BaseGenerator):
 
             # Write output
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(html_output, encoding='utf-8')
+            output_path.write_text(html_output, encoding="utf-8")
 
             return str(output_path)
 
@@ -321,15 +322,15 @@ class PageGenerator(BaseGenerator):
 
             # Write development version (readable)
             js_content = f"const shapeTypes = {json.dumps(shape_dict, indent=2)};"
-            js_path.write_text(js_content, encoding='utf-8')
+            js_path.write_text(js_content, encoding="utf-8")
 
             # Write minified version
             minified_path = js_path.with_suffix(".min.js")
             minified_content = f"const shapeTypes={minified_json};"
-            minified_path.write_text(minified_content, encoding='utf-8')
+            minified_path.write_text(minified_content, encoding="utf-8")
 
             # Write gzipped version
-            with gzip.open(str(js_path) + ".gz", "wt", encoding='utf-8') as f:
+            with gzip.open(str(js_path) + ".gz", "wt", encoding="utf-8") as f:
                 f.write(f"const shapeTypes = {json.dumps(shape_dict)};")
 
         except Exception as e:
@@ -365,7 +366,7 @@ class PageGenerator(BaseGenerator):
             # Write output
             js_dir = js_path.parent
             js_dir.mkdir(parents=True, exist_ok=True)
-            js_path.write_text(minified_js, encoding='utf-8')
+            js_path.write_text(minified_js, encoding="utf-8")
 
         except Exception as e:
             raise GenerationError(
@@ -557,7 +558,7 @@ class PageGenerator(BaseGenerator):
             # Write output
             js_dir = js_path.parent
             js_dir.mkdir(parents=True, exist_ok=True)
-            js_path.write_text(minified_js, encoding='utf-8')
+            js_path.write_text(minified_js, encoding="utf-8")
 
         except Exception as e:
             raise GenerationError(
@@ -590,7 +591,7 @@ class PageGenerator(BaseGenerator):
             # Write output
             js_dir = js_path.parent
             js_dir.mkdir(parents=True, exist_ok=True)
-            js_path.write_text(minified_js, encoding='utf-8')
+            js_path.write_text(minified_js, encoding="utf-8")
 
         except Exception as e:
             raise GenerationError(
@@ -619,7 +620,10 @@ class PageGenerator(BaseGenerator):
             5 * (area_m2 / (1000 * 1000000)) ** 0.25 if area_m2 > 1000000000 else 5
         )
 
-        simplified_utm = gdf_utm.geometry.simplify(tolerance, preserve_topology=True)
+        gdf_utm["geometry"] = gdf_utm.geometry.simplify(
+            tolerance, preserve_topology=True
+        )
+
         gdf_wgs = gdf_utm.to_crs("EPSG:4326")
 
         return {
