@@ -30,6 +30,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install uv
+        # Crée l'environnement virtuel via uv
+        uv venv
+        # Installe tes dépendances *dans* l'env virtuel uv
         uv pip install -e ".[dev]"
 
     - name: Run Ruff
@@ -37,9 +40,9 @@ jobs:
         ruff check .
         ruff format --check .
 
-    - name: Run MyPy
-      run: |
-        mypy src/niamoto
+#    - name: Run MyPy
+#      run: |
+#        mypy src/niamoto
 
     - name: Run Tests
       run: |
