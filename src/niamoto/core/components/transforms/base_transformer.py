@@ -52,7 +52,6 @@ class BaseTransformer(ABC):
             db (Database): The database connection.
             occurrences (list[dict[Hashable, Any]]): The occurrences.
             group_config (dict): Configuration for the group from transform.yml
-            log_component (str): Name of the logging component
         """
         self.db = db
         self.occurrences = occurrences

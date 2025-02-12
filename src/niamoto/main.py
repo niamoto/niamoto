@@ -10,7 +10,7 @@ from rich.console import Console
 from niamoto.cli import cli as create_cli
 from niamoto.common.exceptions import LoggingError, NiamotoError
 from niamoto.common.utils import error_handler, setup_global_exception_handler
-from niamoto.core.utils.logging_utils import setup_logging
+from niamoto.common.utils.logging_utils import setup_logging
 
 console = Console()
 

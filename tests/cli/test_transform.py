@@ -42,13 +42,13 @@ def test_successful_group_transform(runner):
             "niamoto.cli.commands.transform.TransformerService"
         ) as mock_service:
             mock_service_instance = mock_service.return_value
-            mock_service_instance.calculate_statistics.return_value = None
+            mock_service_instance.transform_data.return_value = None
 
             result = runner.invoke(transform_commands, ["--group", "taxon"])
 
             assert result.exit_code == 0
             assert "Transforming data for group: taxon" in result.output
-            mock_service_instance.calculate_statistics.assert_called_once_with(
+            mock_service_instance.transform_data.assert_called_once_with(
                 group_by="taxon", csv_file=None
             )
 
@@ -62,15 +62,15 @@ def test_successful_all_transform(runner):
             "niamoto.cli.commands.transform.TransformerService"
         ) as mock_service:
             mock_service_instance = mock_service.return_value
-            mock_service_instance.calculate_statistics.return_value = None
+            mock_service_instance.transform_data.return_value = None
 
             result = runner.invoke(transform_commands)
 
             assert result.exit_code == 0
             assert "Starting full data transformation" in result.output
             assert "All transformations completed successfully" in result.output
-            # Verify that calculate_statistics was called for each group
-            calls = mock_service_instance.calculate_statistics.call_args_list
+            # Verify that transform_data was called for each group
+            calls = mock_service_instance.transform_data.call_args_list
             assert len(calls) == 3
             assert calls[0][1]["group_by"] == "taxon"
             assert calls[1][1]["group_by"] == "plot"
@@ -101,7 +101,7 @@ def test_process_error(runner):
             "niamoto.cli.commands.transform.TransformerService"
         ) as mock_service:
             mock_service_instance = mock_service.return_value
-            mock_service_instance.calculate_statistics.side_effect = ProcessError(
+            mock_service_instance.transform_data.side_effect = ProcessError(
                 message="Data transforms failed", details={"group": "taxon"}
             )
 
@@ -126,7 +126,7 @@ def test_transform_with_csv(runner):
                 "niamoto.cli.commands.transform.TransformerService"
             ) as mock_service:
                 mock_service_instance = mock_service.return_value
-                mock_service_instance.calculate_statistics.return_value = None
+                mock_service_instance.transform_data.return_value = None
 
                 result = runner.invoke(
                     transform_commands, ["--group", "taxon", "--csv-file", "data.csv"]
@@ -134,6 +134,6 @@ def test_transform_with_csv(runner):
 
                 assert result.exit_code == 0
                 assert "Transforming data for group: taxon" in result.output
-                mock_service_instance.calculate_statistics.assert_called_once_with(
+                mock_service_instance.transform_data.assert_called_once_with(
                     group_by="taxon", csv_file="data.csv"
                 )

@@ -37,15 +37,10 @@ class TaxonTransformer(BaseTransformer):
             occurrences (list[dict[Hashable, Any]]): The occurrences data
             group_config (dict): Configuration for taxons from transform.yml
         """
-        super().__init__(
-            db=db,
-            occurrences=occurrences,
-            group_config=group_config,
-            log_component="transform",
-        )
+        super().__init__(db=db, occurrences=occurrences, group_config=group_config)
 
     @error_handler(log=True, raise_error=True)
-    def calculate_taxonomy_stats(self) -> None:
+    def process_group_transformations(self) -> None:
         """
         Calculate transforms for all taxonomies.
         """
@@ -60,13 +55,13 @@ class TaxonTransformer(BaseTransformer):
             self._run_with_progress(
                 items=taxons,
                 description="Processing taxons...",
-                process_method=self.process_taxon,
+                process_method=self.process_group,
             )
         except Exception as e:
             raise ProcessError("Failed to calculate taxonomy transforms") from e
 
     @error_handler(log=True, raise_error=True)
-    def process_taxon(self, taxon: TaxonRef) -> None:
+    def process_group(self, taxon: TaxonRef) -> None:
         """Process a taxon."""
         try:
             taxon_id = self._extract_taxon_id(taxon)

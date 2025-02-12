@@ -35,7 +35,7 @@ def test_export_pages_no_group(mock_config, mock_exporter):
 
     assert result.exit_code == 0
     mock_exporter.assert_called_once_with(mock_config_instance)
-    mock_exporter.return_value.generate_content.assert_has_calls(
+    mock_exporter.return_value.export_data.assert_has_calls(
         [mock.call("taxon"), mock.call("plot"), mock.call("shape")]
     )
 
@@ -51,7 +51,7 @@ def test_export_pages_with_group(mock_config, mock_exporter):
 
     assert result.exit_code == 0
     mock_exporter.assert_called_once_with(mock_config_instance)
-    mock_exporter.return_value.generate_content.assert_called_once_with("taxon")
+    mock_exporter.return_value.export_data.assert_called_once_with("taxon")
 
 
 def test_export_pages_invalid_group(mock_config):
@@ -86,7 +86,7 @@ def test_export_pages_template_error(mock_config, mock_exporter):
     mock_config_instance = mock_config.return_value
     mock_config_instance.exports = {"some": "config"}
     mock_exporter_instance = mock_exporter.return_value
-    mock_exporter_instance.generate_content.side_effect = TemplateError(
+    mock_exporter_instance.export_data.side_effect = TemplateError(
         template_name="test.html",
         message="Template error",
         details={"error": "Test error"},
@@ -105,7 +105,7 @@ def test_export_pages_generation_error(mock_config, mock_exporter):
     mock_config_instance = mock_config.return_value
     mock_config_instance.exports = {"some": "config"}
     mock_exporter_instance = mock_exporter.return_value
-    mock_exporter_instance.generate_content.side_effect = Exception("Test error")
+    mock_exporter_instance.export_data.side_effect = Exception("Test error")
 
     runner = CliRunner()
     result = runner.invoke(generate_commands, ["pages"])
@@ -125,6 +125,6 @@ def test_export_default_command(mock_config, mock_exporter):
 
     assert result.exit_code == 0
     mock_exporter.assert_called_once_with(mock_config_instance)
-    mock_exporter.return_value.generate_content.assert_has_calls(
+    mock_exporter.return_value.export_data.assert_has_calls(
         [mock.call("taxon"), mock.call("plot"), mock.call("shape")]
     )

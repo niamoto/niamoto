@@ -11,8 +11,8 @@ from sqlalchemy.sql import text
 from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from niamoto.common.config import Config
 from niamoto.core.repositories.niamoto_repository import NiamotoRepository
-from niamoto.publish import PageGenerator
-from niamoto.publish.static_api import ApiGenerator
+from niamoto.core.components.exports.page_generator import PageGenerator
+from niamoto.core.components.exports.api_generator import ApiGenerator
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     GenerationError,
@@ -41,7 +41,7 @@ class ExporterService:
         self.exports_config = config.get_exports_config()
 
     @error_handler(log=True, raise_error=True)
-    def generate_content(self, group: Optional[str] = None) -> None:
+    def export_data(self, group: Optional[str] = None) -> None:
         """
         Generate static content based on configuration.
 
@@ -92,7 +92,7 @@ class ExporterService:
             for group_config in configs:
                 group_by = group_config.get("group_by")
                 if group_by:
-                    self._generate_group_content(group_by, group_config)
+                    self._export_group_data(group_by, group_config)
 
             # Generate additional content
             self._generate_additional_content(group)
@@ -133,9 +133,7 @@ class ExporterService:
                 )
 
     @error_handler(log=True, raise_error=False)
-    def _generate_group_content(
-        self, group_by: str, group_config: Dict[str, Any]
-    ) -> None:
+    def _export_group_data(self, group_by: str, group_config: Dict[str, Any]) -> None:
         """
         Generate content for a specific group.
 

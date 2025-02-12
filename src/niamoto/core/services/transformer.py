@@ -3,12 +3,13 @@ Service for calculating transforms in Niamoto.
 """
 
 from pathlib import Path
-from typing import Any, Hashable, Optional, Dict, List
+from typing import Any, Hashable, Optional, Dict, List, Union
 import pandas as pd
 import sqlalchemy
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
+from niamoto.common.utils.logging_utils import setup_logging
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     ProcessError,
@@ -37,9 +38,33 @@ class TransformerService:
         self.db_path = db_path
         self.db = Database(db_path)
         self.config = config
+        self.logger = setup_logging(component_name="transform")
+
+    def create_transformer(
+        self,
+        group_type: str,
+        occurrences: List[Dict[Hashable, Any]],
+        group_config: Dict[str, Any],
+    ) -> Union[TaxonTransformer, PlotTransformer, ShapeTransformer]:
+        """Factory method pour créer le bon type de transformateur."""
+        transformers = {
+            "taxon": TaxonTransformer,
+            "plot": PlotTransformer,
+            "shape": ShapeTransformer,
+        }
+
+        transformer_class = transformers.get(group_type)
+        if not transformer_class:
+            raise ValidationError(
+                "group_type",
+                f"Type de transformateur invalide : {group_type}",
+                details={"types_valides": list(transformers.keys())},
+            )
+
+        return transformer_class(self.db, occurrences, group_config)
 
     @error_handler(log=True, raise_error=True)
-    def calculate_statistics(
+    def transform_data(
         self, csv_file: Optional[str] = None, group_by: Optional[str] = None
     ) -> None:
         """
@@ -85,11 +110,11 @@ class TransformerService:
                     raise ConfigurationError(
                         "transforms", f"No configuration found for group: {group_by}"
                     )
-                self.calculate_group_statistics(occurrences, group_stats)
+                self.transform_group_datas(occurrences, group_stats)
             else:
                 # Calculate for all groups
                 for group_stats in imports_config:
-                    self.calculate_group_statistics(occurrences, group_stats)
+                    self.transform_group_datas(occurrences, group_stats)
 
         except Exception as e:
             if isinstance(e, (ConfigurationError, ValidationError)):
@@ -97,6 +122,30 @@ class TransformerService:
             raise ProcessError(
                 f"Failed to calculate transforms: {str(e)}",
                 details={"group_by": group_by, "csv_file": csv_file, "error": str(e)},
+            )
+
+    @error_handler(log=True, raise_error=True)
+    def transform_group_datas(
+        self, occurrences: List[Dict[Hashable, Any]], group_config: Dict[str, Any]
+    ) -> None:
+        """
+        Calculate transforms for a group.
+        """
+        group_by = group_config.get("group_by")
+        if not group_by:
+            raise ValidationError("group_config", "Missing group_by in configuration")
+
+        try:
+            # Utilisation de la factory pour créer le transformateur
+            calculator = self.create_transformer(group_by, occurrences, group_config)
+            calculator.process_group_transformations()
+
+        except Exception as e:
+            if isinstance(e, ValidationError):
+                raise
+            raise CalculationError(
+                f"Failed to calculate {group_by} transforms",
+                details={"group": group_by, "error": str(e)},
             )
 
     @error_handler(log=True, raise_error=True)
@@ -143,46 +192,6 @@ class TransformerService:
                 raise
             raise DataTransformError(
                 f"Failed to load occurrences: {str(e)}", details={"error": str(e)}
-            )
-
-    @error_handler(log=True, raise_error=True)
-    def calculate_group_statistics(
-        self, occurrences: List[Dict[Hashable, Any]], group_config: Dict[str, Any]
-    ) -> None:
-        """
-        Calculate transforms for a group.
-
-        Args:
-            occurrences: List of occurrences
-            group_config: Group configuration
-
-        Raises:
-            CalculationError: If calculation fails
-            ValidationError: If configuration is invalid
-        """
-        group_by = group_config.get("group_by")
-        if not group_by:
-            raise ValidationError("group_config", "Missing group_by in configuration")
-
-        try:
-            if group_by == "taxon":
-                calculator = TaxonTransformer(self.db, occurrences, group_config)
-                calculator.calculate_taxonomy_stats()
-            elif group_by == "plot":
-                calculator = PlotTransformer(self.db, occurrences, group_config)
-                calculator.calculate_plot_stats()
-            elif group_by == "shape":
-                calculator = ShapeTransformer(self.db, occurrences, group_config)
-                calculator.calculate_shape_stats()
-            else:
-                raise ValidationError("group_by", f"Unknown group type: {group_by}")
-
-        except Exception as e:
-            if isinstance(e, ValidationError):
-                raise
-            raise CalculationError(
-                f"Failed to calculate {group_by} transforms",
-                details={"group": group_by, "error": str(e)},
             )
 
     @staticmethod
