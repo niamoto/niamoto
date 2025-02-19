@@ -1,4 +1,4 @@
-# commands/exporter.py
+# commands/exporter_old.py
 
 """
 Commands for generating static content from Niamoto data.
@@ -16,7 +16,7 @@ from niamoto.common.exceptions import (
     TemplateError,
 )
 from niamoto.common.utils.error_handler import error_handler
-from niamoto.core.services.exporter import ExporterService
+from niamoto.core.services.exporter_old import ExporterService
 from ..utils.console import print_success, print_info
 
 

@@ -369,56 +369,159 @@ class OccurrenceImporter:
             if not Path(file_path).exists():
                 raise FileReadError(file_path, "File not found")
 
-            # Analyze structure
-            column_schema = self.analyze_data(file_path)
+            # Read CSV data
+            df = pd.read_csv(file_path)
 
-            try:
-                # Create table
-                self.db.execute_sql("DROP TABLE IF EXISTS occurrences_plots;")
-                columns_sql = ", ".join(
-                    f"{col_name} {col_type}" for col_name, col_type in column_schema
-                )
-                self.db.execute_sql(f"CREATE TABLE occurrences_plots ({columns_sql});")
+            # Convertir les colonnes en entiers
+            df["id_plot"] = df["id_plot"].astype("Int64")
+            df["id_occurrence"] = df["id_occurrence"].astype("Int64")
 
-                # Import data
-                df = pd.read_csv(file_path)
-                engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
+            print("CSV data head:")
+            print(df.head())
+            print("\nCSV dtypes:", df.dtypes)
 
-                # Process in chunks
-                chunk_size = 1000
-                num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
+            # Get plot_ref data for mapping id_locality to id
+            plot_ref_query = """
+                SELECT id, id_locality
+                FROM plot_ref
+            """
+            plot_ref_df = pd.read_sql(plot_ref_query, f"sqlite:///{self.db_path}")
+            plot_ref_df["id"] = plot_ref_df["id"].astype("Int64")
+            plot_ref_df["id_locality"] = plot_ref_df["id_locality"].astype("Int64")
 
-                with Progress() as progress:
-                    task = progress.add_task(
-                        "[green]Importing links...", total=num_chunks
+            print("\nplot_ref data head:")
+            print(plot_ref_df.head())
+            print("\nplot_ref dtypes:", plot_ref_df.dtypes)
+
+            # Merge avec plot_ref pour obtenir le bon id
+            df_plots = pd.DataFrame(
+                {
+                    "id_locality": df[
+                        "id_plot"
+                    ]  # id_plot dans le CSV est en fait id_locality
+                }
+            )
+            df_plots = df_plots.merge(plot_ref_df, on="id_locality", how="left")
+
+            # Vérifier si des plots sont manquants
+            missing_plots = df_plots["id"].isna()
+            if missing_plots.any():
+                print("\nPlots manquants:")
+                print(f"id_locality: {df[missing_plots]['id_plot'].iloc[0]}")
+                print(f"Nombre total: {missing_plots.sum()}")
+
+            # Get occurrences data for mapping id_source to id
+            occurrences_query = """
+                SELECT id, id_source
+                FROM occurrences
+                WHERE source = 'occ_ncpippn'
+            """
+            occurrences_df = pd.read_sql(occurrences_query, f"sqlite:///{self.db_path}")
+            occurrences_df["id"] = occurrences_df["id"].astype("Int64")
+            occurrences_df["id_source"] = occurrences_df["id_source"].astype("Int64")
+
+            print("\noccurrences data head:")
+            print(occurrences_df.head())
+            print("\noccurrences dtypes:", occurrences_df.dtypes)
+
+            # Sauvegarder les colonnes originales dont nous avons besoin
+            original_columns = {
+                "plot_short_name": df["plot_short_name"],
+                "plot_full_name": df["plot_full_name"],
+                "occurrence_id_taxon": df["occurrence_id_taxon"],
+                "occurrence_taxon_full_name": df["occurrence_taxon_full_name"],
+            }
+
+            # Merge avec occurrences
+            df_occurrences = pd.DataFrame(
+                {
+                    "id_source": df[
+                        "id_occurrence"
+                    ]  # L'id_occurrence du CSV est en fait id_source
+                }
+            )
+            df_occurrences = df_occurrences.merge(
+                occurrences_df, on="id_source", how="left"
+            )
+
+            # Afficher un exemple d'ID manquant
+            missing_mask = df_occurrences["id"].isna()
+            if missing_mask.any():
+                missing_example = df[missing_mask].iloc[0]
+                print("\nExemple d'occurrence manquante:")
+                print(f"id_source: {missing_example['id_occurrence']}")
+                print(f"Nombre total d'occurrences manquantes: {missing_mask.sum()}")
+
+            # Filtrer les lignes sans occurrence
+            valid_mask = ~missing_mask
+            df = df[valid_mask]
+            df_occurrences = df_occurrences[valid_mask]
+
+            occurrence_ids = df_occurrences["id"]  # Les nouveaux IDs d'occurrence
+
+            # Créer le DataFrame final avec les bons IDs et les colonnes originales
+            new_df = pd.DataFrame()
+            new_df["id_occurrence"] = occurrence_ids
+            new_df["id_plot"] = df_plots["id"]  # Utiliser l'id de plot_ref
+            new_df["plot_short_name"] = original_columns["plot_short_name"]
+            new_df["plot_full_name"] = original_columns["plot_full_name"]
+            new_df["occurrence_id_taxon"] = original_columns["occurrence_id_taxon"]
+            new_df["occurrence_taxon_full_name"] = original_columns[
+                "occurrence_taxon_full_name"
+            ]
+
+            # Remplacer df par new_df
+            df = new_df
+
+            print("\nFinal data:")
+            print(df.head())
+            print("\nColumns:", df.columns.tolist())
+            print("\nDtypes:", df.dtypes)
+
+            # Create table
+            self.db.execute_sql("DROP TABLE IF EXISTS occurrences_plots;")
+
+            # Get column types from DataFrame
+            dtype_mapping = {
+                "int64": "INTEGER",
+                "float64": "REAL",
+                "object": "TEXT",
+                "bool": "INTEGER",
+            }
+
+            # Créer la définition des colonnes SQL
+            columns_def = []
+            for col_name in df.columns:
+                dtype = str(df.dtypes[col_name])
+                sql_type = dtype_mapping.get(
+                    dtype, "TEXT"
+                )  # TEXT par défaut si type inconnu
+                columns_def.append(f"{col_name} {sql_type}")
+
+            columns_sql = ", ".join(columns_def)
+            self.db.execute_sql(f"CREATE TABLE occurrences_plots ({columns_sql});")
+
+            # Import data
+            engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
+
+            # Process in chunks
+            chunk_size = 1000
+            num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
+
+            with Progress() as progress:
+                task = progress.add_task("[green]Importing links...", total=num_chunks)
+
+                for i in range(0, len(df), chunk_size):
+                    chunk = df.iloc[i : i + chunk_size]
+                    chunk.to_sql(
+                        "occurrences_plots", engine, if_exists="append", index=False
                     )
+                    progress.update(task, advance=1)
 
-                    for i in range(0, len(df), chunk_size):
-                        chunk = df.iloc[i : i + chunk_size]
-                        chunk.to_sql(
-                            "occurrences_plots", engine, if_exists="append", index=False
-                        )
-                        progress.update(task, advance=1)
-
-                # Get count
-                result = self.db.execute_sql(
-                    "SELECT COUNT(*) FROM occurrences_plots;", fetch=True
-                )
-                imported_count = result[0] if result else 0
-
-                return (
-                    f"{imported_count} occurrence-plot links imported from {file_path}"
-                )
-
-            except SQLAlchemyError as e:
-                raise DatabaseError(
-                    "Database error during link import", details={"error": str(e)}
-                )
+            return f"Successfully imported {len(df)} occurrence-plot links"
 
         except Exception as e:
-            if isinstance(e, (FileReadError, DatabaseError)):
-                raise
             raise OccurrenceImportError(
-                "Failed to import occurrence-plot links",
-                details={"file": csvfile, "error": str(e)},
+                message="Failed to import occurrence-plot links",
+                details={"error": str(e)},
             )

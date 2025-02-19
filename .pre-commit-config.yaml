@@ -50,6 +50,7 @@ repos:
         name: Generate Requirements Files
         entry: python scripts/generate_requirements.py
         language: python
+        types: [python]
         pass_filenames: false
-        files: ^pyproject\.toml$
-        stages: [pre-commit]
+        stages: [commit]
+        always_run: true

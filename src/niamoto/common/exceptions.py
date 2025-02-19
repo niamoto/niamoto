@@ -237,3 +237,9 @@ class ValidationError(NiamotoError):
     def __init__(self, field: str, message: str, details: Optional[dict] = None):
         super().__init__(message, details)
         self.field = field
+
+
+class DataLoadError(NiamotoError):
+    """Raised when there is an error loading data."""
+
+    pass

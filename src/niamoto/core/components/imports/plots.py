@@ -256,6 +256,7 @@ class PlotImporter:
         )
         if not existing_plot:
             plot = PlotRef(
+                id=plot_id,
                 id_locality=plot_id,
                 locality=locality,
                 geometry=wkt_geometry,
