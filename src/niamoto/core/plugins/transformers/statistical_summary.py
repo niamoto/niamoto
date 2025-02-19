@@ -2,7 +2,7 @@
 Plugin for calculating statistical summaries.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pydantic import field_validator, Field
 
 import pandas as pd
@@ -19,9 +19,15 @@ class StatisticalSummaryConfig(PluginConfig):
     """Configuration for statistical summary plugin"""
 
     plugin: str = "statistical_summary"
-    source: str
-    field: Optional[str] = None
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "source": "",
+            "field": None,
+            "stats": ["min", "mean", "max"],
+            "units": "",
+            "max_value": 100,
+        }
+    )
 
     @field_validator("params")
     @classmethod
@@ -29,6 +35,11 @@ class StatisticalSummaryConfig(PluginConfig):
         """Validate params configuration."""
         if not isinstance(v, dict):
             raise ValueError("params must be a dictionary")
+
+        required_fields = ["source", "field"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Missing required field: {field}")
 
         if "stats" in v and not isinstance(v["stats"], list):
             raise ValueError("stats must be a list")
@@ -85,9 +96,9 @@ class StatisticalSummary(TransformerPlugin):
             max_value = params.get("max_value", 100)
 
             # Get source data if different from occurrences
-            if validated_config.source != "occurrences":
+            if params["source"] != "occurrences":
                 result = self.db.execute_select(f"""
-                    SELECT * FROM {validated_config.source}
+                    SELECT * FROM {params["source"]}
                 """)
                 data = pd.DataFrame(
                     result.fetchall(),
@@ -95,8 +106,8 @@ class StatisticalSummary(TransformerPlugin):
                 )
 
             # Get field data
-            if validated_config.field is not None:
-                field_data = data[validated_config.field]
+            if params["field"] is not None:
+                field_data = data[params["field"]]
             else:
                 field_data = data
 

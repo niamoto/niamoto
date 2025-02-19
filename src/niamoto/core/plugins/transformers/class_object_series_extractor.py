@@ -30,9 +30,9 @@ class ClassObjectSeriesConfig(PluginConfig):
     """Configuration for series extractor plugin"""
 
     plugin: str = "class_object_series_extractor"
-    source: str = "raw_shape_stats"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
+            "source": "raw_shape_stats",
             "class_object": "forest_fragmentation",
             "size_field": {
                 "input": "class_name",

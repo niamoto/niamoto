@@ -178,10 +178,13 @@ class TransformerService:
 
                                     # Transform data
                                     config = {
-                                        "source": widget_config.get("source"),
-                                        "field": widget_config.get("field"),
+                                        "plugin": widget_config["plugin"],
+                                        "params": {
+                                            "source": widget_config.get("source"),
+                                            "field": widget_config.get("field"),
+                                            **widget_config.get("params", {}),
+                                        },
                                         "group_id": group_id,
-                                        "params": widget_config.get("params", {}),
                                     }
 
                                     # Si des paramètres sont dans la racine, les déplacer dans params
@@ -319,9 +322,7 @@ class TransformerService:
                 {
                     "data": group_config["source"]["data"],
                     "grouping": group_config["source"]["grouping"],
-                    **group_config["source"][
-                        "relation"
-                    ],  # Ajoute plugin, key et fields
+                    **group_config["source"]["relation"],
                 },
             )
 

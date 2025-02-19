@@ -2,7 +2,7 @@
 Plugin for analyzing time series data.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pydantic import field_validator, Field
 
 import pandas as pd
@@ -19,9 +19,28 @@ class TimeSeriesAnalysisConfig(PluginConfig):
     """Configuration for time series analysis plugin"""
 
     plugin: str = "time_series_analysis"
-    source: str
-    field: Optional[str] = None
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "source": "",
+            "field": None,
+            "fields": {},
+            "time_field": "month_obs",
+            "labels": [
+                "Jan",
+                "Feb",
+                "Mar",
+                "Apr",
+                "May",
+                "Jun",
+                "Jul",
+                "Aug",
+                "Sep",
+                "Oct",
+                "Nov",
+                "Dec",
+            ],
+        }
+    )
 
     @field_validator("params")
     @classmethod
@@ -30,7 +49,7 @@ class TimeSeriesAnalysisConfig(PluginConfig):
         if not isinstance(v, dict):
             raise ValueError("params must be a dictionary")
 
-        required_fields = ["fields", "time_field"]
+        required_fields = ["source", "field", "fields", "time_field"]
         for field in required_fields:
             if field not in v:
                 raise ValueError(f"Missing required field: {field}")
@@ -105,9 +124,9 @@ class TimeSeriesAnalysis(TransformerPlugin):
             validated_config = self.config_model(**config)
 
             # Get source data if different from occurrences
-            if validated_config.source != "occurrences":
+            if validated_config.params["source"] != "occurrences":
                 result = self.db.execute_select(f"""
-                    SELECT * FROM {validated_config.source}
+                    SELECT * FROM {validated_config.params["source"]}
                 """)
                 data = pd.DataFrame(
                     result.fetchall(),

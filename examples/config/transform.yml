@@ -37,9 +37,9 @@
 
     distribution_map:
       plugin: geospatial_extractor
-      source: occurrences
-      field: geo_pt
       params:
+        source: occurrences
+        field: geo_pt
         format: geojson
       # ex:
       # {
@@ -57,21 +57,22 @@
 
     top_species:
       plugin: top_ranking
-      source: occurrences
       params:
+        source: occurrences
+        field: id_taxonref
         target_ranks: ["espèce", "sous-espèce"]
         count: 10
       # ex:
       # {
-      #   "tops": ["Espèce A", "Espèce B", "Espèce C"],
-      #   "counts": [150, 120, 85]
+      #   "tops": ["Taxon1", "Taxon2", "Taxon3"],
+      #   "counts": [10, 5, 2]
       # }
 
     distribution_substrat:
       plugin: binary_counter
-      source: occurrences
-      field: in_um
       params:
+        source: occurrences
+        field: in_um
         true_label: "um"
         false_label: "num"
       # ex:
@@ -82,8 +83,8 @@
 
     phenology_distribution:
       plugin: time_series_analysis
-      source: occurrences
       params:
+        source: occurrences
         fields:
           fleur: flower
           fruit: fruit
@@ -100,9 +101,9 @@
 
     dbh_distribution:
       plugin: binned_distribution
-      source: occurrences
-      field: dbh
       params:
+        source: occurrences
+        field: dbh
         bins: [10, 20, 30, 40, 50, 75, 100, 200, 300, 400, 500]
       # ex:
       # {
@@ -112,9 +113,9 @@
 
     dbh_max:
       plugin: statistical_summary
-      source: occurrences
-      field: dbh
       params:
+        source: occurrences
+        field: dbh
         stats: ["min", "mean", "max"]
         units: "cm"
         max_value: 500
@@ -129,9 +130,9 @@
 
     height_max:
       plugin: statistical_summary
-      source: occurrences
-      field: height
       params:
+        source: occurrences
+        field: height
         stats: ["max"]
         units: "m"
         max_value: 40
@@ -144,9 +145,9 @@
 
     elevation_distribution:
       plugin: binned_distribution
-      source: occurrences
-      field: elevation
       params:
+        source: occurrences
+        field: elevation
         bins: [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1700]
       # ex:
       # {
@@ -156,9 +157,9 @@
 
     wood_density:
       plugin: statistical_summary
-      source: occurrences
-      field: wood_density
       params:
+        source: occurrences
+        field: wood_density
         stats: ["min", "mean", "max"]
         units: "g/cm3"
         max_value: 1.2
@@ -172,9 +173,9 @@
 
     bark_thickness:
       plugin: statistical_summary
-      source: occurrences
-      field: bark_thickness
       params:
+        source: occurrences
+        field: bark_thickness
         stats: ["min", "mean", "max"]
         units: "mm"
         max_value: 80
@@ -188,9 +189,9 @@
 
     leaf_sla:
       plugin: statistical_summary
-      source: occurrences
-      field: leaf_sla
       params:
+        source: occurrences
+        field: leaf_sla
         stats: ["min", "mean", "max"]
         units: "g/m2"
         max_value: 50
@@ -201,7 +202,6 @@
       #   "max": 38.2,
       #   "units": "g/m2"
       # }
-
 
 ##################################################################
 # 2) CONFIG POUR LES PLOTS
@@ -253,48 +253,57 @@
 
     map_panel:
       plugin: geospatial_extractor
-      source: plots
-      field: geometry
+      params:
+        source: plots
+        field: geometry
       # ex: { "coordinates": [...], "label": ... }
 
     top_families:
       plugin: top_ranking
-      source: occurrences
       params:
+        source: occurrences
         target_ranks: ["famille"]
         count: 10
       # ex: { "labels": [...], "values": [...] }
 
     top_species:
       plugin: top_ranking
-      source: occurrences
       params:
+        source: occurrences
         target_ranks: ["espèce", "sous-espèce"]
         count: 10
-      # ex: { "labels": [...], "values": [...] }
+      # ex:
+      # {
+      #   "tops": ["Taxon1", "Taxon2", "Taxon3"],
+      #   "counts": [10, 5, 2]
+      # }
 
     dbh_distribution:
       plugin: binned_distribution
-      source: occurrences
-      field: dbh
       params:
+        source: occurrences
+        field: dbh
         bins: [10, 20, 30, 40, 50, 75, 100, 200, 300, 400, 500]
-      # ex: { "bins": [...], "counts": [...] }
+      # ex:
+      # {
+      #   "bins": [10, 20, 30, 40, 50, 75, 100, 200, 300, 400, 500],
+      #   "counts": [45, 78, 92, 64, 38, 25, 12, 8, 3, 1]
+      # }
 
     strata_distribution:
       plugin: categorical_distribution
-      source: occurrences
-      field: strata
       params:
+        source: occurrences
+        field: strata
         categories: [1, 2, 3, 4]
         labels: ["Sous-Bois", "Sous-Canopée", "Canopée", "Emergent"]
       # ex: { "bins": [...], "counts": [...] }
 
     height:
       plugin: statistical_summary
-      source: occurrences
-      field: height
       params:
+        source: occurrences
+        field: height
         stats: ["mean"]
         units: "m"
         max_value: 40
@@ -302,9 +311,9 @@
 
     wood_density:
       plugin: statistical_summary
-      source: occurrences
-      field: wood_density
       params:
+        source: occurrences
+        field: wood_density
         stats: ["mean"]
         units: "g/cm3"
         max_value: 1.2
@@ -312,55 +321,64 @@
 
     basal_area:
       plugin: direct_attribute
-      source: plots
-      field: basal_area
       params:
+        source: plots
+        field: basal_area
         units: "m²/ha"
         max_value: 100
       # ex: { "value": 25, "max": 100, "units": "m²/ha" }
 
     richness:
       plugin: direct_attribute
-      source: plots
-      field: nb_species
       params:
+        source: occurrences
+        field: nb_species
         units: "Nombre d'espèces/ha"
         max_value: 130
       # ex: { "value": 25, "max": 50, "units": "" }
 
     shannon:
       plugin: direct_attribute
-      source: plots
-      field: shannon
       params:
+        source: plots
+        field: shannon
         max_value: 5
       # ex: { "value": 2.5, "max": 5, "units": "" }
 
     pielou:
       plugin: direct_attribute
-      source: plots
-      field: pielou
       params:
+        source: plots
+        field: pielou
         max_value: 1
       # ex: { "value": 0.5, "max": 1, "units": "" }
 
     simpson:
       plugin: direct_attribute
-      source: plots
-      field: simpson
       params:
+        source: plots
+        field: simpson
         max_value: 1
       # ex: { "value": 0.5, "max": 1, "units": "" }
 
     biomass:
       plugin: direct_attribute
-      source: plots
-      field: biomass
       params:
+        source: plots
+        field: biomass
         units: "t/ha"
         max_value: 800
       # ex: { "value": 450, "max": 800, "units": "t/ha" }
 
+    plot_name:
+      plugin: direct_attribute
+      params:
+        source: plots
+        field: name
+      # ex:
+      # {
+      #   "value": "Plot 1"
+      # }
 
 ##################################################################
 # 3) CONFIG POUR LES SHAPES
@@ -370,7 +388,7 @@
     data: shape_stats
     grouping: shape_ref
     relation:
-      plugin: stats_loader
+      plugin: "stats_loader"
       key: "id"
 
   widgets_data:
@@ -438,9 +456,9 @@
 
     geography:
       plugin: shape_processor
-      source: shapes
-      field: geometry
       params:
+        source: shapes
+        field: geometry
         format: "topojson"
         simplify: true
         layers:
@@ -456,8 +474,8 @@
 
     forest_cover:
       plugin: class_object_binary_aggregator
-      source: shape_stats
       params:
+        source: shape_stats
         groups:
           - label: emprise
             field: cover_forest
@@ -475,8 +493,8 @@
 
     land_use:
       plugin: class_object_categories_extractor
-      source: shape_stats
       params:
+        source: shape_stats
         class_object: land_use
         categories_order:
           - "NUM"
@@ -495,9 +513,9 @@
       # }
 
     elevation_distribution:
-      plugin: class_object_series_ratio_aggregator  # Nom plus explicite
-      source: shape_stats
+      plugin: class_object_series_ratio_aggregator
       params:
+        source: shape_stats
         distributions:
           elevation:
             total: "land_elevation"
@@ -514,8 +532,8 @@
 
     holdridge:
       plugin: class_object_categories_aggregator
-      source: shape_stats
       params:
+        source: shape_stats
         fields:
           forest: holdridge_forest
           non_forest: holdridge_forest_out
@@ -541,8 +559,8 @@
 
     forest_types:
       plugin: class_object_categories_aggregator
-      source: shape_stats
       params:
+        source: shape_stats
         class_object: cover_foresttype
       # ex:
       # {
@@ -552,9 +570,9 @@
       # }
 
     forest_cover_by_elevation:
-      plugin: class_object_series_matrix_aggregator  # Nom plus explicite
-      source: raw_shape_stats
+      plugin: class_object_series_matrix_aggregator
       params:
+        source: shape_stats
         axis:
           field: "class_name"
           numeric: true
@@ -578,8 +596,8 @@
 
     forest_types_by_elevation:
       plugin: class_object_series_by_axis_aggregator
-      source: raw_shape_stats
       params:
+        source: shape_stats
         axis:
           field: "class_name"  # Champ contenant les valeurs d'axe
           output_field: "altitudes"  # Nom du champ d'axe dans la sortie
@@ -612,8 +630,8 @@
 
     fragmentation_distribution:
       plugin: class_object_series_extractor
-      source: raw_shape_stats
       params:
+        source: shape_stats
         class_object: "forest_fragmentation"  # Le class_object à extraire
         size_field:  # Configuration de l'axe x
           input: "class_name"

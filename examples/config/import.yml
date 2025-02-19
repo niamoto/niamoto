@@ -26,7 +26,7 @@ occurrence_plots:
   right_key: "id_plot"
 
 shape_stats:
-  type: "csv"
+  type: csv
   path: "imports/row_shape_stats.csv"
   identifier: "id"
 

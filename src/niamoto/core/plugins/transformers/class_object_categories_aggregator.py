@@ -21,9 +21,9 @@ class ClassObjectCategoriesConfig(PluginConfig):
     """Configuration for categorical distributions aggregator plugin"""
 
     plugin: str = "class_object_categories_aggregator"
-    source: str = "shape_stats"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
+            "source": "shape_stats",
             "fields": {
                 "forest": "holdridge_forest",
                 "non_forest": "holdridge_forest_out",
@@ -44,6 +44,13 @@ class ClassObjectCategoriesAggregator(TransformerPlugin):
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
         validated_config = super().validate_config(config)
+
+        # Validate that source is specified
+        if "source" not in validated_config.params:
+            raise DataTransformError(
+                "source must be specified",
+                details={"config": config},
+            )
 
         # Validate that at least one distribution is specified
         distributions = validated_config.params.get("distributions", {})
@@ -118,6 +125,7 @@ class ClassObjectCategoriesAggregator(TransformerPlugin):
         Args:
             data: DataFrame containing shape statistics
             config: Configuration dictionary with:
+                - params.source: Source of the data
                 - params.fields: Dict mapping output keys to data columns
                 - params.categories: List of categories in order
                 - params.normalize: Whether to normalize distributions

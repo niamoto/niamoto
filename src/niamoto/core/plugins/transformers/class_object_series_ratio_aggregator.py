@@ -29,9 +29,9 @@ class ClassObjectSeriesRatioConfig(PluginConfig):
     """Configuration for series ratio aggregator plugin"""
 
     plugin: str = "class_object_series_ratio_aggregator"
-    source: str = "shape_stats"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
+            "source": "shape_stats",
             "distributions": {
                 "elevation": {"total": "land_elevation", "subset": "forest_elevation"}
             },

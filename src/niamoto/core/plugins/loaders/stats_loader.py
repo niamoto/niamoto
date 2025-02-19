@@ -131,9 +131,7 @@ class StatsLoader(LoaderPlugin):
             DataLoadError: If data loading fails
         """
         try:
-            self.validate_config(
-                config
-            )  # Valider la config mais ne pas stocker le résultat
+            self.validate_config(config)
 
             # Get source configuration from imports.yml
             source = config.get("data")

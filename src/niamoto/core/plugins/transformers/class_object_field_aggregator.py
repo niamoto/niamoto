@@ -19,8 +19,8 @@ from niamoto.common.exceptions import DataTransformError
 class FieldConfig(BaseModel):
     """Configuration for a field"""
 
-    source: str
     class_object: Union[str, List[str]]  # Can be string or list for ranges
+    source: str  # Source of the data
     target: str
     units: str = ""
     format: Optional[str] = None  # "range" for min/max fields
@@ -30,19 +30,18 @@ class ClassObjectFieldAggregatorConfig(PluginConfig):
     """Configuration for field aggregator plugin"""
 
     plugin: str = "class_object_field_aggregator"
-    source: str = "shape_stats"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
             "fields": [
                 {
-                    "source": "shape_stats",
                     "class_object": "land_area_ha",
+                    "source": "shape_stats",
                     "target": "land_area_ha",
                     "units": "ha",
                 },
                 {
-                    "source": "shape_stats",
                     "class_object": ["rainfall_min", "rainfall_max"],
+                    "source": "shape_stats",
                     "target": "rainfall",
                     "units": "mm/an",
                     "format": "range",
@@ -54,182 +53,134 @@ class ClassObjectFieldAggregatorConfig(PluginConfig):
 
 @register("class_object_field_aggregator", PluginType.TRANSFORMER)
 class ClassObjectFieldAggregator(TransformerPlugin):
-    """Plugin for aggregating field values"""
+    """Plugin for aggregating fields from class objects"""
 
     config_model = ClassObjectFieldAggregatorConfig
 
     def _get_field_value(self, field: FieldConfig, data: pd.DataFrame) -> Any:
-        """
-        Get value for a field configuration.
+        """Get field value from data"""
+        # For range fields (min/max)
+        if field.format == "range":
+            if not isinstance(field.class_object, list) or len(field.class_object) != 2:
+                raise DataTransformError(
+                    "Range fields must specify exactly two fields",
+                    details={"fields": field.class_object},
+                )
 
-        Args:
-            field: Field configuration
-            data: DataFrame containing the data
+            # Get min/max values
+            try:
+                min_data = data[data["class_object"] == field.class_object[0]]
+                max_data = data[data["class_object"] == field.class_object[1]]
 
-        Returns:
-            Field value (single value, or dict for ranges)
-
-        Raises:
-            DataTransformError: If field is missing or invalid
-        """
-        try:
-            # Handle range format (multiple fields)
-            if field.format == "range" and isinstance(field.class_object, list):
-                if len(field.class_object) != 2:
+                if min_data.empty:
                     raise DataTransformError(
-                        "Range format requires exactly 2 fields",
-                        details={"fields": field.class_object},
-                    )
-
-                # Get min and max values
-                min_field, max_field = field.class_object
-                if min_field not in data.columns or max_field not in data.columns:
-                    raise DataTransformError(
-                        "Range fields not found in data",
+                        f"Field '{field.class_object[0]}' not found in data",
                         details={
-                            "min_field": min_field,
-                            "max_field": max_field,
-                            "available_columns": list(data.columns),
+                            "field": field.class_object[0],
+                            "available_fields": data["class_object"].unique().tolist(),
+                        },
+                    )
+                if max_data.empty:
+                    raise DataTransformError(
+                        f"Field '{field.class_object[1]}' not found in data",
+                        details={
+                            "field": field.class_object[1],
+                            "available_fields": data["class_object"].unique().tolist(),
                         },
                     )
 
-                return {
-                    "min": float(data[min_field].iloc[0])
-                    if not data[min_field].empty
-                    else None,
-                    "max": float(data[max_field].iloc[0])
-                    if not data[max_field].empty
-                    else None,
-                }
+                min_value = float(min_data["class_value"].iloc[0])
+                max_value = float(max_data["class_value"].iloc[0])
 
-            # Handle single field
-            elif isinstance(field.class_object, str):
-                if field.class_object not in data.columns:
+                return {"min": min_value, "max": max_value}
+            except IndexError:
+                raise DataTransformError(
+                    f"No values found for fields {field.class_object}",
+                    details={
+                        "fields": field.class_object,
+                        "available_fields": data["class_object"].unique().tolist(),
+                    },
+                )
+
+        # For single fields
+        else:
+            if not isinstance(field.class_object, str):
+                raise DataTransformError(
+                    "Single field format requires a string field name"
+                )
+
+            # Get value
+            try:
+                field_data = data[data["class_object"] == field.class_object]
+                if field_data.empty:
                     raise DataTransformError(
-                        f"Field {field.class_object} not found in data",
-                        details={"available_columns": list(data.columns)},
+                        f"Field '{field.class_object}' not found in data",
+                        details={
+                            "field": field.class_object,
+                            "available_fields": data["class_object"].unique().tolist(),
+                        },
                     )
-
-                return (
-                    float(data[field.class_object].iloc[0])
-                    if not data[field.class_object].empty
-                    else None
-                )
-
-            else:
+                value = float(field_data["class_value"].iloc[0])
+                return {"value": value}
+            except IndexError:
                 raise DataTransformError(
-                    "Invalid field configuration", details={"field": field.dict()}
+                    f"No value found for field '{field.class_object}'",
+                    details={
+                        "field": field.class_object,
+                        "available_fields": data["class_object"].unique().tolist(),
+                    },
                 )
-
-        except Exception as e:
-            if not isinstance(e, DataTransformError):
-                raise DataTransformError(
-                    "Error getting field value",
-                    details={"error": str(e), "field": field.dict()},
-                )
-            raise
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
         validated_config = super().validate_config(config)
-
         params = validated_config.params
 
         # Validate fields configuration
-        fields = params.get("fields", {})
+        fields = params.get("fields", [])
         if not fields:
             raise DataTransformError(
                 "At least one field must be specified", details={"config": config}
             )
 
         # Validate each field configuration
-        for field_name, field_config in fields.items():
-            if not isinstance(field_config, dict):
+        for field in fields:
+            if "source" not in field:
                 raise DataTransformError(
-                    f"Field {field_name} configuration must be a dictionary",
-                    details={"config": field_config},
-                )
-
-            # Check if it's a range configuration
-            if "start" in field_config or "end" in field_config:
-                if "start" not in field_config:
-                    raise DataTransformError(
-                        f"Field {field_name} range must specify 'start'",
-                        details={"config": field_config},
-                    )
-
-                if "end" not in field_config:
-                    raise DataTransformError(
-                        f"Field {field_name} range must specify 'end'",
-                        details={"config": field_config},
-                    )
-
-                if not isinstance(field_config["start"], (int, float, str)):
-                    raise DataTransformError(
-                        f"Field {field_name} start must be a number or string",
-                        details={"config": field_config},
-                    )
-
-                if not isinstance(field_config["end"], (int, float, str)):
-                    raise DataTransformError(
-                        f"Field {field_name} end must be a number or string",
-                        details={"config": field_config},
-                    )
-            else:
-                # Single field configuration
-                if "field" not in field_config:
-                    raise DataTransformError(
-                        f"Field {field_name} must specify 'field'",
-                        details={"config": field_config},
-                    )
-
-                if not isinstance(field_config["field"], str):
-                    raise DataTransformError(
-                        f"Field {field_name} field must be a string",
-                        details={"config": field_config},
-                    )
-
-            # Optional numeric validation
-            if "numeric" in field_config and not isinstance(
-                field_config["numeric"], bool
-            ):
-                raise DataTransformError(
-                    f"Field {field_name} numeric must be a boolean",
-                    details={"config": field_config},
-                )
-
-            # Optional units validation
-            if "units" in field_config and not isinstance(field_config["units"], str):
-                raise DataTransformError(
-                    f"Field {field_name} units must be a string",
-                    details={"config": field_config},
+                    "source must be specified for each field",
+                    details={"field": field},
                 )
 
         return validated_config
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extract and aggregate field values from shape statistics data.
+        Transform shape statistics data into field aggregations.
 
         Args:
             data: DataFrame containing shape statistics
             config: Configuration dictionary with:
                 - params.fields: List of field configurations with:
-                    - source: Source of the data
                     - class_object: Field name or list of fields for ranges
+                    - source: Source of the data
                     - target: Name for output
-                    - units: Optional units for the value
-                    - format: Optional format (e.g. "range" for min/max)
+                    - units: Optional units for output
+                    - format: Optional format for output (range)
 
         Returns:
-            Dictionary with field values
+            Dictionary with aggregated fields
 
         Example output:
             {
-                "land_area_ha": 941252.41,
-                "forest_area_ha": 321711.77,
-                "rainfall": {"min": 510, "max": 4820},
-                "elevation_median": 214
+                "land_area_ha": {
+                    "value": 1000,
+                    "units": "ha"
+                },
+                "rainfall": {
+                    "min": 1000,
+                    "max": 2000,
+                    "units": "mm/an"
+                }
             }
         """
         try:
@@ -244,17 +195,21 @@ class ClassObjectFieldAggregator(TransformerPlugin):
             for field_config in params["fields"]:
                 field = FieldConfig(**field_config)
 
-                # Get and validate field value
-                value = self._get_field_value(field, data)
+                # Get field data
+                result = self._get_field_value(field, data)
 
-                # Add to results if value exists
-                if value is not None:
-                    results[field.target] = value
+                # Add units if specified
+                if field.units:
+                    result["units"] = field.units
+
+                results[field.target] = result
 
             return results
 
         except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
             raise DataTransformError(
-                "Failed to aggregate field values",
+                "Failed to transform field aggregations",
                 details={"error": str(e), "config": config},
             )

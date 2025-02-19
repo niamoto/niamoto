@@ -24,9 +24,7 @@ class GeospatialExtractorConfig(PluginConfig):
     """Configuration for geospatial extractor plugin"""
 
     plugin: str = "geospatial_extractor"
-    source: str
-    field: str
-    params: Dict[str, Any] = {"format": "geojson"}
+    params: Dict[str, Any] = {"source": "", "field": "", "format": "geojson"}
 
 
 @register("geospatial_extractor", PluginType.TRANSFORMER)
@@ -145,13 +143,15 @@ class GeospatialExtractor(TransformerPlugin):
         validated_config = self.config_model(**config)
 
         # Get source data if different from occurrences
-        if validated_config.source != "occurrences":
+        if validated_config.params.get("source") != "occurrences":
             # Get group ID from config
             group_id = config.get("group_id")
-            data = self._get_data_from_source(validated_config.source, group_id)
+            data = self._get_data_from_source(
+                validated_config.params.get("source"), group_id
+            )
 
         # Convert to GeoDataFrame
-        geometry_data = data[validated_config.field]
+        geometry_data = data[validated_config.params.get("field")]
         if not geometry_data.empty:
             # Convert WKB/WKT to geometry
             geometry_data = geometry_data.apply(self._convert_to_geometry)

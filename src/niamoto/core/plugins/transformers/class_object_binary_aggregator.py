@@ -30,9 +30,9 @@ class ClassObjectBinaryConfig(PluginConfig):
     """Configuration for binary class aggregator plugin"""
 
     plugin: str = "class_object_binary_aggregator"
-    source: str = "raw_shape_stats"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
+            "source": "raw_shape_stats",
             "groups": [
                 {
                     "label": "emprise",
@@ -41,7 +41,7 @@ class ClassObjectBinaryConfig(PluginConfig):
                 },
                 {"label": "um", "field": "cover_forestum"},
                 {"label": "num", "field": "cover_forestnum"},
-            ]
+            ],
         }
     )
 
@@ -55,40 +55,41 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
         validated_config = super().validate_config(config)
+        params = validated_config.params
 
-        # Validate that at least one distribution is specified
-        distributions = validated_config.params.get("distributions", {})
-        if not distributions:
+        # Validate that source is specified
+        if "source" not in params:
             raise DataTransformError(
-                "At least one distribution must be specified",
+                "source must be specified",
                 details={"config": config},
             )
 
-        # Validate each distribution configuration
-        for dist_name, dist_config in distributions.items():
-            if not isinstance(dist_config, dict):
+        # Validate that at least one group is specified
+        groups = params.get("groups", [])
+        if not groups:
+            raise DataTransformError(
+                "At least one group must be specified",
+                details={"config": config},
+            )
+
+        # Validate each group configuration
+        for group in groups:
+            if not isinstance(group, dict):
                 raise DataTransformError(
-                    f"Distribution {dist_name} configuration must be a dictionary",
-                    details={"config": dist_config},
+                    "Group configuration must be a dictionary",
+                    details={"config": group},
                 )
 
-            if "class_object" not in dist_config:
+            if "label" not in group:
                 raise DataTransformError(
-                    f"Distribution {dist_name} must specify 'class_object'",
-                    details={"config": dist_config},
+                    "Group must specify 'label'",
+                    details={"config": group},
                 )
 
-            if "categories" not in dist_config:
+            if "field" not in group:
                 raise DataTransformError(
-                    f"Distribution {dist_name} must specify 'categories'",
-                    details={"config": dist_config},
-                )
-
-            categories = dist_config["categories"]
-            if not isinstance(categories, list) or len(categories) < 1:
-                raise DataTransformError(
-                    f"Distribution {dist_name} categories must be a non-empty list",
-                    details={"config": dist_config},
+                    "Group must specify 'field'",
+                    details={"config": group},
                 )
 
         return validated_config
@@ -100,6 +101,7 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
         Args:
             data: DataFrame containing shape statistics
             config: Configuration dictionary with:
+                - params.source: Source of the data
                 - params.groups: List of group configurations with:
                     - label: Name of the distribution
                     - field: Field name in data
@@ -122,23 +124,30 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
         """
         try:
             # Validate configuration
-            validated_config = self.config_model(**config)
+            validated_config = self.validate_config(config)
+            params = validated_config.params
 
             # Initialize results
             results = {}
 
             # Process each group
-            for group_config in validated_config.params["groups"]:
+            for group_config in params["groups"]:
                 group = GroupConfig(**group_config)
 
                 # Get field data
                 if group.field not in data.columns:
                     raise DataTransformError(
                         f"Field {group.field} not found in data",
-                        details={"available_columns": list(data.columns)},
+                        details={
+                            "field": group.field,
+                            "available_columns": list(data.columns),
+                        },
                     )
 
+                # Get values for the field
                 values = data[group.field].values
+
+                # Skip if no values
                 if len(values) == 0:
                     continue
 
@@ -147,9 +156,11 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
                 if total == 0:
                     distribution = {cls: 0.0 for cls in group.classes}
                 else:
+                    # For binary fields, first value is forest, second is non-forest
+                    forest_value = values[0]
                     distribution = {
-                        group.classes[0]: float(values[0]) / total,
-                        group.classes[1]: 1.0 - float(values[0]) / total,
+                        group.classes[0]: float(forest_value) / total,
+                        group.classes[1]: 1.0 - float(forest_value) / total,
                     }
 
                 results[group.label] = distribution
@@ -157,6 +168,8 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
             return results
 
         except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
             raise DataTransformError(
                 "Failed to transform binary/ternary distributions",
                 details={"error": str(e), "config": config},

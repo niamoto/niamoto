@@ -30,9 +30,9 @@ class ClassObjectSeriesByAxisConfig(PluginConfig):
     """Configuration for series by axis aggregator plugin"""
 
     plugin: str = "class_object_series_by_axis_aggregator"
-    source: str = "raw_shape_stats"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
+            "source": "raw_shape_stats",
             "axis": {
                 "field": "class_name",
                 "output_field": "altitudes",
@@ -73,7 +73,7 @@ class ClassObjectSeriesByAxisAggregator(TransformerPlugin):
             )
 
         # Validate series configuration
-        series = params.get("series", {})
+        series = params.get("types", {})
         if not series:
             raise DataTransformError(
                 "At least one series must be specified", details={"config": config}
@@ -81,15 +81,9 @@ class ClassObjectSeriesByAxisAggregator(TransformerPlugin):
 
         # Validate each series configuration
         for series_name, series_config in series.items():
-            if not isinstance(series_config, dict):
+            if not isinstance(series_config, str):
                 raise DataTransformError(
-                    f"Series {series_name} configuration must be a dictionary",
-                    details={"config": series_config},
-                )
-
-            if "class_object" not in series_config:
-                raise DataTransformError(
-                    f"Series {series_name} must specify 'class_object'",
+                    f"Series {series_name} configuration must be a string",
                     details={"config": series_config},
                 )
 
@@ -102,6 +96,7 @@ class ClassObjectSeriesByAxisAggregator(TransformerPlugin):
         Args:
             data: DataFrame containing shape statistics
             config: Configuration dictionary with:
+                - params.source: Source data
                 - params.axis: Configuration for common axis:
                     - field: Field containing axis values
                     - output_field: Name for axis in output

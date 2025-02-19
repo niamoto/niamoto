@@ -3,7 +3,7 @@ Plugin for getting a direct attribute from a source.
 """
 
 from typing import Dict, Any
-from pydantic import Field
+from pydantic import Field, validator
 import os
 import pandas as pd
 import geopandas as gpd
@@ -22,9 +22,27 @@ class DirectAttributeConfig(PluginConfig):
     """Configuration for direct attribute plugin"""
 
     plugin: str = "direct_attribute"
-    source: str
-    field: str
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = Field(default_factory=lambda: {"source": "", "field": ""})
+
+    @validator("params")
+    @classmethod
+    def validate_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate params configuration."""
+        if not isinstance(v, dict):
+            raise ValueError("params must be a dictionary")
+
+        required_fields = ["source", "field"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Missing required field: {field}")
+
+        if not isinstance(v["source"], str):
+            raise ValueError("source must be a string")
+
+        if not isinstance(v["field"], str):
+            raise ValueError("field must be a string")
+
+        return v
 
 
 @register("direct_attribute", PluginType.TRANSFORMER)
@@ -103,9 +121,9 @@ class DirectAttribute(TransformerPlugin):
                 return {"value": None}
 
             # Get field value
-            value = self._get_field_value(
-                validated_config["source"], validated_config["field"], group_id
-            )
+            source = validated_config["params"]["source"]
+            field = validated_config["params"]["field"]
+            value = self._get_field_value(source, field, group_id)
 
             # Check max value if specified
             if value is not None:

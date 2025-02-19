@@ -2,7 +2,7 @@
 Plugin for creating distributions based on specified bins.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pydantic import field_validator, Field
 
 import pandas as pd
@@ -20,9 +20,9 @@ class BinnedDistributionConfig(PluginConfig):
     """Configuration for binned distribution plugin"""
 
     plugin: str = "binned_distribution"
-    source: str
-    field: Optional[str] = None
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = Field(
+        default_factory=lambda: {"source": "", "field": None, "bins": []}
+    )
 
     @field_validator("params")
     @classmethod
@@ -31,7 +31,7 @@ class BinnedDistributionConfig(PluginConfig):
         if not isinstance(v, dict):
             raise ValueError("params must be a dictionary")
 
-        required_fields = ["bins"]
+        required_fields = ["source", "field", "bins"]
         for field in required_fields:
             if field not in v:
                 raise ValueError(f"Missing required field: {field}")
@@ -97,9 +97,9 @@ class BinnedDistribution(TransformerPlugin):
             validated_config = self.config_model(**config)
 
             # Get source data if different from occurrences
-            if validated_config.source != "occurrences":
+            if validated_config.params["source"] != "occurrences":
                 result = self.db.execute_select(f"""
-                    SELECT * FROM {validated_config.source}
+                    SELECT * FROM {validated_config.params["source"]}
                 """)
                 data = pd.DataFrame(
                     result.fetchall(),
@@ -107,8 +107,8 @@ class BinnedDistribution(TransformerPlugin):
                 )
 
             # Get field data
-            if validated_config.field is not None:
-                field_data = data[validated_config.field]
+            if validated_config.params["field"] is not None:
+                field_data = data[validated_config.params["field"]]
             else:
                 field_data = data
 

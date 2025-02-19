@@ -2,7 +2,7 @@
 Plugin for getting top N items from a dataset.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pydantic import field_validator, Field
 
 import pandas as pd
@@ -19,9 +19,14 @@ class TopRankingConfig(PluginConfig):
     """Configuration for top ranking transformer."""
 
     plugin: str = "top_ranking"
-    source: str = "occurrences"
-    field: Optional[str] = None
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "source": "occurrences",
+            "field": None,
+            "target_ranks": ["espèce", "sous-espèce"],
+            "count": 10,
+        }
+    )
 
     @field_validator("params")
     @classmethod
@@ -29,6 +34,11 @@ class TopRankingConfig(PluginConfig):
         """Validate params configuration."""
         if not isinstance(v, dict):
             raise ValueError("params must be a dictionary")
+
+        required_fields = ["source", "field"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Missing required field: {field}")
 
         # Set default values if not provided
         if "target_ranks" not in v:
@@ -69,8 +79,8 @@ class TopRanking(TransformerPlugin):
 
             # Get field data
             field = (
-                validated_config["field"]
-                if validated_config["field"]
+                validated_config["params"]["field"]
+                if validated_config["params"]["field"]
                 else "id_taxonref"
             )
             if field not in data.columns:

@@ -44,9 +44,9 @@ class ClassObjectSeriesMatrixConfig(PluginConfig):
     """Configuration for series matrix aggregator plugin"""
 
     plugin: str = "class_object_series_matrix_aggregator"
-    source: str = "raw_shape_stats"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
+            "source": "raw_shape_stats",
             "axis": {"field": "class_name", "numeric": True, "sort": True},
             "distributions": {
                 "forest": {
