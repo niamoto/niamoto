@@ -48,11 +48,5 @@ repos:
     hooks:
     -   id: generate-requirements
         name: Generate Requirements Files
-        description: Generate requirements.txt and dev-requirements.txt from pyproject.toml
         entry: python scripts/generate_requirements.py
         language: python
-        types: [python]
-        pass_filenames: false
-        stages: [pre-commit]
-        files: ^(pyproject\.toml|requirements\.txt|dev-requirements\.txt)$
-        always_run: true
