@@ -56,6 +56,13 @@ shapes:
     label: "Aires protégées"
     description: "Protected areas"
 
+  - category: "forest_cover"
+    type: vector
+    format: directory_shapefiles
+    path: "imports/shapes/forest_cover"
+    label: "Couverture forestière"
+    description: "Couches de couverture forestière"
+
   - category: "substrates"
     type: vector
     format: geopackage

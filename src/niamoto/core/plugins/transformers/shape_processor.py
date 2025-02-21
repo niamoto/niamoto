@@ -2,18 +2,15 @@
 Plugin for processing complex shapes with additional layers.
 """
 
-from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Any
 import os
-
-import geopandas as gpd
-from shapely.geometry.base import BaseGeometry
-from shapely.wkb import loads as load_wkb
-from shapely.wkt import loads as load_wkt
-from shapely.ops import transform
-import pyproj
+from pydantic import BaseModel, Field
 import pandas as pd
-import numpy as np
+import geopandas as gpd
+from shapely.wkb import loads
+from shapely.geometry import mapping
+import topojson as tp
+import yaml
 
 from niamoto.core.plugins.base import (
     TransformerPlugin,
@@ -21,7 +18,14 @@ from niamoto.core.plugins.base import (
     register,
     PluginConfig,
 )
-from niamoto.common.config import Config
+from niamoto.common.database import Database
+
+from shapely.ops import transform
+import pyproj
+from shapely.geometry.base import BaseGeometry
+from shapely import make_valid
+from shapely.geometry import Polygon, MultiPolygon, GeometryCollection
+from shapely.ops import unary_union
 
 
 class LayerConfig(BaseModel):
@@ -37,10 +41,10 @@ class ShapeProcessorConfig(PluginConfig):
     """Configuration for shape processor plugin"""
 
     plugin: str = "shape_processor"
-    source: str
-    field: str = "geometry"
     params: Dict[str, Any] = Field(
         default_factory=lambda: {
+            "source": "shape_ref",
+            "field": "location",
             "format": "topojson",
             "simplify": True,
             "layers": {
@@ -60,166 +64,281 @@ class ShapeProcessor(TransformerPlugin):
 
     config_model = ShapeProcessorConfig
 
-    def __init__(self, db):
-        super().__init__(db)
-        self.config = Config()
-        self.imports_config = self.config.get_imports_config()
-
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate configuration."""
+    def __init__(self, db: Database, config: Dict[str, Any] = None):
+        """Initialize the plugin with database connection and configuration."""
         try:
-            validated_config = self.config_model(**config)
-            valid_formats = {"geojson", "topojson"}
-            if validated_config.params.get("format") not in valid_formats:
-                raise ValueError(
-                    f"Invalid format: {validated_config.params.get('format')}. Valid options are: {valid_formats}"
-                )
+            self.db = db
 
-            # Validate layer configurations
-            layers = validated_config.params.get("layers", {})
-            for layer_name, layer_config in layers.items():
-                LayerConfig(**layer_config)
+            self.config_dir = os.getcwd()
+
+            possible_paths = [
+                os.path.join(self.config_dir, "config", "import.yml"),
+            ]
+
+            import_config_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    import_config_path = path
+                    break
+
+            if import_config_path and os.path.exists(import_config_path):
+                with open(import_config_path, "r") as f:
+                    self.imports_config = yaml.safe_load(f)
+            else:
+                self.imports_config = {}
+
+            self.config = ShapeProcessorConfig(plugin="shape_processor", params={})
+
+            if config:
+                self.config = self.validate_config(config)
+
+        except Exception as e:
+            raise ValueError(f"Error initializing shape processor: {str(e)}")
+
+    def validate_config(self, config: Dict[str, Any]) -> Any:
+        """Validate the configuration."""
+        try:
+            if not isinstance(config, dict):
+                raise ValueError("Configuration must be a dictionary")
+
+            if "params" not in config:
+                raise ValueError("Configuration must contain 'params' key")
+
+            params = config["params"]
+            if not isinstance(params, dict):
+                raise ValueError("params must be a dictionary")
+
+            if "layers" in params:
+                layers = params["layers"]
+                if not isinstance(layers, list):
+                    raise ValueError("layers must be a list")
+
+                for layer_config in layers:
+                    if isinstance(layer_config, str):
+                        continue
+                    elif isinstance(layer_config, dict):
+                        if "name" not in layer_config:
+                            raise ValueError(
+                                f"Layer configuration must contain 'name' key: {layer_config}"
+                            )
+                    else:
+                        raise ValueError(
+                            f"Invalid layer configuration format: {layer_config}"
+                        )
+
+            return config
 
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
+    def load_shape_geometry(self, wkb_str: str) -> gpd.GeoDataFrame:
+        """Load a geometry from a WKB hex string."""
+        try:
+            geometry = loads(bytes.fromhex(wkb_str))
+
+            if hasattr(self.config, "params") and isinstance(self.config.params, dict):
+                simplify = self.config.params.get("simplify", True)
+            else:
+                simplify = True
+
+            if simplify:
+                geometry = self._simplify_with_utm(geometry)
+
+            return gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
+        except Exception as e:
+            raise ValueError(f"Error loading shape geometry: {str(e)}")
+
+    def load_layer_as_gdf(
+        self,
+        base_gdf: gpd.GeoDataFrame,
+        layer_name: str,
+        layer_type: str,
+        layer_params: Dict[str, Any] = None,
+    ):
+        """Load a layer as a GeoDataFrame and process it according to configuration."""
+        try:
+            if layer_params is None:
+                layer_params = {"clip": True, "simplify": True}
+
+            return self._process_layer(layer_name, layer_params, base_gdf)
+
+        except Exception:
+            return None
+
+    def get_simplified_coordinates(self, geometry_location: str) -> Dict[str, Any]:
+        """Get simplified coordinates for a geometry and convert to TopoJSON."""
+        try:
+            geometry = loads(bytes.fromhex(geometry_location))
+            if hasattr(self.config, "params") and isinstance(self.config.params, dict):
+                simplify = self.config.params.get("simplify", True)
+            else:
+                simplify = True
+
+            if simplify:
+                geometry = self._simplify_with_utm(geometry)
+            return self._convert_to_topojson(geometry)
+        except Exception as e:
+            raise ValueError(f"Error simplifying coordinates: {str(e)}")
+
+    def get_coordinates_from_gdf(self, gdf: gpd.GeoDataFrame) -> Dict[str, Any]:
+        """Get simplified coordinates from a GeoDataFrame and convert to TopoJSON."""
+        try:
+            if gdf is None or gdf.empty:
+                return {}
+
+            valid_geometries = []
+            for geom in gdf.geometry:
+                if geom is not None and not pd.isna(geom):
+                    if not geom.is_valid:
+                        geom = make_valid(geom)
+                    valid_geometries.append(geom)
+
+            if not valid_geometries:
+                return {}
+
+            merged = unary_union(valid_geometries)
+            if not merged.is_valid:
+                merged = make_valid(merged)
+
+            merged = self._simplify_with_utm(merged)
+
+            return self._convert_to_topojson(merged)
+
+        except Exception as e:
+            raise ValueError(f"Error converting GeoDataFrame to TopoJSON: {str(e)}")
+
+    def _convert_to_topojson(self, geometry: BaseGeometry) -> Dict[str, Any]:
+        """Convert a geometry to optimized TopoJSON format."""
+        try:
+            if not geometry.is_valid:
+                geometry = make_valid(geometry)
+
+            if isinstance(geometry, GeometryCollection):
+                all_geoms = list(geometry.geoms)
+                polygons = [
+                    geom
+                    for geom in all_geoms
+                    if isinstance(geom, (Polygon, MultiPolygon))
+                ]
+                if polygons:
+                    geometry = unary_union(polygons)
+                else:
+                    geometry = all_geoms[0] if all_geoms else None
+                    if geometry is None:
+                        raise ValueError("Empty geometry collection")
+
+            elif isinstance(geometry, MultiPolygon):
+                valid_polygons = [poly for poly in geometry.geoms if poly.is_valid]
+                if valid_polygons:
+                    geometry = MultiPolygon(valid_polygons)
+                else:
+                    raise ValueError("No valid polygons in MultiPolygon")
+
+            geojson = {
+                "type": "FeatureCollection",
+                "features": [
+                    {"type": "Feature", "properties": {}, "geometry": mapping(geometry)}
+                ],
+            }
+
+            topology = tp.Topology(geojson, prequantize=True)
+            return topology.to_dict()
+
+        except Exception:
+            return {
+                "type": "Topology",
+                "objects": {"shape": {"type": "GeometryCollection", "geometries": []}},
+                "arcs": [],
+            }
+
     def _simplify_with_utm(
         self, geometry: BaseGeometry, log_area: bool = False
     ) -> BaseGeometry:
-        """
-        Simplify a geometry using UTM-based adaptive simplification.
-        The simplification is done in UTM projection to ensure accurate measurements.
-        """
+        """Simplify a geometry using UTM-based adaptive simplification."""
         try:
-            # Get centroid for UTM zone calculation
-            centroid = geometry.centroid
-            lon, lat = centroid.x, centroid.y
+            lon, lat = geometry.centroid.x, geometry.centroid.y
 
-            # Calculate UTM zone
             zone_number = int((lon + 180) / 6) + 1
             hemisphere = "south" if lat < 0 else "north"
 
-            # Create UTM CRS
-            utm_crs = f"+proj=utm +zone={zone_number} +{hemisphere} +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-
-            # Create transformers
-            project_to_utm = pyproj.Transformer.from_crs(
-                "EPSG:4326", utm_crs, always_xy=True
-            ).transform
-            project_to_wgs84 = pyproj.Transformer.from_crs(
-                utm_crs, "EPSG:4326", always_xy=True
+            wgs84 = pyproj.CRS("EPSG:4326")
+            utm = pyproj.CRS(
+                f"+proj=utm +zone={zone_number} +{hemisphere} +ellps=WGS84"
+            )
+            project = pyproj.Transformer.from_crs(wgs84, utm, always_xy=True).transform
+            project_back = pyproj.Transformer.from_crs(
+                utm, wgs84, always_xy=True
             ).transform
 
-            # Transform to UTM
-            geom_utm = transform(project_to_utm, geometry)
+            utm_geom = transform(project, geometry)
 
-            # Calculate area and determine tolerance
-            area_km2 = geom_utm.area / 1_000_000
-            if log_area:
-                print(f"Area: {area_km2:.2f} km²")
+            area_km2 = utm_geom.area / 1_000_000
 
-            # Adaptive tolerance based on area
             if area_km2 > 1000:
-                # For large areas, increase tolerance with area
-                tolerance = 5 * np.sqrt(area_km2)
+                tolerance = 5 * (area_km2 / 1000) ** 0.5
             else:
-                # For smaller areas, use fixed tolerance
                 tolerance = 5
 
-            # Simplify in UTM coordinates
-            simplified_utm = geom_utm.simplify(tolerance, preserve_topology=True)
+            simplified = utm_geom.simplify(tolerance)
 
-            # Transform back to WGS84
-            simplified_wgs84 = transform(project_to_wgs84, simplified_utm)
+            return transform(project_back, simplified)
 
-            return simplified_wgs84
-
-        except Exception as e:
-            raise ValueError(f"Error in UTM simplification: {str(e)}")
-
-    def _convert_to_topojson(
-        self, geometry: BaseGeometry, name: str = "shape"
-    ) -> Dict[str, Any]:
-        """Convert a geometry to optimized TopoJSON format."""
-        try:
-            # Convert to GeoJSON first
-            geojson = gpd.GeoSeries([geometry]).__geo_interface__
-
-            # Extract coordinates and type
-            coords = geojson["features"][0]["geometry"]["coordinates"]
-            geom_type = geojson["features"][0]["geometry"]["type"]
-
-            # Create optimized TopoJSON structure
-            return {
-                "type": "Topology",
-                "objects": {name: {"type": geom_type, "coordinates": coords}},
-            }
-        except Exception as e:
-            raise ValueError(f"Error converting to TopoJSON: {str(e)}")
-
-    def _load_shape_geometry(self, geometry_str: str) -> Optional[BaseGeometry]:
-        """Load a geometry from WKB/WKT string."""
-        try:
-            # Try WKB first
-            try:
-                if isinstance(geometry_str, bytes):
-                    return load_wkb(geometry_str)
-                return load_wkb(bytes.fromhex(str(geometry_str)))
-            except (ValueError, TypeError):
-                pass
-
-            # Try WKT format
-            try:
-                return load_wkt(str(geometry_str))
-            except (ValueError, TypeError):
-                pass
-
-            raise ValueError("Could not parse geometry string")
-
-        except Exception as e:
-            raise ValueError(f"Error loading geometry: {str(e)}")
+        except Exception:
+            return geometry
 
     def _process_layer(
         self, layer_name: str, layer_config: Dict[str, Any], shape_gdf: gpd.GeoDataFrame
-    ) -> Optional[BaseGeometry]:
+    ):
         """Process an additional layer according to configuration."""
         try:
-            # Convert layer config to model
-            layer_config = LayerConfig(**layer_config)
+            layer_import = None
 
-            # Get layer path from imports if relative
-            if not os.path.isabs(layer_config.path):
-                # Check imports config first
-                imports_config = self.imports_config
-                if imports_config and layer_name in imports_config:
-                    layer_config.path = os.path.join(
-                        os.path.dirname(self.config.config_dir),
-                        imports_config[layer_name]["path"],
-                    )
-                else:
-                    # Use path relative to config dir
-                    layer_config.path = os.path.join(
-                        os.path.dirname(self.config.config_dir), layer_config.path
-                    )
+            if "layers" in self.imports_config:
+                for layer in self.imports_config["layers"]:
+                    if layer.get("name") == layer_name:
+                        layer_import = layer
+                        break
 
-            # Load layer
-            layer_gdf = gpd.read_file(layer_config.path)
+            if not layer_import and "shapes" in self.imports_config:
+                for shape in self.imports_config["shapes"]:
+                    if shape.get("category") == layer_name:
+                        layer_import = shape
+                        break
 
-            # Clip to shape if requested
-            if layer_config.clip:
+            if not layer_import:
+                raise ValueError(f"Layer {layer_name} not found in import.yml")
+
+            layer_path = layer_import["path"]
+            if not os.path.isabs(layer_path):
+                layer_path = os.path.join(self.config_dir, layer_path)
+
+            format_type = layer_import.get("format", "").lower()
+
+            if format_type == "directory_shapefiles":
+                import glob
+
+                shp_files = glob.glob(os.path.join(layer_path, "*.shp"))
+                if not shp_files:
+                    raise ValueError(f"No shapefile found in {layer_path}")
+                layer_path = shp_files[0]
+            elif format_type == "shapefile":
+                if not os.path.exists(layer_path):
+                    raise ValueError(f"Shapefile not found: {layer_path}")
+            elif format_type == "geopackage":
+                if not os.path.exists(layer_path):
+                    raise ValueError(f"Geopackage not found: {layer_path}")
+
+            layer_gdf = gpd.read_file(layer_path)
+
+            if layer_config.get("clip", True):
                 layer_gdf = gpd.clip(layer_gdf, shape_gdf)
 
-            if layer_gdf.empty:
-                return None
+            if layer_config.get("simplify", True):
+                layer_gdf.geometry = layer_gdf.geometry.apply(
+                    lambda geom: self._simplify_with_utm(geom) if geom else None
+                )
 
-            # Union all geometries
-            layer_geom = layer_gdf.unary_union
-
-            # Simplify if requested
-            if layer_config.simplify:
-                layer_geom = self._simplify_with_utm(layer_geom)
-
-            return layer_geom
+            return layer_gdf
 
         except Exception as e:
             raise ValueError(f"Error processing layer {layer_name}: {str(e)}")
@@ -227,53 +346,55 @@ class ShapeProcessor(TransformerPlugin):
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """Transform data according to configuration."""
         try:
-            validated_config = self.config_model(**config)
-            result = {}
+            validated_config = self.validate_config(config)
 
-            # Get source data
-            if validated_config.source != "occurrences":
-                group_id = config.get("group_id")
-                data = self._get_data_from_source(validated_config.source, group_id)
+            self.config = validated_config
 
-            if data.empty:
-                return result
+            params = validated_config["params"]
+            source = params.get("source", "shape_ref")
+            field = params.get("field", "location")
 
-            # Get main geometry
-            geometry_str = data[validated_config.field].iloc[0]
-            geometry = self._load_shape_geometry(geometry_str)
+            query = f"SELECT {field} FROM {source} WHERE id = {data['id'].iloc[0]}"
 
-            if geometry is None:
-                return result
+            result = self.db.execute_select(query)
+            if not result:
+                raise ValueError(
+                    f"No data found in {source} for id {data['id'].iloc[0]}"
+                )
 
-            # Simplify if requested
-            if validated_config.params.get("simplify", True):
-                geometry = self._simplify_with_utm(geometry)
+            wkb_data = result.fetchone()[0]
 
-            # Convert to requested format
-            if validated_config.params.get("format") == "topojson":
-                result["shape_coords"] = self._convert_to_topojson(geometry)
-            else:  # geojson
-                result["shape_coords"] = gpd.GeoSeries([geometry]).__geo_interface__
+            shape_gdf = self.load_shape_geometry(str(wkb_data))
 
-            # Process additional layers
-            shape_gdf = gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
-            layers = validated_config.params.get("layers", {})
+            layers_result = {}
+            layers = params.get("layers", [])
 
-            for layer_name, layer_config in layers.items():
-                layer_geom = self._process_layer(layer_name, layer_config, shape_gdf)
+            for layer_config in layers:
+                if isinstance(layer_config, str):
+                    layer_name = layer_config
+                    layer_params = {"clip": True, "simplify": True}
+                else:
+                    layer_name = layer_config.get("name")
+                    if not layer_name:
+                        continue
+                    layer_params = {
+                        "clip": layer_config.get("clip", True),
+                        "simplify": layer_config.get("simplify", True),
+                    }
 
-                if layer_geom is not None:
-                    # Convert to requested format
-                    if validated_config.params.get("format") == "topojson":
-                        result[f"{layer_name}_coords"] = self._convert_to_topojson(
-                            layer_geom, name=layer_name
-                        )
-                    else:  # geojson
-                        result[f"{layer_name}_coords"] = gpd.GeoSeries(
-                            [layer_geom]
-                        ).__geo_interface__
+                layer_gdf = self.load_layer_as_gdf(
+                    shape_gdf, layer_name, "vector", layer_params
+                )
+                if layer_gdf is not None:
+                    layers_result[f"{layer_name}_coords"] = (
+                        self.get_coordinates_from_gdf(layer_gdf)
+                    )
 
+            result = {
+                "shape_coords": self.get_simplified_coordinates(str(wkb_data)),
+                **layers_result,
+            }
             return result
 
         except Exception as e:
-            raise ValueError(f"Error transforming data: {str(e)}")
+            raise ValueError(str(e))

@@ -18,13 +18,39 @@ from niamoto.core.plugins.base import (
     PluginConfig,
 )
 from niamoto.common.config import Config
+from pydantic import validator
 
 
 class GeospatialExtractorConfig(PluginConfig):
     """Configuration for geospatial extractor plugin"""
 
     plugin: str = "geospatial_extractor"
-    params: Dict[str, Any] = {"source": "", "field": "", "format": "geojson"}
+    params: Dict[str, Any] = {
+        "source": "",
+        "field": "",
+        "format": "geojson",  # default format
+    }
+
+    @validator("params")
+    def validate_params(cls, v):
+        """Validate configuration parameters."""
+        # Ensure we have a dictionary
+        if not isinstance(v, dict):
+            v = {}
+
+        # Validate required fields
+        if not v.get("source"):
+            raise ValueError("Source is required")
+        if not v.get("field"):
+            raise ValueError("Field is required")
+
+        # Set default format if not provided
+        if "format" not in v:
+            v["format"] = "geojson"
+        elif v["format"] not in {"geojson"}:
+            raise ValueError("Format must be 'geojson'")
+
+        return v
 
 
 @register("geospatial_extractor", PluginType.TRANSFORMER)
@@ -53,12 +79,11 @@ class GeospatialExtractor(TransformerPlugin):
 
     def _convert_to_geometry(self, point: Any) -> Optional[Point]:
         """Convert various formats to shapely Point."""
-        if pd.isna(point):  # Check that the point is not NaN
-            return None
-
         try:
+            if pd.isna(point):  # Check that the point is not NaN
+                return None
+
             if isinstance(point, Point):
-                # If the point is already a shapely Point object
                 return point
 
             # Try to parse as WKB
@@ -85,13 +110,18 @@ class GeospatialExtractor(TransformerPlugin):
             try:
                 coords = str(point).replace("POINT (", "").replace(")", "").split()
                 if len(coords) == 2:
-                    return Point(float(coords[0]), float(coords[1]))
+                    point = Point(float(coords[0]), float(coords[1]))
+                    return point
             except (ValueError, TypeError):
                 pass
 
             return None
-        except Exception as e:
-            raise ValueError(f"Failed to convert geometry: {str(e)}")
+
+        except Exception:
+            import traceback
+
+            traceback.print_exc()
+            return None
 
     def _get_data_from_source(self, source: str, id_value: int = None) -> pd.DataFrame:
         """Get data from a source (table or import)."""
@@ -130,48 +160,91 @@ class GeospatialExtractor(TransformerPlugin):
                 query += f" WHERE id = {id_value}"
 
             result = self.db.execute_select(query)
-            return pd.DataFrame(
+            df = pd.DataFrame(
                 result.fetchall(),
                 columns=[desc[0] for desc in result.cursor.description],
             )
+            return df
 
         except Exception as e:
+            import traceback
+
+            traceback.print_exc()
             raise ValueError(f"Error getting data from {source}: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """Transform data according to configuration."""
-        validated_config = self.config_model(**config)
+        try:
+            # Make sure we have a params dictionary
+            if "params" not in config:
+                config["params"] = {}
 
-        # Get source data if different from occurrences
-        if validated_config.params.get("source") != "occurrences":
-            # Get group ID from config
-            group_id = config.get("group_id")
-            data = self._get_data_from_source(
-                validated_config.params.get("source"), group_id
-            )
+            # Get required parameters from config
+            params = config["params"]
+            if "source" in config:
+                params["source"] = config["source"]
+            if "field" in config:
+                params["field"] = config["field"]
 
-        # Convert to GeoDataFrame
-        geometry_data = data[validated_config.params.get("field")]
-        if not geometry_data.empty:
-            # Convert WKB/WKT to geometry
-            geometry_data = geometry_data.apply(self._convert_to_geometry)
-            geometry_data = geometry_data.dropna()  # Remove any failed conversions
+            validated_config = self.config_model(**config)
+            params = validated_config.params
+            source = params["source"]
+            field = params["field"]
+            format = params["format"]
+
+            # Get source data if different from occurrences
+            if source != "occurrences":
+                group_id = config.get("group_id")
+                data = self._get_data_from_source(source, group_id)
+
+            # Check if field exists
+            if field not in data.columns:
+                return {"type": "FeatureCollection", "features": []}
+
+            geometry_data = data[field]
 
             if not geometry_data.empty:
-                gdf = gpd.GeoDataFrame(data, geometry=geometry_data)
+                # Convert WKB/WKT to geometry if needed
+                if not isinstance(geometry_data.iloc[0], Point):
+                    geometry_data = geometry_data.apply(self._convert_to_geometry)
 
-                # Convert to GeoJSON
-                if validated_config.params.get("format") == "geojson":
-                    features = []
-                    for idx, row in gdf.iterrows():
-                        if row.geometry is not None:
-                            feature = {
-                                "type": "Feature",
-                                "geometry": row.geometry.__geo_interface__,
-                                "properties": {},
-                            }
-                            features.append(feature)
+                geometry_data = geometry_data.dropna()  # Remove any failed conversions
 
-                    return {"type": "FeatureCollection", "features": features}
+                if not geometry_data.empty:
+                    gdf = gpd.GeoDataFrame(data, geometry=geometry_data)
 
-        return {"type": "FeatureCollection", "features": []}
+                    # Convert to GeoJSON
+                    if format == "geojson":
+                        features = []
+                        for idx, row in gdf.iterrows():
+                            try:
+                                if row.geometry is not None:
+                                    # Include all properties except geometry
+                                    properties = {
+                                        k: v
+                                        for k, v in row.items()
+                                        if k != "geometry" and not pd.isna(v)
+                                    }
+
+                                    feature = {
+                                        "type": "Feature",
+                                        "geometry": {
+                                            "type": "Point",
+                                            "coordinates": [
+                                                row.geometry.x,
+                                                row.geometry.y,
+                                            ],
+                                        },
+                                        "properties": properties,
+                                    }
+                                    features.append(feature)
+                            except Exception:
+                                continue
+
+                        if features:
+                            return {"type": "FeatureCollection", "features": features}
+
+            return {"type": "FeatureCollection", "features": []}
+
+        except Exception:
+            return {"type": "FeatureCollection", "features": []}

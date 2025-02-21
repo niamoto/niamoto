@@ -331,7 +331,7 @@
     richness:
       plugin: direct_attribute
       params:
-        source: occurrences
+        source: plots
         field: nb_species
         units: "Nombre d'espèces/ha"
         max_value: 130
@@ -369,16 +369,6 @@
         units: "t/ha"
         max_value: 800
       # ex: { "value": 450, "max": 800, "units": "t/ha" }
-
-    plot_name:
-      plugin: direct_attribute
-      params:
-        source: plots
-        field: name
-      # ex:
-      # {
-      #   "value": "Plot 1"
-      # }
 
 ##################################################################
 # 3) CONFIG POUR LES SHAPES
@@ -457,15 +447,14 @@
     geography:
       plugin: shape_processor
       params:
-        source: shapes
-        field: geometry
+        source: shape_ref
+        field: location
         format: "topojson"
         simplify: true
         layers:
-          forest_cover:  # Nom de la couche
-            path: "imports/forest_cover.gpkg"  # Chemin relatif ou absolu
-            clip: true  # Découper selon le shape
-            simplify: true  # Simplifier la géométrie
+          - name: forest_cover
+            clip: true
+            simplify: true
       # ex:
       # {
       #   "shape_coords": {...},
@@ -480,15 +469,26 @@
           - label: emprise
             field: cover_forest
             classes: ["forest", "non_forest"]
+            class_mapping:
+              "Forêt": "forest"
+              "Hors-forêt": "non_forest"
           - label: um
             field: cover_forestum
+            classes: ["forest", "non_forest"]
+            class_mapping:
+              "Forêt": "forest"
+              "Hors-forêt": "non_forest"
           - label: num
             field: cover_forestnum
+            classes: ["forest", "non_forest"]
+            class_mapping:
+              "Forêt": "forest"
+              "Hors-forêt": "non_forest"
       # ex:
       # {
-      #   "emprise": { "forêt": 0.34, "hors_foret": 0.66 },
-      #   "um": { "forêt": 0.23, "hors_foret": 0.77 },
-      #   "num": { "forêt": 0.37, "hors_foret": 0.63 }
+      #   "emprise": { "forest": 0.34, "non_forest": 0.66 },
+      #   "um": { "forest": 0.23, "non_forest": 0.77 },
+      #   "num": { "forest": 0.37, "non_forest": 0.63 }
       # }
 
     land_use:
@@ -520,7 +520,7 @@
           elevation:
             total: "land_elevation"
             subset: "forest_elevation"
-        numeric_class_name: true
+            complement_mode: "difference"  # Mode spécial pour l'élévation
       # ex:
       #
       #"elevation": {
@@ -531,18 +531,22 @@
       #
 
     holdridge:
-      plugin: class_object_categories_aggregator
+      plugin: class_object_categories_mapper
       params:
         source: shape_stats
-        fields:
-          forest: holdridge_forest
-          non_forest: holdridge_forest_out
         categories:
-          - "Sec"
-          - "Humide"
-          - "Très Humide"
-        normalize: true
-        group_by: "altitude"  # optionnel
+          forest:
+            class_object: holdridge_forest
+            mapping:
+              sec: "Sec"
+              humide: "Humide"
+              tres_humide: "Très Humide"
+          non_forest:
+            class_object: holdridge_forest_out
+            mapping:
+              sec: "Sec"
+              humide: "Humide"
+              tres_humide: "Très Humide"
       # ex:
       # {
       #   "forest": {
@@ -558,10 +562,14 @@
       # }
 
     forest_types:
-      plugin: class_object_categories_aggregator
+      plugin: class_object_categories_extractor
       params:
         source: shape_stats
         class_object: cover_foresttype
+        categories_order:
+          - "Forêt coeur"
+          - "Forêt mature"
+          - "Forêt secondaire"
       # ex:
       # {
       #   "Forêt coeur": 0.064,
@@ -570,21 +578,28 @@
       # }
 
     forest_cover_by_elevation:
-      plugin: class_object_series_matrix_aggregator
+      plugin: class_object_series_matrix_extractor
       params:
         source: shape_stats
         axis:
           field: "class_name"
           numeric: true
           sort: true
-        distributions:
-          forest:
-            um:
-              class_object: "ratio_forest_um_elevation"
-              scale: 100
-            num:
-              class_object: "ratio_forest_num_elevation"
-              scale: 100
+        series:
+          - name: "forest_um"
+            class_object: "ratio_forest_um_elevation"
+            scale: 100
+          - name: "forest_num"
+            class_object: "ratio_forest_num_elevation"
+            scale: 100
+          - name: "hors_foret_um"
+            class_object: "ratio_forest_um_elevation"
+            scale: 100
+            complement: true
+          - name: "hors_foret_num"
+            class_object: "ratio_forest_num_elevation"
+            scale: 100
+            complement: true
       # ex:
       # {
       #     "class_name": [0, 200, 400, 600, 800],  # Altitudes
@@ -595,7 +610,7 @@
       # }
 
     forest_types_by_elevation:
-      plugin: class_object_series_by_axis_aggregator
+      plugin: class_object_series_by_axis_extractor
       params:
         source: shape_stats
         axis:

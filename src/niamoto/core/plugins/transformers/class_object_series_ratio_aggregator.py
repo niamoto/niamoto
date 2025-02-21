@@ -7,7 +7,6 @@ such as forest elevation distribution vs total land elevation distribution.
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 import pandas as pd
-import numpy as np
 
 from niamoto.core.plugins.base import (
     TransformerPlugin,
@@ -21,8 +20,11 @@ from niamoto.common.exceptions import DataTransformError
 class DistributionConfig(BaseModel):
     """Configuration for a distribution ratio calculation"""
 
-    total: str  # Field containing total distribution
-    subset: str  # Field containing subset distribution
+    total: str  # Field name to match in class_object for total distribution
+    subset: str  # Field name to match in class_object for subset distribution
+    complement_mode: str = (
+        "ratio"  # Mode for complement calculation: "ratio" or "difference"
+    )
 
 
 class ClassObjectSeriesRatioConfig(PluginConfig):
@@ -33,7 +35,11 @@ class ClassObjectSeriesRatioConfig(PluginConfig):
         default_factory=lambda: {
             "source": "shape_stats",
             "distributions": {
-                "elevation": {"total": "land_elevation", "subset": "forest_elevation"}
+                "elevation": {
+                    "total": "land_elevation",
+                    "subset": "forest_elevation",
+                    "complement_mode": "difference",
+                }
             },
             "numeric_class_name": True,
         }
@@ -72,6 +78,14 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                     details={"config": dist_config},
                 )
 
+            # Validate complement_mode if specified
+            complement_mode = dist_config.get("complement_mode", "ratio")
+            if complement_mode not in ["ratio", "difference"]:
+                raise DataTransformError(
+                    f"Invalid complement_mode '{complement_mode}' for distribution {dist_name}. Must be 'ratio' or 'difference'",
+                    details={"config": dist_config},
+                )
+
         return validated_config
 
     def transform(
@@ -81,7 +95,10 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
         Transform shape statistics data into ratio distributions.
 
         Args:
-            data: DataFrame containing shape statistics
+            data: DataFrame containing shape statistics in long format with columns:
+                - class_object: The type of data (e.g. land_elevation)
+                - class_name: The class name (e.g. elevation values)
+                - class_value: The value for this class
             config: Configuration dictionary with:
                 - params.distributions: Mapping of distribution names to total/subset field pairs
                 - params.numeric_class_name: Whether to convert class names to numeric
@@ -103,6 +120,20 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
             validated_config = self.validate_config(config)
             params = validated_config.params
 
+            # Check required columns exist
+            required_columns = ["class_object", "class_name", "class_value"]
+            missing_columns = [
+                col for col in required_columns if col not in data.columns
+            ]
+            if missing_columns:
+                raise DataTransformError(
+                    f"Required columns missing from data: {missing_columns}",
+                    details={
+                        "missing_columns": missing_columns,
+                        "available_columns": list(data.columns),
+                    },
+                )
+
             # Get distributions configuration
             distributions = params["distributions"]
             numeric_class_name = params.get("numeric_class_name", True)
@@ -114,60 +145,76 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                 # Validate distribution configuration
                 dist = DistributionConfig(**dist_config)
 
-                # Validate fields exist
-                if dist.total not in data.columns:
+                # Get total and subset data
+                total_data = data[data["class_object"] == dist.total].copy()
+                subset_data = data[data["class_object"] == dist.subset].copy()
+
+                if len(total_data) == 0:
                     raise DataTransformError(
-                        f"Total field {dist.total} not found in data",
-                        details={"available_columns": list(data.columns)},
+                        f"No data found for total field {dist.total}",
+                        details={
+                            "available_class_objects": data["class_object"]
+                            .unique()
+                            .tolist(),
+                        },
                     )
 
-                if dist.subset not in data.columns:
+                if len(subset_data) == 0:
                     raise DataTransformError(
-                        f"Subset field {dist.subset} not found in data",
-                        details={"available_columns": list(data.columns)},
+                        f"No data found for subset field {dist.subset}",
+                        details={
+                            "available_class_objects": data["class_object"]
+                            .unique()
+                            .tolist(),
+                        },
                     )
 
-                # Get class names (assuming they're in class_name column)
-                classes = data["class_name"].unique()
-
-                # Convert to numeric if requested
+                # Convert class names to numeric if requested
                 if numeric_class_name:
                     try:
-                        classes = pd.to_numeric(classes)
-                        classes = np.sort(classes)
+                        total_data.loc[:, "class_name"] = pd.to_numeric(
+                            total_data["class_name"]
+                        )
+                        subset_data.loc[:, "class_name"] = pd.to_numeric(
+                            subset_data["class_name"]
+                        )
                     except Exception as e:
                         raise DataTransformError(
                             "Failed to convert class names to numeric",
                             details={"error": str(e)},
                         )
 
-                # Initialize arrays for subset and total values
-                subset_values = []
-                complement_values = []
+                # Sort by class name
+                total_data = total_data.sort_values("class_name").reset_index(drop=True)
+                subset_data = subset_data.sort_values("class_name").reset_index(
+                    drop=True
+                )
 
-                # Calculate ratios for each class
-                for class_val in classes:
-                    mask = data["class_name"] == class_val
-
-                    if not data[mask].empty:
-                        total = float(data.loc[mask, dist.total].iloc[0])
-                        subset = float(data.loc[mask, dist.subset].iloc[0])
-
+                # Calculate complement values based on mode
+                complement_mode = dist.complement_mode
+                if complement_mode == "difference":
+                    complement_values = (
+                        (total_data["class_value"] - subset_data["class_value"])
+                        .astype(float)
+                        .tolist()
+                    )
+                else:  # ratio mode
+                    complement_values = []
+                    for total, subset in zip(
+                        total_data["class_value"], subset_data["class_value"]
+                    ):
+                        total = float(total)
+                        subset = float(subset)
                         if total > 0:
                             ratio = subset / total
-                            subset_values.append(ratio)
                             complement_values.append(1 - ratio)
                         else:
-                            subset_values.append(0)
                             complement_values.append(0)
-                    else:
-                        subset_values.append(0)
-                        complement_values.append(0)
 
                 # Store results for this distribution
                 result[dist_name] = {
-                    "classes": classes.tolist(),
-                    "subset": subset_values,
+                    "classes": total_data["class_name"].tolist(),
+                    "subset": subset_data["class_value"].astype(float).tolist(),
                     "complement": complement_values,
                 }
 

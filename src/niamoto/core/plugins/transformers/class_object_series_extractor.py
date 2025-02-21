@@ -130,7 +130,7 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
                 )
 
             # Process size values
-            size_values = filtered_data[size_config.input]
+            size_values = filtered_data[size_config.input].fillna(-1)
 
             # Convert to numeric if requested
             if size_config.numeric:
@@ -144,7 +144,7 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
 
             # Sort if requested
             if size_config.sort:
-                sorted_indices = np.argsort(size_values)
+                sorted_indices = np.argsort(size_values.values)
                 size_values = size_values.iloc[sorted_indices]
                 filtered_data = filtered_data.iloc[sorted_indices]
 
@@ -171,10 +171,20 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
                     )
 
             # Construct result
-            return {
+            result = {
                 size_config.output: size_values.tolist(),
                 value_config.output: value_values.tolist(),
             }
+
+            # Remove -1 values from result
+            result[size_config.output] = [
+                x for x in result[size_config.output] if x != -1
+            ]
+            result[value_config.output] = [
+                x for x in result[value_config.output] if x != -1
+            ]
+
+            return result
 
         except Exception as e:
             if isinstance(e, DataTransformError):

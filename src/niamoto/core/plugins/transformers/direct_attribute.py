@@ -3,7 +3,7 @@ Plugin for getting a direct attribute from a source.
 """
 
 from typing import Dict, Any
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 import os
 import pandas as pd
 import geopandas as gpd
@@ -24,7 +24,7 @@ class DirectAttributeConfig(PluginConfig):
     plugin: str = "direct_attribute"
     params: Dict[str, Any] = Field(default_factory=lambda: {"source": "", "field": ""})
 
-    @validator("params")
+    @field_validator("params")
     @classmethod
     def validate_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         """Validate params configuration."""
@@ -113,10 +113,10 @@ class DirectAttribute(TransformerPlugin):
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """Transform data according to configuration."""
         try:
+            # Préserver group_id avant validation
+            group_id = config.get("group_id")
             validated_config = self.validate_config(config)
 
-            # Get group ID from config
-            group_id = validated_config.get("group_id")
             if group_id is None:
                 return {"value": None}
 

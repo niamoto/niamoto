@@ -376,10 +376,6 @@ class OccurrenceImporter:
             df["id_plot"] = df["id_plot"].astype("Int64")
             df["id_occurrence"] = df["id_occurrence"].astype("Int64")
 
-            print("CSV data head:")
-            print(df.head())
-            print("\nCSV dtypes:", df.dtypes)
-
             # Get plot_ref data for mapping id_locality to id
             plot_ref_query = """
                 SELECT id, id_locality
@@ -388,10 +384,6 @@ class OccurrenceImporter:
             plot_ref_df = pd.read_sql(plot_ref_query, f"sqlite:///{self.db_path}")
             plot_ref_df["id"] = plot_ref_df["id"].astype("Int64")
             plot_ref_df["id_locality"] = plot_ref_df["id_locality"].astype("Int64")
-
-            print("\nplot_ref data head:")
-            print(plot_ref_df.head())
-            print("\nplot_ref dtypes:", plot_ref_df.dtypes)
 
             # Merge avec plot_ref pour obtenir le bon id
             df_plots = pd.DataFrame(
@@ -403,13 +395,6 @@ class OccurrenceImporter:
             )
             df_plots = df_plots.merge(plot_ref_df, on="id_locality", how="left")
 
-            # Vérifier si des plots sont manquants
-            missing_plots = df_plots["id"].isna()
-            if missing_plots.any():
-                print("\nPlots manquants:")
-                print(f"id_locality: {df[missing_plots]['id_plot'].iloc[0]}")
-                print(f"Nombre total: {missing_plots.sum()}")
-
             # Get occurrences data for mapping id_source to id
             occurrences_query = """
                 SELECT id, id_source
@@ -419,10 +404,6 @@ class OccurrenceImporter:
             occurrences_df = pd.read_sql(occurrences_query, f"sqlite:///{self.db_path}")
             occurrences_df["id"] = occurrences_df["id"].astype("Int64")
             occurrences_df["id_source"] = occurrences_df["id_source"].astype("Int64")
-
-            print("\noccurrences data head:")
-            print(occurrences_df.head())
-            print("\noccurrences dtypes:", occurrences_df.dtypes)
 
             # Sauvegarder les colonnes originales dont nous avons besoin
             original_columns = {
@@ -446,11 +427,6 @@ class OccurrenceImporter:
 
             # Afficher un exemple d'ID manquant
             missing_mask = df_occurrences["id"].isna()
-            if missing_mask.any():
-                missing_example = df[missing_mask].iloc[0]
-                print("\nExemple d'occurrence manquante:")
-                print(f"id_source: {missing_example['id_occurrence']}")
-                print(f"Nombre total d'occurrences manquantes: {missing_mask.sum()}")
 
             # Filtrer les lignes sans occurrence
             valid_mask = ~missing_mask
@@ -472,11 +448,6 @@ class OccurrenceImporter:
 
             # Remplacer df par new_df
             df = new_df
-
-            print("\nFinal data:")
-            print(df.head())
-            print("\nColumns:", df.columns.tolist())
-            print("\nDtypes:", df.dtypes)
 
             # Create table
             self.db.execute_sql("DROP TABLE IF EXISTS occurrences_plots;")

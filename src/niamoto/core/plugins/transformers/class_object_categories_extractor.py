@@ -81,9 +81,12 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
         Extract values for ordered categories from shape statistics data.
 
         Args:
-            data: DataFrame containing shape statistics
+            data: DataFrame containing shape statistics in long format with columns:
+                - class_object: The type of data (e.g. land_use)
+                - class_name: The class name (e.g. NUM, UM, etc.)
+                - class_value: The value for this class
             config: Configuration dictionary with:
-                - params.class_object: Field name to extract categories from
+                - params.class_object: Field name to match in class_object
                 - params.categories_order: List of categories in desired order
 
         Returns:
@@ -101,14 +104,35 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
             params = validated_config.params
 
             # Get parameters
-            field = params["class_object"]
+            class_object_field = params["class_object"]
             categories = params["categories_order"]
 
-            # Validate field exists
-            if field not in data.columns:
+            # Check required columns exist
+            required_columns = ["class_object", "class_name", "class_value"]
+            missing_columns = [
+                col for col in required_columns if col not in data.columns
+            ]
+            if missing_columns:
                 raise DataTransformError(
-                    f"Field {field} not found in data",
-                    details={"available_columns": list(data.columns)},
+                    f"Required columns missing from data: {missing_columns}",
+                    details={
+                        "missing_columns": missing_columns,
+                        "available_columns": list(data.columns),
+                    },
+                )
+
+            # Filter data for this class_object
+            field_data = data[data["class_object"] == class_object_field]
+
+            if len(field_data) == 0:
+                raise DataTransformError(
+                    f"No data found for class_object {class_object_field}",
+                    details={
+                        "field": class_object_field,
+                        "available_class_objects": data["class_object"]
+                        .unique()
+                        .tolist(),
+                    },
                 )
 
             # Initialize results with ordered categories
@@ -116,14 +140,19 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
 
             # Extract values for each category in order
             for category in categories:
-                # Sum values where field equals category
-                mask = data[field] == category
-                value = float(data.loc[mask, field].count())
+                # Get value where class_name equals category
+                category_data = field_data[field_data["class_name"] == category]
+                if len(category_data) > 0:
+                    value = float(category_data.iloc[0]["class_value"])
+                else:
+                    value = 0.0
                 results["values"].append(value)
 
             return results
 
         except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
             raise DataTransformError(
                 "Failed to extract categorical values",
                 details={"error": str(e), "config": config},
