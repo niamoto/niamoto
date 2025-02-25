@@ -18,7 +18,7 @@ from niamoto.core.plugins.base import (
     PluginConfig,
 )
 from niamoto.common.config import Config
-from pydantic import validator
+from pydantic import field_validator
 
 
 class GeospatialExtractorConfig(PluginConfig):
@@ -29,9 +29,11 @@ class GeospatialExtractorConfig(PluginConfig):
         "source": "",
         "field": "",
         "format": "geojson",  # default format
+        "properties": [],  # optional, empty by default
     }
 
-    @validator("params")
+    @field_validator("params")
+    @classmethod
     def validate_params(cls, v):
         """Validate configuration parameters."""
         # Ensure we have a dictionary
@@ -49,6 +51,10 @@ class GeospatialExtractorConfig(PluginConfig):
             v["format"] = "geojson"
         elif v["format"] not in {"geojson"}:
             raise ValueError("Format must be 'geojson'")
+
+        # Set empty properties list if not provided
+        if "properties" not in v:
+            v["properties"] = []
 
         return v
 
@@ -191,6 +197,7 @@ class GeospatialExtractor(TransformerPlugin):
             source = params["source"]
             field = params["field"]
             format = params["format"]
+            properties = params["properties"]
 
             # Get source data if different from occurrences
             if source != "occurrences":
@@ -219,13 +226,12 @@ class GeospatialExtractor(TransformerPlugin):
                         for idx, row in gdf.iterrows():
                             try:
                                 if row.geometry is not None:
-                                    # Include all properties except geometry
-                                    properties = {
-                                        k: v
-                                        for k, v in row.items()
-                                        if k != "geometry" and not pd.isna(v)
-                                    }
-
+                                    # Include only essential properties
+                                    properties_to_include = [
+                                        prop
+                                        for prop in properties
+                                        if prop in row.index and not pd.isna(row[prop])
+                                    ]
                                     feature = {
                                         "type": "Feature",
                                         "geometry": {
@@ -235,7 +241,10 @@ class GeospatialExtractor(TransformerPlugin):
                                                 row.geometry.y,
                                             ],
                                         },
-                                        "properties": properties,
+                                        "properties": {
+                                            prop: row[prop]
+                                            for prop in properties_to_include
+                                        },
                                     }
                                     features.append(feature)
                             except Exception:

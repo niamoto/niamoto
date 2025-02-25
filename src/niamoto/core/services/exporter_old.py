@@ -3,24 +3,28 @@ Service for generating static content in Niamoto.
 """
 
 from typing import List, Optional, Any, Dict
-from rich.progress import track
 
+from rich.console import Console
+from rich.progress import track
 from sqlalchemy import asc
 from sqlalchemy.sql import text
 
-from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from niamoto.common.config import Config
-from niamoto.core.repositories.niamoto_repository import NiamotoRepository
-from niamoto.core.components.exports.page_generator import PageGenerator
-from niamoto.core.components.exports.api_generator import ApiGenerator
-from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     GenerationError,
     TemplateError,
     OutputError,
     ValidationError,
     ConfigurationError,
+    ProcessError,
 )
+from niamoto.common.utils import error_handler
+from niamoto.core.components.exports.api_generator import ApiGenerator
+from niamoto.core.components.exports.page_generator import PageGenerator
+from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
+from niamoto.core.repositories.niamoto_repository import NiamotoRepository
+
+console = Console()
 
 
 class ExporterService:
@@ -43,47 +47,89 @@ class ExporterService:
     @error_handler(log=True, raise_error=True)
     def export_data(self, group: Optional[str] = None) -> None:
         """
-        Generate static content based on configuration.
+        Export data according to configuration.
 
         Args:
-            group: If specified, only generate content for this group (taxon, plot, shape)
-
-        Raises:
-            ValidationError: If group is invalid
-            ConfigurationError: If configuration is missing or invalid
-            GenerationError: If content generation fails
+            group: Optional group filter
         """
-        # Validate group if specified
-        valid_groups = {"taxon", "plot", "shape"}
-        if group and group not in valid_groups:
-            raise ValidationError(
-                "group",
-                f"Invalid group type. Must be one of: {', '.join(valid_groups)}",
-                details={"provided": group},
-            )
-
         try:
-            # Validate configuration
-            if not self.exports_config:
+            # Load export configuration
+            export_config = self.exports_config
+
+            if not export_config:
                 raise ConfigurationError(
-                    "transforms",
-                    "No transforms configuration found",
-                    details={"config_file": "export.yml"},
+                    "export.yml",
+                    "No export configuration found",
+                    details={"file": "export.yml"},
                 )
+
+            # Get available groups from config
+            available_groups = []
+            for config in export_config:
+                if "group_by" in config and config["group_by"] not in available_groups:
+                    available_groups.append(config["group_by"])
+
+            # Validate group if specified
+            if group and group not in available_groups:
+                # Try case-insensitive match
+                case_insensitive_match = next(
+                    (g for g in available_groups if g.lower() == group.lower()), None
+                )
+
+                if case_insensitive_match:
+                    # Use the correct case
+                    group = case_insensitive_match
+                    console.print(
+                        f"[yellow]Using group '{group}' (case-insensitive match)[/yellow]"
+                    )
+                # Try singular/plural variants
+                elif group.endswith("s") and group[:-1] in available_groups:
+                    # Convert plural to singular
+                    group = group[:-1]
+                    console.print(
+                        f"[yellow]Using singular form '{group}' instead of '{group}s'[/yellow]"
+                    )
+                elif f"{group}s" in available_groups:
+                    # Convert singular to plural
+                    group = f"{group}s"
+                    console.print(
+                        f"[yellow]Using plural form '{group}' instead of '{group[:-1]}'[/yellow]"
+                    )
+                else:
+                    # Find closest match for suggestion
+                    suggestion = ""
+                    if available_groups:
+                        import difflib
+
+                        closest = difflib.get_close_matches(
+                            group, available_groups, n=1
+                        )
+                        if closest:
+                            suggestion = f" Did you mean '{closest[0]}'?"
+
+                    raise ConfigurationError(
+                        "export.yml",
+                        f"No configuration found for group: {group}",
+                        details={
+                            "group": group,
+                            "available_groups": available_groups,
+                            "help": f"Available groups are: {', '.join(available_groups)}.{suggestion}",
+                        },
+                    )
 
             # Generate base static pages
             self._generate_static_pages()
 
             # Filter configuration by group
             configs = (
-                [c for c in self.exports_config if c.get("group_by") == group]
+                [c for c in export_config if c.get("group_by") == group]
                 if group
-                else self.exports_config
+                else export_config
             )
 
             if group and not configs:
                 raise ConfigurationError(
-                    "transforms",
+                    "export.yml",
                     f"No configuration found for group: {group}",
                     details={"group": group},
                 )
@@ -98,11 +144,16 @@ class ExporterService:
             self._generate_additional_content(group)
 
         except Exception as e:
-            if isinstance(e, (ValidationError, ConfigurationError)):
-                raise
-            raise GenerationError(
-                "Failed to generate content", details={"group": group, "error": str(e)}
-            )
+            # Extract useful details from the original error if it's a ConfigurationError
+            if isinstance(e, ConfigurationError) and hasattr(e, "details"):
+                error_details = e.details.copy() if e.details else {}
+                error_details.update({"group": group})
+
+                raise ProcessError("Failed to export data", details=error_details)
+            else:
+                raise ProcessError(
+                    "Failed to export data", details={"group": group, "error": str(e)}
+                )
 
     @error_handler(log=True, raise_error=False)
     def _generate_static_pages(self) -> None:

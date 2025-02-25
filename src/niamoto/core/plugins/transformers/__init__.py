@@ -1,23 +1,32 @@
 """
-Package for transformer plugins.
+Transformer plugins for Niamoto.
 """
 
-from .field_aggregator import FieldAggregator
-from .statistical_summary import StatisticalSummary
-from .direct_attribute import DirectAttribute
-from .geospatial_extractor import GeospatialExtractor
-from .top_ranking import TopRanking
-from .binned_distribution import BinnedDistribution
-from .time_series_analysis import TimeSeriesAnalysis
-from .binary_counter import BinaryCounter
-
+# List of all available transformers
 __all__ = [
+    # Base
+    "TransformChain",
+    # Aggregation
     "FieldAggregator",
-    "StatisticalSummary",
-    "DirectAttribute",
-    "GeospatialExtractor",
     "TopRanking",
+    # Extraction
+    "DirectAttribute",
+    # Geospatial
+    "GeospatialExtractor",
+    "ShapeProcessor",
+    # Statistical
     "BinnedDistribution",
-    "TimeSeriesAnalysis",
+    "CategoricalDistribution",
     "BinaryCounter",
+    "StatisticalSummary",
+    "TimeSeriesAnalysis",
+    # Class Objects
+    "BinaryAggregator",
+    "CategoriesExtractor",
+    "CategoriesMapper",
+    "ClassObjectFieldAggregator",
+    "SeriesByAxisExtractor",
+    "SeriesExtractor",
+    "SeriesMatrixExtractor",
+    "SeriesRatioAggregator",
 ]

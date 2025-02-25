@@ -54,42 +54,6 @@ class TransformerService:
         project_path = os.path.dirname(os.path.dirname(config.config_dir))
         self.plugin_loader.load_project_plugins(project_path)
 
-    def _run_with_progress(
-        self,
-        items: List[Any],
-        description: str,
-        process_method: callable,
-        leave: bool = True,
-    ) -> None:
-        """
-        Generic method to process items with a Rich Progress bar.
-
-        Args:
-            items: The list of items to process
-            description: The description for the progress bar
-            process_method: The method to process a single item
-            leave: Whether to leave the progress bar after completion
-        """
-        with Progress(
-            SpinnerColumn(),
-            BarColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            TimeElapsedColumn(),
-            console=self.console,
-        ) as progress:
-            task = progress.add_task(f"[green]{description}", total=len(items))
-            for item in items:
-                try:
-                    process_method(item)
-                except Exception as e:
-                    # Log the error but continue processing
-                    logger.error(f"Error in {description} for item {item}: {str(e)}")
-                    self.console.print(
-                        f"[red]Error in {description} for item {item}: {str(e)}[/red]"
-                    )
-                finally:
-                    progress.advance(task)
-
     @error_handler(log=True, raise_error=True)
     def transform_data(
         self,
@@ -113,13 +77,6 @@ class TransformerService:
             # Filter configuration by group if specified
             configs = self._filter_configs(group_by)
 
-            # Calculate total number of operations
-            total_operations = 0
-            for config in configs:
-                group_ids = self._get_group_ids(config)
-                widgets_config = config.get("widgets_data", {})
-                total_operations += len(group_ids) * len(widgets_config)
-
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
@@ -129,33 +86,36 @@ class TransformerService:
                 TimeElapsedColumn(),
                 console=self.console,
             ) as progress:
-                # Create main task
-                main_task = progress.add_task(
-                    "[cyan]Processing transformations...", total=total_operations
-                )
-
                 # Process each group configuration
                 for group_config in configs:
                     self.validate_configuration(group_config)
-
-                    # Create or update table for results
-                    self._create_group_table(
-                        group_config.get("group_by"),
-                        group_config.get("widgets_data", {}),
-                        recreate_table,
-                    )
 
                     # Get all group IDs and widgets
                     group_ids = self._get_group_ids(group_config)
                     widgets_config = group_config.get("widgets_data", {})
                     group_by = group_config.get("group_by", "unknown")
 
+                    # Calculate total operations for this group config
+                    total_ops = len(group_ids) * len(widgets_config)
+
+                    # Create progress bar for this group config
+                    config_task = progress.add_task(
+                        f"[cyan]Processing {group_by} data...", total=total_ops
+                    )
+
+                    # Create or update table for results
+                    self._create_group_table(
+                        group_config.get("group_by"),
+                        widgets_config,
+                        recreate_table,
+                    )
+
                     # Process each group
                     for group_id in group_ids:
                         try:
-                            # Update description with current group name
+                            # Update progress description with current group ID
                             progress.update(
-                                main_task,
+                                config_task,
                                 description=f"[cyan]Processing {group_by} {group_id}...",
                             )
 
@@ -163,10 +123,6 @@ class TransformerService:
                             group_data = self._get_group_data(
                                 group_config, csv_file, group_id
                             )
-                            # if group_data.empty:
-                            #     logger.warning(f"No data found for group {group_id}")
-                            #     progress.advance(main_task, len(widgets_config))
-                            #     continue
 
                             # Process each widget
                             for widget_name, widget_config in widgets_config.items():
@@ -205,22 +161,29 @@ class TransformerService:
 
                                 except Exception as e:
                                     error_msg = f"Error processing widget {widget_name} for group {group_id}: {str(e)}"
-                                    # logger.error(error_msg)
                                     self.console.print(f"[red]{error_msg}[/red]")
                                 finally:
-                                    progress.advance(main_task)
+                                    progress.advance(config_task)
 
                         except Exception as e:
                             error_msg = f"Failed to process group {group_id}: {str(e)}"
-                            # logger.error(error_msg)
                             self.console.print(f"[red]{error_msg}[/red]")
-                            # Advance for all widgets in case of group error
-                            progress.advance(main_task, len(widgets_config))
+                            # Advance for all remaining widgets in case of group error
+                            remaining = len(widgets_config)
+                            progress.advance(config_task, remaining)
 
         except Exception as e:
-            raise ProcessError(
-                "Failed to transform data", details={"group": group_by, "error": str(e)}
-            )
+            # Extract useful details from the original error if it's a ConfigurationError
+            if isinstance(e, ConfigurationError) and hasattr(e, "details"):
+                error_details = e.details.copy() if e.details else {}
+                error_details.update({"group": group_by})
+
+                raise ProcessError("Failed to transform data", details=error_details)
+            else:
+                raise ProcessError(
+                    "Failed to transform data",
+                    details={"group": group_by, "error": str(e)},
+                )
 
     def _filter_configs(self, group_by: Optional[str]) -> List[Dict[str, Any]]:
         """Filter configurations by group."""
@@ -231,21 +194,82 @@ class TransformerService:
                 details={"file": "transform.yml"},
             )
 
-        if group_by:
-            filtered = [
-                config
-                for config in self.transforms_config
-                if config.get("group_by") == group_by
-            ]
-            if not filtered:
-                raise ConfigurationError(
-                    "transforms",
-                    f"No configuration found for group: {group_by}",
-                    details={"group": group_by},
-                )
-            return filtered
+        if not group_by:
+            return self.transforms_config
 
-        return self.transforms_config
+        # Get available group_by values
+        available_groups = [
+            config.get("group_by")
+            for config in self.transforms_config
+            if config.get("group_by")
+        ]
+
+        # Check for exact match first
+        filtered = [
+            config
+            for config in self.transforms_config
+            if config.get("group_by") == group_by
+        ]
+
+        # If no exact match, try case-insensitive match
+        if not filtered:
+            for config in self.transforms_config:
+                if (
+                    config.get("group_by")
+                    and config.get("group_by").lower() == group_by.lower()
+                ):
+                    filtered.append(config)
+                    correct_group = config.get("group_by")
+                    self.console.print(
+                        f"[yellow]Using group '{correct_group}' instead of '{group_by}'[/yellow]"
+                    )
+                    break
+
+        # If still no match, try singular/plural variants
+        if not filtered:
+            # Try singular form if group_by ends with 's'
+            if group_by.endswith("s"):
+                singular = group_by[:-1]
+                for config in self.transforms_config:
+                    if config.get("group_by") == singular:
+                        filtered.append(config)
+                        self.console.print(
+                            f"[yellow]Using singular form '{singular}' instead of '{group_by}'[/yellow]"
+                        )
+                        break
+            # Try plural form if group_by doesn't end with 's'
+            else:
+                plural = f"{group_by}s"
+                for config in self.transforms_config:
+                    if config.get("group_by") == plural:
+                        filtered.append(config)
+                        self.console.print(
+                            f"[yellow]Using plural form '{plural}' instead of '{group_by}'[/yellow]"
+                        )
+                        break
+
+        # If still no match, provide a helpful error message
+        if not filtered:
+            # Try to find a close match
+            suggestion = ""
+            if available_groups:
+                import difflib
+
+                matches = difflib.get_close_matches(group_by, available_groups, n=1)
+                if matches:
+                    suggestion = f" Did you mean '{matches[0]}'?"
+
+            raise ConfigurationError(
+                "transforms",
+                f"No configuration found for group: {group_by}",
+                details={
+                    "group": group_by,
+                    "available_groups": available_groups,
+                    "help": f"Available groups are: {', '.join(available_groups)}.{suggestion}",
+                },
+            )
+
+        return filtered
 
     def validate_configuration(self, config: Dict[str, Any]) -> None:
         """

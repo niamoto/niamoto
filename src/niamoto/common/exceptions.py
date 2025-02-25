@@ -146,6 +146,20 @@ class ConfigurationError(NiamotoError):
         super().__init__(message, details)
         self.config_key = config_key
 
+    def get_user_message(self) -> str:
+        """Returns a user-friendly error message with details if available"""
+        message = f"{str(self)} (configuration key: {self.config_key})"
+
+        # Add help message if available
+        if self.details and "help" in self.details:
+            message += f"\n{self.details['help']}"
+        # Add available groups if present
+        elif self.details and "available_groups" in self.details:
+            groups = ", ".join(self.details["available_groups"])
+            message += f"\nAvailable groups: {groups}"
+
+        return message
+
 
 class EnvironmentSetupError(NiamotoError):
     """Exception raised for environment setup and configuration issues."""
@@ -210,7 +224,39 @@ class OutputError(GenerationError):
 class ProcessError(NiamotoError):
     """Base class for transforms calculation errors."""
 
-    pass
+    def get_user_message(self) -> str:
+        """Returns a user-friendly error message with details if available"""
+        message = str(self)
+
+        # If we have details, add them to the message
+        if self.details:
+            # Add original error if it's informative
+            if "error" in self.details and isinstance(self.details["error"], str):
+                original_error = self.details["error"]
+                if "No configuration found for group" in original_error:
+                    # Extract the group name from the original error
+                    import re
+
+                    match = re.search(r"group: (\w+)", original_error)
+                    if match and match.group(1):
+                        group_name = match.group(1)
+                        message += f"\nGroup '{group_name}' not found."
+
+            # Add available groups if present
+            if "available_groups" in self.details:
+                groups = self.details["available_groups"]
+                message += f"\nAvailable groups: {', '.join(groups)}"
+
+                # Add suggestion if we have a group name
+                if "group" in self.details and groups:
+                    group_name = self.details["group"]
+                    import difflib
+
+                    matches = difflib.get_close_matches(group_name, groups, n=1)
+                    if matches:
+                        message += f"\nDid you mean '{matches[0]}'?"
+
+        return message
 
 
 class CalculationError(ProcessError):

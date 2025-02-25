@@ -41,6 +41,7 @@
         source: occurrences
         field: geo_pt
         format: geojson
+        properties: ["taxonref", "dbh", "height"]
       # ex:
       # {
       #   "type": "FeatureCollection",
@@ -171,6 +172,46 @@
       #   "units": "g/cm3"
       # }
 
+    rainfall_distribution:
+      plugin: binned_distribution
+      params:
+        source: occurrences
+        field: rainfall
+        bins: [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000]
+      # ex:
+      # {
+      #   "bins": [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000],
+      #   "counts": [45, 78, 92, 64, 38, 25, 12, 8, 3]
+      # }
+
+    holdridge_distribution:
+      plugin: categorical_distribution
+      params:
+        source: occurrences
+        field: holdridge
+        categories: [1, 2, 3]
+        labels: ["Sec", "Humide", "Très humide"]
+      # ex:
+      # {
+      #   "bins": [1, 2, 3],
+      #   "labels": ["Sec", "Humide", "Très humide"],
+      #   "counts": [45, 78, 92]
+      # }
+
+    strata_distribution:
+      plugin: categorical_distribution
+      params:
+        source: occurrences
+        field: strata
+        categories: [1, 2, 3, 4]
+        labels: ["Sous-bois", "Sous-Canopée", "Canopée", "Emergent"]
+      # ex:
+      # {
+      #   "bins": [1, 2, 3, 4],
+      #   "labels": ["Sous-bois", "Sous-Canopée", "Canopée", "Emergent"],
+      #   "counts": [45, 78, 92, 64]
+      # }
+
     bark_thickness:
       plugin: statistical_summary
       params:
@@ -225,7 +266,7 @@
         fields:
           - source: plots
             field: locality
-            target: name
+            target: plot_name
           - source: plots
             field: elevation
             target: elevation
@@ -383,19 +424,6 @@
 
   widgets_data:
     general_info:
-      plugin: field_aggregator
-      params:
-        fields:
-          - source: shape_ref
-            field: label
-            target: name
-
-      # ex:
-      # {
-      #   "name": "PROVINCE NORD",
-      # }
-
-    area_metrics:
       plugin: class_object_field_aggregator
       params:
         fields:
@@ -458,7 +486,7 @@
       # ex:
       # {
       #   "shape_coords": {...},
-      #   "forest_coords": {...}
+      #   "forest_cover_coords": {...}
       # }
 
     forest_cover:
@@ -639,9 +667,7 @@
             target: meff
             units: km²
       # ex:
-      # {
-      #   "meff": 189.98, "units": "km²"
-      # }
+      # {"meff": {"value": 0.122142521265423, "units": "km²"}}
 
     fragmentation_distribution:
       plugin: class_object_series_extractor

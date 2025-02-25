@@ -127,28 +127,36 @@ def handle_error(
         raise_error: Whether to re-raise the error
         console_output: Whether to output to console
     """
-    error_message = format_error_message(error)
-    error_details = get_error_details(error)
+    # Get error message - use get_user_message if available
+    if hasattr(error, "get_user_message") and callable(
+        getattr(error, "get_user_message")
+    ):
+        error_message = error.get_user_message()
+    else:
+        error_message = str(error)
 
     # Log error if requested
     if log:
         # Only log full traceback for unexpected errors
         if isinstance(error, NiamotoError):
-            logging.error(error_message, extra={"error_details": error_details})
+            logging.error(f"Error: {error_message}")
         else:
-            logging.error(error_message, exc_info=True)
+            logging.error(f"Unexpected error: {error_message}", exc_info=True)
 
     # Console output if requested
     if console_output:
-        # For ProcessError, only show the main error message
-        if isinstance(error, ProcessError):
-            console.print(f"[red]✗ {str(error)}[/red]")
-        else:
-            console.print(f"[red]✗ {error_message}[/red]")
+        console.print(f"[red]✗ {error_message}[/red]")
 
-    # Re-raise if requested
+    # Re-raise if requested, but avoid cascade
     if raise_error:
-        raise error
+        # If it's a NiamotoError, just exit with error code
+        if isinstance(error, NiamotoError):
+            import sys
+
+            sys.exit(1)
+        # Otherwise, wrap it in a ProcessError to provide a cleaner error
+        else:
+            raise ProcessError(str(error), details={"original_error": str(error)})
 
 
 def error_handler(

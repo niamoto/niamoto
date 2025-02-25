@@ -76,7 +76,7 @@ class PluginLoader:
 
     def _load_plugins_from_dir(self, directory: Path, is_core: bool = False) -> None:
         """
-        Load all plugins from a directory.
+        Load all plugins from a directory recursively.
 
         Args:
             directory: Directory containing plugin files
@@ -86,7 +86,9 @@ class PluginLoader:
             PluginLoadError: If loading of plugins fails
         """
         try:
-            for file in directory.glob("*.py"):
+            # Recursively find all .py files
+            for file in directory.rglob("*.py"):
+                # Skip __init__.py and other files starting with _
                 if file.name.startswith("_"):
                     continue
 
@@ -95,15 +97,34 @@ class PluginLoader:
                     continue
 
                 try:
-                    self._load_plugin_module(file, module_name)
-                    self.loaded_plugins.add(module_name)
-                    self.plugin_paths[module_name] = str(file)
+                    self._load_plugin_file(file, module_name)
                 except Exception as e:
                     logger.error(f"Failed to load plugin {file.name}: {str(e)}")
 
         except Exception as e:
             raise PluginLoadError(
                 f"Failed to load plugins from {directory}", details={"error": str(e)}
+            )
+
+    def _load_plugin_file(self, file: Path, module_name: str) -> None:
+        """
+        Load a single plugin file and register it.
+
+        Args:
+            file: Plugin file path
+            module_name: Module name for the plugin
+
+        Raises:
+            PluginLoadError: If loading fails
+        """
+        try:
+            self._load_plugin_module(file, module_name)
+            self.loaded_plugins.add(module_name)
+            self.plugin_paths[module_name] = str(file)
+        except Exception as e:
+            raise PluginLoadError(
+                f"Failed to load plugin file {file}",
+                details={"error": str(e), "module": module_name},
             )
 
     def _get_module_name(self, file: Path, is_core: bool) -> str:
@@ -119,11 +140,15 @@ class PluginLoader:
         """
         if is_core:
             # Core plugins use absolute import path
-            parts = file.relative_to(Path(__file__).parent).with_suffix("").parts
-            return f"niamoto.core.plugins.{'.'.join(parts)}"
+            # Get path relative to plugins directory (2 levels up from file's parent)
+            plugin_root = Path(__file__).parent
+            relative_path = file.relative_to(plugin_root).with_suffix("")
+            return f"niamoto.core.plugins.{'.'.join(relative_path.parts)}"
         else:
-            # Project plugins use relative import path
-            return f"plugins.{file.parent.name}.{file.stem}"
+            # Project plugins use relative import path from plugins directory
+            # Include all subdirectories in the module path
+            relative_path = file.relative_to(file.parents[file.parts.index("plugins")])
+            return f"plugins.{'.'.join(relative_path.with_suffix('').parts)}"
 
     def _load_plugin_module(self, file: Path, module_name: str) -> None:
         """

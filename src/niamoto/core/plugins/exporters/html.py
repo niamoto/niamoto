@@ -14,7 +14,10 @@ class HTMLExportConfig(BaseModel):
 
 @register("html", PluginType.EXPORTER)
 class HTMLExporter(ExporterPlugin):
+    type = PluginType.EXPORTER
+
     def __init__(self):
+        super().__init__()
         self.env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
 
     def validate_config(self, config: Dict[str, Any]) -> None:

@@ -163,8 +163,11 @@ class FieldAggregator(TransformerPlugin):
 
             # Add units if any
             if field.units:
-                result[field.target] = f"{value} {field.units}"
+                result[field.target] = {
+                    "value": value,
+                    "units": field.units,
+                }
             else:
-                result[field.target] = value
+                result[field.target] = {"value": value}
 
         return result

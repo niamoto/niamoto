@@ -383,10 +383,14 @@
       title: "Informations générales"
       layout: grid
       fields:
+        - source: plot_name
+          label: "Parcelle"
         - source: elevation
           label: "altitudes"
+          format: "number"
         - source: rainfall
           label: "Précipitation annuelle moyenne"
+          format: "number"
         - source: holdridge
           label: "Milieu de vie"
         - source: substrat
@@ -715,36 +719,28 @@
       fields:
         - source: land_area_ha
           label: "Surface totale"
-          suffix: " ha"
           format: "number"
         - source: forest_area_ha
           label: "Surface forêt"
-          suffix: " ha"
           format: "number"
         - source: forest_mining_ha
           label: "Forêt sur mine"
-          suffix: " ha"
           format: "number"
         - source: forest_reserve_ha
           label: "Forêt en réserve"
-          suffix: " ha"
           format: "number"
         - source: forest_ppe_ha
           label: "Forêt sur captage (PPE)"
-          suffix: " ha"
           format: "number"
         - source: rainfall
           label: "Pluviométrie"
           format: "range"
-          suffix: " mm/an"
         - source: elevation_median
           label: "Altitude médiane"
           format: "number"
-          suffix: " m"
         - source: elevation_max
           label: "Altitude maximale"
           format: "number"
-          suffix: " m"
 
     map_panel:
       type: map_panel
@@ -759,7 +755,7 @@
             weight: 2
             fillOpacity: 0
         - id: forest
-          source: geography.forest_coords
+          source: geography.forest_cover_coords
           style:
             color: "#228b22"
             weight: 0.3
@@ -773,19 +769,19 @@
       source: forest_cover
       datasets:
         - label: 'Emprise'
-          data_keys: ['emprise.foret', 'emprise.hors_foret']
+          data_keys: ['emprise.forest', 'emprise.non_forest']
           transformData: 'toPercentage'
           backgroundColors: ['#2E7D32', '#F4E4BC']
           borderColor: '#ffffff'
           borderWidth: 2
         - label: 'NUM'
-          data_keys: ['num.foret', 'num.hors_foret']
+          data_keys: ['num.forest', 'num.non_forest']
           transformData: 'toPercentage'
           backgroundColors: ['#2E7D32', '#C5A98B']
           borderWidth: 2
           borderColor: '#ffffff'
         - label: 'UM'
-          data_keys: ['um.foret', 'um.hors_foret']
+          data_keys: ['um.forest', 'um.non_forest']
           transformData: 'toPercentage'
           backgroundColors: ['#2E7D32', '#8B7355']
           borderColor: '#ffffff'
@@ -838,17 +834,17 @@
       type: bar_chart
       title: "Distribution altitudinale"
       description: "Distribution altitudinale de la forêt dans l'emprise"
-      source: elevation_distribution
+      source: elevation_distribution.elevation
       datasets:
-        - label: 'Forêt'
-          data_key: 'forest'
-          backgroundColor: '#2E7D32'
+        - label: "Forêt"
+          data_key: "subset"
+          backgroundColor: "#2E7D32"
           stack: 'Stack 0'
-        - label: 'Hors-forêt'
-          data_key: 'non_forest'
-          backgroundColor: '#F4E4BC'
+        - label: "Hors-forêt"
+          data_key: "complement"
+          backgroundColor: "#F4E4BC"
           stack: 'Stack 0'
-      labels_key: 'altitudes'
+      labels_key: "classes"
       options:
         indexAxis: 'y'
         scales:
@@ -927,15 +923,15 @@
       source: forest_cover_by_elevation
       datasets:
         - label: 'Forêt (UM)'
-          data_key: 'um'
+          data_key: 'series.forest_um'
           backgroundColor: '#90EE90'
           stack: 'Stack 0'
           transformData: 'negateValues'
         - label: 'Forêt (NUM)'
-          data_key: 'num'
+          data_key: 'series.forest_num'
           backgroundColor: '#2E7D32'
           stack: 'Stack 0'
-      labels_key: 'altitudes'
+      labels_key: 'class_name'
       options:
         responsive: true
         maintainAspectRatio: false
@@ -1087,8 +1083,8 @@
       type: gauge
       title: "Fragmentation"
       description: "La taille effective de maillage représente la probabilité que deux points appartiennent au même fragment de forêt"
-      source: fragmentation
-      value_key: 'meff'
+      source: fragmentation.meff
+      value_key: 'value'
       options:
         min: 0
         max: 1000

@@ -21,7 +21,7 @@ class BinnedDistributionConfig(PluginConfig):
 
     plugin: str = "binned_distribution"
     params: Dict[str, Any] = Field(
-        default_factory=lambda: {"source": "", "field": None, "bins": []}
+        default_factory=lambda: {"source": "", "field": None, "bins": [], "labels": []}
     )
 
     @field_validator("params")
@@ -124,10 +124,19 @@ class BinnedDistribution(TransformerPlugin):
             # Calculate bin counts
             counts, _ = np.histogram(field_data, bins=validated_config.params["bins"])
 
-            return {
+            result = {
                 "bins": validated_config.params["bins"],
                 "counts": [int(x) for x in counts],
             }
+
+            # Add labels if they exist
+            if (
+                "labels" in validated_config.params
+                and validated_config.params["labels"]
+            ):
+                result["labels"] = validated_config.params["labels"]
+
+            return result
 
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")

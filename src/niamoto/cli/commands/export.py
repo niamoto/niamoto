@@ -9,12 +9,6 @@ from typing import Optional
 import click
 
 from niamoto.common.config import Config
-from niamoto.common.exceptions import (
-    ConfigurationError,
-    ValidationError,
-    GenerationError,
-    TemplateError,
-)
 from niamoto.common.utils.error_handler import error_handler
 from niamoto.core.services.exporter_old import ExporterService
 from ..utils.console import print_success, print_info
@@ -44,60 +38,22 @@ def generate_commands(ctx, group: Optional[str]):
 @error_handler(log=True, raise_error=True)
 def export_pages(group: Optional[str]) -> None:
     """
-    Generate static website content.
-
-    Args:
-        group: Optional group to generate content for (e.g., taxon, plot)
-
-    Raises:
-        ConfigurationError: If configuration is invalid or export.yml is missing
-        ValidationError: If group parameter is invalid
-        TemplateError: If template processing fails
-        OutputError: If file generation fails
-        GenerationError: If content generation fails
+    Export data to static pages according to configuration.
     """
-    config = Config()
-
-    # Validate transforms configuration
-    if not config.exports:
-        raise ConfigurationError(
-            config_key="transforms",
-            message="Missing or empty transforms configuration",
-            details={"file": "export.yml"},
-        )
-
-    # Validate group if provided
-    if group and group.lower() not in ["taxon", "plot", "shape"]:
-        raise ValidationError(
-            field="group",
-            message="Invalid group specified",
-            details={"provided": group, "allowed_values": ["taxon", "plot", "shape"]},
-        )
-
     try:
-        generator = ExporterService(config)
+        # Initialize service
+        config = Config()
+        service = ExporterService(config)
 
+        # Export data
         if group:
-            print_info(f"Generating static pages for group: {group}")
-            generator.export_data(group)
+            print_info(f"Exporting data for group: {group}")
         else:
-            print_info("Starting full pages generation...")
-            for group in ["taxon", "plot", "shape"]:
-                print_info(f"Generating static pages for group: {group}")
-                generator.export_data(group)
+            print_info("Exporting all data groups")
 
-        print_success("Static pages generation completed")
+        service.export_data(group)
 
-    except TemplateError as e:
-        # Re-raise template errors with more context
-        raise TemplateError(
-            template_name=str(e.template_name),
-            message="Template processing failed",
-            details={"group": group, "error": str(e)},
-        )
-    except Exception as e:
-        # Handle other generation errors
-        raise GenerationError(
-            message="Content generation failed",
-            details={"group": group, "error": str(e)},
-        )
+        print_success("Data export completed successfully")
+    except Exception:
+        # Let the error handler handle the exception
+        raise

@@ -6,11 +6,11 @@ from typing import Optional
 from pathlib import Path
 
 import click
+from rich import print
 
 from niamoto.common.config import Config
 from niamoto.common.exceptions import (
     ValidationError,
-    ProcessError,
     ConfigurationError,
     FileError,
 )
@@ -81,11 +81,11 @@ def list_configurations() -> None:
             relation = source.get("relation", {}).get("type", "unknown")
             widgets = len(transform.get("widgets_data", {}))
 
-            click.echo(f"\n[bold]{group}[/bold]")
-            click.echo(f"  Data source: {data}")
-            click.echo(f"  Grouping: {grouping}")
-            click.echo(f"  Relation type: {relation}")
-            click.echo(f"  Widgets: {widgets}")
+            print(f"\n[bold]{group}[/bold]")
+            print(f"  Data source: {data}")
+            print(f"  Grouping: {grouping}")
+            print(f"  Relation type: {relation}")
+            print(f"  Widgets: {widgets}")
 
     except ConfigurationError as e:
         print_warning(f"Error reading configuration: {str(e)}")
@@ -144,6 +144,7 @@ def process_transformations(
 
     try:
         config = Config()
+
         if verbose:
             print_info("Initializing transformer service...")
 
@@ -161,13 +162,8 @@ def process_transformations(
 
         print_success("Data transformation completed successfully")
 
-    except Exception as e:
-        if isinstance(e, (ConfigurationError, ValidationError, FileError)):
-            raise
-        raise ProcessError(
-            message="Data transformation failed",
-            details={"group": group, "data_file": data, "error": str(e)},
-        )
+    except Exception:
+        raise
 
 
 @transform_commands.command(name="check")
