@@ -30,6 +30,7 @@ class GeospatialExtractorConfig(PluginConfig):
         "field": "",
         "format": "geojson",  # default format
         "properties": [],  # optional, empty by default
+        "group_by_coordinates": False,  # optional, group points with same coordinates
     }
 
     @field_validator("params")
@@ -55,6 +56,10 @@ class GeospatialExtractorConfig(PluginConfig):
         # Set empty properties list if not provided
         if "properties" not in v:
             v["properties"] = []
+
+        # Set default for group_by_coordinates if not provided
+        if "group_by_coordinates" not in v:
+            v["group_by_coordinates"] = False
 
         return v
 
@@ -198,6 +203,7 @@ class GeospatialExtractor(TransformerPlugin):
             field = params["field"]
             format = params["format"]
             properties = params["properties"]
+            group_by_coordinates = params.get("group_by_coordinates", False)
 
             # Get source data if different from occurrences
             if source != "occurrences":
@@ -222,33 +228,106 @@ class GeospatialExtractor(TransformerPlugin):
 
                     # Convert to GeoJSON
                     if format == "geojson":
-                        features = []
-                        for idx, row in gdf.iterrows():
-                            try:
-                                if row.geometry is not None:
-                                    # Include only essential properties
-                                    properties_to_include = [
-                                        prop
-                                        for prop in properties
-                                        if prop in row.index and not pd.isna(row[prop])
-                                    ]
-                                    feature = {
-                                        "type": "Feature",
-                                        "geometry": {
-                                            "type": "Point",
-                                            "coordinates": [
-                                                row.geometry.x,
-                                                row.geometry.y,
-                                            ],
-                                        },
-                                        "properties": {
+                        if group_by_coordinates:
+                            # Dictionary to store unique coordinates and their features
+                            unique_features = {}
+
+                            for idx, row in gdf.iterrows():
+                                try:
+                                    if row.geometry is not None:
+                                        # Get coordinates as a tuple for dictionary key
+                                        coords = (row.geometry.x, row.geometry.y)
+
+                                        # Include only essential properties
+                                        properties_to_include = [
+                                            prop
+                                            for prop in properties
+                                            if prop in row.index
+                                            and not pd.isna(row[prop])
+                                        ]
+
+                                        # Create properties dictionary
+                                        props = {
                                             prop: row[prop]
                                             for prop in properties_to_include
-                                        },
-                                    }
-                                    features.append(feature)
-                            except Exception:
-                                continue
+                                        }
+
+                                        # If coordinates already exist, update count and merge properties
+                                        if coords in unique_features:
+                                            # Increment count
+                                            unique_features[coords]["properties"][
+                                                "count"
+                                            ] = (
+                                                unique_features[coords][
+                                                    "properties"
+                                                ].get("count", 1)
+                                                + 1
+                                            )
+
+                                            # Merge other properties if needed
+                                            for prop, value in props.items():
+                                                if (
+                                                    prop
+                                                    in unique_features[coords][
+                                                        "properties"
+                                                    ]
+                                                ):
+                                                    # If property already exists, we could implement custom merging logic here
+                                                    # For now, we keep the first value
+                                                    pass
+                                                else:
+                                                    unique_features[coords][
+                                                        "properties"
+                                                    ][prop] = value
+                                        else:
+                                            # Create new feature with count=1
+                                            props["count"] = 1
+                                            unique_features[coords] = {
+                                                "type": "Feature",
+                                                "geometry": {
+                                                    "type": "Point",
+                                                    "coordinates": [
+                                                        coords[0],
+                                                        coords[1],
+                                                    ],
+                                                },
+                                                "properties": props,
+                                            }
+                                except Exception:
+                                    continue
+
+                            # Convert dictionary values to list
+                            features = list(unique_features.values())
+                        else:
+                            # Original behavior without grouping
+                            features = []
+                            for idx, row in gdf.iterrows():
+                                try:
+                                    if row.geometry is not None:
+                                        # Include only essential properties
+                                        properties_to_include = [
+                                            prop
+                                            for prop in properties
+                                            if prop in row.index
+                                            and not pd.isna(row[prop])
+                                        ]
+                                        feature = {
+                                            "type": "Feature",
+                                            "geometry": {
+                                                "type": "Point",
+                                                "coordinates": [
+                                                    row.geometry.x,
+                                                    row.geometry.y,
+                                                ],
+                                            },
+                                            "properties": {
+                                                prop: row[prop]
+                                                for prop in properties_to_include
+                                            },
+                                        }
+                                        features.append(feature)
+                                except Exception:
+                                    continue
 
                         if features:
                             return {"type": "FeatureCollection", "features": features}

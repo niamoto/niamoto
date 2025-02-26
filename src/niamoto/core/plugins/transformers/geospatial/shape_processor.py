@@ -254,13 +254,37 @@ class ShapeProcessor(TransformerPlugin):
     def _simplify_with_utm(
         self, geometry: BaseGeometry, log_area: bool = False
     ) -> BaseGeometry:
-        """Simplify a geometry using UTM-based adaptive simplification."""
+        """
+        Simplify a geometry using UTM-based adaptive simplification.
+        The simplification is done in UTM projection to ensure accurate measurements and consistent simplification.
+
+        The process:
+        1. Converts the geometry to appropriate UTM zone based on its centroid
+        2. Calculates area and determines simplification tolerance:
+           - For areas > 1000 km², tolerance increases with area (adaptive)
+           - For smaller areas, uses fixed 5m tolerance
+        3. Simplifies in UTM coordinates then converts back to WGS84
+
+        Args:
+            geometry: The geometry to simplify (in WGS84 coordinates)
+            log_area: If True, logs the area of the geometry in km²
+
+        Returns:
+            The simplified geometry in WGS84 coordinates
+
+        Note:
+            If simplification fails, the original geometry is returned.
+        """
         try:
+            # Calculate centroid for UTM zone determination
             lon, lat = geometry.centroid.x, geometry.centroid.y
 
+            # Calculate UTM zone from longitude
+            # Formula: ((longitude + 180)/6) + 1
             zone_number = int((lon + 180) / 6) + 1
             hemisphere = "south" if lat < 0 else "north"
 
+            # Set up the projection transformers
             wgs84 = pyproj.CRS("EPSG:4326")
             utm = pyproj.CRS(
                 f"+proj=utm +zone={zone_number} +{hemisphere} +ellps=WGS84"
@@ -270,20 +294,40 @@ class ShapeProcessor(TransformerPlugin):
                 utm, wgs84, always_xy=True
             ).transform
 
+            # Convert geometry to UTM
             utm_geom = transform(project, geometry)
 
+            # Calculate area in square kilometers
             area_km2 = utm_geom.area / 1_000_000
+            if log_area:
+                print(f"Area: {area_km2:.2f} km²")
 
+            # Calculate simplification tolerance
+            # The formula adapts the tolerance based on the area, following these rules:
+            # - Areas < 1000 km² : fixed 5m tolerance to preserve detail
+            # - Areas > 1000 km² : adaptive tolerance using the formula: 10 * (area_km²/1000)^0.25
+            #
+            # Examples of resulting tolerances:
+            # - 1000 km² → 10.00m (base tolerance)
+            # - 4000 km² → 14.14m
+            # - 9000 km² → 17.32m
+            # - 16000 km² → 20.00m
             if area_km2 > 1000:
-                tolerance = 5 * (area_km2 / 1000) ** 0.5
+                # Use a fourth root (0.25 power) to ensure tolerance doesn't grow too quickly with area
+                tolerance = 10 * (area_km2 / 1000) ** 0.25
             else:
-                tolerance = 5
+                tolerance = 5  # 5 meters minimum for small areas
 
-            simplified = utm_geom.simplify(tolerance)
+            # Perform simplification in UTM coordinates with topology preservation
+            simplified = utm_geom.simplify(tolerance, preserve_topology=True)
 
+            # Convert back to WGS84
             return transform(project_back, simplified)
 
-        except Exception:
+        except Exception as e:
+            # Log the error but return the original geometry to avoid breaking the pipeline
+            if log_area:
+                print(f"Error simplifying geometry: {e}")
             return geometry
 
     def _process_layer(

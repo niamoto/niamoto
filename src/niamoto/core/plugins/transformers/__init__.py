@@ -11,9 +11,11 @@ __all__ = [
     "TopRanking",
     # Extraction
     "DirectAttribute",
-    # Geospatial
     "GeospatialExtractor",
+    # Geospatial
     "ShapeProcessor",
+    "RasterStats",
+    "VectorOverlay",
     # Statistical
     "BinnedDistribution",
     "CategoricalDistribution",

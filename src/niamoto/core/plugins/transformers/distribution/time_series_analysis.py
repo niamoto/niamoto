@@ -49,13 +49,24 @@ class TimeSeriesAnalysisConfig(PluginConfig):
         if not isinstance(v, dict):
             raise ValueError("params must be a dictionary")
 
-        required_fields = ["source", "field", "fields", "time_field"]
+        # Check for required fields
+        required_fields = ["source", "time_field"]
         for field in required_fields:
             if field not in v:
                 raise ValueError(f"Missing required field: {field}")
 
-        if not isinstance(v["fields"], dict):
-            raise ValueError("fields must be a dictionary")
+        # Either 'field' or 'fields' must be provided
+        if "field" not in v and ("fields" not in v or not v["fields"]):
+            raise ValueError("Either 'field' or 'fields' must be provided")
+
+        # Validate fields if provided
+        if "fields" in v:
+            if not isinstance(v["fields"], dict):
+                raise ValueError("fields must be a dictionary")
+
+            # If fields is provided and not empty, field is optional
+            if v["fields"] and "field" not in v:
+                v["field"] = None  # Set a default value to satisfy other validations
 
         if not isinstance(v["time_field"], str):
             raise ValueError("time_field must be a string")
@@ -97,10 +108,19 @@ class TimeSeriesAnalysis(TransformerPlugin):
         try:
             validated_config = self.config_model(**config)
             # Additional validation if needed
-            if not isinstance(validated_config.params["fields"], dict):
-                raise ValueError("fields must be a dictionary")
-            if not validated_config.params["fields"]:
-                raise ValueError("fields cannot be empty")
+            if "fields" in validated_config.params:
+                if not isinstance(validated_config.params["fields"], dict):
+                    raise ValueError("fields must be a dictionary")
+
+                # Either field or fields must be provided and valid
+                if not validated_config.params["fields"] and (
+                    "field" not in validated_config.params
+                    or not validated_config.params["field"]
+                ):
+                    raise ValueError(
+                        "Either 'field' or 'fields' must be provided and not empty"
+                    )
+
             if not isinstance(validated_config.params["time_field"], str):
                 raise ValueError("time_field must be a string")
         except Exception as e:
@@ -121,6 +141,10 @@ class TimeSeriesAnalysis(TransformerPlugin):
             if "labels" not in config["params"]:
                 config["params"]["labels"] = self.DEFAULT_LABELS
 
+            # Ensure field is set if not provided but needed for validation
+            if "field" not in config["params"] and config["params"]["fields"]:
+                config["params"]["field"] = None
+
             validated_config = self.config_model(**config)
 
             # Get source data if different from occurrences
@@ -134,9 +158,18 @@ class TimeSeriesAnalysis(TransformerPlugin):
                 )
 
             # Check required fields
-            required_fields = [validated_config.params["time_field"]] + list(
-                validated_config.params["fields"].values()
-            )
+            time_field = validated_config.params["time_field"]
+            required_fields = [time_field]
+
+            # Add fields from the fields dictionary
+            if validated_config.params["fields"]:
+                required_fields.extend(list(validated_config.params["fields"].values()))
+            # Or add the single field if provided
+            elif (
+                "field" in validated_config.params and validated_config.params["field"]
+            ):
+                required_fields.append(validated_config.params["field"])
+
             missing_fields = [
                 field for field in required_fields if field not in data.columns
             ]
@@ -144,31 +177,55 @@ class TimeSeriesAnalysis(TransformerPlugin):
                 return {"month_data": {}, "labels": validated_config.params["labels"]}
 
             # Convert time field to numeric
-            time_field = validated_config.params["time_field"]
             data[time_field] = pd.to_numeric(data[time_field], errors="coerce")
 
-            # Convert phenology fields to numeric
-            for field_name in validated_config.params["fields"].values():
+            # Initialize month data
+            month_data = {}
+
+            # Process fields dictionary if provided
+            if validated_config.params["fields"]:
+                # Convert phenology fields to numeric
+                for field_name in validated_config.params["fields"].values():
+                    data[field_name] = pd.to_numeric(data[field_name], errors="coerce")
+
+                # Initialize month data structure
+                month_data = {
+                    name: [0] * 12 for name in validated_config.params["fields"].keys()
+                }
+
+                # Process each month
+                for month in range(1, 13):
+                    month_df = data[data[time_field] == month]
+                    if not month_df.empty:
+                        for phenology_name, field_name in validated_config.params[
+                            "fields"
+                        ].items():
+                            if field_name in month_df:
+                                # Calculate percentage of presence
+                                total = len(month_df)
+                                present = month_df[field_name].fillna(0).sum()
+                                value = (present / total) * 100 if total > 0 else 0
+                                month_data[phenology_name][month - 1] = round(value, 2)
+
+            # Process single field if provided and fields is empty
+            elif (
+                "field" in validated_config.params and validated_config.params["field"]
+            ):
+                field_name = validated_config.params["field"]
                 data[field_name] = pd.to_numeric(data[field_name], errors="coerce")
 
-            # Initialize month data
-            month_data = {
-                name: [0] * 12 for name in validated_config.params["fields"].keys()
-            }
+                # Initialize month data with a single series
+                month_data = {"value": [0] * 12}
 
-            # Process each month
-            for month in range(1, 13):
-                month_df = data[data[time_field] == month]
-                if not month_df.empty:
-                    for phenology_name, field_name in validated_config.params[
-                        "fields"
-                    ].items():
-                        if field_name in month_df:
-                            # Calculate percentage of presence
-                            total = len(month_df)
-                            present = month_df[field_name].fillna(0).sum()
-                            value = (present / total) * 100 if total > 0 else 0
-                            month_data[phenology_name][month - 1] = round(value, 2)
+                # Process each month
+                for month in range(1, 13):
+                    month_df = data[data[time_field] == month]
+                    if not month_df.empty:
+                        # Calculate percentage of presence
+                        total = len(month_df)
+                        present = month_df[field_name].fillna(0).sum()
+                        value = (present / total) * 100 if total > 0 else 0
+                        month_data["value"][month - 1] = round(value, 2)
 
             return {
                 "month_data": month_data,
