@@ -41,6 +41,20 @@ class Config:
             self.exports: Any = {}
 
             self._load_files(create_default)
+
+            # Define plugins directory - default is next to config directory
+            # Check if there's a custom plugins path in config.yml
+            plugins_path = "plugins"  # default path
+            if "plugins" in self.config and "path" in self.config["plugins"]:
+                plugins_path = self.config["plugins"]["path"]
+
+            # If plugins_path is absolute, use it directly, otherwise join with project_root
+            if os.path.isabs(plugins_path):
+                self.plugins_dir = plugins_path
+            else:
+                project_root = os.path.dirname(config_dir)
+                self.plugins_dir = os.path.join(project_root, plugins_path)
+
         except Exception as e:
             raise ConfigurationError(
                 config_key="initialization",

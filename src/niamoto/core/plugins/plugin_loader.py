@@ -47,26 +47,46 @@ class PluginLoader:
         Load plugins from a project directory.
 
         Args:
-            project_path: Path to the project root
+            project_path: Path to the project plugins directory
 
         Raises:
             PluginLoadError: If loading of project plugins fails
         """
         try:
-            plugins_dir = Path(project_path) / "plugins"
+            plugins_dir = Path(
+                project_path
+            )  # project_path is already the plugins directory
+
             if not plugins_dir.exists():
                 logger.info(f"No plugins directory found at {plugins_dir}")
                 return
 
             # Add project path to Python path for imports
-            if str(project_path) not in sys.path:
-                sys.path.insert(0, str(project_path))
+            project_root = str(
+                plugins_dir.parent
+            )  # Go up one level from plugins directory to get project root
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+            else:
+                print(f"DEBUG: {project_root} already in sys.path")
 
             # Load plugins for each type
             for plugin_type in PluginType:
                 type_dir = plugins_dir / (plugin_type.value + "s")
                 if type_dir.exists():
                     self._load_plugins_from_dir(type_dir)
+
+            # Also check top-level plugins
+            for file in plugins_dir.glob("*.py"):
+                if file.name.startswith("_"):
+                    continue
+                module_name = f"plugins.{file.stem}"
+                try:
+                    self._load_plugin_file(file, module_name)
+                except Exception as e:
+                    print(
+                        f"DEBUG ERROR: Failed to load top-level plugin {file.name}: {str(e)}"
+                    )
 
         except Exception as e:
             raise PluginLoadError(

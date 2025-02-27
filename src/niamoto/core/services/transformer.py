@@ -2,7 +2,6 @@
 Service for transforming data based on YAML configuration.
 """
 
-import os
 from typing import Dict, Any, List, Optional
 import logging
 import pandas as pd
@@ -51,8 +50,7 @@ class TransformerService:
         self.plugin_loader.load_core_plugins()
 
         # Load project plugins if any exist
-        project_path = os.path.dirname(os.path.dirname(config.config_dir))
-        self.plugin_loader.load_project_plugins(project_path)
+        self.plugin_loader.load_project_plugins(config.plugins_dir)
 
     @error_handler(log=True, raise_error=True)
     def transform_data(
@@ -142,12 +140,6 @@ class TransformerService:
                                         },
                                         "group_id": group_id,
                                     }
-
-                                    # Si des paramètres sont dans la racine, les déplacer dans params
-                                    param_keys = ["stats", "units", "max_value"]
-                                    for key in param_keys:
-                                        if key in widget_config:
-                                            config["params"][key] = widget_config[key]
 
                                     results = transformer.transform(group_data, config)
 
