@@ -4,17 +4,21 @@ Unit tests for the shape processor plugin.
 
 import os
 import unittest
+import yaml
+
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon
 from shapely.wkb import dumps
-import yaml
 
-from niamoto.core.plugins.transformers.geospatial.shape_processor import ShapeProcessor
+from niamoto.core.plugins.transformers.geospatial.shape_processor import (
+    ShapeProcessor,
+)
 from niamoto.common.database import Database
+from tests.common.base_test import NiamotoTestCase
 
 
-class TestShapeProcessor(unittest.TestCase):
+class TestShapeProcessor(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create test data directory and files
@@ -171,6 +175,8 @@ class TestShapeProcessor(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test fixtures."""
+        from unittest import mock
+
         self.db.close_db_session()
 
         # Clean up test files if they exist
@@ -190,8 +196,11 @@ class TestShapeProcessor(unittest.TestCase):
                 os.rmdir(self.config_dir)
             if os.path.exists(self.test_data_dir):
                 os.rmdir(self.test_data_dir)
-        except (FileNotFoundError, OSError) as e:
-            print(f"Warning: Could not clean up test files: {e}")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+
+        # Stop all active patches to prevent MagicMock leaks
+        mock.patch.stopall()
 
     def create_test_files(self):
         """Create test files needed for layer processing."""
