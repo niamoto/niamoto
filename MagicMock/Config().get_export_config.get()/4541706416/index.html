@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Niamoto - Portail de la forêt de Nouvelle-Calédonie</title>
+
+    <style>
+        .bgimg-home {
+            background-image: url('files/home_background.jpg');
+            background-size: cover;
+            background-position: center;
+            height: 100vh;
+            position: relative;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1;
+        }
+    </style>
+
+    <link rel="stylesheet" href="js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
+    <link rel="stylesheet" href="js/vendor/leaflet/1.9.4_leaflet.css">
+    <link rel="stylesheet" href="css/font-awesome/6.6.0_all.min.css">
+
+    <style>
+        ul {
+            list-style-type: none;
+        }
+
+        .loader-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        .button-container {
+            transition: all 0.3s ease;
+        }
+        .button-container.fixed {
+            position: fixed;
+            top: 63px; /* Adjust this value to match the height of your navigation menu */
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background-color: white;
+            padding: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-bg p-0 fixed w-full top-0 shadow-md z-50 custom-nav">
+    <div class="container mx-auto flex flex-wrap items-center justify-between">
+        <div class="flex items-center flex-shrink-0 text-white mr-6">
+            <a id="home-link" class="inline-flex items-center py-2 px-4 text-white no-underline" href="#" data-link="index.html">
+                <span class="site-title">Niamoto</span>
+            </a>
+        </div>
+
+        <div class="block lg:hidden">
+            <button id="nav-toggle"
+                class="flex items-center px-3 py-2 border rounded text-teal-200 border-teal-400 hover:text-white hover:border-white">
+                <svg class="fill-current h-3 w-3" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <title>Menu</title>
+                    <path d="M0 3h20v2H0zm0 6h20v2H0zm0 6h20v2H0z" />
+                </svg>
+            </button>
+        </div>
+        <div class="w-full flex-grow lg:flex lg:items-center lg:w-auto hidden lg:block pt-6 lg:pt-0" id="nav-content">
+            <ul class="list-reset lg:flex justify-end flex-1 items-center">
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="index.html">
+                        <i class="fas fa-home menu-icon"></i>Accueil
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#introduction">Introduction</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#project">Projet</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#objective">Objectifs</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#context">Contexte</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#flora">Flore</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="methodology.html">
+                        <i class="fas fa-flask menu-icon"></i>Méthodologie
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="methodology.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="methodology.html#methodes">Nos méthodes</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="methodology.html#faq">FAQ</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="trees.html">
+                        <i class="fas fa-leaf menu-icon"></i>Arbres
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="trees.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="trees.html#learnTaxon">Étudier les
+                arbres</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="trees.html#taxon">Les arbres de
+                Nouvelle-Calédonie</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="plots.html">
+                        <i class="fas fa-map-marked-alt menu-icon"></i>Peuplements
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plots.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plots.html#learnPlot">Étudier les
+                            peuplements forestiers</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plots.html#plot">Les
+                peuplements forestiers de Nouvelle-Calédonie</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="forests.html">
+                        <i class="fas fa-tree menu-icon"></i>Forêt
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="forests.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="forests.html#learnForest">Étudier la
+                forêt</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="forests.html#forestNC">La forêt de Nouvelle-Calédonie</a></li>
+
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#">
+                        <i class="fas fa-database menu-icon"></i>Accéder aux données
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="taxon/1.html">Arbres</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plot/1.html">Peuplements</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="shape/1.html">Forêt</a></li>
+
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="resources.html">
+                        <i class="fas fa-book menu-icon"></i>Ressources
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="resources.html#equipe">L'équipe</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="resources.html#productions">Productions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<script>
+  document.getElementById('nav-toggle').onclick = function () {
+    document.getElementById('nav-content').classList.toggle('hidden');
+  };
+
+  // Function to adjust the navigation links based on page depth
+  function adjustNavLinks(depth) {
+    document.querySelectorAll('a[data-link]').forEach(link => {
+      link.href = depth + link.getAttribute('data-link');
+    });
+  }
+
+  // Adjust the navigation links based on the depth
+  adjustNavLinks("");
+</script>
+
+<style>
+    .site-title {
+        font-family: 'Arial Black', sans-serif; /* Custom font for a bold effect */
+        font-size: 2rem; /* Increased font size */
+        text-transform: uppercase; /* Uppercase letters for visibility */
+        letter-spacing: 2px; /* Spacing between letters */
+        text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7); /* Text shadow for better visibility */
+        transition: color 0.3s; /* Smooth transition for hover effect */
+    }
+
+    .site-title:hover {
+        color: #ffdd57; /* Change color on hover */
+    }
+
+    .text-contour {
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+    }
+
+    .nav-bg {
+        background-color: rgba(34, 139, 34, 0.8); /* Fond vert semi-transparent */
+        transition: background-color 0.3s;
+    }
+
+    .nav-bg:hover {
+        background-color: rgba(34, 139, 34, 1); /* Fond vert opaque au survol */
+    }
+
+    .group:hover .group-hover\:block {
+        display: block;
+    }
+
+    .custom-nav {
+        z-index: 1500;
+    }
+
+    .custom-dropdown {
+        z-index: 1500;
+    }
+
+    .nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.2); /* Fond blanc transparent au survol */
+        border-radius: 4px;
+    }
+
+    .menu-icon {
+        margin-right: 8px;
+    }
+</style>
+    <div class="flex flex-col lg:flex-row">
+
+
+        <div class="w-full">
+
+
+    <div>
+        <section id="home" class="bgimg-home flex items-center justify-center relative">
+            <div class="overlay"></div>
+            <div class="text_home text-white text-contour text-center relative z-10">
+                <div class="container mx-auto">
+                    <h1 class="text-5xl font-bold mb-4">Bienvenue sur NIAMOTO</h1>
+                    <h2 class="text-2xl mb-4">Portail de la forêt de Nouvelle-Calédonie</h2>
+                </div>
+            </div>
+            <div class="absolute bottom-2 w-3/5 flex justify-center z-10">
+                <div class="bg-white p-2 rounded-lg shadow-md flex justify-center">
+                    <a class='logo' href="https://www.province-nord.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="pn" src="files/pn_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://www.province-sud.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ps" src="files/ps_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://amap.cirad.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="amap" src="files/amap_100.png">
+                        </figure>
+                    </a>
+                    <a class='logo' href="http://publish.plantnet-project.org/project/nou" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="herbarium"
+                                                  src="files/herbarium_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://iac.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="iac" src="files/iac_100.png">
+                        </figure>
+                    </a>
+                    <a class='logo' href="https://nouvelle-caledonie.ird.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ird" src="files/ird_100.png">
+                        </figure>
+                    </a>
+                    <a class='logo' href="https://cirad.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="cirad" src="files/cirad_100.png">
+                        </figure>
+                    </a>
+                    <a class='logo' href="https://www.ofb.gouv.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ofb" src="files/ofb_100.png">
+                        </figure>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section id="introduction" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-semibold mb-6 text-green-700 border-b-2 border-green-500 pb-2">Niamoto : la
+                    forêt de Nouvelle-Calédonie</h2>
+                <p class="mb-4">En paicî, mötö est l’arbre et nâ mötö (<em><i>niamoto en phonétique</i></em>) signifie
+                    la forêt. Ce site est dédié à la forêt de la Nouvelle-Calédonie dont la composition, la structure et
+                    la distribution sont uniques au monde.
+                    Plus spécifiquement, il se focalise sur la forêt de la Grande Terre, excluant les îles Loyautés et
+                    représente le fruit d’un travail de collecte et de compilation de données mené par l’unité mixte de
+                    recherche,
+                    l’<a href="http://amap.cirad.fr/fr/index.php" target="_blank" class="underline">UMR Amap</a> (Cirad,
+                    IRD, INRAE, CNRS, et Université de Montpellier) associée à l’<a href="http://www.iac.nc/"
+                                                                                    target="_blank" class="underline">IAC</a>
+                    (équipe Solveg)</p>
+                <p class="mb-4">Au travers de cette plateforme, nous vous invitons à parcourir ces forêts
+                    exceptionnelles selon trois niveaux de leur organisation :</p>
+                <ul class="list-disc pl-5">
+                    <li class="mb-2"><strong>Les Arbres</strong> comme les principaux composants de la forêt même si ce
+                        sont des organismes minoritaires représentant moins de 20 % de tous les végétaux. Les arbres
+                        font la biomasse de la forêt et forment cette charpente, que l’on appelle la canopée, qui crée
+                        les conditions exceptionnelles et indispensables pour accueillir la diversité des autres
+                        espèces, qu’elles soient végétales, animales, fongiques et même bactériennes.
+                    </li>
+                    <li class="mb-2"><strong>Les Peuplements</strong> comme l’assemblage de toutes les espèces d’arbres
+                        pour construire une forêt. Ce n’est pas à proprement parler une société puisqu’il s’agit d’un
+                        rassemblement d’individus appartenant à plusieurs espèces. Néanmoins il existe des règles qui
+                        s’appliquent aux peuplements d’arbres que la phytosociologie tente de définir.
+                    </li>
+                    <li class="mb-2"><strong>La Forêt</strong> comme un des écosystèmes qui forment le paysage. La forêt
+                        est un meta-organisme, constitué de plusieurs êtres vivants, qui présente ses propres modes de
+                        fonctionnement. Elle naît, grandit, vieillit, se régénère, progresse ou régresse et son
+                        empreinte dans le paysage reflète son état.
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="project" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-semibold mb-6 text-green-700 border-b-2 border-green-500 pb-2">Le projet
+                    Niamoto</h2>
+                <figure class="mb-6 flex justify-center">
+                    <img class="img-fluid rounded shadow-md mr-6" id="livre_pn" src="files/bouquin.png"
+                         alt="livre_pn">
+                    <img class="img-fluid rounded shadow-md" id="livre_pn_2"
+                         src="files/atlas-de-la-foret-province-nord-nouvelle-caledonie.jpg" alt="livre_pn_2">
+                </figure>
+                <p class="mb-4">Depuis 2012 la province Nord, et plus précisément le SIEC-DDEE (service impact
+                    environnement et conservation de la direction du développement économique et de l’environnement)
+                    a établi un partenariat avec l’antenne calédonienne de l’unité mixte de recherche AMAP (botAnique et
+                    Modélisation de l'Architecture des Plantes et des végétations).
+                    Ce partenariat a été scellé par la signature de 3 conventions mais surtout par un dialogue permanent
+                    entre les gestionnaires et les chercheurs.
+                    Les questions de recherche sont établies en concertation avec les besoins de la collectivité et la
+                    collectivité se nourrit des résultats de la recherche pour asseoir rigoureusement les mesures de
+                    conservation.
+                    Plus récemment un partenariat a été établi avec la province Sud et l’OFB pour étendre les résultats
+                    à l’ensemble de la Grande Terre. Les travaux de recherche issus de ces partenariats ont donné lieu à
+                    de nombreuses publications scientifiques <a href="/resources.html/#support"><i
+                            class="far fa-arrow-alt-circle-right"></i></a>,
+                    qui garantissent la robustesse des travaux mais ces productions ne sont pas toujours accessibles
+                    pour un public non averti.</p>
+                <p>Ainsi et au-delà de cette production scientifique, le projet Niamoto se lance le défi de traduire les
+                    conclusions des travaux de recherche en termes plus accessibles pour favoriser la transmission de
+                    l'information. Cet exercice est complexe puisqu'il faut tordre les concepts de la réflexion
+                    scientifique pour leur donner un sens accessible au citoyen mais il est riche car il nous impose de
+                    démontrer que nos travaux s'inscrivent dans les préoccupations sociétales. Après un livre illustré
+                    qui explique le sens de nos recherches, le projet Niamoto propose au travers de ce site internet de
+                    découvrir les questions, les méthodes et les données à partir desquelles la science tente de
+                    comprendre le fonctionnement des arbres et de la forêt.</p>
+            </div>
+        </section>
+
+        <section id="objective" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-semibold mb-6 text-green-700 border-b-2 border-green-500 pb-2">Les
+                    objectifs</h2>
+                <p class="mb-4">Ce portail synthétise les résultats de ces travaux sous une forme que nous espérons
+                    accessible à tous. La science est une composante citoyenne, elle n’est pas plus ni moins utile que
+                    d’autres activités qui conduisent nos sociétés à vivre mieux. Comme toute discipline, elle utilise
+                    un langage dédié et des méthodes spécifiques pour répondre à des questions complexes qui peuvent
+                    pourtant paraître simples.</p>
+                <p class="mb-4">Nous espérons autant transmettre la connaissance acquise que les questions qui se posent
+                    et pour lesquelles nous n'avons pas (encore) de réponses. L'accessibilité à la connaissance est un
+                    premier pas vers la conservation des milieux forestiers mais elle n'est pas suffisante. Les
+                    solutions ne peuvent émerger que d'une concertation plus étroite de la science avec les
+                    gestionnaires de l'environnement, la société civile et le pouvoir politique qui décide au final.</p>
+            </div>
+        </section>
+
+        <section id="context" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-semibold mb-6 text-green-700 border-b-2 border-green-500 pb-2">Le contexte</h2>
+                <figure class="mb-6 flex justify-center">
+                    <img class="img-fluid rounded shadow-md" id="map_pacific" src="files/carte_pacifique.png"
+                         alt="carte du pacifique">
+                </figure>
+                <p class="mb-4">La Nouvelle-Calédonie est une collectivité française d'outre-mer. Il s'agit d'un
+                    archipel constitué de près de 1900 îles et îlots répartis dans l'océan Pacifique, à une latitude
+                    inter-tropicale (19-22°S), un peu au nord du Tropique du Capricorne. Sa superficie est de 18 576
+                    km². Cet archipel est peuplé de près de 271 000 habitants. L'archipel néo-calédonien comprend une
+                    île principale, la Grande Terre d’une superficie d'environ 16 000 km² divisée administrativement en
+                    province Nord et province Sud. A l’est se situent les îles loyautés (Ouvéa, Lifou, Tiga et Maré)
+                    dont la superficie cumulée approche les 2 000 km² et constitue la province des îles.</p>
+
+                <p class="mb-4">La Nouvelle-Calédonie est un archipel ancien issu de la dislocation du super-continent
+                    Gondwana dans sa partie orientale qui s’est détachée de l’actuelle Australie, il y a environ 100
+                    millions d’années. La dérive de continents et les épisodes tectoniques sous-marins ont entraîné ce
+                    bout de terre vers l’est s’enfonçant progressivement avec la plaque Pacifique sous le manteau
+                    terrestre, jusqu’à une profondeur gigantesque de 70 km estimée par les géologues. Durant ce
+                    processus, la Grande Terre a été recouverte, en grande partie, par une nappe ophiolitique provenant
+                    du plancher océanique constituée des roches ultramafiques dont les sols dérivés recouvrent
+                    aujourd’hui environ un tiers de la Grande Terre. Ce n’est que lors de sa ré-émersion, il y a environ
+                    37 millions d’années, que la flore a pu coloniser progressivement l’île par des événements de
+                    dispersion à longue distance et à courte distance via l’existence d’archipels tremplins. Les
+                    mécanismes géologiques et la datation du soulèvement des calcaires coralliens qui constituent le
+                    substrat majeur des îles Loyautés ne sont pas encore bien connus. Toutefois la flore contemporaine
+                    de ces îles, qui présente des spécificités propres au substrat calcaire, serait d’origine beaucoup
+                    plus récente que celle de la Grande Terre, entre 3 et 10 millions d’années.</p>
+
+                <p class="mb-4">Cette histoire ancienne et cet isolement ont contribué à façonner une flore originale
+                    qui s’est déployée sur l’ensemble du territoire, épousant une grande diversité de conditions
+                    environnementales, constituées par la combinaison d’un gradient d’altitude (0-1629 m), d’un gradient
+                    de pluviométrie (800-4800 mm<sup>-1</sup>), d’un relief escarpé, d’une diversité de substrats
+                    (ultramafiques, calcaires, volcano-sédimentaires) en encore d’un effet de Foehn prononcé qui scinde
+                    la Grande-Terre en deux, avec la côte ouest plus chaude et sèche que la côte est. Aujourd’hui, cette
+                    flore unique au monde est fortement menacée par les activités humaines telles que l’industrie
+                    nickélifère, les feux de brousse, l’exploitation forestière, l’urbanisation et les invasions
+                    biologiques.</p>
+
+                <p class="mb-4">L’association d’une forte originalité floristique et d’un niveau élevé de menaces pesant
+                    sur la flore, classe la Nouvelle-Calédonie parmi l’un des <a
+                            href="https://www.cepf.net/our-work/biodiversity-hotspots/new-caledonia" target="_blank"
+                            class="underline">36 points chauds de la biodiversité mondiale</a> et en fait une région
+                    prioritaire pour la conservation.</p>
+            </div>
+        </section>
+
+        <section id="flora" class="py-12">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-semibold mb-6 text-green-700 border-b-2 border-green-500 pb-2">La flore</h2>
+                <p class="mb-4">
+                    La flore indigène de Nouvelle-Calédonie est un réservoir unique de la biodiversité mondiale. Elle
+                    abrite 3 605 taxons correspondant à 3 437 espèces,
+                    827 genres et 214 familles de plantes vasculaires. Le taux d’endémisme atteint plus de 75 % ce qui
+                    représente 1 % des taxons endémiques du monde, dont 3 familles, 91 genres et 2 571 espèces
+                    endémiques.
+                    (Extrait de <a href="http://publish.plantnet-project.org/project/florical_fr" target="_blank"
+                                   class="underline">Florical</a>, juin 2024).
+                </p>
+                <div class="row mb-4">
+                    <table border="1" cellspacing="0" cellpadding="5" style="border-collapse: collapse; width: 100%; ">
+                        <thead>
+                        <tr style="background-color: #e5f1db;">
+                            <th style="text-align: left; font-weight: bold; border-right: 1px solid black;"></th>
+                            <th colspan="2"
+                                style="text-align: center; font-weight: bold; border-right: 1px solid black;">Families
+                            </th>
+                            <th colspan="2"
+                                style="text-align: center; font-weight: bold; border-right: 1px solid black;">Genera
+                            </th>
+                            <th colspan="3"
+                                style="text-align: center; font-weight: bold; border-right: 1px solid black;">Species
+                            </th>
+                            <th colspan="3" style="text-align: center; font-weight: bold;">Taxa</th>
+                        </tr>
+                        <tr style="background-color: #a3cd6b;">
+                            <th style="border-right: 1px solid black;"></th>
+                            <th style="text-align: center; border-right: 1px solid black;">Indigenous</th>
+                            <th style="text-align: center; border-right: 1px solid black;">Endemic</th>
+                            <th style="text-align: center; border-right: 1px solid black;">Indigenous</th>
+                            <th style="text-align: center; border-right: 1px solid black;">Endemic</th>
+                            <th style="text-align: center; border-right: 1px solid black;">Indigenous</th>
+                            <th style="text-align: center; border-right: 1px solid black;">Endemic</th>
+                            <th style="text-align: center; border-right: 1px solid black;">%</th>
+                            <th style="text-align: center; border-right: 1px solid black;">Indigenous</th>
+                            <th style="text-align: center; border-right: 1px solid black;">Endemic</th>
+                            <th style="text-align: center;">%</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Lycophytes
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">2</td>
+                            <td style="text-align: center; border-right: 1px solid black;">0</td>
+                            <td style="text-align: center; border-right: 1px solid black;">9</td>
+                            <td style="text-align: center; border-right: 1px solid black;">0</td>
+                            <td style="text-align: center; border-right: 1px solid black;">24</td>
+                            <td style="text-align: center; border-right: 1px solid black;">11</td>
+                            <td style="text-align: center; border-right: 1px solid black;">45.8</td>
+                            <td style="text-align: center; border-right: 1px solid black;">24</td>
+                            <td style="text-align: center; border-right: 1px solid black;">11</td>
+                            <td style="text-align: center;">45.8</td>
+                        </tr>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Ferns
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">32</td>
+                            <td style="text-align: center; border-right: 1px solid black;">0</td>
+                            <td style="text-align: center; border-right: 1px solid black;">104</td>
+                            <td style="text-align: center; border-right: 1px solid black;">3</td>
+                            <td style="text-align: center; border-right: 1px solid black;">268</td>
+                            <td style="text-align: center; border-right: 1px solid black;">104</td>
+                            <td style="text-align: center; border-right: 1px solid black;">38.8</td>
+                            <td style="text-align: center; border-right: 1px solid black;">269</td>
+                            <td style="text-align: center; border-right: 1px solid black;">104</td>
+                            <td style="text-align: center;">38.7</td>
+                        </tr>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Gymnosperms
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">5</td>
+                            <td style="text-align: center; border-right: 1px solid black;">0</td>
+                            <td style="text-align: center; border-right: 1px solid black;">14</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2</td>
+                            <td style="text-align: center; border-right: 1px solid black;">50</td>
+                            <td style="text-align: center; border-right: 1px solid black;">49</td>
+                            <td style="text-align: center; font-weight: bold; color: blue; border-right: 1px solid black;">
+                                98
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">50</td>
+                            <td style="text-align: center; border-right: 1px solid black;">49</td>
+                            <td style="text-align: center;">98</td>
+                        </tr>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Basal dicots
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">11</td>
+                            <td style="text-align: center; border-right: 1px solid black;">1</td>
+                            <td style="text-align: center; border-right: 1px solid black;">20</td>
+                            <td style="text-align: center; border-right: 1px solid black;">3</td>
+                            <td style="text-align: center; border-right: 1px solid black;">113</td>
+                            <td style="text-align: center; border-right: 1px solid black;">102</td>
+                            <td style="text-align: center; font-weight: bold; color: blue; border-right: 1px solid black;">
+                                90.3
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">126</td>
+                            <td style="text-align: center; border-right: 1px solid black;">115</td>
+                            <td style="text-align: center;">91.3</td>
+                        </tr>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Monocots
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">34</td>
+                            <td style="text-align: center; border-right: 1px solid black;">0</td>
+                            <td style="text-align: center; border-right: 1px solid black;">198</td>
+                            <td style="text-align: center; border-right: 1px solid black;">17</td>
+                            <td style="text-align: center; border-right: 1px solid black;">566</td>
+                            <td style="text-align: center; border-right: 1px solid black;">272</td>
+                            <td style="text-align: center; border-right: 1px solid black;">48.1</td>
+                            <td style="text-align: center; border-right: 1px solid black;">590</td>
+                            <td style="text-align: center; border-right: 1px solid black;">287</td>
+                            <td style="text-align: center;">48.6</td>
+                        </tr>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Eudicots
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">130</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2</td>
+                            <td style="text-align: center; border-right: 1px solid black;">482</td>
+                            <td style="text-align: center; border-right: 1px solid black;">66</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2416</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2033</td>
+                            <td style="text-align: center; border-right: 1px solid black;">84.1</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2546</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2147</td>
+                            <td style="text-align: center;">84.3</td>
+                        </tr>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Angiosperms
+                            </td>
+                            <td style="text-align: center; border-right: 1px solid black;">175</td>
+                            <td style="text-align: center; border-right: 1px solid black;">3</td>
+                            <td style="text-align: center; border-right: 1px solid black;">700</td>
+                            <td style="text-align: center; border-right: 1px solid black;">86</td>
+                            <td style="text-align: center; border-right: 1px solid black;">3095</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2407</td>
+                            <td style="text-align: center; border-right: 1px solid black;">77.8</td>
+                            <td style="text-align: center; border-right: 1px solid black;">3262</td>
+                            <td style="text-align: center; border-right: 1px solid black;">2549</td>
+                            <td style="text-align: center;">78.1</td>
+                        </tr>
+                        <tr style="background-color: #d3e4bf;">
+                            <td style="font-weight: bold; border-right: 1px solid black; background-color: #a3cd6b;">
+                                Vascular plants
+                            </td>
+                            <td style="text-align: center; font-weight: bold; border-right: 1px solid black;">214</td>
+                            <td style="text-align: center; font-weight: bold; color: blue; border-right: 1px solid black;">
+                                3
+                            </td>
+                            <td style="text-align: center; font-weight: bold; border-right: 1px solid black;">827</td>
+                            <td style="text-align: center; font-weight: bold; color: blue; border-right: 1px solid black;">
+                                91
+                            </td>
+                            <td style="text-align: center; font-weight: bold; border-right: 1px solid black;">3437</td>
+                            <td style="text-align: center; font-weight: bold; border-right: 1px solid black;">2571</td>
+                            <td style="text-align: center; font-weight: bold; border-right: 1px solid black;">74.8</td>
+                            <td style="text-align: center; font-weight: bold; border-right: 1px solid black; color: blue;">
+                                3605
+                            </td>
+                            <td style="text-align: center; font-weight: bold; border-right: 1px solid black; color: blue;">
+                                2713
+                            </td>
+                            <td style="text-align: center; font-weight: bold; color: blue;">75.3</td>
+                        </tr>
+                        </tbody>
+                    </table>
+
+
+                </div>
+                <p class="mb-4">Au niveau générique, cette flore a une forte affinité avec la flore australienne (&gt;
+                    25 %), indomalaise (&gt; 13 %) ou encore avec la flore de Nouvelle-Guinée (17 %). Néanmoins, elle
+                    présente de nombreuses singularités qui attisent la curiosité des botanistes du monde entier :</p>
+                <ul class="list-disc pl-5 mb-4">
+                    <li class="mb-2">Certaines familles sont sur-représentées (Rubiaceae, Pittosporaceae, Cunoniaceae,
+                        Euphorbiaceae) tandis que d’autres sont sous-représentées (Fabaceae, Lamiaceae, Malvaceae,
+                        Ericaceae) en comparaison avec les flores voisines notamment l’Australie ou l’Asie du Sud-Est.
+                    </li>
+                    <li class="mb-2">On y trouve de nombreuses familles ancestrales, appartenant au groupe des
+                        angiospermes basales telles que les Lauraceae, Proteaceae, Winteraceae, Piperaceae, Annonaceae,
+                        Monimiaceae et tout particulièrement <em><i>Amborella trichopoda</i></em>, l’espèce la plus
+                        basale de l’arbre phylogénétique actuel des plantes à fleurs.
+                    </li>
+                </ul>
+                <div class="row mb-4">
+                    <div class="flex justify-center">
+                        <img id="Zygogynum_mackeei" class="img-fluid rounded mx-2"
+                             src="files/Zygogynum_mackeei.png" alt="Zygogynum mackeei"
+                             title="Zygogynum mackeei">
+                        <img class="img-fluid rounded mx-2" src="files/Amborella_trichopoda.png"
+                             title="Amborella trichopoda" alt="Amborella trichopoda">
+                        <img class="img-fluid rounded mx-2" src="files/Cryptocarya_barrabea.png"
+                             title="Cryptocarya barrabea" alt="Cryptocarya barrabea">
+                        <img class="img-fluid rounded mx-2" src="files/Hedycarya_rivularis.png"
+                             title="Hedycarya rivularis" alt="Hedycarya rivularis">
+                        <img class="img-fluid rounded mx-2" id="Stenocarpus_trinervis"
+                             src="files/Stenocarpus_trinervis.png" title="Stenocarpus trinervis"
+                             alt="Stenocarpus trinervis">
+                    </div>
+                </div>
+                <ul class="list-disc pl-5 mb-4">
+                    <li class="mb-2">Elle abrite une grande richesse de gymnospermes avec 43 espèces, soit 7 % des
+                        conifères du monde, toutes endémiques, parmi lesquelles 18 des 44 espèces connues
+                        d’Araucariaceae. Par ailleurs, le territoire détient la seule espèce de gymnosperme parasite,
+                        <em><i>Parasitaxus usta</i></em>.
+                    </li>
+                </ul>
+                <div class="row">
+                    <div class="flex justify-center">
+                        <img class="img-fluid rounded shadow-md" id="Parasitaxus_usta"
+                             src="files/Parasitaxus_usta.png" alt="Parasitaxus usta"
+                             title="Parasitaxus usta">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="resources" class="py-12 bg-gray-100">
+            <div class="container mx-auto max-w-4xl px-4">
+                <h2 class="text-3xl font-semibold mb-6 text-green-700 border-b-2 border-green-500 pb-2">Ressources</h2>
+                <ul class="list-disc pl-5">
+                    <li class="mb-2"><a href=".//methodology.html" class="underline">Méthodologie</a></li>
+                    <li class="mb-2"><a href=".//trees.html" class="underline">Arbres</a></li>
+                    <li class="mb-2"><a href=".//plots.html" class="underline">Peuplements</a></li>
+                    <li class="mb-2"><a href=".//forests.html" class="underline">Forêts</a></li>
+                    <li class="mb-2"><a href=".//resources.html" class="underline">Ressources</a></li>
+                </ul>
+            </div>
+        </section>
+    </div>
+
+
+        </div>
+    </div>
+    <footer class="bg-green-700 text-white p-4 mt-8">
+        <div class="container mx-auto">
+            <div class="flex justify-center mb-4">
+                <div class="bg-white p-2 w-3/5 rounded-lg shadow-md flex justify-center">
+                    <a class='logo' href="https://www.province-nord.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="pn" src="files/pn_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://www.province-sud.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ps" src="files/ps_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://amap.cirad.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="amap" src="files/amap_100.png"></figure>
+                    </a>
+                    <a class='logo' href="http://publish.plantnet-project.org/project/nou" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="herbarium" src="files/herbarium_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://iac.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="iac" src="files/iac_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://nouvelle-caledonie.ird.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ird" src="files/ird_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://cirad.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="cirad" src="files/cirad_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://www.ofb.gouv.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ofb" src="files/ofb_100.png"></figure>
+                    </a>
+                </div>
+            </div>
+            <div class="text-center">
+                <p>Niamoto - Portail de la forêt de Nouvelle-Calédonie</p>
+                <a class="inline-block py-2 px-4 text-white no-underline" href="https://github.com/niamoto/niamoto" target="_blank">
+                    <span class="fab fa-github fa-lg" aria-hidden="true"></span> Github
+                </a>
+            </div>
+        </div>
+    </footer>
+    <script src="js/vendor/chart/4.4.2_chart.js"></script>
+    <script src="js/vendor/d3/7.8.5_d3.js"></script>
+    <script src="js/vendor/jquery/3.6.0_jquery.js"></script>
+    <script src="js/vendor/lodash/4.17.21_lodash.min.js"></script>
+    <script src="js/vendor/raphael/2.3.0_raphael.js"></script>
+    <script src="js/vendor/justgage/1.6.1_justgage.js"></script>
+    <script src="js/vendor/leaflet/1.9.4_leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+        const buttonContainer = document.getElementById('buttonContainer');
+
+            // Only proceed if the button container exists
+            if (buttonContainer) {
+                const buttonContainerOffset = buttonContainer.offsetTop;
+                const navHeight = 60; // Adjust this value to match your navigation height
+
+                window.onscroll = () => {
+                    if (window.pageYOffset > buttonContainerOffset - navHeight) {
+                        buttonContainer.classList.add('fixed');
+                    } else {
+                        buttonContainer.classList.remove('fixed');
+                    }
+                };
+
+                // Initial check in case the page is loaded scrolled
+                window.onscroll();
+            }
+        });
+    </script>
+
+
+</body>
+</html>

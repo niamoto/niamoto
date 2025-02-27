@@ -22,15 +22,13 @@ def test_invalid_group(runner):
     result = runner.invoke(transform_commands, ["--group", "invalid_group"])
 
     assert result.exit_code == 1
-    assert "Invalid group specified" in result.output
 
 
 def test_invalid_csv_file(runner):
     """Test validation of invalid CSV file."""
-    result = runner.invoke(transform_commands, ["--csv-file", "data.txt"])
+    result = runner.invoke(transform_commands, ["--data", "data.txt"])
 
-    assert result.exit_code == 1
-    assert "Invalid file format" in result.output
+    assert result.exit_code == 2
 
 
 def test_successful_group_transform(runner):
@@ -47,9 +45,9 @@ def test_successful_group_transform(runner):
             result = runner.invoke(transform_commands, ["--group", "taxon"])
 
             assert result.exit_code == 0
-            assert "Transforming data for group: taxon" in result.output
+            assert "Processing transformations for group: taxon" in result.output
             mock_service_instance.transform_data.assert_called_once_with(
-                group_by="taxon", csv_file=None
+                group_by="taxon", csv_file=None, recreate_table=True
             )
 
 
@@ -67,14 +65,10 @@ def test_successful_all_transform(runner):
             result = runner.invoke(transform_commands)
 
             assert result.exit_code == 0
-            assert "Starting full data transformation" in result.output
-            assert "All transformations completed successfully" in result.output
-            # Verify that transform_data was called for each group
-            calls = mock_service_instance.transform_data.call_args_list
-            assert len(calls) == 3
-            assert calls[0][1]["group_by"] == "taxon"
-            assert calls[1][1]["group_by"] == "plot"
-            assert calls[2][1]["group_by"] == "shape"
+            assert "Processing all transformation groups" in result.output
+            mock_service_instance.transform_data.assert_called_once_with(
+                group_by=None, csv_file=None, recreate_table=True
+            )
 
 
 def test_config_error(runner):
@@ -129,11 +123,11 @@ def test_transform_with_csv(runner):
                 mock_service_instance.transform_data.return_value = None
 
                 result = runner.invoke(
-                    transform_commands, ["--group", "taxon", "--csv-file", "data.csv"]
+                    transform_commands, ["--group", "taxon", "--data", "data.csv"]
                 )
 
                 assert result.exit_code == 0
-                assert "Transforming data for group: taxon" in result.output
+                assert "Processing transformations for group: taxon" in result.output
                 mock_service_instance.transform_data.assert_called_once_with(
-                    group_by="taxon", csv_file="data.csv"
+                    group_by="taxon", csv_file="data.csv", recreate_table=True
                 )

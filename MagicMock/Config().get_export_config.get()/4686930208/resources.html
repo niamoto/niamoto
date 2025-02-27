@@ -1,0 +1,2895 @@
+
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Niamoto - Portail de la forêt de Nouvelle-Calédonie</title>
+
+    <style>
+
+        .nav-tabs .nav-link {
+            color: #355771;
+        }
+
+        .nav-tabs .nav-link.active {
+            background-color: #355771;
+            border-color: #355771;
+            color: white;
+        }
+
+        .page-item.active .page-link {
+            background-color: #355771;
+            border-color: #355771;
+        }
+
+        .page-link {
+            color: #355771;
+        }
+
+        .fa-download {
+            color: #355771;
+        }
+    </style>
+
+
+    <link rel="stylesheet" href="js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
+    <link rel="stylesheet" href="js/vendor/leaflet/1.9.4_leaflet.css">
+    <link rel="stylesheet" href="css/font-awesome/6.6.0_all.min.css">
+
+    <style>
+        ul {
+            list-style-type: none;
+        }
+
+        .loader-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        .button-container {
+            transition: all 0.3s ease;
+        }
+        .button-container.fixed {
+            position: fixed;
+            top: 63px; /* Adjust this value to match the height of your navigation menu */
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background-color: white;
+            padding: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-bg p-0 fixed w-full top-0 shadow-md z-50 custom-nav">
+    <div class="container mx-auto flex flex-wrap items-center justify-between">
+        <div class="flex items-center flex-shrink-0 text-white mr-6">
+            <a id="home-link" class="inline-flex items-center py-2 px-4 text-white no-underline" href="#" data-link="index.html">
+                <span class="site-title">Niamoto</span>
+            </a>
+        </div>
+
+        <div class="block lg:hidden">
+            <button id="nav-toggle"
+                class="flex items-center px-3 py-2 border rounded text-teal-200 border-teal-400 hover:text-white hover:border-white">
+                <svg class="fill-current h-3 w-3" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <title>Menu</title>
+                    <path d="M0 3h20v2H0zm0 6h20v2H0zm0 6h20v2H0z" />
+                </svg>
+            </button>
+        </div>
+        <div class="w-full flex-grow lg:flex lg:items-center lg:w-auto hidden lg:block pt-6 lg:pt-0" id="nav-content">
+            <ul class="list-reset lg:flex justify-end flex-1 items-center">
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="index.html">
+                        <i class="fas fa-home menu-icon"></i>Accueil
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#introduction">Introduction</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#project">Projet</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#objective">Objectifs</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#context">Contexte</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="index.html#flora">Flore</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="methodology.html">
+                        <i class="fas fa-flask menu-icon"></i>Méthodologie
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="methodology.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="methodology.html#methodes">Nos méthodes</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="methodology.html#faq">FAQ</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="trees.html">
+                        <i class="fas fa-leaf menu-icon"></i>Arbres
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="trees.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="trees.html#learnTaxon">Étudier les
+                arbres</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="trees.html#taxon">Les arbres de
+                Nouvelle-Calédonie</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="plots.html">
+                        <i class="fas fa-map-marked-alt menu-icon"></i>Peuplements
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plots.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plots.html#learnPlot">Étudier les
+                            peuplements forestiers</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plots.html#plot">Les
+                peuplements forestiers de Nouvelle-Calédonie</a></li>
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="forests.html">
+                        <i class="fas fa-tree menu-icon"></i>Forêt
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="forests.html#preambule">Préambule</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="forests.html#learnForest">Étudier la
+                forêt</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="forests.html#forestNC">La forêt de Nouvelle-Calédonie</a></li>
+
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#">
+                        <i class="fas fa-database menu-icon"></i>Accéder aux données
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="taxon/1.html">Arbres</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plot/1.html">Peuplements</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="shape/1.html">Forêt</a></li>
+
+                    </ul>
+                </li>
+                <li class="relative group mr-3">
+                    <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="#" data-link="resources.html">
+                        <i class="fas fa-book menu-icon"></i>Ressources
+                    </a>
+                    <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="resources.html#equipe">L'équipe</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="resources.html#productions">Productions</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<script>
+  document.getElementById('nav-toggle').onclick = function () {
+    document.getElementById('nav-content').classList.toggle('hidden');
+  };
+
+  // Function to adjust the navigation links based on page depth
+  function adjustNavLinks(depth) {
+    document.querySelectorAll('a[data-link]').forEach(link => {
+      link.href = depth + link.getAttribute('data-link');
+    });
+  }
+
+  // Adjust the navigation links based on the depth
+  adjustNavLinks("");
+</script>
+
+<style>
+    .site-title {
+        font-family: 'Arial Black', sans-serif; /* Custom font for a bold effect */
+        font-size: 2rem; /* Increased font size */
+        text-transform: uppercase; /* Uppercase letters for visibility */
+        letter-spacing: 2px; /* Spacing between letters */
+        text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7); /* Text shadow for better visibility */
+        transition: color 0.3s; /* Smooth transition for hover effect */
+    }
+
+    .site-title:hover {
+        color: #ffdd57; /* Change color on hover */
+    }
+
+    .text-contour {
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+    }
+
+    .nav-bg {
+        background-color: rgba(34, 139, 34, 0.8); /* Fond vert semi-transparent */
+        transition: background-color 0.3s;
+    }
+
+    .nav-bg:hover {
+        background-color: rgba(34, 139, 34, 1); /* Fond vert opaque au survol */
+    }
+
+    .group:hover .group-hover\:block {
+        display: block;
+    }
+
+    .custom-nav {
+        z-index: 1500;
+    }
+
+    .custom-dropdown {
+        z-index: 1500;
+    }
+
+    .nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.2); /* Fond blanc transparent au survol */
+        border-radius: 4px;
+    }
+
+    .menu-icon {
+        margin-right: 8px;
+    }
+</style>
+    <div class="flex flex-col lg:flex-row">
+
+
+        <div class="w-full">
+
+    <div class="container mx-auto pt-24">
+        <h1 class="text-5xl font-bold mb-4 text-center">Ressources</h1>
+    </div>
+
+    <section id="equipe" class="py-12">
+        <div class="container mx-auto max-w-4xl px-4">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold">Équipe</h2>
+            </div>
+            <div class="mb-8">
+                <h5 class="text-2xl font-semibold">Les Permanents</h5>
+            </div>
+            <div class="flex flex-wrap -mx-2">
+                <!-- Permanent members -->
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/vanessa_hequet.png"
+                             alt="Vanessa Hequet">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Vanessa Hequet</h5>
+                            <p class="text-gray-600">Botaniste</p>
+                            <p class="mt-2">Systématique et taxonomie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/dimitri_justeau.png"
+                             alt="Dimitri Justeau">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Dimitri Justeau</h5>
+                            <p class="text-gray-600">Modélisateur</p>
+                            <p class="mt-2">Modélisation et planification spatiale</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/hervé_vandrot.png"
+                             alt="Hervé Vandrot">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Hervé Vandrot</h5>
+                            <p class="text-gray-600">Botaniste</p>
+                            <p class="mt-2">Systématique et nomenclature</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/thomas_ibanez.png"
+                             alt="Thomas Ibanez">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Thomas Ibanez</h5>
+                            <p class="text-gray-600">Écologue</p>
+                            <p class="mt-2">Écologie spatiale des communautés d'arbres</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/céline_chambrey.png"
+                             alt="Céline Chambrey">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Céline Chambrey</h5>
+                            <p class="text-gray-600">Botaniste</p>
+                            <p class="mt-2">Systématique et taxonomie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/elodie_blanchard.png"
+                             alt="Elodie Blanchard">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Elodie Blanchard</h5>
+                            <p class="text-gray-600">Écologue</p>
+                            <p class="mt-2">Structure et dynamique des écosystèmes tropicaux</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/jérémy_girardi.png"
+                             alt="Jeremy Girardi">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Jeremy Girardi</h5>
+                            <p class="text-gray-600">Cartographe</p>
+                            <p class="mt-2">Cartographie des forêts et logistique de terrain</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/laure_barabé.png"
+                             alt="Laure Barrabé">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Laure Barrabé</h5>
+                            <p class="text-gray-600">Botaniste</p>
+                            <p class="mt-2">Systématique et évolution de la flore de Nouvelle-Calédonie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/grégoire_blanchard.png" alt="Grégoire Blanchard">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Grégoire Blanchard</h5>
+                            <p class="text-gray-600">Écologue</p>
+                            <p class="mt-2">Écologie fonctionnelle des communautés d'arbres</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/robin_pouteau.png"
+                             alt="Robin Pouteau">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Robin Pouteau</h5>
+                            <p class="text-gray-600">Modélisateur</p>
+                            <p class="mt-2">Modélisation de la distribution d'espèce et de richesse</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/juliette_prior.png"
+                             alt="Juliette Prior">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Juliette Prior</h5>
+                            <p class="text-gray-600">Écologue</p>
+                            <p class="mt-2">Traits fonctionnels</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/nathan_eltabet.png"
+                             alt="Nathan Eltabet">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Nathan Eltabet</h5>
+                            <p class="text-gray-600">Botaniste</p>
+                            <p class="mt-2">Support technique</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/tristan_mangeard.png"
+                             alt="Tristan Mangeard">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Tristan Mangeard</h5>
+                            <p class="text-gray-600">Développeur informatique</p>
+                            <p class="mt-2">Développement informatique python</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/philippe_birnbaum.png"
+                             alt="Philippe Birnbaum">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Philippe Birnbaum</h5>
+                            <p class="text-gray-600">Écologue</p>
+                            <p class="mt-2">Structure et fonctionnement des écosystèmes forestiers</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-8">
+                <h5 class="text-2xl font-semibold">L'indépendant</h5>
+
+            </div>
+            <div class="flex flex-wrap -mx-2">
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/julien_barbe.jpg"
+                             alt="Dimitri Justeau">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Julien Barbe</h5>
+                            <p class="text-gray-600">Développeur</p>
+                            <p class="mt-2">Conception et mise en œuvre des fonctionnalités de l'application Niamoto</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-8">
+                <h5 class="text-2xl font-semibold">Les Stagiaires</h5>
+            </div>
+            <div class="flex flex-wrap -mx-2">
+                <!-- Interns -->
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/elais_ganivet.png"
+                             alt="Elias Gavinet">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Elias Gavinet</h5>
+                            <p class="text-gray-600">Master 2</p>
+                            <p class="mt-2">Identification de marqueurs structuraux d’états dynamiques en forêt dense
+                                humide néo-Calédonienne</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/josepho_bahormal.png"
+                             alt="Josepho Bahormal">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Josepho Bahormal</h5>
+                            <p class="text-gray-600">License 3</p>
+                            <p class="mt-2">Inventaires forestiers et mesures de traits fonctionnels</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/nais_rocchietta.png"
+                             alt="Nais Rocchietta">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Nais Rocchietta</h5>
+                            <p class="text-gray-600">Bénévole</p>
+                            <p class="mt-2">Découverte des techniques d'étude de la flore calédonienne</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/gendrilla_warimavute.png" alt="Gendrilla Warimavute">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Gendrilla Warimavute</h5>
+                            <p class="text-gray-600">License 3</p>
+                            <p class="mt-2">Traits fonctionnels des fruits des arbres de Nouvelle-Calédonie pour l'étude
+                                de la dynamique forestière</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/antoine_mugnier.png"
+                             alt="Antoine Mugnier">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Antoine Mugnier</h5>
+                            <p class="text-gray-600">Initiation à la recherche</p>
+                            <p class="mt-2">Digitalisation des forêts humides de la province Nord</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/thomas_monjoin.png"
+                             alt="Thomas Monjoin">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Thomas Monjoin</h5>
+                            <p class="text-gray-600">Master 1</p>
+                            <p class="mt-2">Influence de l'hétérogénéité environnementale sur la composition floristique
+                                des forêts de basse altitude de la Nouvelle-Calédonie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/gisele_amo.png"
+                             alt="Gisèle Amo">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Gisèle Amo</h5>
+                            <p class="text-gray-600">License 3</p>
+                            <p class="mt-2">Inventaires forestiers, collection d'herbiers</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/sebastien_utard.png"
+                             alt="Sébastien Utard">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Sébastien Utard</h5>
+                            <p class="text-gray-600">Master 1</p>
+                            <p class="mt-2">Étude diachronique des fragments forestiers du Grand Sud Calédonien</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/aurore_martini.png"
+                             alt="Aurore Martini">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Aurore Martini</h5>
+                            <p class="text-gray-600">License 3</p>
+                            <p class="mt-2">Participation à la mise en place de parcelles d'inventaires forestiers et
+                                mesures de traits fonctionnels</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/chloé_delassus.png"
+                             alt="Chloé Delassus">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Chloé Delassus</h5>
+                            <p class="text-gray-600">Master 2</p>
+                            <p class="mt-2">Patrons de rareté des arbres des forêts néocalédoniennes</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/marie_dubreuil.png"
+                             alt="Marie Dubreuil">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Marie Dubreuil</h5>
+                            <p class="text-gray-600">Master 1 et 2</p>
+                            <p class="mt-2">Hétérogénéité fonctionnelle et spatiale des forêts denses humides de
+                                Nouvelle-Calédonie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/juliane_kaoh.png"
+                             alt="Juliane Kaoh">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Juliane Kaoh</h5>
+                            <p class="text-gray-600">License 3 et Master 1</p>
+                            <p class="mt-2">Traits fonctionnels des fruits des arbres de Nouvelle-Calédonie pour l'étude
+                                de la dynamique forestière</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/pierre_lemaistre.png"
+                             alt="Pierre Lemaistre">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Pierre Lemaistre</h5>
+                            <p class="text-gray-600">Master 1</p>
+                            <p class="mt-2">Évolution des paramètres structuraux des forêts denses humides de
+                                Nouvelle-Calédonie le long des gradients d'altitude et de pluviométrie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/thomas_boutreux.png"
+                             alt="Thomas Boutreux">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Thomas Boutreux</h5>
+                            <p class="text-gray-600">Master 1 et 2</p>
+                            <p class="mt-2">Variabilité de traits fonctionnels et plasticité écologique d'arbres communs
+                                des forêts de Nouvelle-Calédonie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/sylvain_schmitt.png"
+                             alt="Sylvain Schmitt">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Sylvain Schmitt</h5>
+                            <p class="text-gray-600">Stage césure ingénieur</p>
+                            <p class="mt-2">Conception de systèmes autonomes d'aide à la décision environnementale via
+                                des modèles d'analyses spatiales</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/yves_poncon.png"
+                             alt="Yves Ponçon">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Yves Ponçon</h5>
+                            <p class="text-gray-600">Stage césure ingénieur</p>
+                            <p class="mt-2">Influence des variations des paramètres micro-climatiques sur le bilan
+                                hydrique du sol</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/coline_cavagnet.png"
+                             alt="Coline Cavagnet">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Coline Cavagnet</h5>
+                            <p class="text-gray-600">Master 1</p>
+                            <p class="mt-2">Trajectoires floristiques et fonctionnelles de la régénération dans les
+                                forêts de Nouvelle-Calédonie</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-full sm:w-1/2 lg:w-1/3 px-2 mb-4">
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <img class="w-32 h-32 rounded-full mx-auto mt-4"
+                             src="files/img/persons/manon_carnevali.png"
+                             alt="Manon Carnevali">
+                        <div class="text-center p-4">
+                            <h5 class="text-xl font-bold">Manon Carnevali</h5>
+                            <p class="text-gray-600">Master 2</p>
+                            <p class="mt-2">Etude de la distribution des espèces d’arbres et de la distribution de la
+                                richesse spécifique en Nouvelle-Calédonie</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8" id="productions">
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-bold">Production</h2>
+        </div>
+
+        <!-- Tab navigation -->
+        <div class="max-w-6xl mx-auto">
+            <!-- Tabs header -->
+            <div class="border-b border-gray-200">
+                <ul class="flex flex-wrap -mb-px justify-center gap-x-8" role="tablist">
+                    <li>
+                        <button id="article-tab"
+                                class="inline-flex items-center px-1 py-4 text-lg font-medium border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-600"
+                                role="tab"
+                                data-target="article">
+                            Article
+                        </button>
+                    </li>
+                    <li>
+                        <button id="academique-tab"
+                                class="inline-flex items-center px-1 py-4 text-lg font-medium border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-600"
+                                role="tab"
+                                data-target="academique">
+                            Académique
+                        </button>
+                    </li>
+                    <li>
+                        <button id="media-tab"
+                                class="inline-flex items-center px-1 py-4 text-lg font-medium border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-600"
+                                role="tab"
+                                data-target="media">
+                            Média
+                        </button>
+                    </li>
+                    <li>
+                        <button id="divers-tab"
+                                class="inline-flex items-center px-1 py-4 text-lg font-medium border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-600"
+                                role="tab"
+                                data-target="divers">
+                            Divers
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Search input -->
+            <div class="my-4">
+                <input type="text"
+                       id="search-input"
+                       placeholder="Rechercher..."
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+
+            <div class="tab-content">
+                <div id="article" class="tab-pane hidden">
+                    <div class="overflow-hidden bg-white shadow-lg ">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                            <tr>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="year">
+                                    Année
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="support">
+                                    Support
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800">
+                                    Auteur et titre du document
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2024</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire, D., Ibanez, T., Vieilledent, G., Lorca, X., & Birnbaum, P.,
+                                    <strong>Refining
+                                        intra-patch connectivity measures in landscape fragmentation and connectivity
+                                        indices.</strong>, <em>Landscape Ecology</em>
+                                    <a href="https://doi.org/10.1007/s10980-024-01840-0" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2024</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Yang, H., Wang, S., Son, R., Lee, H., Benson, V., Zhang, W., Zhang, Y., Zhang, Y.,
+                                    Kattge,
+                                    J., Boenisch, G., Schepaschenko, D., Karaszewski, Z., Stereńczak, K.,
+                                    Moreno-Martínez, Á.,
+                                    Nabais, C., Birnbaum, P., Vieilledent, G., Weber, U., & Carvalhais, N., <strong>Global
+                                    patterns of tree wood density. Global Change Biology.</strong>, <em>Global Change
+                                    Biology</em>
+                                    <a href="https://doi.org/10.1111/gcb.17224" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2024</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Bauman, D., Aiba, S.-I., Arsouze, T., Bellingham, P. J., Birkinshaw, C.,
+                                    Birnbaum, P., Curran, T. J., DeWalt, S. J., Dwyer, J., Fourcaud, T., Franklin, J.,
+                                    Kohyama,
+                                    T. S., Menkes, C., Metcalfe, D. J., Murphy, H., Muscarella, R., Plunkett, G. M.,
+                                    Sam, C.,
+                                    Tanner, E., Taylor, B.N., Thompson, J., Ticktin, T., Tuiwawa, M.V., Uriarte, M.,
+                                    Webb, E.L.,
+                                    Zimmerman, J.K. & Keppel, G., <strong>Damage to tropical forests caused by cyclones
+                                    is
+                                    driven by wind speed but mediated by topographical exposure and tree
+                                    characteristics.</strong>, <em>Global Change Biology</em>
+                                    <a href="https://doi.org/10.1111/gcb.17317" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2023</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard, G., Barbier, N., Vieilledent, G., Ibanez, T., Hequet, V., McCoy, S., &
+                                    Birnbaum,
+                                    P., <strong>UAV-Lidar reveals that canopy structure mediates the influence of edge
+                                    effects
+                                    on forest diversity, function and microclimate.</strong>, <em>Journal of
+                                    Ecology</em>
+                                    <a href="https://doi.org/10.1111/1365-2745.14105" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2023</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire, D., Hanson, J. O., Lannuzel, G., Vismara, P., Lorca, X., &
+                                    Birnbaum, P.,
+                                    <strong>restoptr: An R package for ecological restoration planning.</strong>, <em>Restoration
+                                    Ecology</em>
+                                    <a href="https://doi.org/10.1111/rec.13910" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2023</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum, P., Ibanez, T., Blanchard, G., Justeau-Allaire, D., Hequet, V., Eltabet,
+                                    N.,
+                                    Vieilledent, G., Barbier, N., Barrière, R., & Bruy, D., <strong>Forest and tree
+                                    species
+                                    distribution on the ultramafic substrates of New Caledonia.</strong>, <em>Botany
+                                    Letters</em>
+                                    <a href="https://doi.org/10.1080/23818107.2023.2181216" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Gatti, R. C., Reich, P. B., Gamarra, J. G. P., Crowther, T., Hui, C., Morera, A.,
+                                    Bastin,
+                                    J.-F., de-Miguel, S., Nabuurs, G.-J., Svenning, J.-C., Serra-Diaz, J. M., Merow, C.,
+                                    Enquist, B., Kamenetsky, M., Lee, J., Zhu, J., Fang, J., Jacobs, D. F., Pijanowski,
+                                    B.,
+                                    Birnbaum, P., Ibanez, T.,… Liang, J., <strong>The number of tree species on
+                                    Earth.</strong>,
+                                    <em>Proceedings of the National Academy of Sciences</em>
+                                    <a href="https://www.pnas.org/doi/10.1073/pnas.2115329119" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Meyer, S., Birnbaum, P., Bruy, D., Cazé, H., Garnier, D., Gâteblé, G., Lannuzel, G.,
+                                    McCoy,
+                                    S., Tanguy, V., & Veillon, J.-M., <strong>The New Caledonia Plants RLA: Bringing
+                                    Botanists
+                                    Together for the Conservation of the archipelago’s Crown Jewel.</strong>, <em>In
+                                    Reference
+                                    Module in Earth Systems and Environmental Sciences, Elsevier</em>
+                                    <a href="https://doi.org/10.1016/B978-0-12-821139-7.00171-9" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2021</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Pillon, Y., Jaffré, T., Birnbaum, P., Bruy, D., Cluzel, D., Ducousso, M., Fogliani,
+                                    B.,
+                                    Ibanez, T., Jourdan, H., Lagarde, L., Léopold, A., Munzinger, J., Pouteau, R., Read,
+                                    J., &
+                                    Isnard, S., <strong>Infertile landscapes on an old oceanic island: The biodiversity
+                                    hotspot
+                                    of New Caledonia.</strong>, <em>Biological Journal of the Linnean Society</em>
+                                    <a href="https://doi.org/10.1093/biolinnean/blaa146" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2021</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard, G., Ibanez, T., Munoz, F., Bruy, D., Hely, C., Munzinger, J., & Birnbaum,
+                                    P.,
+                                    <strong>Drivers of tree community assembly during tropical forest post-fire
+                                        succession in
+                                        anthropogenic savannas.</strong>, <em>Perspectives in Plant Ecology, Evolution
+                                    and
+                                    Systematics</em>
+                                    <a href="https://www.sciencedirect.com/science/article/abs/pii/S1433831921000421"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2020</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard, G., Birnbaum, P., & Munoz, F., <strong>Extinction–immigration dynamics
+                                    lag behind
+                                    environmental filtering in shaping the composition of tropical dry forests within a
+                                    changing
+                                    landscape.</strong>, <em>Ecography</em>
+                                    <a href="https://doi.org/10.1111/ecog.04870" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2020</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire D., Vieilledent G., Rinck N., Vismara P., Lorca X. and Birnbaum P.,
+                                    <strong>Constrained
+                                        optimization of landscape indices in conservation planning to support ecological
+                                        restoration
+                                        in New Caledonia.</strong>, <em>Journal of applied Ecology</em>
+                                    <a href="https://doi.org/10.1111/1365-2664.13803" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2020</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Keppel, G., Baider, C., Birkinshaw, Florens, F.B.V., Laidlaw, M.,
+                                    Menkez, C.,
+                                    Parthasarathy, N., Rajkumar, M., Ratovoson, F., Rasingam, L., Reza, L., Aiba, S.,
+                                    Webb, E.,
+                                    Zang, R., and Birnbaum, P, <strong>Tropical cyclones and island area shape species
+                                    abundance
+                                    distributions of local tree communities.</strong>, <em>Oikos</em>
+                                    <a href="https://doi.org/10.1111/oik.07501" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Pouteau, R., Munoz, F., & Birnbaum, P., <strong>Disentangling the processes driving
+                                    tree
+                                    community assembly in a tropical biodiversity hotspot (New Caledonia).</strong>,
+                                    <em>Journal
+                                        of Biogeography</em>
+                                    <a href="https://doi.org/10.1111/jbi.13535" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard, G., Munoz, F., Ibanez, T., Hequet, V., Vandrot, H., Girardi, J., &
+                                    Birnbaum, P.,
+                                    <strong>Regional rainfall and local topography jointly drive tree community assembly
+                                        in
+                                        lowland tropical forests of New Caledonia.</strong>, <em>Journal of Vegetation
+                                    Science</em>
+                                    <a href="https://doi.org/10.1111/jvs.12781" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire, D., Vismara, P., Birnbaum, P., & Lorca, X., <strong>Systematic
+                                    Conservation
+                                    Planning for Sustainable Land-use Policies: A Constrained Partitioning Approach to
+                                    Reserve
+                                    Selection and Design.</strong>, <em>In Electronic proceedings of IJCAI 2019</em>
+                                    <a href="https://doi.org/10.24963/ijcai.2019/818" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Poncet, V., Birnbaum, P., Burtet‐Sarramegna, V., Kochko, A. de, Fogliani, B.,
+                                    Gâteblé, G.,
+                                    Isnard, S., Jaffré, T., Job, D., Munoz, F., Munzinger, J., Scutt, C.P., Tournebize,
+                                    R.,
+                                    Trueba, S., & Pillon, Y., <strong>Amborella – Bearing Witness to the Past?</strong>,
+                                    <em>Annual
+                                        Plant Reviews</em>
+                                    <a href="https://doi.org/10.1002/9781119312994.apr0689" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Keppel, G., Menkes, C., Gillespie, T.W., Lengaigne, M., Mangeas, M.,
+                                    Rivas-Torres, G., & Birnbaum, P., <strong>Globally consistent impact of tropical
+                                    cyclones on
+                                    the structure of tropical and subtropical forests.</strong>, <em>Journal of
+                                    Ecology</em>
+                                    <a href="https://doi.org/10.1111/1365-2745.13039" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Barrabé, L., Lavergne, S., Karnadi-Abdelkader, G., Drew, B. T., Birnbaum, P., &
+                                    Gâteblé, G.,
+                                    <strong>Changing Ecological Opportunities Facilitated the Explosive Diversification
+                                        of New
+                                        Caledonian Oxera (Lamiaceae).</strong>, <em>Systematic Biology</em>
+                                    <a href="https://doi.org/10.1093/sysbio/syy070" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Steidinger, B.S., Crowther, T.W., Liang, J., Nuland, M.E.V., Werner, G.D.A., Reich,
+                                    P.B.,
+                                    Nabuurs, G.J., de-Miguel, S., Zhou, M., Picard, N., Herault, B., Zhao, X., Zhang,
+                                    C., Routh,
+                                    D., & Peay, K.G. et al. (including Birnbaum et Ibanez), <strong>Climatic controls of
+                                    decomposition drive the global biogeography of forest-tree symbioses.</strong>,
+                                    <em>Nature</em>
+                                    <a href="https://doi.org/10.1038/s41586-019-1128-0" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Blanchard, E., Hequet, V., Keppel, G., Laidlaw, M., Pouteau, R.,
+                                    Vandrot, H., &
+                                    Birnbaum, P., <strong>High endemism and stem density distinguish New Caledonian from
+                                    other
+                                    high-diversity rainforests in the Southwest Pacific.</strong>, <em>Annals of
+                                    Botany</em>
+                                    <a href="https://doi.org/10.1093/aob/mcx107" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Birnbaum, P., Gâteblé, G., Hequet, V., Isnard, S., Munzinger, J.,
+                                    Pillon, Y.,
+                                    Pouteau, R., Vandrot, H., & Jaffré, T., <strong>Twenty years after Jaffré et al.
+                                    (1998), is
+                                    the system of protected areas now adequate in New Caledonia?</strong>, <em>Biodiversity
+                                    and
+                                    Conservation</em>
+                                    <a href="https://doi.org/10.1007/s10531-018-1659-y" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire, D., Birnbaum, P., & Lorca, X., <strong>Unifying Reserve Design
+                                    Strategies
+                                    with Graph Theory and Constraint Programming.</strong>, <em>In: Hooker J. (eds)
+                                    Principles
+                                    and Practice of Constraint Programming. CP 2018. Lecture Notes in Computer Science,
+                                    vol
+                                    11008. Springer</em>
+                                    <a href="https://link.springer.com/chapter/10.1007/978-3-319-98334-9_33"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Pouteau, R., Gillespie, T.W., & Birnbaum, P., <strong>Predicting Tropical Tree
+                                    Species
+                                    Richness from Normalized Difference Vegetation Index Time Series: The Devil Is
+                                    Perhaps not
+                                    in the Detail.</strong>, <em>Remote Sensing</em>
+                                    <a href="https://doi.org/10.3390/rs10050698" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., G. Keppel, C. Baider, C. Birkinshaw, H. Culmsee, S. Cordell, F. B. V.
+                                    Florens,
+                                    J. Franklin, C. P. Giardina, T. W. Gillespie, M. Laidlaw, C. M. Litton, T. G.
+                                    Martin, R.
+                                    Ostertag, N. Parthasarathy, R. Randrianaivo, M. Randrianjanahary, M. Rajkumar, L.
+                                    Rasingam,
+                                    F. Ratovoson, L. Reza, L. Sack, S. Aiba, E. Webb, T. J. S. Whitfeld, R. Zang, and P.
+                                    Birnbaum., <strong>Regional forcing explains local species diversity and turnover on
+                                    tropical islands.</strong>, <em>Global Ecology and Biogeography</em>
+                                    <a href="https://onlinelibrary.wiley.com/doi/abs/10.1111/geb.12712" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Hequet, V., Chambrey, C., Jaffré, T., & Birnbaum, P., <strong>How does
+                                    forest
+                                    fragmentation affects tree communities? A critical case study in the biodiversity
+                                    hotspot of
+                                    New Caledonia.</strong>, <em>Landscape ecology</em>
+                                    <a href="https://doi.org/10.1007/s10980-017-0534-7" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Schmitt, S., Pouteau, R., Justeau, D., Boissieu, F. de, & Birnbaum, P., <strong>Ssdm:
+                                    An r
+                                    package to predict distribution of species richness and composition based on stacked
+                                    species
+                                    distribution models.</strong>, <em>Methods in Ecology and Evolution</em>
+                                    <a href="https://doi.org/10.1111/2041-210X.12841" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Chave, J., Barrabé, L., Elodie, B., Boutreux, T., Trueba, S., Vandrot,
+                                    H., &
+                                    Birnbaum, P., <strong>Community variation in wood density along a bioclimatic
+                                    gradient on a
+                                    hyper-diverse tropical island.</strong>, <em>Journal of Vegetation Science</em>
+                                    <a href="https://doi.org/10.1111/jvs.12456" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Grytnes, J.-A., & Birnbaum, P., <strong>Rarefaction and elevational
+                                    richness
+                                    pattern: a case study in a high tropical island (New Caledonia, SW
+                                    Pacific).</strong>, <em>Journal
+                                    of Vegetation Science</em>
+                                    <a href="https://doi.org/10.1111/jvs.12396" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Pouteau, R., & Birnbaum, P., <strong>Island biodiversity hotspots are getting
+                                    hotter:
+                                    vulnerability of tree species to climate change in New Caledonia.</strong>, <em>Biological
+                                    Conservation</em>
+                                    <a href="https://doi.org/10.1016/j.biocon.2016.06.031" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard, E., Birnbaum, P., Ibanez, T., Boutreux, T., Antin, C., Ploton, P.,
+                                    Vincent, G.,
+                                    Pouteau, R., Vandrot, H., Hequet, V., Barbier, N., Droissart, V., Sonké, B., Texier,
+                                    N.,
+                                    Kamdem, N.G., Zebaze, D., Libalah, M., & Couteron, P., <strong>Contrasted
+                                    allometries
+                                    between stem diameter, crown area, and tree height in five tropical biogeographic
+                                    areas.</strong>, <em>Trees</em>
+                                    <a href="https://doi.org/10.1007/s00468-016-1424-3" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Pouteau, R., Bayle, E., Blanchard, E., Birnbaum, P., Cassan, J.-J., Hequet, V.,
+                                    Ibanez, T.,
+                                    & Vandrot, H., <strong>Accounting for the indirect area effect in stacked species
+                                    distribution models to map species richness in a montane biodiversity
+                                    hotspot.</strong>,
+                                    <em>Diversity and Distributions</em>
+                                    <a href="https://doi.org/10.1111/ddi.12374" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum, P., Ibanez, T., Pouteau, R., Vandrot, H., Hequet, V., Blanchard, E., &
+                                    Jaffré, T.,
+                                    <strong>Environmental correlates for tree occurrences, species distribution and
+                                        richness on
+                                        a high-elevation tropical island.</strong>, <em>Annals of botany</em>
+                                    <a href="https://doi.org/10.1093/aobpla/plv075" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard E., Birnbaum P., Proisy C., Ibanez T., Vandrot H., Chambrey C., Hequet V.
+                                    and
+                                    Couteron P., <strong>Prédire la structure des forêts tropicales humides
+                                    calédoniennes :
+                                    analyse texturale de la canopée sur des images Pléiades.</strong>, <em>Revue
+                                    Française de
+                                    Photogrammétrie et de Télédétection, Société Française de Photogrammétrie et de
+                                    Télédétection. Pléiades Days 2014 (2ème partie)</em>
+                                    <a href="https://hal.archives-ouvertes.fr/ird-01137604/" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., & Birnbaum, P., <strong>Monodominance at the rainforest edge: case study
+                                    of
+                                    Codia mackeeana (Cunoniaceae) in New Caledonia.</strong>, <em>Australian Journal of
+                                    Botany</em>
+                                    <a href="https://doi.org/10.1071/BT14062" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">article</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Munzinger, J., Dagostini, G., Hequet, V., Rigault, F., Jaffré, T., &
+                                    Birnbaum,
+                                    P., <strong>Structural and floristic diversity of mixed tropical rain forest in New
+                                    Caledonia: new data from the New Caledonian Plant Inventory and Permanent Plot
+                                    Network
+                                    (NC-PIPPN).</strong>, <em>Applied Vegetation Science</em>
+                                    <a href="https://doi.org/10.1111/avsc.12070" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Pagination -->
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="flex justify-between items-center w-full">
+                            <button id="prev-page-article"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Précédent
+                            </button>
+                            <span id="page-info-article" class="text-sm text-gray-700">Page 1</span>
+                            <button id="next-page-article"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Suivant
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="academique" class="tab-pane hidden">
+                    <div class="overflow-hidden bg-white shadow-sm ring-1 ring-gray-900/5 rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                            <tr>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="year">
+                                    Année
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="support">
+                                    Support
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800">
+                                    Auteur et titre du document
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2023</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Carnevali Manon, <strong>Etude de la distribution des espèces d’arbres et de la
+                                    distribution
+                                    de la richesse spécifique en Nouvelle-Calédonie</strong>, <em>Master 2 - Université
+                                    Paul
+                                    Sabatier</em>
+                                    <a href="files/documents/carnevali_manon_master2_2023.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2023</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master1</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Cavagnet Coline, <strong>Trajectoires floristiques et fonctionnelles de la
+                                    régénération dans
+                                    les forêts de Nouvelle-Calédonie</strong>, <em>Master 1 - Université de
+                                    Montpellier</em>
+                                    <a href="files/documents/cavagnet_coline_master1_2023.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2020</td>
+                                <td class="py-2 px-4 border-b border-gray-300">thèse</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire Dimitri, <strong>Planification systématique de la conservation basée
+                                    sur les
+                                    contraintes, une approche générique et expressive: Application à l’aide à la
+                                    décision pour
+                                    la conservation des forêts de Nouvelle-Calédonie</strong>, <em>Thèse Université de
+                                    Montpellier</em>
+                                    <a href="http://www.theses.fr/2020MONTG058" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">thèse</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard Grégoire, <strong>Assemblage des communautés d'arbres des forêts de basse
+                                    altitude
+                                    de Nouvelle-Calédonie face à un environnement hétérogène dans l’espace et dans le
+                                    temps</strong>, <em>Université de Montpellier - Spécialité : Écologie, Evolution,
+                                    Ressources
+                                    Génétique, Paléobiologie</em>
+                                    <a href="http://www.theses.fr/2019MONTG065" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Delassus Chloé, <strong>Etude des patrons de rareté et d’abondance des arbres de
+                                    Nouvelle-Calédonie</strong>, <em>Master 2 - Université de Toulouse</em>
+                                    <a href="files/documents/delassus_chloe_master2_2018.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">mémoire</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ponçon Yves, <strong>Analyse des paramètres micro-climatiques le long dun gradient
+                                    topographique en Nouvelle-Calédonie pour comprendre le bilan hydrique du
+                                    sol</strong>, <em>Stage
+                                    césure ingénieur ENSTA, Paris</em>
+                                    <a href="files/documents/poncon_yves_cesure_2017.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master1</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Monjoin Thomas, <strong>Influence de l'hétérogénéité environnementale sur la
+                                    composition
+                                    floristique des forêts de basse altitude de la Nouvelle-Calédonie</strong>, <em>Master
+                                    1 - Université de Montpellier</em>
+                                    <a href="files/documents/monjoin_thomas_master1_2017.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master1</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Kaoh Juliane, <strong>Distribution of dispersal syndromes in New Caledonian
+                                    forests</strong>,
+                                    <em>Master 1 - Université de Nouvelle-Calédonie</em>
+                                    <a href="files/documents/kaoh_juliane_master1_2017.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">hdr</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum, Ph., <strong>Spatialisation de la diversité et de la structure : un enjeu
+                                    pour la
+                                    conservation des forêts tropicales</strong>, <em>Habilitation à diriger les
+                                    recherches -
+                                    Université de Montpellier</em>
+                                    <a href="https://tel.archives-ouvertes.fr/tel-01678835" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">thèse</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard Elodie, <strong>Diversité structurale des forêts denses humides de la
+                                    Province
+                                    Nord de Nouvelle Calédonie : de l'arbre au paysage</strong>, <em>Université de
+                                    Montpellier -
+                                    Spécialité : Écologie, Evolution, Ressources Génétique, Paléobiologie</em>
+                                    <a href="http://www.theses.fr/2016MONTT116" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Husson Julie, <strong>Mise en place d’un protocole simplifié de description des
+                                    forêts
+                                    tropicales humides en Nouvelle Calédonie</strong>, <em>Master 2 - Université de
+                                    Montpellier</em>
+                                    <a href="files/documents/husson_julie_master2_2015.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">mémoire</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Mugnier Antoine, <strong>Découverte du rôle et des objectifs d'un chercheur en
+                                    écologie
+                                    forestière dans un centre de recherche</strong>, <em>Parcours PeiPB biologie 1ère
+                                    année -
+                                    Université de Tours</em>
+                                    <a href="files/documents/mugnier_antoine_stage_2015.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master1</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Lemaistre Pierre, <strong>Evolution des paramètres structuraux des forêts denses
+                                    humides de
+                                    Nouvelle-Calédonie en lien avec l'altitude, la pluviométrie et la dynamique des
+                                    peuplements</strong>, <em>Master 1 - Université de Montpellier</em>
+                                    <a href="files/documents/lemaistre_pierre_master1_2015.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard Grégoire, <strong>Les gradients altitudinaux de richesse spécifique des
+                                    plantes de
+                                    Nouvelle-Calédonie</strong>, <em>Master 2 - Université de Montpellier</em>
+                                    <a href="files/documents/blanchard_gregoire_master2_2015.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Boutreux Thomas, <strong>Variabilité de traits fonctionnels et plasticité écologique
+                                    d'arbres communs des forêts de Nouvelle-Calédonie</strong>, <em>Master 2 -
+                                    Université de
+                                    Montpellier</em>
+                                    <a href="files/documents/boutreux_thomas_master2_2015.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master1</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Utard Sébastien, <strong>Etude diachronique des fragments forestiers du Grand Sud
+                                    Calédonien</strong>, <em>Master 1 - Institut supérieur des Sciences Agronomiques,
+                                    Agroalimentaires, Horticoles et du Paysage de Angers</em>
+                                    <a href="files/documents/utard_sebastien_master1_2015.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master1</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Boutreux Thomas, <strong>Estimation de la structure diamétrique des forêts denses
+                                    humides de
+                                    Nouvelle-Calédonie par la relation allométrique tronc-couronne</strong>, <em>Master
+                                    1 - Université de Montpellier</em>
+                                    <a href="files/documents/boutreux_thomas_master1_2014.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Gavinet Elias, <strong>Identification de marqueurs structuraux d’états dynamiques en
+                                    forêts
+                                    denses humides néo-Calédoniennes</strong>, <em>Master 2 - AgroParisTech de
+                                    Nancy</em>
+                                    <a href="files/documents/ganivet_elias_master2_2014.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2013</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Dubreuil Marie, <strong>Hétérogénéité fonctionnelle et spatiale des forêts denses
+                                    humides de
+                                    Nouvelle-Calédonie : Identification d'unités de végétation par regroupement
+                                    écologique</strong>, <em>Master 2 - Université de Montpellier</em>
+                                    <a href="files/documents/dubreuil_marie_master2_2013.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2012</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master1</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Dubreuil Marie, <strong>Etude de la dynamique des formations végétales sur sols
+                                    volcano-sédimentaires de la Nouvelle Calédonie</strong>, <em>Master 1 - Université
+                                    de
+                                    Montpellier</em>
+                                    <a href="files/documents/dubreuil_marie_master1_2012.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2012</td>
+                                <td class="py-2 px-4 border-b border-gray-300">master2</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Texier Nicolas, <strong>Caractérisation du peuplement et de la mortalité d’Agathis
+                                    montana
+                                    de Laubenfels (Araucariaceae) au sein de la réserve de nature sauvage du Mont Panié,
+                                    Province nord, Nouvelle-Calédonie : approche architecturale et écologique</strong>,
+                                    <em>Master
+                                        2 - Université de Montpellier</em>
+                                    <a href="files/documents/texier_nicolas_master2_2012.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Pagination -->
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="flex justify-between items-center w-full">
+                            <button id="prev-page-academique"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Précédent
+                            </button>
+                            <span id="page-info-academique" class="text-sm text-gray-700">Page 1</span>
+                            <button id="next-page-academique"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Suivant
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="media" class="tab-pane hidden">
+                    <div class="overflow-hidden bg-white shadow-sm ring-1 ring-gray-900/5 rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                            <tr>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="year">
+                                    Année
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="support">
+                                    Support
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800">
+                                    Auteur et titre du document
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire D., Lannuzel G., Hanson J.O., Vieilledent G. & Birnbaum P., <strong>Ecological
+                                    restoration planning of fragmented tropical vegetation - An example from New
+                                    Caledonia’s
+                                    mining areas - Introducing the restoptr R package</strong>, <em>European conference
+                                    of
+                                    tropical ecology</em>
+                                    <a href="files/documents/justeau-allaire_conference_gtoe_2022.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard G., Barbier N., Vieilledent G., Ibanez T., Hequet V., McCoy, S. & Birnbaum
+                                    P.,
+                                    <strong>Canopy structure mediates the influence of edge effects on tropical forest
+                                        diversity, function and microclimate</strong>, <em>European conference of
+                                    tropical
+                                    ecology</em>
+                                    <a href="files/documents/blanchard_conference_gtoe_2022.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">presse</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Caprais G., <strong>Douze scientifiques appellent à revenir sur le « choix » de la
+                                    déforestation</strong>, <em>Demain en Nouvelle-Calédonie</em>
+                                    <a href="https://www.dnc.nc/douze-scientifiques-appellent-a-revenir-sur-le-choix-de-la-deforestation/"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">presse</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum, P., Hequet, V., Girardi, J., Vandrot, H., Mangeard, T., Ibanez, T.,
+                                    Blanchard, E.,
+                                    Pouteau, R., Blanchard, G., Justeau-Allaire, D., Vieilledent, G., & Cassan, J.-J.,
+                                    <strong>Nouvelle-Calédonie
+                                        : L’Atlas de la forêt en province Nord, un bel ouvrage pour sensibiliser à la
+                                        protection</strong>, <em>outremers360</em>
+                                    <a href="https://outremers360.com/bassin-pacifique-appli/nouvelle-caledonie-latlas-de-la-foret-en-province-nord-un-bel-ouvrage-pour-sensibiliser-a-la-protection"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2021</td>
+                                <td class="py-2 px-4 border-b border-gray-300">film</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Rosada A., <strong>Philippe BIRNBAUM et l'Atlas de la Forêt en Province
+                                    Nord</strong>, <em>interview
+                                    SILO</em>
+                                    <a href="https://www.youtube.com/watch?v=Bk1rOth5Ssc&ab_channel=AlexandreR%C3%A9moRosada"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2021</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Atlas de la forêt - Province Nord - Nouvelle-Calédonie</strong>,
+                                    <em>Présentation
+                                        atlas - WWF</em>
+                                    <a href="files/documents/birnbaum_presentation_atlas_wwf_2021.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2021</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Les feux de forêt, enjeux pour la Calédonie</strong>, <em>Présentation
+                                    enjeux lutte contre le feu - PS</em>
+                                    <a href="files/documents/birnbaum_presentation_feux_ps_2021.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2020</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum, P. & Cassan J.-J., <strong>Peut on unifier gestion et écologie des
+                                    écosystèmes
+                                    forestiers ? Exemple de la cartographie des forêts de la province Nord
+                                </strong>, <em>Présentation 3DT province Sud</em>
+                                    <a href="files/documents/birnbaum _carto_forest_2020.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2020</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Et si on écoutait la forêt</strong>, <em>Conférence c'Nature -
+                                    27 octobre 2020 - Auditorium de la province Sud</em>
+                                    <a href="files/documents/birnbaum_conference_cnature_2020.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2020</td>
+                                <td class="py-2 px-4 border-b border-gray-300">vidéo</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Et si on écoutait la forêt ?</strong>, <em>Conférence c'Nature
+                                    - 27 octobre 2020 - Auditorium de la province Sud</em>
+                                    <a href="https://youtu.be/DfBTWpj8eT8 " target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire D., Rinck N., Lorca X., Coutures E. & Birnbaum P., <strong>Systematic
+                                    conservation planning in New Caledonia: supporting sustainable land-use policies
+                                    with
+                                    reserve selection models</strong>, <em>Conférence internationale Island Biology,
+                                    Université
+                                    de la Réunion, 8-13 juillet 2019</em>
+                                    <a href="files/documents/justeau-allaire_island_biology_2019.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Meyer, S., Birnbaum, P., Bruy, D., Gateblé, G. & Tanguy V., <strong>Red Lists and
+                                    open data:
+                                    how the New Caledonia Plant Red List Authority has brought together environment
+                                    professionals, scientists and amateur experts</strong>, <em>Conférence
+                                    internationale Island
+                                    Biology, Université de la Réunion, 8-13 juillet 2019</em>
+                                    <a href="files/documents/meyer_island_biology_2019.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard G., Birnbaum P. & Munoz F., <strong>Landscape structure influences
+                                    environmental
+                                    filtering and neutral dynamics in a fragmented insular dry forest</strong>, <em>Conférence
+                                    internationale Island Biology, Université de la Réunion, 8-13 juillet 2019</em>
+                                    <a href="files/documents/blanchard_island_biology_2019.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Justeau-Allaire D, Birnbaum P, et Lorca X., <strong>Unifier les stratégies de
+                                    sélection de
+                                    réserve avec la programmation par contraintes et les graphes</strong>, <em>JFPC 2019
+                                    - Actes
+                                    des 15es Journées Francophones de Programmation par Contraintes, juin 2019, Albi,
+                                    France</em>
+                                    <a href="https://hal-mines-albi.archives-ouvertes.fr/hal-02160264" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P, Ibanez T., Pouteau R., Vandrot H., Hequet V., Blanchard G., Girardi J.,
+                                    Justeau-allaire D. & Cassan J.-J., <strong>Do endemic trees flora make endemic
+                                    forests?
+                                    insights from New Caledonian forests</strong>, <em>Conférence internationale Island
+                                    Biology,
+                                    Université de la Réunion, 8-13 juillet 2019</em>
+                                    <a href="files/documents/birnbaum_island_biology_2019.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Chronique des forêts du Grand Sud Calédonien - Evolution des
+                                    paysages
+                                    depuis 150 ans (1867-2017)</strong>, <em>Conférence CICS - province Sud</em>
+                                    <a href="files/documents/birnbaum_conference_cics_2018.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Barrabé, L., Birnbaum, P., Blanchard, G., Bruy, D., Fambart, J., Gâteblé, G.,
+                                    Girardi, J.,
+                                    Hequet, V., Ibanez, T., Isnard, S., Jaffré, T., Justeau-Allaire, D., Karnadi, G.,
+                                    Magat, M.,
+                                    Nigote, W., Pouteau, R. & Vandrot, H., <strong>AMAP : Une UMR au service de la
+                                    conservation
+                                    des espèces et des espaces naturels</strong>, <em>Conférence province Nord</em>
+                                    <a href="files/documents/amap_iac_pn_2018.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard G, Munoz F, Ibanez T, Hequet V, Vandrot H, Girardi J, et Birnbaum P.,
+                                    <strong>Water
+                                        availability shapes the functional structure of lowland tropical forest tree
+                                        communities at
+                                        both regional and landscape scales in New Caledonia.</strong>, <em>Conférence
+                                    internationale
+                                    in Linking Natural History and the Conservation of Tomorrow’s Tropical Ecosystems.
+                                    ATBC 1-5
+                                    July, Kuching, Sarawak, Malaysia, Southeast Asia.</em>
+                                    <a href="files/documents/blanchard_atbc_2018.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Barrabé, L., Birnbaum, P., Blanchard, G., Bruy, D., Fambart, J., Gâteblé, G.,
+                                    Girardi, J.,
+                                    Hequet, V., Ibanez, T., Isnard, S., Jaffré, T., Justeau-Allaire, D., Karnadi, G.,
+                                    Magat, M.,
+                                    Nigote, W., Pouteau, R. & Vandrot, H., <strong>Flore et habitats des îles Loyauté :
+                                    la
+                                    recherche au service de la gestion des espaces et des ressources naturels</strong>,
+                                    <em>Conférence Lifou - province des îles</em>
+                                    <a href="files/documents/amap_iac_pil_2017.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">radio</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Poigoune M., <strong>La forêt humide calédonienne, une des plus denses au
+                                    monde...</strong>,
+                                    <em>NC 1ère</em>
+                                    <a href="https://la1ere.francetvinfo.fr/nouvellecaledonie/2015/10/06/la-foret-humide-caledonienne-une-des-plus-denses-au-monde-292959.html"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum, P., Ibanez, T., Vandrot, H., Blanchard, E., Hequet, V., Chambrey, C. &
+                                    Pouteau,
+                                    R., <strong>Les forêts humides de la Province Nord, Nouvelle-Calédonie</strong>,
+                                    <em>Conférence province Nord</em>
+                                    <a href="files/documents/birnbaum_conference_livre_pn_2016.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Schmitt, S., <strong>Niche-modelling - Modèles de distribution d’espèces (SSDM R
+                                    Package)</strong>, <em>Conférence IRD - Nouméa</em>
+                                    <a href="files/documents/schmitt_ssdm_ird_2016.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">film</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    nan, <strong>Les forêts humides de la province Nord, Nouvelle-Calédonie</strong>,
+                                    <em>NCTV
+                                        conférence</em>
+                                    <a href="https://www.youtube.com/watch?v=Zlq9ipYG_h4&t=2225s" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez T., Blanchard, E., Hequet, V., Pouteau, R., Vandrot, H. & Birnbaum, P.,
+                                    <strong>Drivers
+                                        of tree species richness in New Caledonian rainforests: Beta- but not
+                                        alpha-diversity makes
+                                        them exceptional</strong>, <em>Conférence ATBC</em>
+                                    <a href="files/documents/Ibanez_atbc_2015.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., <strong>Drivers of tree species richness in New Caledonian
+                                    rainforests</strong>,
+                                    <em>Conférence jeudi de l'Amap</em>
+                                    <a href="files/documents/ibanez_jeudi_amap_2015.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Pouteau R., Bayle E, Blanchard E., Birnbaum P, Cassan J.-J, Hequet V., Ibanez T &
+                                    Vandrot
+                                    H., <strong>Searching for hotspots within a hotspot : Stacked species distribution
+                                    models
+                                    provide new opportunities to map species richness un New Caledonia</strong>, <em>Communication
+                                    in « International Congress for Conservation Biology / European Congress for
+                                    Conservation
+                                    Biology », Montpellier (France), 2-6 août 2015</em>
+                                    <a href="files/documents/pouteau_iccb_2015.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Les forêts humides de la Province Nord - Synthèse d’un
+                                    partenariat
+                                    2012-2015</strong>, <em>Conférence commission de l'environnement - province
+                                    Nord</em>
+                                    <a href="files/documents/birnbaum_commission_envir_pn_2015.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2015</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Conservation des forêts en Province Nord ?</strong>, <em>Conférence
+                                    Fête de la Science, Touho</em>
+                                    <a href="files/documents/birnbaum_fds_touho_2015.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez, T., Birnbaum, P., Blanchard, E., Hequet, V., Isnard, S. & Vandrot, H.,
+                                    <strong>Wood
+                                        density facing ecological challenges in New Caledonia</strong>, <em>Conference
+                                    international
+                                    Island Biology 2014,University of Hawaii at Mānoa, Honolulu, Hawaï (USA), 7-11
+                                    juillet
+                                    2014</em>
+                                    <a href="files/documents/Ibanez_island_biology_2014.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., Ibanez T., Pouteau, R., Bayle E., Blanchard, E. Vandrot, H. & Hequet,
+                                    V.,
+                                    <strong>Tree diversity patterns in New Caledonian forests</strong>, <em>Conférence
+                                    Island
+                                    Biology, Honolulu (Hawai)</em>
+                                    <a href="files/documents/birnbaum_island_biology_2014.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Blanchard, E., Ibanez, T., Couteron, P. & Birnbaum, P., <strong>Which drivers
+                                    control the
+                                    above-ground biomass of rainforests in New Caledonia?</strong>, <em>Conférence
+                                    Island
+                                    Biology, Honolulu (Hawai)</em>
+                                    <a href="files/documents/blanchard_island_biology_2014.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">film</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    nan, <strong>Les coulisses de la science - La forêt calédonienne</strong>, <em>NCTV
+                                    les
+                                    coulisses de la science</em>
+                                    <a href="https://www.youtube.com/watch?v=FVdNvZPgFqs" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2013</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Forêt(s) Calédonienne(s) : Apparente simplicité ? ou Evidente
+                                    complexité ?</strong>, <em>Conférence IRD - Nouméa</em>
+                                    <a href="files/documents/birnbaum_conference_ird_2013.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2013</td>
+                                <td class="py-2 px-4 border-b border-gray-300">presse</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Léhé C., <strong>La forêt est aussi une ressource</strong>, <em>Interview CNRT</em>
+                                    <a href="files/documents/interview_cnrt_2013.pdf" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2013</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Amélioration des connaissances sur les habitats forestiers en
+                                    Province
+                                    Nord</strong>, <em>Séminaire « Recherche Scientifique en Province Nord », Poindimié,
+                                    (Nouvelle-Calédonie), 19-21 juin 2013</em>
+                                    <a href="files/documents/birnbaum_province_nord_2013.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2012</td>
+                                <td class="py-2 px-4 border-b border-gray-300">conférence</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Base de données écologiques : Application à la flore de la
+                                    Nouvelle-Calédonie</strong>, <em>Communication in Workshop Conservation et la
+                                    diversité
+                                    floristique en Nouvelle-Calédonie. Centre IRD de Nouméa (Nouvelle-Calédonie)</em>
+                                    <a href="files/documents/birnbaum_workshop_noumea_2012.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Pagination -->
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="flex justify-between items-center w-full">
+                            <button id="prev-page-media"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Précédent
+                            </button>
+                            <span id="page-info-media" class="text-sm text-gray-700">Page 1</span>
+                            <button id="next-page-media"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Suivant
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="divers" class="tab-pane hidden">
+                    <div class="overflow-hidden bg-white shadow-sm ring-1 ring-gray-900/5 rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                            <tr>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="year">
+                                    Année
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="w-28 px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800 cursor-pointer"
+                                    data-sort="support">
+                                    Support
+                                    <span class="sort-icon ml-1 text-white">↕</span>
+                                </th>
+                                <th scope="col"
+                                    class="px-4 py-3.5 text-left text-sm font-medium text-white bg-gray-800">
+                                    Auteur et titre du document
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2023</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Partenariat pour l’Analyse des DynaMIques de REforestation et
+                                    de la
+                                    résilience forestière (projet ADMIRE)</strong>, <em>Rapport de convention, Admire 2,
+                                    PN/IAC/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_pn_20C025_2_2023.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2023</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Elaboration d'outils cartotographique de gestion des forêts
+                                    Naturelles
+                                    en provInce Sud</strong>, <em>Rapport de convention, Artensis, PS/IAC/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_ps_c137-23_2023.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Partenariat pour l’Analyse des DynaMIques de REforestation et
+                                    de la
+                                    résilience forestière (projet ADMIRE)</strong>, <em>Rapport de convention, Admire 1,
+                                    PN/IAC/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_pn_20C025_1_2022.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2022</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum, P., Barbier, N., Vieilledent, G., Blanchard, G., Hequet, V.,
+                                    Justeau-Allaire, D.,
+                                    Eltabet, N. & Ibanez, T., <strong>FRagmentation des forEts sur substrats
+                                    uLtramafIQUES de
+                                    Nouvelle-Calédonie</strong>, <em>Rapport de convention, Reliques
+                                    CNRT/IAC/CIRAD/IRD</em>
+                                    <a href="files/documents/rapport_convention_reliques_cnrt_2022.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2019</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Régénération sous couvert arboré en Calédonie</strong>, <em>Etude
+                                    bibliographique, stratégie de régénération en Nouvelle-Calédonie</em>
+                                    <a href="files/documents/synthese_bibliographique_stratégie_régénération ver5.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2018</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., Girardi J., Ibanez T., Vandrot H., Blanchard G., Justeau D. & Hequet
+                                    V.,
+                                    <strong>Connaissances et outils et pour la gestion conservatoire des forêts
+                                        naturelles en
+                                        province Nord</strong>, <em>Rapport de convention, Cogefor 2, PN/IAC/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_pn_16C180_2_2018.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Despinoy, M., Mangeas, M. & Birnbaum, P., <strong>Dynamique de la fragmentation des
+                                    Noyaux
+                                    de forêt humide sur substrats ultramafiques en Nouvelle-Calédonie</strong>, <em>Rapport
+                                    de
+                                    convention, Dynamic, ŒIL/IAC/IRD/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_oeil_2017.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2017</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., Ibanez T., Pouteau R., Vandrot H., Blanchard G., Justeau D., Girardi
+                                    J.,
+                                    Barrabé L. & Hequet V., <strong>Connaissances et outils et pour la gestion
+                                    conservatoire des
+                                    forêts naturelles en province Nord</strong>, <em>Rapport de convention, Cogefor 1,
+                                    PN/IAC/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_pn_16C180_1_2017.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., Mangeas M., Maggia L., Ibanez T., Despinoy M., Marmey P., Hequet V.,
+                                    Gomez C.,
+                                    Bideau G., Chambrey C., Vandrot H., and Blanchard E., <strong>Caractérisation des
+                                    connectivités structurelle et fonctionnelle des paysages fragmentés sur sols
+                                    ultramafiques</strong>, <em>Rapport de convention, CoRiFor, CNRT/IAC/CIRAD/IRD</em>
+                                    <a href="files/documents/rapport_convention_corifor_cnrt_2016.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2016</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P., <strong>Spatialisation de la richesse floristique et développement d'un
+                                    portail
+                                    permettant la saisie et la consultation des formulaires 'dévaluation rapide des
+                                    forêts</strong>, <em>Rapport de convention, PN/IAC/CIRAD/IRD</em>
+                                    <a href="files/documents/rapport_convention_pn_15C534_2016.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2014</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez T. & Birnbaum P., <strong>Analyse paysagère des dynamiques forestières au
+                                    sein de la
+                                    réserve du massif de l'Aoupinié</strong>, <em>Rapport de convention,
+                                    WWF/IAC/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_wwf_2014.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2013</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Chambrey, C., Munzinger, J., Birnbaum P, Dagostini G. & Isnard, S., <strong>Etablissement
+                                    d'une liste des espèces d'arbres, de palmiers et de fougères arborescentes de
+                                    Nouvelle-Calédonie</strong>, <em>Rapport de convention, Ministère de l’agriculture/
+                                    FAO</em>
+                                    <a href="https://www.documentation.ird.fr/hor/fdi:010063467" target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2012</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P, Hequet V., Vandrot H., Ibanez T and Blanchard E, <strong>Atlas
+                                    cartographique
+                                    des forêts de la province Nord</strong>, <em>Rapport de convention, PN/IRD/IAC</em>
+                                    <a href="files/documents/rapport_convention_pn_10C113a_2012.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2012</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Birnbaum P, Hequet V., Vandrot H., Ibanez T and Blanchard, E, <strong>Cartographie
+                                    et
+                                    caractérisation des faciès forestiers sur sols volcano-sédimentaires en province
+                                    Nord de
+                                    Nouvelle-Calédonie</strong>, <em>Rapport de convention, PN/IAC/CIRAD/IRD</em>
+                                    <a href="files/documents/rapport_convention_pn_10C113b_2012.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td class="py-2 px-4 border-b border-gray-300">2012</td>
+                                <td class="py-2 px-4 border-b border-gray-300">rapport</td>
+                                <td class="py-2 px-4 border-b border-gray-300">
+                                    Ibanez T. & Birnbaum P., <strong>Dynamique des habitats forestiers en
+                                    Nouvelle-Calédonie</strong>, <em>Rapport de convention, PS/IAC/CIRAD</em>
+                                    <a href="files/documents/rapport_convention_ps_c315-12_2012.pdf"
+                                       target="_blank">
+                                        <i class="fa fa-download" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Pagination -->
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="flex justify-between items-center w-full">
+                            <button id="prev-page-divers"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Précédent
+                            </button>
+                            <span id="page-info-divers" class="text-sm text-gray-700">Page 1</span>
+                            <button id="next-page-divers"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                Suivant
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Function to extract data from existing HTML tables
+        function extractTableData() {
+            const tableData = {
+                article: [],
+                academique: [],
+                media: [],
+                divers: []
+            };
+
+            // Extract data from each tab
+            Object.keys(tableData).forEach(tabId => {
+                const tbody = document.querySelector(`#${tabId} tbody`);
+                if (tbody) {
+                    tbody.querySelectorAll('tr').forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length === 3) {
+                            tableData[tabId].push({
+                                year: cells[0].textContent.trim(),
+                                support: cells[1].textContent.trim(),
+                                title: cells[2].innerHTML.trim() // Using innerHTML to preserve links and formatting
+                            });
+                        }
+                    });
+                }
+            });
+
+            return tableData;
+        }
+
+        // State management
+        const state = {
+            activeTab: 'article',
+            currentPage: 1,
+            itemsPerPage: 10,
+            searchQuery: '',
+            sortColumn: null,
+            sortOrder: 'asc'
+        };
+
+        // Store the extracted data
+        let tableData = {};
+
+        // Function to filter data based on search query
+        function filterData() {
+            const activeData = tableData[state.activeTab];
+            if (!activeData) return [];
+            if (!state.searchQuery) return activeData;
+
+            return activeData.filter(item => {
+                const searchableText = Object.values(item).map(value =>
+                    value.toString().replace(/<[^>]+>/g, '')  // Remove HTML tags for searching
+                ).join(' ').toLowerCase();
+                return searchableText.includes(state.searchQuery.toLowerCase());
+            });
+        }
+
+        // Function to sort data
+        function sortData(data) {
+            if (state.sortColumn) {
+                return [...data].sort((a, b) => {
+                    let comparison = 0;
+                    if (a[state.sortColumn] < b[state.sortColumn]) comparison = -1;
+                    if (a[state.sortColumn] > b[state.sortColumn]) comparison = 1;
+                    return state.sortOrder === 'asc' ? comparison : -comparison;
+                });
+            }
+            return data;
+        }
+
+        // Function to update pagination info and buttons
+        function updatePagination(data) {
+            const totalPages = Math.ceil(data.length / state.itemsPerPage);
+            const pageInfo = document.getElementById(`page-info-${state.activeTab}`);
+            if (pageInfo) {
+                pageInfo.textContent = `Page ${state.currentPage} sur ${totalPages}`;
+            }
+
+            const prevButton = document.getElementById(`prev-page-${state.activeTab}`);
+            const nextButton = document.getElementById(`next-page-${state.activeTab}`);
+
+            if (prevButton) {
+                prevButton.disabled = state.currentPage === 1;
+                prevButton.classList.toggle('opacity-50', state.currentPage === 1);
+            }
+
+            if (nextButton) {
+                nextButton.disabled = state.currentPage === totalPages;
+                nextButton.classList.toggle('opacity-50', state.currentPage === totalPages);
+            }
+        }
+
+        // Main function to update table display
+        function updateTable() {
+            let data = filterData();
+            data = sortData(data);
+
+            const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+            const endIndex = startIndex + state.itemsPerPage;
+            const pageData = data.slice(startIndex, endIndex);
+
+            // Update table body
+            const tbody = document.querySelector(`#${state.activeTab} tbody`);
+            if (tbody) {
+                tbody.innerHTML = pageData.map(item => `
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-2">${item.year}</td>
+        <td class="px-4 py-2">${item.support}</td>
+        <td class="px-4 py-2">${item.title}</td>
+      </tr>
+    `).join('');
+            }
+
+            // Update pagination
+            updatePagination(data);
+        }
+
+        // Tab switching
+        document.querySelectorAll('[role="tab"]').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs
+                document.querySelectorAll('[role="tab"]').forEach(t => {
+                    t.classList.remove(
+                        'border-indigo-500',
+                        'text-indigo-600',
+                        'border-b-2'
+                    );
+                    t.classList.add(
+                        'text-gray-500',
+                        'border-transparent'
+                    );
+                });
+
+                // Add active class to clicked tab
+                tab.classList.remove(
+                    'text-gray-500',
+                    'border-transparent'
+                );
+                tab.classList.add(
+                    'border-indigo-500',
+                    'text-indigo-600',
+                    'border-b-2'
+                );
+
+                // Hide all tab panes
+                document.querySelectorAll('.tab-pane').forEach(pane => {
+                    pane.classList.add('hidden');
+                });
+
+                // Show selected tab pane
+                const target = tab.getAttribute('data-target');
+                const targetPane = document.getElementById(target);
+                if (targetPane) {
+                    targetPane.classList.remove('hidden');
+                    state.activeTab = target;
+                    state.currentPage = 1;
+                    updateTable();
+                }
+            });
+        });
+
+        // Search functionality
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                state.searchQuery = e.target.value;
+                state.currentPage = 1;
+                updateTable();
+            });
+        }
+
+        // Sorting functionality
+        document.querySelectorAll('th[data-sort]').forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.getAttribute('data-sort');
+                if (state.sortColumn === column) {
+                    state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc';
+                } else {
+                    state.sortColumn = column;
+                    state.sortOrder = 'asc';
+                }
+
+                // Update sort icons
+                document.querySelectorAll('th[data-sort] .sort-icon').forEach(icon => {
+                    icon.textContent = '↕';
+                });
+                const sortIcon = header.querySelector('.sort-icon');
+                if (sortIcon) {
+                    sortIcon.textContent = state.sortOrder === 'asc' ? '↑' : '↓';
+                }
+
+                updateTable();
+            });
+        });
+
+        // Setup pagination event listeners for each tab
+        ['article', 'academique', 'media', 'divers'].forEach(tabId => {
+            const prevButton = document.getElementById(`prev-page-${tabId}`);
+            const nextButton = document.getElementById(`next-page-${tabId}`);
+
+            if (prevButton) {
+                prevButton.addEventListener('click', () => {
+                    if (state.currentPage > 1) {
+                        state.currentPage--;
+                        updateTable();
+                    }
+                });
+            }
+
+            if (nextButton) {
+                nextButton.addEventListener('click', () => {
+                    const filteredData = filterData();
+                    const maxPages = Math.ceil(filteredData.length / state.itemsPerPage);
+                    if (state.currentPage < maxPages) {
+                        state.currentPage++;
+                        updateTable();
+                    }
+                });
+            }
+        });
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            // Extract data from existing tables
+            tableData = extractTableData();
+
+            // Set initial active tab
+            const defaultTab = document.getElementById('article-tab');
+            if (defaultTab) {
+                defaultTab.click();
+            }
+        });
+    </script>
+
+
+        </div>
+    </div>
+    <footer class="bg-green-700 text-white p-4 mt-8">
+        <div class="container mx-auto">
+            <div class="flex justify-center mb-4">
+                <div class="bg-white p-2 w-3/5 rounded-lg shadow-md flex justify-center">
+                    <a class='logo' href="https://www.province-nord.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="pn" src="files/pn_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://www.province-sud.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ps" src="files/ps_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://amap.cirad.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="amap" src="files/amap_100.png"></figure>
+                    </a>
+                    <a class='logo' href="http://publish.plantnet-project.org/project/nou" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="herbarium" src="files/herbarium_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://iac.nc/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="iac" src="files/iac_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://nouvelle-caledonie.ird.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ird" src="files/ird_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://cirad.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="cirad" src="files/cirad_100.png"></figure>
+                    </a>
+                    <a class='logo' href="https://www.ofb.gouv.fr/" target="_blank">
+                        <figure class="mx-2"><img class="img-fluid" id="ofb" src="files/ofb_100.png"></figure>
+                    </a>
+                </div>
+            </div>
+            <div class="text-center">
+                <p>Niamoto - Portail de la forêt de Nouvelle-Calédonie</p>
+                <a class="inline-block py-2 px-4 text-white no-underline" href="https://github.com/niamoto/niamoto" target="_blank">
+                    <span class="fab fa-github fa-lg" aria-hidden="true"></span> Github
+                </a>
+            </div>
+        </div>
+    </footer>
+    <script src="js/vendor/chart/4.4.2_chart.js"></script>
+    <script src="js/vendor/d3/7.8.5_d3.js"></script>
+    <script src="js/vendor/jquery/3.6.0_jquery.js"></script>
+    <script src="js/vendor/lodash/4.17.21_lodash.min.js"></script>
+    <script src="js/vendor/raphael/2.3.0_raphael.js"></script>
+    <script src="js/vendor/justgage/1.6.1_justgage.js"></script>
+    <script src="js/vendor/leaflet/1.9.4_leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+        const buttonContainer = document.getElementById('buttonContainer');
+
+            // Only proceed if the button container exists
+            if (buttonContainer) {
+                const buttonContainerOffset = buttonContainer.offsetTop;
+                const navHeight = 60; // Adjust this value to match your navigation height
+
+                window.onscroll = () => {
+                    if (window.pageYOffset > buttonContainerOffset - navHeight) {
+                        buttonContainer.classList.add('fixed');
+                    } else {
+                        buttonContainer.classList.remove('fixed');
+                    }
+                };
+
+                // Initial check in case the page is loaded scrolled
+                window.onscroll();
+            }
+        });
+    </script>
+
+
+</body>
+</html>

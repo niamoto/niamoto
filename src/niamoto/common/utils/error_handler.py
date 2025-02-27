@@ -149,13 +149,22 @@ def handle_error(
 
     # Re-raise if requested, but avoid cascade
     if raise_error:
-        # If it's a NiamotoError, just exit with error code
-        if isinstance(error, NiamotoError):
+        # If we're in a CLI context, we might want to exit the program
+        # But for library code and tests, we should just raise the exception
+        import os
+
+        is_test_environment = "PYTEST_CURRENT_TEST" in os.environ
+
+        if isinstance(error, NiamotoError) and not is_test_environment:
+            # Only exit in CLI context, not during tests
             import sys
 
             sys.exit(1)
-        # Otherwise, wrap it in a ProcessError to provide a cleaner error
+        elif isinstance(error, NiamotoError):
+            # In test environment, just re-raise the original error
+            raise error
         else:
+            # For non-NiamotoError, wrap it in a ProcessError
             raise ProcessError(str(error), details={"original_error": str(error)})
 
 

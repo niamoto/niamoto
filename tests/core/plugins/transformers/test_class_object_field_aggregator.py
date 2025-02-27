@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from unittest.mock import MagicMock
 
-from niamoto.core.plugins.transformers.class_object_field_aggregator import (
+from niamoto.core.plugins.transformers.class_objects.field_aggregator import (
     ClassObjectFieldAggregator,
 )
 from niamoto.common.exceptions import DataTransformError

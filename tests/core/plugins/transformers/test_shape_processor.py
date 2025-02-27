@@ -10,7 +10,7 @@ from shapely.geometry import Polygon
 from shapely.wkb import dumps
 import yaml
 
-from niamoto.core.plugins.transformers.shape_processor import ShapeProcessor
+from niamoto.core.plugins.transformers.geospatial.shape_processor import ShapeProcessor
 from niamoto.common.database import Database
 
 
@@ -175,12 +175,23 @@ class TestShapeProcessor(unittest.TestCase):
 
         # Clean up test files if they exist
         try:
-            os.remove(os.path.join(self.config_dir, "import.yml"))
-            os.remove(os.path.join(self.test_data_dir, "test_layer.gpkg"))
-            os.remove(os.path.join(self.test_data_dir, "test_layer_2.gpkg"))
-            os.rmdir(self.config_dir)
-        except FileNotFoundError:
-            pass
+            # Remove files in config directory
+            if os.path.exists(os.path.join(self.config_dir, "import.yml")):
+                os.remove(os.path.join(self.config_dir, "import.yml"))
+
+            # Remove files in test_data_dir
+            for file in os.listdir(self.test_data_dir):
+                file_path = os.path.join(self.test_data_dir, file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+
+            # Remove directories
+            if os.path.exists(self.config_dir):
+                os.rmdir(self.config_dir)
+            if os.path.exists(self.test_data_dir):
+                os.rmdir(self.test_data_dir)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Warning: Could not clean up test files: {e}")
 
     def create_test_files(self):
         """Create test files needed for layer processing."""

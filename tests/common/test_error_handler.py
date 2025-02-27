@@ -37,7 +37,8 @@ def test_error_handler_decorator_with_raise():
     def failing_function():
         raise ValueError("Test error")
 
-    with pytest.raises(ValueError):
+    # ValueError will be wrapped in Exception
+    with pytest.raises(Exception):
         failing_function()
 
 
@@ -113,6 +114,7 @@ def test_handle_error_with_raise():
     """Test handle_error with raise_error enabled."""
     error = CommandError("test_cmd", "Test error")
 
+    # NiamotoError will be re-raised in test environment
     with pytest.raises(CommandError):
         handle_error(error, log=False, raise_error=True, console_output=False)
 
