@@ -1,6 +1,6 @@
 [run]
-omit = 
-       tests/* 
+omit =
+       tests/*
        *__init__*
 
 [report]

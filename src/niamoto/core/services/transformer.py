@@ -1,247 +1,451 @@
 """
-Service for calculating transforms in Niamoto.
+Service for transforming data based on YAML configuration.
 """
 
-from pathlib import Path
-from typing import Any, Hashable, Optional, Dict, List, Union
+from typing import Dict, Any, List, Optional
+import logging
 import pandas as pd
-import sqlalchemy
+from rich.console import Console
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    BarColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
-from niamoto.common.utils.logging_utils import setup_logging
-from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
-    ProcessError,
-    CalculationError,
-    DataTransformError,
-    ValidationError,
-    FileReadError,
     ConfigurationError,
+    ProcessError,
+    DataTransformError,
 )
-from niamoto.core.components.transforms.shapes import ShapeTransformer
-from niamoto.core.components.transforms.taxons import TaxonTransformer
-from niamoto.core.components.transforms.plots import PlotTransformer
+from niamoto.common.utils import error_handler
+from niamoto.core.plugins.plugin_loader import PluginLoader
+from niamoto.core.plugins.registry import PluginRegistry
+from niamoto.core.plugins.base import PluginType
+
+logger = logging.getLogger(__name__)
 
 
 class TransformerService:
-    """Service providing methods to calculate various transforms."""
+    """Service for transforming data based on YAML configuration."""
 
     def __init__(self, db_path: str, config: Config):
         """
-        Initialize the TransformerService.
+        Initialize the service.
 
         Args:
-            db_path: Path to the database file
-            config: Configuration instance
+            db_path: Path to database
+            config: Configuration object
         """
-        self.db_path = db_path
         self.db = Database(db_path)
         self.config = config
-        self.logger = setup_logging(component_name="transform")
+        self.transforms_config = config.get_transforms_config()
+        self.console = Console()
 
-    def create_transformer(
-        self,
-        group_type: str,
-        occurrences: List[Dict[Hashable, Any]],
-        group_config: Dict[str, Any],
-    ) -> Union[TaxonTransformer, PlotTransformer, ShapeTransformer]:
-        """Factory method pour créer le bon type de transformateur."""
-        transformers = {
-            "taxon": TaxonTransformer,
-            "plot": PlotTransformer,
-            "shape": ShapeTransformer,
-        }
+        # Initialize plugin loader and load plugins
+        self.plugin_loader = PluginLoader()
+        self.plugin_loader.load_core_plugins()
 
-        transformer_class = transformers.get(group_type)
-        if not transformer_class:
-            raise ValidationError(
-                "group_type",
-                f"Type de transformateur invalide : {group_type}",
-                details={"types_valides": list(transformers.keys())},
-            )
-
-        return transformer_class(self.db, occurrences, group_config)
+        # Load project plugins if any exist
+        self.plugin_loader.load_project_plugins(config.plugins_dir)
 
     @error_handler(log=True, raise_error=True)
     def transform_data(
-        self, csv_file: Optional[str] = None, group_by: Optional[str] = None
+        self,
+        group_by: Optional[str] = None,
+        csv_file: Optional[str] = None,
+        recreate_table: bool = True,
     ) -> None:
         """
-        Calculate transforms based on configuration.
+        Transform data according to configuration.
 
         Args:
-            group_by: Type of grouping (taxon, plot, shape)
-            csv_file: Optional CSV file path to use instead of configured source
+            group_by: Optional group filter
+            csv_file: Optional CSV file to use instead of database
+            recreate_table: Whether to recreate the table for results
 
         Raises:
             ConfigurationError: If configuration is invalid
-            ValidationError: If parameters are invalid
-            ProcessError: If calculation fails
+            ProcessError: If transformation fails
         """
-        # Get stats configuration
-        imports_config = self.config.get_transforms_config()
-        if not imports_config:
+        try:
+            # Filter configuration by group if specified
+            configs = self._filter_configs(group_by)
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                TextColumn("•"),
+                TimeElapsedColumn(),
+                console=self.console,
+            ) as progress:
+                # Process each group configuration
+                for group_config in configs:
+                    self.validate_configuration(group_config)
+
+                    # Get all group IDs and widgets
+                    group_ids = self._get_group_ids(group_config)
+                    widgets_config = group_config.get("widgets_data", {})
+                    group_by = group_config.get("group_by", "unknown")
+
+                    # Calculate total operations for this group config
+                    total_ops = len(group_ids) * len(widgets_config)
+
+                    # Create progress bar for this group config
+                    config_task = progress.add_task(
+                        f"[cyan]Processing {group_by} data...", total=total_ops
+                    )
+
+                    # Create or update table for results
+                    self._create_group_table(
+                        group_config.get("group_by"),
+                        widgets_config,
+                        recreate_table,
+                    )
+
+                    # Process each group
+                    for group_id in group_ids:
+                        try:
+                            # Update progress description with current group ID
+                            progress.update(
+                                config_task,
+                                description=f"[cyan]Processing {group_by} {group_id}...",
+                            )
+
+                            # Get group data
+                            group_data = self._get_group_data(
+                                group_config, csv_file, group_id
+                            )
+
+                            # Process each widget
+                            for widget_name, widget_config in widgets_config.items():
+                                try:
+                                    # Get transformer plugin
+                                    transformer = PluginRegistry.get_plugin(
+                                        widget_config["plugin"], PluginType.TRANSFORMER
+                                    )(self.db)
+
+                                    # Transform data
+                                    config = {
+                                        "plugin": widget_config["plugin"],
+                                        "params": {
+                                            "source": widget_config.get("source"),
+                                            "field": widget_config.get("field"),
+                                            **widget_config.get("params", {}),
+                                        },
+                                        "group_id": group_id,
+                                    }
+
+                                    results = transformer.transform(group_data, config)
+
+                                    # Save results
+                                    if results:
+                                        self._save_widget_results(
+                                            group_by=group_config["group_by"],
+                                            group_id=group_id,
+                                            results={widget_name: results},
+                                        )
+
+                                except Exception as e:
+                                    error_msg = f"Error processing widget {widget_name} for group {group_id}: {str(e)}"
+                                    self.console.print(f"[red]{error_msg}[/red]")
+                                finally:
+                                    progress.advance(config_task)
+
+                        except Exception as e:
+                            error_msg = f"Failed to process group {group_id}: {str(e)}"
+                            self.console.print(f"[red]{error_msg}[/red]")
+                            # Advance for all remaining widgets in case of group error
+                            remaining = len(widgets_config)
+                            progress.advance(config_task, remaining)
+
+        except Exception as e:
+            # Extract useful details from the original error if it's a ConfigurationError
+            if isinstance(e, ConfigurationError) and hasattr(e, "details"):
+                error_details = e.details.copy() if e.details else {}
+                error_details.update({"group": group_by})
+
+                raise ProcessError("Failed to transform data", details=error_details)
+            else:
+                raise ProcessError(
+                    "Failed to transform data",
+                    details={"group": group_by, "error": str(e)},
+                )
+
+    def _filter_configs(self, group_by: Optional[str]) -> List[Dict[str, Any]]:
+        """Filter configurations by group."""
+        if not self.transforms_config:
             raise ConfigurationError(
                 "transforms",
-                "No transformations configuration found",
-                details={"config_file": "transform.yml"},
+                "No transforms configuration found",
+                details={"file": "transform.yml"},
             )
 
-        # Validate group_by if provided
-        valid_groups = {"taxon", "plot", "shape"}
-        if group_by and group_by not in valid_groups:
-            raise ValidationError(
-                "group_by",
-                f"Invalid group type. Must be one of: {', '.join(valid_groups)}",
-                details={"provided": group_by},
-            )
-
-        try:
-            # Get occurrences data
-            occurrences = self.get_occurrences(csv_file)
-
-            if group_by:
-                # Calculate for specific group
-                group_stats = next(
-                    (g for g in imports_config if g["group_by"] == group_by), None
-                )
-                if not group_stats:
-                    raise ConfigurationError(
-                        "transforms", f"No configuration found for group: {group_by}"
-                    )
-                self.transform_group_datas(occurrences, group_stats)
-            else:
-                # Calculate for all groups
-                for group_stats in imports_config:
-                    self.transform_group_datas(occurrences, group_stats)
-
-        except Exception as e:
-            if isinstance(e, (ConfigurationError, ValidationError)):
-                raise
-            raise ProcessError(
-                f"Failed to calculate transforms: {str(e)}",
-                details={"group_by": group_by, "csv_file": csv_file, "error": str(e)},
-            )
-
-    @error_handler(log=True, raise_error=True)
-    def transform_group_datas(
-        self, occurrences: List[Dict[Hashable, Any]], group_config: Dict[str, Any]
-    ) -> None:
-        """
-        Calculate transforms for a group.
-        """
-        group_by = group_config.get("group_by")
         if not group_by:
-            raise ValidationError("group_config", "Missing group_by in configuration")
+            return self.transforms_config
+
+        # Get available group_by values
+        available_groups = [
+            config.get("group_by")
+            for config in self.transforms_config
+            if config.get("group_by")
+        ]
+
+        # Check for exact match first
+        filtered = [
+            config
+            for config in self.transforms_config
+            if config.get("group_by") == group_by
+        ]
+
+        # If no exact match, try case-insensitive match
+        if not filtered:
+            for config in self.transforms_config:
+                if (
+                    config.get("group_by")
+                    and config.get("group_by").lower() == group_by.lower()
+                ):
+                    filtered.append(config)
+                    correct_group = config.get("group_by")
+                    self.console.print(
+                        f"[yellow]Using group '{correct_group}' instead of '{group_by}'[/yellow]"
+                    )
+                    break
+
+        # If still no match, try singular/plural variants
+        if not filtered:
+            # Try singular form if group_by ends with 's'
+            if group_by.endswith("s"):
+                singular = group_by[:-1]
+                for config in self.transforms_config:
+                    if config.get("group_by") == singular:
+                        filtered.append(config)
+                        self.console.print(
+                            f"[yellow]Using singular form '{singular}' instead of '{group_by}'[/yellow]"
+                        )
+                        break
+            # Try plural form if group_by doesn't end with 's'
+            else:
+                plural = f"{group_by}s"
+                for config in self.transforms_config:
+                    if config.get("group_by") == plural:
+                        filtered.append(config)
+                        self.console.print(
+                            f"[yellow]Using plural form '{plural}' instead of '{group_by}'[/yellow]"
+                        )
+                        break
+
+        # If still no match, provide a helpful error message
+        if not filtered:
+            # Try to find a close match
+            suggestion = ""
+            if available_groups:
+                import difflib
+
+                matches = difflib.get_close_matches(group_by, available_groups, n=1)
+                if matches:
+                    suggestion = f" Did you mean '{matches[0]}'?"
+
+            raise ConfigurationError(
+                "transforms",
+                f"No configuration found for group: {group_by}",
+                details={
+                    "group": group_by,
+                    "available_groups": available_groups,
+                    "help": f"Available groups are: {', '.join(available_groups)}.{suggestion}",
+                },
+            )
+
+        return filtered
+
+    def validate_configuration(self, config: Dict[str, Any]) -> None:
+        """
+        Validate transformation configuration.
+
+        Args:
+            config: Configuration to validate
+
+        Raises:
+            ValidationError: If configuration is invalid
+        """
+        self._validate_source_config(config)
+
+    def _validate_source_config(self, config: Dict[str, Any]) -> None:
+        """Validate source configuration."""
+        source = config.get("source", {})
+        required_fields = ["data", "grouping", "relation"]
+        missing = [field for field in required_fields if field not in source]
+        if missing:
+            raise ConfigurationError(
+                "source",
+                "Missing required source configuration fields",
+                details={"missing": missing},
+            )
+
+        relation = source["relation"]
+        if (
+            "plugin" not in relation and "type" not in relation
+        ) or "key" not in relation:
+            raise ConfigurationError(
+                "relation",
+                "Missing required relation fields",
+                details={"required": ["plugin or type", "key"]},
+            )
+
+    def _get_group_ids(self, group_config: Dict[str, Any]) -> List[int]:
+        """Get all group IDs to process."""
+        grouping_table = group_config["source"]["grouping"]
+
+        query = f"""
+            SELECT DISTINCT id
+            FROM {grouping_table}
+            ORDER BY id
+        """
 
         try:
-            # Utilisation de la factory pour créer le transformateur
-            calculator = self.create_transformer(group_by, occurrences, group_config)
-            calculator.process_group_transformations()
-
+            result = self.db.execute_sql(query)
+            return [row[0] for row in result]
         except Exception as e:
-            if isinstance(e, ValidationError):
+            raise DataTransformError(
+                "Failed to get group IDs", details={"error": str(e)}
+            )
+
+    def _get_group_data(
+        self, group_config: Dict[str, Any], csv_file: Optional[str], group_id: int
+    ) -> pd.DataFrame:
+        """Get group data."""
+        if csv_file:
+            group_data = pd.read_csv(csv_file)
+        else:
+            # Get the appropriate loader plugin
+            relation_config = group_config["source"]["relation"]
+            plugin_name = relation_config.get("plugin")
+
+            try:
+                plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.LOADER)
+                loader = plugin_class(self.db)
+            except Exception:
                 raise
-            raise CalculationError(
-                f"Failed to calculate {group_by} transforms",
-                details={"group": group_by, "error": str(e)},
+
+            # Load data using the loader
+            group_data = loader.load_data(
+                group_id,
+                {
+                    "data": group_config["source"]["data"],
+                    "grouping": group_config["source"]["grouping"],
+                    **group_config["source"]["relation"],
+                },
             )
 
-    @error_handler(log=True, raise_error=True)
-    def get_occurrences(self, csv_file: Optional[str]) -> List[Dict[Hashable, Any]]:
-        """
-        Retrieve occurrences data.
+        return group_data
 
-        Args:
-            csv_file: Optional CSV file path
-
-        Returns:
-            List of occurrences
-
-        Raises:
-            FileReadError: If file cannot be read
-            ConfigurationError: If source path not configured
-            DataTransformError: If data processing fails
-        """
+    def _create_group_table(
+        self, group_by: str, widgets_config: Dict[str, Any], recreate_table: bool = True
+    ) -> None:
+        """Create or update table for group results."""
         try:
-            if csv_file:
-                if not Path(csv_file).exists():
-                    raise FileReadError(csv_file, "File not found")
-                return self.load_occurrences_from_csv(csv_file)
+            # Create columns for each widget
+            columns = [f"{widget_name} JSON" for widget_name in widgets_config.keys()]
 
-            # Get source path from configuration
-            source_config = self.config.get_imports_config.get("occurrences", {})
-            source_path = source_config.get("path")
+            # Drop table if recreate_table is True
+            if recreate_table:
+                drop_table_sql = f"""
+                DROP TABLE IF EXISTS {group_by}
+                """
+                self.db.execute_sql(drop_table_sql)
 
-            if not source_path:
-                raise ConfigurationError(
-                    "occurrences",
-                    "No occurrence source path configured",
-                    details={"config": "import.yml"},
-                )
+            create_table_sql = f"""
+            CREATE TABLE IF NOT EXISTS {group_by} (
+                {group_by}_id INTEGER PRIMARY KEY,
+                {", ".join(columns)}
+            )
+            """
 
-            source_path = str(Path(source_path).resolve())
-            if not Path(source_path).exists():
-                raise FileReadError(source_path, "Configured source file not found")
-
-            return self.load_occurrences_from_csv(source_path)
+            self.db.execute_sql(create_table_sql)
 
         except Exception as e:
-            if isinstance(e, (FileReadError, ConfigurationError)):
-                raise
             raise DataTransformError(
-                f"Failed to load occurrences: {str(e)}", details={"error": str(e)}
+                f"Failed to create table for group {group_by}",
+                details={"error": str(e)},
             )
 
-    @staticmethod
-    @error_handler(log=True, raise_error=True)
-    def load_occurrences_from_csv(csv_file: str) -> List[Dict[Hashable, Any]]:
-        """
-        Load occurrences from CSV.
-
-        Args:
-            csv_file: Path to CSV file
-
-        Returns:
-            List of occurrences
-
-        Raises:
-            FileReadError: If file cannot be read
-            DataTransformError: If data processing fails
-        """
+    def _save_widget_results(
+        self, group_by: str, group_id: int, results: Dict[str, Any]
+    ) -> None:
+        """Save widget results to database."""
         try:
-            df = pd.read_csv(csv_file)
-            return df.to_dict("records")
+            # Prepare column names and values
+            columns = list(results.keys())
+            values = [results[col] for col in columns]
+
+            # Format values for SQL
+            formatted_values = []
+            for val in [group_id] + values:
+                if val is None:
+                    formatted_values.append("NULL")
+                elif isinstance(val, (int, float)):
+                    formatted_values.append(str(val))
+                elif isinstance(val, dict):
+                    # Convert dictionary with numpy values
+                    import json
+                    import numpy as np
+
+                    def convert_numpy(obj):
+                        if isinstance(obj, np.integer):
+                            return int(obj)
+                        elif isinstance(obj, np.floating):
+                            return float(obj)
+                        elif isinstance(obj, np.ndarray):
+                            return [convert_numpy(x) for x in obj.tolist()]
+                        elif isinstance(obj, list):
+                            return [convert_numpy(x) for x in obj]
+                        elif isinstance(obj, dict):
+                            return {k: convert_numpy(v) for k, v in obj.items()}
+                        return obj
+
+                    converted_dict = {k: convert_numpy(v) for k, v in val.items()}
+                    json_str = json.dumps(converted_dict, ensure_ascii=False)
+                    formatted_values.append(
+                        f"'{json_str.replace(chr(39), chr(39) + chr(39))}'"
+                    )
+                elif isinstance(val, list):
+                    # Convert list with numpy values
+                    import json
+                    import numpy as np
+
+                    converted_list = [convert_numpy(x) for x in val]
+                    json_str = json.dumps(converted_list, ensure_ascii=False)
+                    formatted_values.append(
+                        f"'{json_str.replace(chr(39), chr(39) + chr(39))}'"
+                    )
+                elif hasattr(val, "dtype") and np.issubdtype(val.dtype, np.number):
+                    # Handle individual numpy numbers
+                    formatted_values.append(str(val.item()))
+                else:
+                    # Escape single quotes in strings
+                    str_val = str(val)
+                    formatted_values.append(
+                        f"'{str_val.replace(chr(39), chr(39) + chr(39))}'"
+                    )
+
+            # Build SQL
+            sql = f"""
+                INSERT INTO {group_by} ({group_by}_id, {", ".join(columns)})
+                VALUES ({", ".join(formatted_values)})
+                ON CONFLICT ({group_by}_id)
+                DO UPDATE SET {", ".join(f"{col} = excluded.{col}" for col in columns)}
+            """
+
+            # Execute without parameters
+            self.db.execute_sql(sql)
+
         except Exception as e:
             raise DataTransformError(
-                f"Failed to load CSV file: {str(e)}",
-                details={"file": csv_file, "error": str(e)},
-            )
-
-    @error_handler(log=True, raise_error=True)
-    def load_occurrences_from_database(
-        self, table_name: str
-    ) -> List[Dict[Hashable, Any]]:
-        """
-        Load occurrences from database.
-
-        Args:
-            table_name: Name of the table
-
-        Returns:
-            List of occurrences
-
-        Raises:
-            DatabaseError: If database operation fails
-            DataTransformError: If data processing fails
-        """
-        try:
-            engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
-            df = pd.read_sql(f"SELECT * FROM {table_name}", engine)
-            return df.to_dict("records")
-        except Exception as e:
-            raise DataTransformError(
-                f"Failed to load from database: {str(e)}",
-                details={"table": table_name, "error": str(e)},
+                f"Failed to save results for group {group_id}",
+                details={"error": str(e)},
             )

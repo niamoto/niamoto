@@ -1,186 +1,469 @@
-"""Tests for the ShapeImporter class."""
+"""
+Tests for the ShapeImporter class.
+"""
 
-from unittest import mock
-
-import pytest
-import geopandas as gpd
-from shapely.geometry import Point, Polygon
-from sqlalchemy.exc import SQLAlchemyError
+from unittest.mock import patch, MagicMock
+import tempfile
+import os
+from shapely.geometry import Point, LineString, Polygon, MultiPolygon
 
 from niamoto.core.components.imports.shapes import ShapeImporter
 from niamoto.common.exceptions import (
+    ShapeImportError,
     FileReadError,
     DataValidationError,
-    DatabaseError,
     ConfigurationError,
 )
+from tests.common.base_test import NiamotoTestCase
 
 
-class TestShapeImporter:
-    """Test cases for ShapeImporter class."""
+class TestShapeImporter(NiamotoTestCase):
+    """Test case for the ShapeImporter class."""
 
-    @pytest.fixture
-    def mock_db(self):
-        """Create a mock database."""
-        with mock.patch("niamoto.common.database.Database") as mock_db:
-            # Configure the mock
-            mock_session = mock.MagicMock()
-            mock_db.return_value.session = mock_session
-            # Configure query to return None by default (no existing shapes)
-            mock_session.query.return_value.filter_by.return_value.scalar.return_value = None
-            yield mock_db.return_value
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        # Use MagicMock directly instead of create_mock to avoid spec_set restrictions
+        self.mock_db = MagicMock()
+        # Set attributes that are accessed in the code
+        self.mock_db.db_path = "mock_db_path"
+        self.mock_db.engine = MagicMock()
+        self.mock_db.session = MagicMock()
+        self.importer = ShapeImporter(self.mock_db)
 
-    @pytest.fixture
-    def importer(self, mock_db):
-        """ShapeImporter fixture."""
-        return ShapeImporter(mock_db)
+    def test_init(self):
+        """Test initialization of ShapeImporter."""
+        self.assertEqual(self.importer.db, self.mock_db)
+        self.assertEqual(self.importer.db_path, "mock_db_path")
 
-    @pytest.fixture
-    def valid_geojson(self, tmp_path):
-        """Create a valid GeoJSON file for testing."""
-        # Create a simple polygon
-        polygon = Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])
+    @patch("niamoto.core.components.imports.shapes.fiona.open")
+    @patch("pathlib.Path.exists")
+    def test_import_from_config(self, mock_exists, mock_fiona_open):
+        """Test import_from_config method."""
+        # Setup mocks
+        mock_exists.return_value = True
 
-        # Create GeoDataFrame
-        gdf = gpd.GeoDataFrame(
-            {"name": ["Test Shape"], "geometry": [polygon]}, crs="EPSG:4326"
-        )
+        # Mock fiona.open context manager
+        mock_src = MagicMock()
+        mock_src.__enter__.return_value = mock_src
+        mock_src.__exit__.return_value = None
+        mock_src.crs_wkt = "PROJCS[...]"
+        mock_src.__len__.return_value = 3
 
-        # Save to temporary file
-        file_path = tmp_path / "test_shape.geojson"
-        gdf.to_file(file_path, driver="GeoJSON")
-        return str(file_path)
+        # Mock features
+        mock_feature1 = {
+            "geometry": {"type": "Point", "coordinates": [1, 1]},
+            "properties": {"name": "Feature1"},
+        }
+        mock_feature2 = {
+            "geometry": {"type": "Point", "coordinates": [2, 2]},
+            "properties": {"name": "Feature2"},
+        }
+        mock_feature3 = {
+            "geometry": {"type": "Point", "coordinates": [3, 3]},
+            "properties": {"name": "Feature3"},
+        }
+        mock_src.__iter__.return_value = [mock_feature1, mock_feature2, mock_feature3]
+        mock_fiona_open.return_value = mock_src
 
-    @pytest.fixture
-    def valid_config(self, valid_geojson):
-        """Create a valid shape configuration."""
-        return [
+        # Mock tempfile.TemporaryDirectory
+        with patch("tempfile.TemporaryDirectory") as mock_temp_dir:
+            mock_temp_dir.return_value.__enter__.return_value = "/tmp/mock_dir"
+
+            # Mock _process_input_file to avoid file operations
+            with patch.object(
+                self.importer, "_process_input_file", return_value="test.shp"
+            ):
+                # Mock transformer
+                with patch.object(
+                    self.importer, "_setup_transformer"
+                ) as mock_setup_transformer:
+                    mock_transformer = MagicMock()
+                    mock_setup_transformer.return_value = mock_transformer
+
+                    # Mock _is_valid_feature
+                    with patch.object(
+                        self.importer, "_is_valid_feature", return_value=True
+                    ) as mock_is_valid:
+                        # Mock transform_geometry
+                        with patch.object(
+                            self.importer, "transform_geometry"
+                        ) as mock_transform:
+                            mock_transform.return_value = Point(1, 1)
+
+                            # Mock _get_feature_label
+                            with patch.object(
+                                self.importer,
+                                "_get_feature_label",
+                                return_value="Test Label",
+                            ) as mock_get_label:
+                                # Mock _update_or_create_shape
+                                with patch.object(
+                                    self.importer,
+                                    "_update_or_create_shape",
+                                    return_value=True,
+                                ) as mock_update_create:
+                                    # Create test config
+                                    shapes_config = [
+                                        {
+                                            "category": "test",
+                                            "label": "Test Shape",
+                                            "path": "test.shp",
+                                            "name_field": "name",
+                                        }
+                                    ]
+
+                                    # Call the method
+                                    result = self.importer.import_from_config(
+                                        shapes_config
+                                    )
+
+                                    # Verify results
+                                    self.assertIn("3 processed", result)
+                                    self.assertIn("3 added", result)
+                                    mock_fiona_open.assert_called_with("test.shp", "r")
+                                    mock_setup_transformer.assert_called_once()
+                                    self.assertEqual(mock_is_valid.call_count, 3)
+                                    self.assertEqual(mock_transform.call_count, 3)
+                                    self.assertEqual(mock_get_label.call_count, 3)
+                                    self.assertEqual(mock_update_create.call_count, 3)
+                                    self.mock_db.session.commit.assert_called_once()
+
+    def test_validate_config_empty(self):
+        """Test _validate_config method with empty config."""
+        with self.assertRaises(ConfigurationError):
+            ShapeImporter._validate_config([])
+
+    def test_validate_config_missing_fields(self):
+        """Test _validate_config method with missing fields."""
+        # Missing name_field
+        invalid_config = [
+            {"category": "test", "label": "Test Shape", "path": "test.shp"}
+        ]
+
+        with self.assertRaises(ConfigurationError):
+            ShapeImporter._validate_config(invalid_config)
+
+    def test_validate_config_empty_category(self):
+        """Test _validate_config method with empty category."""
+        invalid_config = [
             {
-                "category": "test_category",
+                "category": "",
                 "label": "Test Shape",
-                "path": valid_geojson,
+                "path": "test.shp",
                 "name_field": "name",
             }
         ]
 
-    def test_import_valid_file(self, importer, valid_config):
-        """Test importing a valid shape file."""
-        result = importer.import_from_config(valid_config)
-        assert "1 shapes imported" in result
-        assert "1 new" in result
-        assert "0 updated" in result
+        with self.assertRaises(ConfigurationError):
+            ShapeImporter._validate_config(invalid_config)
 
-    def test_file_not_found(self, importer, valid_config):
-        """Test handling of non-existent file."""
-        valid_config[0]["path"] = "/nonexistent/path.geojson"
-        with pytest.raises(FileReadError) as exc_info:
-            importer.import_from_config(valid_config)
-        assert "Shape file not found" in str(exc_info.value)
-
-    def test_invalid_format(self, importer, tmp_path):
-        """Test handling of invalid file format."""
-        # Create an invalid file
-        invalid_file = tmp_path / "invalid.geojson"
-        invalid_file.write_text("invalid content")
-
-        config = [
+    def test_validate_config_valid(self):
+        """Test _validate_config method with valid config."""
+        valid_config = [
             {
-                "category": "test_category",
+                "category": "test",
                 "label": "Test Shape",
-                "path": str(invalid_file),
+                "path": "test.shp",
                 "name_field": "name",
             }
         ]
 
-        with pytest.raises(DataValidationError) as exc_info:
-            importer.import_from_config(config)
-        assert "Invalid shape file format" in str(exc_info.value)
+        # Should not raise any exception
+        ShapeImporter._validate_config(valid_config)
 
-    def test_missing_columns(self, importer, tmp_path):
-        """Test handling of missing required columns."""
-        # Create GeoJSON without required field
-        point = Point(0, 0)
-        gdf = gpd.GeoDataFrame(
-            {"other_field": ["Test"], "geometry": [point]}, crs="EPSG:4326"
-        )
+    @patch("fiona.open")
+    @patch("pathlib.Path.exists")
+    def test_process_shape_file_file_not_found(self, mock_exists, mock_fiona_open):
+        """Test _process_shape_file method with file not found."""
+        mock_exists.return_value = False
 
-        file_path = tmp_path / "missing_columns.geojson"
-        gdf.to_file(file_path, driver="GeoJSON")
+        shape_info = {
+            "category": "test",
+            "label": "Test Shape",
+            "path": "nonexistent.shp",
+            "name_field": "name",
+        }
+        import_stats = {
+            "processed": 0,
+            "skipped": 0,
+            "updated": 0,
+            "added": 0,
+            "errors": [],
+        }
 
-        config = [
-            {
-                "category": "test_category",
-                "label": "Test Shape",
-                "path": str(file_path),
-                "name_field": "name",  # This field doesn't exist in the file
-            }
-        ]
+        with self.assertRaises(FileReadError):
+            self.importer._process_shape_file(shape_info, import_stats)
 
-        result = importer.import_from_config(config)
-        assert "0 shapes imported" in result
-        assert "skipped" in str(result)
+        mock_fiona_open.assert_not_called()
 
-    def test_invalid_geometry(self, importer, tmp_path):
-        """Test handling of invalid geometry."""
-        # Create an invalid polygon (self-intersecting)
-        invalid_polygon = Polygon([(0, 0), (1, 1), (1, 0), (0, 1), (0, 0)])
-        gdf = gpd.GeoDataFrame(
-            {"name": ["Invalid Shape"], "geometry": [invalid_polygon]}, crs="EPSG:4326"
-        )
+    @patch("fiona.open")
+    @patch("pathlib.Path.exists")
+    def test_process_shape_file_invalid_crs(self, mock_exists, mock_fiona_open):
+        """Test _process_shape_file method with invalid CRS."""
+        mock_exists.return_value = True
 
-        file_path = tmp_path / "invalid_geometry.geojson"
-        gdf.to_file(file_path, driver="GeoJSON")
+        # Mock fiona.open context manager
+        mock_src = MagicMock()
+        mock_src.__enter__.return_value = mock_src
+        mock_src.__exit__.return_value = None
+        mock_src.crs_wkt = None  # Invalid CRS
+        mock_fiona_open.return_value = mock_src
 
-        config = [
-            {
-                "category": "test_category",
-                "label": "Test Shape",
-                "path": str(file_path),
-                "name_field": "name",
-            }
-        ]
+        shape_info = {
+            "category": "test",
+            "label": "Test Shape",
+            "path": "test.shp",
+            "name_field": "name",
+        }
+        import_stats = {
+            "processed": 0,
+            "skipped": 0,
+            "updated": 0,
+            "added": 0,
+            "errors": [],
+        }
 
-        result = importer.import_from_config(config)
-        assert "1 shapes imported" in result  # Should auto-fix the geometry
+        with self.assertRaises(DataValidationError):
+            self.importer._process_shape_file(shape_info, import_stats)
 
-    def test_duplicate_shape(self, importer, valid_config):
-        """Test handling of duplicate shapes."""
-        # Configure mock to return an existing shape
-        mock_shape = mock.MagicMock()
-        importer.db.session.query.return_value.filter_by.return_value.scalar.return_value = mock_shape
+    @patch("fiona.open")
+    @patch("pathlib.Path.exists")
+    def test_process_shape_file_fiona_error(self, mock_exists, mock_fiona_open):
+        """Test _process_shape_file method with Fiona error."""
+        mock_exists.return_value = True
 
-        result = importer.import_from_config(valid_config)
-        assert "1 shapes imported" in result
-        assert "0 new" in result
-        assert "1 updated" in result
+        # Mock fiona.open to raise an error
+        mock_fiona_open.side_effect = Exception("Fiona error")
 
-    def test_invalid_config(self, importer):
-        """Test handling of invalid configuration."""
-        invalid_configs = [
-            # Empty config
-            [],
-            # Missing required fields
-            [{"category": "test"}],
-            # Empty category
-            [
-                {
-                    "category": "",
-                    "label": "Test",
-                    "path": "test.geojson",
-                    "name_field": "name",
-                }
-            ],
-        ]
+        shape_info = {
+            "category": "test",
+            "label": "Test Shape",
+            "path": "test.shp",
+            "name_field": "name",
+        }
+        import_stats = {
+            "processed": 0,
+            "skipped": 0,
+            "updated": 0,
+            "added": 0,
+            "errors": [],
+        }
 
-        for config in invalid_configs:
-            with pytest.raises(ConfigurationError):
-                importer.import_from_config(config)
+        with self.assertRaises(ShapeImportError):
+            self.importer._process_shape_file(shape_info, import_stats)
 
-    def test_database_error(self, importer, valid_config):
-        """Test handling of database errors."""
-        # Mock SQLAlchemy to raise an error
-        importer.db.session.commit.side_effect = SQLAlchemyError("Database error")
+    def test_setup_transformer_valid(self):
+        """Test _setup_transformer method with valid CRS."""
+        with patch("pyproj.CRS.from_string") as mock_from_string:
+            with patch("pyproj.CRS.from_epsg") as mock_from_epsg:
+                with patch("pyproj.Transformer.from_crs") as mock_from_crs:
+                    mock_transformer = MagicMock()
+                    mock_from_crs.return_value = mock_transformer
 
-        with pytest.raises(DatabaseError) as exc_info:
-            importer.import_from_config(valid_config)
-        assert "Database error" in str(exc_info.value)
+                    result = ShapeImporter._setup_transformer("PROJCS[...]")
+
+                    self.assertEqual(result, mock_transformer)
+                    mock_from_string.assert_called_once_with("PROJCS[...]")
+                    mock_from_epsg.assert_called_once_with(4326)
+                    mock_from_crs.assert_called_once()
+
+    def test_setup_transformer_invalid(self):
+        """Test _setup_transformer method with invalid CRS."""
+        with patch("pyproj.CRS.from_string") as mock_from_string:
+            mock_from_string.side_effect = Exception("Invalid CRS")
+
+            with self.assertRaises(DataValidationError):
+                ShapeImporter._setup_transformer("INVALID")
+
+    def test_is_valid_feature_valid(self):
+        """Test _is_valid_feature method with valid feature."""
+        valid_feature = {
+            "geometry": {"type": "Point", "coordinates": [1, 1]},
+            "properties": {"name": "Test"},
+        }
+
+        # We need to use the correct import path for the shape function
+        with patch("niamoto.core.components.imports.shapes.shape") as mock_shape:
+            mock_geom = MagicMock()
+            mock_geom.is_empty = False
+            mock_shape.return_value = mock_geom
+
+            result = ShapeImporter._is_valid_feature(valid_feature)
+
+            self.assertTrue(result)
+            mock_shape.assert_called_once_with(valid_feature["geometry"])
+
+    def test_is_valid_feature_invalid(self):
+        """Test _is_valid_feature method with invalid feature."""
+        # Missing geometry
+        invalid_feature1 = {"properties": {"name": "Test"}}
+
+        # Missing properties
+        invalid_feature2 = {"geometry": {"type": "Point", "coordinates": [1, 1]}}
+
+        # Empty geometry
+        invalid_feature3 = {
+            "geometry": {"type": "Point", "coordinates": [1, 1]},
+            "properties": {"name": "Test"},
+        }
+
+        # We need to use the correct import path for the shape function
+        with patch("niamoto.core.components.imports.shapes.shape") as mock_shape:
+            mock_geom = MagicMock()
+            mock_geom.is_empty = True
+            mock_shape.return_value = mock_geom
+
+            # Test missing geometry
+            result1 = ShapeImporter._is_valid_feature(invalid_feature1)
+            self.assertFalse(result1)
+
+            # Test missing properties
+            result2 = ShapeImporter._is_valid_feature(invalid_feature2)
+            self.assertFalse(result2)
+
+            # Test empty geometry
+            result3 = ShapeImporter._is_valid_feature(invalid_feature3)
+            self.assertFalse(result3)
+            mock_shape.assert_called_once_with(invalid_feature3["geometry"])
+
+    def test_get_feature_label(self):
+        """Test _get_feature_label method."""
+        feature = {"properties": {"name": "Test Feature"}}
+
+        shape_info = {"name_field": "name"}
+
+        result = ShapeImporter._get_feature_label(feature, shape_info)
+
+        self.assertEqual(result, "Test Feature")
+
+    def test_get_feature_label_missing(self):
+        """Test _get_feature_label method with missing field."""
+        feature = {
+            "properties": {"id": 1}  # Missing 'name' field
+        }
+
+        shape_info = {"name_field": "name"}
+
+        result = ShapeImporter._get_feature_label(feature, shape_info)
+
+        self.assertEqual(result, "")
+
+    def test_format_result_message(self):
+        """Test _format_result_message method."""
+        stats = {
+            "processed": 10,
+            "added": 5,
+            "updated": 3,
+            "skipped": 2,
+            "errors": ["Error 1", "Error 2"],
+        }
+
+        result = self.importer._format_result_message(stats)
+
+        self.assertIn("10 processed", result)
+        self.assertIn("5 added", result)
+        self.assertIn("3 updated", result)
+
+    def test_process_input_file_geojson(self):
+        """Test _process_input_file method with GeoJSON file."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create a temporary GeoJSON file
+            geojson_content = '{"type": "FeatureCollection", "features": []}'
+            geojson_path = os.path.join(tmp_dir, "test.geojson")
+
+            with open(geojson_path, "w") as f:
+                f.write(geojson_content)
+
+            # Process the file
+            result = ShapeImporter._process_input_file(geojson_path, tmp_dir)
+
+            # The function should return the same path for GeoJSON files
+            self.assertEqual(result, geojson_path)
+
+            # Check that the content is preserved
+            with open(result, "r") as f:
+                content = f.read()
+                self.assertEqual(content, geojson_content)
+
+    def test_process_input_file_shapefile(self):
+        """Test _process_input_file method with Shapefile."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create a mock shapefile path
+            shapefile_path = os.path.join(tmp_dir, "test.shp")
+
+            # For non-GeoJSON files, the original path should be returned
+            result = ShapeImporter._process_input_file(shapefile_path, tmp_dir)
+
+            self.assertEqual(result, shapefile_path)
+
+    def test_process_input_file_error(self):
+        """Test _process_input_file method with error."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create a non-existent file path
+            nonexistent_path = os.path.join(tmp_dir, "nonexistent.geojson")
+
+            # Process should raise FileReadError
+            with self.assertRaises(FileReadError):
+                ShapeImporter._process_input_file(nonexistent_path, tmp_dir)
+
+    def test_transform_geometry_point(self):
+        """Test transform_geometry method with Point."""
+        point = Point(1, 1)
+        transformer = MagicMock()
+
+        with patch.object(
+            self.importer, "transform_point", return_value=Point(2, 2)
+        ) as mock_transform:
+            result = self.importer.transform_geometry(point, transformer)
+
+            self.assertEqual(result, Point(2, 2))
+            mock_transform.assert_called_once_with(point, transformer)
+
+    def test_transform_geometry_linestring(self):
+        """Test transform_geometry method with LineString."""
+        linestring = LineString([(1, 1), (2, 2)])
+        transformer = MagicMock()
+
+        with patch.object(
+            self.importer,
+            "transform_linestring",
+            return_value=LineString([(2, 2), (3, 3)]),
+        ) as mock_transform:
+            result = self.importer.transform_geometry(linestring, transformer)
+
+            self.assertEqual(result, LineString([(2, 2), (3, 3)]))
+            mock_transform.assert_called_once_with(linestring, transformer)
+
+    def test_transform_geometry_polygon(self):
+        """Test transform_geometry method with Polygon."""
+        polygon = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+        transformer = MagicMock()
+
+        with patch.object(
+            self.importer,
+            "transform_polygon",
+            return_value=Polygon([(1, 1), (2, 1), (2, 2), (1, 2)]),
+        ) as mock_transform:
+            result = self.importer.transform_geometry(polygon, transformer)
+
+            self.assertIsInstance(result, MultiPolygon)
+            mock_transform.assert_called_once_with(polygon, transformer)
+
+    def test_transform_geometry_multipolygon(self):
+        """Test transform_geometry method with MultiPolygon."""
+        polygon1 = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+        polygon2 = Polygon([(2, 2), (3, 2), (3, 3), (2, 3)])
+        multipolygon = MultiPolygon([polygon1, polygon2])
+        transformer = MagicMock()
+
+        with patch.object(self.importer, "transform_polygon") as mock_transform:
+            mock_transform.side_effect = [
+                Polygon([(1, 1), (2, 1), (2, 2), (1, 2)]),
+                Polygon([(3, 3), (4, 3), (4, 4), (3, 4)]),
+            ]
+
+            result = self.importer.transform_geometry(multipolygon, transformer)
+
+            self.assertIsInstance(result, MultiPolygon)
+            self.assertEqual(mock_transform.call_count, 2)

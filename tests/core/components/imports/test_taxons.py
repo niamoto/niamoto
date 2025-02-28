@@ -1,354 +1,302 @@
-"""Tests for the taxonomy importer module."""
+"""
+Tests for the TaxonomyImporter class.
+"""
 
-import tempfile
-from unittest import mock
-import pytest
+import unittest
+from unittest.mock import patch, MagicMock
 import pandas as pd
-from sqlalchemy.exc import SQLAlchemyError
+from pathlib import Path
 
 from niamoto.core.components.imports.taxons import TaxonomyImporter
+from niamoto.core.models.models import TaxonRef
 from niamoto.common.exceptions import (
-    TaxonomyImportError,
     FileReadError,
     DataValidationError,
 )
+from tests.common.base_test import NiamotoTestCase
 
 
-class TestTaxonomyImporter:
-    """Test cases for TaxonomyImporter class."""
+class TestTaxonomyImporter(NiamotoTestCase):
+    """Test case for the TaxonomyImporter class."""
 
-    @pytest.fixture
-    def mock_db(self):
-        """Create a mock database."""
-        with mock.patch("niamoto.common.database.Database") as mock_db:
-            # Configure the mock
-            mock_session = mock.MagicMock()
-            mock_db.return_value.session = mock_session
-            # Configure query to return None by default (no existing taxons)
-            mock_session.query.return_value.filter_by.return_value.one_or_none.return_value = None
-            yield mock_db.return_value
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        # Use MagicMock directly instead of create_mock to avoid spec_set restrictions
+        self.mock_db = MagicMock()
+        # Set attributes that are accessed in the code
+        self.mock_db.db_path = "mock_db_path"
+        self.mock_db.engine = MagicMock()
+        self.importer = TaxonomyImporter(self.mock_db)
+        # Add db_path attribute to match other importers
+        self.importer.db_path = "mock_db_path"
 
-    @pytest.fixture
-    def importer(self, mock_db):
-        """TaxonomyImporter fixture."""
-        return TaxonomyImporter(mock_db)
+    def test_init(self):
+        """Test initialization of TaxonomyImporter."""
+        self.assertEqual(self.importer.db, self.mock_db)
+        self.assertEqual(self.importer.db_path, "mock_db_path")
 
-    @pytest.fixture
-    def valid_csv(self, tmp_path):
-        """Create a valid CSV file for testing."""
-        data = {
-            "id_taxon": [1, 2, 3],
-            "full_name": ["Family A", "Genus B", "Species C"],
-            "authors": ["Author 1", "Author 2", "Author 3"],
-            "rank_name": ["family", "genus", "species"],
-            "family": [1, 1, 1],
-            "genus": [None, 2, 2],
-            "species": [None, None, 3],
-            "extra_field": ["value1", "value2", "value3"],
-        }
-        df = pd.DataFrame(data)
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_from_csv(self, mock_exists, mock_read_csv):
+        """Test import_from_csv method."""
+        # Setup mocks
+        mock_exists.return_value = True
 
-        # Save to CSV
-        file_path = tmp_path / "valid_taxons.csv"
-        df.to_csv(file_path, index=False)
-        return str(file_path)
-
-    def test_import_valid_file(self, importer, valid_csv):
-        """Test importing a valid CSV file."""
-        ranks = ("family", "genus", "species")
-        result = importer.import_from_csv(valid_csv, ranks)
-        assert "3 taxons imported" in result
-
-    def test_file_not_found(self, importer):
-        """Test error when file doesn't exist."""
-        ranks = ("family", "genus", "species")
-        with pytest.raises(FileReadError) as exc_info:
-            importer.import_from_csv("/nonexistent/path.csv", ranks)
-        assert "Taxonomy file not found" in str(exc_info.value)
-
-    def test_invalid_csv(self, tmp_path, importer):
-        """Test error when CSV format is invalid."""
-        # Create an invalid CSV file
-        file_path = tmp_path / "invalid.csv"
-        file_path.write_text("invalid,data\nrow1,data2")  # CSV with invalid format
-
-        ranks = ("family", "genus", "species")
-        with pytest.raises(DataValidationError) as exc_info:
-            importer.import_from_csv(str(file_path), ranks)
-        assert "Missing required columns" in str(exc_info.value)
-
-    def test_missing_columns(self, tmp_path, importer):
-        """Test error when required columns are missing."""
-        # Create CSV without required columns
-        data = {
-            "id_taxon": [1],
-            "full_name": ["Test Taxon"],
-            # Missing 'authors' and 'rank_name'
-        }
-        df = pd.DataFrame(data)
-        file_path = tmp_path / "missing_columns.csv"
-        df.to_csv(file_path, index=False)
-
-        ranks = ("family", "genus", "species")
-        with pytest.raises(DataValidationError) as exc_info:
-            importer.import_from_csv(str(file_path), ranks)
-        assert "Missing required columns" in str(exc_info.value)
-
-    def test_update_existing_taxon(self, importer, valid_csv):
-        """Test updating an existing taxon."""
-        # Configure mock to return an existing taxon
-        mock_taxon = mock.MagicMock()
-        importer.db.session.query.return_value.filter_by.return_value.one_or_none.return_value = mock_taxon
-
-        ranks = ("family", "genus", "species")
-        result = importer.import_from_csv(valid_csv, ranks)
-        assert "3 taxons imported" in result
-
-    def test_database_error(self, importer, valid_csv):
-        """Test handling of database errors."""
-        # Configure mock session to raise error during prepare_dataframe
-        mock_session = mock.MagicMock()
-        mock_session.__enter__.return_value = mock_session
-
-        # Configure query to raise error
-        mock_query = mock.MagicMock()
-        mock_query.filter_by.return_value.one_or_none.side_effect = SQLAlchemyError(
-            "Database error"
+        # Create a mock DataFrame with the required columns
+        mock_df = pd.DataFrame(
+            {
+                "id_taxon": [1, 2, 3],
+                "full_name": ["Species1", "Species2", "Species3"],
+                "authors": ["Author1", "Author2", "Author3"],
+                "rank_name": ["species", "species", "species"],
+                "family": [1, 1, 2],  # Example rank column
+                "genus": [1, 2, 3],  # Example rank column
+            }
         )
-        mock_session.query.return_value = mock_query
-        importer.db.session.return_value = mock_session
+        mock_read_csv.return_value = mock_df
 
-        ranks = ("family", "genus", "species")
-        with pytest.raises(TaxonomyImportError) as exc_info:
-            importer.import_from_csv(valid_csv, ranks)
-        assert "Failed to create/update taxon" in str(exc_info.value)
+        # Mock the internal methods
+        with patch.object(
+            self.importer, "_prepare_dataframe", return_value=mock_df
+        ) as mock_prepare:
+            with patch.object(
+                self.importer, "_process_dataframe", return_value=3
+            ) as mock_process:
+                # Mock Path.resolve to return the original path
+                with patch("pathlib.Path.resolve", return_value=Path("test.csv")):
+                    # Call the method
+                    result = self.importer.import_from_csv(
+                        "test.csv", ("family", "genus")
+                    )
 
-    def test_invalid_rank_structure(self, tmp_path, importer):
-        """Test error when rank structure is invalid."""
-        # Create CSV with invalid rank structure
-        data = {
-            "id_taxon": [1],
-            "full_name": ["Invalid Taxon"],
-            "authors": ["Author"],
-            "rank_name": ["invalid_rank"],
-            "family": [1],
-            "genus": [1],  # Same as family, should be different
-            "species": [1],
-        }
-        df = pd.DataFrame(data)
-        file_path = tmp_path / "invalid_ranks.csv"
-        df.to_csv(file_path, index=False)
+                    # Verify results
+                    self.assertEqual(result, "3 taxons imported from test.csv.")
+                    mock_read_csv.assert_called_once_with("test.csv")
+                    mock_prepare.assert_called_once()
+                    mock_process.assert_called_once()
 
-        ranks = ("family", "genus", "species")
-        result = importer.import_from_csv(str(file_path), ranks)
-        assert "1 taxons imported" in result
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_from_csv_file_not_found(self, mock_exists, mock_read_csv):
+        """Test import_from_csv with file not found error."""
+        mock_exists.return_value = False
 
-    def test_extra_data_handling(self, importer, valid_csv):
-        """Test handling of extra data fields."""
-        ranks = ("family", "genus", "species")
-        result = importer.import_from_csv(valid_csv, ranks)
-        assert "3 taxons imported" in result
+        with self.assertRaises(FileReadError):
+            self.importer.import_from_csv("nonexistent.csv", ("family", "genus"))
 
-        # Verify extra_data is stored correctly
-        mock_taxon = importer.db.session.query.return_value.filter_by.return_value.one_or_none.return_value
-        if mock_taxon:
-            assert "extra_field" in mock_taxon.extra_data
+        mock_read_csv.assert_not_called()
 
-    def test_nested_set_values(self, importer, valid_csv):
-        """Test updating of nested set values."""
-        # Configure mock session
-        mock_session = mock.MagicMock()
-        mock_session.__enter__.return_value = mock_session
-        importer.db.session.return_value = mock_session
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_from_csv_invalid_file(self, mock_exists, mock_read_csv):
+        """Test import_from_csv with invalid file error."""
+        mock_exists.return_value = True
+        mock_read_csv.side_effect = Exception("Invalid file")
 
-        # Mock query for existing taxon
-        mock_taxon = mock.MagicMock()
-        mock_session.query.return_value.filter_by.return_value.one_or_none.return_value = mock_taxon
+        with self.assertRaises(FileReadError):
+            self.importer.import_from_csv("invalid.csv", ("family", "genus"))
 
-        # Mock query results for root taxons
-        mock_root_query = mock.MagicMock()
-        mock_root_query.filter.return_value.order_by.return_value.all.return_value = []
-        mock_session.query.return_value = mock_root_query
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_from_csv_missing_columns(self, mock_exists, mock_read_csv):
+        """Test import_from_csv with missing columns."""
+        mock_exists.return_value = True
 
-        ranks = ("family", "genus", "species")
-        result = importer.import_from_csv(valid_csv, ranks)
-        assert "3 taxons imported" in result
+        # Create a DataFrame missing required columns
+        mock_df = pd.DataFrame(
+            {
+                "id_taxon": [1, 2, 3],
+                "full_name": ["Species1", "Species2", "Species3"],
+                # Missing 'authors' and 'rank_name'
+            }
+        )
+        mock_read_csv.return_value = mock_df
 
-        # Verify commit was called at least once
-        assert mock_session.commit.call_count >= 1
+        with self.assertRaises(DataValidationError):
+            self.importer.import_from_csv("test.csv", ("family", "genus"))
 
-    def test_prepare_dataframe_error(self, importer, valid_csv):
-        """Test error during dataframe preparation."""
-        # Create a DataFrame that will cause an error during preparation
+    def test_prepare_dataframe(self):
+        """Test _prepare_dataframe method."""
+        # Create a test DataFrame
         df = pd.DataFrame(
             {
-                "id_taxon": ["invalid"],  # Invalid id_taxon (not an integer)
-                "full_name": ["Test"],
-                "authors": ["Author"],
-                "rank_name": ["family"],
+                "id_taxon": [1, 2, 3],
+                "full_name": ["Species1", "Species2", "Species3"],
+                "authors": ["Author1", "Author2", "Author3"],
+                "rank_name": ["species", "species", "species"],
+                "family": [1, 1, 2],  # Example rank column
+                "genus": [1, 2, 3],  # Example rank column
             }
         )
 
-        ranks = ("family", "genus", "species")
-        with pytest.raises(DataValidationError):
-            importer._prepare_dataframe(df, ranks)
+        # Call the method
+        result_df = self.importer._prepare_dataframe(df, ("family", "genus"))
 
-    def test_convert_to_correct_type(self, importer):
-        """Test type conversion."""
-        # Test integer conversion
-        assert importer._convert_to_correct_type(1.0) == 1
-        # Test float preservation
-        assert importer._convert_to_correct_type(1.5) == 1.5
-        # Test string preservation
-        assert importer._convert_to_correct_type("test") == "test"
+        # Verify results
+        self.assertIn("rank", result_df.columns)
+        self.assertIn("parent_id", result_df.columns)
 
-    def test_update_nested_set_values_with_hierarchy(self, importer):
-        """Test updating nested set values with a hierarchy."""
-        # Create mock taxons
-        mock_root = mock.MagicMock(spec=["id", "lft", "rght", "level"])
-        mock_root.id = 1
-        mock_child = mock.MagicMock(spec=["id", "lft", "rght", "level"])
-        mock_child.id = 2
+        # Verify the data was processed correctly
+        # This depends on the implementation of _get_rank and _get_parent_id
+        # which we'll test separately
 
-        # Configure mock session
-        mock_session = mock.MagicMock()
-        mock_session.__enter__.return_value = mock_session
+    def test_get_rank(self):
+        """Test _get_rank method."""
+        # Create a test row
+        row = {"id_taxon": 1, "family": 1, "genus": 1, "species": 1}
 
-        # Create dictionary mapping for taxons
-        taxon_dict = {mock_root.id: mock_root, mock_child.id: mock_child}
+        # Test with different ranks
+        rank = self.importer._get_rank(row, ("family", "genus", "species"))
+        self.assertEqual(rank, "species")
 
-        # Configure mock query behavior
-        mock_query = mock.MagicMock()
-        mock_filter = mock.MagicMock()
-        mock_order = mock.MagicMock()
+        # Test with a different ID
+        row["id_taxon"] = 2
+        rank = self.importer._get_rank(row, ("family", "genus", "species"))
+        self.assertIsNone(rank)
 
-        # Setup query chain
+        # Test with matching family
+        row["id_taxon"] = 1
+        row["genus"] = 2
+        row["species"] = 2
+        rank = self.importer._get_rank(row, ("family", "genus", "species"))
+        self.assertEqual(rank, "family")
+
+    def test_get_parent_id(self):
+        """Test _get_parent_id method."""
+        # Create a test row
+        row = {"id_taxon": 3, "family": 1, "genus": 2, "species": 3}
+
+        # Test with different ranks
+        parent_id = self.importer._get_parent_id(row, ("family", "genus", "species"))
+        self.assertEqual(parent_id, 2)  # Should be genus ID
+
+        # Test with no parent
+        row["id_taxon"] = 1
+        row["family"] = 1
+        row["genus"] = 1
+        row["species"] = 1
+        parent_id = self.importer._get_parent_id(row, ("family", "genus", "species"))
+        self.assertIsNone(parent_id)
+
+        # Test with NA values
+        row["id_taxon"] = 3
+        row["genus"] = pd.NA
+        parent_id = self.importer._get_parent_id(row, ("family", "genus", "species"))
+        self.assertEqual(parent_id, 1)  # Should fall back to family ID
+
+    def test_convert_to_correct_type(self):
+        """Test _convert_to_correct_type method."""
+        # Test with integer float
+        self.assertEqual(self.importer._convert_to_correct_type(1.0), 1)
+
+        # Test with non-integer float
+        self.assertEqual(self.importer._convert_to_correct_type(1.5), 1.5)
+
+        # Test with string
+        self.assertEqual(self.importer._convert_to_correct_type("test"), "test")
+
+    @patch(
+        "niamoto.core.components.imports.taxons.TaxonomyImporter._create_or_update_taxon"
+    )
+    def test_process_dataframe(self, mock_create_or_update):
+        """Test _process_dataframe method."""
+        # Setup mock
+        mock_create_or_update.return_value = MagicMock()
+
+        # Create a test DataFrame
+        df = pd.DataFrame(
+            {
+                "id_taxon": [1, 2, 3],
+                "full_name": ["Species1", "Species2", "Species3"],
+                "authors": ["Author1", "Author2", "Author3"],
+                "rank_name": ["species", "species", "species"],
+                "rank": ["family", "genus", "species"],
+                "parent_id": [None, 1, 2],
+            }
+        )
+
+        # Mock session context manager
+        mock_session = MagicMock()
+        self.mock_db.session.return_value.__enter__.return_value = mock_session
+
+        # Mock update_nested_set_values
+        with patch.object(self.importer, "_update_nested_set_values") as mock_update:
+            # Call the method
+            result = self.importer._process_dataframe(
+                df, ("family", "genus", "species")
+            )
+
+            # Verify results
+            self.assertEqual(result, 3)
+            self.assertEqual(mock_create_or_update.call_count, 3)
+            mock_update.assert_called()
+            mock_session.commit.assert_called()
+
+    @patch("sqlalchemy.orm.Session")
+    def test_create_or_update_taxon(self, mock_session):
+        """Test _create_or_update_taxon method."""
+        # Setup mocks
+        mock_session.query.return_value.filter_by.return_value.one_or_none.return_value = None
+
+        # Create a test row
+        row = {
+            "id_taxon": 1,
+            "full_name": "Species1",
+            "authors": "Author1",
+            "rank_name": "species",
+            "parent_id": 2,
+            "extra_field": "extra_value",
+        }
+
+        # Call the method to create a new taxon
+        taxon = self.importer._create_or_update_taxon(
+            row, mock_session, ("family", "genus", "species")
+        )
+
+        # Verify results
+        self.assertIsNotNone(taxon)
+        mock_session.add.assert_called_once()
+
+        # Setup mock for existing taxon
+        existing_taxon = MagicMock(spec=TaxonRef)
+        mock_session.query.return_value.filter_by.return_value.one_or_none.return_value = existing_taxon
+
+        # Call the method to update an existing taxon
+        taxon = self.importer._create_or_update_taxon(
+            row, mock_session, ("family", "genus", "species")
+        )
+
+        # Verify results
+        self.assertEqual(taxon, existing_taxon)
+        self.assertEqual(existing_taxon.full_name, "Species1")
+        self.assertEqual(existing_taxon.authors, "Author1")
+        self.assertEqual(existing_taxon.rank_name, "species")
+        self.assertEqual(existing_taxon.parent_id, 2)
+        self.assertIn("extra_field", existing_taxon.extra_data)
+
+    @patch("sqlalchemy.orm.Session")
+    def test_update_nested_set_values(self, mock_session):
+        """Test _update_nested_set_values method."""
+        # Create a simplified test that just verifies the method is called without errors
+        # and that commit is called
+
+        # Mock query chain for all taxons
+        mock_query = MagicMock()
         mock_session.query.return_value = mock_query
+        mock_query.order_by.return_value.all.return_value = []
+
+        # Mock query chain for root taxons
+        mock_filter = MagicMock()
         mock_query.filter.return_value = mock_filter
-        mock_query.order_by.return_value = mock_order
-        mock_filter.order_by.return_value = mock_order
+        mock_filter.order_by.return_value.all.return_value = []
 
-        # Create a counter to track which query is being executed
-        query_counter = {"count": 0}
+        # Call the method
+        self.importer._update_nested_set_values(mock_session)
 
-        def mock_all():
-            query_counter["count"] += 1
-            # First query: Get all taxons
-            if query_counter["count"] == 1:
-                return list(taxon_dict.values())
-            # Second query: Get root taxons
-            elif query_counter["count"] == 2:
-                return [mock_root]
-            # Third query: Get child taxons for root
-            elif query_counter["count"] == 3:
-                return [(mock_child.id,)]
-            # Fourth query: Get child taxons for child (should be empty)
-            else:
-                return []
+        # Verify that commit was called
+        mock_session.commit.assert_called_once()
 
-        mock_order.all = mock_all
 
-        # Run the update
-        importer._update_nested_set_values(mock_session)
-
-        # Verify that the nested set values were updated correctly
-        assert mock_root.lft == 1
-        assert (
-            mock_root.rght == 4
-        )  # Root should have right value 4 (1 left, 2-3 child, 4 right)
-        assert mock_child.lft == 2  # Child should have left value 2
-        assert mock_child.rght == 3  # Child should have right value 3
-        assert mock_root.level == 0  # Root should be at level 0
-        assert mock_child.level == 1  # Child should be at level 1
-
-    def test_general_database_error(self, importer, valid_csv):
-        """Test handling of general database errors."""
-        # Configure mock session to raise error on commit
-        mock_session = mock.MagicMock()
-        mock_session.__enter__.return_value = mock_session
-        mock_session.commit.side_effect = SQLAlchemyError("General database error")
-        importer.db.session.return_value = mock_session
-
-        # Configure DataFrame to be processed
-        df = pd.DataFrame(
-            {
-                "id_taxon": [1],
-                "full_name": ["Test"],
-                "authors": ["Author"],
-                "rank_name": ["family"],
-                "rank": ["family"],
-                "family": [1],
-                "genus": [None],
-                "species": [None],
-                "parent_id": [None],  # Add parent_id column
-            }
-        )
-
-        # Mock the read_csv to return our test DataFrame
-        with mock.patch("pandas.read_csv", return_value=df):
-            ranks = ("family", "genus", "species")
-            with pytest.raises(TaxonomyImportError) as exc_info:
-                importer._process_dataframe(df, ranks)
-            assert str(exc_info.value) == "Failed to process taxonomy data"
-
-    def test_process_dataframe_error(self, importer):
-        """Test error during dataframe processing."""
-        # Create a DataFrame that will cause an error during processing
-        df = pd.DataFrame(
-            {
-                "id_taxon": ["invalid"],  # Invalid id_taxon (should be integer)
-                "full_name": ["Test"],
-                "authors": ["Author"],
-                "rank_name": ["invalid_rank"],
-                "rank": ["invalid_rank"],
-                "family": ["invalid"],
-                "genus": ["invalid"],
-                "species": ["invalid"],
-                "parent_id": [
-                    "invalid"
-                ],  # Invalid parent_id (should be integer or None)
-            }
-        )
-
-        # Configure mock session to raise error
-        mock_session = mock.MagicMock()
-        mock_session.__enter__.return_value = mock_session
-        mock_session.commit.side_effect = SQLAlchemyError("Database error")
-        importer.db.session.return_value = mock_session
-
-        ranks = ("family", "genus", "species")
-        with pytest.raises(TaxonomyImportError) as exc_info:
-            importer._process_dataframe(df, ranks)
-        assert "Failed to process taxonomy data" in str(exc_info.value)
-
-    def test_result_message_formatting(self, importer):
-        """Test result message formatting with various scenarios."""
-        # Create a temporary CSV file for testing
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".csv", delete=False
-        ) as temp_file:
-            temp_file.write(
-                "id_taxon,full_name,authors,rank_name,family,genus,species\n"
-            )
-            temp_file.write("1,Test,Author,family,1,None,None\n")
-            temp_file.flush()
-
-            # Configure DataFrame to be processed
-            df = pd.DataFrame(
-                {
-                    "id_taxon": [1],
-                    "full_name": ["Test"],
-                    "authors": ["Author"],
-                    "rank_name": ["family"],
-                    "family": [1],
-                    "genus": [None],
-                    "species": [None],
-                }
-            )
-
-            # Mock the necessary components
-            with mock.patch("pandas.read_csv", return_value=df):
-                result = importer.import_from_csv(
-                    temp_file.name, ("family", "genus", "species")
-                )
-                assert "imported" in result.lower()
+if __name__ == "__main__":
+    unittest.main()

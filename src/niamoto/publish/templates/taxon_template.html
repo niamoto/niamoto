@@ -373,56 +373,165 @@
             if (!mapContainer) return;
 
             // Base configuration
-            const defaultCenter = [-21.3, 165.3];
             const defaultZoom = 7;
 
-            // Base layers
+            // Base layers with backup options
             const baseLayers = {
                 "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
                     layers: '0',
                     format: 'image/png',
                     transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
+                    // Add a short timeout to avoid waiting for the full browser timeout
+                    timeout: 5000
                 }),
                 "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
                     layers: '0',
                     format: 'image/png',
                     transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>"
+                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
+                    // Add a short timeout to avoid waiting for the full browser timeout
+                    timeout: 5000
+                }),
+                // Backup map sources (global)
+                "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }),
+                // Alternative satellite imagery
+                "ESRI Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
                 })
             };
 
-            // Create map
+            // Tracker to check if primary map sources are available
+            let primaryLayerAvailable = false;
+            let primaryLayersLoaded = 0;
+            const totalPrimaryLayers = 2; // Number of primary layers (Satellite and Carte)
+
+            // Function to check layer availability
+            function checkLayersAvailability() {
+                if (primaryLayersLoaded >= totalPrimaryLayers && !primaryLayerAvailable) {
+                    // No primary map source is available, switch to ESRI Satellite
+                    console.log("Primary map sources are unavailable, using ESRI Satellite");
+                    map.removeLayer(baseLayers["Satellite"]);
+                    map.addLayer(baseLayers["ESRI Satellite"]);
+                }
+            }
+
+            // Create map with Carte as default layer
             const map = L.map(mapId, {
                 layers: [baseLayers["Satellite"]],
-                center: defaultCenter,
                 zoom: defaultZoom,
                 scrollWheelZoom: false
             });
 
+            // Add layer control
             L.control.layers(baseLayers).addTo(map);
             map.attributionControl.setPrefix(false);
 
-            // Déterminer la source des données à partir de mapConfig
+            // Set a timeout to automatically switch to backup layer if primary layers don't load quickly
+            let mapLoadTimeout = setTimeout(function() {
+                if (!primaryLayerAvailable) {
+                    console.log("Map load timeout reached, switching to backup layer");
+                    map.removeLayer(baseLayers["Satellite"]);
+                    map.addLayer(baseLayers["ESRI Satellite"]);
+                    // Force the primaryLayersLoaded to avoid further checks
+                    primaryLayersLoaded = totalPrimaryLayers;
+                }
+            }, 3000); // 3 seconds timeout
+
+            // Listen for tile loading events on primary layers
+            baseLayers["Satellite"].on('tileerror', function(error) {
+                console.log("Error loading Satellite layer:", error);
+                primaryLayersLoaded++;
+                checkLayersAvailability();
+            });
+
+            baseLayers["Satellite"].on('load', function() {
+                console.log("Satellite layer loaded successfully");
+                primaryLayerAvailable = true;
+                primaryLayersLoaded++;
+                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
+            });
+
+            baseLayers["Carte"].on('tileerror', function(error) {
+                console.log("Error loading Carte layer:", error);
+                primaryLayersLoaded++;
+                checkLayersAvailability();
+            });
+
+            baseLayers["Carte"].on('load', function() {
+                console.log("Carte layer loaded successfully");
+                primaryLayerAvailable = true;
+                primaryLayersLoaded++;
+                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
+            });
+
+            // Determine the data source based on mapConfig
             const dataSource = mapConfig.source;
-            const coordinatesSource = mapConfig.layers[0].source;
 
-            // Pour les données de points
-            if (data && data[dataSource] && data[dataSource][coordinatesSource]) {
-                data[dataSource][coordinatesSource].forEach(point => {
-                    L.circle([point.coordinates[1], point.coordinates[0]], {
-                        ...mapConfig.layers[0].style,
+            // Check if the data is in GeoJSON standard format
+            if (data && data[dataSource] && data[dataSource].type === "FeatureCollection") {
+                const geoJsonData = data[dataSource];
 
-                    })
-                        .bindPopup(`Occurrences: ${point.count}`)
-                        .addTo(map);
-                });
+                if (geoJsonData.features && geoJsonData.features.length > 0) {
+                    // Create a group to store all markers
+                    const markers = [];
 
-                // Ajuster la vue
-                const bounds = L.latLngBounds(
-                    data[dataSource][coordinatesSource].map(point => [point.coordinates[1], point.coordinates[0]])
-                );
-                map.fitBounds(bounds);
+                    // Add each point to the map
+                    geoJsonData.features.forEach(feature => {
+                        if (feature.geometry && feature.geometry.type === "Point") {
+                            const coords = feature.geometry.coordinates;
+                            // The GeoJSON coordinates are [longitude, latitude]
+                            const marker = L.circle([coords[1], coords[0]], {
+                                ...mapConfig.layers[0].style,
+                            });
+
+                            // Add a popup if necessary
+                            if (feature.properties) {
+                                const popupContent = Object.entries(feature.properties)
+                                    .map(([key, value]) => `${key}: ${value}`)
+                                    .join('<br>');
+
+                                if (popupContent) {
+                                    marker.bindPopup(popupContent);
+                                } else {
+                                    marker.bindPopup("Occurrence");
+                                }
+                            } else {
+                                marker.bindPopup("Occurrence");
+                            }
+                            marker.addTo(map);
+                            markers.push([coords[1], coords[0]]);
+                        }
+                    });
+
+                    // Adjust the view if markers were added
+                    if (markers.length > 0) {
+                        const bounds = L.latLngBounds(markers);
+                        map.fitBounds(bounds);
+                    }
+                }
+            }
+            // Keep compatibility with the old format
+            else if (data && data[dataSource]) {
+                const coordinatesSource = mapConfig.layers[0].source;
+
+                if (data[dataSource][coordinatesSource]) {
+                    data[dataSource][coordinatesSource].forEach(point => {
+                        L.circle([point.coordinates[1], point.coordinates[0]], {
+                            ...mapConfig.layers[0].style,
+                        })
+                            .bindPopup(`Occurrences: ${point.count}`)
+                            .addTo(map);
+                    });
+
+                    // Ajuster la vue
+                    const bounds = L.latLngBounds(
+                        data[dataSource][coordinatesSource].map(point => [point.coordinates[1], point.coordinates[0]])
+                    );
+                    map.fitBounds(bounds);
+                }
             }
         }
 

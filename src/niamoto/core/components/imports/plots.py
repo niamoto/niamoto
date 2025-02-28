@@ -39,6 +39,7 @@ class PlotImporter:
             db: Database connection
         """
         self.db = db
+        self.db_path = db.db_path
 
     @error_handler(log=True, raise_error=True)
     def import_from_gpkg(
@@ -111,7 +112,8 @@ class PlotImporter:
             else:
                 raise
 
-        return f"{imported_count} plots imported from {file_path}."
+        # Return success message with just the filename, not the full path
+        return f"{imported_count} plots imported from {Path(file_path).name}."
 
     @error_handler(log=True, raise_error=True)
     def _process_plots_data(
@@ -256,6 +258,7 @@ class PlotImporter:
         )
         if not existing_plot:
             plot = PlotRef(
+                id=plot_id,
                 id_locality=plot_id,
                 locality=locality,
                 geometry=wkt_geometry,

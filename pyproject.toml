@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niamoto"
-version = "0.3.11"
+version = "0.4.0"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -35,105 +35,77 @@ dependencies = [
     # ---------------------
     # Database dependencies
     # ---------------------
-
     # SQLAlchemy - Comprehensive database toolkit for Python.
     # Documentation: https://www.sqlalchemy.org/
-    "sqlalchemy[mypy]>=2.0.29",
-
+    "sqlalchemy[mypy]==2.0.38",
     # alembic - Database migration tool for SQLAlchemy.
     # Documentation: https://alembic.sqlalchemy.org/en/latest/
     "alembic>=1.12.1",
-
     # geoalchemy2 - Extensions to SQLAlchemy for working with spatial databases.
     # Documentation: https://geoalchemy-2.readthedocs.io/
     "geoalchemy2>=0.17.0",
-
     # ---------------------
     # Geospatial libraries
     # ---------------------
-    # leafmap - Interactive mapping library with ease of use for geospatial analysis.
-    # Documentation: https://leafmap.org/#key-features
-    "leafmap>=0.42.6",
-
     # geopandas - Extends pandas for spatial data operations.
     # Documentation: https://geopandas.org/
     "geopandas>=1.0.0",
-
     # rasterio - Library for reading and writing raster datasets (e.g., images, geospatial rasters).
     # Documentation: https://rasterio.readthedocs.io/
     "rasterio>=1.3.9",
-
     # shapely - Manipulation and analysis of planar geometric objects.
     # Documentation: https://shapely.readthedocs.io/
     "shapely>=2.0.4",
-
     # fiona - support for reading and writing vector data from various sources.
     # Documentation: https://fiona.readthedocs.io/en/stable/
     "fiona>=1.9.6",
-
     # topojson - TopoJSON is an extension of GeoJSON that encodes topology.
     # Documentation: https://github.com/topojson/topojson
     "topojson>=1.9",
-
     # -------------------------
     # Data Processing libraries
     # -------------------------
-
     # pandas - Essential library for data manipulation and analysis.
     # Documentation: https://pandas.pydata.org/
     "pandas>=2.2.1",
-
     # pyarrow - Python bindings for Apache Arrow. required by pandas.
     # Documentation: https://arrow.apache.org/docs/python/
     "pyarrow>=19.0.0",
-
     # numpy - Fundamental package for scientific computing in Python.
     # Documentation: https://numpy.org/
-    "numpy>=2.2",
-
+    "numpy==2.2.3",
     # ---------------------------
     # Command Line Interface (CLI)
     # ---------------------------
-
     # click - Create beautiful command line interfaces in a composable way.
     # Documentation: https://click.palletsprojects.com/en/8.0.x/
     "click>=8.1.7",
-
     # rich - Python library for rich text and beautiful formatting in the terminal.
     "rich>=13.7.1",
-
     # tabulate - Pretty-print tabular data within Python.
     # Documentation: https://pypi.org/project/tabulate/
     "tabulate>=0.9.0",
-
     # pyyaml - YAML parser and emitter for Python.
     # Documentation: https://pyyaml.org/wiki/PyYAMLDocumentation
     "pyyaml>=6.0.1",
-
+    # pydantic - Data validation and settings management using Python type hinting.
+    # Documentation: https://pydantic-docs.helpmanual.io/
+    "pydantic==2.11.0a2",
     # flask - Lightweight WSGI web application framework.
     # Documentation: https://flask.palletsprojects.com/
     "flask>=3.0.0",
-
     # loguru - Simplified logging library with a focus on ease of use.
     # Documentation: https://loguru.readthedocs.io/
     "loguru>=0.7.2",
-
     # pyproj - Python interface to PROJ (cartographic projections and coordinate transformations library).
     "pyproj>=3.7",
-
     # rjsmin - JavaScript minifier written in Python.
     "rjsmin>=1.2.2",
-
     # prompt-toolkit - Library for building powerful interactive command line applications in Python.
     "prompt-toolkit>=3.0.43",
-
     # rtree - Library for spatial indexing and querying in Python.
     # Documentation: https://rtree.readthedocs.io/
     "rtree>=1.3.0",
-
-    # matplotlib - Comprehensive library for creating static, animated, and interactive visualizations.
-    # Documentation: https://matplotlib.org/
-    "matplotlib>=3.10.0"
 ]
 
 [project.urls]
@@ -192,9 +164,6 @@ dev = [
     # mypy - Optional static type checker for Python, aiming to combine the benefits of dynamic and static typing.
     # Documentation: http://mypy-lang.org/
     "mypy>=1.7.0",
-
-    # pydantic - Data validation and settings management using Python type hinting.
-    "pydantic>=2.5.0",
 
     # ----------------------------
     # Development Utilities

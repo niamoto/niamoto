@@ -1,19 +1,20 @@
 """Test module for the Config class."""
 
 import os
-import shutil
-import tempfile
 import unittest
 from unittest.mock import patch
+import shutil
+import tempfile
 import yaml
 from niamoto.common.config import Config
 from niamoto.common.exceptions import (
     ConfigurationError,
     EnvironmentSetupError,
 )
+from tests.common.base_test import NiamotoTestCase
 
 
-class TestConfig(unittest.TestCase):
+class TestConfig(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.test_dir = tempfile.mkdtemp()
@@ -21,7 +22,14 @@ class TestConfig(unittest.TestCase):
 
     def tearDown(self):
         """Tear down test fixtures."""
-        shutil.rmtree(self.test_dir)
+        from unittest import mock
+
+        # Clean up test directory
+        if os.path.exists(self.config_dir):
+            shutil.rmtree(self.config_dir)
+
+        # Stop all active patches to prevent MagicMock leaks
+        mock.patch.stopall()
 
     def test_init_with_default_config(self):
         """Test initialization with default configuration."""
