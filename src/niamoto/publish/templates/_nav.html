@@ -101,19 +101,31 @@
 </nav>
 
 <script>
-  document.getElementById('nav-toggle').onclick = function () {
-    document.getElementById('nav-content').classList.toggle('hidden');
-  };
+    // Mobile menu toggle
+    document.getElementById('nav-toggle').onclick = () =>
+        document.getElementById('nav-content').classList.toggle('hidden');
 
-  // Function to adjust the navigation links based on page depth
-  function adjustNavLinks(depth) {
-    document.querySelectorAll('a[data-link]').forEach(link => {
-      link.href = depth + link.getAttribute('data-link');
+    // Handle navigation links
+    document.addEventListener('DOMContentLoaded', () => {
+        const firstIds = {{ first_ids | tojson | safe }};
+        const depth = "{{ depth }}";
+
+        document.querySelectorAll('a[data-link]').forEach(link => {
+            const dataLink = link.getAttribute('data-link');
+            if (!dataLink) return;
+
+            // Update category links with correct IDs
+            Object.entries(firstIds).forEach(([category, id]) => {
+                if (dataLink.startsWith(`${category}/`)) {
+                    link.setAttribute('data-link', `${category}/${id}.html`);
+                }
+            });
+
+            // Apply depth to all links
+            link.href = depth + link.getAttribute('data-link');
+        });
     });
-  }
 
-  // Adjust the navigation links based on the depth
-  adjustNavLinks("{{ depth }}");
 </script>
 
 <style>
