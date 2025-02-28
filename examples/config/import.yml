@@ -1,0 +1,119 @@
+# 1) The main basic "entities"
+taxonomy:
+  type: csv
+  path: "imports/taxonomy.csv"
+  identifier: "id_taxon"
+  ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
+
+plots:
+  type: vector
+  format: geopackage
+  path: "imports/plots.gpkg"
+  identifier: "id_locality"
+  location_field: "geometry"
+
+occurrences:
+  type: csv
+  path: "imports/occurrences.csv"
+  identifier: "id_taxonref"
+  location_field: "geo_pt"
+
+occurrence_plots:
+  type: "csv"
+  path: "imports/occurrence-plots.csv"
+  role: "link"
+  left_key: "id_occurrence"
+  right_key: "id_plot"
+
+shape_stats:
+  type: csv
+  path: "imports/row_shape_stats.csv"
+  identifier: "id"
+
+# 2) Multiple shapes (administrative areas, substrates, etc.)
+shapes:
+  - category: "provinces"
+    type: vector
+    format: directory_shapefiles
+    path: "imports/shapes/provinces"
+    name_field: "nom"
+    label: "Provinces"
+    description: "Administrative boundaries of the provinces"
+
+  - category: "communes"
+    type: vector
+    format: directory_shapefiles
+    path: "imports/shapes/communes"
+    name_field: "nom"
+    label: "Communes"
+    description: "Administrative boundaries of the communes"
+
+  - category: "protected_areas"
+    type: vector
+    format: directory_shapefiles
+    path: "imports/shapes/protected_areas"
+    name_field: "libelle"
+    label: "Aires protégées"
+    description: "Protected areas"
+
+  - category: "forest_cover"
+    type: vector
+    format: directory_shapefiles
+    path: "imports/shapes/forest_cover"
+    label: "Couverture forestière"
+    description: "Couches de couverture forestière"
+
+  - category: "substrates"
+    type: vector
+    format: geopackage
+    path: "imports/shapes/substrate.gpkg"
+    name_field: "label"
+    label: "Substrats"
+    description: "Substrate types"
+
+  - category: "holdridge"
+    type: vector
+    format: geopackage
+    path: "imports/shapes/holdridge_zones.gpkg"
+    name_field: "zone"
+    label: "Zone de vie"
+    description: "Holdridge life zones"
+
+  - category: "water_catchments"
+    type: vector
+    format: directory_shapefiles
+    path: "imports/shapes/ppe"
+    name_field: "nom_ppe"
+    label: "Captage"
+    description: "Water catchment areas"
+
+  - category: "mines"
+    type: vector
+    format: geopackage
+    path: "imports/shapes/mines.gpkg"
+    name_field: "region"
+    label: "Emprises Minières"
+    description: "Mining sites"
+
+# 3) Layers: vectors, rasters...
+layers:
+  - name: "forest_cover"
+    type: vector
+    format: shapefile
+    path: "imports/layers/amap_carto_3k_20240715/amap_carto_3k_20240715.shp"
+    description: "Forest cover layer"
+
+  - name: "elevation"
+    type: raster
+    path: "imports/layers/mnt100_epsg3163.tif"
+    description: "Digital elevation model"
+
+  - name: "rainfall"
+    type: raster
+    path: "imports/layers/rainfall_epsg3163.tif"
+    description: "Annual rainfall distribution"
+
+  - name: "holdridge"
+    type: raster
+    path: "imports/layers/amap_raster_holdridge_nc.tif"
+    description: "Holdridge"

@@ -3,138 +3,207 @@ Commands for transforming and aggregating data in Niamoto.
 """
 
 from typing import Optional
+from pathlib import Path
 
 import click
+from rich import print
 
 from niamoto.common.config import Config
-from niamoto.common.exceptions import ValidationError, ProcessError
+from niamoto.common.exceptions import (
+    ValidationError,
+    ConfigurationError,
+    FileError,
+)
 from niamoto.common.utils.error_handler import error_handler
 from niamoto.core.services.transformer import TransformerService
-from ..utils.console import print_success, print_info
+from ..utils.console import print_success, print_info, print_warning
 
 
 @click.group(name="transform", invoke_without_command=True)
 @click.option(
     "--group",
     type=str,
-    help="Group to transforms data for (e.g., taxon, plot).",
+    help="Group to transform data for (e.g., 'taxon', 'plot', 'shape').",
 )
 @click.option(
-    "--csv-file",
-    type=str,
-    help="Optional CSV file with occurrence data.",
+    "--data",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Optional data file to use instead of database.",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show detailed processing information.",
 )
 @click.pass_context
 @error_handler(log=True, raise_error=True)
-def transform_commands(ctx, group: Optional[str], csv_file: Optional[str]) -> None:
+def transform_commands(
+    ctx: click.Context, group: Optional[str], data: Optional[str], verbose: bool
+) -> None:
     """
-    Transforms and aggregates raw data using [yellow]transform.yml[/yellow] and [yellow]import.yml[/yellow].
+    Transform and aggregate data according to transform.yml configuration.
 
-    This command processes data for a specific group (e.g., taxon or plot),
-    optionally using a provided CSV file as input.
+    This command processes data following the rules defined in transform.yml,
+    which specifies how to group and transform data into useful metrics and
+    visualizations.
 
-    Raises:
-        ConfigurationError: If configuration files are invalid
-        ValidationError: If group parameter is invalid
-        FileError: If CSV file is not found or invalid
-        ProcessError: If transforms operation fails
+    Use the --group option to process only a specific group of transforms.
+    Use the --data option to use a custom data file.
+    Use --verbose for detailed processing information.
+
+    Examples:
+        niamoto transform  # Process all groups
+        niamoto transform --group taxon  # Process only taxonomy data
+        niamoto transform --data my_data.csv  # Use custom data file
     """
-    # Validate group if provided
-    if group and group.lower() not in ["taxon", "plot", "shape"]:
-        raise ValidationError(
-            field="group",
-            message="Invalid group specified",
-            details={"provided": group, "allowed_values": ["taxon", "plot", "shape"]},
-        )
-
-    # Validate CSV file if provided
-    if csv_file and not csv_file.endswith(".csv"):
-        raise ValidationError(
-            field="csv_file",
-            message="Invalid file format",
-            details={"provided": csv_file, "expected": "CSV file"},
-        )
-
-    # If no sub-command is provided, invoke the default command
     if ctx.invoked_subcommand is None:
-        if group:
-            ctx.invoke(process_transformations, group=group, csv_file=csv_file)
-        else:
-            ctx.invoke(transform_all)
+        ctx.invoke(process_transformations, group=group, data=data, verbose=verbose)
+
+
+@transform_commands.command(name="list")
+@error_handler(log=True, raise_error=True)
+def list_configurations() -> None:
+    """List all available transformation configurations."""
+    try:
+        config = Config()
+        transforms = config.get_transforms_config()
+
+        if not transforms:
+            print_warning("No transformation configurations found in transform.yml")
+            return
+
+        print_info("\nAvailable transformation configurations:")
+        for transform in transforms:
+            group = transform.get("group_by", "unknown")
+            source = transform.get("source", {})
+            data = source.get("data", "unknown")
+            grouping = source.get("grouping", "unknown")
+            relation = source.get("relation", {}).get("type", "unknown")
+            widgets = len(transform.get("widgets_data", {}))
+
+            print(f"\n[bold]{group}[/bold]")
+            print(f"  Data source: {data}")
+            print(f"  Grouping: {grouping}")
+            print(f"  Relation type: {relation}")
+            print(f"  Widgets: {widgets}")
+
+    except ConfigurationError as e:
+        print_warning(f"Error reading configuration: {str(e)}")
 
 
 @transform_commands.command(name="run")
 @click.option(
     "--group",
     type=str,
-    help="Group to transforms data for (e.g., taxon, plot).",
+    help="Group to transform data for (e.g., 'taxon', 'plot', 'shape').",
 )
 @click.option(
-    "--csv-file",
-    type=str,
-    help="Optional CSV file with occurrence data.",
+    "--data",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Optional data file to use instead of database.",
+)
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Show detailed processing information.",
+)
+@click.option(
+    "--recreate-table",
+    is_flag=True,
+    default=True,
+    help="Recreate tables instead of updating them.",
 )
 @error_handler(log=True, raise_error=True)
-def process_transformations(group: Optional[str], csv_file: Optional[str]) -> None:
+def process_transformations(
+    group: Optional[str], data: Optional[str], verbose: bool, recreate_table: bool
+) -> None:
     """
-    Calculate transforms for a specified group.
+    Run data transformations based on configuration.
 
-    Args:
-        group: Group to process data for (e.g., taxon, plot)
-        csv_file: Optional path to CSV file with occurrence data
-
-    Raises:
-        ConfigurationError: If configuration is invalid
-        ValidationError: If parameters are invalid
-        FileError: If CSV file is not found or invalid
-        ProcessError: If calculation fails
-        DataTransformError: If data transforms operation fails
+    The transformation process follows these steps:
+    1. Load and validate configuration from transform.yml
+    2. For each group (or specified group):
+        - Load source data
+        - Apply grouping based on relation type
+        - Calculate metrics and generate visualizations
+        - Save results to database
     """
-    config = Config()
-
-    try:
-        # Initialize service
-        service = TransformerService(config.database_path, config)
-
-        # Calculate statistics
-        print_info(f"Transforming data for group: {group or 'all'}")
-        service.transform_data(group_by=group, csv_file=csv_file)
-        print_success("Data transformation completed")
-
-    except Exception as e:
-        raise ProcessError(
-            message="Data transforms failed",
-            details={"group": group, "csv_file": csv_file, "error": str(e)},
+    # Validate inputs
+    if data and not data.endswith((".csv", ".xlsx", ".parquet")):
+        raise ValidationError(
+            field="data",
+            message="Unsupported file format",
+            details={
+                "provided": Path(data).suffix,
+                "supported": [".csv", ".xlsx", ".parquet"],
+            },
         )
 
+    if data and not Path(data).exists():
+        raise FileError(file_path=data, message="Data file not found")
 
-@transform_commands.command(name="all")
+    try:
+        config = Config()
+
+        if verbose:
+            print_info("Initializing transformer service...")
+
+        service = TransformerService(config.database_path, config)
+
+        # Process transformations
+        if group:
+            print_info(f"Processing transformations for group: {group}")
+        else:
+            print_info("Processing all transformation groups")
+
+        service.transform_data(
+            group_by=group, csv_file=data, recreate_table=recreate_table
+        )
+
+        print_success("Data transformation completed successfully")
+
+    except Exception:
+        raise
+
+
+@transform_commands.command(name="check")
+@click.option(
+    "--group",
+    type=str,
+    help="Group to check configuration for.",
+)
 @error_handler(log=True, raise_error=True)
-def transform_all() -> None:
+def check_configuration(group: Optional[str]) -> None:
     """
-    Transform all data according to configuration.
+    Check transformation configuration without executing it.
 
-    Processes taxonomy, plot and shape data sequentially.
+    Validates the transform.yml configuration and reports any issues.
     """
-    print_info("Starting full data transformation...")
-    config = Config()
-
     try:
-        # Initialize service
+        config = Config()
+        transforms = config.get_transforms_config()
+
+        if not transforms:
+            print_warning("No transformation configurations found")
+            return
+
+        if group:
+            transforms = [t for t in transforms if t.get("group_by") == group]
+            if not transforms:
+                print_warning(f"No configuration found for group: {group}")
+                return
+
+        # Validate each configuration
         service = TransformerService(config.database_path, config)
+        for transform in transforms:
+            group_by = transform.get("group_by", "unknown")
+            print_info(f"\nChecking configuration for {group_by}:")
 
-        # Transform taxonomy data
-        service.transform_data(group_by="taxon")
+            try:
+                service.validate_configuration(transform)
+                print_success(f"Configuration for {group_by} is valid")
+            except ValidationError as e:
+                print_warning(f"Configuration error in {group_by}: {str(e)}")
 
-        # Transform plot data
-        service.transform_data(group_by="plot")
-
-        # Transform shape data
-        service.transform_data(group_by="shape")
-
-        print_success("All transformations completed successfully")
-
-    except Exception as e:
-        raise ProcessError(
-            message="Full transformation failed", details={"error": str(e)}
-        )
+    except ConfigurationError as e:
+        print_warning(f"Error reading configuration: {str(e)}")

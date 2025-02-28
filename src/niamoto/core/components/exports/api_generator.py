@@ -64,7 +64,7 @@ class ApiGenerator(BaseGenerator):
             taxon_dict = self.taxon_to_dict(taxon, stats)
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(output_path, "w", encoding='utf-8') as file:
+            with open(output_path, "w", encoding="utf-8") as file:
                 json.dump(taxon_dict, file, indent=4)
 
             return str(output_path)
@@ -98,7 +98,7 @@ class ApiGenerator(BaseGenerator):
             plot_dict = self.plot_to_dict(plot, stats)
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(output_path, "w", encoding='utf-8') as file:
+            with open(output_path, "w", encoding="utf-8") as file:
                 json.dump(plot_dict, file, indent=4)
 
             return str(output_path)
@@ -167,7 +167,7 @@ class ApiGenerator(BaseGenerator):
 
             # Write minified output
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w", encoding='utf-8') as file:
+            with open(output_path, "w", encoding="utf-8") as file:
                 json.dump(
                     shape_dict,
                     file,
@@ -208,7 +208,7 @@ class ApiGenerator(BaseGenerator):
             output_data = {"total": len(all_taxa), "taxa": all_taxa}
 
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w", encoding='utf-8') as file:
+            with open(output_path, "w", encoding="utf-8") as file:
                 json.dump(output_data, file, indent=4)
 
             return str(output_path)
@@ -242,7 +242,7 @@ class ApiGenerator(BaseGenerator):
             output_data = {"total": len(all_plots), "plots": all_plots}
 
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w", encoding='utf-8') as file:
+            with open(output_path, "w", encoding="utf-8") as file:
                 json.dump(output_data, file, indent=4)
 
             return str(output_path)
@@ -276,7 +276,7 @@ class ApiGenerator(BaseGenerator):
             output_data = {"total": len(all_shapes), "shapes": all_shapes}
 
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w", encoding='utf-8') as file:
+            with open(output_path, "w", encoding="utf-8") as file:
                 json.dump(output_data, file, indent=4)
 
             return str(output_path)

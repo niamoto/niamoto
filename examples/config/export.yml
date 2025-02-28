@@ -1,0 +1,1149 @@
+##################################################################
+# 1) PRÉSENTATION POUR LES TAXONS
+##################################################################
+- group_by: taxon
+  widgets:
+    general_info:
+      type: info_panel
+      title: "Informations générales"
+      layout: grid
+      fields:
+        - source: rank
+          label: "Rang"
+        - source: occurrences_count
+          label: "Nombre d'occurrences"
+          format: "number"
+      # => Ton JSON "general_info" pourrait contenir { "taxon_name": "...", "occurrences_count": 123, ... }
+
+    distribution_map:
+      type: map_panel
+      title: "Distribution géographique"
+      description: Distribution géographique des occurrences du taxon et de ses sous-taxons
+      source: distribution_map
+      layout: full_width
+      layers:
+        - id: "occurrences"
+          source: coordinates
+          style:
+            color: "#1fb99d"
+            weight: 1
+            fillColor: "#00716b"
+            fillOpacity: 0.5
+            radius: 2000
+      # => JSON { "coordinates": [...], "style": {...} } (selon le format produit)
+
+    top_species:
+      type: bar_chart
+      title: "Sous-taxons principaux"
+      description: "Principaux sous-taxons (espèce, sous-espèce)"
+      source: top_species
+      sortData: true
+      datasets:
+        - label: 'Occurrences'
+          data_key: counts
+          generateColors: true
+      labels_key: tops
+      options:
+        indexAxis: 'y'
+        scales:
+          x:
+            beginAtZero: true
+            grid: {
+              display: true,
+              drawBorder: true,
+              drawOnChartArea: true,
+              drawTicks: true
+            }
+            ticks: {
+              stepSize: 5
+            }
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+          y:
+            grid: {
+              display: false
+            }
+        plugins:
+          legend: {
+            display: false
+          }
+        maintainAspectRatio: false
+        responsive: true
+      # => ex. JSON { "tops": [...], "counts": [...] }
+
+    dbh_distribution:
+      type: bar_chart
+      title: "Distribution diamétrique (DBH)"
+      description: Répartition des occurrences par classe de diamètre
+      source: dbh_distribution
+      datasets:
+        - label: "Occurrences"
+          data_key: "counts"
+          backgroundColor: "#4CAF50"
+      labels_key: "bins"
+      options:
+        scales:
+          y:
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+          x:
+            title:
+              display: true
+              text: "DBH (cm)"
+
+    phenology_distribution:
+      type: bar_chart
+      title: "Phénologie"
+      description: Phénologie des états fertiles (fleur, fruit) du taxon et de ses sous-taxons
+      source: phenology_distribution
+      datasets:
+        - label: "Fleur"
+          data_key: "month_data.fleur"
+          backgroundColor: "#FFD700"
+          borderColor: "#FFD700"
+          borderWidth: 1
+        - label: "Fruit"
+          data_key: "month_data.fruit"
+          backgroundColor: "#DC143C"
+          borderColor: "#DC143C"
+          borderWidth: 1
+      labels_key: "labels"
+      options:
+        responsive: true
+        maintainAspectRatio: false
+        scales:
+          x:
+            grid:
+              display: false
+          y:
+            beginAtZero: true
+            max: 50
+            title:
+              display: true
+              text: "Fréquence (%)"
+        plugins:
+          legend:
+            position: "bottom"
+            labels:
+              padding: 20
+              boxWidth: 15
+
+    distribution_substrat:
+      type: doughnut_chart
+      title: "Distribution substrat"
+      description: "Distribution des occurrences par substrat (= fréquence du taxon par substrat)"
+      source: distribution_substrat
+      datasets:
+        - label: 'Distribution substrat'
+          data_keys: ['um', 'num']
+          backgroundColor: ['#b08d57', '#78909c']
+          borderColor: '#ffffff'
+          borderWidth: 2
+      labels: ['Ultramafique (UM)', 'non-Ultramafique (NUM)']
+      options:
+        cutout: '1%'
+        plugins:
+          legend:
+            display: true
+            position: 'top'
+            align: 'center'
+            labels:
+              usePointStyle: false
+              padding: 20
+              boxWidth: 30
+              color: '#666666'
+              font:
+                size: 12
+        layout:
+          padding:
+            top: 20
+
+    holdridge_distribution:
+      type: bar_chart
+      title: "Milieu de vie"
+      description: Fréquence des occurrences du taxon et de ses sous-taxons par milieu de vie
+      source: holdridge_distribution
+      datasets:
+        - label: "Occurrences"
+          data_key: "counts"
+          backgroundColor: ["#8B0000", "#FFEB3B", "#1E88E5"]  # Rouge, Jaune, Bleu
+      labels_key: "labels"
+      options:
+        scales:
+          y:
+            title:
+              display: true
+              text: "Altitude (m)"
+
+    rainfall_distribution:
+      type: bar_chart
+      title: "Répartition pluviométrie"
+      description: Distribution pluviométrique des occurrences du taxon (= fréquence par classe de pluviométrie)
+      source: rainfall_distribution
+      datasets:
+        - label: "Occurrences"
+          data_key: "counts"
+          backgroundColor: "#2196F3"    # Bleu comme dans l'image
+      labels_key: "bins"
+      options:
+        indexAxis: "y"
+        scales:
+          x:
+            title:
+              display: true
+              text: "Occurrences"
+          y:
+            title:
+              display: true
+              text: "Pluviométrie (mm/an)"
+
+    strata_distribution:
+      type: bar_chart
+      title: "Stratification"
+      description: Répartition des occurrences par strate
+      source: strata_distribution
+      datasets:
+        - label: "Occurrences"
+          data_key: "counts"
+          backgroundColor: ["#90A4AE", "#66BB6A", "#43A047", "#2E7D32"]  # Du plus clair au plus foncé
+          borderWidth: 1
+      labels_key: "labels"
+      options:
+        indexAxis: 'y'
+        scales:
+          x:
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+
+    height_max:
+      type: gauge
+      title: "Hauteur maximale"
+      description: Hauteur maximale atteint par le taxon et ses sous-taxons
+      source: height_max
+      value_key: "max"
+      options:
+        min: 0
+        max: 40
+        units: "m"
+        sectors:
+          - color: '#f02828'
+            range: [0, 10]
+          - color: '#fe6a00'
+            range: [10, 18]
+          - color: '#e8dd0f'
+            range: [18, 25]
+          - color: '#81e042'
+            range: [25, 33]
+          - color: '#049f50'
+            range: [33, 40]
+
+    dbh_max:
+      type: gauge
+      title: "Diamètre maximal (DBH)"
+      description: Diamètre maximal atteint par le taxon et ses sous-taxons
+      source: dbh_max
+      value_key: "max"
+      options:
+        min: 0
+        max: 500
+        units: "m"
+        sectors:
+          - color: '#f02828'
+            range: [1, 101]
+          - color: '#fe6a00'
+            range: [101, 200]
+          - color: '#e8dd0f'
+            range: [200, 300]
+          - color: '#81e042'
+            range: [300, 400]
+          - color: '#049f50'
+            range: [400, 500]
+
+    wood_density:
+      type: gauge
+      title: "Densité de bois"
+      description: Densité de bois moyenne mesuré avec une Tarière de Pressler
+      source: wood_density
+      value_key: "mean"
+      options:
+        min: 0
+        max: 1.2
+        units: "g/cm³"
+        sectors:
+          - color: '#f02828'
+            range: [0.000, 0.240]
+          - color: '#fe6a00'
+            range: [0.240, 0.480]
+          - color: '#e8dd0f'
+            range: [0.480, 0.720]
+          - color: '#81e042'
+            range: [0.720, 0.960]
+          - color: '#049f50'
+            range: [0.960, 1.200]
+
+    bark_thickness:
+      type: gauge
+      title: "Épaisseur d'écorce"
+      description: Epaisseur moyenne de l'écorce mesurée à la jauge à écorce
+      source: bark_thickness
+      value_key: "mean"
+      options:
+        min: 0
+        max: 80
+        units: "mm"
+        sectors:
+          - color: '#f02828'
+            range: [0, 16]
+          - color: '#fe6a00'
+            range: [16, 32]
+          - color: '#e8dd0f'
+            range: [32, 48]
+          - color: '#81e042'
+            range: [48, 64]
+          - color: '#049f50'
+            range: [64, 80]
+
+    leaf_sla:
+      type: gauge
+      title: "Surface foliaire spécifique"
+      description: Surface foliaire spécifique du taxon et de ses sous-taxons
+      source: leaf_sla
+      value_key: "mean"
+      options:
+        min: 0
+        max: 50
+        units: "m²·kg⁻¹"
+        sectors:
+          - color: '#f02828'
+            range: [0, 10]
+          - color: '#fe6a00'
+            range: [10, 20]
+          - color: '#e8dd0f'
+            range: [20, 30]
+          - color: '#81e042'
+            range: [30, 40]
+          - color: '#049f50'
+            range: [40, 50]
+
+    leaf_area:
+      type: gauge
+      title: "Surface foliaire"
+      description: Surface foliaire du taxon et de ses sous-taxons
+      source: leaf_area
+      value_key: "mean"
+      options:
+        min: 0
+        max: 1500
+        units: "cm²"
+        sectors:
+          - color: '#f02828'
+            range: [0, 300]
+          - color: '#fe6a00'
+            range: [300, 600]
+          - color: '#e8dd0f'
+            range: [600, 900]
+          - color: '#81e042'
+            range: [900, 1200]
+          - color: '#049f50'
+            range: [1200, 1500]
+
+    leaf_thickness:
+      type: gauge
+      title: "Épaisseur des feuilles"
+      description: Epaisseur moyenne des feuilles du taxon et de ses sous-taxons
+      source: leaf_thickness
+      value_key: "mean"
+      options:
+        min: 0
+        max: 800
+        units: "µm"
+        sectors:
+          - color: '#f02828'
+            range: [0, 160]
+          - color: '#fe6a00'
+            range: [160, 320]
+          - color: '#e8dd0f'
+            range: [320, 480]
+          - color: '#81e042'
+            range: [480, 640]
+          - color: '#049f50'
+            range: [640, 800]
+
+
+##################################################################
+# 2) PRÉSENTATION POUR LES PLOTS
+##################################################################
+- group_by: plot
+  widgets:
+    general_info:
+      type: info_panel
+      title: "Informations générales"
+      layout: grid
+      fields:
+        - source: plot_name
+          label: "Parcelle"
+        - source: elevation
+          label: "altitudes"
+          format: "number"
+        - source: rainfall
+          label: "Précipitation annuelle moyenne"
+          format: "number"
+        - source: holdridge
+          label: "Milieu de vie"
+        - source: substrat
+          label: "Substrat"
+        - source: nb_families
+          label: "Nombre de familles"
+        - source: nb_species
+          label: "Nombre d'espèces"
+        - source: occurrences_count
+          label: "Nombre d'occurrences"
+          format: "number"
+
+      # => ex. { "plot_name": "Parcelle A", "basal_area": 25.3, "trees_count": 364, ... }
+
+    map_panel:
+      type: map_panel
+      title: "Localisation de la parcelle"
+      source: map_panel
+      layout: full_width
+      layers:
+        - id: "plot"
+          source: geometry
+          style:
+            color: "#1fb99d"
+            weight: 2
+            fillOpacity: 0
+      # => ex. JSON { "coordinates": [...], "style": {...} }
+
+    top_families:
+      type: bar_chart
+      title: "Familles dominantes"
+      description: "Les dix familles botaniques les plus fréquentes de la parcelle"
+      source: top_families
+      sortData: true
+      datasets:
+        - label: 'Occurrences'
+          data_key: counts
+          generateColors: true
+      labels_key: tops
+      options:
+        indexAxis: 'y'
+        scales:
+          x:
+            beginAtZero: true
+            grid: {
+              display: true,
+              drawBorder: true,
+              drawOnChartArea: true,
+              drawTicks: true
+            }
+            ticks: {
+              stepSize: 5
+            }
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+          y:
+            grid: {
+              display: false
+            }
+        plugins:
+          legend: {
+            display: false
+          }
+        maintainAspectRatio: false
+        responsive: true
+      # => ex. JSON { "labels": [...], "values": [...], ... }
+
+    top_species:
+      type: bar_chart
+      title: "Sous-taxons principaux"
+      description: "Les dix espèces botaniques les plus fréquentes de la parcelle"
+      source: top_species
+      sortData: true
+      datasets:
+        - label: 'Occurrences'
+          data_key: counts
+          generateColors: true
+      labels_key: tops
+      options:
+        indexAxis: 'y'
+        scales:
+          x:
+            beginAtZero: true
+            grid: {
+              display: true,
+              drawBorder: true,
+              drawOnChartArea: true,
+              drawTicks: true
+            }
+            ticks: {
+              stepSize: 5
+            }
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+          y:
+            grid: {
+              display: false
+            }
+        plugins:
+          legend: {
+            display: false
+          }
+        maintainAspectRatio: false
+        responsive: true
+      # => ex. JSON { "tops": [...], "counts": [...] }
+
+    dbh_distribution:
+      type: bar_chart
+      title: "Distribution diamétrique (DBH)"
+      description: Répartition des occurrences par classe de diamètre
+      source: dbh_distribution
+      datasets:
+        - label: "Occurrences"
+          data_key: "counts"
+          backgroundColor: "#4CAF50"
+      labels_key: "bins"
+      options:
+        scales:
+          y:
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+          x:
+            title:
+              display: true
+              text: "DBH (cm)"
+
+    strata_distribution:
+      type: bar_chart
+      title: "Stratification"
+      description: Répartition des occurrences par strate
+      source: strata_distribution
+      datasets:
+        - label: "Occurrences"
+          data_key: "counts"
+          backgroundColor: ["#90A4AE", "#66BB6A", "#43A047", "#2E7D32"]  # Du plus clair au plus foncé
+          borderWidth: 1
+      labels_key: "labels"
+      options:
+        indexAxis: 'y'
+        scales:
+          x:
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+
+    height:
+      type: gauge
+      title: "Hauteur moyenne"
+      source: height
+      value_key: "value"
+      options:
+        min: 0
+        max: 40
+        units: "m"
+        sectors:
+          - color: '#f02828'
+            range: [0, 5]
+          - color: '#fe6a00'
+            range: [5, 10]
+          - color: '#e8dd0f'
+            range: [10, 15]
+          - color: '#81e042'
+            range: [15, 20]
+          - color: '#049f50'
+            range: [20, 25]
+
+    wood_density:
+      type: gauge
+      title: "Densité de bois"
+      description: Densité de bois moyenne mesuré avec une Tarière de Pressler
+      source: wood_density
+      value_key: "value"
+      options:
+        min: 0
+        max: 1.2
+        units: "g/cm³"
+        sectors:
+          - color: '#f02828'
+            range: [0.000, 0.240]
+          - color: '#fe6a00'
+            range: [0.240, 0.480]
+          - color: '#e8dd0f'
+            range: [0.480, 0.720]
+          - color: '#81e042'
+            range: [0.720, 0.960]
+          - color: '#049f50'
+            range: [0.960, 1.200]
+
+    basal_area:
+      type: gauge
+      title: "Aire basale"
+      source: basal_area
+      value_key: "value"
+      options:
+        min: 0
+        max: 100
+        units: "m²/ha"
+        sectors:
+          - color: '#f02828'
+            range: [0, 15]
+          - color: '#fe6a00'
+            range: [15, 30]
+          - color: '#e8dd0f'
+            range: [30, 45]
+          - color: '#81e042'
+            range: [45, 60]
+          - color: '#049f50'
+            range: [60, 76]
+
+    richness:
+      type: gauge
+      title: "Richesse"
+      source: richness
+      value_key: "value"
+      options:
+        min: 0
+        max: 130
+        units: ""
+        sectors:
+          - color: '#f02828'
+            range: [0, 28]
+          - color: '#fe6a00'
+            range: [28, 52]
+          - color: '#e8dd0f'
+            range: [52, 78]
+          - color: '#81e042'
+            range: [78, 104]
+          - color: '#049f50'
+            range: [104, 130]
+    shannon:
+      type: gauge
+      title: "Shannon"
+      source: shannon
+      value_key: "value"
+      options:
+        min: 0
+        max: 5
+        units: ""
+        sectors:
+          - color: '#f02828'
+            range: [0.0, 1.0]
+          - color: '#fe6a00'
+            range: [1.0, 2.0]
+          - color: '#e8dd0f'
+            range: [2.0, 3.0]
+          - color: '#81e042'
+            range: [3.0, 4.0]
+          - color: '#049f50'
+            range: [4.0, 5.0]
+
+    pielou:
+      type: gauge
+      title: "Pielou"
+      source: pielou
+      value_key: "value"
+      options:
+        min: 0
+        max: 1
+        units: ""
+        sectors:
+          - color: '#f02828'
+            range: [0.00, 0.20]
+          - color: '#fe6a00'
+            range: [0.20, 0.40]
+          - color: '#e8dd0f'
+            range: [0.40, 0.60]
+          - color: '#81e042'
+            range: [0.60, 0.80]
+          - color: '#049f50'
+            range: [0.80, 1.0]
+
+    simpson:
+      type: gauge
+      title: "Simpson"
+      source: simpson
+      value_key: "value"
+      options:
+        min: 0
+        max: 1
+        units: ""
+        sectors:
+          - color: '#f02828'
+            range: [0.00, 0.20]
+          - color: '#fe6a00'
+            range: [0.20, 0.40]
+          - color: '#e8dd0f'
+            range: [0.40, 0.60]
+          - color: '#81e042'
+            range: [0.60, 0.80]
+          - color: '#049f50'
+            range: [0.80, 1.0]
+
+    biomass:
+      type: gauge
+      title: "Biomasse"
+      source: biomass
+      value_key: "value"
+      options:
+        min: 0
+        max: 800
+        units: "t/ha"
+        sectors:
+          - color: '#f02828'
+            range: [0, 160]
+          - color: '#fe6a00'
+            range: [160, 320]
+          - color: '#e8dd0f'
+            range: [320, 480]
+          - color: '#81e042'
+            range: [480, 640]
+          - color: '#049f50'
+            range: [640, 800]
+
+##################################################################
+# 3) PRÉSENTATION POUR LES SHAPES
+##################################################################
+- group_by: shape
+  widgets:
+    general_info:
+      type: info_panel
+      title: "Informations générales"
+      layout: grid
+      fields:
+        - source: land_area_ha
+          label: "Surface totale"
+          format: "number"
+        - source: forest_area_ha
+          label: "Surface forêt"
+          format: "number"
+        - source: forest_mining_ha
+          label: "Forêt sur mine"
+          format: "number"
+        - source: forest_reserve_ha
+          label: "Forêt en réserve"
+          format: "number"
+        - source: forest_ppe_ha
+          label: "Forêt sur captage (PPE)"
+          format: "number"
+        - source: rainfall
+          label: "Pluviométrie"
+          format: "range"
+        - source: elevation_median
+          label: "Altitude médiane"
+          format: "number"
+        - source: elevation_max
+          label: "Altitude maximale"
+          format: "number"
+
+    map_panel:
+      type: map_panel
+      title: "Distribution de la forêt"
+      description: "Distribution de la forêt dans l'emprise sélectionnée"
+      source: geography
+      layers:
+        - id: shape
+          source: geography.shape_coords
+          style:
+            color: "#1fb99d"
+            weight: 2
+            fillOpacity: 0
+        - id: forest
+          source: geography.forest_cover_coords
+          style:
+            color: "#228b22"
+            weight: 0.3
+            fillColor: "#228b22cc"
+            fillOpacity: 0.8
+
+    forest_cover:
+      type: doughnut_chart
+      title: "Couverture forestière"
+      description: "La couverture forestière (= superficie de forêt / superficie disponible) est un indicateur de l'importance de la forêt dans le paysage."
+      source: forest_cover
+      datasets:
+        - label: 'Emprise'
+          data_keys: ['emprise.forest', 'emprise.non_forest']
+          transformData: 'toPercentage'
+          backgroundColors: ['#2E7D32', '#F4E4BC']
+          borderColor: '#ffffff'
+          borderWidth: 2
+        - label: 'NUM'
+          data_keys: ['num.forest', 'num.non_forest']
+          transformData: 'toPercentage'
+          backgroundColors: ['#2E7D32', '#C5A98B']
+          borderWidth: 2
+          borderColor: '#ffffff'
+        - label: 'UM'
+          data_keys: ['um.forest', 'um.non_forest']
+          transformData: 'toPercentage'
+          backgroundColors: ['#2E7D32', '#8B7355']
+          borderColor: '#ffffff'
+          borderWidth: 2
+      labels: ['Forêt', 'Hors-forêt']
+      options:
+        cutout: '20%'
+        rotation: -90
+        plugins:
+          legend:
+            display: false
+          tooltip:
+            enabled: false
+      customPlugin: 'customLabels'
+
+    land_use:
+      type: bar_chart
+      title: "Occupation du sol"
+      description: "Superficie occupée par le substrat, les milieux de vie de Holdridge, les limites administratives et la forêt dans l'emprise sélectionnée"
+      source: land_use
+      datasets:
+        - label: 'Occupation du sol'
+          data_key: 'values'
+          color_mapping:
+            NUM: "#8B4513"
+            UM: "#CD853F"
+            Sec: "#8B0000"
+            Humide: "#FFEB3B"
+            "Très Humide": "#1E88E5"
+            Réserve: "#4CAF50"
+            PPE: "#90CAF9"
+            Concessions: "#E57373"
+            Forêt: "#2E7D32"
+      labels_key: 'categories'
+      options:
+        indexAxis: 'x'
+        scales:
+          x:
+            title:
+              display: true
+              text: ''
+          y:
+            title:
+              display: true
+              text: 'Superficie (ha)'
+            ticks:
+              callback: 'formatSurfaceValue'
+
+    elevation_distribution:
+      type: bar_chart
+      title: "Distribution altitudinale"
+      description: "Distribution altitudinale de la forêt dans l'emprise"
+      source: elevation_distribution.elevation
+      datasets:
+        - label: "Forêt"
+          data_key: "subset"
+          backgroundColor: "#2E7D32"
+          stack: 'Stack 0'
+        - label: "Hors-forêt"
+          data_key: "complement"
+          backgroundColor: "#F4E4BC"
+          stack: 'Stack 0'
+      labels_key: "classes"
+      options:
+        indexAxis: 'y'
+        scales:
+          x:
+            title:
+              display: true
+              text: 'Superficie (ha)'
+          y:
+            reverse: true
+            title:
+              display: true
+              text: 'Altitude (m)'
+
+    holdridge_distribution:
+      type: bar_chart
+      title: "Forêt et milieux de vie"
+      description: "Distribution de la forêt selon les milieux de vie de Holdridge"
+      source: holdridge
+      datasets:
+        - label: 'Forêt'
+          transformData: 'toPercentage'
+          data_keys: ['forest.sec', 'forest.humide', 'forest.tres_humide']
+          backgroundColor: '#2E7D32'
+          stack: 'Stack 0'
+        - label: 'Hors-forêt'
+          transformData: 'toPercentage'
+          data_keys: ['non_forest.sec', 'non_forest.humide', 'non_forest.tres_humide']
+          backgroundColor: '#F4E4BC'
+          stack: 'Stack 0'
+      labels: ['Sec', 'Humide', 'Très humide']
+      options:
+        indexAxis: 'x'
+        scales:
+          x:
+            title:
+              display: true
+              text: 'Type de milieu'
+          y:
+            title:
+              display: true
+              text: 'Proportion (%)'
+
+    forest_types:
+      type: doughnut_chart
+      title: "Types forestiers"
+      description: "Répartition de la forêt selon les trois types de forêt"
+      source: forest_types
+      customPlugin: 'forestTypeLabelsPlugin'
+      datasets:
+        - label: 'Types de forêt'
+          data_key: 'values'
+          transformData: 'toPercentage'
+          backgroundColor: ['#2E7D32', '#7CB342', '#C5E1A5']
+          borderWidth: 2
+          borderColor: '#ffffff'
+      labels_key: 'categories'  # Utilise les catégories du JSON comme labels
+      options:
+        cutout: '60%'
+        plugins:
+          legend:
+            position: 'bottom'
+            labels:
+              padding: 20
+              font:
+                size: 12
+              usePointStyle: false
+              boxWidth: 15
+          tooltip:
+            callbacks:
+              label: 'formatForestTypeTooltip'
+
+    forest_cover_by_elevation:
+      type: bar_chart
+      title: "Couverture forestière par altitude"
+      description: "Distribution altitudinale de la couverture forestière en fonction du substrat"
+      source: forest_cover_by_elevation
+      datasets:
+        - label: 'Forêt (UM)'
+          data_key: 'series.forest_um'
+          backgroundColor: '#90EE90'
+          stack: 'Stack 0'
+          transformData: 'negateValues'
+        - label: 'Forêt (NUM)'
+          data_key: 'series.forest_num'
+          backgroundColor: '#2E7D32'
+          stack: 'Stack 0'
+      labels_key: 'class_name'
+      options:
+        responsive: true
+        maintainAspectRatio: false
+        indexAxis: 'y'
+        scales:
+          x:
+            stacked: true
+            position: 'top'
+            min: -100
+            max: 100
+            grid:
+              lineWidth: 1
+              drawTicks: false
+              borderDash: [5, 5]
+            ticks:
+              callback: 'formatAbsoluteValue'
+              stepSize: 20
+              autoSkip: false
+              maxRotation: 0
+            border:
+              display: false
+          y:
+            stacked: true
+            position: 'left'
+            reverse: true
+            grid:
+              display: true
+              lineWidth: 1
+              drawTicks: false
+              borderDash: [5, 5]
+            ticks:
+              font:
+                size: 12
+            title:
+              display: true
+              text: 'Altitude (m)'
+              font:
+                size: 12
+            border:
+              display: false
+        plugins:
+          legend:
+            position: 'bottom'
+            align: 'center'
+            labels:
+              boxWidth: 10
+              padding: 15
+          title:
+            display: true
+            text: 'Couverture (%)'
+            position: 'top'
+            align: 'center'
+          tooltip:
+            mode: 'y'
+            intersect: false
+            callbacks:
+              label: 'formatForestCoverTooltip'
+
+    forest_types_by_elevation:
+      type: line_chart
+      title: "Types forestiers par altitude"
+      description: "Distribution des types de forêts selon l'altitude"
+      source: forest_types_by_elevation
+      sortBy: 'altitudes'
+      datasets:
+        - label: 'Forêt secondaire'
+          data_key: 'secondaire'
+          transformData: 'stackedPercentage'
+          backgroundColor: '#C5E1A5'
+          borderColor: '#C5E1A5'
+          fill: true
+          pointStyle: 'circle'
+          pointRadius: 0
+          pointHoverRadius: 5
+          pointHoverBackgroundColor: '#ffffff'
+          tension: 0.4
+          stack: 'Stack 0'
+        - label: 'Forêt mature'
+          data_key: 'mature'
+          transformData: 'stackedPercentage'
+          backgroundColor: '#7CB342'
+          borderColor: '#7CB342'
+          fill: true
+          pointStyle: 'circle'
+          pointRadius: 0
+          pointHoverRadius: 5
+          pointHoverBackgroundColor: '#ffffff'
+          tension: 0.4
+          stack: 'Stack 0'
+        - label: 'Forêt de coeur'
+          data_key: 'coeur'
+          transformData: 'stackedPercentage'
+          backgroundColor: '#2E7D32'
+          borderColor: '#2E7D32'
+          fill: true
+          pointStyle: 'circle'
+          pointRadius: 0
+          pointHoverRadius: 5
+          pointHoverBackgroundColor: '#ffffff'
+          tension: 0.4
+          stack: 'Stack 0'
+      labels_key: 'altitudes'
+      options:
+        responsive: true
+        maintainAspectRatio: false
+        scales:
+          x:
+            title:
+              display: true
+              text: 'Altitude (m)'
+              font:
+                size: 12
+            grid:
+              display: false
+            ticks:
+              maxRotation: 0
+          y:
+            stacked: true
+            grid:
+              color: '#e5e5e5'
+              borderDash: [2, 2]
+            ticks:
+              callback: 'formatPercentage'
+            title:
+              display: true
+              text: 'Fréquence (%)'
+              font:
+                size: 12
+            min: 0
+            max: 100
+        plugins:
+          legend:
+            position: 'bottom'
+            labels:
+              padding: 20
+              usePointStyle: false
+              boxWidth: 15
+          tooltip:
+            mode: 'index'
+            intersect: false
+            callbacks:
+              label: 'formatForestTypeElevationTooltip'
+        interaction:
+          mode: 'nearest'
+          axis: 'x'
+          intersect: false
+
+    fragmentation:
+      type: gauge
+      title: "Fragmentation"
+      description: "La taille effective de maillage représente la probabilité que deux points appartiennent au même fragment de forêt"
+      source: fragmentation.meff
+      value_key: 'value'
+      options:
+        min: 0
+        max: 1000
+        units: 'km²'
+        sectors:
+          - color: '#f02828'
+            range: [0, 200]
+          - color: '#fe6a00'
+            range: [200, 400]
+          - color: '#e8dd0f'
+            range: [400, 600]
+          - color: '#81e042'
+            range: [600, 800]
+          - color: '#049f50'
+            range: [800, 1000]
+
+    fragmentation_distribution:
+      type: line_chart
+      title: "Fragments forestiers"
+      description: "Aire cumulée de chaque fragment forestier classé du plus petit au plus grand"
+      source: fragmentation_distribution
+      sortData: true
+      sortBy: 'sizes'
+      datasets:
+        - label: 'Aire Cumulée'
+          data_key: 'values'
+          backgroundColor: '#2E7D32'
+          borderColor: '#2E7D32'
+          fill: true
+          tension: 0.3
+          pointRadius: 0
+          borderWidth: 2
+          transformData: 'toPercentage'
+      labels_key: 'sizes'
+      options:
+        scales:
+          x:
+            type: 'logarithmic'
+            title:
+              display: true
+              text: 'Surface (ha)'
+            grid:
+              display: false
+          y:
+            title:
+              display: true
+              text: 'Fréquence (%)'
+            grid:
+              color: '#e5e5e5'
+              borderDash: [2, 2]
+            ticks:
+              callback: 'formatPercentage'
+            min: 0
+            max: 100
+            beginAtZero: true
+        plugins:
+          legend:
+            position: 'bottom'
+            labels:
+              usePointStyle: false
+              boxWidth: 15
+              padding: 20

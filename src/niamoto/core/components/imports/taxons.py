@@ -33,6 +33,7 @@ class TaxonomyImporter:
 
     Attributes:
         db (Database): The database connection.
+        db_path (str): The path to the database.
     """
 
     def __init__(self, db: Database):
@@ -43,23 +44,24 @@ class TaxonomyImporter:
             db (Database): The database connection.
         """
         self.db = db
+        self.db_path = db.db_path
 
     @error_handler(log=True, raise_error=True)
     def import_from_csv(self, file_path: str, ranks: Tuple[str, ...]) -> str:
         """
-        Import taxonomy data from CSV.
+        Import taxonomy from a CSV file.
 
         Args:
-            file_path: Path to CSV file
-            ranks: Taxonomy ranks to import
+            file_path (str): Path to the CSV file.
+            ranks (Tuple[str, ...]): Taxonomy ranks to process.
 
         Returns:
-            Success message with import count
+            str: Success message.
 
         Raises:
-            FileReadError: If file cannot be read
-            DataValidationError: If data is invalid
-            TaxonomyImportError: If import fails
+            FileReadError: If file cannot be read.
+            ValidationError: If data is invalid.
+            ProcessError: If processing fails.
         """
         try:
             # Validate file exists
@@ -71,23 +73,14 @@ class TaxonomyImporter:
             try:
                 df = pd.read_csv(file_path)
             except Exception as e:
-                raise FileReadError(file_path, f"Failed to read CSV file: {str(e)}")
-
-            # Validate required columns
-            required_cols = {"id_taxon", "full_name", "authors", "rank_name"}
-            missing_cols = required_cols - set(df.columns)
-            if missing_cols:
-                raise DataValidationError(
-                    "Missing required columns",
-                    [{"field": col, "error": "Column missing"} for col in missing_cols],
-                )
+                raise FileReadError(file_path, f"Failed to read CSV: {str(e)}")
 
             # Prepare and process data
             df = self._prepare_dataframe(df, ranks)
-            imported_count = self._process_dataframe(df, ranks)
+            count = self._process_dataframe(df, ranks)
 
-            return f"{imported_count} taxons imported from {file_path}."
-
+            # Return success message with just the filename, not the full path
+            return f"{count} taxons imported from {Path(file_path).name}."
         except Exception as e:
             if isinstance(e, (FileReadError, DataValidationError)):
                 raise

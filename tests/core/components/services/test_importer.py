@@ -2,16 +2,26 @@ import unittest
 from unittest.mock import Mock, patch
 from niamoto.core.services.importer import ImporterService
 import os
+from tests.common.base_test import NiamotoTestCase
 
 
-class TestImporterService(unittest.TestCase):
+class TestImporterService(NiamotoTestCase):
     def setUp(self):
         # Create a mock database and set up the ImporterService
         self.mock_db = Mock()
         with patch(
-            "niamoto.core.services.importer.Database", return_value=self.mock_db
+            "niamoto.core.services.importer.Database",
+            return_value=self.mock_db,
+            autospec=True,
         ):
             self.importer_service = ImporterService("mock_db_path")
+
+    def tearDown(self):
+        """Clean up test fixtures and stop all patches."""
+        from unittest import mock
+
+        # Stop all active patches to prevent MagicMock leaks
+        mock.patch.stopall()
 
     def test_init(self):
         # Test the initialization of ImporterService

@@ -48,6 +48,7 @@ class ShapeImporter:
             db (Database): The database connection.
         """
         self.db = db
+        self.db_path = db.db_path
 
     @error_handler(log=True, raise_error=True)
     def import_from_config(self, shapes_config: List[Dict[str, Any]]) -> str:
@@ -391,19 +392,11 @@ class ShapeImporter:
                 f"Database error for shape {label}", details={"error": str(e)}
             )
 
-    @staticmethod
-    def _format_result_message(stats: Dict[str, Any]) -> str:
-        """Format import results message."""
-        total = stats["added"] + stats["updated"]
-        msg = f"{total} shapes imported ("
-        msg += f"{stats['added']} new, {stats['updated']} updated)"
-
-        if stats["skipped"] > 0:
-            msg += f", {stats['skipped']} skipped"
-
-        if stats["errors"]:
-            msg += "\nErrors encountered:\n"
-            msg += "\n".join(f"- {error}" for error in stats["errors"])
+    def _format_result_message(self, stats: Dict[str, Any]) -> str:
+        """Format import result message."""
+        filename = Path(self.db_path).name
+        msg = f"Shape import to {filename} completed: {stats['processed']} processed, "
+        msg += f"{stats['added']} added, {stats['updated']} updated"
         return msg
 
     @staticmethod

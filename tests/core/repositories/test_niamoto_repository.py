@@ -10,8 +10,8 @@ from niamoto.common.exceptions import DatabaseError, ValidationError, DataTransf
 
 
 # Test Model
-class TestTaxon(Base):
-    """Test taxon model."""
+class MockTaxon(Base):
+    """Mock taxon model for testing."""
 
     __tablename__ = "test_taxon"
 
@@ -60,31 +60,31 @@ def test_init_failure(mock_db):
 def test_get_entities_success(repository, mock_session):
     """Test successful entity retrieval."""
     # Setup mock
-    expected_entities = [TestTaxon(id=1), TestTaxon(id=2)]
+    expected_entities = [MockTaxon(id=1), MockTaxon(id=2)]
     mock_session.query.return_value.all.return_value = expected_entities
 
     # Execute
-    entities = repository.get_entities(TestTaxon)
+    entities = repository.get_entities(MockTaxon)
 
     # Verify
     assert entities == expected_entities
-    mock_session.query.assert_called_once_with(TestTaxon)
+    mock_session.query.assert_called_once_with(MockTaxon)
 
 
 def test_get_entities_with_order(repository, mock_session):
     """Test entity retrieval with ordering."""
     # Setup mock
-    expected_entities = [TestTaxon(id=1), TestTaxon(id=2)]
+    expected_entities = [MockTaxon(id=1), MockTaxon(id=2)]
     mock_query = mock_session.query.return_value
     mock_query.order_by.return_value.all.return_value = expected_entities
 
     # Execute
-    order_by = TestTaxon.id
-    entities = repository.get_entities(TestTaxon, order_by=order_by)
+    order_by = MockTaxon.id
+    entities = repository.get_entities(MockTaxon, order_by=order_by)
 
     # Verify
     assert entities == expected_entities
-    mock_session.query.assert_called_once_with(TestTaxon)
+    mock_session.query.assert_called_once_with(MockTaxon)
     mock_query.order_by.assert_called_once_with(order_by)
 
 
@@ -104,7 +104,7 @@ def test_get_entities_database_error(repository, mock_session):
     mock_session.query.side_effect = Exception("Database error")
 
     with pytest.raises(DatabaseError) as exc_info:
-        repository.get_entities(TestTaxon)
+        repository.get_entities(MockTaxon)
     assert "Failed to retrieve entities" in str(exc_info.value)
 
 
@@ -112,9 +112,9 @@ def test_build_taxonomy_tree_success():
     """Test successful taxonomy tree building."""
     # Create test data
     taxons = [
-        TestTaxon(id=1, full_name="Family1", rank_name="Famille", parent_id=None),
-        TestTaxon(id=2, full_name="Genus1", rank_name="Genus", parent_id=1),
-        TestTaxon(id=3, full_name="Species1", rank_name="Species", parent_id=2),
+        MockTaxon(id=1, full_name="Family1", rank_name="Famille", parent_id=None),
+        MockTaxon(id=2, full_name="Genus1", rank_name="Genus", parent_id=1),
+        MockTaxon(id=3, full_name="Species1", rank_name="Species", parent_id=2),
     ]
 
     # Execute
@@ -133,8 +133,8 @@ def test_build_taxonomy_tree_no_roots():
     """Test taxonomy tree building with no root nodes."""
     # Create test data with no root nodes (all have parents)
     taxons = [
-        TestTaxon(id=1, full_name="Genus1", rank_name="Genus", parent_id=99),
-        TestTaxon(id=2, full_name="Species1", rank_name="Species", parent_id=1),
+        MockTaxon(id=1, full_name="Genus1", rank_name="Genus", parent_id=99),
+        MockTaxon(id=2, full_name="Species1", rank_name="Species", parent_id=1),
     ]
 
     with pytest.raises(DataTransformError) as exc_info:

@@ -1,19 +1,22 @@
 """Test module for the Environment class."""
 
 import os
-import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
+import shutil
+import tempfile
 
-from niamoto.common.config import Config
 from niamoto.common.environment import Environment
+from tests.common.base_test import NiamotoTestCase
 
 
-class TestEnvironment(unittest.TestCase):
+class TestEnvironment(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.test_dir = tempfile.mkdtemp()
-        self.mock_config = MagicMock(spec=Config)
+
+        # Create a mock with necessary attributes
+        self.mock_config = MagicMock()
         self.mock_config.database_path = os.path.join(self.test_dir, "db", "niamoto.db")
         self.mock_config.logs_path = os.path.join(self.test_dir, "logs")
         self.mock_config.data_sources = {
@@ -31,13 +34,16 @@ class TestEnvironment(unittest.TestCase):
 
     def tearDown(self):
         """Tear down test fixtures."""
-        import shutil
+        from unittest import mock
 
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
 
-    @patch("niamoto.common.environment.Database")
-    @patch("niamoto.common.environment.Base")
+        # Stop all active patches to prevent MagicMock leaks
+        mock.patch.stopall()
+
+    @patch("niamoto.common.environment.Database", autospec=True)
+    @patch("niamoto.common.environment.Base", autospec=True)
     def test_initialize(self, mock_base, mock_database):
         """Test environment initialization."""
         # Create the mock database
@@ -67,12 +73,12 @@ class TestEnvironment(unittest.TestCase):
         mock_database.assert_called_once_with(self.mock_config.database_path)
         mock_base.metadata.create_all.assert_called_once_with(mock_engine)
 
-    @patch("os.path.exists")
-    @patch("os.remove")
-    @patch("shutil.rmtree")
-    @patch("os.listdir")
-    @patch("os.path.isfile")
-    @patch("os.path.isdir")
+    @patch("os.path.exists", autospec=True)
+    @patch("os.remove", autospec=True)
+    @patch("shutil.rmtree", autospec=True)
+    @patch("os.listdir", autospec=True)
+    @patch("os.path.isfile", autospec=True)
+    @patch("os.path.isdir", autospec=True)
     def test_reset(
         self,
         mock_isdir,
@@ -112,7 +118,9 @@ class TestEnvironment(unittest.TestCase):
         mock_isdir.side_effect = isdir_side_effect
 
         # Call reset and verify behavior
-        with patch.object(self.environment, "initialize") as mock_initialize:
+        with patch.object(
+            self.environment, "initialize", autospec=True
+        ) as mock_initialize:
             self.environment.reset()
 
             # Verify that the existing database file has been removed
@@ -131,14 +139,22 @@ class TestEnvironment(unittest.TestCase):
             # Verify that the environment has been re-initialized
             mock_initialize.assert_called_once()
 
-    @patch("niamoto.common.environment.Database")
-    def test_initialization_with_empty_paths(self, mock_database):
+    @patch("niamoto.common.environment.Database", autospec=True)
+    @patch("niamoto.common.environment.Base", autospec=True)
+    def test_initialization_with_empty_paths(self, mock_base, mock_database):
         """Test environment initialization with empty paths."""
         self.mock_config.logs_path = ""
+        self.mock_config.database_path = "/tmp/test_db.sqlite"  # Concrete value
         self.mock_config.data_sources = {"empty_source": {"path": ""}}
         self.mock_config.get_export_config = {"empty_output": ""}
 
-        self.environment.initialize()
+        # Configure the mock database
+        mock_instance = mock_database.return_value
+        mock_instance.engine = MagicMock()
+
+        with patch("niamoto.common.environment.Config", return_value=self.mock_config):
+            self.environment = Environment(self.test_dir)
+            self.environment.initialize()
 
 
 if __name__ == "__main__":

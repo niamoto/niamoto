@@ -8,6 +8,7 @@ It defines the custom formatted CLI interface and shared command functionality.
 import click
 from rich.console import Console
 from rich.table import Table
+from rich.style import Style
 from rich import box
 from typing import List
 import tomllib
@@ -18,10 +19,23 @@ from niamoto.common.exceptions import VersionError, CommandError
 from niamoto.common.utils import error_handler
 
 # ASCII art banner for CLI
+# NIAMOTO_ASCII_ART = """
+#     /\\
+#    /  \\    /\\
+#   /    \\  /  \\  /\\  /\\
+#  /      \\/    \\/  \\/  \\
+# ┳┓┳┏┓┳┳┓┏┓┏┳┓┏┓  forest
+# ┃┃┃┣┫┃┃┃┃┃ ┃ ┃┃  ecology
+# ┛┗┻┛┗┛ ┗┗┛ ┻ ┗┛  data
+# """
+
 NIAMOTO_ASCII_ART = """
-┳┓┳┏┓┳┳┓┏┓┏┳┓┏┓
-┃┃┃┣┫┃┃┃┃┃ ┃ ┃┃
-┛┗┻┛┗┛ ┗┗┛ ┻ ┗┛
+ ██╗   ██╗██╗ █████╗ ███╗   ███╗ ██████╗ ████████╗ ██████╗
+ ███╗  ██║██║██╔══██╗████╗ ████║██╔═══██╗╚══██╔══╝██╔═══██╗
+ ████╗ ██║██║███████║██╔████╔██║██║   ██║   ██║   ██║   ██║
+ ██╔██╗██║██║██╔══██║██║╚██╔╝██║██║   ██║   ██║   ██║   ██║
+ ██║╚████║██║██║  ██║██║ ╚═╝ ██║╚██████╔╝   ██║   ╚██████╔╝
+ ╚═╝ ╚═══╝╚═╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝    ╚═╝    ╚═════╝
 """
 
 
@@ -100,7 +114,8 @@ class RichCLI(click.Group):
         """
         console = Console()
         # Imprimez directement dans la console pour conserver les couleurs
-        console.print("[green]" + NIAMOTO_ASCII_ART + "[/green]")
+        niamoto_style = Style(color="#5ba250")
+        console.print(NIAMOTO_ASCII_ART, style=niamoto_style)
         console.print(
             f"\n[bold]Niamoto CLI, version {VERSION}[/bold]\n"
             "\n[bold yellow]Usage:[/bold yellow] niamoto [OPTIONS] COMMAND [ARGS]...\n\n"

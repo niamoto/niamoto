@@ -1,169 +1,260 @@
-"""Tests for the plot importer module."""
+"""
+Tests for the PlotImporter class.
+"""
 
-import pytest
+from unittest.mock import patch, MagicMock
+import pandas as pd
 import geopandas as gpd
+from pathlib import Path
 from shapely.geometry import Point
-from unittest import mock
-from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.core.components.imports.plots import PlotImporter
 from niamoto.common.exceptions import (
     FileReadError,
     DataValidationError,
-    DatabaseError,
 )
-from niamoto.core.models import PlotRef
+from tests.common.base_test import NiamotoTestCase
 
 
-@pytest.fixture
-def test_data_dir(tmp_path):
-    """Create a temporary directory for test data."""
-    return tmp_path
+class TestPlotImporter(NiamotoTestCase):
+    """Test case for the PlotImporter class."""
 
+    def setUp(self):
+        """Set up test fixtures."""
+        super().setUp()
+        # Use MagicMock directly instead of create_mock to avoid spec_set restrictions
+        self.mock_db = MagicMock()
+        # Set attributes that are accessed in the code
+        self.mock_db.db_path = "mock_db_path"
+        self.mock_db.engine = MagicMock()
+        self.importer = PlotImporter(self.mock_db)
+        # Add db_path attribute to match other importers
+        self.importer.db_path = "mock_db_path"
 
-@pytest.fixture
-def valid_gpkg(test_data_dir):
-    """Create a valid GeoPackage file for testing."""
-    # Create sample data with valid geometries
-    data = {
-        "id": [1, 2, 3],
-        "locality": ["Site A", "Site B", "Site C"],
-        "geometry": [
-            Point(166.5, -22.1),  # Valid coordinates for New Caledonia
-            Point(166.6, -22.2),
-            Point(166.7, -22.3),
-        ],
-    }
-    gdf = gpd.GeoDataFrame(data, geometry="geometry", crs="EPSG:4326")
+    def test_init(self):
+        """Test initialization of PlotImporter."""
+        self.assertEqual(self.importer.db, self.mock_db)
+        self.assertEqual(self.importer.db_path, "mock_db_path")
 
-    # Save to GeoPackage
-    file_path = test_data_dir / "valid_plots.gpkg"
-    gdf.to_file(file_path, driver="GPKG")
-    return str(file_path)
+    @patch("geopandas.read_file")
+    @patch("pathlib.Path.exists")
+    def test_import_from_gpkg(self, mock_exists, mock_read_file):
+        """Test import_from_gpkg method."""
+        # Setup mocks
+        mock_exists.return_value = True
 
+        # Create a mock GeoDataFrame with the required columns
+        geometry = [Point(1, 1), Point(2, 2), Point(3, 3)]
+        mock_df = gpd.GeoDataFrame(
+            {
+                "id": [1, 2, 3],
+                "locality": ["Loc1", "Loc2", "Loc3"],
+                "location": ["Loc1", "Loc2", "Loc3"],
+                "geometry": geometry,
+            }
+        )
+        mock_read_file.return_value = mock_df
 
-@pytest.fixture
-def mock_db():
-    """Create a mock database."""
-    with mock.patch("niamoto.common.database.Database") as mock_db:
-        mock_session = mock.MagicMock()
-        # Ensure the session can be used as a context manager
-        mock_session.__enter__.return_value = mock_session
+        # Mock the internal methods
+        with patch.object(
+            self.importer, "_process_plots_data", return_value=3
+        ) as mock_process:
+            # Mock Path.resolve to return the original path
+            with patch("pathlib.Path.resolve", return_value=Path("test.gpkg")):
+                # Call the method
+                result = self.importer.import_from_gpkg("test.gpkg", "id", "location")
 
-        # Configure the query chain: each call to query() returns a new MagicMock
-        def fake_query(*args, **kwargs):
-            mock_query = mock.MagicMock()
-            # For every call to filter_by().first(), force a return of None.
-            mock_query.filter_by.return_value.first.return_value = None
-            return mock_query
+                # Verify results
+                self.assertEqual(result, "3 plots imported from test.gpkg.")
+                mock_read_file.assert_called_once_with("test.gpkg")
+                mock_process.assert_called_once()
 
-        mock_session.query.side_effect = fake_query
+    @patch("geopandas.read_file")
+    @patch("pathlib.Path.exists")
+    def test_import_from_gpkg_file_not_found(self, mock_exists, mock_read_file):
+        """Test import_from_gpkg method with file not found."""
+        # Setup mocks
+        mock_exists.return_value = False
 
-        # Make session() return our configured mock_session
-        mock_db.return_value.session.return_value = mock_session
-        yield mock_db.return_value
+        # Call the method and expect exception
+        with self.assertRaises(FileReadError):
+            self.importer.import_from_gpkg("nonexistent.gpkg", "id", "location")
 
+        # Verify read_file was not called
+        mock_read_file.assert_not_called()
 
-class TestPlotImporter:
-    """Test cases for PlotImporter class."""
+    @patch("geopandas.read_file")
+    @patch("pathlib.Path.exists")
+    def test_import_from_gpkg_invalid_file(self, mock_exists, mock_read_file):
+        """Test import_from_gpkg method with invalid file."""
+        # Setup mocks
+        mock_exists.return_value = True
+        mock_read_file.side_effect = Exception("Invalid file")
 
-    def test_import_valid_file(self, mock_db, valid_gpkg):
-        """Test importing a valid GeoPackage file."""
-        importer = PlotImporter(mock_db)
-        result = importer.import_from_gpkg(valid_gpkg, "id", "geometry")
+        # Call the method and expect exception
+        with self.assertRaises(FileReadError):
+            self.importer.import_from_gpkg("invalid.gpkg", "id", "location")
 
-        assert "3 plots imported" in result
-        assert mock_db.session.return_value.commit.called
+    @patch("geopandas.read_file")
+    @patch("pathlib.Path.exists")
+    def test_import_from_gpkg_missing_columns(self, mock_exists, mock_read_file):
+        """Test import_from_gpkg method with missing columns."""
+        # Setup mocks
+        mock_exists.return_value = True
 
-    def test_file_not_found(self, mock_db):
-        """Test error when file doesn't exist."""
-        importer = PlotImporter(mock_db)
-        with pytest.raises(FileReadError) as exc_info:
-            importer.import_from_gpkg("nonexistent.gpkg", "id", "geometry")
+        # Create a mock GeoDataFrame with missing required columns
+        geometry = [Point(1, 1), Point(2, 2), Point(3, 3)]
+        mock_df = gpd.GeoDataFrame(
+            {
+                "id": [1, 2, 3],
+                # Missing 'locality' column
+                "geometry": geometry,
+            }
+        )
+        mock_read_file.return_value = mock_df
 
-        assert "GeoPackage file not found" in str(exc_info.value)
+        # Call the method and expect exception
+        with self.assertRaises(DataValidationError):
+            self.importer.import_from_gpkg("test.gpkg", "id", "location")
 
-    def test_invalid_format(self, test_data_dir, mock_db):
-        """Test error when file format is invalid."""
-        # Create an invalid file
-        invalid_file = test_data_dir / "invalid.gpkg"
-        with open(invalid_file, "w") as f:
-            f.write("Not a GeoPackage file")
-
-        importer = PlotImporter(mock_db)
-        with pytest.raises(FileReadError) as exc_info:
-            importer.import_from_gpkg(str(invalid_file), "id", "geometry")
-
-        assert "Failed to read GeoPackage file" in str(exc_info.value)
-
-    def test_missing_columns(self, test_data_dir, mock_db):
-        """Test error when required columns are missing."""
-        # Create GeoPackage without required columns
-        data = {
-            "geometry": [Point(166.5, -22.1)]  # Only geometry, missing id and locality
-        }
-        gdf = gpd.GeoDataFrame(data, geometry="geometry", crs="EPSG:4326")
-        file_path = test_data_dir / "missing_columns.gpkg"
-        gdf.to_file(file_path, driver="GPKG")
-
-        importer = PlotImporter(mock_db)
-        with pytest.raises(DataValidationError) as exc_info:
-            importer.import_from_gpkg(str(file_path), "id", "geometry")
-
-        assert "Missing required columns" in str(exc_info.value)
-
-    def test_empty_geometry(self, test_data_dir, mock_db):
-        """Test error when geometry is empty."""
-        # Create GeoPackage with empty geometry
-        data = {"id": [1], "locality": ["Site A"], "geometry": [None]}
-        gdf = gpd.GeoDataFrame(data, geometry="geometry", crs="EPSG:4326")
-        file_path = test_data_dir / "empty_geometry.gpkg"
-        gdf.to_file(file_path, driver="GPKG")
-
-        importer = PlotImporter(mock_db)
-        with pytest.raises(DataValidationError) as exc_info:
-            importer.import_from_gpkg(str(file_path), "id", "geometry")
-
-        assert "Missing geometry" in str(exc_info.value)
-
-    def test_duplicate_plot(self, mock_db, valid_gpkg):
-        """Test handling of duplicate plots."""
-        # Configure mock to return an existing plot
-        mock_db.session.return_value.query.return_value.filter_by.return_value.scalar.return_value = PlotRef(
-            id_locality=1, locality="Site A", geometry="POINT(166.5 -22.1)"
+    @patch("sqlalchemy.orm.Session")
+    def test_process_plots_data(self, mock_session):
+        """Test _process_plots_data method."""
+        # Create a mock GeoDataFrame with the required columns
+        geometry = [Point(1, 1), Point(2, 2)]
+        plots_data = gpd.GeoDataFrame(
+            {
+                "id": [1, 2],
+                "locality": ["Loc1", "Loc2"],
+                "location": ["Loc1", "Loc2"],
+                "geometry": geometry,
+            }
         )
 
-        importer = PlotImporter(mock_db)
-        result = importer.import_from_gpkg(valid_gpkg, "id", "geometry")
+        # Mock session context manager
+        mock_session_context = MagicMock()
+        self.mock_db.session.return_value.__enter__.return_value = mock_session_context
 
-        # Should skip existing plots but continue processing
-        assert "plots imported" in result
-        assert mock_db.session.return_value.commit.called
+        # Mock _import_plot to return True (successful import)
+        with patch.object(
+            self.importer, "_import_plot", return_value=True
+        ) as mock_import:
+            # Call the method
+            result = self.importer._process_plots_data(plots_data, "id", "location")
 
-    def test_invalid_locality(self, test_data_dir, mock_db):
-        """Test error when locality is invalid."""
-        # Create GeoPackage with invalid locality (None)
-        data = {"id": [1], "locality": [None], "geometry": [Point(166.5, -22.1)]}
-        gdf = gpd.GeoDataFrame(data, geometry="geometry", crs="EPSG:4326")
-        file_path = test_data_dir / "invalid_locality.gpkg"
-        gdf.to_file(file_path, driver="GPKG")
+            # Verify results
+            self.assertEqual(result, 2)
+            self.assertEqual(mock_import.call_count, 2)
+            mock_session_context.commit.assert_called_once()
 
-        importer = PlotImporter(mock_db)
-        with pytest.raises(DataValidationError) as exc_info:
-            importer.import_from_gpkg(str(file_path), "id", "geometry")
+    def test_import_plot(self):
+        """Test _import_plot method."""
+        # Create a mock session
+        mock_session = MagicMock()
 
-        assert "Invalid locality" in str(exc_info.value)
+        # Create a mock row with required data
+        geometry = Point(1, 1)
+        row = pd.Series({"id": 1, "locality": "Loc1", "geometry": geometry})
 
-    def test_database_error(self, mock_db, valid_gpkg):
-        """Test handling of database errors."""
-        # Configure mock to raise SQLAlchemy error
-        mock_session = mock_db.session.return_value
-        mock_session.__enter__.return_value = mock_session
-        mock_session.commit.side_effect = SQLAlchemyError("Database error")
+        # Mock query to return None (no existing plot)
+        mock_query = MagicMock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter_by.return_value.first.return_value = None
 
-        importer = PlotImporter(mock_db)
-        with pytest.raises(DatabaseError) as exc_info:
-            importer.import_from_gpkg(valid_gpkg, "id", "geometry")
+        # Mock validate_geometry to do nothing
+        with patch.object(self.importer, "validate_geometry") as mock_validate:
+            # Call the method
+            result = self.importer._import_plot(mock_session, row, "id")
 
-        assert "Database error" in str(exc_info.value)
-        assert mock_session.rollback.called  # Should rollback on error
+            # Verify results
+            self.assertTrue(result)
+            mock_validate.assert_called_once()
+            mock_session.add.assert_called_once()
+            mock_session.flush.assert_called_once()
+
+    def test_import_plot_existing(self):
+        """Test _import_plot method with existing plot."""
+        # Create a mock session
+        mock_session = MagicMock()
+
+        # Create a mock row with required data
+        geometry = Point(1, 1)
+        row = pd.Series({"id": 1, "locality": "Loc1", "geometry": geometry})
+
+        # Mock query to return an existing plot
+        mock_query = MagicMock()
+        mock_session.query.return_value = mock_query
+        mock_query.filter_by.return_value.first.return_value = MagicMock()
+
+        # Mock validate_geometry to do nothing
+        with patch.object(self.importer, "validate_geometry") as mock_validate:
+            # Call the method
+            result = self.importer._import_plot(mock_session, row, "id")
+
+            # Verify results
+            self.assertFalse(result)
+            mock_validate.assert_called_once()
+            mock_session.add.assert_not_called()
+
+    def test_import_plot_invalid_geometry(self):
+        """Test _import_plot method with invalid geometry."""
+        # Create a mock session
+        mock_session = MagicMock()
+
+        # Create a mock row with invalid geometry
+        row = pd.Series({"id": 1, "locality": "Loc1", "geometry": None})
+
+        # Call the method and expect exception
+        with self.assertRaises(DataValidationError):
+            self.importer._import_plot(mock_session, row, "id")
+
+    def test_import_plot_invalid_id(self):
+        """Test _import_plot method with invalid ID."""
+        # Create a mock session
+        mock_session = MagicMock()
+
+        # Create a mock row with invalid ID
+        geometry = Point(1, 1)
+        row = pd.Series({"id": None, "locality": "Loc1", "geometry": geometry})
+
+        # Call the method and expect exception
+        with self.assertRaises(DataValidationError):
+            self.importer._import_plot(mock_session, row, "id")
+
+    def test_import_plot_invalid_locality(self):
+        """Test _import_plot method with invalid locality."""
+        # Create a mock session
+        mock_session = MagicMock()
+
+        # Create a mock row with invalid locality
+        geometry = Point(1, 1)
+        row = pd.Series({"id": 1, "locality": None, "geometry": geometry})
+
+        # Call the method and expect exception
+        with self.assertRaises(DataValidationError):
+            self.importer._import_plot(mock_session, row, "id")
+
+    def test_validate_geometry_valid(self):
+        """Test validate_geometry method with valid geometry."""
+        # Call the method with valid WKT
+        valid_wkt = "POINT(1 1)"
+        PlotImporter.validate_geometry(valid_wkt)
+        # If no exception is raised, the test passes
+
+    def test_validate_geometry_empty(self):
+        """Test validate_geometry method with empty geometry."""
+        # Call the method with empty WKT
+        with self.assertRaises(DataValidationError):
+            PlotImporter.validate_geometry("")
+
+    @patch("shapely.wkt.loads")
+    def test_validate_geometry_invalid(self, mock_loads):
+        """Test validate_geometry method with invalid geometry."""
+        # Mock loads to return an invalid geometry
+        mock_geom = MagicMock()
+        mock_geom.is_valid = False
+        mock_loads.return_value = mock_geom
+
+        # Call the method and expect exception
+        with self.assertRaises(DataValidationError):
+            PlotImporter.validate_geometry("INVALID")

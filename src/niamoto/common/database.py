@@ -5,7 +5,7 @@ The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
 
-from typing import TypeVar, Any, Optional, List
+from typing import TypeVar, Any, Optional, List, Dict
 
 from sqlalchemy import create_engine, exc, text, inspect
 from sqlalchemy.orm import scoped_session, sessionmaker, Query, Session
@@ -142,12 +142,15 @@ class Database:
             )
 
     @error_handler(log=True, raise_error=True)
-    def execute_sql(self, sql: str, fetch: bool = False) -> Optional[Any]:
+    def execute_sql(
+        self, sql: str, params: Dict[str, Any] = None, fetch: bool = False
+    ) -> Optional[Any]:
         """
         Execute a raw SQL query using the database engine.
 
         Args:
             sql (str): A string containing the SQL query to be executed.
+            params (Dict[str, Any], optional): Parameters to bind to the query.
             fetch (bool): Whether to fetch one row from the result set if the query returns data.
 
         Returns:
@@ -155,7 +158,7 @@ class Database:
         """
         try:
             with self.engine.connect() as connection:
-                result = connection.execute(text(sql))
+                result = connection.execute(text(sql), params or {})
                 if fetch:
                     return result.fetchone() if fetch else result.fetchall()
                 connection.commit()
@@ -164,7 +167,7 @@ class Database:
             raise DatabaseQueryError(
                 query=sql,
                 message="SQL execution failed",
-                details={"fetch": fetch, "error": str(e)},
+                details={"fetch": fetch, "params": params, "error": str(e)},
             )
 
     def commit_session(self) -> None:
