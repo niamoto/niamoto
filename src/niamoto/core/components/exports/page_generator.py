@@ -113,16 +113,21 @@ class PageGenerator(BaseGenerator):
             TemplateError: If template processing fails
             OutputError: If file generation fails
         """
-        context = context or {}
-        context["depth"] = depth
-        output_path = self.output_dir / output_name
+        # Create new context to avoid modifying the original
+        template_context = context.copy() if context else {}
+
+        # Add depth to context
+        template_context["depth"] = depth
 
         try:
             # Render template
             template = self.template_env.get_template(template_name)
-            html_output = template.render(context)
+            html_output = template.render(
+                **template_context
+            )  # Use ** to unpack the dictionary
 
             # Write output
+            output_path = self.output_dir / output_name
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(html_output, encoding="utf-8")
 
@@ -178,7 +183,17 @@ class PageGenerator(BaseGenerator):
         """
         try:
             item_dict = to_dict_method(item, stats)
+
+            # Get base context
+            base_context = {}
+            if hasattr(self, "get_first_ids"):
+                base_context["first_ids"] = self.get_first_ids()
+
+            # Add page specific context
             context = {page_type: item_dict, "stats": stats, "mapping": mapping_group}
+
+            # Merge contexts
+            context.update(base_context)
 
             output_path = self.generate_page(
                 template_name=f"{page_type}_template.html",
@@ -634,3 +649,36 @@ class PageGenerator(BaseGenerator):
             },
             "geometry": mapping(gdf_wgs.geometry.iloc[0]),
         }
+
+    def get_first_ids(self):
+        """Get first available ID for each type.
+
+        Returns:
+            dict: A dictionary with first available ID for each type (taxon, plot, shape)
+        """
+        session = self.db.session()
+
+        try:
+            first_ids = {"taxon": None, "plot": None, "shape": None}
+
+            # Get taxon ID
+            first_taxon = session.query(TaxonRef).order_by(TaxonRef.id).first()
+            if first_taxon is not None:
+                first_ids["taxon"] = int(first_taxon.id)  # Ensure it's a plain integer
+
+            # Get plot ID
+            first_plot = session.query(PlotRef).order_by(PlotRef.id).first()
+            if first_plot is not None:
+                first_ids["plot"] = int(first_plot.id)  # Ensure it's a plain integer
+
+            # Get shape ID
+            first_shape = session.query(ShapeRef).order_by(ShapeRef.id).first()
+            if first_shape is not None:
+                first_ids["shape"] = int(first_shape.id)  # Ensure it's a plain integer
+
+            return first_ids
+
+        except Exception as e:
+            raise DatabaseError("Failed to get first IDs", details={"error": str(e)})
+        finally:
+            session.close()

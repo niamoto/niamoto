@@ -10,17 +10,19 @@ import os
 from niamoto.common.config import Config
 from niamoto.common.exceptions import DataLoadError
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register, PluginConfig
+from pydantic import ConfigDict
 
 
 class StatsLoaderConfig(PluginConfig):
     """Configuration for statistics loader plugin."""
 
+    model_config = ConfigDict(
+        title="Statistics Loader Configuration",
+        description="Configuration for loading statistics from various sources",
+    )
+
     plugin: Literal["stats_loader"]
     key: str = "id"
-
-    class Config:
-        title = "Statistics Loader Configuration"
-        description = "Configuration for loading statistics from various sources"
 
 
 @register("stats_loader", PluginType.LOADER)

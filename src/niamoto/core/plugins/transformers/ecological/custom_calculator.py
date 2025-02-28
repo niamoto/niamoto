@@ -792,55 +792,392 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
+    def _array_division(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Divide two arrays element-wise.
+
+        Args:
+            params: Parameters with:
+                - numerator: Numerator array
+                - denominator: Denominator array
+                - scale_factor: Optional scale factor
+                - default_value: Value to use when denominator is zero (default: 0)
+
+        Returns:
+            Result of the division
+        """
+        try:
+            # Get the arrays
+            numerator = np.array(params["numerator"], dtype=float)
+            denominator = np.array(params["denominator"], dtype=float)
+
+            # Check dimensions
+            if numerator.shape != denominator.shape:
+                raise DataTransformError(
+                    "Arrays must have the same dimensions",
+                    details={
+                        "numerator_shape": numerator.shape,
+                        "denominator_shape": denominator.shape,
+                    },
+                )
+
+            # Get the scale factor if specified
+            scale_factor = float(params.get("scale_factor", 1.0))
+            default_value = float(params.get("default_value", 0.0))
+
+            # Perform the division with handling for division by zero
+            with np.errstate(divide="ignore", invalid="ignore"):
+                result = np.divide(numerator, denominator)
+                result = np.where(np.isfinite(result), result, default_value)
+
+            # Apply the scale factor
+            result = result * scale_factor
+
+            return {
+                "value": result.tolist(),
+                "mean": float(np.mean(result)),
+                "min": float(np.min(result)),
+                "max": float(np.max(result)),
+                "sum": float(np.sum(result)),
+            }
+
+        except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
+            raise DataTransformError(
+                f"Error during array division: {str(e)}",
+                details={"params": params},
+            )
+
+    def _biomass_by_strata(
+        self, params: Dict[str, Any], data: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """
+        Calculates biomass distribution by forest strata.
+
+        Args:
+            params: Parameters with:
+                - height_column: Column containing tree heights
+                - dbh_column: Column containing tree diameters
+                - strata_bounds: List of height boundaries for strata
+                - strata_names: Optional names for the strata
+                - wood_density: Wood density value or column name
+            data: Input DataFrame with tree data
+
+        Returns:
+            Biomass by strata and distribution statistics
+        """
+        try:
+            # Get the columns
+            height_column = params["height_column"]
+            dbh_column = params["dbh_column"]
+
+            # Check if columns exist
+            if height_column not in data.columns:
+                raise DataTransformError(
+                    f"Height column '{height_column}' not found in data",
+                    details={"available_columns": list(data.columns)},
+                )
+            if dbh_column not in data.columns:
+                raise DataTransformError(
+                    f"DBH column '{dbh_column}' not found in data",
+                    details={"available_columns": list(data.columns)},
+                )
+
+            # Get strata boundaries and names
+            strata_bounds = params["strata_bounds"]
+            if not isinstance(strata_bounds, list) or len(strata_bounds) < 2:
+                raise DataTransformError(
+                    "Strata bounds must be a list with at least 2 elements",
+                    details={"strata_bounds": strata_bounds},
+                )
+
+            # Get strata names (optional)
+            strata_names = params.get("strata_names", None)
+            if strata_names is None:
+                # Generate default names: S1, S2, etc.
+                strata_names = [f"S{i + 1}" for i in range(len(strata_bounds) - 1)]
+            elif len(strata_names) != len(strata_bounds) - 1:
+                raise DataTransformError(
+                    "Number of strata names must match number of strata",
+                    details={
+                        "strata_names_count": len(strata_names),
+                        "strata_count": len(strata_bounds) - 1,
+                    },
+                )
+
+            # Get wood density
+            wood_density_param = params.get("wood_density", 0.6)  # Default value
+            if (
+                isinstance(wood_density_param, str)
+                and wood_density_param in data.columns
+            ):
+                wood_density = data[wood_density_param]
+            else:
+                wood_density = float(wood_density_param)
+
+            # Extract height and dbh data
+            heights = data[height_column].values
+            dbhs = data[dbh_column].values
+
+            # Calculate biomass using a simplified allometric equation
+            # Biomass = π * (DBH/2)^2 * Height * WoodDensity
+            if isinstance(wood_density, float):
+                biomass = np.pi * (dbhs / 200) ** 2 * heights * wood_density
+            else:
+                biomass = np.pi * (dbhs / 200) ** 2 * heights * wood_density.values
+
+            # Classify trees into strata based on height
+            strata_indices = np.digitize(heights, strata_bounds) - 1
+            strata_indices = np.clip(strata_indices, 0, len(strata_names) - 1)
+
+            # Calculate biomass by strata
+            strata_biomass = {}
+            total_biomass = np.sum(biomass)
+
+            for i, name in enumerate(strata_names):
+                mask = strata_indices == i
+                strata_biomass[name] = float(np.sum(biomass[mask]))
+
+            # Calculate percentages
+            strata_percentages = {
+                name: (value / total_biomass * 100 if total_biomass > 0 else 0)
+                for name, value in strata_biomass.items()
+            }
+
+            # Determine dominant strata (highest biomass)
+            dominant_strata = (
+                max(strata_biomass.items(), key=lambda x: x[1])[0]
+                if strata_biomass
+                else None
+            )
+
+            return {
+                "value": strata_biomass,
+                "total_biomass": float(total_biomass),
+                "percentages": strata_percentages,
+                "dominant_strata": dominant_strata,
+                "strata_bounds": strata_bounds,
+                "strata_names": strata_names,
+            }
+
+        except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
+            raise DataTransformError(
+                f"Error during biomass by strata calculation: {str(e)}",
+                details={"params": params},
+            )
+
+    def _peak_detection(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Detects peaks in a time series.
+
+        Args:
+            params: Parameters with:
+                - time_series: Array of time series values or dictionary of named time series
+                - threshold: Detection threshold (default: mean + std)
+                - min_distance: Minimum distance between peaks
+                - prominence: Minimum prominence of peaks
+
+        Returns:
+            Detected peaks and their properties
+        """
+        try:
+            # Get the time series
+            time_series_data = params["time_series"]
+
+            # Get detection parameters
+            threshold = params.get("threshold", None)
+            min_distance = int(params.get("min_distance", 1))
+            prominence = float(params.get("prominence", 0.0))
+
+            # Check if time_series is a dictionary or a single array
+            if isinstance(time_series_data, dict):
+                # Process each time series separately
+                results = {}
+                for key, series in time_series_data.items():
+                    results[key] = self._process_single_time_series(
+                        np.array(series, dtype=float),
+                        threshold,
+                        min_distance,
+                        prominence,
+                    )
+                return results
+            else:
+                # Process a single time series
+                time_series = np.array(time_series_data, dtype=float)
+                return self._process_single_time_series(
+                    time_series, threshold, min_distance, prominence
+                )
+
+        except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
+            raise DataTransformError(
+                f"Error during peak detection: {str(e)}",
+                details={"params": params},
+            )
+
+    def _process_single_time_series(
+        self, time_series, threshold, min_distance, prominence
+    ):
+        """
+        Process a single time series for peak detection.
+
+        Args:
+            time_series: NumPy array of time series values
+            threshold: Detection threshold or None for automatic
+            min_distance: Minimum distance between peaks
+            prominence: Minimum prominence of peaks
+
+        Returns:
+            Dictionary with peak detection results
+        """
+        # Calculate default threshold if not provided
+        if threshold is None:
+            threshold = np.mean(time_series) + np.std(time_series)
+        else:
+            threshold = float(threshold)
+
+        # Find peaks
+        peaks = []
+        peak_heights = []
+
+        # Simple peak detection algorithm
+        for i in range(1, len(time_series) - 1):
+            # Check if the point is higher than its neighbors
+            if (
+                time_series[i] > time_series[i - 1]
+                and time_series[i] > time_series[i + 1]
+                and time_series[i] >= threshold
+            ):
+                # Check if it's far enough from previously detected peaks
+                if not peaks or i - peaks[-1] >= min_distance:
+                    # Check prominence
+                    left_min = (
+                        np.min(time_series[max(0, i - min_distance) : i])
+                        if i > 0
+                        else time_series[0]
+                    )
+                    right_min = (
+                        np.min(
+                            time_series[
+                                i + 1 : min(len(time_series), i + min_distance + 1)
+                            ]
+                        )
+                        if i < len(time_series) - 1
+                        else time_series[-1]
+                    )
+                    peak_prominence = time_series[i] - max(left_min, right_min)
+
+                    if peak_prominence >= prominence:
+                        peaks.append(i)
+                        peak_heights.append(float(time_series[i]))
+
+        return {
+            "value": peaks,
+            "count": len(peaks),
+            "heights": peak_heights,
+            "threshold": float(threshold),
+            "mean": float(np.mean(time_series)),
+            "std": float(np.std(time_series)),
+            "min": float(np.min(time_series)),
+            "max": float(np.max(time_series)),
+        }
+
+    def _active_periods(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Detect active periods in time series.
+
+        Args:
+            params: Parameters with:
+                - time_series: Dictionary of time series
+                - threshold: Detection threshold
+                - min_duration: Minimum duration of an active period
+                - labels: Month labels
+
+        Returns:
+            Active periods for each time series
+        """
+        try:
             # Get the time series
             time_series = params["time_series"]
+            if not isinstance(time_series, dict):
+                raise DataTransformError(
+                    "Time series must be a dictionary",
+                    details={"time_series": time_series},
+                )
 
-            # Detection threshold
-            threshold = params.get("threshold", 0.0)
+            # Get parameters
+            threshold = float(params.get("threshold", 0.0))
+            min_duration = int(params.get("min_duration", 1))
+            labels = params.get("labels", None)
 
-            # Minimum duration of an active period
-            min_duration = params.get("min_duration", 1)
+            # Generate default labels if not provided
+            if labels is None:
+                labels = [str(i + 1) for i in range(12)]  # Default to month numbers
 
-            # Month labels
-            labels = params.get("labels", [str(i) for i in range(1, 13)])
-
-            # Results
+            # Process each time series
             results = {}
 
-            # Process each series
-            for series_name, series_data in time_series.items():
-                array = np.array(series_data, dtype=float)
+            for name, values in time_series.items():
+                # Convert to numpy array
+                values = np.array(values, dtype=float)
 
-                # Detect active periods
+                # Find active periods (where values > threshold)
+                active_mask = values > threshold
+
+                # Find contiguous active periods
                 active_periods = []
-                start = None
-                for i in range(len(array)):
-                    if array[i] > threshold and start is None:
-                        start = i
-                    elif array[i] <= threshold and start is not None:
-                        if i - start >= min_duration:
-                            active_periods.append((start, i - 1))
-                        start = None
-                if start is not None and len(array) - start >= min_duration:
-                    active_periods.append((start, len(array) - 1))
+                current_start = None
 
-                # Format active periods with labels
+                for i, active in enumerate(active_mask):
+                    if active and current_start is None:
+                        # Start of a new active period
+                        current_start = i
+                    elif not active and current_start is not None:
+                        # End of an active period
+                        duration = i - current_start
+                        if duration >= min_duration:
+                            active_periods.append((current_start, i - 1, duration))
+                        current_start = None
+
+                # Check if there's an active period at the end
+                if current_start is not None:
+                    duration = len(values) - current_start
+                    if duration >= min_duration:
+                        active_periods.append(
+                            (current_start, len(values) - 1, duration)
+                        )
+
+                # Format the results
                 formatted_periods = []
-                for start, end in active_periods:
+                for start, end, duration in active_periods:
                     formatted_periods.append(
                         {
-                            "start": labels[start],
-                            "end": labels[end],
-                            "start_index": start,
-                            "end_index": end,
-                            "duration": end - start + 1,
+                            "start": int(start),
+                            "end": int(end),
+                            "duration": int(duration),
+                            "start_label": labels[start % len(labels)],
+                            "end_label": labels[end % len(labels)],
+                            "mean_value": float(np.mean(values[start : end + 1])),
+                            "max_value": float(np.max(values[start : end + 1])),
                         }
                     )
 
-                results[series_name] = formatted_periods
+                results[name] = {
+                    "periods": formatted_periods,
+                    "count": len(formatted_periods),
+                    "total_active_duration": sum(p[2] for p in active_periods),
+                    "activity_percentage": sum(active_mask) / len(values) * 100
+                    if len(values) > 0
+                    else 0,
+                }
 
             return {
-                "periods": results,
+                "value": results,
+                "series_count": len(results),
                 "threshold": threshold,
                 "min_duration": min_duration,
             }
@@ -849,6 +1186,224 @@ class CustomCalculator(TransformerPlugin):
             if isinstance(e, DataTransformError):
                 raise e
             raise DataTransformError(
-                f"Error during active period detection: {str(e)}",
+                f"Error during active periods detection: {str(e)}",
+                details={"params": params},
+            )
+
+    def _custom_formula(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Evaluates a custom mathematical formula with provided variables.
+
+        Args:
+            params: Parameters with:
+                - formula: Mathematical formula as string
+                - variables: Dictionary of variable values
+                - description: Optional description of the formula
+
+        Returns:
+            Result of the formula evaluation
+        """
+        try:
+            # Get the formula and variables
+            formula = params["formula"]
+            variables = params["variables"]
+            description = params.get("description", "Custom formula")
+
+            if not isinstance(formula, str):
+                raise DataTransformError(
+                    "Formula must be a string",
+                    details={"formula": formula},
+                )
+
+            if not isinstance(variables, dict):
+                raise DataTransformError(
+                    "Variables must be a dictionary",
+                    details={"variables": variables},
+                )
+
+            # Create a safe namespace for evaluation
+            # Only allow basic mathematical functions
+            safe_dict = {
+                "abs": abs,
+                "max": max,
+                "min": min,
+                "sum": sum,
+                "len": len,
+                "round": round,
+                "pow": pow,
+                "int": int,
+                "float": float,
+            }
+
+            # Add NumPy functions
+            safe_dict.update(
+                {
+                    "np": np,
+                    "sin": np.sin,
+                    "cos": np.cos,
+                    "tan": np.tan,
+                    "exp": np.exp,
+                    "log": np.log,
+                    "log10": np.log10,
+                    "sqrt": np.sqrt,
+                    "square": np.square,
+                    "mean": np.mean,
+                    "median": np.median,
+                    "std": np.std,
+                    "var": np.var,
+                    "pi": np.pi,
+                    "e": np.e,
+                }
+            )
+
+            # Add user variables
+            safe_dict.update(variables)
+
+            # Evaluate the formula
+            result = eval(formula, {"__builtins__": {}}, safe_dict)
+
+            # Convert result to a standard Python type if it's a NumPy type
+            if isinstance(result, np.ndarray):
+                if result.size == 1:
+                    result = result.item()  # Convert single-item array to scalar
+                else:
+                    result = result.tolist()  # Convert array to list
+            elif isinstance(result, np.number):
+                result = result.item()  # Convert NumPy scalar to Python scalar
+
+            return {
+                "value": result,
+                "formula": formula,
+                "description": description,
+                "variables": variables,
+            }
+
+        except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
+            raise DataTransformError(
+                f"Error during custom formula evaluation: {str(e)}",
+                details={
+                    "formula": params.get("formula"),
+                    "variables": params.get("variables"),
+                },
+            )
+
+    def _conformity_index(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculates a conformity index comparing observed values to reference values.
+
+        Args:
+            params: Parameters with:
+                - observed: Observed values (array or single value)
+                - reference: Reference values (array or single value)
+                - tolerance: Tolerance percentage (default: 10)
+                - method: Comparison method (absolute, relative, percentage)
+
+        Returns:
+            Conformity index and classification
+        """
+        try:
+            # Get observed and reference values
+            observed = params["observed"]
+            reference = params["reference"]
+
+            # Convert to numpy arrays if they're not already
+            if not isinstance(observed, (list, np.ndarray)):
+                observed = np.array([float(observed)])
+            else:
+                observed = np.array(observed, dtype=float)
+
+            if not isinstance(reference, (list, np.ndarray)):
+                reference = np.array([float(reference)])
+            else:
+                reference = np.array(reference, dtype=float)
+
+            # Check dimensions
+            if observed.shape != reference.shape:
+                raise DataTransformError(
+                    "Observed and reference values must have the same dimensions",
+                    details={
+                        "observed_shape": observed.shape,
+                        "reference_shape": reference.shape,
+                    },
+                )
+
+            # Get tolerance and method
+            tolerance = float(params.get("tolerance", 10.0))  # Default 10%
+            method = params.get("method", "relative")
+
+            # Calculate differences based on method
+            if method == "absolute":
+                differences = observed - reference
+                max_allowed_diff = tolerance
+                conformity = np.abs(differences) <= max_allowed_diff
+
+            elif method == "relative":
+                # Avoid division by zero
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    relative_diff = np.where(
+                        reference != 0, (observed - reference) / reference * 100, np.inf
+                    )
+                    relative_diff = np.where(
+                        np.isfinite(relative_diff), relative_diff, 0
+                    )
+
+                differences = relative_diff
+                max_allowed_diff = tolerance
+                conformity = np.abs(differences) <= max_allowed_diff
+
+            elif method == "percentage":
+                # Calculate percentage of reference
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    percentage = np.where(
+                        reference != 0, observed / reference * 100, np.inf
+                    )
+                    percentage = np.where(np.isfinite(percentage), percentage, 0)
+
+                differences = percentage - 100
+                max_allowed_diff = tolerance
+                conformity = np.abs(differences) <= max_allowed_diff
+
+            else:
+                raise DataTransformError(
+                    f"Unknown method: {method}",
+                    details={"valid_methods": ["absolute", "relative", "percentage"]},
+                )
+
+            # Calculate overall conformity
+            conformity_count = np.sum(conformity)
+            total_count = len(conformity)
+            conformity_percentage = (
+                (conformity_count / total_count * 100) if total_count > 0 else 0
+            )
+
+            # Determine conformity class
+            if conformity_percentage >= 90:
+                conformity_class = "Excellent"
+            elif conformity_percentage >= 75:
+                conformity_class = "Good"
+            elif conformity_percentage >= 50:
+                conformity_class = "Moderate"
+            elif conformity_percentage >= 25:
+                conformity_class = "Poor"
+            else:
+                conformity_class = "Very poor"
+
+            return {
+                "value": float(conformity_percentage),
+                "class": conformity_class,
+                "conforming_count": int(conformity_count),
+                "total_count": int(total_count),
+                "differences": differences.tolist(),
+                "method": method,
+                "tolerance": tolerance,
+            }
+
+        except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
+            raise DataTransformError(
+                f"Error during conformity index calculation: {str(e)}",
                 details={"params": params},
             )

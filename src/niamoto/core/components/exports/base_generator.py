@@ -7,7 +7,7 @@ from typing import Optional, Any, Dict
 
 from shapely import wkt
 from shapely.geometry import mapping
-from shapely.errors import WKTReadingError
+from shapely.errors import ShapelyError
 
 from niamoto.core.models import TaxonRef, PlotRef, ShapeRef
 from niamoto.common.utils import error_handler
@@ -111,7 +111,7 @@ class BaseGenerator:
                 try:
                     geom = wkt.loads(str(plot.geometry))
                     geometry_dict = mapping(geom)
-                except WKTReadingError as e:
+                except ShapelyError as e:
                     raise DataValidationError(
                         "Invalid geometry", [{"plot": plot.id, "error": str(e)}]
                     )

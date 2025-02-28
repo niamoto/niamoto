@@ -3,13 +3,31 @@ import sys
 import importlib
 import importlib.util
 import logging
+import os
+import inspect
 from pathlib import Path
-from typing import Set, Dict, Any
+from typing import Set, Dict, Any, List
 from .base import PluginType
 from .exceptions import PluginLoadError
 from .registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def is_plugin_class(obj):
+    """
+    Check if an object is a plugin class.
+
+    Args:
+        obj: Object to check
+
+    Returns:
+        True if the object is a plugin class, False otherwise
+    """
+    try:
+        return hasattr(obj, "type") and isinstance(obj.type, PluginType)
+    except Exception:
+        return False
 
 
 class PluginLoader:
@@ -242,6 +260,9 @@ class PluginLoader:
                     details={"module": module_name},
                 )
 
+            # Find and unregister existing plugins from this module
+            self._unregister_module_plugins(module_name)
+
             # Remove from loaded plugins
             self.loaded_plugins.remove(module_name)
 
@@ -257,6 +278,33 @@ class PluginLoader:
             raise PluginLoadError(
                 f"Failed to reload plugin {module_name}", details={"error": str(e)}
             )
+
+    def _unregister_module_plugins(self, module_name: str) -> None:
+        """
+        Unregister all plugins from a specific module.
+
+        Args:
+            module_name: Name of the module
+        """
+        # Get all registered plugins
+        all_plugins = PluginRegistry.list_plugins()
+
+        # For each plugin type
+        for plugin_type, plugins in all_plugins.items():
+            # Convert string to PluginType enum
+            plugin_type_enum = PluginType(plugin_type)
+
+            # Get all plugins for this type
+            plugins_by_type = PluginRegistry.get_plugins_by_type(plugin_type_enum)
+
+            # Check each plugin to see if it belongs to this module
+            for plugin_name, plugin_class in list(plugins_by_type.items()):
+                if plugin_class.__module__ == module_name:
+                    # Unregister this plugin
+                    PluginRegistry.remove_plugin(plugin_name, plugin_type_enum)
+                    logger.debug(
+                        f"Unregistered plugin {plugin_name} of type {plugin_type}"
+                    )
 
     def unload_plugin(self, module_name: str) -> None:
         """
@@ -275,6 +323,9 @@ class PluginLoader:
                     details={"loaded_plugins": list(self.loaded_plugins)},
                 )
 
+            # Find and unregister existing plugins from this module
+            self._unregister_module_plugins(module_name)
+
             # Remove from loaded plugins
             self.loaded_plugins.remove(module_name)
 
@@ -292,4 +343,156 @@ class PluginLoader:
         except Exception as e:
             raise PluginLoadError(
                 f"Failed to unload plugin {module_name}", details={"error": str(e)}
+            )
+
+    def discover_plugins(self, directory: Path) -> List[Dict[str, str]]:
+        """
+        Discover plugins in a directory without loading them.
+
+        Args:
+            directory: Directory to search for plugins
+
+        Returns:
+            List of discovered plugin information dictionaries
+        """
+        discovered = []
+
+        try:
+            if not directory.exists():
+                logger.warning(f"Directory does not exist: {directory}")
+                return []
+
+            # Walk through the directory
+            for root, dirs, files in os.walk(directory):
+                root_path = Path(root)
+
+                # Skip directories starting with underscore
+                dirs[:] = [d for d in dirs if not d.startswith("_")]
+
+                # Process Python files
+                for file in files:
+                    if file.endswith(".py") and not file.startswith("_"):
+                        file_path = root_path / file
+
+                        # Determine plugin type from directory structure
+                        rel_path = file_path.relative_to(directory)
+                        parts = rel_path.parts
+
+                        plugin_type = None
+                        if len(parts) > 0:
+                            # Check if the first directory indicates a plugin type
+                            type_dir = parts[0]
+                            if type_dir.endswith("s") and type_dir[:-1] in [
+                                t.value for t in PluginType
+                            ]:
+                                plugin_type = type_dir[:-1]
+
+                        # If type couldn't be determined from directory, try to load and check
+                        if not plugin_type:
+                            try:
+                                # Get module name
+                                is_core = "niamoto/core/plugins" in str(file_path)
+                                module_name = self._get_module_name(file_path, is_core)
+
+                                # Try to import the module to check for plugin classes
+                                spec = importlib.util.spec_from_file_location(
+                                    module_name, file_path
+                                )
+                                if spec and spec.loader:
+                                    module = importlib.util.module_from_spec(spec)
+                                    spec.loader.exec_module(module)
+
+                                    # Look for plugin classes
+                                    for name, obj in inspect.getmembers(module):
+                                        if inspect.isclass(obj) and is_plugin_class(
+                                            obj
+                                        ):
+                                            plugin_type = obj.type.value
+                                            break
+                            except Exception as e:
+                                logger.debug(
+                                    f"Error inspecting plugin {file_path}: {str(e)}"
+                                )
+                                continue
+
+                        if plugin_type:
+                            # Add to discovered plugins
+                            is_core = "niamoto/core/plugins" in str(file_path)
+                            module_name = self._get_module_name(file_path, is_core)
+
+                            discovered.append(
+                                {
+                                    "path": str(file_path),
+                                    "module": module_name,
+                                    "name": file_path.stem,
+                                    "type": plugin_type,
+                                }
+                            )
+
+        except Exception as e:
+            logger.error(f"Error discovering plugins: {str(e)}")
+
+        return discovered
+
+    def register_plugin(
+        self, module_name: str, class_name: str, plugin_type: str
+    ) -> None:
+        """
+        Register a plugin without fully loading it.
+
+        Args:
+            module_name: Name of the module containing the plugin
+            class_name: Name of the plugin class
+            plugin_type: Type of the plugin
+
+        Raises:
+            PluginLoadError: If registration fails
+        """
+        try:
+            # Import the module
+            module = importlib.import_module(module_name)
+
+            # Get the plugin class
+            plugin_class = getattr(module, class_name)
+
+            # Register the plugin
+            plugin_type_enum = PluginType(plugin_type)
+            PluginRegistry.register_plugin(plugin_class, plugin_type_enum)
+
+            # Add to loaded plugins
+            self.loaded_plugins.add(module_name)
+
+        except Exception as e:
+            raise PluginLoadError(
+                f"Failed to register plugin {module_name}.{class_name}",
+                details={"error": str(e)},
+            )
+
+    def load_plugin(self, module_name: str, class_name: str):
+        """
+        Load a plugin class from a module.
+
+        Args:
+            module_name: Name of the module containing the plugin
+            class_name: Name of the plugin class
+
+        Returns:
+            The plugin class
+
+        Raises:
+            PluginLoadError: If loading fails
+        """
+        try:
+            # Import the module
+            module = importlib.import_module(module_name)
+
+            # Get the plugin class
+            plugin_class = getattr(module, class_name)
+
+            return plugin_class
+
+        except Exception as e:
+            raise PluginLoadError(
+                f"Failed to load plugin {module_name}.{class_name}",
+                details={"error": str(e)},
             )

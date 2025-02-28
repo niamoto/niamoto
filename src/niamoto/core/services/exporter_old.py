@@ -372,6 +372,12 @@ class ExporterService:
             OutputError: If file generation fails
         """
         try:
+            # Get context or create empty dict if None
+            context = context or {}
+
+            # Add first_ids to context
+            context["first_ids"] = self.page_generator.get_first_ids()
+
             return self.page_generator.generate_page(
                 template_name, output_name, depth, context
             )
