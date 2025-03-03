@@ -9,14 +9,14 @@ Subpackages
 
    niamoto.core.components
    niamoto.core.models
+   niamoto.core.plugins
    niamoto.core.repositories
    niamoto.core.services
-   niamoto.core.utils
 
 Module contents
 ---------------
 
 .. automodule:: niamoto.core
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

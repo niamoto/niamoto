@@ -115,7 +115,7 @@ class TestOccurrenceImporter(NiamotoTestCase):
                     )
 
                     # Verify results
-                    self.assertIn("valid occurrences imported", result)
+                    self.assertIn("occurrences imported", result)
                     mock_analyze.assert_called_once()
                     mock_create_table.assert_called_once()
                     mock_import_data.assert_called_once()

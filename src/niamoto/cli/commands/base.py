@@ -5,15 +5,15 @@ This module provides the base click group and common utilities for the Niamoto C
 It defines the custom formatted CLI interface and shared command functionality.
 """
 
+from typing import List
+from pathlib import Path
+from importlib import metadata
 import click
 from rich.console import Console
 from rich.table import Table
 from rich.style import Style
 from rich import box
-from typing import List
-import tomllib
-from pathlib import Path
-from importlib import metadata
+
 
 from niamoto.common.exceptions import VersionError, CommandError
 from niamoto.common.utils import error_handler
@@ -40,6 +40,7 @@ NIAMOTO_ASCII_ART = """
 
 
 @error_handler(log=True, raise_error=True)
+@error_handler(log=True, raise_error=True)
 def get_version_from_pyproject() -> str:
     """
     Gets the version number of Niamoto.
@@ -62,11 +63,17 @@ def get_version_from_pyproject() -> str:
             )
 
         try:
+            # Use appropriate TOML parser based on Python version
+            try:
+                import tomllib  # Python 3.11+
+            except ImportError:
+                import tomli as tomllib  # Python 3.10 and earlier
+
             with pyproject_path.open("rb") as f:
                 pyproject_data = tomllib.load(f)
-                version = (
-                    pyproject_data.get("tool", {}).get("project", {}).get("version")
-                )
+                version = pyproject_data.get("project", {}).get(
+                    "version"
+                ) or pyproject_data.get("tool", {}).get("project", {}).get("version")
                 if not isinstance(version, str):
                     raise VersionError(
                         message="Version not found or invalid in pyproject.toml",

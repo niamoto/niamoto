@@ -9,13 +9,13 @@ niamoto.core.models.models module
 
 .. automodule:: niamoto.core.models.models
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: niamoto.core.models
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

@@ -38,6 +38,7 @@ class TaxonRef(Base):
         level (Integer): The level value for nested set model. :noindex:
         parent_id (Integer): The parent taxon id. :noindex:
         children (List[TaxonRef]): The children of the taxon. :noindex:
+        taxon_id (Integer): The external identifier of the taxon. :noindex:
         extra_data (String): Additional fields stored in JSON format. :noindex:
     """
 
@@ -50,6 +51,7 @@ class TaxonRef(Base):
     lft = Column(Integer)
     rght = Column(Integer)
     level = Column(Integer)
+    taxon_id = Column(Integer, nullable=True)
     extra_data = Column(JSON, nullable=True)  # Store JSON as text in SQLite
 
     if TYPE_CHECKING:

@@ -15,5 +15,5 @@ Module contents
 
 .. automodule:: niamoto.cli
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

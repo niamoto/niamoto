@@ -1,3 +1,20 @@
+"""
+Plugin loader module for Niamoto.
+
+This module provides dynamic plugin loading capabilities for both core and project-specific
+plugins. It handles:
+
+- Dynamic loading and unloading of plugins
+- Plugin discovery and registration
+- Module path resolution and import management
+- Hot reloading of plugins during development
+- Plugin dependency management
+
+The loader supports a hierarchical plugin structure and maintains plugin state
+throughout the application lifecycle. It includes safeguards for handling import
+errors and plugin conflicts.
+"""
+
 # core/plugins/plugin_loader.py
 import sys
 import importlib
@@ -176,17 +193,71 @@ class PluginLoader:
         Returns:
             Module name for import
         """
-        if is_core:
-            # Core plugins use absolute import path
-            # Get path relative to plugins directory (2 levels up from file's parent)
-            plugin_root = Path(__file__).parent
-            relative_path = file.relative_to(plugin_root).with_suffix("")
-            return f"niamoto.core.plugins.{'.'.join(relative_path.parts)}"
-        else:
-            # Project plugins use relative import path from plugins directory
-            # Include all subdirectories in the module path
-            relative_path = file.relative_to(file.parents[file.parts.index("plugins")])
-            return f"plugins.{'.'.join(relative_path.with_suffix('').parts)}"
+        try:
+            if is_core:
+                # Approche adaptative pour les plugins de base
+                # Extraire le nom de module à partir des composants du chemin
+                path_str = str(file)
+
+                # Méthode 1: Extraction basée sur les composants du chemin
+                if (
+                    "/niamoto/core/plugins/" in path_str
+                    or "\\niamoto\\core\\plugins\\" in path_str
+                ):
+                    # Diviser le chemin et extraire la partie après "niamoto/core/plugins"
+                    parts = (
+                        path_str.split("niamoto/core/plugins/")
+                        if "/" in path_str
+                        else path_str.split("niamoto\\core\\plugins\\")
+                    )
+                    if len(parts) > 1:
+                        # Prendre la partie après "niamoto/core/plugins/"
+                        rel_path = parts[1].replace("/", ".").replace("\\", ".")
+                        # Enlever l'extension .py
+                        if rel_path.endswith(".py"):
+                            rel_path = rel_path[:-3]
+                        return f"niamoto.core.plugins.{rel_path}"
+
+                # Méthode 2: Méthode originale (essayer avec le chemin relatif)
+                try:
+                    plugin_root = Path(__file__).parent
+                    relative_path = file.relative_to(plugin_root).with_suffix("")
+                    return f"niamoto.core.plugins.{'.'.join(relative_path.parts)}"
+                except ValueError:
+                    # Méthode 3: si tous les autres échouent, construire le nom de module à partir du nom de fichier
+                    # et de la structure des répertoires parents
+                    file_stem = file.stem
+                    parent_dir = file.parent.name
+                    grandparent = (
+                        file.parent.parent.name if len(file.parents) > 0 else ""
+                    )
+
+                    # Détecter plugin_type à partir des noms de répertoire
+                    plugin_types = ["transformers", "exporters", "loaders", "widgets"]
+
+                    if grandparent in plugin_types:
+                        # Chemin de type .../transformers/subdir/file.py
+                        return f"niamoto.core.plugins.{grandparent}.{parent_dir}.{file_stem}"
+                    elif parent_dir in plugin_types:
+                        # Chemin de type .../transformers/file.py
+                        return f"niamoto.core.plugins.{parent_dir}.{file_stem}"
+                    else:
+                        # Dernier recours
+                        return f"niamoto.core.plugins.{file_stem}"
+            else:
+                # Pour les plugins de projet - logique inchangée
+                try:
+                    relative_path = file.relative_to(
+                        file.parents[file.parts.index("plugins")]
+                    )
+                    return f"plugins.{'.'.join(relative_path.with_suffix('').parts)}"
+                except (ValueError, IndexError):
+                    # Fallback si "plugins" n'est pas trouvé dans le chemin
+                    return f"plugins.{file.stem}"
+        except Exception as e:
+            logger.debug(f"Error determining module name for {file}: {str(e)}")
+            # Si tout échoue, juste utiliser le nom du fichier comme dernier recours
+            return f"plugin_{file.stem}"
 
     def _load_plugin_module(self, file: Path, module_name: str) -> None:
         """

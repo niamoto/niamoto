@@ -20,13 +20,13 @@ niamoto.main module
 
 .. automodule:: niamoto.main
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: niamoto
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

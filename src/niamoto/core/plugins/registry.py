@@ -1,4 +1,19 @@
-# core/plugins/registry.py
+"""
+Plugin registry module for Niamoto.
+
+This module implements a centralized registry system for managing all Niamoto plugins.
+It provides functionality for:
+
+- Plugin registration and management
+- Type-safe plugin retrieval
+- Plugin metadata storage and access
+- Plugin type categorization
+
+The registry is implemented as a singleton class that maintains separate
+registries for different plugin types, ensuring type safety and proper
+organization of the plugin ecosystem.
+"""
+
 from typing import Dict, Type, Optional, Any
 from .base import Plugin, PluginType
 from .exceptions import PluginRegistrationError, PluginNotFoundError

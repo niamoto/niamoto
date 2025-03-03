@@ -6,7 +6,6 @@ from typing import Optional
 from pathlib import Path
 
 import click
-from rich import print
 
 from niamoto.common.config import Config
 from niamoto.common.exceptions import (
@@ -81,11 +80,11 @@ def list_configurations() -> None:
             relation = source.get("relation", {}).get("type", "unknown")
             widgets = len(transform.get("widgets_data", {}))
 
-            print(f"\n[bold]{group}[/bold]")
-            print(f"  Data source: {data}")
-            print(f"  Grouping: {grouping}")
-            print(f"  Relation type: {relation}")
-            print(f"  Widgets: {widgets}")
+            print_info(f"\n[bold]{group}[/bold]")
+            print_info(f"  Data source: {data}")
+            print_info(f"  Grouping: {grouping}")
+            print_info(f"  Relation type: {relation}")
+            print_info(f"  Widgets: {widgets}")
 
     except ConfigurationError as e:
         print_warning(f"Error reading configuration: {str(e)}")
@@ -162,8 +161,8 @@ def process_transformations(
 
         print_success("Data transformation completed successfully")
 
-    except Exception:
-        raise
+    except ConfigurationError as e:
+        print_warning(f"Error reading configuration: {str(e)}")
 
 
 @transform_commands.command(name="check")
