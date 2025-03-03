@@ -1,8 +1,0 @@
-database:
-  path: db/niamoto.db
-logs:
-  path: logs
-exports:
-  web: exports
-  api: exports/api
-  files: exports/files
