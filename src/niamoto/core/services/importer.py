@@ -4,7 +4,7 @@ Service for importing data into Niamoto.
 
 import csv
 from pathlib import Path
-from typing import Tuple, List, Dict, Any, Set
+from typing import Tuple, List, Dict, Any, Set, Optional
 
 import pandas as pd
 
@@ -84,7 +84,7 @@ class ImporterService:
         except Exception as e:
             raise CSVError(
                 file_path, "Failed to validate CSV file", details={"error": str(e)}
-            )
+            ) from e
 
         # Import the data
         try:
@@ -94,7 +94,65 @@ class ImporterService:
             raise DataImportError(
                 f"Failed to import taxonomy data: {str(e)}",
                 details={"file": file_path, "error": str(e)},
+            ) from e
+
+    @error_handler(log=True, raise_error=True)
+    def import_taxonomy_from_occurrences(
+        self,
+        occurrences_file: str,
+        ranks: Tuple[str, ...],
+        column_mapping: Dict[str, str],
+    ) -> str:
+        """
+        Extract and import taxonomy data from occurrences.
+
+        Args:
+            occurrences_file: Path to occurrences CSV file
+            ranks: Taxonomy ranks to import
+            column_mapping: Mapping between taxonomy fields and occurrence columns
+
+        Returns:
+            Success message
+
+        Raises:
+            ValidationError: If parameters are invalid
+            FileReadError: If file cannot be read
+            CSVError: If CSV format is invalid
+            DataImportError: If import operation fails
+        """
+        # Validate input parameters
+        if not occurrences_file:
+            raise ValidationError("occurrences_file", "File path cannot be empty")
+        if not ranks:
+            raise ValidationError("ranks", "Ranks cannot be empty")
+
+        required_columns = ["taxon_id", "family", "genus", "species"]
+        missing_columns = [col for col in required_columns if col not in column_mapping]
+        if missing_columns:
+            raise ValidationError(
+                "column_mapping",
+                f"Missing required column mappings: {', '.join(missing_columns)}",
+                details={"missing": missing_columns},
             )
+
+        # Validate file exists
+        occurrences_file = str(Path(occurrences_file).resolve())
+        if not Path(occurrences_file).exists():
+            raise FileReadError(
+                occurrences_file, "File not found", details={"path": occurrences_file}
+            )
+
+        # Import the data
+        try:
+            result = self.taxonomy_importer.import_from_occurrences(
+                occurrences_file, ranks, column_mapping
+            )
+            return result
+        except Exception as e:
+            raise DataImportError(
+                f"Failed to extract and import taxonomy from occurrences: {str(e)}",
+                details={"file": occurrences_file, "error": str(e)},
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def import_occurrences(
@@ -137,11 +195,16 @@ class ImporterService:
         except Exception as e:
             raise DataImportError(
                 "Failed to import occurrences", details={"error": str(e)}
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def import_plots(
-        self, gpkg_path: str, plot_identifier: str, location_field: str
+        self,
+        gpkg_path: str,
+        plot_identifier: str,
+        location_field: str,
+        link_field: Optional[str] = None,
+        occurrence_link_field: Optional[str] = None,
     ) -> str:
         """
         Import plot data.
@@ -150,6 +213,8 @@ class ImporterService:
             gpkg_path: Path to GeoPackage file
             plot_identifier: Plot identifier field
             location_field: Location field name
+            link_field: Field name in plot_ref to use for linking to occurrences
+            occurrence_link_field: Field name in occurrences to use for linking to plots
 
         Returns:
             Success message
@@ -171,10 +236,16 @@ class ImporterService:
 
         try:
             return self.plot_importer.import_from_gpkg(
-                gpkg_path, plot_identifier, location_field
+                gpkg_path,
+                plot_identifier,
+                location_field,
+                link_field=link_field,
+                occurrence_link_field=occurrence_link_field,
             )
         except Exception as e:
-            raise DataImportError("Failed to import plots", details={"error": str(e)})
+            raise DataImportError(
+                "Failed to import plots", details={"error": str(e)}
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def import_occurrence_plot_links(self, csvfile: str) -> str:
@@ -203,7 +274,7 @@ class ImporterService:
         except Exception as e:
             raise DataImportError(
                 "Failed to import occurrence-plot links", details={"error": str(e)}
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def import_shapes(self, shapes_config: List[Dict[str, Any]]) -> str:
@@ -228,7 +299,9 @@ class ImporterService:
         try:
             return self.shape_importer.import_from_config(shapes_config)
         except Exception as e:
-            raise DataImportError("Failed to import shapes", details={"error": str(e)})
+            raise DataImportError(
+                "Failed to import shapes", details={"error": str(e)}
+            ) from e
 
     def _detect_separator(self, file_path: str) -> str:
         """
@@ -251,7 +324,7 @@ class ImporterService:
         except Exception as e:
             raise CSVError(
                 file_path, "Failed to detect CSV separator", details={"error": str(e)}
-            )
+            ) from e
 
     def _validate_csv_format(
         self, file_path: str, separator: str, ranks: Tuple[str, ...]
@@ -279,4 +352,6 @@ class ImporterService:
             csv_fields = set(df.columns)
             return required_fields - csv_fields
         except pd.errors.ParserError as e:
-            raise CSVError(file_path, "Failed to parse CSV", details={"error": str(e)})
+            raise CSVError(
+                file_path, "Failed to parse CSV", details={"error": str(e)}
+            ) from e

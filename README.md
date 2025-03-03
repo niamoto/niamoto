@@ -12,26 +12,41 @@ Niamoto is a powerful CLI tool for managing and analyzing ecological data, with 
 
 ## Table of Contents
 
-- [Introduction](#introduction)
-- [Installation](#installation)
-- [Initial Configuration](#initial-configuration)
-- [Development Environment Configuration](#development-environment-configuration)
-- [CSV File Format for Taxonomy Import](#csv-file-format-for-taxonomy-import)
-- [Niamoto CLI Commands](#niamoto-cli-commands)
-  - [Environment Management](#1-initialize-or-check-your-environment)
-  - [Data Import](#2-import-data)
-  - [Data Transformation](#3-transform-data)
-  - [Content Export](#4-export-content)
-  - [Content Deployment](#5-deploy-content)
-- [Project Structure](#project-structure)
-- [Niamoto Configuration Overview](#niamoto-configuration-overview)
-  - [Import Configuration](#1-import-configuration)
-  - [Transform Configuration](#2-transform-configuration)
-  - [Export Configuration](#3-export-configuration)
-- [Static Type Checking and Testing with mypy and pytest](#static-type-checking-and-testing-with-mypy-and-pytest)
-  - [Using mypy for Static Type Checking](#using-mypy-for-static-type-checking)
-  - [Running Tests with pytest](#running-tests-with-pytest)
-- [License](#license)
+- [Niamoto](#niamoto)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Installation](#installation)
+  - [Initial Configuration](#initial-configuration)
+  - [Development Environment Configuration](#development-environment-configuration)
+  - [Taxonomy Data Import](#taxonomy-data-import)
+    - [Method 1: Dedicated Taxonomy CSV File](#method-1-dedicated-taxonomy-csv-file)
+    - [Method 2: Extraction from Occurrences](#method-2-extraction-from-occurrences)
+    - [Niamoto CLI Commands](#niamoto-cli-commands)
+      - [1. Initialize or Check Your Environment](#1-initialize-or-check-your-environment)
+      - [2. Import Data](#2-import-data)
+      - [3. Transform Data](#3-transform-data)
+      - [4. Export Content](#4-export-content)
+      - [5. Deploy Content](#5-deploy-content)
+  - [Project Structure](#project-structure)
+  - [Niamoto Configuration Overview](#niamoto-configuration-overview)
+    - [1. Import Configuration](#1-import-configuration)
+    - [Key Points](#key-points)
+    - [2. Transform Configuration](#2-transform-configuration)
+    - [import.yml Example](#importyml-example)
+    - [3. Export Configuration](#3-export-configuration)
+    - [export.yml Example](#exportyml-example)
+  - [Plugin System](#plugin-system)
+    - [Plugin Types](#plugin-types)
+    - [Transformation Plugins](#transformation-plugins)
+    - [Custom Plugin Development](#custom-plugin-development)
+    - [Summary](#summary)
+  - [Static Type Checking and Testing with mypy and pytest](#static-type-checking-and-testing-with-mypy-and-pytest)
+    - [Using mypy for Static Type Checking](#using-mypy-for-static-type-checking)
+    - [Running Tests with pytest](#running-tests-with-pytest)
+  - [Documentation](#documentation)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Changelog](#changelog)
 
 ## Introduction
 
@@ -86,13 +101,17 @@ To set up a development environment for Niamoto, you must have `uv` installed on
   uv pip install -e ".[dev]"
   ```
 
-4. **Editable Installation**:
+4. **Installation**:
 
   The previous command already installed the project in editable mode (with the -e flag). This means source code changes are immediately reflected without needing to reinstall the package.
 
-## CSV File Format for Taxonomy Import
+## Taxonomy Data Import
 
-To import taxonomic data into Niamoto, you must provide a structured CSV file with the following columns:
+Niamoto offers two methods for importing taxonomic data:
+
+### Method 1: Dedicated Taxonomy CSV File
+
+To import taxonomic data into Niamoto, you can provide a structured CSV file with the following columns:
 
 | Column         | Description                                           |
 |----------------|-------------------------------------------------------|
@@ -104,6 +123,41 @@ To import taxonomic data into Niamoto, you must provide a structured CSV file wi
 | `id_species`   | Identifier of the species to which the taxon belongs  |
 | `id_infra`     | Infraspecific identifier of the taxon                 |
 | `authors`      | Authors of the taxon name                             |
+
+Configuration in `import.yml`:
+```yaml
+taxonomy:
+  type: csv
+  path: "imports/taxonomy.csv"
+  source: "file"  # Explicit but optional as it's the default value
+  identifier: "id_taxon"
+  ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
+```
+
+### Method 2: Extraction from Occurrences
+
+Niamoto can now extract taxonomy directly from the occurrences file, which simplifies data management when taxonomic information is already present in this file.
+
+Configuration in `import.yml`:
+```yaml
+taxonomy:
+  type: csv
+  path: "imports/occurrences.csv"  # Path to occurrences file
+  source: "occurrence"  # Indicates to extract taxonomy from occurrences
+  ranks: "family,genus,species,infra"
+  occurrence_columns:
+    taxon_id: "id_taxonref"
+    family: "family"
+    genus: "genus"
+    species: "species"
+    infra: "infra"
+    authors: "taxonref"  # Can extract authors from taxonref
+```
+
+This method offers several advantages:
+- Eliminates the need for a separate taxonomy file
+- Ensures consistency between occurrences and taxonomy
+- Provides flexibility in column mapping via `occurrence_columns`
 
 ### Niamoto CLI Commands
 
@@ -125,11 +179,11 @@ $ niamoto init --reset
 # Import taxonomy data
 $ niamoto import taxonomy <file>
 
-# Import plot data
-$ niamoto import plots <file>
-
 # Import occurrence data
 $ niamoto import occurrences <file>
+
+# Import plot data
+$ niamoto import plots <file>
 
 # Import all sources defined in the configuration
 $ niamoto import
@@ -179,24 +233,32 @@ $ niamoto deploy netlify --site-id <id>
 
 ## Project Structure
 
-```config/``` - YAML configuration files for data pipeline:
+```
+config/          - YAML configuration files for data pipeline:
+  config.yml     - Global configuration options
+  import.yml     - Data source definitions (CSV, vector, raster)
+  transform.yml  - Data transformation rules and calculations
+  export.yml     - Widget and chart configurations
 
-- `config.yml`: Global configuration options
-- `import.yml`: Data source definitions (CSV, vector, raster)
-- `transform.yml`: Data transformation rules and calculations
-- `export.yml`: Widget and chart configurations
+db/              - Database files and schemas
 
-```db/``` - Database files and schemas
+exports/         - Generated widget data and statistics
 
-```exports/``` - Generated widget data and statistics
+imports/         - Raw data files (CSV, shapefiles, rasters)
 
-```imports/``` - Raw data files (CSV, shapefiles, rasters)
+logs/            - Application logs and debug information
 
-```logs/``` - Application logs and debug information
+plugins/         - Custom plugin directory for extending functionality
+```
 
 ## Niamoto Configuration Overview
 
 Niamoto uses **three** primary YAML files to handle data ingestion, stats calculation, and page presentation:
+
+- [config.yml](examples/config/config.yml) - Global configuration
+- [import.yml](examples/config/import.yml) - Data import configuration
+- [transform.yml](examples/config/transform.yml) - Data transformation configuration
+- [export.yml](examples/config/export.yml) - Data export and visualization configuration
 
 1. **`import.yml`** (Data Sources):
    - Lists and describes **where** to fetch the raw data (CSV paths, database tables, shapefiles, rasters, etc.).
@@ -204,13 +266,14 @@ Niamoto uses **three** primary YAML files to handle data ingestion, stats calcul
 
 2. **`transform.yml`** (Data Calculations):
    - Describes **what** computations or transformations to perform for each `group_by` (e.g., `taxon`, `plot`, `shape`).
-   - Each block of `widgets_data` in the config defines **one output JSON field** (i.e., “widget data”) in the final stats table.
+   - Each block of `widgets_data` in the config defines **one output JSON field** (i.e., "widget data") in the final stats table.
    - Transformations can be things like `count`, `bins`, `top`, `assemble_info`, or custom logic to produce aggregated results.
 
 3. **`export.yml`** (Widgets & Charts):
    - Defines **which widgets** appear on the final pages and how they look (chart options, color schemes, labels, etc.).
-   - Points to the JSON fields produced by the `import` via `source: my_widget_field`.
+   - Points to the JSON fields produced by the `transform.yml` via `source: my_widget_field`.
    - Contains chart.js–style configurations (datasets, labels, axes, legends, etc.).
+
 
 By splitting these responsibilities, Niamoto provides a more modular, maintainable, and scalable system.
 
@@ -222,40 +285,51 @@ The **data configuration** file focuses on **where** each data source resides an
 Typical structure might look like:
 
 ```yaml
-  # Example data sources
-  taxonomy:
-    type: "csv"
-    path: "data/sources/amap_data_taxa.csv"
-    ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
+# Example data sources
+taxonomy:
+  type: csv
+  path: "imports/occurrences.csv"  # Chemin vers le fichier d'occurrences
+  source: "occurrence"  # Indique d'extraire la taxonomie des occurrences
+  ranks: "family,genus,species,infra"
+  occurrence_columns:
+    taxon_id: "id_taxonref"
+    family: "family"
+    genus: "genus"
+    species: "species"
+    infra: "infra"
+    authors: "taxonref"  # On peut extraire les auteurs du taxonref
 
-  plots:
-    type: "vector"          # e.g., a GeoPackage
-    path: "data/sources/plots.gpkg"
-    identifier: "id_locality"
-    location_field: "geometry"
+plots:
+  type: vector
+  format: geopackage
+  path: "imports/plots.gpkg"
+  identifier: "id_locality"
+  location_field: "geometry"
+  link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien
+  occurrence_link_field: "plot_name"  # Champ à utiliser dans occurrences pour le lien
 
-  occurrences:
-    type: "csv"
-    path: "data/sources/amap_data_occurrences.csv"
-    identifier: "id_taxonref"
-    location_field: "geo_pt"
+occurrences:
+  type: "csv"
+  path: "data/sources/amap_data_occurrences.csv"
+  identifier: "id_taxonref"
+  location_field: "geo_pt"
 
-  # Possibly multi-shapes
-  shapes:
-    - category: "provinces"
-      type: "vector"
-      path: "data/sources/shapes/provinces.zip"
-      name_field: "nom"
-      label: "Provinces"
+# Possibly multi-shapes
+shapes:
+  - category: "provinces"
+    type: "vector"
+    path: "data/sources/shapes/provinces.zip"
+    name_field: "nom"
+    label: "Provinces"
 
-  # Raster layers
-  layers:
-    - name: "forest_cover"
-      type: "vector"
-      path: "data/sources/layers/forest_cover.shp"
-    - name: "elevation"
-      type: "raster"
-      path: "data/sources/layers/mnt100.tif"
+# Raster layers
+layers:
+  - name: "forest_cover"
+    type: "vector"
+    path: "data/sources/layers/forest_cover.shp"
+  - name: "elevation"
+    type: "raster"
+    path: "data/sources/layers/mnt100.tif"
 ```
 
 ### Key Points
@@ -268,43 +342,92 @@ Typical structure might look like:
 
 ### 2. Transform Configuration
 
-The **stats configuration** replaces the older notion of a single `fields:` mapping with a more flexible concept of **widgets_data**:
+The **transform configuration** file (`transform.yml`) defines **what** computations to perform on the data. For each group type (taxon, plot, shape), it specifies:
 
-- **`group_by`:** Identifies the entity type (e.g., `"taxon"`, `"plot"`, `"shape"`).
-- **`identifier`:** The unique ID field for that entity.
-- **`widgets_data`:** A dictionary (or list) of “widget names” (e.g., `general_info`, `dbh_distribution`) where each widget yields **one JSON** field in the final stats table.
-- **`transformations`:** A list of steps used to compute or aggregate data for that widget.
+- **Widgets data** to generate
+- **Transformation plugins** to use
+- **Parameters** for each transformation
 
 ### import.yml Example
 
 ```yaml
-  - group_by: "taxon"
-    identifier: "id_taxonref"
-    source_table_name: "occurrences"
+- group_by: taxon
+  source:
+    data: occurrences
+    grouping: taxon_ref
+    relation:
+      plugin: nested_set
+      key: taxon_ref_id
 
-    widgets_data:
-      general_info:
-        # On veut un champ JSON "general_info" qui combine plusieurs informations
-        # (ex: nom du taxon, rang, nombre d'occurrences…)
-        transformations:
-          - name: "collect_fields"
-            fields:
-              - { source_field: "taxon_name", key: "name" }
-              - { transformation: "count", source: "occurrences", key: "occurrences_count" }
-              # etc.
+  widgets_data:
+    general_info:
+      plugin: field_aggregator
+      params:
+        fields:
+          - source: taxon_ref
+            field: full_name
+            target: name
+          - source: taxon_ref
+            field: rank_name
+            target: rank
+          - source: occurrences
+            field: id
+            target: occurrences_count
+            transformation: count
+          # ex:
+          # {
+          #   "name": "Araucaria columnaris",
+          #   "rank": "espèce",
+          #   "occurrences_count": 325
+          # }
 
-      dbh_distribution:
-        transformations:
-          - name: "bins"
-            source_field: "dbh"
-            bins: [10, 20, 30, 40, 50, 100]
-            # Produces a JSON with bins & counts
+      distribution_map:
+        plugin: geospatial_extractor
+        params:
+          source: occurrences
+          field: geo_pt
+          format: geojson
+          group_by_coordinates: true
+          #properties: ["taxonref", "dbh", "height"]
+        # ex:
+        # {
+        #   "type": "FeatureCollection",
+        #   "features": [
+        #     {
+        #       "type": "Feature",
+        #       "geometry": {
+        #         "type": "Point",
+        #         "coordinates": [166.45, -22.18]
+        #       }
+        #     }
+        #   ]
+        # }
 
-      dbh_gauge:
-        transformations:
-          - name: "max_value"
-            source_field: "dbh"
-            # E.g., { "value": 210, "max": 500 }
+      top_species:
+        plugin: top_ranking
+        params:
+          source: occurrences
+          field: taxon_ref_id
+          target_ranks: ["species", "infra"]
+          count: 10
+        # ex:
+        # {
+        #   "tops": ["Taxon1", "Taxon2", "Taxon3"],
+        #   "counts": [10, 5, 2]
+        # }
+
+      distribution_substrat:
+        plugin: binary_counter
+        params:
+          source: occurrences
+          field: in_um
+          true_label: "um"
+          false_label: "num"
+        # ex:
+        # {
+        #   "um": 230,
+        #   "num": 95
+        # }
 ```
 
 Niamoto (or your stats calculator classes) will:
@@ -317,64 +440,169 @@ Niamoto (or your stats calculator classes) will:
 
 ### 3. Export Configuration
 
-Lastly, the **presentation configuration** describes each **widget**’s **visual layout**:
+The **export configuration** file (`export.yml`) defines **how** to present the transformed data as visual widgets, including:
 
-- For a **given** `group_by`, we list multiple **widgets** (e.g., `general_info`, `map_panel`, `forest_cover`…).
-- Each widget has:
-  - **`type:`** – `bar_chart`, `doughnut_chart`, `gauge`, `info_panel`, `map_panel`, etc.
-  - **`source:`** – The JSON field created by `stats_config`.
-  - Chart.js–style `datasets:`, `options:` for advanced styling.
+- **Chart types** (bar chart, doughnut chart, gauge, etc.)
+- **Styling options** (colors, labels, tooltips)
+- **Layout settings** (grid, full-width)
 
 ### export.yml Example
 
 ```yaml
-  - group_by: "taxon"
-    widgets:
-      general_info:
-        type: "info_panel"
-        title: "Taxon Information"
-        layout: grid
-        fields:
-          - source: "name"
-            label: "Taxon Name"
-          - source: "occurrences_count"
-            label: "Occurrences"
-      dbh_distribution:
-        type: "bar_chart"
-        title: "DBH Distribution"
-        source: "dbh_distribution"
-        datasets:
-          - label: "Count"
-            data_key: "counts"
-        labels_key: "bins"
-        options:
-          indexAxis: "x"
+- group_by: taxon
+  widgets:
+    general_info:
+      type: info_panel
+      title: "Informations générales"
+      layout: grid
+      fields:
+        - source: rank
+          label: "Rang"
+        - source: occurrences_count
+          label: "Nombre d'occurrences"
+          format: "number"
+      # => Ton JSON "general_info" pourrait contenir { "taxon_name": "...", "occurrences_count": 123, ... }
+
+    distribution_map:
+      type: map_panel
+      title: "Distribution géographique"
+      description: Distribution géographique des occurrences du taxon et de ses sous-taxons
+      source: distribution_map
+      layout: full_width
+      layers:
+        - id: "occurrences"
+          source: coordinates
+          style:
+            color: "#1fb99d"
+            weight: 1
+            fillColor: "#00716b"
+            fillOpacity: 0.5
+            radius: 2000
+      # => JSON { "coordinates": [...], "style": {...} } (selon le format produit)
+
+    top_species:
+      type: bar_chart
+      title: "Sous-taxons principaux"
+      description: "Principaux sous-taxons (espèce, sous-espèce)"
+      source: top_species
+      sortData: true
+      datasets:
+        - label: 'Occurrences'
+          data_key: counts
+          generateColors: true
+      labels_key: tops
+      options:
+        indexAxis: 'y'
+        scales:
+          x:
+            beginAtZero: true
+            grid: {
+              display: true,
+              drawBorder: true,
+              drawOnChartArea: true,
+              drawTicks: true
+            }
+            ticks: {
+              stepSize: 5
+            }
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+          y:
+            grid: {
+              display: false
+            }
+        plugins:
+          legend: {
+            display: false
+          }
+        maintainAspectRatio: false
+        responsive: true
+      # => ex. JSON { "tops": [...], "counts": [...] }
+
+    dbh_distribution:
+      type: bar_chart
+      title: "Distribution diamétrique (DBH)"
+      description: Répartition des occurrences par classe de diamètre
+      source: dbh_distribution
+      datasets:
+        - label: "Occurrences"
+          data_key: "counts"
+          backgroundColor: "#4CAF50"
+      labels_key: "bins"
+      options:
+        scales:
+          y:
+            title:
+              display: true
+              text: "Nombre d'occurrences"
+          x:
+            title:
+              display: true
+              text: "DBH (cm)"
 ```
 
 **Key Takeaway**: The front-end or page generator uses these details to render each widget with the data from the corresponding JSON field (`source: dbh_distribution`).
 
------
 
-### Special Fields & Transformations
+## Plugin System
 
-#### Calculated Fields
+Niamoto includes a plugin system that allows for extensibility and customization of its functionality. Plugins are registered with the system and can be used in configuration files.
 
-- Use transformations like `"count"`, `"mean"`, `"top"`, `"bins"` etc. in `stats_config`.
-- They produce a JSON result stored in a single widget field.
+### Plugin Types
 
-#### Boolean Fields
+Niamoto supports several types of plugins:
 
-- A transformation can produce an object like `{ true: X, false: Y }`, which you can display with a pie chart, for instance.
+- **LOADER**: For loading data from different sources
+- **TRANSFORMER**: For data transformation operations
+- **EXPORTER**: For exporting data to different formats
 
-#### Geographical Fields
+### Transformation Plugins
 
-- A transformation `"coordinates"` or `"geometry_coords"` can produce a set of features.
-- The `presentation_config` might specify a `map_panel` widget referencing that JSON.
+The system includes several built-in transformation plugins:
 
-#### Bins & Distribution
+- **binary_counter**: Counts binary values in a dataset
+- **field_aggregator**: Aggregates fields from different sources
+- **statistical_summary**: Calculates statistical summaries (min, mean, max)
+- **top_ranking**: Identifies top N items in a dataset
 
-- If you want to discretize data (DBH, altitude, rainfall), use `"bins"` in `stats_config`.
-- The resulting JSON (e.g., `{ bins: [...], counts: [...] }`) becomes the data for a bar or line chart in `presentation_config`.
+Example plugin usage in `transform.yml`:
+```yaml
+widgets_data:
+  distribution_substrat:
+    plugin: binary_counter
+    params:
+      source: occurrences
+      field: in_um
+      true_label: "um"
+      false_label: "num"
+```
+
+### Custom Plugin Development
+
+You can develop custom plugins to extend Niamoto's functionality:
+
+1. Create a new Python module in the `plugins/` directory
+2. Implement a class that inherits from one of the base plugin classes
+3. Use the `@register` decorator to register your plugin
+
+Example of a custom transformer plugin:
+```python
+from niamoto.core.plugins.base import (
+    TransformerPlugin,
+    PluginType,
+    register,
+    PluginConfig
+)
+
+@register("my_custom_transformer", PluginType.TRANSFORMER)
+class MyCustomTransformer(TransformerPlugin):
+    """Custom transformer plugin"""
+
+    def transform(self, data, config):
+        # Implement your transformation logic
+        return transformed_data
+```
 
 -----
 

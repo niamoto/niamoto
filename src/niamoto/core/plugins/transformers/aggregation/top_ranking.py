@@ -23,7 +23,7 @@ class TopRankingConfig(PluginConfig):
         default_factory=lambda: {
             "source": "occurrences",
             "field": None,
-            "target_ranks": ["espèce", "sous-espèce"],
+            "target_ranks": ["species", "infra"],
             "count": 10,
         }
     )
@@ -42,7 +42,7 @@ class TopRankingConfig(PluginConfig):
 
         # Set default values if not provided
         if "target_ranks" not in v:
-            v["target_ranks"] = ["espèce", "sous-espèce"]
+            v["target_ranks"] = ["species", "infra"]
         if "count" not in v:
             v["count"] = 10
 
@@ -70,7 +70,7 @@ class TopRanking(TransformerPlugin):
         try:
             return self.config_model(**config).dict()
         except Exception as e:
-            raise ValueError(f"Invalid configuration: {str(e)}")
+            raise ValueError(f"Invalid configuration: {str(e)}") from e
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """Transform data according to configuration."""
@@ -81,7 +81,7 @@ class TopRanking(TransformerPlugin):
             field = (
                 validated_config["params"]["field"]
                 if validated_config["params"]["field"]
-                else "id_taxonref"
+                else "taxon_ref_id"
             )
             if field not in data.columns:
                 return {"tops": [], "counts": []}
@@ -188,4 +188,4 @@ class TopRanking(TransformerPlugin):
             return {"tops": tops, "counts": counts}
 
         except Exception as e:
-            raise ValueError(f"Invalid configuration: {str(e)}")
+            raise ValueError(f"Invalid configuration: {str(e)}") from e

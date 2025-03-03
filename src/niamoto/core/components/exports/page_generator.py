@@ -210,7 +210,7 @@ class PageGenerator(BaseGenerator):
                 f"{page_type}_template.html",
                 f"Failed to generate {page_type} page: {str(e)}",
                 details={"item_id": item.id},
-            )
+            ) from e
 
     def generate_taxon_page(
         self, taxon: TaxonRef, stats: Optional[Any], mapping_group: Dict[Any, Any]
@@ -254,7 +254,7 @@ class PageGenerator(BaseGenerator):
         except Exception as e:
             raise DatabaseError(
                 "Failed to retrieve shape types", details={"error": str(e)}
-            )
+            ) from e
         finally:
             session.close()
 
@@ -354,7 +354,7 @@ class PageGenerator(BaseGenerator):
             raise GenerationError(
                 "Failed to generate shape list",
                 details={"error": str(e), "output_path": str(js_path)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def generate_plot_list_js(self, plots: List[PlotRef]) -> None:
@@ -387,7 +387,7 @@ class PageGenerator(BaseGenerator):
             raise GenerationError(
                 "Failed to generate plot list",
                 details={"error": str(e), "output_path": str(js_path)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def build_taxonomy_tree(self, taxons: List[TaxonRef]) -> List[Dict[Any, Any]]:
@@ -415,7 +415,7 @@ class PageGenerator(BaseGenerator):
         except Exception as e:
             raise GenerationError(
                 "Failed to build taxonomy tree", details={"error": str(e)}
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def build_subtree(
@@ -459,29 +459,31 @@ class PageGenerator(BaseGenerator):
             raise GenerationError(
                 f"Failed to build subtree for taxon {taxon.id}",
                 details={"error": str(e)},
-            )
+            ) from e
 
-    @staticmethod
     @error_handler(log=True, raise_error=True)
-    def get_plot_list(plots: List[PlotRef]) -> List[Dict[str, Any]]:
+    def get_plot_list(self, plots: List[PlotRef]) -> List[Dict[str, Any]]:
         """
-        Get formatted plot list.
+        Get formatted plot list, sorted alphabetically by locality.
 
         Args:
             plots (List[niamoto.core.models.models.PlotRef]): List of plots
 
         Returns:
-            List of plot data dictionaries
+            List of plot data dictionaries, sorted by locality name
 
         Raises:
             GenerationError: If formatting fails
         """
         try:
-            return [{"id": plot.id, "name": plot.locality} for plot in plots]
+            return sorted(
+                [{"id": plot.id, "name": plot.locality} for plot in plots],
+                key=lambda x: x["name"].lower(),
+            )
         except Exception as e:
             raise GenerationError(
                 "Failed to format plot list", details={"error": str(e)}
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def copy_static_files(self) -> None:
@@ -510,7 +512,7 @@ class PageGenerator(BaseGenerator):
                 str(self.output_dir),
                 "Failed to copy static files",
                 details={"error": str(e), "source": str(self.static_src_dir)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def copy_template_page(self, template_name: str, output_name: str) -> None:
@@ -546,7 +548,7 @@ class PageGenerator(BaseGenerator):
                 str(output_path),
                 "Failed to copy template",
                 details={"error": str(e), "template": str(template_path)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def generate_taxonomy_tree_js(self, taxons: List[TaxonRef]) -> None:
@@ -579,7 +581,7 @@ class PageGenerator(BaseGenerator):
             raise GenerationError(
                 "Failed to generate taxonomy tree",
                 details={"error": str(e), "output_path": str(js_path)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def generate_plot_js(self, plots: List[PlotRef]) -> None:
@@ -612,7 +614,7 @@ class PageGenerator(BaseGenerator):
             raise GenerationError(
                 "Failed to generate plot",
                 details={"error": str(e), "output_path": str(js_path)},
-            )
+            ) from e
 
     @staticmethod
     def _process_shape_geometry(geom: Any, shape: ShapeRef) -> Optional[Dict[str, Any]]:
@@ -679,6 +681,8 @@ class PageGenerator(BaseGenerator):
             return first_ids
 
         except Exception as e:
-            raise DatabaseError("Failed to get first IDs", details={"error": str(e)})
+            raise DatabaseError(
+                "Failed to get first IDs", details={"error": str(e)}
+            ) from e
         finally:
             session.close()

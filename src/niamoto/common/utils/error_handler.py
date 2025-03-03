@@ -4,6 +4,7 @@ Error handling utilities for Niamoto.
 
 import logging
 import sys
+import os
 import traceback
 from functools import wraps
 from typing import Any, Callable, TypeVar, Optional
@@ -139,9 +140,9 @@ def handle_error(
     if log:
         # Only log full traceback for unexpected errors
         if isinstance(error, NiamotoError):
-            logging.error(f"Error: {error_message}")
+            logging.error("Error: %s", error_message)
         else:
-            logging.error(f"Unexpected error: {error_message}", exc_info=True)
+            logging.error("Unexpected error: %s", error_message, exc_info=True)
 
     # Console output if requested
     if console_output:
@@ -151,14 +152,11 @@ def handle_error(
     if raise_error:
         # If we're in a CLI context, we might want to exit the program
         # But for library code and tests, we should just raise the exception
-        import os
 
         is_test_environment = "PYTEST_CURRENT_TEST" in os.environ
 
         if isinstance(error, NiamotoError) and not is_test_environment:
             # Only exit in CLI context, not during tests
-            import sys
-
             sys.exit(1)
         elif isinstance(error, NiamotoError):
             # In test environment, just re-raise the original error
@@ -195,7 +193,7 @@ def error_handler(
             """
             try:
                 return func(*args, **kwargs)
-            except Exception as e:
+            except (NiamotoError, ValueError, OSError) as e:
                 handle_error(
                     e, log=log, raise_error=raise_error, console_output=console_output
                 )

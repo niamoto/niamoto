@@ -1,3 +1,7 @@
+"""
+Plugin for loading data using join tables.
+"""
+
 from typing import Dict, Any, Literal, Optional
 from pydantic import field_validator
 
@@ -47,7 +51,7 @@ class JoinTableLoader(LoaderPlugin):
             result = self.db.execute_sql(query, {"table_name": table_name}, fetch=True)
             return bool(result)
         except Exception as e:
-            raise DatabaseError(f"Error checking table {table_name}: {str(e)}")
+            raise DatabaseError(f"Error checking table {table_name}: {str(e)}") from e
 
     def load_data(self, group_id: int, config: Dict[str, Any]) -> pd.DataFrame:
         """Load data using a join table.

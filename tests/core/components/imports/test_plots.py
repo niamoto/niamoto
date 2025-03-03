@@ -65,7 +65,10 @@ class TestPlotImporter(NiamotoTestCase):
                 result = self.importer.import_from_gpkg("test.gpkg", "id", "location")
 
                 # Verify results
-                self.assertEqual(result, "3 plots imported from test.gpkg.")
+                self.assertEqual(
+                    result,
+                    "3 plots imported from test.gpkg. 0 occurrences linked to plots.",
+                )
                 mock_read_file.assert_called_once_with("test.gpkg")
                 mock_process.assert_called_once()
 

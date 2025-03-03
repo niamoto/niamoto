@@ -7,7 +7,7 @@
     grouping: taxon_ref
     relation:
       plugin: nested_set
-      key: id_taxonref
+      key: taxon_ref_id
       fields:
         parent: parent_id
         left: lft
@@ -18,10 +18,10 @@
       plugin: field_aggregator
       params:
         fields:
-          - source: taxonomy
+          - source: taxon_ref
             field: full_name
             target: name
-          - source: taxonomy
+          - source: taxon_ref
             field: rank_name
             target: rank
           - source: occurrences
@@ -41,8 +41,8 @@
         source: occurrences
         field: geo_pt
         format: geojson
-        properties: ["taxonref", "dbh", "height"]
         group_by_coordinates: true
+        #properties: ["taxonref", "dbh", "height"]
       # ex:
       # {
       #   "type": "FeatureCollection",
@@ -61,7 +61,7 @@
       plugin: top_ranking
       params:
         source: occurrences
-        field: id_taxonref
+        field: taxon_ref_id
         target_ranks: ["espèce", "sous-espèce"]
         count: 10
       # ex:
@@ -160,7 +160,7 @@
       params:
         source: occurrences
         field: dbh
-        stats: ["min", "mean", "max"]
+        stats: ["max"]
         units: "cm"
         max_value: 500
       # ex:
@@ -204,7 +204,7 @@
       params:
         source: occurrences
         field: wood_density
-        stats: ["min", "mean", "max"]
+        stats: ["mean"]
         units: "g/cm3"
         max_value: 1.2
       # ex:
@@ -260,7 +260,7 @@
       params:
         source: occurrences
         field: bark_thickness
-        stats: ["min", "mean", "max"]
+        stats: ["mean"]
         units: "mm"
         max_value: 80
       # ex:
@@ -276,13 +276,11 @@
       params:
         source: occurrences
         field: leaf_sla
-        stats: ["min", "mean", "max"]
+        stats: ["mean"]
         units: "g/m2"
         max_value: 50
       # ex:
       # {
-      #   "min": 8.5,
-      #   "mean": 22.4,
       #   "max": 38.2,
       #   "units": "g/m2"
       # }
@@ -323,12 +321,8 @@
     data: occurrences
     grouping: plot_ref
     relation:
-      plugin: join_table
-      key: id_plot
-      join_table: occurrences_plots
-      keys:
-        source: id_occurrence
-        reference: id_plot
+      plugin: direct_reference
+      key: plot_ref_id
 
   widgets_data:
     general_info:
@@ -473,14 +467,46 @@
         max_value: 1
       # ex: { "value": 0.5, "max": 1, "units": "" }
 
-    biomass:
-      plugin: direct_attribute
+    shannon_index:
+      plugin: shannon_index
       params:
-        source: plots
-        field: biomass
-        units: "t/ha"
-        max_value: 800
-      # ex: { "value": 450, "max": 800, "units": "t/ha" }
+        species_table: occurrences
+        species_field: taxon_ref_id
+        group_field: plot_id
+        min_occurrences: 1
+      # ex: { "value": 3.21, "units": "index", "metadata": {"species_count": 15, "total_count": 120, "formula": "H' = -sum(pi * ln(pi))"} }
+
+    pielou_index:
+      plugin: pielou_index
+      params:
+        species_table: occurrences
+        species_field: taxon_ref_id
+        group_field: plot_id
+        min_occurrences: 1
+        min_species: 2
+      # ex: { "value": 0.85, "units": "index", "metadata": {"species_count": 15, "total_count": 120, "shannon_index": 3.21, "formula": "J' = H' / ln(S)"} }
+
+    species_richness:
+      plugin: species_richness
+      params:
+        species_table: occurrences
+        species_field: taxon_ref_id
+        group_field: plot_id
+        min_occurrences: 1
+      # ex: { "value": 15, "units": "species", "metadata": {"total_count": 120} }
+
+    # biomass:
+    #   plugin: biomass
+    #   params:
+    #     individuals_table: trees
+    #     biomass_field: biomass
+    #     group_field: plot_id
+    #     calculation_method: direct
+    #     unit: "t/ha"
+    #     area_normalization: true
+    #     area_field: area_ha
+    #     area_unit: "ha"
+      # ex: { "value": 450, "units": "t/ha", "metadata": {"individual_count": 120, "calculation_method": "direct"} }
 
 ##################################################################
 # 3) CONFIG POUR LES SHAPES
@@ -495,173 +521,42 @@
 
   widgets_data:
     general_info:
-      plugin: "transform_chain"
-      steps:
-        # Extraction de la géométrie du shape
-        - plugin: "shape_processor"
-          params:
-            source: "shape_ref"
-            field: "location"
-            format: "geojson"
-            return_gdf: true
-          output_key: "main_shape"
-
-        # Calculer la surface totale (aire de l'emprise)
-        - plugin: "vector_overlay"
-          params:
-            operation: "coverage"
-            shape_field: "@main_shape.shape_coords"
-            area_unit: "ha"
-          output_key: "land_area"
-
-        # Surface forestière
-        - plugin: "vector_overlay"
-          params:
-            operation: "intersection"
-            overlay_path: "imports/layers/amap_carto_3k_20240715/amap_carto_3k_20240715.shp"
-            shape_field: "@main_shape.shape_coords"
-            area_unit: "ha"
-          output_key: "forest_area"
-
-        # Intersection avec les zones minières
-        - plugin: "vector_overlay"
-          params:
-            operation: "intersection"
-            overlay_path: "imports/shapes/mines.gpkg"
-            shape_field: "@main_shape.shape_coords"
-            area_unit: "ha"
-          output_key: "mining_areas"
-
-        # Calcul de la forêt sur mine
-        - plugin: "vector_overlay"
-          params:
-            operation: "intersection"
-            shape_field: "@mining_areas.intersections"
-            overlay_path: "imports/layers/amap_carto_3k_20240715/amap_carto_3k_20240715.shp"
-            area_unit: "ha"
-          output_key: "forest_mining"
-
-        # Intersection avec les réserves
-        - plugin: "vector_overlay"
-          params:
-            operation: "intersection"
-            overlay_path: "imports/shapes/protected_areas"
-            shape_field: "@main_shape.shape_coords"
-            attribute_field: "type"
-            where: "type = 'Réserve'"
-            area_unit: "ha"
-          output_key: "reserve_areas"
-
-        # Calcul de la forêt en réserve
-        - plugin: "vector_overlay"
-          params:
-            operation: "intersection"
-            shape_field: "@reserve_areas.intersections"
-            overlay_path: "imports/layers/amap_carto_3k_20240715/amap_carto_3k_20240715.shp"
-            area_unit: "ha"
-          output_key: "forest_reserve"
-
-        # Intersection avec les périmètres de protection des eaux (PPE)
-        - plugin: "vector_overlay"
-          params:
-            operation: "intersection"
-            overlay_path: "imports/shapes/ppe"
-            shape_field: "@main_shape.shape_coords"
-            area_unit: "ha"
-          output_key: "ppe_areas"
-
-        # Calcul de la forêt sur PPE
-        - plugin: "vector_overlay"
-          params:
-            operation: "intersection"
-            shape_field: "@ppe_areas.intersections"
-            overlay_path: "imports/layers/amap_carto_3k_20240715/amap_carto_3k_20240715.shp"
-            area_unit: "ha"
-          output_key: "forest_ppe"
-
-        # Statistiques d'altitude
-        - plugin: "raster_stats"
-          params:
-            raster_path: "imports/layers/mnt100_epsg3163.tif"
-            shape_field: "@main_shape.shape_coords"
-            stats: ["min", "max", "median", "mean"]
-          output_key: "elevation_stats"
-
-        # Statistiques de pluviométrie
-        - plugin: "raster_stats"
-          params:
-            raster_path: "imports/layers/rainfall_epsg3163.tif"
-            shape_field: "@main_shape.shape_coords"
-            stats: ["min", "max", "mean"]
-          output_key: "rainfall_stats"
-
-        # Extraire land_area_ha
-        - plugin: "custom_calculator"
-          params:
-            operation: "ratio_calculation"
-            numerator: "@land_area.coverage_area"
-            denominator: 1
-            scale_factor: 1
-          output_key: "land_area_ha_calc"
-
-        # Extraire forest_area_ha
-        - plugin: "custom_calculator"
-          params:
-            operation: "sum_array_slice"
-            array: "@forest_area.intersections"
-            start_index: 0
-            end_index: 999
-            total: "value"
-            total_value: 1
-          output_key: "forest_area_ha_sum"
-
-        # Extraire forest_mining_ha
-        - plugin: "custom_calculator"
-          params:
-            operation: "sum_array_slice"
-            array: "@forest_mining.intersections"
-            start_index: 0
-            end_index: 999
-            total: "value"
-            total_value: 1
-          output_key: "forest_mining_ha_sum"
-
-        # Extraire forest_reserve_ha
-        - plugin: "custom_calculator"
-          params:
-            operation: "sum_array_slice"
-            array: "@forest_reserve.intersections"
-            start_index: 0
-            end_index: 999
-            total: "value"
-            total_value: 1
-          output_key: "forest_reserve_ha_sum"
-
-        # Extraire forest_ppe_ha
-        - plugin: "custom_calculator"
-          params:
-            operation: "sum_array_slice"
-            array: "@forest_ppe.intersections"
-            start_index: 0
-            end_index: 999
-            total: "value"
-            total_value: 1
-          output_key: "forest_ppe_ha_sum"
-
-        # Construire le résultat final
-        - plugin: "custom_calculator"
-          params:
-            operation: "custom_formula"
-            formula: "{'land_area_ha': land_area_ha_calc.value, 'forest_area_ha': forest_area_ha_sum.slice_sum, 'forest_mining_ha': forest_mining_ha_sum.slice_sum, 'forest_reserve_ha': forest_reserve_ha_sum.slice_sum, 'forest_ppe_ha': forest_ppe_ha_sum.slice_sum, 'rainfall': {'min': rainfall_stats.min, 'max': rainfall_stats.max}, 'elevation_median': elevation_stats.median, 'elevation_max': elevation_stats.max}"
-            variables:
-              land_area_ha_calc: "@land_area_ha_calc"
-              forest_area_ha_sum: "@forest_area_ha_sum"
-              forest_mining_ha_sum: "@forest_mining_ha_sum"
-              forest_reserve_ha_sum: "@forest_reserve_ha_sum"
-              forest_ppe_ha_sum: "@forest_ppe_ha_sum"
-              rainfall_stats: "@rainfall_stats"
-              elevation_stats: "@elevation_stats"
-          output_key: "general_info_data"
+      plugin: class_object_field_aggregator
+      params:
+        fields:
+          - source: shape_stats
+            class_object: land_area_ha
+            target: land_area_ha
+            units: "ha"
+          - source: shape_stats
+            class_object: forest_area_ha
+            target: forest_area_ha
+            units: "ha"
+          - source: shape_stats
+            class_object: forest_mining_ha
+            target: forest_mining_ha
+            units: "ha"
+          - source: shape_stats
+            class_object: forest_reserve_ha
+            target: forest_reserve_ha
+            units: "ha"
+          - source: shape_stats
+            class_object: forest_ppe_ha
+            target: forest_ppe_ha
+            units: "ha"
+          - source: shape_stats
+            class_object: ["rainfall_min", "rainfall_max"]
+            target: rainfall
+            units: "mm/an"
+            format: range
+          - source: shape_stats
+            class_object: elevation_median
+            target: elevation_median
+            units: "m"
+          - source: shape_stats
+            class_object: elevation_max
+            target: elevation_max
+            units: "m"
         # ex:
       # {
       #   "land_area_ha": 941252.41,

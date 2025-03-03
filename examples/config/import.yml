@@ -1,9 +1,25 @@
 # 1) The main basic "entities"
+# taxonomy:
+#   type: csv
+#   path: "imports/taxonomy.csv"
+#   source: "file"  # Explicite mais optionnel car c'est la valeur par défaut
+#   identifier: "id_taxon"
+#   ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
+
+# Option 2: Taxonomie extraite des occurrences
 taxonomy:
   type: csv
-  path: "imports/taxonomy.csv"
-  identifier: "id_taxon"
-  ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
+  path: "imports/occurrences.csv"
+  source: "occurrences"
+  ranks: "family,genus,species,infra"
+  occurrence_columns:
+    taxon_id: "id_taxonref"
+    family: "family"
+    genus: "genus"
+    species: "species"
+    infra: "infra"
+    authors: "taxonref"  # Can extract authors from taxonref
+
 
 plots:
   type: vector
@@ -11,19 +27,15 @@ plots:
   path: "imports/plots.gpkg"
   identifier: "id_locality"
   location_field: "geometry"
+  link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien
+  occurrence_link_field: "plot_name"  # Champ à utiliser dans occurrences pour le lien
+
 
 occurrences:
   type: csv
   path: "imports/occurrences.csv"
   identifier: "id_taxonref"
   location_field: "geo_pt"
-
-occurrence_plots:
-  type: "csv"
-  path: "imports/occurrence-plots.csv"
-  role: "link"
-  left_key: "id_occurrence"
-  right_key: "id_plot"
 
 shape_stats:
   type: csv
@@ -55,13 +67,6 @@ shapes:
     name_field: "libelle"
     label: "Aires protégées"
     description: "Protected areas"
-
-  - category: "forest_cover"
-    type: vector
-    format: directory_shapefiles
-    path: "imports/shapes/forest_cover"
-    label: "Couverture forestière"
-    description: "Couches de couverture forestière"
 
   - category: "substrates"
     type: vector
