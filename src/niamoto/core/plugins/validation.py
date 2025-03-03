@@ -1,8 +1,22 @@
-# core/plugins/validation.py
-from typing import Dict, Any, Optional, List, Literal
-from pydantic import BaseModel, Field, field_validator, model_validator
+"""
+Validation module for Niamoto plugins.
+
+This module provides configuration and validation classes for all plugins
+in the Niamoto system. It defines:
+
+- Data source types (SourceType)
+- Base configurations (SourceConfig, LoaderConfig, PluginConfig)
+- Specific configurations for transformers, widgets, and exporters
+- Validators to ensure data integrity
+
+Each configuration class uses Pydantic for data validation
+and automatic documentation generation.
+"""
+
 from enum import Enum
 from pathlib import Path
+from typing import Dict, Any, Optional, List, Literal
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SourceType(str, Enum):
@@ -65,6 +79,7 @@ class ExporterConfig(PluginConfig):
     output_path: Path = Field(..., description="Output path")
     template: Optional[str] = Field(None, description="Template path")
 
+    # ruff: noqa: N805
     @field_validator("output_path")
     def validate_output_path(cls, v):
         """Validate output path"""
@@ -78,6 +93,7 @@ class BinnedDistributionConfig(TransformerConfig):
     bins: List[float] = Field(..., description="Bin boundaries")
     labels: Optional[List[str]] = Field(None, description="Bin labels")
 
+    # ruff: noqa: N805
     @field_validator("bins")
     def validate_bins(cls, v):
         """Validate bins are ascending"""
@@ -91,6 +107,7 @@ class NestedSetLoaderConfig(LoaderConfig):
 
     fields: Dict[str, str] = Field(..., description="Hierarchy fields")
 
+    # ruff: noqa: N805
     @field_validator("fields")
     def validate_fields(cls, v):
         """Validate required fields are present"""
@@ -137,7 +154,7 @@ class GroupConfig(BaseModel):
             raise ValueError(f"Invalid group: {v}. Must be one of {valid_groups}")
         return v
 
-    @model_validator
+    @model_validator(mode="after")
     def validate_source_loader_compatibility(cls, values):
         """Validate that source and loader configurations are compatible"""
         source = values.get("source")

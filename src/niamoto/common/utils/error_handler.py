@@ -172,13 +172,13 @@ def error_handler(
     """
     Decorator for standardized error handling.
 
-    Args:
-        log: Whether to log errors
-        raise_error: Whether to re-raise errors
-        console_output: Whether to output to console
+    Keyword Arguments:
+        log (bool): Whether to log errors. Defaults to True.
+        raise_error (bool): Whether to re-raise errors. Defaults to True.
+        console_output (bool): Whether to output to console. Defaults to True.
 
     Returns:
-        Decorator function
+        Callable: Decorator function that wraps the target function with error handling.
     """
 
     def decorator(func: Callable[..., T]) -> Callable[..., Optional[T]]:

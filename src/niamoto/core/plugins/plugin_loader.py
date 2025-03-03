@@ -1,3 +1,20 @@
+"""
+Plugin loader module for Niamoto.
+
+This module provides dynamic plugin loading capabilities for both core and project-specific
+plugins. It handles:
+
+- Dynamic loading and unloading of plugins
+- Plugin discovery and registration
+- Module path resolution and import management
+- Hot reloading of plugins during development
+- Plugin dependency management
+
+The loader supports a hierarchical plugin structure and maintains plugin state
+throughout the application lifecycle. It includes safeguards for handling import
+errors and plugin conflicts.
+"""
+
 # core/plugins/plugin_loader.py
 import sys
 import importlib
