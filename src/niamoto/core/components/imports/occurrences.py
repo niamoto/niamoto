@@ -78,7 +78,7 @@ class OccurrenceImporter:
         except Exception as e:
             raise CSVError(
                 csvfile, "Failed to analyze CSV structure", details={"error": str(e)}
-            )
+            ) from e
 
     def import_occurrences(self, csvfile: str, taxon_id_column: str) -> str:
         """
@@ -152,12 +152,12 @@ class OccurrenceImporter:
             # Count the number of imported occurrences
             count_sql = "SELECT COUNT(*) FROM occurrences;"
             result = self.db.execute_sql(count_sql).fetchone()
-            if result is not None:
-                imported_count = result[0]
-            else:
-                imported_count = 0
+            imported_count = result[0] if result else 0
 
-            return f"Total occurrences imported: {imported_count}"
+            # Validate and update taxon links
+            validation_result = self.validate_taxon_links()
+
+            return f"Total occurrences imported: {imported_count}\n{validation_result}"
 
         except Exception as e:
             raise e
@@ -168,7 +168,7 @@ class OccurrenceImporter:
         csvfile: str,
         taxon_id_column: str,
         location_column: str,
-        only_existing_taxons: bool = True,
+        only_existing_taxons: bool = False,
     ) -> str:
         """
         Import valid occurrences from CSV.
@@ -219,14 +219,14 @@ class OccurrenceImporter:
             except SQLAlchemyError as e:
                 raise DatabaseError(
                     "Failed to create occurrences table", details={"error": str(e)}
-                )
+                ) from e
 
             # Import data
             imported_count = self._import_data(
                 file_path, taxon_id_column, id_column_exists, only_existing_taxons
             )
 
-            return f"{imported_count} valid occurrences imported from {file_path}"
+            return f"{imported_count} occurrences imported from {file_path}\n"
 
         except Exception as e:
             if isinstance(e, (FileReadError, DataValidationError, DatabaseError)):
@@ -234,7 +234,7 @@ class OccurrenceImporter:
             raise OccurrenceImportError(
                 "Failed to import occurrences",
                 details={"file": csvfile, "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def _create_table_structure(
@@ -266,7 +266,7 @@ class OccurrenceImporter:
         except SQLAlchemyError as e:
             raise DatabaseError(
                 "Failed to create table structure", details={"error": str(e)}
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def _import_data(
@@ -309,7 +309,7 @@ class OccurrenceImporter:
                 df["id"] = range(1, len(df) + 1)
 
             # Add taxon reference
-            df["taxon_ref_id"] = df[taxon_id_column]
+            df["taxon_ref_id"] = None
 
             # Import in chunks
             chunk_size = 1000
@@ -333,18 +333,31 @@ class OccurrenceImporter:
                     chunk.to_sql("occurrences", engine, if_exists="append", index=False)
                     progress.update(task, advance=1)
 
-            # Get final count
+            # Get final count before validation
             result = self.db.execute_sql(
                 "SELECT COUNT(*) FROM occurrences;", fetch=True
             )
-            return result[0] if result else 0
+            imported_count = result[0] if result else 0
+
+            # Validate and update taxon links
+            self.validate_taxon_links()
+
+            # Get final count after validation
+            result = self.db.execute_sql(
+                "SELECT COUNT(*) FROM occurrences WHERE taxon_ref_id IS NOT NULL;",
+                fetch=True,
+            )
+
+            return imported_count
 
         except Exception as e:
             if isinstance(e, SQLAlchemyError):
                 raise DatabaseError(
                     "Database error during import", details={"error": str(e)}
-                )
-            raise FileReadError(file_path, f"Failed to read or process file: {str(e)}")
+                ) from e
+            raise FileReadError(
+                file_path, f"Failed to read or process file: {str(e)}"
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def import_occurrence_plot_links(self, csvfile: str) -> str:
@@ -495,4 +508,195 @@ class OccurrenceImporter:
             raise OccurrenceImportError(
                 message="Failed to import occurrence-plot links",
                 details={"error": str(e)},
+            ) from e
+
+    @error_handler(log=True, raise_error=True)
+    def validate_taxon_links(self) -> str:
+        """
+        Validate and update taxon links for occurrences.
+
+        Returns:
+            str: A status message with linking statistics
+        """
+        try:
+            # Get counts and check if linking is needed
+            total_count = self._get_occurrence_count()
+            already_linked = self._get_linked_occurrence_count()
+
+            if already_linked == total_count:
+                return f"Occurrence-Taxon links status: All {total_count} occurrences already linked"
+
+            # Process links
+            linked_stats = self._process_taxon_links()
+
+            # Get final counts
+            linked_count = self._get_linked_occurrence_count()
+            unlinked_count = total_count - linked_count
+
+            return self._format_link_status(
+                total_count,
+                linked_count,
+                linked_stats["by_taxon_id"],
+                linked_stats["by_name"],
+                unlinked_count,
+                linked_stats["unlinked_examples"] if unlinked_count > 0 else "",
             )
+
+        except Exception as e:
+            raise OccurrenceImportError(
+                message="Error validating taxon links",
+                details={"error": str(e)},
+            ) from e
+
+    def _get_occurrence_count(self) -> int:
+        """Get total number of occurrences."""
+        return self.db.execute_sql("SELECT COUNT(*) FROM occurrences;", fetch=True)[0]
+
+    def _get_linked_occurrence_count(self) -> int:
+        """Get number of occurrences linked to taxons."""
+        return self.db.execute_sql(
+            "SELECT COUNT(*) FROM occurrences WHERE taxon_ref_id IS NOT NULL;",
+            fetch=True,
+        )[0]
+
+    def _process_taxon_links(self) -> dict:
+        """Process all taxon links in one go and return statistics."""
+        engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
+
+        # Get taxon data
+        taxon_df = pd.read_sql("SELECT id, full_name, taxon_id FROM taxon_ref", engine)
+
+        # Get unlinked occurrences
+        occurrences_df = pd.read_sql(
+            "SELECT id, taxaname, id_taxonref FROM occurrences WHERE taxon_ref_id IS NULL",
+            engine,
+        )
+
+        if occurrences_df.empty:
+            return {"by_taxon_id": 0, "by_name": 0, "unlinked_examples": ""}
+
+        # Create mapping dictionaries
+        name_to_taxon = {
+            row["full_name"]: row["id"]
+            for _, row in taxon_df.iterrows()
+            if pd.notna(row["full_name"])
+        }
+
+        taxon_id_to_taxon = {}
+        for _, row in taxon_df.iterrows():
+            if pd.notna(row["taxon_id"]):
+                external_id = row["taxon_id"]
+                if isinstance(external_id, float) and external_id.is_integer():
+                    external_id = int(external_id)
+                taxon_id_to_taxon[str(external_id)] = row["id"]
+
+        # Link occurrences
+        updates = []
+        linked_by_taxon_id = 0
+        linked_by_name = 0
+
+        for _, row in occurrences_df.iterrows():
+            occ_id = row["id"]
+            taxaname = row["taxaname"] if pd.notna(row["taxaname"]) else None
+            id_taxonref = row["id_taxonref"] if pd.notna(row["id_taxonref"]) else None
+            id_taxonref_str = str(id_taxonref) if id_taxonref is not None else None
+
+            # Try to link by external taxon_id first
+            if id_taxonref_str and id_taxonref_str in taxon_id_to_taxon:
+                updates.append(
+                    {"occ_id": occ_id, "taxon_id": taxon_id_to_taxon[id_taxonref_str]}
+                )
+                linked_by_taxon_id += 1
+                continue
+
+            # Then try by name
+            if taxaname and taxaname in name_to_taxon:
+                updates.append({"occ_id": occ_id, "taxon_id": name_to_taxon[taxaname]})
+                linked_by_name += 1
+
+        # Apply updates in batches
+        self._apply_batch_updates(updates)
+
+        # Get sample of remaining unlinked occurrences
+        unlinked_examples = self._get_unlinked_examples() if updates else ""
+
+        return {
+            "by_taxon_id": linked_by_taxon_id,
+            "by_name": linked_by_name,
+            "unlinked_examples": unlinked_examples,
+        }
+
+    def _apply_batch_updates(self, updates):
+        """Apply updates in efficient batches using CASE statements."""
+        if not updates:
+            return
+
+        batch_size = 1000
+        for i in range(0, len(updates), batch_size):
+            batch = updates[i : i + batch_size]
+
+            # Build CASE statement
+            case_stmt = " ".join(
+                f"WHEN {update['occ_id']} THEN {update['taxon_id']}" for update in batch
+            )
+
+            ids = ", ".join(str(update["occ_id"]) for update in batch)
+
+            query = f"""
+            UPDATE occurrences
+            SET taxon_ref_id = CASE id {case_stmt} END
+            WHERE id IN ({ids})
+            """
+
+            self.db.execute_sql(query)
+
+    def _get_unlinked_examples(self, limit=5):
+        """Get a small sample of unlinked occurrences for debugging."""
+        engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
+
+        sample_df = pd.read_sql(
+            f"SELECT id, taxaname, id_taxonref FROM occurrences WHERE taxon_ref_id IS NULL LIMIT {limit}",
+            engine,
+        )
+
+        if sample_df.empty:
+            return ""
+
+        return "\n".join(
+            f"  - ID: {row['id']}, Name: {row['taxaname'] if pd.notna(row['taxaname']) else 'N/A'}, "
+            f"Original ID: {row['id_taxonref'] if pd.notna(row['id_taxonref']) else 'N/A'}"
+            for _, row in sample_df.iterrows()
+        )
+
+    def _format_link_status(
+        self,
+        total_count: int,
+        linked_count: int,
+        linked_by_taxon_id: int,
+        linked_by_name: int,
+        unlinked_count: int,
+        unlinked_examples: str = "",
+    ):
+        """Format the link status message."""
+        status = [
+            "Occurrence-Taxon links status:",
+            f"- Total occurrences: {total_count}",
+            f"- Successfully linked: {linked_count}",
+        ]
+
+        if linked_by_taxon_id > 0 or linked_by_name > 0:
+            status.extend(
+                [
+                    f"  - Linked by taxon_id: {linked_by_taxon_id}",
+                    f"  - Linked by name: {linked_by_name}",
+                ]
+            )
+
+        if unlinked_count > 0:
+            status.append(f"- Failed to link: {unlinked_count}")
+            if unlinked_examples:
+                status.append(f"Sample of unlinked occurrences:\n{unlinked_examples}")
+        else:
+            status.append("- All occurrences successfully linked to taxons")
+
+        return "\n".join(status)

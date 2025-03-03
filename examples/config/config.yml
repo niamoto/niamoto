@@ -6,3 +6,5 @@ exports:
   web: exports # web root directory
   api: exports/api # api root directory
   files: exports/files # static files directory
+plugins:
+  path: plugins # Path to the project plugins directory

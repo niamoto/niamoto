@@ -4,34 +4,34 @@ niamoto.core.services package
 Submodules
 ----------
 
-niamoto.core.services.exporter module
--------------------------------------
+niamoto.core.services.exporter\_old module
+------------------------------------------
 
-.. automodule:: niamoto.core.services.exporter
+.. automodule:: niamoto.core.services.exporter_old
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 niamoto.core.services.importer module
 -------------------------------------
 
 .. automodule:: niamoto.core.services.importer
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 niamoto.core.services.transformer module
 ----------------------------------------
 
 .. automodule:: niamoto.core.services.transformer
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: niamoto.core.services
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

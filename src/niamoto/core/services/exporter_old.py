@@ -153,7 +153,7 @@ class ExporterService:
             else:
                 raise ProcessError(
                     "Failed to export data", details={"group": group, "error": str(e)}
-                )
+                ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_static_pages(self) -> None:
@@ -181,7 +181,7 @@ class ExporterService:
                     page,
                     f"Failed to generate static page: {str(e)}",
                     details={"template": page},
-                )
+                ) from e
 
     @error_handler(log=True, raise_error=False)
     def _export_group_data(self, group_by: str, group_config: Dict[str, Any]) -> None:
@@ -215,7 +215,7 @@ class ExporterService:
             raise GenerationError(
                 f"Failed to generate content for {group_by}",
                 details={"group": group_by, "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_additional_content(self, group: Optional[str] = None) -> None:
@@ -248,7 +248,7 @@ class ExporterService:
             raise GenerationError(
                 "Failed to generate additional content",
                 details={"group": group, "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _get_entities_for_group(self, group_by: str) -> List[Any]:
@@ -287,7 +287,7 @@ class ExporterService:
                 raise
             raise GenerationError(
                 f"Failed to get entities for {group_by}", details={"error": str(e)}
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _get_entity_stats(self, entity: Any, group_by: str) -> Optional[Dict]:
@@ -316,7 +316,7 @@ class ExporterService:
             raise GenerationError(
                 "Failed to get entity stats",
                 details={"group": group_by, "entity_id": entity.id, "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _filter_entities_with_stats(
@@ -345,7 +345,7 @@ class ExporterService:
             raise GenerationError(
                 "Failed to filter entities",
                 details={"group": group_by, "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def generate_page(
@@ -387,12 +387,12 @@ class ExporterService:
                     template_name,
                     f"Failed to process template: {str(e)}",
                     details={"output": output_name, "depth": depth},
-                )
+                ) from e
             raise OutputError(
                 output_name,
                 f"Failed to generate page: {str(e)}",
                 details={"template": template_name, "depth": depth},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_page_for_taxon(
@@ -420,7 +420,7 @@ class ExporterService:
                 "taxon_template",
                 f"Failed to generate taxon page: {str(e)}",
                 details={"taxon_id": taxon.id, "taxon_name": taxon.full_name},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_json_for_taxon(self, taxon: TaxonRef, stats: Optional[Any]) -> str:
@@ -444,7 +444,7 @@ class ExporterService:
                 f"taxon_{taxon.id}.json",
                 f"Failed to generate taxon JSON: {str(e)}",
                 details={"taxon_id": taxon.id, "taxon_name": taxon.full_name},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_taxonomy_tree(self, taxons: List[TaxonRef]) -> None:
@@ -463,7 +463,7 @@ class ExporterService:
             raise GenerationError(
                 "Failed to generate taxonomy tree",
                 details={"taxon_count": len(taxons), "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_plot_list(self, plots: List[PlotRef]) -> None:
@@ -482,7 +482,7 @@ class ExporterService:
             raise GenerationError(
                 "Failed to generate plot list",
                 details={"plot_count": len(plots), "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_page_for_plot(
@@ -510,7 +510,7 @@ class ExporterService:
                 "plot_template",
                 f"Failed to generate plot page: {str(e)}",
                 details={"plot_id": plot.id, "plot_name": plot.locality},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_json_for_plot(self, plot: PlotRef, stats: Optional[Any]) -> str:
@@ -534,7 +534,7 @@ class ExporterService:
                 f"plot_{plot.id}.json",
                 f"Failed to generate plot JSON: {str(e)}",
                 details={"plot_id": plot.id, "plot_name": plot.locality},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_shape_list(self, shapes: List[ShapeRef]) -> None:
@@ -553,7 +553,7 @@ class ExporterService:
             raise GenerationError(
                 "Failed to generate shape list",
                 details={"shape_count": len(shapes), "error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_page_for_shape(
@@ -581,7 +581,7 @@ class ExporterService:
                 "shape_template",
                 f"Failed to generate shape page: {str(e)}",
                 details={"shape_id": shape.id, "shape_name": shape.label},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_json_for_shape(self, shape: ShapeRef, stats: Optional[Any]) -> str:
@@ -605,7 +605,7 @@ class ExporterService:
                 f"shape_{shape.id}.json",
                 f"Failed to generate shape JSON: {str(e)}",
                 details={"shape_id": shape.id, "shape_name": shape.label},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_all_plots_json(self, plots: List[PlotRef]) -> None:
@@ -625,7 +625,7 @@ class ExporterService:
                 "all_plots.json",
                 f"Failed to generate all plots JSON: {str(e)}",
                 details={"plot_count": len(plots)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_all_shapes_json(self, shapes: List[ShapeRef]) -> None:
@@ -645,7 +645,7 @@ class ExporterService:
                 "all_shapes.json",
                 f"Failed to generate all shapes JSON: {str(e)}",
                 details={"shape_count": len(shapes)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=False)
     def _generate_all_taxa_json(self, taxons: List[TaxonRef]) -> None:
@@ -665,4 +665,4 @@ class ExporterService:
                 "all_taxa.json",
                 f"Failed to generate all taxa JSON: {str(e)}",
                 details={"taxon_count": len(taxons)},
-            )
+            ) from e

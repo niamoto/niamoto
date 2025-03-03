@@ -7,6 +7,7 @@ import os
 from typing import Optional, Dict, Any
 
 import click
+from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.config import Config
 from niamoto.core.services.importer import ImporterService
@@ -35,28 +36,42 @@ def import_commands(ctx):
 @import_commands.command(name="taxonomy")
 @click.argument("csvfile", required=False)
 @click.option("--ranks", help="Comma-separated list of ranks in the hierarchy.")
+@click.option(
+    "--source",
+    type=click.Choice(["file", "occurrence"]),
+    help="Source of taxonomy data: 'file' (default) or 'occurrence'.",
+)
 @error_handler(log=True, raise_error=True)
-def import_taxonomy(csvfile: Optional[str], ranks: Optional[str]) -> None:
+def import_taxonomy(
+    csvfile: Optional[str], ranks: Optional[str], source: Optional[str] = None
+) -> None:
     """
-    Import taxonomy data from a CSV file.
+    Import taxonomy data from a CSV file or extract from occurrences.
 
     If no file is provided, uses the path from import.yml.
+
+    Options:
+    --source: Specify the source of taxonomy data ('file' or 'occurrence').
+              If 'occurrence', taxonomy will be extracted from occurrence data.
     """
     # Get configuration
     config = Config()
 
-    # Get file path and ranks from arguments or config
-    if csvfile is None or ranks is None:
+    # If using explicit arguments
+    if csvfile is not None:
+        file_path = csvfile
+        rank_list = ranks.split(",") if ranks else []
+        tax_source = source or "file"
+    else:
+        # Get from config
         source_def = validate_source_config(
             config.imports, "taxonomy", ["path", "ranks"]
         )
-        file_path = csvfile or source_def.get("path")
-        rank_list = (ranks or source_def.get("ranks", "")).split(",")
-    else:
-        file_path = csvfile
-        rank_list = ranks.split(",")
+        file_path = source_def.get("path")
+        rank_list = source_def.get("ranks", "").split(",")
+        tax_source = source_def.get("source", "file")
 
-    # Validate file path
+    # Validate file path first
     if not os.path.exists(file_path):
         raise FileError(
             file_path=file_path, message="File not found", details={"path": file_path}
@@ -74,27 +89,78 @@ def import_taxonomy(csvfile: Optional[str], ranks: Optional[str]) -> None:
     try:
         importer = ImporterService(config.database_path)
         reset_table(config.database_path, "taxon_ref")
-        result = importer.import_taxonomy(file_path, tuple(rank_list))
+
+        if tax_source == "occurrence":
+            # Get occurrence columns mapping from config
+            occ_columns = source_def.get("occurrence_columns", {})
+
+            if not occ_columns:
+                print_error(
+                    "Missing occurrence_columns configuration for taxonomy extraction from occurrences"
+                )
+                print_info("Example configuration:")
+                print_info(
+                    """
+                    taxonomy:
+                    type: csv
+                    path: "imports/occurrences.csv"
+                    source: "occurrence"
+                    ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
+                    occurrence_columns:
+                        taxon_id: "id_taxonref"
+                        family: "family"
+                        genus: "genus"
+                        species: "species"
+                        infra: "infra"
+                        authors: "taxonref"
+                """
+                )
+                raise ConfigurationError(
+                    config_key="taxonomy.occurrence_columns",
+                    message="Missing occurrence columns mapping configuration",
+                    details={
+                        "expected": "dictionary mapping taxonomy fields to occurrence columns"
+                    },
+                )
+
+            result = importer.import_taxonomy_from_occurrences(
+                file_path, tuple(rank_list), occ_columns
+            )
+        else:  # Default to file
+            result = importer.import_taxonomy(file_path, tuple(rank_list))
+
         print_info(result)
     except FileError as e:
         raise FileError(
             file_path=file_path,
             message=f"File not found or has invalid format: {e}",
             details={"path": file_path, "ranks": ranks},
-        )
+        ) from e
     except Exception as e:
         raise DataImportError(
-            message=str(e), details={"file": file_path, "ranks": ranks}
-        )
+            message=str(e),
+            details={"file": file_path, "ranks": ranks, "source": tax_source},
+        ) from e
 
 
 @import_commands.command(name="plots")
 @click.argument("file", required=False)
 @click.option("--id-field", help="Name of the ID field.")
 @click.option("--location-field", help="Name of the location field.")
+@click.option(
+    "--link-field", help="Field in plot_ref to use for linking with occurrences."
+)
+@click.option(
+    "--occurrence-link-field",
+    help="Field in occurrences to use for linking with plots.",
+)
 @error_handler(log=True, raise_error=True)
 def import_plots(
-    file: Optional[str], id_field: Optional[str], location_field: Optional[str]
+    file: Optional[str],
+    id_field: Optional[str],
+    location_field: Optional[str],
+    link_field: Optional[str],
+    occurrence_link_field: Optional[str],
 ) -> None:
     """
     Import plot data from a file.
@@ -117,6 +183,10 @@ def import_plots(
     file_path = file or get_source_path(config, "plots")
     id_field = id_field or source_def.get("identifier")
     location_field = location_field or source_def.get("location_field")
+    link_field = link_field or source_def.get("link_field")
+    occurrence_link_field = occurrence_link_field or source_def.get(
+        "occurrence_link_field"
+    )
 
     if not id_field or not location_field:
         raise ValidationError(
@@ -139,18 +209,19 @@ def import_plots(
     reset_table(db_path, "plot_ref")
 
     try:
-        result = importer.import_plots(file_path, id_field, location_field)
+        result = importer.import_plots(
+            file_path,
+            id_field,
+            location_field,
+            link_field=link_field,
+            occurrence_link_field=occurrence_link_field,
+        )
         print_info(result)
     except Exception as e:
         raise DataImportError(
-            message="Plot import failed",
-            details={
-                "file": file_path,
-                "id_field": id_field,
-                "location_field": location_field,
-                "error": str(e),
-            },
-        )
+            "Failed to import plots",
+            details={"error": str(e)},
+        ) from e
 
 
 @import_commands.command(name="occurrences")
@@ -215,7 +286,7 @@ def import_occurrences(
                 "location_field": location_field,
                 "error": str(e),
             },
-        )
+        ) from e
 
 
 @import_commands.command(name="occurrence-plots")
@@ -253,7 +324,7 @@ def import_occurrence_plots(csvfile: Optional[str]) -> None:
         raise DataImportError(
             message="Occurrence-plot links import failed",
             details={"file": file_path, "error": str(e)},
-        )
+        ) from e
 
 
 @import_commands.command(name="shapes")
@@ -291,7 +362,7 @@ def import_shapes() -> None:
         raise DataImportError(
             message="Shapes import failed",
             details={"shapes_config": shapes_config, "error": str(e)},
-        )
+        ) from e
 
 
 @import_commands.command(name="all")
@@ -310,14 +381,11 @@ def import_all() -> None:
         # Import taxonomy
         ctx.invoke(import_taxonomy)
 
-        # Import plots
-        ctx.invoke(import_plots)
-
         # Import occurrences
         ctx.invoke(import_occurrences)
 
-        # Import occurrence-plot links
-        ctx.invoke(import_occurrence_plots)
+        # Import plots
+        ctx.invoke(import_plots)
 
         # Import shapes
         ctx.invoke(import_shapes)
@@ -326,7 +394,7 @@ def import_all() -> None:
     except Exception as e:
         raise DataImportError(
             message="Full import failed", details={"last_step": str(e), "error": str(e)}
-        )
+        ) from e
 
 
 @error_handler(log=True, raise_error=True)
@@ -417,7 +485,7 @@ def get_source_path(config: Config, source_name: str) -> str:
             config_key=source_name,
             message="Failed to get source path",
             details={"error": str(e)},
-        )
+        ) from e
 
 
 def reset_table(db_path: str, table_name: str) -> None:
@@ -438,7 +506,7 @@ def reset_table(db_path: str, table_name: str) -> None:
 
     try:
         db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-    except Exception as e:
+    except SQLAlchemyError as e:
         print_error(f"Failed to reset table {table_name}: {str(e)}")
 
     # Recreate the table using SQLAlchemy models if the model exists
@@ -448,5 +516,5 @@ def reset_table(db_path: str, table_name: str) -> None:
         if table_name in Base.metadata.tables:
             Base.metadata.create_all(engine, tables=[Base.metadata.tables[table_name]])
 
-    except Exception as e:
+    except SQLAlchemyError as e:
         print_error(f"Failed to recreate table {table_name}: {str(e)}")

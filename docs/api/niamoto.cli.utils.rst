@@ -9,13 +9,13 @@ niamoto.cli.utils.console module
 
 .. automodule:: niamoto.cli.utils.console
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: niamoto.cli.utils
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
