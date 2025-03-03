@@ -4,6 +4,9 @@ Service for transforming data based on YAML configuration.
 
 from typing import Dict, Any, List, Optional
 import logging
+import difflib
+import json
+import numpy as np
 import pandas as pd
 from rich.console import Console
 from rich.progress import (
@@ -13,12 +16,15 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
-
+from sqlalchemy.exc import SQLAlchemyError
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.exceptions import (
     ConfigurationError,
     ProcessError,
+    ValidationError,
+    DatabaseWriteError,
+    JSONEncodeError,
     DataTransformError,
 )
 from niamoto.common.utils import error_handler
@@ -60,125 +66,88 @@ class TransformerService:
         recreate_table: bool = True,
     ) -> None:
         """
-        Transform data according to configuration.
+        Transforme les données selon la configuration.
 
         Args:
-            group_by: Optional group filter
-            csv_file: Optional CSV file to use instead of database
-            recreate_table: Whether to recreate the table for results
+            group_by: Filtre optionnel par groupe
+            csv_file: Fichier CSV optionnel à utiliser au lieu de la base de données
+            recreate_table: Indique s'il faut recréer la table des résultats
 
         Raises:
-            ConfigurationError: If configuration is invalid
-            ProcessError: If transformation fails
+            ConfigurationError: Si la configuration est invalide
+            ProcessError: Si la transformation échoue
         """
-        try:
-            # Filter configuration by group if specified
-            configs = self._filter_configs(group_by)
+        # Filtrer les configurations
+        configs = self._filter_configs(group_by)
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TextColumn("•"),
-                TimeElapsedColumn(),
-                console=self.console,
-            ) as progress:
-                # Process each group configuration
-                for group_config in configs:
-                    self.validate_configuration(group_config)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("•"),
+            TimeElapsedColumn(),
+            console=self.console,
+        ) as progress:
+            for group_config in configs:
+                # Valider la configuration
+                self.validate_configuration(group_config)
 
-                    # Get all group IDs and widgets
-                    group_ids = self._get_group_ids(group_config)
-                    widgets_config = group_config.get("widgets_data", {})
-                    group_by = group_config.get("group_by", "unknown")
+                # Récupérer les IDs de groupe et les widgets
+                group_ids = self._get_group_ids(group_config)
+                widgets_config = group_config.get("widgets_data", {})
+                group_by_name = group_config.get("group_by", "unknown")
 
-                    # Calculate total operations for this group config
-                    total_ops = len(group_ids) * len(widgets_config)
-
-                    # Create progress bar for this group config
-                    config_task = progress.add_task(
-                        f"[cyan]Processing {group_by} data...", total=total_ops
-                    )
-
-                    # Create or update table for results
-                    self._create_group_table(
-                        group_config.get("group_by"),
-                        widgets_config,
-                        recreate_table,
-                    )
-
-                    # Process each group
-                    for group_id in group_ids:
-                        try:
-                            # Update progress description with current group ID
-                            progress.update(
-                                config_task,
-                                description=f"[cyan]Processing {group_by} {group_id}...",
-                            )
-
-                            # Get group data
-                            group_data = self._get_group_data(
-                                group_config, csv_file, group_id
-                            )
-
-                            # Process each widget
-                            for widget_name, widget_config in widgets_config.items():
-                                try:
-                                    # Get transformer plugin
-                                    transformer = PluginRegistry.get_plugin(
-                                        widget_config["plugin"], PluginType.TRANSFORMER
-                                    )(self.db)
-
-                                    # Transform data
-                                    config = {
-                                        "plugin": widget_config["plugin"],
-                                        "params": {
-                                            "source": widget_config.get("source"),
-                                            "field": widget_config.get("field"),
-                                            **widget_config.get("params", {}),
-                                        },
-                                        "group_id": group_id,
-                                    }
-
-                                    results = transformer.transform(group_data, config)
-
-                                    # Save results
-                                    if results:
-                                        self._save_widget_results(
-                                            group_by=group_config["group_by"],
-                                            group_id=group_id,
-                                            results={widget_name: results},
-                                        )
-
-                                except Exception as e:
-                                    error_msg = f"Error processing widget {widget_name} for group {group_id}: {str(e)}"
-                                    self.console.print(f"[red]{error_msg}[/red]")
-                                finally:
-                                    progress.advance(config_task)
-
-                        except Exception as e:
-                            error_msg = f"Failed to process group {group_id}: {str(e)}"
-                            self.console.print(f"[red]{error_msg}[/red]")
-                            # Advance for all remaining widgets in case of group error
-                            remaining = len(widgets_config)
-                            progress.advance(config_task, remaining)
-
-        except Exception as e:
-            # Extract useful details from the original error if it's a ConfigurationError
-            if isinstance(e, ConfigurationError) and hasattr(e, "details"):
-                error_details = e.details.copy() if e.details else {}
-                error_details.update({"group": group_by})
-
-                raise ProcessError("Failed to transform data", details=error_details)
-            else:
-                raise ProcessError(
-                    "Failed to transform data",
-                    details={"group": group_by, "error": str(e)},
+                # Calculer le total des opérations
+                total_ops = len(group_ids) * len(widgets_config)
+                config_task = progress.add_task(
+                    f"[cyan]Traitement des données {group_by_name}...", total=total_ops
                 )
 
+                # Créer ou mettre à jour la table
+                self._create_group_table(group_by_name, widgets_config, recreate_table)
+
+                # Traiter chaque groupe
+                for group_id in group_ids:
+                    progress.update(
+                        config_task,
+                        description=f"[cyan]Traitement {group_by_name} {group_id}...",
+                    )
+
+                    # Récupérer les données du groupe
+                    group_data = self._get_group_data(group_config, csv_file, group_id)
+
+                    # Traiter chaque widget
+                    for widget_name, widget_config in widgets_config.items():
+                        # Charger le plugin de transformation
+                        transformer = PluginRegistry.get_plugin(
+                            widget_config["plugin"], PluginType.TRANSFORMER
+                        )(self.db)
+
+                        # Transformer les données
+                        config = {
+                            "plugin": widget_config["plugin"],
+                            "params": {
+                                "source": widget_config.get("source"),
+                                "field": widget_config.get("field"),
+                                **widget_config.get("params", {}),
+                            },
+                            "group_id": group_id,
+                        }
+                        results = transformer.transform(group_data, config)
+
+                        # Sauvegarder les résultats
+                        if results:
+                            self._save_widget_results(
+                                group_by=group_by_name,
+                                group_id=group_id,
+                                results={widget_name: results},
+                            )
+
+                        progress.advance(config_task)
+
     def _filter_configs(self, group_by: Optional[str]) -> List[Dict[str, Any]]:
-        """Filter configurations by group."""
+        """Filter configurations by group, attempting various matching strategies."""
         if not self.transforms_config:
             raise ConfigurationError(
                 "transforms",
@@ -189,68 +158,51 @@ class TransformerService:
         if not group_by:
             return self.transforms_config
 
-        # Get available group_by values
         available_groups = [
             config.get("group_by")
             for config in self.transforms_config
             if config.get("group_by")
         ]
+        filtered = []
 
-        # Check for exact match first
-        filtered = [
-            config
-            for config in self.transforms_config
-            if config.get("group_by") == group_by
-        ]
+        # Single pass through configurations with prioritized checks
+        for config in self.transforms_config:
+            config_group = config.get("group_by")
+            if not config_group:
+                continue
 
-        # If no exact match, try case-insensitive match
+            # Exact match
+            if config_group == group_by:
+                filtered.append(config)
+                break
+            # Case-insensitive match
+            elif config_group.lower() == group_by.lower():
+                filtered.append(config)
+                self.console.print(
+                    f"[yellow]Using group '{config_group}' instead of '{group_by}'[/yellow]"
+                )
+                break
+            # Singular/plural match
+            elif group_by.endswith("s") and config_group == group_by[:-1]:
+                filtered.append(config)
+                self.console.print(
+                    f"[yellow]Using singular form '{config_group}' instead of '{group_by}'[/yellow]"
+                )
+                break
+            elif not group_by.endswith("s") and config_group == f"{group_by}s":
+                filtered.append(config)
+                self.console.print(
+                    f"[yellow]Using plural form '{config_group}' instead of '{group_by}'[/yellow]"
+                )
+                break
+
+        # If no match, raise an error with a suggestion
         if not filtered:
-            for config in self.transforms_config:
-                if (
-                    config.get("group_by")
-                    and config.get("group_by").lower() == group_by.lower()
-                ):
-                    filtered.append(config)
-                    correct_group = config.get("group_by")
-                    self.console.print(
-                        f"[yellow]Using group '{correct_group}' instead of '{group_by}'[/yellow]"
-                    )
-                    break
-
-        # If still no match, try singular/plural variants
-        if not filtered:
-            # Try singular form if group_by ends with 's'
-            if group_by.endswith("s"):
-                singular = group_by[:-1]
-                for config in self.transforms_config:
-                    if config.get("group_by") == singular:
-                        filtered.append(config)
-                        self.console.print(
-                            f"[yellow]Using singular form '{singular}' instead of '{group_by}'[/yellow]"
-                        )
-                        break
-            # Try plural form if group_by doesn't end with 's'
-            else:
-                plural = f"{group_by}s"
-                for config in self.transforms_config:
-                    if config.get("group_by") == plural:
-                        filtered.append(config)
-                        self.console.print(
-                            f"[yellow]Using plural form '{plural}' instead of '{group_by}'[/yellow]"
-                        )
-                        break
-
-        # If still no match, provide a helpful error message
-        if not filtered:
-            # Try to find a close match
             suggestion = ""
             if available_groups:
-                import difflib
-
                 matches = difflib.get_close_matches(group_by, available_groups, n=1)
                 if matches:
                     suggestion = f" Did you mean '{matches[0]}'?"
-
             raise ConfigurationError(
                 "transforms",
                 f"No configuration found for group: {group_by}",
@@ -313,7 +265,7 @@ class TransformerService:
         except Exception as e:
             raise DataTransformError(
                 "Failed to get group IDs", details={"error": str(e)}
-            )
+            ) from e
 
     def _get_group_data(
         self, group_config: Dict[str, Any], csv_file: Optional[str], group_id: int
@@ -329,8 +281,10 @@ class TransformerService:
             try:
                 plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.LOADER)
                 loader = plugin_class(self.db)
-            except Exception:
-                raise
+            except Exception as e:
+                raise DataTransformError(
+                    "Failed to get group data", details={"error": str(e)}
+                ) from e
 
             # Load data using the loader
             group_data = loader.load_data(
@@ -372,68 +326,50 @@ class TransformerService:
             raise DataTransformError(
                 f"Failed to create table for group {group_by}",
                 details={"error": str(e)},
-            )
+            ) from e
 
     def _save_widget_results(
         self, group_by: str, group_id: int, results: Dict[str, Any]
     ) -> None:
-        """Save widget results to database."""
+        """Save widget results to database.
+
+        Args:
+            group_by (str): Name of the table to save results into.
+            group_id (int): Identifier of the group.
+            results (Dict[str, Any]): Dictionary mapping column names to their values.
+
+        Raises:
+            ValidationError: If input data is invalid.
+            DatabaseWriteError: If a database error occurs.
+            DataTransformError: If data serialization fails.
+            ProcessError: For unexpected errors.
+        """
+        # Validation des données d'entrée
+        if not results:
+            raise ValidationError(
+                "results",
+                "No results to save",
+                details={"group_by": group_by, "group_id": group_id},
+            )
+
+        columns = list(results.keys())
+        values = [results[col] for col in columns]
+
+        # Vérifier la cohérence entre colonnes et valeurs
+        if len(columns) != len(values):
+            raise ValidationError(
+                "results",
+                "Mismatch between columns and values",
+                details={"columns": columns, "values": values},
+            )
+
         try:
-            # Prepare column names and values
-            columns = list(results.keys())
-            values = [results[col] for col in columns]
+            # Formater les valeurs pour la requête SQL
+            formatted_values = [self._format_value_for_sql(group_id)]
+            for val in values:
+                formatted_values.append(self._format_value_for_sql(val))
 
-            # Format values for SQL
-            formatted_values = []
-            for val in [group_id] + values:
-                if val is None:
-                    formatted_values.append("NULL")
-                elif isinstance(val, (int, float)):
-                    formatted_values.append(str(val))
-                elif isinstance(val, dict):
-                    # Convert dictionary with numpy values
-                    import json
-                    import numpy as np
-
-                    def convert_numpy(obj):
-                        if isinstance(obj, np.integer):
-                            return int(obj)
-                        elif isinstance(obj, np.floating):
-                            return float(obj)
-                        elif isinstance(obj, np.ndarray):
-                            return [convert_numpy(x) for x in obj.tolist()]
-                        elif isinstance(obj, list):
-                            return [convert_numpy(x) for x in obj]
-                        elif isinstance(obj, dict):
-                            return {k: convert_numpy(v) for k, v in obj.items()}
-                        return obj
-
-                    converted_dict = {k: convert_numpy(v) for k, v in val.items()}
-                    json_str = json.dumps(converted_dict, ensure_ascii=False)
-                    formatted_values.append(
-                        f"'{json_str.replace(chr(39), chr(39) + chr(39))}'"
-                    )
-                elif isinstance(val, list):
-                    # Convert list with numpy values
-                    import json
-                    import numpy as np
-
-                    converted_list = [convert_numpy(x) for x in val]
-                    json_str = json.dumps(converted_list, ensure_ascii=False)
-                    formatted_values.append(
-                        f"'{json_str.replace(chr(39), chr(39) + chr(39))}'"
-                    )
-                elif hasattr(val, "dtype") and np.issubdtype(val.dtype, np.number):
-                    # Handle individual numpy numbers
-                    formatted_values.append(str(val.item()))
-                else:
-                    # Escape single quotes in strings
-                    str_val = str(val)
-                    formatted_values.append(
-                        f"'{str_val.replace(chr(39), chr(39) + chr(39))}'"
-                    )
-
-            # Build SQL
+            # Construire la requête SQL
             sql = f"""
                 INSERT INTO {group_by} ({group_by}_id, {", ".join(columns)})
                 VALUES ({", ".join(formatted_values)})
@@ -441,11 +377,65 @@ class TransformerService:
                 DO UPDATE SET {", ".join(f"{col} = excluded.{col}" for col in columns)}
             """
 
-            # Execute without parameters
+            # Exécuter la requête
             self.db.execute_sql(sql)
 
-        except Exception as e:
+        except SQLAlchemyError as e:
+            raise DatabaseWriteError(
+                table_name=group_by,
+                message=f"Failed to save results for group {group_id}: {str(e)}",
+                details={"group_id": group_id, "columns": columns, "error": str(e)},
+            ) from e
+        except JSONEncodeError as e:
             raise DataTransformError(
-                f"Failed to save results for group {group_id}",
-                details={"error": str(e)},
-            )
+                f"Failed to encode results for group {group_id}: {str(e)}",
+                details={"group_id": group_id, "error": str(e)},
+            ) from e
+        except Exception as e:
+            raise ProcessError(
+                f"Unexpected error while saving results for group {group_id}: {str(e)}",
+                details={"group_by": group_by, "group_id": group_id, "error": str(e)},
+            ) from e
+
+    def _format_value_for_sql(self, val: Any) -> str:
+        """Format a value for SQL insertion.
+
+        Args:
+            val (Any): Value to format.
+
+        Returns:
+            str: Formatted value ready for SQL query.
+
+        Raises:
+            JSONEncodeError: If serialization of complex types fails.
+        """
+        if val is None:
+            return "NULL"
+        elif isinstance(val, (int, float)):
+            return str(val)
+        elif isinstance(val, (dict, list)):
+            try:
+
+                def convert_numpy(obj):
+                    if isinstance(obj, np.integer):
+                        return int(obj)
+                    elif isinstance(obj, np.floating):
+                        return float(obj)
+                    elif isinstance(obj, np.ndarray):
+                        return [convert_numpy(x) for x in obj.tolist()]
+                    elif isinstance(obj, list):
+                        return [convert_numpy(x) for x in obj]
+                    elif isinstance(obj, dict):
+                        return {k: convert_numpy(v) for k, v in obj.items()}
+                    return obj
+
+                converted = convert_numpy(val)
+                json_str = json.dumps(converted, ensure_ascii=False)
+                return f"'{json_str.replace(chr(39), chr(39) + chr(39))}'"
+            except Exception as e:
+                raise JSONEncodeError(f"Failed to encode value: {str(e)}") from e
+        elif hasattr(val, "dtype") and np.issubdtype(val.dtype, np.number):
+            return str(val.item())
+        else:
+            str_val = str(val)
+            return f"'{str_val.replace(chr(39), chr(39) + chr(39))}'"

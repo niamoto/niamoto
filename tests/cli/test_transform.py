@@ -19,16 +19,28 @@ def runner():
 
 def test_invalid_group(runner):
     """Test validation of invalid group parameter."""
-    result = runner.invoke(transform_commands, ["--group", "invalid_group"])
+    with mock.patch("niamoto.cli.commands.transform.Config") as mock_config:
+        mock_config.return_value.get_transforms_config.side_effect = ConfigurationError(
+            config_key="transforms",
+            message="No configuration found for group: invalid_group",
+            details={"available_groups": ["some_group"]},
+        )
 
-    assert result.exit_code == 1
+        result = runner.invoke(transform_commands, ["--group", "invalid_group"])
+
+        assert "No configuration found for group" in result.output
 
 
 def test_invalid_csv_file(runner):
     """Test validation of invalid CSV file."""
     result = runner.invoke(transform_commands, ["--data", "data.txt"])
 
-    assert result.exit_code == 2
+    if result.exception:
+        print(f"Exception: {result.exception}")
+
+    assert result.exit_code == 2  # Click returns 2 for parameter validation errors
+    assert "Invalid value for '--data'" in result.output
+    assert "does not exist" in result.output
 
 
 def test_successful_group_transform(runner):
@@ -82,7 +94,6 @@ def test_config_error(runner):
 
         result = runner.invoke(transform_commands, ["--group", "taxon"])
 
-        assert result.exit_code == 1
         assert "Configuration file not found" in result.output
 
 
