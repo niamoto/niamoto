@@ -7,6 +7,7 @@ from typing import Optional, Any
 
 import geopandas as gpd
 import pandas as pd
+import csv
 from shapely import GEOSException
 from shapely.validation import explain_validity
 from shapely.wkt import loads
@@ -60,6 +61,258 @@ class PlotImporter:
             field_name: Name of the field in occurrences table to match with link_field in plot_ref
         """
         self.occurrence_link_field = field_name
+
+    @error_handler(log=True, raise_error=True)
+    def import_plots(
+        self,
+        file_path: str,
+        identifier: str,
+        location_field: str,
+        locality_field: Optional[str] = None,
+        link_occurrences: bool = True,
+        link_field: Optional[str] = None,
+        occurrence_link_field: Optional[str] = None,
+    ) -> str:
+        """
+        Import plot data from GeoPackage or CSV file.
+
+        Args:
+            file_path: Path to the file
+            identifier: Plot identifier column name
+            location_field: Location field column name (containing geometry)
+            locality_field: Field for locality name (required for CSV)
+            link_occurrences: Whether to link occurrences to plots after import
+            link_field: Field to use for linking in plot_ref
+            occurrence_link_field: Field to use for linking in occurrences
+
+        Returns:
+            Success message with import count
+
+        Raises:
+            FileReadError: If file cannot be read
+            DataValidationError: If data is invalid
+            DatabaseError: If database operations fail
+        """
+        if link_field:
+            self.link_field = link_field
+
+        if occurrence_link_field:
+            self.occurrence_link_field = occurrence_link_field
+
+        # Validate that the file exists
+        file_path = str(Path(file_path).resolve())
+        if not Path(file_path).exists():
+            raise FileReadError(file_path, "File not found")
+
+        # Determine file type based on extension
+        file_ext = Path(file_path).suffix.lower()
+
+        # Load and validate data based on file type
+        try:
+            if file_ext == ".gpkg":
+                # For GeoPackage, use the existing method
+                return self.import_from_gpkg(
+                    file_path,
+                    identifier,
+                    location_field,
+                    link_occurrences=link_occurrences,
+                    link_field=link_field,
+                    occurrence_link_field=occurrence_link_field,
+                )
+            elif file_ext == ".csv":
+                # For CSV, we need a locality field
+                if not locality_field:
+                    raise DataValidationError(
+                        "Missing locality field",
+                        [{"error": "locality_field must be specified for CSV imports"}],
+                    )
+
+                return self.import_from_csv(
+                    file_path,
+                    identifier,
+                    location_field,
+                    locality_field,
+                    link_occurrences=link_occurrences,
+                    link_field=link_field,
+                    occurrence_link_field=occurrence_link_field,
+                )
+            else:
+                raise DataValidationError(
+                    "Unsupported file format",
+                    [
+                        {
+                            "error": f"File extension {file_ext} not supported. Use .gpkg or .csv"
+                        }
+                    ],
+                )
+        except Exception as e:
+            # Re-raise specific errors
+            if isinstance(e, (FileReadError, DataValidationError, DatabaseError)):
+                raise
+            # Convert generic errors to validation errors where appropriate
+            if "geometry" in str(e).lower():
+                raise DataValidationError("Invalid geometry", [{"error": str(e)}])
+            raise
+
+    @error_handler(log=True, raise_error=True)
+    def import_from_csv(
+        self,
+        csv_path: str,
+        identifier: str,
+        location_field: str,
+        locality_field: str,
+        link_occurrences: bool = True,
+        link_field: Optional[str] = None,
+        occurrence_link_field: Optional[str] = None,
+    ) -> str:
+        """
+        Import plot data from CSV.
+
+        Args:
+            csv_path: Path to CSV file
+            identifier: Plot identifier column name
+            location_field: Column containing geometry data (WKT or WKB)
+            locality_field: Column containing locality name
+            link_occurrences: Whether to link occurrences to plots after import
+            link_field: Field name to use for linking in plot_ref
+            occurrence_link_field: Field name to use for linking in occurrences table
+
+        Returns:
+            Success message with import count
+
+        Raises:
+            FileReadError: If file cannot be read
+            DataValidationError: If data is invalid
+            DatabaseError: If database operations fail
+        """
+        if link_field:
+            self.link_field = link_field
+
+        if occurrence_link_field:
+            self.occurrence_link_field = occurrence_link_field
+
+        # Validate that the file exists
+        file_path = str(Path(csv_path).resolve())
+        if not Path(file_path).exists():
+            raise FileReadError(file_path, "CSV file not found")
+
+        # Load and validate data
+        try:
+            # Detect CSV delimiter
+            with open(file_path, "r", encoding="utf-8") as f:
+                try:
+                    sample = f.read(1024)
+                    dialect = csv.Sniffer().sniff(sample)
+                    delimiter = dialect.delimiter
+                except Exception:
+                    # Default to comma if detection fails
+                    delimiter = ","
+
+            # Read the CSV file
+            df = pd.read_csv(file_path, delimiter=delimiter)
+
+            # Validate required columns
+            required_cols = {identifier, location_field, locality_field}
+            missing_cols = required_cols - set(df.columns)
+            if missing_cols:
+                raise DataValidationError(
+                    "Missing required columns",
+                    [{"field": col, "error": "Column missing"} for col in missing_cols],
+                )
+
+            # Parse geometry from the location_field
+            geometries = []
+            errors = []
+
+            for idx, row in df.iterrows():
+                try:
+                    geom_str = str(row[location_field])
+
+                    # Try parsing as WKT first (e.g., "POINT (165.27731323 -21.17780113)")
+                    try:
+                        from shapely.wkt import loads as wkt_loads
+
+                        geom = wkt_loads(geom_str)
+                        geometries.append(geom)
+                        continue
+                    except Exception:
+                        # If WKT fails, try as WKB
+                        try:
+                            from shapely.wkb import loads as wkb_loads
+
+                            # Handle hex string with or without 0x prefix
+                            hex_str = geom_str
+                            if hex_str.startswith("0x"):
+                                hex_str = hex_str[2:]
+                            geom = wkb_loads(bytes.fromhex(hex_str))
+                            geometries.append(geom)
+                            continue
+                        except Exception:
+                            # Both parsing methods failed
+                            errors.append(
+                                {
+                                    "row": idx,
+                                    "value": geom_str,
+                                    "error": "Failed to parse geometry",
+                                }
+                            )
+                            geometries.append(None)
+                except Exception as e:
+                    errors.append(
+                        {
+                            "row": idx,
+                            "value": str(row.get(location_field, "N/A")),
+                            "error": str(e),
+                        }
+                    )
+                    geometries.append(None)
+
+            # If we had errors parsing geometries, report them
+            if errors:
+                # Only show first few errors to avoid overwhelming output
+                raise DataValidationError(
+                    "Failed to parse geometries",
+                    errors[:5]
+                    + (
+                        [{"error": f"... and {len(errors) - 5} more errors"}]
+                        if len(errors) > 5
+                        else []
+                    ),
+                )
+
+            # Create a GeoDataFrame with the parsed geometries
+            gdf = gpd.GeoDataFrame(df, geometry=geometries)
+
+            # Process data and import plots
+            imported_count = self._process_plots_data(gdf, identifier, locality_field)
+
+            # Link occurrences to plots if requested
+            linked_occurrences = 0
+            if link_occurrences:
+                linked_occurrences = self.link_occurrences_to_plots()
+
+            # Return success message
+            result_message = (
+                f"{imported_count} plots imported from {Path(file_path).name}."
+            )
+            if link_occurrences:
+                result_message += f" {linked_occurrences} occurrences linked to plots."
+            return result_message
+
+        except Exception as e:
+            # Re-raise specific error types
+            if isinstance(e, (FileReadError, DataValidationError, DatabaseError)):
+                raise
+
+            # For geometry-related errors
+            from shapely.errors import GEOSException
+
+            if isinstance(e, GEOSException) or "geometry" in str(e).lower():
+                raise DataValidationError("Invalid geometry", [{"error": str(e)}])
+            else:
+                raise DataValidationError(
+                    "Failed to import plots from CSV", [{"error": str(e)}]
+                )
 
     @error_handler(log=True, raise_error=True)
     def import_from_gpkg(
@@ -160,7 +413,7 @@ class PlotImporter:
 
     @error_handler(log=True, raise_error=True)
     def _process_plots_data(
-        self, plots_data: gpd.GeoDataFrame, identifier: str, location_field: str
+        self, plots_data: gpd.GeoDataFrame, identifier: str, locality_field: str = None
     ) -> int:
         """
         Process and import plot data.
@@ -168,7 +421,7 @@ class PlotImporter:
         Args:
             plots_data: GeoDataFrame containing plot data
             identifier: Plot identifier column
-            location_field: Location field column
+            locality_field: Field containing locality name (optional)
 
         Returns:
             Number of imported plots
@@ -191,8 +444,8 @@ class PlotImporter:
                     "[green]Importing plots...", total=len(plots_data)
                 )
                 for _, row in plots_data.iterrows():
-                    # Appel direct, sans try/except, pour que l'exception se propage
-                    if self._import_plot(session, row, identifier):
+                    # Use locality_field if provided
+                    if self._import_plot(session, row, identifier, locality_field):
                         imported_count += 1
                     progress.update(task, advance=1)
                 try:
@@ -209,7 +462,13 @@ class PlotImporter:
                     raise
         return imported_count
 
-    def _import_plot(self, session: Any, row: pd.Series, identifier: str) -> bool:
+    def _import_plot(
+        self,
+        session: Any,
+        row: pd.Series,
+        identifier: str,
+        locality_field: Optional[str] = None,
+    ) -> bool:
         """
         Import a single plot.
 
@@ -217,6 +476,7 @@ class PlotImporter:
             session: Database session
             row: Plot data row as GeoSeries
             identifier: Plot identifier column
+            locality_field: Field containing locality name (optional)
 
         Returns:
             True if plot was imported, False if skipped
@@ -225,7 +485,7 @@ class PlotImporter:
             DataValidationError: If geometry is invalid or data is malformed
             DatabaseError: If database operations fail
         """
-        # Récupérer et vérifier la géométrie
+        # Get geometry from the GeoDataFrame's geometry column
         geometry = row.geometry
         if (
             geometry is None
@@ -236,7 +496,7 @@ class PlotImporter:
                 "Missing geometry", [{"error": "No geometry data"}]
             )
 
-        # Valider l'identifiant du plot
+        # Validate plot identifier
         plot_id = row[identifier]
         if not isinstance(plot_id, (int, str)):
             raise DataValidationError(
@@ -251,8 +511,14 @@ class PlotImporter:
                 [{"error": f"Value '{plot_id}' cannot be converted to int"}],
             )
 
-        # Valider le champ 'locality'
-        locality = row.get("locality")
+        # Get locality from the specified field or use the identifier field
+        locality_field = locality_field or "locality"
+        if locality_field in row:
+            locality = row[locality_field]
+        else:
+            # Fallback to using the identifier if locality field doesn't exist
+            locality = row[identifier]
+
         if locality is None or pd.isna(locality):
             raise DataValidationError(
                 "Invalid locality", [{"error": "Locality cannot be null or empty"}]
@@ -264,7 +530,7 @@ class PlotImporter:
                 [{"error": "Locality cannot be null, empty or 'None'"}],
             )
 
-        # Vérifier explicitement la validité de la géométrie avant conversion
+        # Validate geometry
         try:
             if not geometry.is_valid:
                 from shapely.validation import explain_validity
@@ -272,10 +538,10 @@ class PlotImporter:
                 error_msg = explain_validity(geometry)
                 raise DataValidationError("Invalid geometry", [{"error": error_msg}])
         except Exception as e:
-            # Au cas où geometry.is_valid lance une GEOSException
+            # Handle GEOSException or other validation errors
             raise DataValidationError("Invalid geometry", [{"error": str(e)}])
 
-        # Convertir la géométrie en WKT (cette opération devrait maintenant être sûre)
+        # Convert geometry to WKT
         try:
             from shapely.wkt import dumps
 
@@ -290,10 +556,10 @@ class PlotImporter:
             else:
                 raise
 
-        # Optionnel : on peut appeler validate_geometry pour des vérifications complémentaires
+        # Additional geometry validation
         self.validate_geometry(wkt_geometry)
 
-        # Vérifier la présence d'un plot existant
+        # Check for existing plot
         existing_plot = (
             session.query(PlotRef)
             .filter_by(id_locality=plot_id, locality=locality)
@@ -328,7 +594,7 @@ class PlotImporter:
                 "Empty geometry", [{"error": "Empty geometry string"}]
             )
         try:
-            # Charger la géométrie depuis le WKT
+            # Load geometry from WKT
             geom = loads(wkt_geometry)
         except GEOSException as e:
             raise DataValidationError("Invalid geometry", [{"error": str(e)}])
@@ -337,7 +603,7 @@ class PlotImporter:
                 "Failed to validate geometry", [{"error": str(e)}]
             )
 
-        # Vérifier si la géométrie est vide
+        # Check if the geometry is empty
         try:
             if geom.is_empty:
                 raise DataValidationError(
@@ -346,7 +612,7 @@ class PlotImporter:
         except Exception as e:
             raise DataValidationError("Invalid geometry", [{"error": str(e)}])
 
-        # Vérifier la validité de la géométrie
+        # Check the validity of the geometry
         try:
             if not geom.is_valid:
                 error_msg = explain_validity(geom)

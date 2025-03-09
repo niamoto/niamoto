@@ -25,6 +25,7 @@ class CategoricalDistributionConfig(PluginConfig):
             "field": None,
             "categories": [],
             "labels": [],
+            "include_percentages": False,
         }
     )
 
@@ -108,11 +109,22 @@ class CategoricalDistribution(TransformerPlugin):
             value_counts = field_data.value_counts()
             counts = [int(value_counts.get(cat, 0)) for cat in categories]
 
-            return {
+            result = {
                 "categories": categories,
                 "counts": counts,
                 "labels": validated_config["params"].get("labels", categories),
             }
+
+            # Calculate percentages if requested
+            if validated_config["params"].get("include_percentages", False):
+                total = sum(counts)
+                if total > 0:
+                    percentages = [round((count / total) * 100, 2) for count in counts]
+                else:
+                    percentages = [0] * len(counts)
+                result["percentages"] = percentages
+
+            return result
 
         except Exception as e:
             raise ValueError(f"Error transforming data: {str(e)}")

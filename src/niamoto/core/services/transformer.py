@@ -66,16 +66,16 @@ class TransformerService:
         recreate_table: bool = True,
     ) -> None:
         """
-        Transforme les données selon la configuration.
+        Transform data according to the configuration.
 
         Args:
-            group_by: Filtre optionnel par groupe
-            csv_file: Fichier CSV optionnel à utiliser au lieu de la base de données
-            recreate_table: Indique s'il faut recréer la table des résultats
+            group_by: Optional filter by group
+            csv_file: Optional CSV file to use instead of the database
+            recreate_table: Indicates whether to recreate the results table
 
         Raises:
-            ConfigurationError: Si la configuration est invalide
-            ProcessError: Si la transformation échoue
+            ConfigurationError: If the configuration is invalid
+            ProcessError: If the transformation fails
         """
         # Filtrer les configurations
         configs = self._filter_configs(group_by)
@@ -90,41 +90,41 @@ class TransformerService:
             console=self.console,
         ) as progress:
             for group_config in configs:
-                # Valider la configuration
+                # Validate the configuration
                 self.validate_configuration(group_config)
 
-                # Récupérer les IDs de groupe et les widgets
+                # Retrieve group IDs and widgets
                 group_ids = self._get_group_ids(group_config)
                 widgets_config = group_config.get("widgets_data", {})
                 group_by_name = group_config.get("group_by", "unknown")
 
-                # Calculer le total des opérations
+                # Calculate the total number of operations
                 total_ops = len(group_ids) * len(widgets_config)
                 config_task = progress.add_task(
-                    f"[cyan]Traitement des données {group_by_name}...", total=total_ops
+                    f"[cyan]Processing datas {group_by_name}...", total=total_ops
                 )
 
-                # Créer ou mettre à jour la table
+                # Create or update the table
                 self._create_group_table(group_by_name, widgets_config, recreate_table)
 
-                # Traiter chaque groupe
+                # Process each group
                 for group_id in group_ids:
                     progress.update(
                         config_task,
-                        description=f"[cyan]Traitement {group_by_name} {group_id}...",
+                        description=f"[cyan]Processing {group_by_name} {group_id}...",
                     )
 
-                    # Récupérer les données du groupe
+                    # Retrieve group data
                     group_data = self._get_group_data(group_config, csv_file, group_id)
 
-                    # Traiter chaque widget
+                    # Process each widget
                     for widget_name, widget_config in widgets_config.items():
-                        # Charger le plugin de transformation
+                        # Load the transformation plugin
                         transformer = PluginRegistry.get_plugin(
                             widget_config["plugin"], PluginType.TRANSFORMER
                         )(self.db)
 
-                        # Transformer les données
+                        # Transform the data
                         config = {
                             "plugin": widget_config["plugin"],
                             "params": {
@@ -136,7 +136,7 @@ class TransformerService:
                         }
                         results = transformer.transform(group_data, config)
 
-                        # Sauvegarder les résultats
+                        # Save the results
                         if results:
                             self._save_widget_results(
                                 group_by=group_by_name,
@@ -344,7 +344,7 @@ class TransformerService:
             DataTransformError: If data serialization fails.
             ProcessError: For unexpected errors.
         """
-        # Validation des données d'entrée
+        # Validate input data
         if not results:
             raise ValidationError(
                 "results",
@@ -353,32 +353,78 @@ class TransformerService:
             )
 
         columns = list(results.keys())
-        values = [results[col] for col in columns]
 
-        # Vérifier la cohérence entre colonnes et valeurs
-        if len(columns) != len(values):
+        # Verify columns and values match
+        if not columns:
             raise ValidationError(
                 "results",
-                "Mismatch between columns and values",
-                details={"columns": columns, "values": values},
+                "No columns to update",
+                details={"group_by": group_by, "group_id": group_id},
             )
 
         try:
-            # Formater les valeurs pour la requête SQL
-            formatted_values = [self._format_value_for_sql(group_id)]
-            for val in values:
-                formatted_values.append(self._format_value_for_sql(val))
+            # Prepare params dictionary
+            params = {}
+            params[f"{group_by}_id"] = group_id
 
-            # Construire la requête SQL
+            # Process each column and convert values to JSON strings
+            for col in columns:
+                try:
+                    val = results[col]
+                    # Convert complex types to JSON
+                    if isinstance(val, (dict, list)):
+
+                        def convert_numpy(obj):
+                            if isinstance(obj, np.integer):
+                                return int(obj)
+                            elif isinstance(obj, np.floating):
+                                return float(obj)
+                            elif isinstance(obj, np.ndarray):
+                                return [convert_numpy(x) for x in obj.tolist()]
+                            elif isinstance(obj, list):
+                                return [convert_numpy(x) for x in obj]
+                            elif isinstance(obj, dict):
+                                return {k: convert_numpy(v) for k, v in obj.items()}
+                            return obj
+
+                        # Convert to Python native types
+                        converted = convert_numpy(val)
+                        # Serialize to JSON string
+                        params[col] = json.dumps(converted, ensure_ascii=False)
+                    else:
+                        # Handle primitive types
+                        if val is None:
+                            params[col] = None
+                        elif hasattr(val, "dtype") and np.issubdtype(
+                            val.dtype, np.number
+                        ):
+                            params[col] = val.item()
+                        else:
+                            params[col] = str(val)
+                except Exception as e:
+                    raise JSONEncodeError(f"Failed to encode {col}: {str(e)}") from e
+
+            # Build column names string
+            col_names = f"{group_by}_id, " + ", ".join(columns)
+
+            # Build placeholders using named parameters
+            placeholders = f":{group_by}_id, " + ", ".join(
+                [f":{col}" for col in columns]
+            )
+
+            # Build update clause
+            update_clause = ", ".join([f"{col} = excluded.{col}" for col in columns])
+
+            # Construct SQL with named parameters
             sql = f"""
-                INSERT INTO {group_by} ({group_by}_id, {", ".join(columns)})
-                VALUES ({", ".join(formatted_values)})
+                INSERT INTO {group_by} ({col_names})
+                VALUES ({placeholders})
                 ON CONFLICT ({group_by}_id)
-                DO UPDATE SET {", ".join(f"{col} = excluded.{col}" for col in columns)}
+                DO UPDATE SET {update_clause}
             """
 
-            # Exécuter la requête
-            self.db.execute_sql(sql)
+            # Execute SQL with parameters
+            self.db.execute_sql(sql, params)
 
         except SQLAlchemyError as e:
             raise DatabaseWriteError(
@@ -396,46 +442,3 @@ class TransformerService:
                 f"Unexpected error while saving results for group {group_id}: {str(e)}",
                 details={"group_by": group_by, "group_id": group_id, "error": str(e)},
             ) from e
-
-    def _format_value_for_sql(self, val: Any) -> str:
-        """Format a value for SQL insertion.
-
-        Args:
-            val (Any): Value to format.
-
-        Returns:
-            str: Formatted value ready for SQL query.
-
-        Raises:
-            JSONEncodeError: If serialization of complex types fails.
-        """
-        if val is None:
-            return "NULL"
-        elif isinstance(val, (int, float)):
-            return str(val)
-        elif isinstance(val, (dict, list)):
-            try:
-
-                def convert_numpy(obj):
-                    if isinstance(obj, np.integer):
-                        return int(obj)
-                    elif isinstance(obj, np.floating):
-                        return float(obj)
-                    elif isinstance(obj, np.ndarray):
-                        return [convert_numpy(x) for x in obj.tolist()]
-                    elif isinstance(obj, list):
-                        return [convert_numpy(x) for x in obj]
-                    elif isinstance(obj, dict):
-                        return {k: convert_numpy(v) for k, v in obj.items()}
-                    return obj
-
-                converted = convert_numpy(val)
-                json_str = json.dumps(converted, ensure_ascii=False)
-                return f"'{json_str.replace(chr(39), chr(39) + chr(39))}'"
-            except Exception as e:
-                raise JSONEncodeError(f"Failed to encode value: {str(e)}") from e
-        elif hasattr(val, "dtype") and np.issubdtype(val.dtype, np.number):
-            return str(val.item())
-        else:
-            str_val = str(val)
-            return f"'{str_val.replace(chr(39), chr(39) + chr(39))}'"

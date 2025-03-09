@@ -25,6 +25,7 @@ class BinaryCounterConfig(PluginConfig):
             "field": None,
             "true_label": "oui",
             "false_label": "non",
+            "include_percentages": False,
         }
     )
 
@@ -125,12 +126,30 @@ class BinaryCounter(TransformerPlugin):
             # Count values (1 = true, 0 = false)
             true_count = len(field_data[field_data == 1])
             false_count = len(field_data[field_data == 0])
+            total_count = true_count + false_count
 
-            # Debug logs
+            # Prepare result
             result = {
                 validated_config.params["true_label"]: true_count,
                 validated_config.params["false_label"]: false_count,
             }
+
+            # Add percentages if requested
+            if validated_config.params.get("include_percentages", False):
+                result.update(
+                    {
+                        f"{validated_config.params['true_label']}_percent": round(
+                            true_count / total_count * 100, 2
+                        )
+                        if total_count > 0
+                        else 0,
+                        f"{validated_config.params['false_label']}_percent": round(
+                            false_count / total_count * 100, 2
+                        )
+                        if total_count > 0
+                        else 0,
+                    }
+                )
 
             return result
 
