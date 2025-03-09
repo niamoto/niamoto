@@ -349,31 +349,31 @@
         function openCurrentNode($ul, currentId) {
                 const $currentLink = $ul.find(`a[data-id='${currentId}']`);
                 if ($currentLink.length > 0) {
-                    // Ouvrir tous les parents comme vous le faites déjà
+                    // Open all parents as you already do
                     $currentLink.parents('ul').each(function () {
                         $(this).show();
                         $(this).siblings('span').text('▾');
                     });
 
-                    // Attendre un court instant pour s'assurer que les nœuds sont bien ouverts
+                    // Wait a short moment to ensure the nodes are properly opened
                     setTimeout(() => {
-                        // Faire défiler jusqu'à l'élément sélectionné
+                        // Scroll to the selected element
                         const container = document.getElementById('taxonomy-tree-container');
                         const element = $currentLink[0];
 
                         if (container && element) {
-                            // Calculer la position de défilement pour centrer l'élément si possible
+                            // Calculate the scroll position to center the element if possible
                             const elementRect = element.getBoundingClientRect();
                             const containerRect = container.getBoundingClientRect();
                             const offset = elementRect.top - containerRect.top - (containerRect.height / 2) + (elementRect.height / 2);
 
-                            // Effectuer le défilement avec une animation fluide
+                            // Perform scrolling with smooth animation
                             container.scrollTo({
                                 top: container.scrollTop + offset,
                                 behavior: 'smooth'
                             });
                         }
-                    }, 100); // Un court délai pour s'assurer que le DOM est mis à jour
+                    }, 100); // A short delay to ensure the DOM is updated
                 }
             }
 
