@@ -347,14 +347,35 @@
         }
 
         function openCurrentNode($ul, currentId) {
-            const $currentLink = $ul.find(`a[data-id='${currentId}']`);
-            if ($currentLink.length > 0) {
-                $currentLink.parents('ul').each(function () {
-                    $(this).show();
-                    $(this).siblings('span').text('▾');
-                });
+                const $currentLink = $ul.find(`a[data-id='${currentId}']`);
+                if ($currentLink.length > 0) {
+                    // Ouvrir tous les parents comme vous le faites déjà
+                    $currentLink.parents('ul').each(function () {
+                        $(this).show();
+                        $(this).siblings('span').text('▾');
+                    });
+
+                    // Attendre un court instant pour s'assurer que les nœuds sont bien ouverts
+                    setTimeout(() => {
+                        // Faire défiler jusqu'à l'élément sélectionné
+                        const container = document.getElementById('taxonomy-tree-container');
+                        const element = $currentLink[0];
+
+                        if (container && element) {
+                            // Calculer la position de défilement pour centrer l'élément si possible
+                            const elementRect = element.getBoundingClientRect();
+                            const containerRect = container.getBoundingClientRect();
+                            const offset = elementRect.top - containerRect.top - (containerRect.height / 2) + (elementRect.height / 2);
+
+                            // Effectuer le défilement avec une animation fluide
+                            container.scrollTo({
+                                top: container.scrollTop + offset,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }, 100); // Un court délai pour s'assurer que le DOM est mis à jour
+                }
             }
-        }
 
         function createTree(container, taxonomyData) {
             const baseUrl = getBaseUrl();
