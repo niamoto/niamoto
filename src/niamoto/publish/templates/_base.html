@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="{{ depth }}js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
     <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.9.4_leaflet.css">
     <link rel="stylesheet" href="{{ depth }}css/font-awesome/6.6.0_all.min.css">
+    <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.5.3_MarkerCluster.css" />
+    <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.5.3_MarkerCluster.Default.css" />
+
 
     <style>
         ul {
@@ -76,7 +79,8 @@
     <script src="{% block lodash %}{{ depth }}js/vendor/lodash/4.17.21_lodash.min.js{% endblock %}"></script>
     <script src="{% block raphael_js %}{{ depth }}js/vendor/raphael/2.3.0_raphael.js{% endblock %}"></script>
     <script src="{% block justgage_js %}{{ depth }}js/vendor/justgage/1.6.1_justgage.js{% endblock %}"></script>
-    <script src="{% block leaflet_js %}{{ depth }}js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
+    <script src="{% block map_js %}{{ depth }}js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
+    <script src="{% block map_markercluster_js %}{{ depth }}js/vendor/leaflet/1.5.3_leaflet.markercluster.js{% endblock %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
         const buttonContainer = document.getElementById('buttonContainer');

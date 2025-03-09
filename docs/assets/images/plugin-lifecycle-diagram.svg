@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <!-- Background -->
+  <rect width="800" height="600" fill="#f8f9fa" rx="10" ry="10"/>
+
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">Niamoto Plugin Lifecycle</text>
+
+  <!-- Main flow steps -->
+  <g transform="translate(0, 20)">
+    <!-- Step 1: Discovery -->
+    <rect x="100" y="80" width="120" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="160" y="115" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Discovery</text>
+
+    <!-- Step 2: Registration -->
+    <rect x="260" y="80" width="120" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="320" y="115" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Registration</text>
+
+    <!-- Step 3: Configuration -->
+    <rect x="420" y="80" width="120" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="480" y="115" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Configuration</text>
+
+    <!-- Step 4: Validation -->
+    <rect x="580" y="80" width="120" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="640" y="115" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Validation</text>
+
+    <!-- Step 5: Execution -->
+    <rect x="340" y="180" width="120" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="400" y="215" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Execution</text>
+
+    <!-- Step 6: Result Storage -->
+    <rect x="340" y="280" width="120" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="400" y="315" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Result Storage</text>
+
+    <!-- Arrows -->
+    <line x1="220" y1="110" x2="260" y2="110" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="380" y1="110" x2="420" y2="110" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="540" y1="110" x2="580" y2="110" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="640" y1="140" x2="640" y2="180" stroke="#333" stroke-width="2"/>
+    <line x1="640" y1="180" x2="460" y2="180" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="400" y1="240" x2="400" y2="280" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <!-- Descriptions -->
+    <rect x="50" y="360" width="700" height="140" rx="5" ry="5" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+    <text x="60" y="385" font-family="Arial" font-size="14" fill="#333">
+      <tspan x="60" dy="0">1. Discovery: Plugin Loader scans core and project directories for plugin classes</tspan>
+      <tspan x="60" dy="20">2. Registration: Plugins register with Plugin Registry using @register decorator</tspan>
+      <tspan x="60" dy="20">3. Configuration: Users configure plugins via YAML files (import.yml, transform.yml, export.yml)</tspan>
+      <tspan x="60" dy="20">4. Validation: Plugin configurations are validated before execution</tspan>
+      <tspan x="60" dy="20">5. Execution: Plugins are instantiated and executed according to configuration</tspan>
+      <tspan x="60" dy="20">6. Result Storage: Plugin outputs are stored in database or generated as artifacts</tspan>
+    </text>
+  </g>
+
+  <!-- Arrowhead marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+  </defs>
+</svg>

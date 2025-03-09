@@ -1,16 +1,16 @@
-# 1) The main basic "entities"
+# Option 1: The main basic "entities"
 # taxonomy:
 #   type: csv
 #   path: "imports/taxonomy.csv"
-#   source: "file"  # Explicite mais optionnel car c'est la valeur par défaut
+#   source: "file"  # Explicit but optional as it is the default value
 #   identifier: "id_taxon"
 #   ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
 
-# Option 2: Taxonomie extraite des occurrences
+# Option 2: Taxonomy extracted from occurrences
 taxonomy:
   type: csv
-  path: "imports/occurrences.csv"
-  source: "occurrences"
+  path: "imports/niamoto_occurrences_202503041446.csv"  # Path to the occurrences file
+  source: "occurrence"  # Indicates to extract taxonomy from occurrences
   ranks: "family,genus,species,infra"
   occurrence_columns:
     taxon_id: "id_taxonref"
@@ -18,24 +18,82 @@ taxonomy:
     genus: "genus"
     species: "species"
     infra: "infra"
-    authors: "taxonref"  # Can extract authors from taxonref
+    authors: "taxonref"  # Authors can be extracted from taxonref
+  api_enrichment:
+    enabled: true
+    plugin: "api_taxonomy_enricher"
+    api_url: "https://api.endemia.nc/v1/taxons"
+    # Authentication by API key in the header
+    auth_method: "api_key"
+    auth_params:
+      key: "1e106508-9a86-4242-9012-d6cafdea3374"  # Your API key
+      location: "header"  # In the HTTP header
+      name: "apiKey"      # Exact name of the header
+    query_params:
+      section: "flore"
+      maxitem: "1"
+      exclude: "meta,links"  # Exclude unnecessary metadata
+    query_field: "full_name"  # Field to use for querying the API
+    # Limits and optimizations
+    rate_limit: 2.0
+    cache_results: true
+    # Mapping of mentioned priority fields
+    response_mapping:
+      # Priority fields
+      endemique: "endemique"
+      protected: "protected"
+      protected_provnord: "protected_provnord"
+      protected_provsud: "protected_provsud"
+      redlist: "redlist"
+      rla_evaluation: "rla_evaluation"
+      endemia_url: "endemia_url"
 
+      # Image fields
+      image_small_thumb: "image.small_thumb"
+      image_mid_thumb: "image.mid_thumb"
+      image_big_thumb: "image.big_thumb"
+      image_url: "image.url"
+      image_auteur: "image.auteur"
+      image_info: "image.info"
+
+      # Other useful fields
+      endemia_id: "id"
+      type: "type"
+      rank: "rank"
+      auteur: "auteur"
+      nom_fr: "nom_fr"
+      nom_en: "nom_en"
+
+
+# plots:
+#   type: vector
+#   format: geopackage
+#   path: "imports/niamoto_plots_202503041405.csv"
+#   identifier: "id_locality"
+#   location_field: "geometry"
+#   link_field: "locality"  # Field to use in plot_ref for the link
+#   occurrence_link_field: "plot_name"  # Field to use in occurrences for the link
 
 plots:
-  type: vector
-  format: geopackage
-  path: "imports/plots.gpkg"
-  identifier: "id_locality"
-  location_field: "geometry"
-  link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien
-  occurrence_link_field: "plot_name"  # Champ à utiliser dans occurrences pour le lien
+  type: csv
+  path: "imports/niamoto_plots_202503041405.csv"
+  identifier: "id_plot" # Identifier field of the plot in the csv
+  locality_field: "plot" # Field of the locality name that will inform the locality field in plot_ref
+  location_field: "geo_pt" # Field of the locality geometry
+  link_field: "locality"  # Field to use in plot_ref for the link, corresponds here to name_field
+  occurrence_link_field: "plot_name"  # Field to use in occurrences for the link
 
 
 occurrences:
   type: csv
-  path: "imports/occurrences.csv"
+  path: "imports/niamoto_occurrences_202503041446.csv"
   identifier: "id_taxonref"
   location_field: "geo_pt"
+
+plot_stats:
+  type: csv
+  path: "imports/niamoto_plot_frequency_202503041441.csv"
+  identifier: "plot_id"
 
 shape_stats:
   type: csv
@@ -65,7 +123,7 @@ shapes:
     format: directory_shapefiles
     path: "imports/shapes/protected_areas"
     name_field: "libelle"
-    label: "Aires protégées"
+    label: "Protected areas"
     description: "Protected areas"
 
   - category: "substrates"
@@ -73,7 +131,7 @@ shapes:
     format: geopackage
     path: "imports/shapes/substrate.gpkg"
     name_field: "label"
-    label: "Substrats"
+    label: "Substrates"
     description: "Substrate types"
 
   - category: "holdridge"
@@ -81,7 +139,7 @@ shapes:
     format: geopackage
     path: "imports/shapes/holdridge_zones.gpkg"
     name_field: "zone"
-    label: "Zone de vie"
+    label: "Life zone"
     description: "Holdridge life zones"
 
   - category: "water_catchments"
@@ -89,7 +147,7 @@ shapes:
     format: directory_shapefiles
     path: "imports/shapes/ppe"
     name_field: "nom_ppe"
-    label: "Captage"
+    label: "Catchment"
     description: "Water catchment areas"
 
   - category: "mines"
@@ -97,7 +155,7 @@ shapes:
     format: geopackage
     path: "imports/shapes/mines.gpkg"
     name_field: "region"
-    label: "Emprises Minières"
+    label: "Mining sites"
     description: "Mining sites"
 
 # 3) Layers: vectors, rasters...

@@ -36,6 +36,14 @@ class TestImportTaxonomy:
                 # Configure mocks
                 config = mock_config.return_value
                 config.database_path = "/path/to/db.sqlite"
+                # Ensure the config has the proper structure for taxonomy import
+                config.imports = {
+                    "taxonomy": {
+                        "path": "taxonomy.csv",
+                        "ranks": "family,genus,species",
+                        # No API enrichment settings, so api_config will be None
+                    }
+                }
                 mock_importer.return_value.import_taxonomy.return_value = (
                     "Successfully imported 3 taxa"
                 )
@@ -48,7 +56,7 @@ class TestImportTaxonomy:
                 assert "Successfully imported 3 taxa" in result.output
                 mock_reset.assert_called_once_with("/path/to/db.sqlite", "taxon_ref")
                 mock_importer.return_value.import_taxonomy.assert_called_once_with(
-                    "taxonomy.csv", ("family", "genus", "species")
+                    "taxonomy.csv", ("family", "genus", "species"), None
                 )
 
     def test_import_from_config(self, runner):
@@ -73,6 +81,7 @@ class TestImportTaxonomy:
                     "taxonomy": {
                         "path": "taxonomy.csv",
                         "ranks": "family,genus,species",
+                        # No API enrichment settings, so api_config will be None
                     }
                 }
                 mock_importer.return_value.import_taxonomy.return_value = (
@@ -85,7 +94,7 @@ class TestImportTaxonomy:
                 assert "Successfully imported 1 taxon" in result.output
                 mock_reset.assert_called_once_with("/path/to/db.sqlite", "taxon_ref")
                 mock_importer.return_value.import_taxonomy.assert_called_once_with(
-                    "taxonomy.csv", ("family", "genus", "species")
+                    "taxonomy.csv", ("family", "genus", "species"), None
                 )
 
     def test_file_not_found(self, runner):
