@@ -661,7 +661,20 @@
                     return;
                 }
 
-                const value = parseFloat(rawValue.toFixed(1));
+                // Déterminer si nous devons afficher un pourcentage
+                const isPercentage = config.options.format === 'percentage';
+                const multiplier = config.options.multiplier || 1;
+                const precision = config.options.precision !== undefined ? config.options.precision : 1;
+
+                // Calculer la valeur à afficher
+                let value;
+                if (isPercentage) {
+                    // Pour les pourcentages, multiplier par 100 et arrondir selon la précision demandée
+                    value = parseFloat((rawValue * multiplier).toFixed(precision));
+                } else {
+                    // Pour les autres valeurs, utiliser la précision demandée
+                    value = parseFloat(rawValue.toFixed(precision));
+                }
 
                 const gaugeOptions = {
                     id: widgetId,
@@ -672,7 +685,7 @@
                     title: config.title,
                     gaugeColor: "#eee",
                     levelColors: config.options.sectors.map(s => s.color),
-                    decimals: 1,
+                    decimals: config.options.precision !== undefined ? config.options.precision : 1,
                     gaugeWidthScale: 0.6,
                     counter: true,
                     pointer: true,
@@ -707,6 +720,33 @@
 
             // Pour les autres types de graphiques...
             const chartData = prepareChartData(config, data);
+
+            // Vérifier si les données sont vides
+            let hasData = false;
+
+            if (chartData && chartData.datasets) {
+                // Vérifier si au moins un dataset contient des données
+                hasData = chartData.datasets.some(dataset => {
+                    // Vérifier si le dataset a des données et qu'elles ne sont pas toutes nulles/0
+                    return dataset.data &&
+                           dataset.data.length > 0 &&
+                           dataset.data.some(value => value !== null && value !== undefined && value !== 0);
+                });
+            }
+
+            // Si aucune donnée n'est disponible, afficher un message
+            if (!hasData) {
+                if (ctx) {
+                    // Remplacer le canvas par un div avec le message
+                    const container = ctx.parentNode;
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'flex items-center justify-center h-64';
+                    messageDiv.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+                    container.replaceChild(messageDiv, ctx);
+                }
+                return;
+            }
+
             const chartOptions = prepareChartOptions(config);
             const plugins = [];
 
@@ -854,6 +894,91 @@
                         ctx.restore();
                     });
                 });
+            }
+        };
+
+        /**
+         * Custom plugin for drawing percentage labels on taxonomic distribution chart
+         */
+        window.percentagePlugin = {
+            id: 'percentagePlugin',
+            afterDraw: function (chart) {
+                const ctx = chart.ctx;
+
+                // Vérifier si c'est un graphique circulaire ou en barres
+                if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
+                    // Code original pour les graphiques circulaires
+                    chart.data.datasets.forEach(function (dataset, i) {
+                        const meta = chart.getDatasetMeta(i);
+                        meta.data.forEach(function (element, index) {
+                            // Ne pas afficher si la valeur est trop petite
+                            const value = dataset.data[index];
+                            if (value < 2) return; // Skip small values
+
+                            // Calcul de la position pour l'étiquette
+                            const angle = element.startAngle + (element.endAngle - element.startAngle) / 2;
+                            const radius = (element.innerRadius + element.outerRadius) / 2;
+                            const x = element.x + Math.cos(angle) * radius * 0.7;
+                            const y = element.y + Math.sin(angle) * radius * 0.7;
+
+                            // Dessiner le pourcentage
+                            ctx.save();
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.font = 'bold 14px system-ui';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+
+                            // Ajouter un contour noir pour améliorer la lisibilité
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 3;
+                            ctx.lineJoin = 'round';
+                            ctx.strokeText(value.toFixed(1) + '%', x, y);
+                            ctx.fillText(value.toFixed(1) + '%', x, y);
+
+                            ctx.restore();
+                        });
+                    });
+                } else if (chart.config.type === 'bar') {
+                    // Nouveau code pour les graphiques en barres
+                    chart.data.datasets.forEach(function (dataset, i) {
+                        const meta = chart.getDatasetMeta(i);
+                        meta.data.forEach(function (element, index) {
+                            const value = dataset.data[index];
+                            if (value < 2) return; // Skip small values
+
+                            // Obtenir les dimensions et la position de la barre
+                            const { x, y, width, height } = element.getProps(['x', 'y', 'width', 'height']);
+
+                            // Calculer le centre de la barre
+                            let centerX, centerY;
+
+                            // Vérifier si c'est un graphique horizontal ou vertical
+                            if (chart.options.indexAxis === 'y') {
+                                // Graphique horizontal
+                                centerX = x + width / 2;
+                                centerY = y;
+                            } else {
+                                // Graphique vertical
+                                centerX = x;
+                                centerY = y + height / 2;
+                            }
+
+                            // Dessiner le pourcentage
+                            ctx.save();
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.font = 'bold 14px system-ui';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 3;
+                            ctx.lineJoin = 'round';
+                            ctx.strokeText(value.toFixed(1) + '%', centerX, centerY);
+                            ctx.fillText(value.toFixed(1) + '%', centerX, centerY);
+                            ctx.restore();
+                        });
+                    });
+                }
             }
         };
     </script>

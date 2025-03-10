@@ -24,6 +24,12 @@
           - source: taxon_ref
             field: rank_name
             target: rank
+          - source: taxon_ref
+            field: extra_data.parent_family
+            target: parent_family
+          - source: taxon_ref
+            field: extra_data.parent_genus
+            target: parent_genus
           - source: occurrences
             field: id
             target: occurrences_count
@@ -32,6 +38,9 @@
       # {
       #   "name": "Araucaria columnaris",
       #   "rank": "espèce",
+      #   "taxon_type": "Arbre",
+      #   "parent_family": "Famille",
+      #   "parent_genus": "Genre",
       #   "occurrences_count": 325
       # }
 
@@ -62,7 +71,7 @@
       params:
         source: occurrences
         field: taxon_ref_id
-        target_ranks: ["espèce", "sous-espèce"]
+        target_ranks: ["species", "infra"]
         count: 10
       # ex:
       # {

@@ -26,6 +26,8 @@ from niamoto.common.exceptions import (
     DataValidationError,
     DatabaseError,
 )
+from niamoto.core.plugins.plugin_loader import PluginLoader
+from niamoto.common.config import Config
 
 
 class TaxonomyImporter:
@@ -47,14 +49,28 @@ class TaxonomyImporter:
         self.db = db
         self.db_path = db.db_path
 
+        # Initialiser le chargeur de plugins et charger les plugins
+        config = Config()
+        self.plugin_loader = PluginLoader()
+        self.plugin_loader.load_core_plugins()
+
+        # Charger les plugins du projet s'ils existent
+        self.plugin_loader.load_project_plugins(config.plugins_dir)
+
     @error_handler(log=True, raise_error=True)
-    def import_from_csv(self, file_path: str, ranks: Tuple[str, ...]) -> str:
+    def import_from_csv(
+        self,
+        file_path: str,
+        ranks: Tuple[str, ...],
+        api_config: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
         Import taxonomy from a CSV file.
 
         Args:
             file_path (str): Path to the CSV file.
             ranks (Tuple[str, ...]): Taxonomy ranks to process.
+            api_config (Optional[Dict[str, Any]]): API configuration for enrichment.
 
         Returns:
             str: Success message.
@@ -78,7 +94,9 @@ class TaxonomyImporter:
 
             # Prepare and process data
             df = self._prepare_dataframe(df, ranks)
-            count = self._process_dataframe(df, ranks)
+
+            # Process the data with optional API enrichment
+            count = self._process_dataframe(df, ranks, api_config)
 
             # Return success message with just the filename, not the full path
             return f"{count} taxons imported from {Path(file_path).name}."
@@ -96,6 +114,7 @@ class TaxonomyImporter:
         occurrences_file: str,
         ranks: Tuple[str, ...],
         column_mapping: Dict[str, str],
+        api_config: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Extract and import taxonomy data from occurrences.
@@ -104,6 +123,7 @@ class TaxonomyImporter:
             occurrences_file (str): Path to occurrences CSV file.
             ranks (Tuple[str, ...]): Taxonomy ranks to import.
             column_mapping (Dict[str, str]): Mapping between taxonomy fields and occurrence columns.
+            api_config (Optional[Dict[str, Any]]): API configuration for enrichment.
 
         Returns:
             str: Success message.
@@ -154,7 +174,9 @@ class TaxonomyImporter:
             )
 
             # Process the taxonomy data and build the hierarchy
-            count = self._process_taxonomy_with_relations(taxonomy_df, ranks)
+            count = self._process_taxonomy_with_relations(
+                taxonomy_df, ranks, api_config
+            )
 
             return f"{count} taxons extracted and imported from {Path(occurrences_file).name}."
 
@@ -168,7 +190,10 @@ class TaxonomyImporter:
 
     @error_handler(log=True, raise_error=True)
     def _process_taxonomy_with_relations(
-        self, df: pd.DataFrame, ranks: Tuple[str, ...] = None
+        self,
+        df: pd.DataFrame,
+        ranks: Tuple[str, ...] = None,
+        api_config: Optional[Dict[str, Any]] = None,
     ) -> int:
         """
         Process taxonomy data and build parent-child relationships.
@@ -178,11 +203,27 @@ class TaxonomyImporter:
         Args:
             df: DataFrame containing taxonomy data
             ranks: Taxonomy ranks from configuration (optional)
+            api_config: API configuration for enrichment (optional)
 
         Returns:
             Number of imported records
         """
         imported_count = 0
+        # Check if API enrichment is enabled
+        api_enricher = None
+        if api_config and api_config.get("enabled", False):
+            from niamoto.core.plugins.registry import PluginRegistry
+            from niamoto.core.plugins.base import PluginType
+
+            # Get the configured plugin
+            plugin_name = api_config.get("plugin", "api_taxonomy_enricher")
+            try:
+                plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.LOADER)
+                api_enricher = plugin_class(self.db)
+                print(f"API enrichment enabled using plugin: {plugin_name}")
+            except Exception as e:
+                print(f"Failed to load API enrichment plugin: {str(e)}")
+                api_enricher = None
 
         # Create dictionaries to store relationships
         family_ids = {}  # family_name -> id
@@ -194,16 +235,23 @@ class TaxonomyImporter:
         try:
             with self.db.session() as session:
                 # First pass: insert all taxa into database to get auto-generated IDs
+                # Variable to store the current enrichment message
+                current_enrichment_message = "[green]Importing taxonomy data[/green]"
+                if api_enricher:
+                    current_enrichment_message = (
+                        "[green]Enriching taxonomy data[/green]"
+                    )
+
                 with Progress(
                     SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
+                    TextColumn("{task.description}"),
                     BarColumn(),
                     TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
                     TimeRemainingColumn(),
                     refresh_per_second=10,
                 ) as progress:
                     task_insert = progress.add_task(
-                        "[green]Inserting taxa", total=len(df)
+                        current_enrichment_message, total=len(df)
                     )
 
                     # Process in hierarchical order based on ranks from configuration
@@ -215,6 +263,65 @@ class TaxonomyImporter:
                         rank_df = df[df["rank_name"] == rank_name]
 
                         for _, row in rank_df.iterrows():
+                            # Convert data to dictionary for processing
+                            row_dict = row.to_dict()
+
+                            # Apply API enrichment if configured
+                            if api_enricher:
+                                try:
+                                    # Save the current length of log messages
+                                    prev_log_length = (
+                                        len(api_enricher.log_messages)
+                                        if hasattr(api_enricher, "log_messages")
+                                        else 0
+                                    )
+
+                                    # Apply enrichment
+                                    enriched_row_dict = api_enricher.load_data(
+                                        row_dict, api_config
+                                    )
+
+                                    # Update row_dict with the enrichment result
+                                    row_dict = enriched_row_dict
+                                    # Update the status message with new messages
+                                    if (
+                                        hasattr(api_enricher, "log_messages")
+                                        and len(api_enricher.log_messages)
+                                        > prev_log_length
+                                    ):
+                                        new_messages = api_enricher.log_messages[
+                                            prev_log_length:
+                                        ]
+                                        if new_messages:
+                                            # Retrieve the last message
+                                            last_message = new_messages[-1]
+
+                                            # Display only if it's a success/error message
+                                            if (
+                                                "✓" in last_message
+                                                or "✗" in last_message
+                                            ):
+                                                # Update the task description with the current message
+                                                # Preserve the message formatting
+                                                current_enrichment_message = (
+                                                    last_message
+                                                )
+                                                progress.update(
+                                                    task_insert,
+                                                    description=current_enrichment_message,
+                                                )
+                                except Exception as e:
+                                    error_msg = f"API enrichment failed for {row_dict.get('full_name')}: {str(e)}"
+                                    # Update the task description with the error message
+                                    # Preserve the bold red formatting for the error
+                                    current_enrichment_message = (
+                                        f"[bold red]{error_msg}[/]"
+                                    )
+                                    progress.update(
+                                        task_insert,
+                                        description=current_enrichment_message,
+                                    )
+
                             # Convert taxon_id to integer if it's a number
                             taxon_id_value = None
                             if "taxon_id" in row and pd.notna(row["taxon_id"]):
@@ -227,6 +334,18 @@ class TaxonomyImporter:
                                     # If conversion fails, keep None
                                     pass
 
+                            extra_data = {}
+                            if "extra_data" in row_dict and isinstance(
+                                row_dict["extra_data"], dict
+                            ):
+                                extra_data = row_dict["extra_data"].copy()
+
+                            # Add API enrichment data if available
+                            if "api_enrichment" in row_dict and isinstance(
+                                row_dict["api_enrichment"], dict
+                            ):
+                                # Merge enrichment data with extra_data
+                                extra_data.update(row_dict["api_enrichment"])
                             # Create taxon instance without explicit ID
                             taxon = TaxonRef(
                                 full_name=row["full_name"],
@@ -237,11 +356,7 @@ class TaxonomyImporter:
                                     "rank_name"
                                 ],  # Use directly the rank name from configuration
                                 taxon_id=taxon_id_value,
-                                extra_data=(
-                                    row["extra_data"]
-                                    if pd.notna(row["extra_data"])
-                                    else {}
-                                ),
+                                extra_data=extra_data,
                             )
 
                             # Add to session
@@ -280,7 +395,7 @@ class TaxonomyImporter:
                             progress.update(task_insert, advance=1)
 
                             # Periodic commit
-                            if imported_count % 1000 == 0:
+                            if imported_count % 10 == 0:
                                 session.commit()
 
                     # Final commit for all records

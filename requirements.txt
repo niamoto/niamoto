@@ -19,6 +19,9 @@ certifi==2025.1.31
     #   pyogrio
     #   pyproj
     #   rasterio
+    #   requests
+charset-normalizer==3.4.1
+    # via requests
 click==8.1.8
     # via
     #   niamoto (pyproject.toml)
@@ -43,6 +46,8 @@ geoalchemy2==0.17.0
     # via niamoto (pyproject.toml)
 geopandas==1.0.1
     # via niamoto (pyproject.toml)
+idna==3.10
+    # via requests
 itsdangerous==2.2.0
     # via flask
 jinja2==3.1.5
@@ -109,6 +114,8 @@ pyyaml==6.0.2
     # via niamoto (pyproject.toml)
 rasterio==1.4.3
     # via niamoto (pyproject.toml)
+requests==2.32.3
+    # via niamoto (pyproject.toml)
 rich==13.9.4
     # via niamoto (pyproject.toml)
 rjsmin==1.2.3
@@ -140,6 +147,8 @@ typing-extensions==4.12.2
     #   sqlalchemy
 tzdata==2025.1
     # via pandas
+urllib3==2.3.0
+    # via requests
 wcwidth==0.2.13
     # via prompt-toolkit
 werkzeug==3.1.3
