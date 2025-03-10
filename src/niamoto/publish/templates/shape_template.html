@@ -637,6 +637,33 @@
 
             // Pour les autres types de graphiques...
             const chartData = prepareChartData(config, data);
+
+            // Vérifier si les données sont vides
+            let hasData = false;
+
+            if (chartData && chartData.datasets) {
+                // Vérifier si au moins un dataset contient des données
+                hasData = chartData.datasets.some(dataset => {
+                    // Vérifier si le dataset a des données et qu'elles ne sont pas toutes nulles/0
+                    return dataset.data &&
+                           dataset.data.length > 0 &&
+                           dataset.data.some(value => value !== null && value !== undefined && value !== 0);
+                });
+            }
+
+            // Si aucune donnée n'est disponible, afficher un message
+            if (!hasData) {
+                if (ctx) {
+                    // Remplacer le canvas par un div avec le message
+                    const container = ctx.parentNode;
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'flex items-center justify-center h-64';
+                    messageDiv.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+                    container.replaceChild(messageDiv, ctx);
+                }
+                return;
+            }
+
             const chartOptions = prepareChartOptions(config);
             const plugins = [];
 

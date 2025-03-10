@@ -33,6 +33,15 @@ def test_successful_github_deploy(runner, mock_config):
     with mock.patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
 
+        # Mock the branch check to return non-zero (branch doesn't exist)
+        def run_command(*args, **kwargs):
+            cmd = args[0]
+            if cmd[0] == "git" and cmd[1] == "rev-parse":
+                return mock.Mock(returncode=1)  # Branch doesn't exist
+            return mock.Mock(returncode=0)
+
+        mock_run.side_effect = run_command
+
         result = runner.invoke(
             deploy_to_github, ["--repo", "https://github.com/user/repo.git"]
         )
@@ -40,23 +49,27 @@ def test_successful_github_deploy(runner, mock_config):
         assert result.exit_code == 0
         assert "Deployed to GitHub Pages" in result.output
 
-        # Verify all git commands were called
-        calls = mock_run.call_args_list
-        assert len(calls) == 6  # init, checkout, add, commit, remote add, push
+        # Convert each command to a string for more reliable comparison
+        called_commands = [" ".join(call[0][0]) for call in mock_run.call_args_list]
 
         # Verify specific commands
-        assert calls[0][0][0] == ["git", "init"]
-        assert calls[1][0][0] == ["git", "checkout", "-b", "gh-pages"]
-        assert calls[2][0][0] == ["git", "add", "."]
-        assert calls[3][0][0] == ["git", "commit", "-m", "Deploy to GitHub Pages"]
-        assert calls[4][0][0] == [
-            "git",
-            "remote",
-            "add",
-            "origin",
-            "https://github.com/user/repo.git",
-        ]
-        assert calls[5][0][0] == ["git", "push", "-f", "origin", "gh-pages"]
+        assert "git init" in called_commands
+        assert "git config user.name Niamoto Bot" in called_commands
+        assert "git config user.email bot@niamoto.org" in called_commands
+        assert (
+            "git remote add origin https://github.com/user/repo.git" in called_commands
+        )
+
+        # Check for either checkout -b or checkout --orphan (either might be used)
+        checkout_commands = [cmd for cmd in called_commands if "git checkout" in cmd]
+        checkout_branch_found = any("gh-pages" in cmd for cmd in checkout_commands)
+        assert checkout_branch_found, (
+            f"No checkout command with gh-pages found in: {checkout_commands}"
+        )
+
+        assert "git add ." in called_commands
+        assert any("git commit" in cmd for cmd in called_commands)
+        assert "git push -f origin gh-pages" in called_commands
 
 
 def test_successful_netlify_deploy(runner, mock_config):
@@ -162,7 +175,14 @@ def test_netlify_cli_not_found(runner, mock_config):
 def test_custom_branch_github_deploy(runner, mock_config):
     """Test GitHub deployment with custom branch."""
     with mock.patch("subprocess.run") as mock_run:
-        mock_run.return_value.returncode = 0
+        # Mock the branch check to return non-zero (branch doesn't exist)
+        def run_command(*args, **kwargs):
+            cmd = args[0]
+            if cmd[0] == "git" and cmd[1] == "rev-parse":
+                return mock.Mock(returncode=1)  # Branch doesn't exist
+            return mock.Mock(returncode=0)
+
+        mock_run.side_effect = run_command
 
         result = runner.invoke(
             deploy_to_github,
@@ -172,11 +192,14 @@ def test_custom_branch_github_deploy(runner, mock_config):
         assert result.exit_code == 0
         assert "Deployed to GitHub Pages" in result.output
 
-        # Verify branch name in commands
-        calls = mock_run.call_args_list
-        assert ["git", "checkout", "-b", "custom-branch"] in [
-            call[0][0] for call in calls
-        ]
-        assert ["git", "push", "-f", "origin", "custom-branch"] in [
-            call[0][0] for call in calls
-        ]
+        # Convert commands to strings for more reliable comparison
+        called_commands = [" ".join(call[0][0]) for call in mock_run.call_args_list]
+
+        # Verify branch name is used in commands
+        checkout_commands = [cmd for cmd in called_commands if "git checkout" in cmd]
+        checkout_branch_found = any("custom-branch" in cmd for cmd in checkout_commands)
+        assert checkout_branch_found, (
+            f"No checkout command with custom-branch found in: {checkout_commands}"
+        )
+
+        assert "git push -f origin custom-branch" in called_commands

@@ -21,7 +21,13 @@ class BinnedDistributionConfig(PluginConfig):
 
     plugin: str = "binned_distribution"
     params: Dict[str, Any] = Field(
-        default_factory=lambda: {"source": "", "field": None, "bins": [], "labels": []}
+        default_factory=lambda: {
+            "source": "",
+            "field": None,
+            "bins": [],
+            "labels": [],
+            "include_percentages": False,
+        }
     )
 
     @field_validator("params")
@@ -135,6 +141,15 @@ class BinnedDistribution(TransformerPlugin):
                 and validated_config.params["labels"]
             ):
                 result["labels"] = validated_config.params["labels"]
+
+            # Calculate percentages if requested
+            if validated_config.params.get("include_percentages", False):
+                total = sum(counts)
+                if total > 0:
+                    percentages = [round((count / total) * 100, 2) for count in counts]
+                else:
+                    percentages = [0] * len(counts)
+                result["percentages"] = percentages
 
             return result
 

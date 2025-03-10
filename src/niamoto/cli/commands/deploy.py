@@ -54,33 +54,164 @@ def get_output_dir(config: Config) -> str:
     default="gh-pages",
     help="Branch to deploy to",
 )
+@click.option(
+    "--name",
+    default="Niamoto Bot",
+    help="Git commit author name",
+)
+@click.option(
+    "--email",
+    default="bot@niamoto.org",
+    help="Git commit author email",
+)
 @error_handler(log=True, raise_error=True)
-def deploy_to_github(repo: str, branch: str) -> None:
+def deploy_to_github(repo: str, branch: str, name: str, email: str) -> None:
     """Deploy to GitHub Pages."""
     config = Config()
     output_dir = get_output_dir(config)
 
     os.chdir(output_dir)
 
-    git_commands = [
-        ["git", "init"],
-        ["git", "checkout", "-b", branch],
-        ["git", "add", "."],
-        ["git", "commit", "-m", "Deploy to GitHub Pages"],
-        ["git", "remote", "add", "origin", repo],
-        ["git", "push", "-f", "origin", branch],
-    ]
+    # Check if git is already initialized
+    is_git_repo = os.path.isdir(os.path.join(output_dir, ".git"))
 
     try:
-        for cmd in git_commands:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+        # Initialize git if needed
+        if not is_git_repo:
+            subprocess.run(["git", "init"], check=True, capture_output=True, text=True)
+            print_success("Initialized new git repository")
+        else:
+            print_success("Using existing git repository")
+
+        # Configure git user identity for this repository
+        subprocess.run(
+            ["git", "config", "user.name", name],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", email],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        print_success(f"Configured git identity: {name} <{email}>")
+
+        # Configure git remotes
+        try:
+            subprocess.run(
+                ["git", "remote", "remove", "origin"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError:
+            # It's okay if removing origin fails (might not exist)
+            pass
+
+        subprocess.run(
+            ["git", "remote", "add", "origin", repo],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        # Check if branch exists locally
+        branch_exists = (
+            subprocess.run(
+                ["git", "rev-parse", "--verify", branch],
+                check=False,
+                capture_output=True,
+                text=True,
+            ).returncode
+            == 0
+        )
+
+        # Switch to the target branch or create it
+        if branch_exists:
+            subprocess.run(
+                ["git", "checkout", branch], check=True, capture_output=True, text=True
+            )
+            print_success(f"Switched to existing branch: {branch}")
+        else:
+            # Create a new branch (handle both new repos and existing repos)
+            try:
+                subprocess.run(
+                    ["git", "checkout", "-b", branch],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError:
+                # If the checkout fails, try creating from HEAD
+                subprocess.run(
+                    ["git", "checkout", "--orphan", branch],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                # Remove all files from the index
+                subprocess.run(
+                    ["git", "rm", "-rf", "."],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+
+            print_success(f"Created new branch: {branch}")
+
+        # Stage all files
+        subprocess.run(["git", "add", "."], check=True, capture_output=True, text=True)
+
+        # Commit changes (allow empty commits to support re-running the command)
+        commit_result = subprocess.run(
+            [
+                "git",
+                "commit",
+                "-m",
+                f"Deploy to GitHub Pages at {datetime.now().isoformat()}",
+                "--allow-empty",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        # If nothing to commit, that's okay
+        if commit_result.returncode != 0:
+            # Check if it's just a "nothing to commit" message
+            if (
+                "nothing to commit" in commit_result.stderr
+                or "nothing to commit" in commit_result.stdout
+            ):
+                print_success("No changes to commit")
+            else:
+                # Some other error occurred
+                commit_result.check_returncode()  # Will raise with proper error
+        else:
+            print_success("Committed changes")
+
+        # Force push to branch
+        subprocess.run(
+            ["git", "push", "-f", "origin", branch],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
         print_success(f"Deployed to GitHub Pages on branch: {branch}")
 
     except subprocess.CalledProcessError as e:
         raise CommandError(
             command="github",
             message=f"Git command failed: {e.cmd}",
-            details={"command": " ".join(e.cmd), "output": e.output, "error": e.stderr},
+            details={
+                "command": " ".join(e.cmd),
+                "output": e.stdout,
+                "error": e.stderr,
+                "exit_code": e.returncode,
+            },
         )
 
 

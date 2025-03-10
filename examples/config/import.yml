@@ -1,4 +1,4 @@
-# 1) The main basic "entities"
+# Option 1: The main basic "entities"
 # taxonomy:
 #   type: csv
 #   path: "imports/taxonomy.csv"
@@ -9,8 +9,8 @@
 # Option 2: Taxonomie extraite des occurrences
 taxonomy:
   type: csv
-  path: "imports/occurrences.csv"
-  source: "occurrences"
+  path: "imports/niamoto_occurrences_202503041446.csv"  # Chemin vers le fichier d'occurrences
+  source: "occurrence"  # Indique d'extraire la taxonomie des occurrences
   ranks: "family,genus,species,infra"
   occurrence_columns:
     taxon_id: "id_taxonref"
@@ -18,24 +18,79 @@ taxonomy:
     genus: "genus"
     species: "species"
     infra: "infra"
-    authors: "taxonref"  # Can extract authors from taxonref
+    authors: "taxonref"  # On peut extraire les auteurs du taxonref
+  api_enrichment:
+    enabled: true
+    plugin: "api_taxonomy_enricher"
+    api_url: "https://api.endemia.nc/v1/taxons"
+    # Authentification par clé API dans l'en-tête
+    auth_method: "api_key"
+    auth_params:
+      key: "your-api-key"  # Votre clé API
+      location: "header"  # Dans l'en-tête HTTP
+      name: "apiKey"      # Nom exact de l'en-tête
+    query_params:
+      section: "flore"
+      maxitem: "1"
+      excludes: "meta,links"  # Exclure les métadonnées inutiles
+      includes: "images"  # Inclure les images
 
+    query_field: "full_name"  # Field to use for querying the API
+    # Limites et optimisations
+    rate_limit: 2.0
+    cache_results: true
+    # Mapping des champs prioritaires mentionnés
+    response_mapping:
+      # Champs prioritaires
+      id_endemia: "id"
+      id_florical: "id_florical"
+      endemia_url: "endemia_url"
+      endemic: "endemique"
+      protected: "protected"
+      protected_provnord: "protected_provnord"
+      protected_provsud: "protected_provsud"
+      redlist: "redlist"
+      redlist_cat: "categorie_uicn"
+
+      # Champs d'image
+      image_small_thumb: "image.small_thumb"
+      image_big_thumb: "image.big_thumb"
+      image_auteur: "image.auteur"
+
+      images: "images"  # Champ pour les images multiples
+
+
+
+
+# plots:
+#   type: vector
+#   format: geopackage
+#   path: "imports/niamoto_plots_202503041405.csv"
+#   identifier: "id_locality"
+#   location_field: "geometry"
+#   link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien
+#   occurrence_link_field: "plot_name"  # Champ à utiliser dans occurrences pour le lien
 
 plots:
-  type: vector
-  format: geopackage
-  path: "imports/plots.gpkg"
-  identifier: "id_locality"
-  location_field: "geometry"
-  link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien
+  type: csv
+  path: "imports/niamoto_plots_202503041405.csv"
+  identifier: "id_plot" # Champ de l'identifiant du plot dans le csv
+  locality_field: "plot" # Champ du nom de la localité qui renseignera le champ locality dans plot_ref
+  location_field: "geo_pt" # Champ de la géométrie de la localité
+  link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien, correspond ici à name_field
   occurrence_link_field: "plot_name"  # Champ à utiliser dans occurrences pour le lien
 
 
 occurrences:
   type: csv
-  path: "imports/occurrences.csv"
+  path: "imports/niamoto_occurrences_202503041446.csv"
   identifier: "id_taxonref"
   location_field: "geo_pt"
+
+plot_stats:
+  type: csv
+  path: "imports/niamoto_plot_frequency_202503041441.csv"
+  identifier: "plot_id"
 
 shape_stats:
   type: csv

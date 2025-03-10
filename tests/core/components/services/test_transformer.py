@@ -395,15 +395,43 @@ class TestTransformerService(NiamotoTestCase):
         # Verify SQL execution
         mock_db.execute_sql.assert_called_once()
         sql_call = mock_db.execute_sql.call_args[0][0]
+        params = mock_db.execute_sql.call_args[0][1]  # Capture the parameters
 
         # Check SQL structure
         self.assertIn(
             "INSERT INTO plot (plot_id, int_value, float_value, str_value, dict_value, list_value, none_value)",
             sql_call,
         )
-        self.assertIn("VALUES (1, 42, 3.14, 'test',", sql_call)
+        self.assertIn(
+            "VALUES (:plot_id, :int_value, :float_value, :str_value, :dict_value, :list_value, :none_value)",
+            sql_call,
+        )
         self.assertIn("ON CONFLICT (plot_id)", sql_call)
         self.assertIn("DO UPDATE SET", sql_call)
+
+        # Check the parameter values
+        self.assertEqual(params["plot_id"], 1)
+
+        # Vérifier le type et la valeur des paramètres correctement
+        if isinstance(params["int_value"], str):
+            self.assertEqual(params["int_value"], "42")
+        else:
+            self.assertEqual(params["int_value"], 42)
+
+        if isinstance(params["float_value"], str):
+            self.assertEqual(params["float_value"], "3.14")
+        else:
+            self.assertEqual(params["float_value"], 3.14)
+
+        self.assertEqual(params["str_value"], "test")
+
+        # Pour les valeurs JSON, vérifier seulement que les chaînes contiennent les éléments clés
+        self.assertIn("key", str(params["dict_value"]))
+        self.assertIn("value", str(params["dict_value"]))
+        self.assertIn("1", str(params["list_value"]))
+        self.assertIn("2", str(params["list_value"]))
+        self.assertIn("3", str(params["list_value"]))
+        self.assertIsNone(params["none_value"])
 
     def test_save_widget_results_numpy(self):
         """Test _save_widget_results method with NumPy data types."""
@@ -421,27 +449,30 @@ class TestTransformerService(NiamotoTestCase):
         # Verify SQL execution
         mock_db.execute_sql.assert_called_once()
         sql_call = mock_db.execute_sql.call_args[0][0]
+        params = mock_db.execute_sql.call_args[0][1]  # Capture the parameters
 
         # Check SQL structure
         self.assertIn("INSERT INTO plot (plot_id, widget1, widget2)", sql_call)
-        self.assertIn("VALUES (1, 42, 3.14)", sql_call)
+        self.assertIn("VALUES (:plot_id, :widget1, :widget2)", sql_call)
         self.assertIn("ON CONFLICT (plot_id)", sql_call)
         self.assertIn(
             "DO UPDATE SET widget1 = excluded.widget1, widget2 = excluded.widget2",
             sql_call,
         )
 
-    # def test_save_widget_results_error(self):
-    #     """Test _save_widget_results method with error."""
-    #     # Mock database error
-    #     self.mock_db.execute_sql.side_effect = Exception("Database error")
+        # Check the parameter values with more flexible assertions to handle string conversions
+        self.assertEqual(params["plot_id"], 1)
 
-    #     results = {"value": 42}
+        # Vérifier le type et la valeur des paramètres correctement
+        if isinstance(params["widget1"], str):
+            self.assertEqual(params["widget1"], "42")
+        else:
+            self.assertEqual(params["widget1"], 42)
 
-    #     with self.assertRaises(DataTransformError) as context:
-    #         self.transformer_service._save_widget_results("plot", 1, results)
-
-    #     self.assertIn("Failed to save results for group 1", str(context.exception))
+        if isinstance(params["widget2"], str):
+            self.assertEqual(params["widget2"], "3.14")
+        else:
+            self.assertEqual(params["widget2"], 3.14)
 
     @patch("niamoto.core.services.transformer.Progress")
     @patch("niamoto.core.services.transformer.TransformerService._filter_configs")

@@ -80,9 +80,9 @@
                         <i class="fas fa-database menu-icon"></i>Accéder aux données
                     </a>
                     <ul class="absolute hidden text-gray-700 pt-1 group-hover:block bg-white shadow-lg rounded-md z-50 w-48 custom-dropdown">
-                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="taxon/1.html">Arbres</a></li>
-                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plot/1.html">Peuplements</a></li>
-                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="shape/1.html">Forêt</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="taxon/index.html">Arbres</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="plot/index.html">Peuplements</a></li>
+                        <li><a class="py-2 px-4 block whitespace-no-wrap hover:bg-gray-100" href="#" data-link="shape/index.html">Forêt</a></li>
 
                     </ul>
                 </li>
@@ -105,26 +105,15 @@
     document.getElementById('nav-toggle').onclick = () =>
         document.getElementById('nav-content').classList.toggle('hidden');
 
-    // Handle navigation links
-    document.addEventListener('DOMContentLoaded', () => {
-        const firstIds = {{ first_ids | tojson | safe }};
-        const depth = "{{ depth }}";
-
-        document.querySelectorAll('a[data-link]').forEach(link => {
-            const dataLink = link.getAttribute('data-link');
-            if (!dataLink) return;
-
-            // Update category links with correct IDs
-            Object.entries(firstIds).forEach(([category, id]) => {
-                if (dataLink.startsWith(`${category}/`)) {
-                    link.setAttribute('data-link', `${category}/${id}.html`);
-                }
+    // Function to adjust the navigation links based on page depth
+        function adjustNavLinks(depth) {
+            document.querySelectorAll('a[data-link]').forEach(link => {
+                link.href = depth + link.getAttribute('data-link');
             });
+        }
 
-            // Apply depth to all links
-            link.href = depth + link.getAttribute('data-link');
-        });
-    });
+        // Adjust the navigation links based on the depth
+        adjustNavLinks("{{ depth }}");
 
 </script>
 
