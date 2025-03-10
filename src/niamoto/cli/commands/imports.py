@@ -413,25 +413,112 @@ def import_all() -> None:
         DataImportError: If any import operation fails
     """
     print_info("Starting full data import...")
-    ctx = click.get_current_context()
+    config = Config()
 
     try:
+        # Create a single ImporterService instance to reuse
+        importer = ImporterService(config.database_path)
+
         # Import taxonomy
-        ctx.invoke(import_taxonomy)
+        print_info("Importing taxonomy...")
+        source_def = validate_source_config(
+            config.imports, "taxonomy", ["path", "ranks"]
+        )
+        file_path = source_def.get("path")
+        rank_list = source_def.get("ranks", "").split(",")
+        tax_source = source_def.get("source", "file")
+
+        # Validate file path first
+        if not os.path.exists(file_path):
+            raise FileError(
+                file_path=file_path,
+                message="File not found",
+                details={"path": file_path},
+            )
+
+        api_config = None
+        if source_def.get("api_enrichment", {}).get("enabled", False):
+            api_config = source_def.get("api_enrichment", {})
+            api_config["enabled"] = True
+
+        reset_table(config.database_path, "taxon_ref")
+
+        if tax_source == "occurrence":
+            occ_columns = source_def.get("occurrence_columns", {})
+            if not occ_columns:
+                raise ConfigurationError(
+                    config_key="taxonomy.occurrence_columns",
+                    message="Missing occurrence columns mapping configuration",
+                    details={
+                        "expected": "dictionary mapping taxonomy fields to occurrence columns"
+                    },
+                )
+            result = importer.import_taxonomy_from_occurrences(
+                file_path, tuple(rank_list), occ_columns, api_config
+            )
+        else:
+            result = importer.import_taxonomy(file_path, tuple(rank_list), api_config)
+        print_info(result)
 
         # Import occurrences
-        ctx.invoke(import_occurrences)
+        print_info("Importing occurrences...")
+        source_def = validate_source_config(
+            config.imports, "occurrences", ["path", "identifier", "location_field"]
+        )
+        file_path = get_source_path(config, "occurrences")
+        taxon_id = source_def.get("identifier")
+        location_field = source_def.get("location_field")
+
+        reset_table(config.database_path, "occurrences")
+        result = importer.import_occurrences(file_path, taxon_id, location_field)
+        print_info(result)
 
         # Import plots
-        ctx.invoke(import_plots)
+        print_info("Importing plots...")
+        source_def = validate_source_config(
+            config.imports,
+            "plots",
+            ["path", "identifier", "location_field", "locality_field"],
+        )
+        file_path = get_source_path(config, "plots")
+        id_field = source_def.get("identifier")
+        location_field = source_def.get("location_field")
+        locality_field = source_def.get("locality_field")
+        link_field = source_def.get("link_field")
+        occurrence_link_field = source_def.get("occurrence_link_field")
+
+        reset_table(config.database_path, "plot_ref")
+        result = importer.import_plots(
+            file_path,
+            id_field,
+            location_field,
+            locality_field,
+            link_field=link_field,
+            occurrence_link_field=occurrence_link_field,
+        )
+        print_info(result)
 
         # Import shapes
-        ctx.invoke(import_shapes)
+        print_info("Importing shapes...")
+        shapes_config = config.imports.get("shapes", [])
+        if shapes_config and isinstance(shapes_config, list):
+            result = importer.import_shapes(shapes_config)
+            print_info(result)
+        else:
+            print_info("No shapes configured, skipping")
+
+        # Import occurrence-plots if configured
+        if "occurrence_plots" in config.imports:
+            print_info("Importing occurrence-plot links...")
+            file_path = get_source_path(config, "occurrence_plots")
+            reset_table(config.database_path, "occurrences_plots")
+            result = importer.import_occurrence_plot_links(file_path)
+            print_info(result)
 
         print_success("Data import completed")
     except Exception as e:
         raise DataImportError(
-            message="Full import failed", details={"last_step": str(e), "error": str(e)}
+            message="Full import failed", details={"error": str(e)}
         ) from e
 
 
