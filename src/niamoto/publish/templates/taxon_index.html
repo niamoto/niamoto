@@ -196,7 +196,7 @@
 .endemia-link {
     display: inline-block;
     background-color: #f7efe7;
-    color: #3182ce;
+    color: #7bb348;
     padding: 0.5rem 1rem;
     border-radius: 0.25rem;
     text-decoration: none;
@@ -295,6 +295,73 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* Ajout de style pour le badge UICN */
+    .uicn-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+        vertical-align: middle;
+        color: white;
+    }
+
+    .uicn-badge.CR {
+        background-color: #d32f2f;
+    }
+
+    .uicn-badge.EN {
+        background-color: #f57c00;
+    }
+
+    .uicn-badge.VU {
+        background-color: #fbc02d;
+        color: black;
+    }
+
+    .uicn-badge.NT {
+        background-color: #2e7d32;
+    }
+
+    .uicn-badge.LC {
+        background-color: #388e3c;
+    }
+
+    .uicn-badge.DD {
+        background-color: #757575;
+    }
+
+    .uicn-badge.NE {
+        background-color: #bdbdbd;
+        color: black;
+    }
+
+    /* Style pour les boutons de liens externes */
+    .external-link-button {
+        display: inline-block;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.25rem;
+        text-decoration: none;
+        font-weight: 500;
+        transition: background-color 0.2s;
+        margin-right: 0.5rem;
+    }
+
+    .endemia-link {
+        background-color: #f7efe7;
+        color: #7bb348;
+    }
+
+    .florical-link {
+        background-color: #e7f7ef;
+        color: #2c7a7b;
+    }
+
+    .external-link-button:hover {
+        filter: brightness(0.95);
+    }
 </style>
 {% endblock %}
 
@@ -335,6 +402,21 @@
                 <option value="all">Tous</option>
                 <option value="true">Endémiques</option>
                 <option value="false">Non endémiques</option>
+            </select>
+        </div>
+
+        <!-- Nouveau filtre pour les catégories UICN -->
+        <div class="filter-group">
+            <label for="uicnFilter" class="filter-label">Catégorie UICN</label>
+            <select id="uicnFilter" class="filter-select">
+                <option value="all">Toutes les catégories</option>
+                <option value="CR">En danger critique (CR)</option>
+                <option value="EN">En danger (EN)</option>
+                <option value="VU">Vulnérable (VU)</option>
+                <option value="NT">Quasi menacé (NT)</option>
+                <option value="LC">Préoccupation mineure (LC)</option>
+                <option value="DD">Données insuffisantes (DD)</option>
+                <option value="NE">Non évalué (NE)</option>
             </select>
         </div>
 
@@ -411,6 +493,7 @@
     const rankFilter = document.getElementById('rankFilter');
     const familyFilter = document.getElementById('familyFilter');
     const endemicFilter = document.getElementById('endemicFilter');
+    const uicnFilter = document.getElementById('uicnFilter'); // Nouveau filtre UICN
     const sortBySelect = document.getElementById('sortBy');
     const sortOrderSelect = document.getElementById('sortOrder');
     const noResultsElement = document.getElementById('noResults');
@@ -431,6 +514,7 @@
         rankFilter.addEventListener('change', applyFiltersAndSort);
         familyFilter.addEventListener('change', applyFiltersAndSort);
         endemicFilter.addEventListener('change', applyFiltersAndSort);
+        uicnFilter.addEventListener('change', applyFiltersAndSort); // Nouveau listener pour UICN
         sortBySelect.addEventListener('change', applyFiltersAndSort);
         sortOrderSelect.addEventListener('change', applyFiltersAndSort);
 
@@ -449,6 +533,20 @@
             setView(savedView);
         }
     });
+
+    // Fonction pour traduire le code UICN en texte
+    function translateUICN(code) {
+        const translations = {
+            'CR': 'En danger critique',
+            'EN': 'En danger',
+            'VU': 'Vulnérable',
+            'NT': 'Quasi menacé',
+            'LC': 'Préoccupation mineure',
+            'DD': 'Données insuffisantes',
+            'NE': 'Non évalué'
+        };
+        return translations[code] || code;
+    }
 
     // Remplir le filtre des familles
     function populateFamilyFilter() {
@@ -503,6 +601,7 @@
         const selectedRank = rankFilter.value;
         const selectedFamily = familyFilter.value;
         const selectedEndemic = endemicFilter.value;
+        const selectedUicn = uicnFilter.value; // Nouvelle valeur de filtre UICN
         const sortBy = sortBySelect.value;
         const sortOrder = sortOrderSelect.value;
 
@@ -524,7 +623,11 @@
                 (taxon.endemic !== undefined &&
                     parseEndemic(taxon.endemic) === (selectedEndemic === 'true'));
 
-            return matchesSearch && matchesRank && matchesFamily && matchesEndemic;
+            // Filtre UICN
+            const matchesUicn = selectedUicn === 'all' ||
+                (taxon.redlist_cat && taxon.redlist_cat === selectedUicn);
+
+            return matchesSearch && matchesRank && matchesFamily && matchesEndemic && matchesUicn;
         });
 
         // Trier
@@ -604,6 +707,9 @@
             taxonListElement.innerHTML = taxa.map(taxon => {
                 const imageUrl = getImageUrl(taxon);
                 const isEndemic = parseEndemic(taxon.endemic);
+                const uicnCategory = taxon.redlist_cat || 'NE';
+                const florical_url = taxon.id_florical ?
+                    `http://publish.plantnet-project.org/project/florical_fr/collection/florical/taxons/details/${taxon.id_florical}` : null;
 
                 return `
         <div class="taxon-card">
@@ -620,6 +726,7 @@
                     <h3 class="taxon-name">
                         <a href="{{ depth }}taxon/${taxon.id}.html">${taxon.name}</a>
                         ${isEndemic ? '<span class="endemic-badge">Endémique</span>' : ''}
+                        ${uicnCategory ? `<span class="uicn-badge ${uicnCategory}" title="${translateUICN(uicnCategory)}">${uicnCategory}</span>` : ''}
                     </h3>
 
                     <div class="taxon-details">
@@ -641,13 +748,18 @@
                         </div>
                     </div>
 
-                    ${taxon.endemia_url ? `
                     <div class="taxon-extra-links">
-                        <a href="${taxon.endemia_url}" target="_blank" class="endemia-link">
-                            <img class="img-fluid" id="ps" src="{{ depth }}files/endemia_100.png">
+                        ${taxon.endemia_url ? `
+                        <a href="${taxon.endemia_url}" target="_blank" class="external-link-button endemia-link" title="Voir sur Endemia">
+                            Endemia
                         </a>
+                        ` : ''}
+                        ${florical_url ? `
+                        <a href="${florical_url}" target="_blank" class="external-link-button florical-link" title="Voir sur Florical">
+                            Florical
+                        </a>
+                        ` : ''}
                     </div>
-                    ` : ''}
                 </div>
             </div>
         </div>
@@ -660,6 +772,9 @@
         taxonListElement.className = "space-y-2";
         taxonListElement.innerHTML = taxa.map(taxon => {
             const isEndemic = parseEndemic(taxon.endemic);
+            const uicnCategory = taxon.redlist_cat || 'NE';
+            const florical_url = taxon.id_florical ?
+                `http://publish.plantnet-project.org/project/florical_fr/collection/florical/taxons/details/${taxon.id_florical}` : null;
 
             return `
             <div class="bg-white p-4 rounded-lg shadow">
@@ -668,12 +783,13 @@
                         <a href="taxon/${taxon.id}.html" class="text-green-600 hover:text-green-800 font-semibold">
                             ${taxon.name}
                         </a>
-                        ${isEndemic ? '<span class="endemic-badge">Endémique</span>' : ''} |
+                        ${isEndemic ? '<span class="endemic-badge">Endémique</span>' : ''}
+                        ${uicnCategory ? `<span class="uicn-badge ${uicnCategory}" title="${translateUICN(uicnCategory)}">${uicnCategory}</span>` : ''} |
                         <span class="text-gray-500 text-sm ml-2">${translateRank(taxon.rank)}</span> |
                         ${taxon.parent_family ?
                     `<span class="text-gray-500 text-sm ml-2">Famille: ${taxon.parent_family}</span>` : ''} |
                     ${taxon.parent_genus ?
-                    `<span class="text-gray-500 text-sm ml-2">Famille: ${taxon.parent_genus}</span>` : ''}
+                    `<span class="text-gray-500 text-sm ml-2">Genre: ${taxon.parent_genus}</span>` : ''}
                     </div>
                     <div class="flex items-center">
                         ${taxon.occurrences_count ? `
@@ -682,11 +798,13 @@
                         </div>
                         ` : ''}
                         ${taxon.endemia_url ? `
-                        <a href="${taxon.endemia_url}" target="_blank" class="text-blue-500 hover:text-blue-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-link-45deg" viewBox="0 0 16 16">
-                                <path d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1.002 1.002 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4.018 4.018 0 0 1-.128-1.287z"/>
-                                <path d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.775-.776a2 2 0 0 1-.896-3.346L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 1 0-4.243-4.243L6.586 4.672z"/>
-                            </svg>
+                        <a href="${taxon.endemia_url}" target="_blank" class="external-link-button endemia-link mr-2" title="Voir sur Endemia">
+                            Endemia
+                        </a>
+                        ` : ''}
+                        ${florical_url ? `
+                        <a href="${florical_url}" target="_blank" class="external-link-button florical-link" title="Voir sur Florical">
+                            Florical
                         </a>
                         ` : ''}
                     </div>
