@@ -49,7 +49,7 @@
             {% elif item.format == 'map' %}
             {% set value = data[item.source].value %}
             {% if item.mapping %}
-            {% set mapping_key = value|string|lower %}
+            {% set mapping_key = value|string %}
             {% if mapping_key in item.mapping %}
             {{ item.mapping[mapping_key] }}
             {% else %}
@@ -59,8 +59,9 @@
             {{ value }}
             {% endif %}
             {% elif item.format == 'link' %}
-            <a href="{{ data[item.source].value }}" target="_blank"
+            <a href="{% if item.base_url %}{{ item.base_url }}{{ data[item.source].value }}{% else %}{{ data[item.source].value }}{% endif %}" target="_blank"
                 class="text-green-600 hover:text-green-800 underline">
+                {% if item.display_text %}{{ item.display_text }}{% else %}{{ item.label }}{% endif %}
                 <i class="fas fa-external-link-alt ml-1"></i>
             </a>
             {% elif item.format == 'image' %}

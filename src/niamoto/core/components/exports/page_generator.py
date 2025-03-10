@@ -755,7 +755,9 @@ class PageGenerator(BaseGenerator):
                                 "parent_genus",
                                 "occurrences_count",
                                 "endemic",
+                                "redlist_cat",
                                 "endemia_url",
+                                "id_florical",
                                 "image_url",
                             ]
 
@@ -1043,7 +1045,7 @@ class PageGenerator(BaseGenerator):
                 template_name=template_name,
                 output_name=output_name,
                 depth="../",
-                context={"shapes_by_type": sorted_shapes_by_type},
+                context={"shapes_by_type": shapes_by_type},
             )
 
             return output_path
