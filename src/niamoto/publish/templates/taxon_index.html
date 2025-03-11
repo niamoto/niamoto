@@ -535,20 +535,6 @@
         }
     });
 
-    // Fonction pour traduire le code UICN en texte
-    function translateUICN(code) {
-        const translations = {
-            'CR': 'En danger critique',
-            'EN': 'En danger',
-            'VU': 'Vulnérable',
-            'NT': 'Quasi menacé',
-            'LC': 'Préoccupation mineure',
-            'DD': 'Données insuffisantes',
-            'NE': 'Non évalué'
-        };
-        return translations[code] || code;
-    }
-
     // Remplir le filtre des familles
     function populateFamilyFilter() {
         const families = [...new Set(allTaxa
@@ -860,6 +846,20 @@
         `;
 
         paginationElement.innerHTML = paginationHTML;
+    }
+
+    // Fonction pour traduire le code UICN en texte
+    function translateUICN(code) {
+        const translations = {
+            'CR': 'En danger critique',
+            'EN': 'En danger',
+            'VU': 'Vulnérable',
+            'NT': 'Quasi menacé',
+            'LC': 'Préoccupation mineure',
+            'DD': 'Données insuffisantes',
+            'NE': 'Non évalué'
+        };
+        return translations[code] || code;
     }
 
     function translateRank(rank) {

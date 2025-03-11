@@ -813,7 +813,7 @@ class PageGenerator(BaseGenerator):
                 "taxon_index.html",
                 f"Failed to generate taxon index page: {str(e)}",
                 details={"error": str(e)},
-            )
+            ) from e
 
     @error_handler(log=True, raise_error=True)
     def generate_plot_index_page(self, plots: List[PlotRef]) -> str:
@@ -893,9 +893,8 @@ class PageGenerator(BaseGenerator):
                 "plot_index.html",
                 f"Failed to generate plot index page: {str(e)}",
                 details={"error": str(e)},
-            )
+            ) from e
 
-    @error_handler(log=True, raise_error=True)
     @error_handler(log=True, raise_error=True)
     def generate_shape_index_page(self, shapes: List[ShapeRef]) -> str:
         """
@@ -1063,4 +1062,4 @@ class PageGenerator(BaseGenerator):
                 "shape_index.html",
                 f"Failed to generate shape index page: {str(e)}",
                 details={"error": str(e)},
-            )
+            ) from e
