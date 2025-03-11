@@ -861,6 +861,7 @@ class PageGenerator(BaseGenerator):
                                         "holdridge",
                                         "in_um",
                                         "occurrences_count",
+                                        "nb_species",
                                     ]:
                                         if key in general_info:
                                             plot_data[key] = general_info[key]

@@ -70,7 +70,8 @@ class DirectAttribute(TransformerPlugin):
                 SELECT {field} FROM {source} WHERE id = {id_value}
             """
             result = self.db.execute_select(query).fetchone()
-            return str(result[0]) if result and result[0] is not None else None
+            # Return raw value without string conversion to preserve format
+            return result[0] if result and result[0] is not None else None
         except Exception as e:
             raise DatabaseError(f"Error getting field {field} from {source}") from e
 
@@ -100,8 +101,8 @@ class DirectAttribute(TransformerPlugin):
                 identifier = import_config["identifier"]
                 row = df[df[identifier] == id_value]
                 if not row.empty:
-                    value = str(row[field].iloc[0])
-                    return value
+                    # Return the raw value instead of converting to string
+                    return row[field].iloc[0]
                 else:
                     return None
 
@@ -125,16 +126,38 @@ class DirectAttribute(TransformerPlugin):
             field = validated_config["params"]["field"]
             value = self._get_field_value(source, field, group_id)
 
-            # Check max value if specified
+            # Handle numeric values while preserving format
+            original_format = value
+            max_value = validated_config["params"].get("max_value")
+
             if value is not None:
                 try:
-                    value = float(value)
-                    max_value = validated_config["params"].get("max_value")
-                    if max_value is not None and value > float(max_value):
+                    # Check if we need to apply max value restriction
+                    float_value = float(value)
+                    if max_value is not None and float_value > float(max_value):
                         value = float(max_value)
+                    else:
+                        # Preserve original format by converting back to string
+                        # only if we didn't apply max_value
+                        value = original_format
                 except ValueError:
                     # If value can't be converted to float, keep it as is
                     pass
+
+                # Ensure consistent string representation
+                if isinstance(value, (float, int)):
+                    # Convert to string while preserving format
+                    if isinstance(original_format, str) and "." in original_format:
+                        # Try to maintain decimal precision from original
+                        decimal_places = len(original_format.split(".")[-1])
+                        value = f"{value:.{decimal_places}f}"
+                    else:
+                        # Convert to string while removing .0 for integers
+                        value = (
+                            str(value).rstrip("0").rstrip(".")
+                            if "." in str(value)
+                            else str(value)
+                        )
 
             return {
                 "value": value,
