@@ -191,6 +191,7 @@
 .taxon-extra-links {
     margin-top: 1rem;
     text-align: right;
+    font-size: 0.9em;
 }
 
 .endemia-link {
@@ -724,7 +725,7 @@
                 <!-- Informations à droite pour desktop, en bas pour mobile -->
                 <div class="taxon-card-info">
                     <h3 class="taxon-name">
-                        <a href="{{ depth }}taxon/${taxon.id}.html">${taxon.name}</a>
+                        <a href="{{ depth }}taxon/${taxon.id}.html">${taxon.name}</a><br>
                         ${isEndemic ? '<span class="endemic-badge">Endémique</span>' : ''}
                         ${uicnCategory ? `<span class="uicn-badge ${uicnCategory}" title="${translateUICN(uicnCategory)}">${uicnCategory}</span>` : ''}
                     </h3>

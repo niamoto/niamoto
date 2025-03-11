@@ -523,6 +523,13 @@
                         <span class="plot-info-value">${plot.occurrences_count.value}</span>
                     </div>
                     ` : ''}
+
+                    ${plot.nb_species ? `
+                    <div class="plot-info">
+                        <span class="plot-info-label">Nombre d'espèces:</span>
+                        <span class="plot-info-value">${plot.nb_species.value}</span>
+                    </div>
+                    ` : ''}
                 </div>
             </a>
         `).join('');
@@ -571,6 +578,13 @@
                     <div class="plot-info">
                         <span class="plot-info-label">Occurrences:</span>
                         <span class="plot-info-value">${plot.occurrences_count.value}</span>
+                    </div>
+                    ` : ''}
+
+                    ${plot.nb_species ? `
+                    <div class="plot-info">
+                        <span class="plot-info-label">Nombre d'espèces:</span>
+                        <span class="plot-info-value">${plot.nb_species.value}</span>
                     </div>
                     ` : ''}
                 </div>

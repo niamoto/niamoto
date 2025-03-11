@@ -581,7 +581,7 @@
                 dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
             } else if (datasetConfig.backgroundColor) {
                 dataset.backgroundColor = datasetConfig.backgroundColor;
-                dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
+                dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
             } else {
                 dataset.backgroundColor = '#000000';
                 dataset.borderColor = '#000000';
@@ -666,14 +666,17 @@
                 const multiplier = config.options.multiplier || 1;
                 const precision = config.options.precision !== undefined ? config.options.precision : 1;
 
-                // Calculer la valeur à afficher
+                // Calculer la valeur à afficher - Ensure it's a number first
                 let value;
                 if (isPercentage) {
                     // Pour les pourcentages, multiplier par 100 et arrondir selon la précision demandée
-                    value = parseFloat((rawValue * multiplier).toFixed(precision));
+                    const numericValue = parseFloat(rawValue) || 0;
+                    value = parseFloat((numericValue * multiplier).toFixed(precision));
                 } else {
-                    // Pour les autres valeurs, utiliser la précision demandée
-                    value = parseFloat(rawValue.toFixed(precision));
+                    console.log("Raw value:", rawValue, "Type:", typeof rawValue);
+                    // Always ensure we have a numeric value before calling toFixed
+                    const numericValue = parseFloat(rawValue) || 0;
+                    value = parseFloat(numericValue.toFixed(precision));
                 }
 
                 const gaugeOptions = {
