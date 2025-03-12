@@ -273,7 +273,6 @@
             function checkLayersAvailability() {
                 if (primaryLayersLoaded >= totalPrimaryLayers && !primaryLayerAvailable) {
                     // No primary map source is available, switch to ESRI Satellite
-                    console.log("Primary map sources are unavailable, using ESRI Satellite");
                     map.removeLayer(baseLayers["Satellite"]);
                     map.addLayer(baseLayers["ESRI Satellite"]);
                     // Force the primaryLayersLoaded to avoid further checks
@@ -294,7 +293,6 @@
             // Set a timeout to automatically switch to backup layer if primary layers don't load quickly
             let mapLoadTimeout = setTimeout(function() {
                 if (!primaryLayerAvailable) {
-                    console.log("Map load timeout reached, switching to backup layer");
                     map.removeLayer(baseLayers["Satellite"]);
                     map.addLayer(baseLayers["ESRI Satellite"]);
                     // Force the primaryLayersLoaded to avoid further checks
@@ -304,26 +302,22 @@
 
             // Listen for tile loading events on primary layers
             baseLayers["Satellite"].on('tileerror', function(error) {
-                console.log("Error loading Satellite layer:", error);
                 primaryLayersLoaded++;
                 checkLayersAvailability();
             });
 
             baseLayers["Satellite"].on('load', function() {
-                console.log("Satellite layer loaded successfully");
                 primaryLayerAvailable = true;
                 primaryLayersLoaded++;
                 clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
             });
 
             baseLayers["Carte"].on('tileerror', function(error) {
-                console.log("Error loading Carte layer:", error);
                 primaryLayersLoaded++;
                 checkLayersAvailability();
             });
 
             baseLayers["Carte"].on('load', function() {
-                console.log("Carte layer loaded successfully");
                 primaryLayerAvailable = true;
                 primaryLayersLoaded++;
                 clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
@@ -345,7 +339,6 @@
                 var currentZoom = map.getZoom();
                 map.setZoom(currentZoom - 3);
             } else {
-                console.warn("No geographic coordinates found.");
                 // Set default view if no geometry is found
                 map.setView([-21.291237, 165.516418], 8);
             }
@@ -396,7 +389,6 @@
             let labels = [];
 
             if (!config.datasets || !Array.isArray(config.datasets)) {
-                console.warn('No datasets configuration provided');
                 return {labels: [], datasets: []};
             }
 
@@ -673,7 +665,6 @@
                     const numericValue = parseFloat(rawValue) || 0;
                     value = parseFloat((numericValue * multiplier).toFixed(precision));
                 } else {
-                    console.log("Raw value:", rawValue, "Type:", typeof rawValue);
                     // Always ensure we have a numeric value before calling toFixed
                     const numericValue = parseFloat(rawValue) || 0;
                     value = parseFloat(numericValue.toFixed(precision));
