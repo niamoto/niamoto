@@ -189,6 +189,18 @@ class MultiColumnExtractor(TransformerPlugin):
                     percentages = [0] * len(counts)
                 result["percentages"] = percentages
 
+            if params.get("create_named_fields", False):
+                # Get field names from the config or generate from labels
+                field_names = params.get("field_names", [])
+                if not field_names and labels:
+                    # Convert labels to field names (lowercase and replace spaces with underscores)
+                    field_names = [label.lower().replace(" ", "_") for label in labels]
+
+                # Create fields with value objects
+                for i, field_name in enumerate(field_names):
+                    if i < len(counts):
+                        result[field_name] = {"value": counts[i], "units": ""}
+
             return result
 
         except Exception as e:
