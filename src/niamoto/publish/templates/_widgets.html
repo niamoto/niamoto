@@ -22,7 +22,7 @@
 {% if widget.type == 'map_panel' %}
 {% set content = render_map_content(widget, widget_key) %}
 {% elif widget.type == 'info_panel' %}
-{% set content = render_info_panel_content(widget, stats[widget_key]|from_json) %}
+{% set content = render_info_panel_content(widget, stats[widget_key]|from_json, stats) %}
 {% elif '_chart' in widget.type %}
 {% set content = render_chart_content(widget, widget_key) %}
 {% elif widget.type == 'gauge' %}
@@ -31,23 +31,31 @@
 {{ render_widget(widget, content) }}
 {% endmacro %}
 
-{% macro render_info_panel_content(widget, data) %}
+{% macro render_info_panel_content(widget, data, stats) %}
 <!-- Information panel content -->
-<div class="space-y-2 md:space-y-3">
+<div class="space-y-1 md:space-y-1">
     {% for item in widget.fields %}
+    {# Get the value - check if external data source is specified #}
+    {% if item.data_source %}
+      {% set value_data = stats[item.data_source]|from_json %}
+      {% set value_data = value_data[item.source] if value_data[item.source] is defined else none %}
+    {% else %}
+      {% set value_data = data[item.source] if data[item.source] is defined else none %}
+    {% endif %}
+
     {# Vérifier si la donnée existe et que sa valeur n'est pas null, None ou 'None' #}
-    {% if data[item.source] is defined and data[item.source] is not none
-    and data[item.source].value is defined and data[item.source].value is not none
-    and data[item.source].value != 'None' and data[item.source].value != 'null' %}
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-2">
-        <span class="text-gray-600 text-sm md:text-base mb-1 sm:mb-0">{{ item.label }}</span>
+    {% if value_data is defined and value_data is not none
+    and value_data.value is defined and value_data.value is not none
+    and value_data.value != 'None' and value_data.value != 'null' %}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-1 {% if not loop.last %}border-b border-gray-100{% endif %}">
+        <span class="text-gray-600 text-sm md:text-base mb-0 sm:mb-0">{{ item.label }}</span>
         <span class="font-medium text-sm md:text-base">
             {% if item.format == 'range' %}
-            {{ data[item.source].min }} - {{ data[item.source].max }} {{ data[item.source].units or '' }}
+            {{ value_data.min }} - {{ value_data.max }} {{ value_data.units or '' }}
             {% elif item.format == 'number' %}
-            {{ data[item.source].value | numberformat }} {{ data[item.source].units or '' }}
+            {{ value_data.value | numberformat }} {{ value_data.units or '' }}
             {% elif item.format == 'map' %}
-            {% set value = data[item.source].value %}
+            {% set value = value_data.value %}
             {% if item.mapping %}
             {% set mapping_key = value|string %}
             {% if mapping_key in item.mapping %}
@@ -59,13 +67,13 @@
             {{ value }}
             {% endif %}
             {% elif item.format == 'link' %}
-            <a href="{% if item.base_url %}{{ item.base_url }}{{ data[item.source].value }}{% else %}{{ data[item.source].value }}{% endif %}" target="_blank"
+            <a href="{% if item.base_url %}{{ item.base_url }}{{ value_data.value }}{% else %}{{ value_data.value }}{% endif %}" target="_blank"
                 class="text-green-600 hover:text-green-800 underline">
                 {% if item.display_text %}{{ item.display_text }}{% else %}{{ item.label }}{% endif %}
                 <i class="fas fa-external-link-alt ml-1"></i>
             </a>
             {% elif item.format == 'image' %}
-            {% if data[item.source].value %}
+            {% if value_data.value %}
             {% if item.source == 'images' %}
             {% set unique_id = item.source|replace('.', '_') ~ '_' ~ loop.index0 %}
             <div class="flex flex-col gap-2 items-end">
@@ -110,7 +118,7 @@
 
                     try {
                         // Retrieve the JSON string from Jinja2
-                        const imagesRawDataString = {{ data[item.source].value | tojson | safe
+                        const imagesRawDataString = {{ value_data.value | tojson | safe
                     }};
                 // Clean escaped characters and convert to valid JSON
                 const cleanedJsonString = imagesRawDataString
@@ -292,13 +300,13 @@
             </script>
             {% else %}
             {# Single image #}
-            <img src="{{ data[item.source].value }}" alt="{{ item.label }}" class="w-20 h-20 object-cover rounded">
+            <img src="{{ value_data.value }}" alt="{{ item.label }}" class="w-20 h-20 object-cover rounded">
             {% endif %}
             {% else %}
             <span class="text-gray-400">---</span>
             {% endif %}
             {% else %}
-            {{ data[item.source].value }} {{ data[item.source].units or '' }}
+            {{ value_data.value }} {{ value_data.units or '' }}
             {% endif %}
         </span>
     </div>
@@ -330,8 +338,8 @@
 {% macro render_geography_field(field_key) %}
 <div class="w-full px-2 mb-4">
     <div id="mapContainer" class="map-container" style="height: 400px; position: relative;">
-        <div class="loader-container" id="mapLoader">
-            <div class="loader"></div>
+<div class="loader-container" id="mapLoader">
+    <div class="loader"></div>
         </div>
         <!-- The Leaflet map will be loaded here -->
     </div>
