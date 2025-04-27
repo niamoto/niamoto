@@ -72,7 +72,7 @@ class MultiColumnExtractor(TransformerPlugin):
     def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate configuration."""
         try:
-            return self.config_model(**config).dict()
+            return self.config_model(**config).model_dump()
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 

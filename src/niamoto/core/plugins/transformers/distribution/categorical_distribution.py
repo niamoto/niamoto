@@ -64,7 +64,7 @@ class CategoricalDistribution(TransformerPlugin):
     def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate configuration."""
         try:
-            return self.config_model(**config).dict()
+            return self.config_model(**config).model_dump()
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -92,18 +92,32 @@ class CategoricalDistribution(TransformerPlugin):
             # Remove any None values
             field_data = field_data.dropna()
 
-            if field_data.empty:
-                return {
-                    "categories": validated_config["params"].get("categories", []),
-                    "counts": [0]
-                    * len(validated_config["params"].get("categories", [])),
-                    "labels": validated_config["params"].get("labels", []),
-                }
-
-            # If categories not provided, get unique values from data
-            categories = validated_config["params"].get(
-                "categories", sorted(field_data.unique())
+            categories = validated_config["params"].get("categories", [])
+            labels = validated_config["params"].get("labels", [])
+            include_percentages = validated_config["params"].get(
+                "include_percentages", False
             )
+
+            if field_data.empty:
+                if not categories and labels:
+                    categories = []
+                elif not categories:
+                    categories = []
+
+                if not labels:
+                    labels = categories
+
+                result = {
+                    "categories": categories,
+                    "counts": [0] * len(categories),
+                    "labels": labels,
+                }
+                if include_percentages:
+                    result["percentages"] = [0.0] * len(categories)
+                return result
+
+            if not categories:
+                categories = sorted(field_data.unique())
 
             # Calculate counts for each category
             value_counts = field_data.value_counts()
@@ -115,13 +129,12 @@ class CategoricalDistribution(TransformerPlugin):
                 "labels": validated_config["params"].get("labels", categories),
             }
 
-            # Calculate percentages if requested
-            if validated_config["params"].get("include_percentages", False):
+            if include_percentages:
                 total = sum(counts)
                 if total > 0:
                     percentages = [round((count / total) * 100, 2) for count in counts]
                 else:
-                    percentages = [0] * len(counts)
+                    percentages = [0.0] * len(counts)
                 result["percentages"] = percentages
 
             return result

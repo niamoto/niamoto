@@ -93,40 +93,35 @@ class BinaryCounter(TransformerPlugin):
 
             # Get source data if different from occurrences
             if validated_config.params["source"] != "occurrences":
-                result = self.db.execute_select(f"""
-                    SELECT * FROM {validated_config.params["source"]}
-                """)
+                sql_query = f"SELECT * FROM {validated_config.params['source']}"
+                result = self.db.execute_select(sql_query)
                 data = pd.DataFrame(
                     result.fetchall(),
                     columns=[desc[0] for desc in result.cursor.description],
                 )
 
-            # Get field data
-            if validated_config.params["field"] is not None:
-                field_data = data[validated_config.params["field"]]
-            else:
-                field_data = data
+            true_count = 0
+            false_count = 0
+            total_count = 0
 
-            if field_data.empty:
-                return {
-                    validated_config.params["true_label"]: 0,
-                    validated_config.params["false_label"]: 0,
-                }
+            # Get field data only if data is not empty
+            if not data.empty and validated_config.params["field"] is not None:
+                field_data = data.get(validated_config.params["field"])
+                if field_data is not None and not field_data.empty:
+                    # Filter out any values that are not 0 or 1
+                    valid_mask = (field_data == 0) | (field_data == 1)
+                    field_data = field_data[valid_mask]
 
-            # Filter out any values that are not 0 or 1
-            valid_mask = (field_data == 0) | (field_data == 1)
-            field_data = field_data[valid_mask]
-
-            if field_data.empty:
-                return {
-                    validated_config.params["true_label"]: 0,
-                    validated_config.params["false_label"]: 0,
-                }
-
-            # Count values (1 = true, 0 = false)
-            true_count = len(field_data[field_data == 1])
-            false_count = len(field_data[field_data == 0])
-            total_count = true_count + false_count
+                    if not field_data.empty:
+                        # Count values (1 = true, 0 = false)
+                        true_count = len(field_data[field_data == 1])
+                        false_count = len(field_data[field_data == 0])
+                        total_count = true_count + false_count
+            elif not data.empty:
+                # Handle case where field is None (should ideally not happen if validated)
+                # Or if data is used directly without a specific field
+                # This part might need clarification based on expected usage when field is None
+                pass
 
             # Prepare result
             result = {
@@ -136,18 +131,18 @@ class BinaryCounter(TransformerPlugin):
 
             # Add percentages if requested
             if validated_config.params.get("include_percentages", False):
+                true_percent = (
+                    round(true_count / total_count * 100, 2) if total_count > 0 else 0.0
+                )
+                false_percent = (
+                    round(false_count / total_count * 100, 2)
+                    if total_count > 0
+                    else 0.0
+                )
                 result.update(
                     {
-                        f"{validated_config.params['true_label']}_percent": round(
-                            true_count / total_count * 100, 2
-                        )
-                        if total_count > 0
-                        else 0,
-                        f"{validated_config.params['false_label']}_percent": round(
-                            false_count / total_count * 100, 2
-                        )
-                        if total_count > 0
-                        else 0,
+                        f"{validated_config.params['true_label']}_percent": true_percent,
+                        f"{validated_config.params['false_label']}_percent": false_percent,
                     }
                 )
 

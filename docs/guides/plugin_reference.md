@@ -7,12 +7,14 @@ Niamoto's plugin system is organized into four main types, each serving a specif
 Loader plugins are responsible for retrieving and loading data from various sources into Niamoto.
 
 ### Purpose
+
 - Load data from CSV files, databases, GIS formats, etc.
 - Convert raw data into standardized formats
 - Handle data source connections and queries
 - Manage data validation and cleaning during import
 
 ### Configuration Schema (import.yml)
+
 ```yaml
 # Example: Loading taxonomy data
 taxonomy:
@@ -32,6 +34,7 @@ plots:
 ```
 
 ### Built-in Loader Plugins
+
 | Plugin Name | Purpose | Parameters |
 |-------------|---------|------------|
 | `direct_reference` | Simple direct reference loading | `key` |
@@ -40,6 +43,7 @@ plots:
 | `spatial` | Load spatial data | `geometry_field`, `crs` |
 
 ### Example: Custom Loader Plugin
+
 ```python
 from niamoto.core.plugins.base import (
     LoaderPlugin,
@@ -79,12 +83,14 @@ class RemoteAPILoader(LoaderPlugin):
 Transformer plugins perform calculations, transformations, and analyses on loaded data.
 
 ### Purpose
+
 - Calculate statistics and metrics from data
 - Transform data for visualization
 - Perform specialized domain-specific analyses
 - Generate aggregations and summaries
 
 ### Configuration Schema (transform.yml)
+
 ```yaml
 - group_by: taxon
   widgets_data:
@@ -104,6 +110,7 @@ Transformer plugins perform calculations, transformations, and analyses on loade
 ```
 
 ### Built-in Transformer Plugins
+
 | Plugin Name | Purpose | Parameters |
 |-------------|---------|------------|
 | `binned_distribution` | Create histograms | `source`, `field`, `bins`, `labels` |
@@ -115,6 +122,7 @@ Transformer plugins perform calculations, transformations, and analyses on loade
 | `transform_chain` | Chain transformations | `steps` (array of plugins) |
 
 ### Example: Custom Transformer Plugin
+
 ```python
 from niamoto.core.plugins.base import (
     TransformerPlugin,
@@ -185,12 +193,14 @@ class DiversityIndexCalculator(TransformerPlugin):
 Exporter plugins handle the output generation from transformed data.
 
 ### Purpose
+
 - Generate static websites, reports, and data files
 - Format data for external consumption
 - Create visualizations and interactive displays
 - Produce downloadable exports
 
 ### Configuration Schema (export.yml)
+
 ```yaml
 - group_by: taxon
   widgets:
@@ -206,6 +216,7 @@ Exporter plugins handle the output generation from transformed data.
 ```
 
 ### Built-in Exporter Plugins
+
 | Plugin Name | Purpose | Parameters |
 |-------------|---------|------------|
 | `html` | Generate HTML exports | `template`, `output_dir` |
@@ -213,6 +224,7 @@ Exporter plugins handle the output generation from transformed data.
 | `page_generator` | Generate static pages | `template`, `output_dir` |
 
 ### Example: Custom Exporter Plugin
+
 ```python
 from niamoto.core.plugins.base import (
     ExporterPlugin,
@@ -260,12 +272,14 @@ class ExcelExporter(ExporterPlugin):
 Widget plugins create visualizations and UI components for displaying data.
 
 ### Purpose
+
 - Create interactive visualizations
 - Build UI components for data display
 - Render charts, maps, and other graphics
 - Generate embeddable widgets
 
 ### Configuration Schema (export.yml)
+
 ```yaml
 - group_by: taxon
   widgets:
@@ -282,6 +296,7 @@ Widget plugins create visualizations and UI components for displaying data.
 ```
 
 ### Built-in Widget Plugins
+
 | Plugin Name | Purpose | Parameters |
 |-------------|---------|------------|
 | `bar_chart` | Create bar charts | `datasets`, `labels_key`, `options` |
@@ -292,6 +307,7 @@ Widget plugins create visualizations and UI components for displaying data.
 | `gauge` | Display gauge charts | `value_key`, `min`, `max`, `sectors` |
 
 ### Example: Custom Widget Plugin
+
 ```python
 from niamoto.core.plugins.base import (
     WidgetPlugin,

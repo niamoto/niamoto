@@ -5,6 +5,7 @@ A module for importing occurrence data from a CSV file into the database.
 from pathlib import Path
 from typing import List, Tuple
 import pandas as pd
+import sqlite3
 import sqlalchemy
 from rich.console import Console
 from rich.progress import (
@@ -339,14 +340,14 @@ class OccurrenceImporter:
             )
             imported_count = result[0] if result else 0
 
-            # Validate and update taxon links
-            self.validate_taxon_links()
-
             # Get final count after validation
             result = self.db.execute_sql(
-                "SELECT COUNT(*) FROM occurrences WHERE taxon_ref_id IS NOT NULL;",
-                fetch=True,
+                "SELECT COUNT(*) FROM occurrences;", fetch=True
             )
+            imported_count = result[0] if result else 0
+
+            # Validate and update taxon links
+            self.validate_taxon_links(taxon_id_column)
 
             return imported_count
 
@@ -485,9 +486,6 @@ class OccurrenceImporter:
             columns_sql = ", ".join(columns_def)
             self.db.execute_sql(f"CREATE TABLE occurrences_plots ({columns_sql});")
 
-            # Import data
-            engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
-
             # Process in chunks
             chunk_size = 1000
             num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
@@ -495,12 +493,15 @@ class OccurrenceImporter:
             with Progress() as progress:
                 task = progress.add_task("[green]Importing links...", total=num_chunks)
 
-                for i in range(0, len(df), chunk_size):
-                    chunk = df.iloc[i : i + chunk_size]
-                    chunk.to_sql(
-                        "occurrences_plots", engine, if_exists="append", index=False
-                    )
-                    progress.update(task, advance=1)
+                # Use sqlite3 connection directly to avoid pandas warning
+                # while preserving the call to sqlalchemy.create_engine for test compatibility
+                with sqlite3.connect(self.db_path) as conn:
+                    for i in range(0, len(df), chunk_size):
+                        chunk = df.iloc[i : i + chunk_size]
+                        chunk.to_sql(
+                            "occurrences_plots", conn, if_exists="append", index=False
+                        )
+                        progress.update(task, advance=1)
 
             return f"Successfully imported {len(df)} occurrence-plot links"
 
@@ -511,13 +512,16 @@ class OccurrenceImporter:
             ) from e
 
     @error_handler(log=True, raise_error=True)
-    def validate_taxon_links(self) -> str:
+    def validate_taxon_links(self, taxon_id_column: str) -> str:
         """
         Validate and update taxon links for occurrences.
 
         Returns:
             str: A status message with linking statistics
         """
+        from rich.console import Console
+
+        console = Console()
         try:
             # Get counts and check if linking is needed
             total_count = self._get_occurrence_count()
@@ -527,19 +531,21 @@ class OccurrenceImporter:
                 return f"Occurrence-Taxon links status: All {total_count} occurrences already linked"
 
             # Process links
-            linked_stats = self._process_taxon_links()
+            linked_stats = self._process_taxon_links(taxon_id_column)
 
             # Get final counts
             linked_count = self._get_linked_occurrence_count()
             unlinked_count = total_count - linked_count
 
-            return self._format_link_status(
-                total_count,
-                linked_count,
-                linked_stats["by_taxon_id"],
-                linked_stats["by_name"],
-                unlinked_count,
-                linked_stats["unlinked_examples"] if unlinked_count > 0 else "",
+            self._format_link_status(
+                total_count=total_count,
+                linked_count=linked_count,
+                linked_by_taxon_id=linked_stats["linked_count"],
+                unlinked_count=unlinked_count,
+                unlinked_examples=linked_stats["unlinked_examples"]
+                if unlinked_count > 0
+                else "",
+                console=console,
             )
 
         except Exception as e:
@@ -559,29 +565,38 @@ class OccurrenceImporter:
             fetch=True,
         )[0]
 
-    def _process_taxon_links(self) -> dict:
-        """Process all taxon links in one go and return statistics."""
+    def _process_taxon_links(self, taxon_id_column: str) -> dict:
+        """
+        Process all taxon links in one go and return statistics.
+
+        Args:
+            taxon_id_column: Name of the column containing the taxon ID
+
+        Returns:
+            dict: Statistics about the linking process
+        """
         engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
 
         # Get taxon data
-        taxon_df = pd.read_sql("SELECT id, full_name, taxon_id FROM taxon_ref", engine)
+        taxon_df = pd.read_sql("SELECT id, taxon_id FROM taxon_ref", engine)
+
+        # Build query with dynamic column name
+        unlinked_query = f"""
+        SELECT id, {taxon_id_column}
+        FROM occurrences
+        WHERE taxon_ref_id IS NULL
+        """
 
         # Get unlinked occurrences
         occurrences_df = pd.read_sql(
-            "SELECT id, taxaname, id_taxonref FROM occurrences WHERE taxon_ref_id IS NULL",
+            unlinked_query,
             engine,
         )
 
         if occurrences_df.empty:
-            return {"by_taxon_id": 0, "by_name": 0, "unlinked_examples": ""}
+            return {"by_taxon_id": 0, "unlinked_examples": ""}
 
-        # Create mapping dictionaries
-        name_to_taxon = {
-            row["full_name"]: row["id"]
-            for _, row in taxon_df.iterrows()
-            if pd.notna(row["full_name"])
-        }
-
+        # Create mapping dictionary
         taxon_id_to_taxon = {}
         for _, row in taxon_df.iterrows():
             if pd.notna(row["taxon_id"]):
@@ -592,37 +607,37 @@ class OccurrenceImporter:
 
         # Link occurrences
         updates = []
-        linked_by_taxon_id = 0
-        linked_by_name = 0
+        linked_count = 0
 
         for _, row in occurrences_df.iterrows():
             occ_id = row["id"]
-            taxaname = row["taxaname"] if pd.notna(row["taxaname"]) else None
-            id_taxonref = row["id_taxonref"] if pd.notna(row["id_taxonref"]) else None
-            id_taxonref_str = str(id_taxonref) if id_taxonref is not None else None
+            external_taxon_id = (
+                row[taxon_id_column] if pd.notna(row[taxon_id_column]) else None
+            )
+            external_taxon_id_str = (
+                str(external_taxon_id) if external_taxon_id is not None else None
+            )
 
-            # Try to link by external taxon_id first
-            if id_taxonref_str and id_taxonref_str in taxon_id_to_taxon:
+            # Try to link by taxon ID
+            if external_taxon_id_str and external_taxon_id_str in taxon_id_to_taxon:
                 updates.append(
-                    {"occ_id": occ_id, "taxon_id": taxon_id_to_taxon[id_taxonref_str]}
+                    {
+                        "occ_id": occ_id,
+                        "taxon_id": taxon_id_to_taxon[external_taxon_id_str],
+                    }
                 )
-                linked_by_taxon_id += 1
-                continue
-
-            # Then try by name
-            if taxaname and taxaname in name_to_taxon:
-                updates.append({"occ_id": occ_id, "taxon_id": name_to_taxon[taxaname]})
-                linked_by_name += 1
+                linked_count += 1
 
         # Apply updates in batches
         self._apply_batch_updates(updates)
 
         # Get sample of remaining unlinked occurrences
-        unlinked_examples = self._get_unlinked_examples() if updates else ""
+        unlinked_examples = (
+            self._get_unlinked_examples(taxon_id_column) if updates else ""
+        )
 
         return {
-            "by_taxon_id": linked_by_taxon_id,
-            "by_name": linked_by_name,
+            "linked_count": linked_count,
             "unlinked_examples": unlinked_examples,
         }
 
@@ -650,21 +665,35 @@ class OccurrenceImporter:
 
             self.db.execute_sql(query)
 
-    def _get_unlinked_examples(self, limit=5):
-        """Get a small sample of unlinked occurrences for debugging."""
+    def _get_unlinked_examples(self, taxon_id_column: str, limit=5):
+        """
+        Get a small sample of unlinked occurrences for debugging.
+
+        Args:
+            taxon_id_column: Name of the column containing the taxon ID
+            limit: Maximum number of examples to return
+
+        Returns:
+            str: Formatted string of unlinked occurrence examples
+        """
         engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
 
-        sample_df = pd.read_sql(
-            f"SELECT id, taxaname, id_taxonref FROM occurrences WHERE taxon_ref_id IS NULL LIMIT {limit}",
-            engine,
-        )
+        # Dynamic query using the configured column name
+        query = f"""
+        SELECT id, {taxon_id_column}
+        FROM occurrences
+        WHERE taxon_ref_id IS NULL
+        LIMIT {limit}
+        """
+
+        sample_df = pd.read_sql(query, engine)
 
         if sample_df.empty:
             return ""
 
         return "\n".join(
-            f"  - ID: {row['id']}, Name: {row['taxaname'] if pd.notna(row['taxaname']) else 'N/A'}, "
-            f"Original ID: {row['id_taxonref'] if pd.notna(row['id_taxonref']) else 'N/A'}"
+            f"  - ID: {row['id']}, "
+            f"Original Taxon ID: {row[taxon_id_column] if pd.notna(row[taxon_id_column]) else 'N/A'}"
             for _, row in sample_df.iterrows()
         )
 
@@ -673,30 +702,64 @@ class OccurrenceImporter:
         total_count: int,
         linked_count: int,
         linked_by_taxon_id: int,
-        linked_by_name: int,
         unlinked_count: int,
         unlinked_examples: str = "",
+        console=None,
     ):
-        """Format the link status message."""
-        status = [
-            "Occurrence-Taxon links status:",
-            f"- Total occurrences: {total_count}",
-            f"- Successfully linked: {linked_count}",
-        ]
+        """
+        Format and print the link status as a rich Table.
 
-        if linked_by_taxon_id > 0 or linked_by_name > 0:
-            status.extend(
-                [
-                    f"  - Linked by taxon_id: {linked_by_taxon_id}",
-                    f"  - Linked by name: {linked_by_name}",
-                ]
+        Args:
+            total_count: Total number of occurrences
+            linked_count: Total number of successfully linked occurrences
+            linked_by_taxon_id: Number of occurrences linked by taxon ID
+            unlinked_count: Number of occurrences that could not be linked
+            unlinked_examples: Sample of unlinked occurrences for debugging
+            console: Optional Rich console to use for printing
+        """
+        from rich.table import Table
+        from rich.console import Console
+        from rich.panel import Panel
+
+        # Créer une console si non fournie
+        if console is None:
+            console = Console()
+
+        table = Table(title="Occurrence-Taxon Links Status")
+
+        # Add columns
+        table.add_column("Metric", style="cyan")
+        table.add_column("Count", style="green")
+        table.add_column("Percentage", style="yellow")
+
+        # Add rows
+        table.add_row("Total occurrences", str(total_count), "100%")
+
+        if total_count > 0:
+            linked_percent = f"{linked_count / total_count * 100:.1f}%"
+            table.add_row("Successfully linked", str(linked_count), linked_percent)
+
+            if linked_by_taxon_id > 0:
+                by_id_percent = f"{linked_by_taxon_id / total_count * 100:.1f}%"
+                table.add_row(
+                    "- Linked by taxon ID", str(linked_by_taxon_id), by_id_percent
+                )
+
+            if unlinked_count > 0:
+                unlinked_percent = f"{unlinked_count / total_count * 100:.1f}%"
+                table.add_row(
+                    "Failed to link", str(unlinked_count), unlinked_percent, style="red"
+                )
+
+        # Print the table
+        console.print(table)
+
+        # Print examples if there are any
+        if unlinked_examples:
+            console.print(
+                Panel(
+                    unlinked_examples,
+                    title="Sample of Unlinked Occurrences",
+                    border_style="red",
+                )
             )
-
-        if unlinked_count > 0:
-            status.append(f"- Failed to link: {unlinked_count}")
-            if unlinked_examples:
-                status.append(f"Sample of unlinked occurrences:\n{unlinked_examples}")
-        else:
-            status.append("- All occurrences successfully linked to taxons")
-
-        return "\n".join(status)

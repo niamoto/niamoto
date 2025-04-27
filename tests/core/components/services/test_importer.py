@@ -91,16 +91,24 @@ class TestImporterService(NiamotoTestCase):
         self.assertEqual(result, "Occurrences import successful")
 
     @patch("pathlib.Path.exists")
-    @patch("niamoto.core.services.importer.PlotImporter.import_from_gpkg")
-    def test_import_plots(self, mock_import_from_gpkg, mock_exists):
+    @patch("niamoto.core.components.imports.plots.PlotImporter.import_plots")
+    def test_import_plots(self, mock_plot_importer_import_plots, mock_exists):
         # Test the import_plots method
         mock_exists.return_value = True
-        mock_import_from_gpkg.return_value = "Plots import successful"
+        mock_plot_importer_import_plots.return_value = "Plots import successful"
 
         result = self.importer_service.import_plots(
-            "mock_file.gpkg", "plot_id", "location"
+            "mock_file.gpkg", "plot_id", "location", locality_field="locality_name"
         )
         self.assertEqual(result, "Plots import successful")
+        mock_plot_importer_import_plots.assert_called_once_with(
+            "mock_file.gpkg",
+            "plot_id",
+            "location",
+            locality_field="locality_name",
+            link_field=None,
+            occurrence_link_field=None,
+        )
 
     @patch("pathlib.Path.exists")
     @patch(

@@ -508,6 +508,7 @@
                     </div>
                     ` : ''}
 
+                    ${plot.in_um ? `
                     <div class="plot-info">
                         <span class="plot-info-label">Substrat:</span>
                         <span class="plot-info-value">
@@ -516,6 +517,7 @@
                                 : '<span class="substrate-indicator substrate-non-um"></span>Non-ultramafique'}
                         </span>
                     </div>
+                    ` : ''}
 
                     ${plot.occurrences_count ? `
                     <div class="plot-info">

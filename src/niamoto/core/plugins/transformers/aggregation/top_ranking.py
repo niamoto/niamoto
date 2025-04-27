@@ -68,7 +68,7 @@ class TopRanking(TransformerPlugin):
     def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate configuration."""
         try:
-            return self.config_model(**config).dict()
+            return self.config_model(**config).model_dump()
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}") from e
 
@@ -96,7 +96,8 @@ class TopRanking(TransformerPlugin):
                 return {"tops": [], "counts": []}
 
             # Convert taxon_ids to a comma-separated string
-            taxon_ids_str = ",".join(str(id) for id in taxon_ids)
+            # Ensure IDs are integers before converting to string
+            taxon_ids_str = ",".join(str(int(id)) for id in taxon_ids)
 
             # Query initial taxons
             query = f"""

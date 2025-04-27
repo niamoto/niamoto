@@ -25,6 +25,7 @@ In Niamoto, a transform chain is a series of transformation steps where:
 - The final output combines results from all steps
 
 This approach offers several advantages:
+
 - Reusability of transformation components
 - Clarity in data flow
 - Complex transformations without custom coding
@@ -105,6 +106,7 @@ This applies a function to the referenced value.
 The reference system includes several built-in functions that can be applied to referenced values:
 
 ### Math Functions
+
 - **sum**: Sum all values in a list
 - **mean**: Calculate the average of values
 - **max**: Find the maximum value
@@ -113,18 +115,21 @@ The reference system includes several built-in functions that can be applied to 
 - **round**: Round a number
 
 ### List Functions
+
 - **length**: Get the length of a list
 - **first**: Get the first element
 - **last**: Get the last element
 - **filter_null**: Remove null values
 
 ### Type Conversions
+
 - **int**: Convert to integer
 - **float**: Convert to float
 - **str**: Convert to string
 - **bool**: Convert to boolean
 
 ### Data Processing
+
 - **unique**: Get unique values from a list
 - **sort**: Sort a list
 - **reverse**: Reverse a list
@@ -180,6 +185,7 @@ phenology:
 ```
 
 In this example:
+
 1. First, we extract time series data for flowering and fruiting by month
 2. Next, we detect significant peaks in the data
 3. Then, we identify active periods of flowering/fruiting
@@ -214,6 +220,7 @@ habitat_analysis:
 ```
 
 This example analyzes habitat preferences:
+
 1. First, it extracts occurrence points
 2. Then it overlays these points with a forest cover layer
 3. Finally, it calculates statistics about the intersection
@@ -247,6 +254,7 @@ Common issues with transform chains include:
 ### Reference Errors
 
 If you see errors like `Field 'X' not found in step 'Y'`:
+
 - Check that the step name in the reference is correct
 - Verify that the previous step produced the expected output structure
 - Make sure the field paths are correct
@@ -254,12 +262,14 @@ If you see errors like `Field 'X' not found in step 'Y'`:
 ### Type Errors
 
 If function application fails:
+
 - Check that the referenced value is of the correct type for the function
 - Use transformation functions to convert types if needed
 
 ### Plugin Errors
 
 If step execution fails:
+
 - Check plugin-specific parameter requirements
 - Ensure required input data is available
 - Look at detailed error messages for specific plugin requirements

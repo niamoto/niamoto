@@ -32,7 +32,7 @@ class FieldConfig(BaseModel):
     @field_validator("transformation")
     def validate_transformation(cls, v):
         """Validate transformation."""
-        if v not in ["direct", "count"]:
+        if v not in ["direct", "count", "sum"]:
             raise ValueError(f"Invalid transformation: {v}")
         return v
 
@@ -183,13 +183,55 @@ class FieldAggregator(TransformerPlugin):
 
             if field.transformation == "count":
                 value = len(data)
+            elif field.transformation == "sum":
+                value = data[field.field].sum()
             else:  # direct
-                if field.source == "occurrences":
-                    value = data[field.field].iloc[0] if not data.empty else None
-                else:  # other tables
-                    value = self._get_field_value(
-                        field.source, field.field, config.get("group_id")
-                    )
+                try:
+                    if field.source == "occurrences":
+                        # Handle dot notation for DataFrame columns if needed in the future?
+                        # For now, assume direct field access.
+                        # Potential future enhancement: use json_normalize or similar if column contains dicts.
+                        if not data.empty:
+                            value = data[field.field].iloc[0]
+                        else:
+                            value = None
+                    else:  # DB, import, etc.
+                        field_path = field.field
+                        if "." in field_path:
+                            path_parts = field_path.split(".")
+                            base_field = path_parts[0]
+                            nested_keys = path_parts[1:]
+
+                            # Get the base object/dictionary
+                            base_value = self._get_field_value(
+                                field.source, base_field, config.get("group_id")
+                            )
+
+                            # Navigate through the nested keys
+                            current_value = base_value
+                            if current_value is not None:
+                                for key in nested_keys:
+                                    if isinstance(current_value, dict):
+                                        current_value = current_value.get(
+                                            key
+                                        )  # Use .get() for safety
+                                        if (
+                                            current_value is None
+                                        ):  # Stop if key not found
+                                            break
+                                    # Add elif for list index if needed
+                                    else:  # Cannot navigate further
+                                        current_value = None
+                                        break
+                            value = current_value
+                        else:
+                            # Original logic for non-dotted fields
+                            value = self._get_field_value(
+                                field.source, field.field, config.get("group_id")
+                            )
+                except (KeyError, IndexError, TypeError):
+                    # Handle potential errors during DataFrame access or dict navigation
+                    value = None  # Default to None on error
 
             # Apply labels if any
             if field.labels and str(value) in field.labels:

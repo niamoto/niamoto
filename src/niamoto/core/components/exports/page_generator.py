@@ -705,6 +705,34 @@ class PageGenerator(BaseGenerator):
             OutputError: If file generation fails
         """
         try:
+            # Get taxonomy configuration
+            taxonomy_config = self.config.get_imports_config.get("taxonomy", {})
+            ranks_config = taxonomy_config.get("ranks", "")
+
+            # Split ranks into list, handling potential spaces
+            configured_ranks = [r.strip() for r in ranks_config.split(",") if r.strip()]
+
+            # Get the species and infra level column names from configuration
+            # Default to standard names if not in config
+            species_column = None
+            infra_column = None
+
+            # Extract from occurrence_columns if available
+            occ_columns = taxonomy_config.get("occurrence_columns", {})
+            if "species" in occ_columns:
+                species_column = occ_columns["species"]
+            if "infra" in occ_columns:
+                infra_column = occ_columns["infra"]
+
+            # Fallback logic if not found in occurrence_columns
+            if not species_column and len(configured_ranks) > 2:
+                species_column = configured_ranks[2]  # Usually the 3rd rank is species
+
+            if not infra_column and len(configured_ranks) > 3:
+                infra_column = configured_ranks[
+                    3
+                ]  # Usually the 4th rank is infraspecies
+
             # Convert taxons to simple dictionaries
             taxa_data = []
 
@@ -736,7 +764,18 @@ class PageGenerator(BaseGenerator):
                                 continue
 
                             rank_value = general_info["rank"].get("value")
-                            if not rank_value or rank_value not in ["species", "infra"]:
+                            # Check against configured column names instead of hardcoded values
+                            valid_ranks = []
+                            if species_column:
+                                valid_ranks.append(species_column)
+                            if infra_column:
+                                valid_ranks.append(infra_column)
+
+                            # If we couldn't determine valid ranks from config, fall back to defaults
+                            if not valid_ranks:
+                                valid_ranks = ["species", "infra"]
+
+                            if not rank_value or rank_value not in valid_ranks:
                                 continue
 
                             # Create taxon data with extracted fields

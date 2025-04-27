@@ -68,7 +68,7 @@ class PlotImporter:
         file_path: str,
         identifier: str,
         location_field: str,
-        locality_field: Optional[str] = None,
+        locality_field: str,
         link_occurrences: bool = True,
         link_field: Optional[str] = None,
         occurrence_link_field: Optional[str] = None,
@@ -110,7 +110,6 @@ class PlotImporter:
         # Load and validate data based on file type
         try:
             if file_ext == ".gpkg":
-                # For GeoPackage, use the existing method
                 return self.import_from_gpkg(
                     file_path,
                     identifier,
@@ -120,13 +119,6 @@ class PlotImporter:
                     occurrence_link_field=occurrence_link_field,
                 )
             elif file_ext == ".csv":
-                # For CSV, we need a locality field
-                if not locality_field:
-                    raise DataValidationError(
-                        "Missing locality field",
-                        [{"error": "locality_field must be specified for CSV imports"}],
-                    )
-
                 return self.import_from_csv(
                     file_path,
                     identifier,

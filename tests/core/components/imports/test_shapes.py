@@ -66,68 +66,82 @@ class TestShapeImporter(NiamotoTestCase):
         mock_src.__iter__.return_value = [mock_feature1, mock_feature2, mock_feature3]
         mock_fiona_open.return_value = mock_src
 
-        # Mock tempfile.TemporaryDirectory
-        with patch("tempfile.TemporaryDirectory") as mock_temp_dir:
-            mock_temp_dir.return_value.__enter__.return_value = "/tmp/mock_dir"
-
-            # Mock _process_input_file to avoid file operations
-            with patch.object(
-                self.importer, "_process_input_file", return_value="test.shp"
-            ):
-                # Mock transformer
+        # Use context manager to ensure proper cleanup
+        temp_dir = None
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                temp_dir = tmp_dir
+                # Mock _process_input_file to avoid file operations
                 with patch.object(
-                    self.importer, "_setup_transformer"
-                ) as mock_setup_transformer:
-                    mock_transformer = MagicMock()
-                    mock_setup_transformer.return_value = mock_transformer
-
-                    # Mock _is_valid_feature
+                    self.importer, "_process_input_file", return_value="test.shp"
+                ):
+                    # Mock transformer
                     with patch.object(
-                        self.importer, "_is_valid_feature", return_value=True
-                    ) as mock_is_valid:
-                        # Mock transform_geometry
-                        with patch.object(
-                            self.importer, "transform_geometry"
-                        ) as mock_transform:
-                            mock_transform.return_value = Point(1, 1)
+                        self.importer, "_setup_transformer"
+                    ) as mock_setup_transformer:
+                        mock_transformer = MagicMock()
+                        mock_setup_transformer.return_value = mock_transformer
 
-                            # Mock _get_feature_label
+                        # Mock _is_valid_feature
+                        with patch.object(
+                            self.importer, "_is_valid_feature", return_value=True
+                        ) as mock_is_valid:
+                            # Mock transform_geometry
                             with patch.object(
-                                self.importer,
-                                "_get_feature_label",
-                                return_value="Test Label",
-                            ) as mock_get_label:
-                                # Mock _update_or_create_shape
+                                self.importer, "transform_geometry"
+                            ) as mock_transform:
+                                mock_transform.return_value = Point(1, 1)
+
+                                # Mock _get_feature_label
                                 with patch.object(
                                     self.importer,
-                                    "_update_or_create_shape",
-                                    return_value=True,
-                                ) as mock_update_create:
-                                    # Create test config
-                                    shapes_config = [
-                                        {
-                                            "category": "test",
-                                            "label": "Test Shape",
-                                            "path": "test.shp",
-                                            "name_field": "name",
-                                        }
-                                    ]
+                                    "_get_feature_label",
+                                    return_value="Test Label",
+                                ) as mock_get_label:
+                                    # Mock _update_or_create_shape
+                                    with patch.object(
+                                        self.importer,
+                                        "_update_or_create_shape",
+                                        return_value=True,
+                                    ) as mock_update:
+                                        config = [
+                                            {
+                                                "category": "test",
+                                                "label": "Test Shape",
+                                                "path": "test.shp",
+                                                "name_field": "name",
+                                            }
+                                        ]
 
-                                    # Call the method
-                                    result = self.importer.import_from_config(
-                                        shapes_config
-                                    )
+                                        result = self.importer.import_from_config(
+                                            config
+                                        )
 
-                                    # Verify results
-                                    self.assertIn("3 processed", result)
-                                    self.assertIn("3 added", result)
-                                    mock_fiona_open.assert_called_with("test.shp", "r")
-                                    mock_setup_transformer.assert_called_once()
-                                    self.assertEqual(mock_is_valid.call_count, 3)
-                                    self.assertEqual(mock_transform.call_count, 3)
-                                    self.assertEqual(mock_get_label.call_count, 3)
-                                    self.assertEqual(mock_update_create.call_count, 3)
-                                    self.mock_db.session.commit.assert_called_once()
+                                        # Verify the result
+                                        self.assertEqual(
+                                            result,
+                                            "Shape import to mock_db_path completed: 3 processed, 3 added, 0 updated",
+                                        )
+
+                                        # Verify mock calls
+                                        mock_fiona_open.assert_called_with(
+                                            "test.shp", "r"
+                                        )
+                                        mock_setup_transformer.assert_called_once()
+                                        self.assertEqual(mock_is_valid.call_count, 3)
+                                        self.assertEqual(mock_transform.call_count, 3)
+                                        self.assertEqual(mock_get_label.call_count, 3)
+                                        self.assertEqual(mock_update.call_count, 3)
+                                        self.mock_db.session.commit.assert_called_once()
+        finally:
+            # Ensure cleanup of any remaining temporary files
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    import shutil
+
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception:
+                    pass
 
     def test_validate_config_empty(self):
         """Test _validate_config method with empty config."""
@@ -367,45 +381,81 @@ class TestShapeImporter(NiamotoTestCase):
 
     def test_process_input_file_geojson(self):
         """Test _process_input_file method with GeoJSON file."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create a temporary GeoJSON file
-            geojson_content = '{"type": "FeatureCollection", "features": []}'
-            geojson_path = os.path.join(tmp_dir, "test.geojson")
+        temp_dir = None
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                temp_dir = tmp_dir
+                # Create a temporary GeoJSON file
+                geojson_content = '{"type": "FeatureCollection", "features": []}'
+                geojson_path = os.path.join(tmp_dir, "test.geojson")
 
-            with open(geojson_path, "w") as f:
-                f.write(geojson_content)
+                with open(geojson_path, "w") as f:
+                    f.write(geojson_content)
 
-            # Process the file
-            result = ShapeImporter._process_input_file(geojson_path, tmp_dir)
+                # Process the file
+                result = ShapeImporter._process_input_file(geojson_path, tmp_dir)
 
-            # The function should return the same path for GeoJSON files
-            self.assertEqual(result, geojson_path)
+                # The function should return the same path for GeoJSON files
+                self.assertEqual(result, geojson_path)
 
-            # Check that the content is preserved
-            with open(result, "r") as f:
-                content = f.read()
-                self.assertEqual(content, geojson_content)
+                # Check that the content is preserved
+                with open(result, "r") as f:
+                    content = f.read()
+                    self.assertEqual(content, geojson_content)
+        finally:
+            # Ensure cleanup of any remaining temporary files
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    import shutil
+
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception:
+                    pass
 
     def test_process_input_file_shapefile(self):
         """Test _process_input_file method with Shapefile."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create a mock shapefile path
-            shapefile_path = os.path.join(tmp_dir, "test.shp")
+        temp_dir = None
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                temp_dir = tmp_dir
+                # Create a mock shapefile path
+                shapefile_path = os.path.join(tmp_dir, "test.shp")
 
-            # For non-GeoJSON files, the original path should be returned
-            result = ShapeImporter._process_input_file(shapefile_path, tmp_dir)
+                # For non-GeoJSON files, the original path should be returned
+                result = ShapeImporter._process_input_file(shapefile_path, tmp_dir)
 
-            self.assertEqual(result, shapefile_path)
+                self.assertEqual(result, shapefile_path)
+        finally:
+            # Ensure cleanup of any remaining temporary files
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    import shutil
+
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception:
+                    pass
 
     def test_process_input_file_error(self):
         """Test _process_input_file method with error."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create a non-existent file path
-            nonexistent_path = os.path.join(tmp_dir, "nonexistent.geojson")
+        temp_dir = None
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                temp_dir = tmp_dir
+                # Create a non-existent file path
+                nonexistent_path = os.path.join(tmp_dir, "nonexistent.geojson")
 
-            # Process should raise FileReadError
-            with self.assertRaises(FileReadError):
-                ShapeImporter._process_input_file(nonexistent_path, tmp_dir)
+                # Process should raise FileReadError
+                with self.assertRaises(FileReadError):
+                    ShapeImporter._process_input_file(nonexistent_path, tmp_dir)
+        finally:
+            # Ensure cleanup of any remaining temporary files
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    import shutil
+
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception:
+                    pass
 
     def test_transform_geometry_point(self):
         """Test transform_geometry method with Point."""

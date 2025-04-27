@@ -47,6 +47,7 @@ Niamoto uses four main YAML configuration files:
 - **export.yml**: Visualization and UI configuration
 
 These files work together in a pipeline, where:
+
 1. `import.yml` defines **where** to get data from
 2. `transform.yml` defines **what** calculations to perform
 3. `export.yml` defines **how** to present the results
@@ -336,6 +337,7 @@ For detailed documentation on each plugin, refer to the [Plugin Reference Guide]
 #### Example Configurations
 
 **field_aggregator**:
+
 ```yaml
 general_info:
   plugin: field_aggregator
@@ -354,6 +356,7 @@ general_info:
 ```
 
 **binned_distribution**:
+
 ```yaml
 dbh_distribution:
   plugin: binned_distribution
@@ -364,6 +367,7 @@ dbh_distribution:
 ```
 
 **transform_chain**:
+
 ```yaml
 phenology:
   plugin: "transform_chain"
@@ -386,6 +390,7 @@ phenology:
           threshold: 30
         output_key: "phenology_peaks"
 ```
+
 For a comprehensive explanation of the transform chain system, including advanced reference resolution, function application, and best practices, see the [Transform Chain Guide](../guides/transform_chain_guide.md).
 
 ## export.yml
@@ -443,6 +448,7 @@ Common widget options include:
 ### Common Widget Configurations
 
 **info_panel**:
+
 ```yaml
 general_info:
   type: info_panel
@@ -464,6 +470,7 @@ general_info:
 ```
 
 **bar_chart**:
+
 ```yaml
 dbh_distribution:
   type: bar_chart
@@ -488,6 +495,7 @@ dbh_distribution:
 ```
 
 **gauge**:
+
 ```yaml
 height_max:
   type: gauge
@@ -523,6 +531,7 @@ The three main configuration files work together in a pipeline:
    - Creates visual representations of the data
 
 For example:
+
 - A `top_ranking` transformation in transform.yml produces data with `tops` and `counts` fields
 - A `bar_chart` in export.yml references this with `source: top_species` and maps `tops` to labels and `counts` to values
 
@@ -551,7 +560,6 @@ A: The widget name in transform.yml becomes the JSON field name in the database,
 
 **Q: Can I change the appearance of widgets without changing the data?**
 A: Yes, modify export.yml to change visualization without affecting data transformations.
-
 
 ## Diagrams
 
