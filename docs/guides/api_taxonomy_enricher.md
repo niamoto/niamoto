@@ -27,7 +27,7 @@ taxonomy:
     # Authentication with API key
     auth_method: "api_key"
     auth_params:
-      key: "your-api-key-here"    # Direct API key
+      key: "<YOUR_API_KEY>"    # Direct API key (replace with your actual API key)
       # or with reference to environment variable
       # key: "$ENV:ENDEMIA_API_KEY"
       location: "header"          # Where to place the key

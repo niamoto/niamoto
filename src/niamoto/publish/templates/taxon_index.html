@@ -713,7 +713,7 @@
                     <h3 class="taxon-name">
                         <a href="{{ depth }}taxon/${taxon.id}.html">${taxon.name}</a><br>
                         ${isEndemic ? '<span class="endemic-badge">Endémique</span>' : ''}
-                        ${uicnCategory ? `<span class="uicn-badge ${uicnCategory}" title="${translateUICN(uicnCategory)}">${uicnCategory}</span>` : ''}
+                        ${taxon.redlist_cat && uicnCategory ? `<span class="uicn-badge ${uicnCategory}" title="${translateUICN(uicnCategory)}">${uicnCategory}</span>` : ''}
                     </h3>
 
                     <div class="taxon-details">
@@ -771,7 +771,7 @@
                             ${taxon.name}
                         </a>
                         ${isEndemic ? '<span class="endemic-badge">Endémique</span>' : ''}
-                        ${uicnCategory ? `<span class="uicn-badge ${uicnCategory}" title="${translateUICN(uicnCategory)}">${uicnCategory}</span>` : ''} |
+                        ${taxon.redlist_cat && uicnCategory ? `<span class="uicn-badge ${uicnCategory}" title="${translateUICN(uicnCategory)}">${uicnCategory}</span>` : ''} |
                         <span class="text-gray-500 text-sm ml-2">${translateRank(taxon.rank)}</span> |
                         ${taxon.parent_family ?
                     `<span class="text-gray-500 text-sm ml-2">Famille: ${taxon.parent_family}</span>` : ''} |

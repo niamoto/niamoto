@@ -31,7 +31,7 @@ Before developing custom plugins, ensure you have:
 
 Custom plugins should be placed in your project's `plugins` directory, organized by plugin type:
 
-```
+```bash
 project/
   ├── plugins/
   │   ├── transformers/

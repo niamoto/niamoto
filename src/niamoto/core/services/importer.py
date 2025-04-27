@@ -211,7 +211,7 @@ class ImporterService:
         file_path: str,
         plot_identifier: str,
         location_field: str,
-        locality_field: Optional[str] = None,
+        locality_field: str,
         link_field: Optional[str] = None,
         occurrence_link_field: Optional[str] = None,
     ) -> str:

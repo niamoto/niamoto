@@ -431,41 +431,63 @@
                 const mapContainer = document.getElementById(mapId);
                 if (!mapContainer) return;
 
-                // Base configuration
-                const defaultZoom = 7;
-                const maxZoom = 12;
+                // Get map configuration from widget config or defaults
+                const baseLayersConfig = (mapConfig.map_config && mapConfig.map_config.base_layers) ||
+                (mapping.map_config && mapping.map_config.base_layers) ||
+                []; // Fallback to empty array if no config
 
-                // Base layers with backup options
-                const baseLayers = {
-                    "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-                        layers: '0',
-                        format: 'image/png',
+                // Default configurations
+                const defaultZoom = (mapConfig.map_config && mapConfig.map_config.default_zoom) ||
+                (mapping.map_config && mapping.map_config.default_zoom) || 7;
+                const maxZoom = (mapConfig.map_config && mapConfig.map_config.max_zoom) ||
+                (mapping.map_config && mapping.map_config.max_zoom) || 12;
+
+                // Base layers with global defaults
+                const baseLayers = {};
+
+                // Always include global backups for reliability
+                baseLayers["OpenStreetMap"] = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: maxZoom
+                });
+
+                baseLayers["ESRI Satellite"] = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: maxZoom
+                });
+
+                // Add configured layers
+                let defaultLayer = baseLayers["ESRI Satellite"]; // Fallback default
+
+                baseLayersConfig.forEach(layerConfig => {
+                    // Create layer based on type (WMS or standard)
+                    if (layerConfig.url_wms) {
+                        // WMS layer
+                        baseLayers[layerConfig.name] = L.tileLayer.wms(layerConfig.url_wms, {
+                        layers: layerConfig.wms_layers || '0',
+                        format: layerConfig.format || 'image/png',
                         transparent: true,
-                        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
+                        attribution: layerConfig.attribution || '',
                         maxZoom: maxZoom,
                         timeout: 5000
-                    }),
-                    "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-                        layers: '0',
-                        format: 'image/png',
-                        transparent: true,
-                        attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                        maxZoom: maxZoom,
-                        timeout: 5000
-                    }),
-                    "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                        });
+                    } else if (layerConfig.url) {
+                        // Standard tile layer
+                        baseLayers[layerConfig.name] = L.tileLayer(layerConfig.url, {
+                        attribution: layerConfig.attribution || '',
                         maxZoom: maxZoom
-                    }),
-                    "ESRI Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-                        maxZoom: maxZoom
-                    })
-                };
+                        });
+                    }
 
-                // Create map with Satellite as default layer
+                    // Set as default layer if specified
+                    if (layerConfig.default && baseLayers[layerConfig.name]) {
+                        defaultLayer = baseLayers[layerConfig.name];
+                    }
+                });
+
+                // Create map with default layer
                 const map = L.map(mapId, {
-                    layers: [baseLayers["Satellite"]],
+                    layers: [defaultLayer],
                     zoom: defaultZoom,
                     maxZoom: maxZoom,
                     scrollWheelZoom: false
@@ -474,20 +496,6 @@
                 // Add layer control
                 L.control.layers(baseLayers).addTo(map);
                 map.attributionControl.setPrefix(false);
-
-                // Handle layer fallback
-                let primaryLayerAvailable = false;
-
-                baseLayers["Satellite"].on('load', function () {
-                    primaryLayerAvailable = true;
-                });
-
-                setTimeout(function () {
-                    if (!primaryLayerAvailable) {
-                        map.removeLayer(baseLayers["Satellite"]);
-                        map.addLayer(baseLayers["ESRI Satellite"]);
-                    }
-                }, 3000);
 
                 // Determine the data source based on mapConfig
                 const dataSource = mapConfig.source;

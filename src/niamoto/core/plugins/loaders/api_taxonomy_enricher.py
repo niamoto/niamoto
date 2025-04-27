@@ -292,22 +292,23 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             return
 
         # Check if we already have a valid token
-        if token_url in self._oauth_tokens:
-            token_data = self._oauth_tokens[token_url]
-            # Check if token is still valid (with 60s buffer)
-            if token_data.get("expires_at", 0) > time.time() + 60:
-                headers["Authorization"] = f"Bearer {token_data.get('access_token')}"
-                return
+        client_id = self._get_secure_value(auth_params.get("client_id", ""))
+        scope = auth_params.get("scope", "")
+        cache_key = f"{token_url}_{client_id}_{scope}"
+        cached_token_info = self._oauth_tokens.get(cache_key)
+
+        if cached_token_info and cached_token_info.get("expires_at", 0) > time.time():
+            headers["Authorization"] = f"Bearer {cached_token_info.get('token')}"
+            return
 
         # Get new token
         try:
-            client_id = self._get_secure_value(auth_params.get("client_id", ""))
             client_secret = self._get_secure_value(auth_params.get("client_secret", ""))
-            scope = auth_params.get("scope", "")
+            grant_type = auth_params.get("grant_type", "client_credentials")
 
             # Prepare token request
             token_data = {
-                "grant_type": auth_params.get("grant_type", "client_credentials"),
+                "grant_type": grant_type,
                 "client_id": client_id,
                 "client_secret": client_secret,
             }
@@ -329,11 +330,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
             # Calculate expiration time
             expires_in = token_response.get("expires_in", 3600)
-            expires_at = time.time() + expires_in
+            expires_at = time.time() + expires_in - 60
 
             # Store token
-            self._oauth_tokens[token_url] = {
-                "access_token": access_token,
+            self._oauth_tokens[cache_key] = {
+                "token": access_token,
                 "expires_at": expires_at,
             }
 

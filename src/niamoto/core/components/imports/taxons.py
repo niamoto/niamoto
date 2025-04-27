@@ -524,7 +524,7 @@ class TaxonomyImporter:
                     "infra": infra,
                     "rank_name": rank_name,
                     "full_name": self._build_full_name(row, column_mapping),
-                    "authors": self._extract_authors(row),
+                    "authors": self._extract_authors(row, column_mapping),
                     "taxonref": (
                         row["taxonref"]
                         if "taxonref" in row and pd.notna(row["taxonref"])
@@ -678,29 +678,47 @@ class TaxonomyImporter:
 
         return "Unknown taxon"
 
-    def _extract_authors(self, row: pd.Series) -> str:
+    def _extract_authors(self, row: pd.Series, column_mapping: Dict[str, str]) -> str:
         """
-        Extract author information by comparing taxaname and taxonref.
-        If taxonref contains more information than taxaname, that extra part is the author.
+        Extract author information by comparing the species/infra name with the full name including authors.
 
-        Example:
-            taxaname = "Acacia simplex"
-            taxonref = "Acacia simplex (Sparrm.) Pedley"
-            -> returns "(Sparrm.) Pedley"
+        Args:
+            row: Occurrence row
+            column_mapping: Mapping between taxonomy fields and occurrence columns
+
+        Returns:
+            Extracted author information
         """
-        if "taxaname" in row and "taxonref" in row:
-            taxaname = str(row["taxaname"]).strip()
-            taxonref = str(row["taxonref"]).strip()
+        # Get the authors column if directly specified in mapping
+        if "authors" in column_mapping and column_mapping["authors"] in row:
+            authors_value = row[column_mapping["authors"]]
+            if pd.notna(authors_value):
+                # If the authors field contains the full taxon name with authors
+                # Try to extract just the author part by comparing with species or infra name
 
-            if (
-                pd.notna(taxaname)
-                and pd.notna(taxonref)
-                and taxonref.startswith(taxaname)
-            ):
-                # Extract the part after the taxaname
-                author_part = taxonref[len(taxaname) :].strip()
-                if author_part:  # Check that the author part is not empty
-                    return author_part
+                # First check if we have species or infra name for comparison
+                species_name = None
+                if "species" in column_mapping and column_mapping["species"] in row:
+                    species_name = row[column_mapping["species"]]
+
+                infra_name = None
+                if "infra" in column_mapping and column_mapping["infra"] in row:
+                    infra_name = row[column_mapping["infra"]]
+
+                # Use the most specific name available for comparison
+                base_name = infra_name if pd.notna(infra_name) else species_name
+
+                if pd.notna(base_name) and str(authors_value).startswith(
+                    str(base_name)
+                ):
+                    # Extract the part after the base name
+                    author_part = str(authors_value)[len(str(base_name)) :].strip()
+                    if author_part:  # Check that the author part is not empty
+                        return author_part
+                elif pd.notna(authors_value):
+                    # If we can't extract using comparison, return the whole field
+                    # This assumes the field contains only the author information
+                    return str(authors_value)
 
         return ""
 

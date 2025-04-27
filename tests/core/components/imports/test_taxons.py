@@ -407,20 +407,41 @@ class TestTaxonomyImporter(NiamotoTestCase):
 
     def test_extract_authors(self):
         """Test _extract_authors method."""
+        # Define column mapping for the tests
+        column_mapping_ref = {"authors": "taxonref", "species": "taxaname"}
+        column_mapping_authors_only = {"authors": "author_col"}
 
-        row = pd.Series(
+        # Test case 1: Extract authors by comparing species name with full name
+        row1 = pd.Series(
             {
                 "taxaname": "Hibbertia lucens",
                 "taxonref": "Hibbertia lucens Brongn. & Gris ex Sebert & Pancher",
             }
         )
-        result = self.importer._extract_authors(row)
-        self.assertEqual(result, "Brongn. & Gris ex Sebert & Pancher")
+        result1 = self.importer._extract_authors(row1, column_mapping_ref)
+        self.assertEqual(result1, "Brongn. & Gris ex Sebert & Pancher")
 
-        # Test with empty data
-        row = pd.Series({"taxaname": None, "taxonref": None})
-        result = self.importer._extract_authors(row)
-        self.assertEqual(result, "")
+        # Test case 2: Empty data
+        row2 = pd.Series({"taxaname": None, "taxonref": None})
+        # Provide mapping even if data is None
+        result2 = self.importer._extract_authors(row2, column_mapping_ref)
+        self.assertEqual(result2, "")
+
+        # Test case 3: Authors field contains only the author string
+        row3 = pd.Series({"author_col": "Test Author"})
+        result3 = self.importer._extract_authors(row3, column_mapping_authors_only)
+        self.assertEqual(result3, "Test Author")
+
+        # Test case 4: No authors field in mapping
+        row4 = pd.Series({"some_other_col": "value"})
+        # Mapping doesn't contain 'authors' key
+        result4 = self.importer._extract_authors(row4, {"species": "taxaname"})
+        self.assertEqual(result4, "")
+
+        # Test case 5: Authors field exists in mapping but not in row
+        row5 = pd.Series({"taxaname": "Hibbertia lucens"})
+        result5 = self.importer._extract_authors(row5, column_mapping_ref)
+        self.assertEqual(result5, "")
 
     def test_get_rank_name_from_rank_id(self):
         """Test _get_rank_name_from_rank_id method."""

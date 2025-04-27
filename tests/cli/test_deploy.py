@@ -25,7 +25,14 @@ def mock_config(runner):
             mock_cfg.return_value.get_export_config = {
                 "web": os.path.abspath("output/web")
             }
-            yield mock_cfg
+            try:
+                yield mock_cfg
+            finally:
+                # Clean up any remaining files/directories
+                if os.path.exists("output"):
+                    import shutil
+
+                    shutil.rmtree("output", ignore_errors=True)
 
 
 def test_successful_github_deploy(runner, mock_config):

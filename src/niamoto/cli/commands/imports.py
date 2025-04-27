@@ -418,11 +418,12 @@ def import_all() -> None:
     try:
         # Create a single ImporterService instance to reuse
         importer = ImporterService(config.database_path)
+        imports_config = config.imports
 
         # Import taxonomy
         print_info("Importing taxonomy...")
         source_def = validate_source_config(
-            config.imports, "taxonomy", ["path", "ranks"]
+            imports_config, "taxonomy", ["path", "ranks"]
         )
         file_path = source_def.get("path")
         rank_list = source_def.get("ranks", "").split(",")
@@ -463,7 +464,7 @@ def import_all() -> None:
         # Import occurrences
         print_info("Importing occurrences...")
         source_def = validate_source_config(
-            config.imports, "occurrences", ["path", "identifier", "location_field"]
+            imports_config, "occurrences", ["path", "identifier", "location_field"]
         )
         file_path = get_source_path(config, "occurrences")
         taxon_id = source_def.get("identifier")
@@ -476,7 +477,7 @@ def import_all() -> None:
         # Import plots
         print_info("Importing plots...")
         source_def = validate_source_config(
-            config.imports,
+            imports_config,
             "plots",
             ["path", "identifier", "location_field", "locality_field"],
         )
@@ -500,7 +501,7 @@ def import_all() -> None:
 
         # Import shapes
         print_info("Importing shapes...")
-        shapes_config = config.imports.get("shapes", [])
+        shapes_config = imports_config.get("shapes", [])
         if shapes_config and isinstance(shapes_config, list):
             result = importer.import_shapes(shapes_config)
             print_info(result)
@@ -508,7 +509,7 @@ def import_all() -> None:
             print_info("No shapes configured, skipping")
 
         # Import occurrence-plots if configured
-        if "occurrence_plots" in config.imports:
+        if "occurrence_plots" in imports_config:
             print_info("Importing occurrence-plot links...")
             file_path = get_source_path(config, "occurrence_plots")
             reset_table(config.database_path, "occurrences_plots")

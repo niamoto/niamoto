@@ -125,6 +125,7 @@ To import taxonomic data into Niamoto, you can provide a structured CSV file wit
 | `authors`      | Authors of the taxon name                             |
 
 Configuration in `import.yml`:
+
 ```yaml
 taxonomy:
   type: csv
@@ -139,6 +140,7 @@ taxonomy:
 Niamoto can now extract taxonomy directly from the occurrences file, which simplifies data management when taxonomic information is already present in this file.
 
 Configuration in `import.yml`:
+
 ```yaml
 taxonomy:
   type: csv
@@ -155,6 +157,7 @@ taxonomy:
 ```
 
 This method offers several advantages:
+
 - Eliminates the need for a separate taxonomy file
 - Ensures consistency between occurrences and taxonomy
 - Provides flexibility in column mapping via `occurrence_columns`
@@ -233,7 +236,7 @@ $ niamoto deploy netlify --site-id <id>
 
 ## Project Structure
 
-```
+```bash
 config/          - YAML configuration files for data pipeline:
   config.yml     - Global configuration options
   import.yml     - Data source definitions (CSV, vector, raster)
@@ -273,7 +276,6 @@ Niamoto uses **three** primary YAML files to handle data ingestion, stats calcul
    - Defines **which widgets** appear on the final pages and how they look (chart options, color schemes, labels, etc.).
    - Points to the JSON fields produced by the `transform.yml` via `source: my_widget_field`.
    - Contains chart.js–style configurations (datasets, labels, axes, legends, etc.).
-
 
 By splitting these responsibilities, Niamoto provides a more modular, maintainable, and scalable system.
 
@@ -544,7 +546,6 @@ The **export configuration** file (`export.yml`) defines **how** to present the 
 
 **Key Takeaway**: The front-end or page generator uses these details to render each widget with the data from the corresponding JSON field (`source: dbh_distribution`).
 
-
 ## Plugin System
 
 Niamoto includes a plugin system that allows for extensibility and customization of its functionality. Plugins are registered with the system and can be used in configuration files.
@@ -567,6 +568,7 @@ The system includes several built-in transformation plugins:
 - **top_ranking**: Identifies top N items in a dataset
 
 Example plugin usage in `transform.yml`:
+
 ```yaml
 widgets_data:
   distribution_substrat:
@@ -587,6 +589,7 @@ You can develop custom plugins to extend Niamoto's functionality:
 3. Use the `@register` decorator to register your plugin
 
 Example of a custom transformer plugin:
+
 ```python
 from niamoto.core.plugins.base import (
     TransformerPlugin,
@@ -663,6 +666,7 @@ We welcome contributions to Niamoto! Here's how you can help:
 4. Send a pull request and bug the maintainer until it gets merged and published 😉
 
 Please make sure to follow our coding standards:
+
 - Use [Black](https://github.com/psf/black) for code formatting
 - Add type hints to all functions
 - Write docstrings for all public functions

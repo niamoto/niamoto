@@ -702,100 +702,71 @@
             const mapContainer = document.getElementById(mapId);
             if (!mapContainer || maps[mapId]) return;
 
-            // Base configuration
-            const defaultZoom = 7;
+            // Get map configuration from widget config or defaults
+            const baseLayersConfig = (mapConfig.map_config && mapConfig.map_config.base_layers) ||
+            (mapping.map_config && mapping.map_config.base_layers) ||
+            []; // Fallback to empty array if no config
 
-            // Base layers with backup options
-            const baseLayers = {
-                "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-                    layers: '0',
-                    format: 'image/png',
+            // Default configurations
+            const defaultZoom = (mapConfig.map_config && mapConfig.map_config.default_zoom) ||
+            (mapping.map_config && mapping.map_config.default_zoom) || 7;
+            const maxZoom = (mapConfig.map_config && mapConfig.map_config.max_zoom) ||
+            (mapping.map_config && mapping.map_config.max_zoom) || 12;
+
+            // Base layers with global defaults
+            const baseLayers = {};
+
+            // Always include global backups for reliability
+            baseLayers["OpenStreetMap"] = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: maxZoom
+            });
+
+            baseLayers["ESRI Satellite"] = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            maxZoom: maxZoom
+            });
+
+            // Add configured layers
+            let defaultLayer = baseLayers["ESRI Satellite"]; // Fallback default
+
+            baseLayersConfig.forEach(layerConfig => {
+                // Create layer based on type (WMS or standard)
+                if (layerConfig.url_wms) {
+                    // WMS layer
+                    baseLayers[layerConfig.name] = L.tileLayer.wms(layerConfig.url_wms, {
+                    layers: layerConfig.wms_layers || '0',
+                    format: layerConfig.format || 'image/png',
                     transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
+                    attribution: layerConfig.attribution || '',
+                    maxZoom: maxZoom,
                     timeout: 5000
-                }),
-                "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-                    layers: '0',
-                    format: 'image/png',
-                    transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
-                    timeout: 5000
-                }),
-                // Backup map sources (global)
-                "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }),
-                // Alternative satellite imagery
-                "ESRI Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-                })
-            };
-
-            // Tracker to check if primary map sources are available
-            let primaryLayerAvailable = false;
-            let primaryLayersLoaded = 0;
-            const totalPrimaryLayers = 2; // Number of primary layers (Satellite and Carte)
-
-            // Function to check layer availability
-            function checkLayersAvailability() {
-                if (primaryLayersLoaded >= totalPrimaryLayers && !primaryLayerAvailable) {
-                    // No primary map source is available, switch to ESRI Satellite
-                    console.log("Primary map sources are unavailable, using ESRI Satellite");
-                    map.removeLayer(baseLayers["Satellite"]); // Remove default layer
-                    map.addLayer(baseLayers["ESRI Satellite"]); // Add backup layer
+                    });
+                } else if (layerConfig.url) {
+                    // Standard tile layer
+                    baseLayers[layerConfig.name] = L.tileLayer(layerConfig.url, {
+                    attribution: layerConfig.attribution || '',
+                    maxZoom: maxZoom
+                    });
                 }
-            }
 
-            // Create map with Satellite as default layer
+                // Set as default layer if specified
+                if (layerConfig.default && baseLayers[layerConfig.name]) {
+                    defaultLayer = baseLayers[layerConfig.name];
+                }
+            });
+
+            // Create map with default layer
             const map = L.map(mapId, {
-                layers: [baseLayers["Satellite"]],
+                layers: [defaultLayer],
                 zoom: defaultZoom,
+                maxZoom: maxZoom,
                 scrollWheelZoom: false
             });
 
             // Add layer control
             L.control.layers(baseLayers).addTo(map);
             map.attributionControl.setPrefix(false);
-
-            // Set a timeout to automatically switch to backup layer if primary layers don't load quickly
-            let mapLoadTimeout = setTimeout(function() {
-                if (!primaryLayerAvailable) {
-                    console.log("Map load timeout reached, switching to backup layer");
-                    map.removeLayer(baseLayers["Satellite"]);
-                    map.addLayer(baseLayers["ESRI Satellite"]);
-                    // Force the primaryLayersLoaded to avoid further checks
-                    primaryLayersLoaded = totalPrimaryLayers;
-                }
-            }, 3000); // 3 seconds timeout
-
-            // Listen for tile loading events on primary layers
-            baseLayers["Satellite"].on('tileerror', function(error) {
-                console.log("Error loading Satellite layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
-
-            baseLayers["Satellite"].on('load', function() {
-                console.log("Satellite layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
-
-            baseLayers["Carte"].on('tileerror', function(error) {
-                console.log("Error loading Carte layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
-
-            baseLayers["Carte"].on('load', function() {
-                console.log("Carte layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
 
             // Add configured layers
             const layers = [];
@@ -840,96 +811,71 @@
             const mapContainer = document.getElementById(mapId);
             if (!mapContainer || maps[mapId]) return;
 
-            // Base layers with backup options
-            const baseLayers = {
-                "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-                    layers: '0',
-                    format: 'image/png',
-                    transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
-                    timeout: 5000
-                }),
-                "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-                    layers: '0',
-                    format: 'image/png',
-                    transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
-                    timeout: 5000
-                }),
-                // Backup map sources (global)
-                "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }),
-                // Alternative satellite imagery
-                "ESRI Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-                })
-            };
+            // Get map configuration from widget config or defaults
+            const baseLayersConfig = (mapConfig.map_config && mapConfig.map_config.base_layers) ||
+            (mapping.map_config && mapping.map_config.base_layers) ||
+            []; // Fallback to empty array if no config
 
-            // Tracker to check if primary map sources are available
-            let primaryLayerAvailable = false;
-            let primaryLayersLoaded = 0;
-            const totalPrimaryLayers = 2; // Number of primary layers (Satellite and Carte)
+            // Default configurations
+            const defaultZoom = (mapConfig.map_config && mapConfig.map_config.default_zoom) ||
+            (mapping.map_config && mapping.map_config.default_zoom) || 7;
+            const maxZoom = (mapConfig.map_config && mapConfig.map_config.max_zoom) ||
+            (mapping.map_config && mapping.map_config.max_zoom) || 12;
 
-            // Create map with Satellite as default layer
+            // Base layers with global defaults
+            const baseLayers = {};
+
+            // Always include global backups for reliability
+            baseLayers["OpenStreetMap"] = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: maxZoom
+            });
+
+            baseLayers["ESRI Satellite"] = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            maxZoom: maxZoom
+            });
+
+            // Add configured layers
+            let defaultLayer = baseLayers["ESRI Satellite"]; // Fallback default
+
+            baseLayersConfig.forEach(layerConfig => {
+                // Create layer based on type (WMS or standard)
+                if (layerConfig.url_wms) {
+                    // WMS layer
+                    baseLayers[layerConfig.name] = L.tileLayer.wms(layerConfig.url_wms, {
+                    layers: layerConfig.wms_layers || '0',
+                    format: layerConfig.format || 'image/png',
+                    transparent: true,
+                    attribution: layerConfig.attribution || '',
+                    maxZoom: maxZoom,
+                    timeout: 5000
+                    });
+                } else if (layerConfig.url) {
+                    // Standard tile layer
+                    baseLayers[layerConfig.name] = L.tileLayer(layerConfig.url, {
+                    attribution: layerConfig.attribution || '',
+                    maxZoom: maxZoom
+                    });
+                }
+
+                // Set as default layer if specified
+                if (layerConfig.default && baseLayers[layerConfig.name]) {
+                    defaultLayer = baseLayers[layerConfig.name];
+                }
+            });
+
+            // Create map with default layer
             const map = L.map(mapId, {
-                layers: [baseLayers["Satellite"]],
+                layers: [defaultLayer],
+                zoom: defaultZoom,
+                maxZoom: maxZoom,
                 scrollWheelZoom: false
             });
 
             // Add layer control
             L.control.layers(baseLayers).addTo(map);
             map.attributionControl.setPrefix(false);
-
-            // Function to check layer availability
-            function checkLayersAvailability() {
-                if (primaryLayersLoaded >= totalPrimaryLayers && !primaryLayerAvailable) {
-                    // No primary map source is available, switch to ESRI Satellite
-                    console.log("Primary map sources are unavailable, using ESRI Satellite");
-                    map.removeLayer(baseLayers["Satellite"]); // Remove default layer
-                    map.addLayer(baseLayers["ESRI Satellite"]); // Add backup layer
-                }
-            }
-
-            // Set a timeout to automatically switch to backup layer if primary layers don't load quickly
-            let mapLoadTimeout = setTimeout(function() {
-                if (!primaryLayerAvailable) {
-                    console.log("Map load timeout reached, switching to backup layer");
-                    map.removeLayer(baseLayers["Satellite"]);
-                    map.addLayer(baseLayers["ESRI Satellite"]);
-                    // Force the primaryLayersLoaded to avoid further checks
-                    primaryLayersLoaded = totalPrimaryLayers;
-                }
-            }, 3000); // 3 seconds timeout
-
-            // Listen for tile loading events on primary layers
-            baseLayers["Satellite"].on('tileerror', function(error) {
-                console.log("Error loading Satellite layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
-
-            baseLayers["Satellite"].on('load', function() {
-                console.log("Satellite layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
-
-            baseLayers["Carte"].on('tileerror', function(error) {
-                console.log("Error loading Carte layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
-
-            baseLayers["Carte"].on('load', function() {
-                console.log("Carte layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
 
             // Add shapes of same category
             const group = L.featureGroup();
@@ -994,11 +940,9 @@
                         map.fitBounds(bounds);
                     } else {
                         console.warn("Invalid bounds, setting default view");
-                        map.setView([-21.3, 165.5], 7); // Vue par défaut sur la Nouvelle-Calédonie
                     }
                 } catch (error) {
                     console.error("Error fitting bounds:", error);
-                    map.setView([-21.3, 165.5], 7);
                 }
             }
 
