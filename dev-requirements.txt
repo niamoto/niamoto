@@ -222,7 +222,10 @@ rasterio==1.4.3
 requests==2.32.3
     # via
     #   niamoto (pyproject.toml)
+    #   requests-mock
     #   sphinx
+requests-mock==1.12.1
+    # via niamoto (pyproject.toml)
 rich==13.9.4
     # via niamoto (pyproject.toml)
 rjsmin==1.2.3

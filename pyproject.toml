@@ -149,6 +149,10 @@ dev = [
     # Documentation: https://github.com/pytest-dev/pytest-mock
     "pytest-mock>=3.12.0",
 
+    # requests-mock - Mock HTTP requests made by the requests library.
+    # Documentation: https://requests-mock.readthedocs.io/
+    "requests-mock>=1.12.1",
+
     # hypothesis - Library for property-based testing.
     # Documentation: https://hypothesis.readthedocs.io/
     "hypothesis>=6.88.3",
