@@ -218,9 +218,6 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 f"[green]✓ Data successfully retrieved for {query_value}[/green]"
             )
 
-            # Respect rate limit
-            time.sleep(1.0 / validated_config.rate_limit)
-
             # Enrich taxon data
             return self._enrich_taxon_data(
                 taxon_data, api_data, validated_config.response_mapping
@@ -240,6 +237,13 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 f"[bold red]✗ Failed to process API data for {query_value}: {str(e)}[/bold red]"
             )
             return taxon_data
+        finally:
+            # Respect rate limit regardless of outcome
+            if validated_config.rate_limit > 0:
+                time.sleep(1.0 / validated_config.rate_limit)
+            else:
+                # Avoid division by zero if rate_limit is 0 or negative
+                pass
 
     def _setup_api_key_auth(
         self,
@@ -269,6 +273,12 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         elif location == "cookie":
             cookie_name = auth_params.get("name", "api_key")
             cookies[cookie_name] = api_key
+        else:
+            logger.error(
+                "Unknown api_key location '%s'; expected 'header', 'query' or 'cookie'",
+                location,
+            )
+            raise ValueError(f"Invalid api_key location '{location}'")
 
     def _setup_oauth2_auth(
         self, auth_params: Dict[str, str], headers: Dict[str, str]
