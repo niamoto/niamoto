@@ -15,6 +15,7 @@ import rjsmin
 import topojson
 from shapely import wkb
 from shapely.geometry import mapping
+from sqlalchemy.sql import text
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
@@ -686,3 +687,418 @@ class PageGenerator(BaseGenerator):
             ) from e
         finally:
             session.close()
+
+    @error_handler(log=True, raise_error=True)
+    def generate_taxon_index_page(self, taxons: List[TaxonRef]) -> str:
+        """
+        Generate an index page for all taxons with search and pagination.
+        Only includes taxons with rank "species" or "infra".
+
+        Args:
+            taxons: List of taxons to include
+
+        Returns:
+            Path to the generated page
+
+        Raises:
+            TemplateError: If template processing fails
+            OutputError: If file generation fails
+        """
+        try:
+            # Get taxonomy configuration
+            taxonomy_config = self.config.get_imports_config.get("taxonomy", {})
+            ranks_config = taxonomy_config.get("ranks", "")
+
+            # Split ranks into list, handling potential spaces
+            configured_ranks = [r.strip() for r in ranks_config.split(",") if r.strip()]
+
+            # Get the species and infra level column names from configuration
+            # Default to standard names if not in config
+            species_column = None
+            infra_column = None
+
+            # Extract from occurrence_columns if available
+            occ_columns = taxonomy_config.get("occurrence_columns", {})
+            if "species" in occ_columns:
+                species_column = occ_columns["species"]
+            if "infra" in occ_columns:
+                infra_column = occ_columns["infra"]
+
+            # Fallback logic if not found in occurrence_columns
+            if not species_column and len(configured_ranks) > 2:
+                species_column = configured_ranks[2]  # Usually the 3rd rank is species
+
+            if not infra_column and len(configured_ranks) > 3:
+                infra_column = configured_ranks[
+                    3
+                ]  # Usually the 4th rank is infraspecies
+
+            # Convert taxons to simple dictionaries
+            taxa_data = []
+
+            for taxon in taxons:
+                # Get stats if available
+                try:
+                    with self.db.engine.connect() as connection:
+                        result = connection.execute(
+                            text("SELECT * FROM taxon WHERE taxon_id = :id"),
+                            {"id": taxon.id},
+                        )
+                        stats_row = result.fetchone()
+                        if not stats_row:
+                            continue
+
+                        # Convert to dict - map column names to values
+                        stats = dict(zip(result.keys(), stats_row))
+
+                        # Extract information from general_info
+                        if "general_info" in stats:
+                            general_info = self.parse_json_field(stats["general_info"])
+                            if not general_info:
+                                continue
+
+                            # Check if this is a species or infra
+                            if "rank" not in general_info or not isinstance(
+                                general_info["rank"], dict
+                            ):
+                                continue
+
+                            rank_value = general_info["rank"].get("value")
+                            # Check against configured column names instead of hardcoded values
+                            valid_ranks = []
+                            if species_column:
+                                valid_ranks.append(species_column)
+                            if infra_column:
+                                valid_ranks.append(infra_column)
+
+                            # If we couldn't determine valid ranks from config, fall back to defaults
+                            if not valid_ranks:
+                                valid_ranks = ["species", "infra"]
+
+                            if not rank_value or rank_value not in valid_ranks:
+                                continue
+
+                            # Create taxon data with extracted fields
+                            taxon_data = {
+                                "id": taxon.id,
+                                "name": general_info.get("name", {}).get(
+                                    "value", taxon.full_name
+                                ),
+                            }
+
+                            # Extract other fields with "value" structure
+                            fields_to_extract = [
+                                "rank",
+                                "taxon_type",
+                                "parent_family",
+                                "parent_genus",
+                                "occurrences_count",
+                                "endemic",
+                                "redlist_cat",
+                                "endemia_url",
+                                "id_florical",
+                                "image_url",
+                            ]
+
+                            for field in fields_to_extract:
+                                if field in general_info and isinstance(
+                                    general_info[field], dict
+                                ):
+                                    taxon_data[field] = general_info[field].get("value")
+
+                            # Extract images list if available
+                            if "images" in general_info and isinstance(
+                                general_info["images"], dict
+                            ):
+                                try:
+                                    # Images might be stored as a string representation of a list
+                                    images_value = general_info["images"].get("value")
+                                    if isinstance(images_value, str):
+                                        taxon_data["images"] = json.loads(
+                                            images_value.replace("'", '"')
+                                        )
+                                    else:
+                                        taxon_data["images"] = images_value
+                                except (json.JSONDecodeError, ValueError):
+                                    # Handle parsing errors gracefully
+                                    pass
+
+                            taxa_data.append(taxon_data)
+
+                except Exception as e:
+                    # Log the error but continue
+                    print(f"Error getting stats for taxon {taxon.id}: {str(e)}")
+                    continue
+
+            # Sort by name
+            taxa_data.sort(key=lambda x: x["name"].lower())
+
+            # Ensure output directory exists
+            output_dir = self.output_dir / "taxon"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Render the template
+            rendered_path = self.generate_page(
+                template_name="taxon_index.html",
+                output_name="taxon/index.html",
+                depth="../",
+                context={"taxa_data": taxa_data},
+            )
+
+            return rendered_path
+
+        except Exception as e:
+            raise TemplateError(
+                "taxon_index.html",
+                f"Failed to generate taxon index page: {str(e)}",
+                details={"error": str(e)},
+            ) from e
+
+    @error_handler(log=True, raise_error=True)
+    def generate_plot_index_page(self, plots: List[PlotRef]) -> str:
+        """
+        Generate an index page for all plots with search and pagination.
+
+        Args:
+            plots: List of plots to include
+
+        Returns:
+            Path to the generated page
+
+        Raises:
+            TemplateError: If template processing fails
+            OutputError: If file generation fails
+        """
+        try:
+            # Convert plots to dictionaries with relevant information
+            plots_data = []
+            for plot in plots:
+                # Create plot data
+                plot_data = {"id": plot.id, "name": plot.locality}
+
+                # Get stats if available
+                try:
+                    with self.db.engine.connect() as connection:
+                        result = connection.execute(
+                            text("SELECT * FROM plot WHERE plot_id = :id"),
+                            {"id": plot.id},
+                        )
+                        stats_row = result.fetchone()
+                        if stats_row:
+                            # Convert to dict - map column names to values
+                            stats = dict(zip(result.keys(), stats_row))
+
+                            # Add additional info if available
+                            if "general_info" in stats:
+                                general_info = self.parse_json_field(
+                                    stats["general_info"]
+                                )
+                                if general_info:
+                                    for key in [
+                                        "elevation",
+                                        "rainfall",
+                                        "holdridge",
+                                        "in_um",
+                                        "occurrences_count",
+                                        "nb_species",
+                                    ]:
+                                        if key in general_info:
+                                            plot_data[key] = general_info[key]
+                except Exception as e:
+                    # Log the error but continue
+                    print(f"Error getting stats for plot {plot.id}: {str(e)}")
+
+                plots_data.append(plot_data)
+
+            # Sort by name
+            plots_data.sort(key=lambda x: x["name"].lower())
+
+            # Ensure output directory exists
+            output_dir = self.output_dir / "plot"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Render the template
+            output_path = self.generate_page(
+                template_name="plot_index.html",
+                output_name="plot/index.html",
+                depth="../",
+                context={"plots_data": plots_data},
+            )
+
+            return output_path
+
+        except Exception as e:
+            raise TemplateError(
+                "plot_index.html",
+                f"Failed to generate plot index page: {str(e)}",
+                details={"error": str(e)},
+            ) from e
+
+    @error_handler(log=True, raise_error=True)
+    def generate_shape_index_page(self, shapes: List[ShapeRef]) -> str:
+        """
+        Generate an index page for all shapes, grouped by shape type.
+
+        Args:
+            shapes: List of shapes to include
+
+        Returns:
+            Path to the generated page
+
+        Raises:
+            TemplateError: If template processing fails
+            OutputError: If file generation fails
+        """
+        # Définir output_path dès le début pour éviter des erreurs
+        output_path = str(self.output_dir / "shape" / "index.html")
+
+        try:
+            # Grouper les formes par type
+            shapes_by_type = {}
+
+            for shape in shapes:
+                # Initialiser le groupe si ce type n'existe pas encore
+                if shape.type not in shapes_by_type:
+                    shapes_by_type[shape.type] = {
+                        "type_label": shape.type_label or shape.type,
+                        "shapes": [],
+                    }
+
+                # Créer les données de base de la forme
+                shape_data = {"id": shape.id, "name": shape.label, "type": shape.type}
+
+                # Essayer d'obtenir des statistiques supplémentaires si disponibles
+                try:
+                    with self.db.engine.connect() as connection:
+                        result = connection.execute(
+                            text("SELECT * FROM shape WHERE shape_id = :id"),
+                            {"id": shape.id},
+                        )
+                        stats_row = result.fetchone()
+
+                        if stats_row:
+                            # Convertir en dict - associer les noms de colonnes aux valeurs
+                            stats = dict(zip(result.keys(), stats_row))
+
+                            # Ajouter des infos supplémentaires si disponibles
+                            if "general_info" in stats:
+                                try:
+                                    general_info = self.parse_json_field(
+                                        stats["general_info"]
+                                    )
+
+                                    if general_info and isinstance(general_info, dict):
+                                        # Extraire des valeurs pour les champs d'intérêt
+                                        for key in [
+                                            "land_area_ha",
+                                            "forest_area_ha",
+                                            "elevation_median",
+                                        ]:
+                                            if key in general_info:
+                                                value = general_info[key]
+
+                                                # Valeur primitive simple
+                                                if isinstance(value, (int, float)):
+                                                    shape_data[key] = value
+                                                # Dictionnaire imbriqué avec clé "value"
+                                                elif (
+                                                    isinstance(value, dict)
+                                                    and "value" in value
+                                                ):
+                                                    try:
+                                                        # Convertir en nombre si possible
+                                                        shape_data[key] = float(
+                                                            value["value"]
+                                                        )
+                                                    except (ValueError, TypeError):
+                                                        shape_data[key] = value["value"]
+                                except Exception as e:
+                                    print(
+                                        f"Error parsing general_info for shape {shape.id}: {str(e)}"
+                                    )
+                except Exception as e:
+                    print(f"Error getting stats for shape {shape.id}: {str(e)}")
+
+                # Ajouter cette forme à son groupe
+                shapes_by_type[shape.type]["shapes"].append(shape_data)
+
+            # Trier les formes dans chaque groupe par nom
+            for shape_type in shapes_by_type:
+                shapes_by_type[shape_type]["shapes"].sort(
+                    key=lambda x: str(x.get("name", "")).lower()
+                )
+
+            # Trier les types par ordre alphabétique
+            sorted_shapes_by_type = dict(
+                sorted(shapes_by_type.items(), key=lambda x: x[0].lower())
+            )
+
+            # S'assurer que les données sont sérialisables en JSON
+            try:
+                json.dumps(sorted_shapes_by_type)
+            except TypeError as e:
+                print(f"JSON serialization error: {str(e)}")
+                # Si la sérialisation échoue, créer une version simplifiée
+                simplified_data = {}
+
+                for type_name, type_info in sorted_shapes_by_type.items():
+                    simplified_shapes = []
+
+                    for shape in type_info["shapes"]:
+                        simple_shape = {
+                            "id": shape.get("id", 0),
+                            "name": str(shape.get("name", "")),
+                            "type": str(shape.get("type", "")),
+                        }
+
+                        # Ajouter d'autres champs si convertibles en types simples
+                        for key in [
+                            "land_area_ha",
+                            "forest_area_ha",
+                            "elevation_median",
+                        ]:
+                            if key in shape:
+                                try:
+                                    simple_shape[key] = float(shape[key])
+                                except (ValueError, TypeError):
+                                    simple_shape[key] = str(shape[key])
+
+                        simplified_shapes.append(simple_shape)
+
+                    simplified_data[type_name] = {
+                        "type_label": str(type_info.get("type_label", type_name)),
+                        "shapes": simplified_shapes,
+                    }
+
+                sorted_shapes_by_type = simplified_data
+
+            # Assurer que le répertoire de sortie existe
+            output_dir = self.output_dir / "shape"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Générer la page
+            template_name = "shape_index.html"
+            output_name = "shape/index.html"
+
+            output_path = self.generate_page(
+                template_name=template_name,
+                output_name=output_name,
+                depth="../",
+                context={"shapes_by_type": shapes_by_type},
+            )
+
+            return output_path
+
+        except Exception as e:
+            # Logger l'erreur avec des informations détaillées
+            print(f"Failed to generate shape index page: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+
+            # Lever une erreur appropriée
+            raise TemplateError(
+                "shape_index.html",
+                f"Failed to generate shape index page: {str(e)}",
+                details={"error": str(e)},
+            ) from e

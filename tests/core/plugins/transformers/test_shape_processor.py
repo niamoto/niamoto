@@ -176,26 +176,19 @@ class TestShapeProcessor(NiamotoTestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         from unittest import mock
+        import shutil
 
         self.db.close_db_session()
 
         # Clean up test files if they exist
         try:
-            # Remove files in config directory
-            if os.path.exists(os.path.join(self.config_dir, "import.yml")):
-                os.remove(os.path.join(self.config_dir, "import.yml"))
-
-            # Remove files in test_data_dir
-            for file in os.listdir(self.test_data_dir):
-                file_path = os.path.join(self.test_data_dir, file)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-
-            # Remove directories
+            # Clean up config directory
             if os.path.exists(self.config_dir):
-                os.rmdir(self.config_dir)
+                shutil.rmtree(self.config_dir, ignore_errors=True)
+
+            # Clean up test data directory
             if os.path.exists(self.test_data_dir):
-                os.rmdir(self.test_data_dir)
+                shutil.rmtree(self.test_data_dir, ignore_errors=True)
         except Exception as e:
             print(f"Error during cleanup: {e}")
 

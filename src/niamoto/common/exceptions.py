@@ -166,6 +166,26 @@ class DatabaseQueryError(DatabaseError):
         super().__init__(message, details)
         self.query = query
 
+    def get_user_message(self) -> str:
+        """Returns a detailed user-friendly error message"""
+        message = f"Database query failed: {str(self)}"
+
+        if self.details:
+            if "params" in self.details:
+                message += f"\nParameters: {self.details['params']}"
+            if "error" in self.details:
+                message += f"\nSQL Error: {self.details['error']}"
+            if "table" in self.details:
+                message += f"\nTable: {self.details['table']}"
+
+        # Add truncated query for context
+        query_preview = (
+            self.query[:200] + "..." if len(self.query) > 200 else self.query
+        )
+        message += f"\nQuery: {query_preview}"
+
+        return message
+
 
 class TransactionError(DatabaseError):
     """Exception raised for transaction-related errors."""

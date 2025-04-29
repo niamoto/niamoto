@@ -41,14 +41,19 @@ class ImporterService:
         self.shape_importer = ShapeImporter(self.db)
 
     @error_handler(log=True, raise_error=True)
-    def import_taxonomy(self, file_path: str, ranks: Tuple[str, ...]) -> str:
+    def import_taxonomy(
+        self,
+        file_path: str,
+        ranks: Tuple[str, ...],
+        api_config: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
         Import taxonomy data from a CSV file.
 
         Args:
             file_path: Path to the CSV file
             ranks: Taxonomy ranks to import
-
+            api_config: API configuration for enrichment
         Returns:
             Success message
 
@@ -88,7 +93,9 @@ class ImporterService:
 
         # Import the data
         try:
-            result = self.taxonomy_importer.import_from_csv(file_path, ranks)
+            result = self.taxonomy_importer.import_from_csv(
+                file_path, ranks, api_config
+            )
             return result
         except Exception as e:
             raise DataImportError(
@@ -102,6 +109,7 @@ class ImporterService:
         occurrences_file: str,
         ranks: Tuple[str, ...],
         column_mapping: Dict[str, str],
+        api_config: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Extract and import taxonomy data from occurrences.
@@ -145,7 +153,7 @@ class ImporterService:
         # Import the data
         try:
             result = self.taxonomy_importer.import_from_occurrences(
-                occurrences_file, ranks, column_mapping
+                occurrences_file, ranks, column_mapping, api_config
             )
             return result
         except Exception as e:
@@ -200,21 +208,23 @@ class ImporterService:
     @error_handler(log=True, raise_error=True)
     def import_plots(
         self,
-        gpkg_path: str,
+        file_path: str,
         plot_identifier: str,
         location_field: str,
+        locality_field: str,
         link_field: Optional[str] = None,
         occurrence_link_field: Optional[str] = None,
     ) -> str:
         """
-        Import plot data.
+        Import plot data from GeoPackage or CSV.
 
         Args:
-            gpkg_path: Path to GeoPackage file
+            file_path: Path to the file (GeoPackage or CSV)
             plot_identifier: Plot identifier field
-            location_field: Location field name
-            link_field: Field name in plot_ref to use for linking to occurrences
-            occurrence_link_field: Field name in occurrences to use for linking to plots
+            location_field: Location field name (containing geometry)
+            locality_field: Field for locality name (mandatory for CSV imports)
+            link_field: Field in plot_ref to use for linking with occurrences
+            occurrence_link_field: Field in occurrences to use for linking with plots
 
         Returns:
             Success message
@@ -224,21 +234,22 @@ class ImporterService:
             FileReadError: If file cannot be read
             DataImportError: If import fails
         """
-        if not gpkg_path:
-            raise ValidationError("gpkg_path", "GeoPackage path cannot be empty")
+        if not file_path:
+            raise ValidationError("file_path", "File path cannot be empty")
         if not plot_identifier:
             raise ValidationError(
                 "plot_identifier", "Plot identifier field must be specified"
             )
 
-        if not Path(gpkg_path).exists():
-            raise FileReadError(gpkg_path, "File not found")
+        if not Path(file_path).exists():
+            raise FileReadError(file_path, "File not found")
 
         try:
-            return self.plot_importer.import_from_gpkg(
-                gpkg_path,
+            return self.plot_importer.import_plots(
+                file_path,
                 plot_identifier,
                 location_field,
+                locality_field=locality_field,
                 link_field=link_field,
                 occurrence_link_field=occurrence_link_field,
             )

@@ -157,7 +157,8 @@ def handle_error(
 
         if isinstance(error, NiamotoError) and not is_test_environment:
             # Only exit in CLI context, not during tests
-            sys.exit(1)
+            # sys.exit(1)
+            raise error
         elif isinstance(error, NiamotoError):
             # In test environment, just re-raise the original error
             raise error

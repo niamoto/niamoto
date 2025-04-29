@@ -69,16 +69,22 @@ def test_init_environment_error(runner):
 
 
 def test_reset_cancelled(runner):
-    """Test environment reset when user cancels."""
-    with runner.isolated_filesystem():
+    """Test cancelling reset operation."""
+    try:
         # Create config directory to simulate existing environment
         os.makedirs("config")
 
         with mock.patch("niamoto.cli.commands.initialize.Config") as mock_config:
             mock_config.get_niamoto_home.return_value = os.getcwd()
 
-            # Simulate user cancelling reset
+            # Simulate user input 'n' to cancel reset
             result = runner.invoke(init_environment, ["--reset"], input="n\n")
 
             assert result.exit_code == 0
             assert "Environment reset cancelled by user" in result.output
+    finally:
+        # Clean up the config directory
+        if os.path.exists("config"):
+            import shutil
+
+            shutil.rmtree("config", ignore_errors=True)

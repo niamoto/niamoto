@@ -120,63 +120,49 @@ class ReferenceResolver:
 
         Args:
             value: Base value
-            path: Path to resolve (e.g., "field.subfield[0]")
+            path: Path to resolve (e.g., "field.subfield[0].key[1]")
 
         Returns:
             Value at the specified path
         """
-        # Split path into segments
-        segments = []
-        current = ""
-        bracket_depth = 0
+        # Use regex to find segments: either a key or an index [n]
+        # Capture non-digit indexes as well with [^]]+
+        segments = re.findall(r"\.?([^.[\]]+)|\[([^\]]+)\]", path)
 
-        for char in path:
-            if char == "." and bracket_depth == 0:
-                segments.append(current)
-                current = ""
-            else:
-                if char == "[":
-                    bracket_depth += 1
-                elif char == "]":
-                    bracket_depth -= 1
-                current += char
+        current_value = value
 
-        if current:
-            segments.append(current)
-
-        # Process each segment
-        for segment in segments:
-            if "[" in segment and segment.endswith("]"):
-                # Handle array indexing
-                field_name, index_str = segment.split("[", 1)
-                index_str = index_str.rstrip("]")
-
-                # Get field value
-                if not hasattr(value, "__getitem__") or field_name not in value:
+        for key, index_str in segments:
+            if key:
+                # Dictionary key access
+                if not isinstance(current_value, dict) or key not in current_value:
                     raise ValueError(
-                        f"Field '{field_name}' not found in {type(value).__name__}"
+                        f"Field '{key}' not found or not accessible in {type(current_value).__name__}"
                     )
-
-                field_value = value[field_name]
-
-                # Apply index
+                current_value = current_value[key]
+            elif index_str:
+                # Add check for non-digit index format
+                if not index_str.isdigit():
+                    raise ValueError(f"Invalid index format: '[{index_str}]'")
+                # List index access
                 try:
                     index = int(index_str)
-                    value = field_value[index]
+                    if not isinstance(current_value, list) or index >= len(
+                        current_value
+                    ):
+                        raise IndexError(
+                            f"Index {index} out of bounds for list of length {len(current_value)}"
+                        )
+                    current_value = current_value[index]
                 except (ValueError, IndexError, TypeError) as e:
+                    # Catch potential int conversion errors (shouldn't happen with regex) or indexing errors
                     raise ValueError(
-                        f"Invalid index '{index_str}' for field '{field_name}': {str(e)}"
+                        f"Invalid index access '[{index_str}]': {str(e)} on {type(current_value).__name__}"
                     )
             else:
-                # Simple field access
-                if not hasattr(value, "__getitem__") or segment not in value:
-                    raise ValueError(
-                        f"Field '{segment}' not found in {type(value).__name__}"
-                    )
+                # Should not happen with the regex pattern
+                raise ValueError(f"Invalid path segment found in '{path}'")
 
-                value = value[segment]
-
-        return value
+        return current_value
 
     def _apply_function(self, value: Any, func_name: str, func_args_str: str) -> Any:
         """

@@ -32,7 +32,7 @@ class FieldConfig(BaseModel):
     @field_validator("transformation")
     def validate_transformation(cls, v):
         """Validate transformation."""
-        if v not in ["direct", "count"]:
+        if v not in ["direct", "count", "sum"]:
             raise ValueError(f"Invalid transformation: {v}")
         return v
 
@@ -90,13 +90,47 @@ class FieldAggregator(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def _get_field_from_table(self, table: str, field: str, id_value: int) -> Any:
-        """Get a field value from any table."""
+        """Get a field value from any table.
+
+        Support for JSON fields using dot notation: field.json_key
+        For example: extra_data.taxon_type will extract the taxon_type from the extra_data JSON field
+        """
         try:
-            query = f"""
-                SELECT {field} FROM {table} WHERE id = {id_value}
-            """
-            result = self.db.execute_select(query).fetchone()
-            return str(result[0]) if result and result[0] is not None else None
+            # Check if we're trying to access a JSON field (using dot notation)
+            if "." in field:
+                json_field, json_key = field.split(".", 1)
+                query = f"""
+                    SELECT {json_field} FROM {table} WHERE id = {id_value}
+                """
+                result = self.db.execute_select(query).fetchone()
+
+                if result and result[0] is not None:
+                    # Parse the JSON and extract the requested key
+                    import json
+
+                    try:
+                        json_data = (
+                            json.loads(result[0])
+                            if isinstance(result[0], str)
+                            else result[0]
+                        )
+                        # Return the value from the JSON if it exists, otherwise None
+                        return (
+                            str(json_data.get(json_key))
+                            if json_key in json_data
+                            else None
+                        )
+                    except (json.JSONDecodeError, AttributeError):
+                        # If JSON parsing fails or the result is not a valid JSON
+                        return None
+                return None
+            else:
+                # Regular field access
+                query = f"""
+                    SELECT {field} FROM {table} WHERE id = {id_value}
+                """
+                result = self.db.execute_select(query).fetchone()
+                return str(result[0]) if result and result[0] is not None else None
         except Exception as e:
             raise DatabaseError(f"Error getting field {field} from {table}") from e
 
@@ -149,13 +183,55 @@ class FieldAggregator(TransformerPlugin):
 
             if field.transformation == "count":
                 value = len(data)
+            elif field.transformation == "sum":
+                value = data[field.field].sum()
             else:  # direct
-                if field.source == "occurrences":
-                    value = data[field.field].iloc[0] if not data.empty else None
-                else:  # other tables
-                    value = self._get_field_value(
-                        field.source, field.field, config.get("group_id")
-                    )
+                try:
+                    if field.source == "occurrences":
+                        # Handle dot notation for DataFrame columns if needed in the future?
+                        # For now, assume direct field access.
+                        # Potential future enhancement: use json_normalize or similar if column contains dicts.
+                        if not data.empty:
+                            value = data[field.field].iloc[0]
+                        else:
+                            value = None
+                    else:  # DB, import, etc.
+                        field_path = field.field
+                        if "." in field_path:
+                            path_parts = field_path.split(".")
+                            base_field = path_parts[0]
+                            nested_keys = path_parts[1:]
+
+                            # Get the base object/dictionary
+                            base_value = self._get_field_value(
+                                field.source, base_field, config.get("group_id")
+                            )
+
+                            # Navigate through the nested keys
+                            current_value = base_value
+                            if current_value is not None:
+                                for key in nested_keys:
+                                    if isinstance(current_value, dict):
+                                        current_value = current_value.get(
+                                            key
+                                        )  # Use .get() for safety
+                                        if (
+                                            current_value is None
+                                        ):  # Stop if key not found
+                                            break
+                                    # Add elif for list index if needed
+                                    else:  # Cannot navigate further
+                                        current_value = None
+                                        break
+                            value = current_value
+                        else:
+                            # Original logic for non-dotted fields
+                            value = self._get_field_value(
+                                field.source, field.field, config.get("group_id")
+                            )
+                except (KeyError, IndexError, TypeError):
+                    # Handle potential errors during DataFrame access or dict navigation
+                    value = None  # Default to None on error
 
             # Apply labels if any
             if field.labels and str(value) in field.labels:

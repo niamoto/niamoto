@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <!-- Background -->
+  <rect width="800" height="500" fill="#f8f9fa" rx="10" ry="10"/>
+
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">Niamoto Configuration Workflow</text>
+
+  <!-- Config files -->
+  <g transform="translate(0, 20)">
+    <!-- import.yml -->
+    <rect x="50" y="80" width="200" height="80" rx="5" ry="5" fill="#76b852" stroke="#4b7634" stroke-width="2"/>
+    <text x="150" y="120" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">import.yml</text>
+    <text x="150" y="145" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Data source configuration</text>
+
+    <!-- transform.yml -->
+    <rect x="300" y="80" width="200" height="80" rx="5" ry="5" fill="#76b852" stroke="#4b7634" stroke-width="2"/>
+    <text x="400" y="120" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">transform.yml</text>
+    <text x="400" y="145" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Data transformation rules</text>
+
+    <!-- export.yml -->
+    <rect x="550" y="80" width="200" height="80" rx="5" ry="5" fill="#76b852" stroke="#4b7634" stroke-width="2"/>
+    <text x="650" y="120" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">export.yml</text>
+    <text x="650" y="145" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Visualization configuration</text>
+
+    <!-- Data Flow -->
+    <rect x="50" y="220" width="200" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="150" y="255" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">Data Sources</text>
+
+    <rect x="300" y="220" width="200" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="400" y="255" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">Transformed Data</text>
+
+    <rect x="550" y="220" width="200" height="60" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+    <text x="650" y="255" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">Visualization Outputs</text>
+
+    <!-- CLI Commands -->
+    <rect x="50" y="320" width="200" height="60" rx="5" ry="5" fill="#f0ad4e" stroke="#d89b45" stroke-width="2"/>
+    <text x="150" y="340" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">niamoto import</text>
+    <text x="150" y="360" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Load data from sources</text>
+
+    <rect x="300" y="320" width="200" height="60" rx="5" ry="5" fill="#f0ad4e" stroke="#d89b45" stroke-width="2"/>
+    <text x="400" y="340" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">niamoto transform</text>
+    <text x="400" y="360" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Process and analyze data</text>
+
+    <rect x="550" y="320" width="200" height="60" rx="5" ry="5" fill="#f0ad4e" stroke="#d89b45" stroke-width="2"/>
+    <text x="650" y="340" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">niamoto export</text>
+    <text x="650" y="360" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Generate visualizations</text>
+
+    <!-- Connections -->
+    <line x1="150" y1="160" x2="150" y2="220" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="400" y1="160" x2="400" y2="220" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="650" y1="160" x2="650" y2="220" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <line x1="150" y1="280" x2="150" y2="320" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="400" y1="280" x2="400" y2="320" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="650" y1="280" x2="650" y2="320" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <line x1="250" y1="250" x2="300" y2="250" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <line x1="500" y1="250" x2="550" y2="250" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <!-- Legend -->
+    <rect x="70" y="420" width="700" height="60" rx="5" ry="5" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+    <rect x="110" y="435" width="20" height="10" fill="#76b852"/>
+    <text x="140" y="445" font-family="Arial" font-size="12" fill="#333">Configuration Files</text>
+
+    <rect x="280" y="435" width="20" height="10" fill="#4682B4"/>
+    <text x="310" y="445" font-family="Arial" font-size="12" fill="#333">Data States</text>
+
+    <rect x="440" y="435" width="20" height="10" fill="#f0ad4e"/>
+    <text x="470" y="445" font-family="Arial" font-size="12" fill="#333">CLI Commands</text>
+
+    <text x="100" y="470" font-family="Arial" font-size="12" fill="#666">
+        The data flows from source to transformation to visualization, guided by configuration files and processed by CLI commands.
+    </text>
+  </g>
+
+  <!-- Arrowhead marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+  </defs>
+</svg>

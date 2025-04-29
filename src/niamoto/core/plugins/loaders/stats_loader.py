@@ -6,6 +6,7 @@ from typing import Dict, Any, Literal
 import pandas as pd
 from sqlalchemy import text
 import os
+import logging
 
 from niamoto.common.config import Config
 from niamoto.common.exceptions import DataLoadError
@@ -45,6 +46,7 @@ class StatsLoader(LoaderPlugin):
         super().__init__(db)
         self.config = Config()
         self.imports_config = self.config.imports
+        self.logger = logging.getLogger(__name__)
 
     def validate_config(self, config: Dict[str, Any]) -> StatsLoaderConfig:
         """Validate plugin configuration."""
@@ -54,66 +56,46 @@ class StatsLoader(LoaderPlugin):
         self, source_config: Dict[str, Any], group_id: int
     ) -> pd.DataFrame:
         """Load data from a CSV file."""
-        try:
-            # Get the full path to the CSV file
-            base_dir = os.path.dirname(self.config.config_dir)
-            csv_path = os.path.join(base_dir, source_config["path"])
+        base_dir = os.path.dirname(self.config.config_dir)
+        csv_path = os.path.join(base_dir, source_config["path"])
 
-            if not os.path.exists(csv_path):
-                raise DataLoadError(
-                    "CSV file not found",
-                    details={
-                        "path": csv_path,
-                        "base_dir": base_dir,
-                        "source_path": source_config["path"],
-                    },
-                )
-
-            # Try first with comma, then with semicolon if it fails
-            try:
-                data = pd.read_csv(csv_path, encoding="utf-8")
-                if (
-                    len(data.columns) == 1
-                ):  # Si toutes les colonnes sont combinées, essayer avec point-virgule
-                    raise pd.errors.EmptyDataError
-            except (pd.errors.EmptyDataError, pd.errors.ParserError):
-                data = pd.read_csv(csv_path, sep=";", decimal=".", encoding="utf-8")
-
-            # Filter by group_id
-            id_field = source_config.get("identifier", "id")
-            return data[data[id_field] == group_id]
-
-        except Exception as e:
+        if not os.path.exists(csv_path):
             raise DataLoadError(
-                "Failed to load CSV data",
+                "CSV file not found",
                 details={
-                    "error": str(e),
-                    "file": source_config.get("path"),
-                    "base_dir": base_dir if "base_dir" in locals() else None,
-                    "csv_path": csv_path if "csv_path" in locals() else None,
+                    "path": csv_path,
+                    "base_dir": base_dir,
+                    "source_path": source_config["path"],
                 },
             )
+
+        # Try first with comma, then with semicolon if it fails
+        try:
+            data = pd.read_csv(csv_path, encoding="utf-8")
+            if (
+                len(data.columns) == 1
+            ):  # Si toutes les colonnes sont combinées, essayer avec point-virgule
+                raise pd.errors.EmptyDataError
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            data = pd.read_csv(csv_path, sep=";", decimal=".", encoding="utf-8")
+
+        # Filter by group_id
+        id_field = source_config.get("identifier", "id")
+        return data[data[id_field] == group_id]
 
     def _load_from_database(
         self, config: Dict[str, Any], group_id: int
     ) -> pd.DataFrame:
         """Load data from the database."""
-        try:
-            query = text(f"""
-                SELECT m.*
-                FROM {config["data"]} m
-                JOIN {config["grouping"]} ref ON m.{config["key"]} = ref.id
-                WHERE ref.id = :group_id
-            """)
+        query = text(f"""
+            SELECT m.*
+            FROM {config["data"]} m
+            JOIN {config["grouping"]} ref ON m.{config["key"]} = ref.id
+            WHERE ref.id = :group_id
+        """)
 
-            with self.db.engine.connect() as conn:
-                return pd.read_sql(query, conn, params={"group_id": group_id})
-
-        except Exception as e:
-            raise DataLoadError(
-                "Failed to load database data",
-                details={"error": str(e), "config": config},
-            )
+        with self.db.engine.connect() as conn:
+            return pd.read_sql(query, conn, params={"group_id": group_id})
 
     def load_data(self, group_id: int, config: Dict[str, Any]) -> pd.DataFrame:
         """
@@ -152,7 +134,15 @@ class StatsLoader(LoaderPlugin):
                 return self._load_from_database(config, group_id)
 
         except Exception as e:
+            self.logger.exception(
+                f"Failed to load statistics data for group_id {group_id}: {e}"
+            )
+            # Include original error details if available
+            original_details = getattr(
+                e, "details", None
+            )  # Get details attribute, default to None
             raise DataLoadError(
                 "Failed to load statistics data",
-                details={"error": str(e), "group_id": group_id, "config": config},
-            )
+                # Pass details if they exist and are a dict, otherwise empty dict
+                details=original_details if isinstance(original_details, dict) else {},
+            ) from e
