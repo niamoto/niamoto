@@ -421,17 +421,17 @@ def test_setup_api_key_auth_cookie(enricher: ApiTaxonomyEnricher, mocker):
 
 
 def test_setup_api_key_auth_invalid_location(enricher: ApiTaxonomyEnricher, mocker):
-    """Test API key auth setup with an invalid location (should do nothing)."""
+    """Test API key auth setup with an invalid location (should raise ValueError)."""
     mocker.patch.object(enricher, "_get_secure_value", return_value="test_key_abc")
     auth_params = {"key": "abc", "location": "invalid", "name": "whatever"}
     headers = {}
     params = {}
     cookies = {}
-    enricher._setup_api_key_auth(auth_params, headers, params, cookies)
-    assert headers == {}
-    assert params == {}
-    assert cookies == {}
-    enricher._get_secure_value.assert_called_once_with("abc")  # Key is still fetched
+    # Expect a ValueError for the invalid location
+    with pytest.raises(ValueError, match="Invalid api_key location 'invalid'"):
+        enricher._setup_api_key_auth(auth_params, headers, params, cookies)
+    # Check that the key was still fetched before the error
+    enricher._get_secure_value.assert_called_once_with("abc")
 
 
 def test_setup_oauth2_auth_provided_token(enricher: ApiTaxonomyEnricher, mocker):
@@ -498,7 +498,7 @@ def test_setup_oauth2_auth_fetch_token_success(
     }
     from urllib.parse import parse_qs
 
-    assert parse_qs(history.text) == expected_payload
+    assert parse_qs(history.body) == expected_payload
     # Check cache
     cache_key = f"{token_url}_{auth_params['client_id']}_{auth_params.get('scope', '')}"
     assert cache_key in enricher._oauth_tokens

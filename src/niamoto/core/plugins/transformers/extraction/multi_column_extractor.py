@@ -7,6 +7,7 @@ from pydantic import Field, field_validator
 import os
 import pandas as pd
 import geopandas as gpd
+import re
 
 from niamoto.core.plugins.base import (
     TransformerPlugin,
@@ -148,19 +149,54 @@ class MultiColumnExtractor(TransformerPlugin):
             for derived in derived_columns:
                 if "name" in derived and "formula" in derived:
                     formula = derived["formula"]
-                    # Replace column names with actual values from dataframe
+
+                    # Find potential variable names used in the formula
+                    potential_vars = set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", formula))
+                    # Check if these exist in the DataFrame columns
+                    missing_cols = [
+                        var for var in potential_vars if var not in df.columns
+                    ]
+                    # Note: Basic check, might flag built-ins. Refine if needed.
+                    if missing_cols:
+                        # Filter out known non-columns before raising error - basic example
+                        known_non_cols = {
+                            "True",
+                            "False",
+                            "None",
+                            "abs",
+                            "round",
+                            "min",
+                            "max",
+                            "pow",
+                            "len",
+                        }  # Add more if needed
+                        truly_missing = [
+                            m for m in missing_cols if m not in known_non_cols
+                        ]
+                        if truly_missing:
+                            raise ValueError(
+                                f"Column(s) '{', '.join(truly_missing)}' referenced in formula '{formula}' but not found in dataframe columns: {list(df.columns)}"
+                            )
+
+                    # Replace column names with actual values from dataframe (iloc[0] logic)
+                    # Warning: This logic likely calculates based only on the first row.
+                    temp_formula = formula
                     for col in df.columns:
-                        if col in formula:
-                            formula = formula.replace(col, str(df[col].iloc[0]))
+                        if col in temp_formula:  # Simple substring check
+                            # Using str() might have issues depending on data types
+                            temp_formula = temp_formula.replace(
+                                col, str(df[col].iloc[0])
+                            )
                     try:
                         # Evaluate the formula
-                        value = eval(formula)
+                        value = eval(temp_formula)
                         # Add the derived column to the dataframe
                         df[derived["name"]] = value
                     except Exception as e:
+                        # Catch runtime evaluation errors
                         raise ValueError(
-                            f"Error evaluating formula {formula}: {str(e)}"
-                        )
+                            f"Error evaluating formula '{formula}' (evaluated as '{temp_formula}'): {str(e)}"
+                        ) from e
 
             # Extract values from columns
             counts = []
