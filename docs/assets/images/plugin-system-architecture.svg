@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <!-- Background -->
+  <rect width="800" height="600" fill="#f8f9fa" rx="10" ry="10"/>
+
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">Niamoto Plugin System Architecture</text>
+
+  <!-- Core Components -->
+  <rect x="300" y="80" width="200" height="80" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+  <text x="400" y="120" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Plugin Registry</text>
+  <text x="400" y="145" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Central plugin repository</text>
+
+  <rect x="300" y="180" width="200" height="80" rx="5" ry="5" fill="#4682B4" stroke="#2E5984" stroke-width="2"/>
+  <text x="400" y="220" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Plugin Loader</text>
+  <text x="400" y="245" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Discovers and loads plugins</text>
+
+  <!-- Plugin Types -->
+  <rect x="100" y="310" width="150" height="60" rx="5" ry="5" fill="#60B8D4" stroke="#3D8DA1" stroke-width="2"/>
+  <text x="175" y="345" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">Transformer Plugins</text>
+
+  <rect x="280" y="310" width="150" height="60" rx="5" ry="5" fill="#60B8D4" stroke="#3D8DA1" stroke-width="2"/>
+  <text x="355" y="345" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">Loader Plugins</text>
+
+  <rect x="460" y="310" width="150" height="60" rx="5" ry="5" fill="#60B8D4" stroke="#3D8DA1" stroke-width="2"/>
+  <text x="535" y="345" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">Exporter Plugins</text>
+
+  <rect x="640" y="310" width="150" height="60" rx="5" ry="5" fill="#60B8D4" stroke="#3D8DA1" stroke-width="2"/>
+  <text x="715" y="345" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">Widget Plugins</text>
+
+  <!-- Configuration Files -->
+  <rect x="60" y="440" width="175" height="60" rx="5" ry="5" fill="#76b852" stroke="#4b7634" stroke-width="2"/>
+  <text x="147.5" y="470" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">import.yml</text>
+  <text x="147.5" y="488" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Data source configuration</text>
+
+  <rect x="260" y="440" width="175" height="60" rx="5" ry="5" fill="#76b852" stroke="#4b7634" stroke-width="2"/>
+  <text x="347.5" y="470" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">transform.yml</text>
+  <text x="347.5" y="488" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Transformation rules</text>
+
+  <rect x="460" y="440" width="175" height="60" rx="5" ry="5" fill="#76b852" stroke="#4b7634" stroke-width="2"/>
+  <text x="547.5" y="470" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">export.yml</text>
+  <text x="547.5" y="488" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">Visualization and export</text>
+
+  <!-- Custom Plugins Section -->
+  <rect x="60" y="520" width="680" height="60" rx="5" ry="5" fill="#f0ad4e" stroke="#d89b45" stroke-width="2"/>
+  <text x="400" y="550" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#fff">Custom Project Plugins</text>
+  <text x="400" y="568" font-family="Arial" font-size="12" text-anchor="middle" fill="#fff">User-defined plugins in project/plugins directory</text>
+
+  <!-- Connections -->
+  <!-- Registry to Loader -->
+  <line x1="400" y1="160" x2="400" y2="180" stroke="#333" stroke-width="2"/>
+
+  <!-- Loader to Plugin Types -->
+  <line x1="400" y1="260" x2="400" y2="290" stroke="#333" stroke-width="2"/>
+  <line x1="400" y1="290" x2="175" y2="290" stroke="#333" stroke-width="2"/>
+  <line x1="175" y1="290" x2="175" y2="310" stroke="#333" stroke-width="2"/>
+
+  <line x1="400" y1="290" x2="355" y2="290" stroke="#333" stroke-width="2"/>
+  <line x1="355" y1="290" x2="355" y2="310" stroke="#333" stroke-width="2"/>
+
+  <line x1="400" y1="290" x2="535" y2="290" stroke="#333" stroke-width="2"/>
+  <line x1="535" y1="290" x2="535" y2="310" stroke="#333" stroke-width="2"/>
+
+  <line x1="400" y1="290" x2="715" y2="290" stroke="#333" stroke-width="2"/>
+  <line x1="715" y1="290" x2="715" y2="310" stroke="#333" stroke-width="2"/>
+
+  <!-- Plugin Types to Config Files -->
+  <line x1="175" y1="370" x2="175" y2="400" stroke="#333" stroke-width="2"/>
+  <line x1="175" y1="400" x2="147.5" y2="400" stroke="#333" stroke-width="2"/>
+  <line x1="147.5" y1="400" x2="147.5" y2="440" stroke="#333" stroke-width="2"/>
+
+  <line x1="355" y1="370" x2="355" y2="400" stroke="#333" stroke-width="2"/>
+  <line x1="355" y1="400" x2="347.5" y2="400" stroke="#333" stroke-width="2"/>
+  <line x1="347.5" y1="400" x2="347.5" y2="440" stroke="#333" stroke-width="2"/>
+
+  <line x1="535" y1="370" x2="535" y2="400" stroke="#333" stroke-width="2"/>
+  <line x1="535" y1="400" x2="547.5" y2="400" stroke="#333" stroke-width="2"/>
+  <line x1="547.5" y1="400" x2="547.5" y2="440" stroke="#333" stroke-width="2"/>
+
+  <!-- Config Files to Custom Plugins -->
+  <line x1="147.5" y1="500" x2="147.5" y2="520" stroke="#333" stroke-width="2"/>
+  <line x1="347.5" y1="500" x2="347.5" y2="520" stroke="#333" stroke-width="2"/>
+  <line x1="547.5" y1="500" x2="547.5" y2="520" stroke="#333" stroke-width="2"/>
+</svg>

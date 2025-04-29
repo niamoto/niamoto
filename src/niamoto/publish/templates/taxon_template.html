@@ -151,6 +151,44 @@
                 height: 300px;
             }
         }
+
+        .loading-indicator {
+            padding: 8px 10px;
+            background: white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0,0,0,0.1);
+            border-top-color: #007bff;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: spin 1s linear infinite;
+        }
+
+        #imageModal {
+            background: rgba(255, 255, 255, 0); /* Fond semi-transparent noir autour */
+        }
+
+        #imageModal > div {
+            background-color: transparent; /* Rend le fond du conteneur transparent */
+            box-shadow: none; /* Supprime l'ombre si nécessaire */
+        }
+
+        #imageModal img {
+            border-radius: 8px; /* Coins arrondis pour l'image directement */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3); /* Ombre légère autour de l'image */
+        }
+
+
+@keyframes spin {
+    to {transform: rotate(360deg);}
+}
     </style>
 
     <script>
@@ -276,24 +314,24 @@
             };
 
             Object.entries(widgets)
-                .filter(([_, config]) => config.type in initializerMap)  // Ignore les types non gérés
+                .filter(([_, config]) => config.type in initializerMap)  // Ignore unsupported types
                 .forEach(([widgetKey, config]) => {
-                    // Génère l'ID du widget automatiquement si non spécifié
+                    // Automatically generate the widget ID if not specified
                     const suffix = config.type.includes('chart') ? 'Chart' :
                         config.type === 'gauge' ? 'Gauge' : 'Map';
                     const widgetId = config.id || `${widgetKey}${suffix}`;
 
-                    // Pour les cartes, on passe directement stats
+                    // For maps, we directly pass stats
                     if (config.type === 'map_panel') {
                         initializerMap[config.type](widgetId, stats, config);
                         return;
                     }
 
-                    // Pour les autres widgets, on vérifie la source dans stats
+                    // For other widgets, we check the source in stats
                     const data = _.get(stats, config.source);
-                    if (!data) return;  // Skip si pas de données
+                    if (!data) return;  // Skip if no data
 
-                    // Initialise le widget avec la fonction appropriée
+                    // Initialize the widget with the appropriate function
                     initializerMap[config.type](widgetId, data, config);
                 });
         }
@@ -309,14 +347,35 @@
         }
 
         function openCurrentNode($ul, currentId) {
-            const $currentLink = $ul.find(`a[data-id='${currentId}']`);
-            if ($currentLink.length > 0) {
-                $currentLink.parents('ul').each(function () {
-                    $(this).show();
-                    $(this).siblings('span').text('▾');
-                });
+                const $currentLink = $ul.find(`a[data-id='${currentId}']`);
+                if ($currentLink.length > 0) {
+                    // Open all parents as you already do
+                    $currentLink.parents('ul').each(function () {
+                        $(this).show();
+                        $(this).siblings('span').text('▾');
+                    });
+
+                    // Wait a short moment to ensure the nodes are properly opened
+                    setTimeout(() => {
+                        // Scroll to the selected element
+                        const container = document.getElementById('taxonomy-tree-container');
+                        const element = $currentLink[0];
+
+                        if (container && element) {
+                            // Calculate the scroll position to center the element if possible
+                            const elementRect = element.getBoundingClientRect();
+                            const containerRect = container.getBoundingClientRect();
+                            const offset = elementRect.top - containerRect.top - (containerRect.height / 2) + (elementRect.height / 2);
+
+                            // Perform scrolling with smooth animation
+                            container.scrollTo({
+                                top: container.scrollTop + offset,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }, 100); // A short delay to ensure the DOM is updated
+                }
             }
-        }
 
         function createTree(container, taxonomyData) {
             const baseUrl = getBaseUrl();
@@ -369,171 +428,238 @@
         // Map Management
         // =====================================
         function initMap(mapId, data, mapConfig) {
-            const mapContainer = document.getElementById(mapId);
-            if (!mapContainer) return;
+                const mapContainer = document.getElementById(mapId);
+                if (!mapContainer) return;
 
-            // Base configuration
-            const defaultZoom = 7;
+                // Get map configuration from widget config or defaults
+                const baseLayersConfig = (mapConfig.map_config && mapConfig.map_config.base_layers) ||
+                (mapping.map_config && mapping.map_config.base_layers) ||
+                []; // Fallback to empty array if no config
 
-            // Base layers with backup options
-            const baseLayers = {
-                "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-                    layers: '0',
-                    format: 'image/png',
-                    transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
-                    timeout: 5000
-                }),
-                "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-                    layers: '0',
-                    format: 'image/png',
-                    transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
-                    timeout: 5000
-                }),
-                // Backup map sources (global)
-                "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }),
-                // Alternative satellite imagery
-                "ESRI Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-                })
-            };
+                // Default configurations
+                const defaultZoom = (mapConfig.map_config && mapConfig.map_config.default_zoom) ||
+                (mapping.map_config && mapping.map_config.default_zoom) || 7;
+                const maxZoom = (mapConfig.map_config && mapConfig.map_config.max_zoom) ||
+                (mapping.map_config && mapping.map_config.max_zoom) || 12;
 
-            // Tracker to check if primary map sources are available
-            let primaryLayerAvailable = false;
-            let primaryLayersLoaded = 0;
-            const totalPrimaryLayers = 2; // Number of primary layers (Satellite and Carte)
+                // Base layers with global defaults
+                const baseLayers = {};
 
-            // Function to check layer availability
-            function checkLayersAvailability() {
-                if (primaryLayersLoaded >= totalPrimaryLayers && !primaryLayerAvailable) {
-                    // No primary map source is available, switch to ESRI Satellite
-                    console.log("Primary map sources are unavailable, using ESRI Satellite");
-                    map.removeLayer(baseLayers["Satellite"]);
-                    map.addLayer(baseLayers["ESRI Satellite"]);
+                // Always include global backups for reliability
+                baseLayers["OpenStreetMap"] = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: maxZoom
+                });
+
+                baseLayers["ESRI Satellite"] = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: maxZoom
+                });
+
+                // Add configured layers
+                let defaultLayer = baseLayers["ESRI Satellite"]; // Fallback default
+
+                baseLayersConfig.forEach(layerConfig => {
+                    // Create layer based on type (WMS or standard)
+                    if (layerConfig.url_wms) {
+                        // WMS layer
+                        baseLayers[layerConfig.name] = L.tileLayer.wms(layerConfig.url_wms, {
+                        layers: layerConfig.wms_layers || '0',
+                        format: layerConfig.format || 'image/png',
+                        transparent: true,
+                        attribution: layerConfig.attribution || '',
+                        maxZoom: maxZoom,
+                        timeout: 5000
+                        });
+                    } else if (layerConfig.url) {
+                        // Standard tile layer
+                        baseLayers[layerConfig.name] = L.tileLayer(layerConfig.url, {
+                        attribution: layerConfig.attribution || '',
+                        maxZoom: maxZoom
+                        });
+                    }
+
+                    // Set as default layer if specified
+                    if (layerConfig.default && baseLayers[layerConfig.name]) {
+                        defaultLayer = baseLayers[layerConfig.name];
+                    }
+                });
+
+                // Create map with default layer
+                const map = L.map(mapId, {
+                    layers: [defaultLayer],
+                    zoom: defaultZoom,
+                    maxZoom: maxZoom,
+                    scrollWheelZoom: false
+                });
+
+                // Add layer control
+                L.control.layers(baseLayers).addTo(map);
+                map.attributionControl.setPrefix(false);
+
+                // Determine the data source based on mapConfig
+                const dataSource = mapConfig.source;
+
+                // Create a marker cluster group with custom options for better performance
+                const markers = L.markerClusterGroup({
+                    maxClusterRadius: 30, // Smaller radius makes more, smaller clusters
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true,
+                    disableClusteringAtZoom: 12, // Disable clustering at max zoom
+                    chunkedLoading: true, // Load markers in chunks to avoid freezing
+                    chunkProgress: updateProgressBar // Optional progress callback
+                });
+
+                // Process and add markers
+                setTimeout(() => {
+                    processMarkers(data, dataSource, mapConfig, markers, map);
+                }, 100); // Small delay to allow UI to render first
+
+                // Add empty cluster layer to map immediately (will be populated)
+                map.addLayer(markers);
+
+                // Add a loading indicator
+                const loadingIndicator = L.control({ position: 'topright' });
+                loadingIndicator.onAdd = function (map) {
+                    this._div = L.DomUtil.create('div', 'loading-indicator');
+                    this._div.innerHTML = '<div class="spinner"></div> Loading points...';
+                    return this._div;
+                };
+                loadingIndicator.addTo(map);
+
+                function updateProgressBar(processed, total, elapsed) {
+                    if (processed === total) {
+                        // Hide loading indicator when complete
+                        loadingIndicator.getContainer().style.display = 'none';
+                    }
                 }
             }
 
-            // Create map with Carte as default layer
-            const map = L.map(mapId, {
-                layers: [baseLayers["Satellite"]],
-                zoom: defaultZoom,
-                scrollWheelZoom: false
-            });
+            // Separate function to process markers to avoid blocking the UI
+            function processMarkers(data, dataSource, mapConfig, markers, map) {
+                // Check if the data is in GeoJSON standard format
+                if (data && data[dataSource] && data[dataSource].type === "FeatureCollection") {
+                    const geoJsonData = data[dataSource];
 
-            // Add layer control
-            L.control.layers(baseLayers).addTo(map);
-            map.attributionControl.setPrefix(false);
+                    if (geoJsonData.features && geoJsonData.features.length > 0) {
+                        // Sample large datasets (optional)
+                        let features = geoJsonData.features;
+                        if (features.length > 2000) {
+                            // Sample only first 2000 points to avoid browser freezing
+                            features = features.slice(0, 2000);
+                            console.warn(`Map showing only 2000 points out of ${geoJsonData.features.length}`);
+                        }
 
-            // Set a timeout to automatically switch to backup layer if primary layers don't load quickly
-            let mapLoadTimeout = setTimeout(function() {
-                if (!primaryLayerAvailable) {
-                    console.log("Map load timeout reached, switching to backup layer");
-                    map.removeLayer(baseLayers["Satellite"]);
-                    map.addLayer(baseLayers["ESRI Satellite"]);
-                    // Force the primaryLayersLoaded to avoid further checks
-                    primaryLayersLoaded = totalPrimaryLayers;
+                        // Process in batches to avoid freezing the UI
+                        processBatch(features, 0, 100, markers, mapConfig, map);
+                    }
                 }
-            }, 3000); // 3 seconds timeout
+                // Keep compatibility with the old format
+                else if (data && data[dataSource]) {
+                    const coordinatesSource = mapConfig.layers[0].source;
 
-            // Listen for tile loading events on primary layers
-            baseLayers["Satellite"].on('tileerror', function(error) {
-                console.log("Error loading Satellite layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
+                    if (data[dataSource][coordinatesSource]) {
+                        // Sample large datasets (optional)
+                        let points = data[dataSource][coordinatesSource];
+                        if (points.length > 2000) {
+                            points = points.slice(0, 2000);
+                            console.warn(`Map showing only 2000 points out of ${data[dataSource][coordinatesSource].length}`);
+                        }
 
-            baseLayers["Satellite"].on('load', function() {
-                console.log("Satellite layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
+                        // Process in batches to avoid freezing the UI
+                        processLegacyBatch(points, 0, 100, markers, mapConfig, map);
+                    }
+                }
+            }
 
-            baseLayers["Carte"].on('tileerror', function(error) {
-                console.log("Error loading Carte layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
+            // Process a batch of GeoJSON features
+            function processBatch(features, startIndex, batchSize, markers, mapConfig, map) {
+                const endIndex = Math.min(startIndex + batchSize, features.length);
+                const bounds = [];
 
-            baseLayers["Carte"].on('load', function() {
-                console.log("Carte layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
+                for (let i = startIndex; i < endIndex; i++) {
+                    const feature = features[i];
+                    if (feature.geometry && feature.geometry.type === "Point") {
+                        const coords = feature.geometry.coordinates;
+                        const latLng = [coords[1], coords[0]];
 
-            // Determine the data source based on mapConfig
-            const dataSource = mapConfig.source;
+                        // Create circle marker instead of standard marker for better performance
+                        const marker = L.circleMarker(latLng, {
+                            ...mapConfig.layers[0].style,
+                            radius: 5 // Smaller radius for better performance
+                        });
 
-            // Check if the data is in GeoJSON standard format
-            if (data && data[dataSource] && data[dataSource].type === "FeatureCollection") {
-                const geoJsonData = data[dataSource];
-
-                if (geoJsonData.features && geoJsonData.features.length > 0) {
-                    // Create a group to store all markers
-                    const markers = [];
-
-                    // Add each point to the map
-                    geoJsonData.features.forEach(feature => {
-                        if (feature.geometry && feature.geometry.type === "Point") {
-                            const coords = feature.geometry.coordinates;
-                            // The GeoJSON coordinates are [longitude, latitude]
-                            const marker = L.circle([coords[1], coords[0]], {
-                                ...mapConfig.layers[0].style,
-                            });
-
-                            // Add a popup if necessary
-                            if (feature.properties) {
+                        // Add popup only on click to improve performance
+                        if (feature.properties) {
+                            marker.on('click', function () {
                                 const popupContent = Object.entries(feature.properties)
                                     .map(([key, value]) => `${key}: ${value}`)
                                     .join('<br>');
 
-                                if (popupContent) {
-                                    marker.bindPopup(popupContent);
-                                } else {
-                                    marker.bindPopup("Occurrence");
-                                }
-                            } else {
-                                marker.bindPopup("Occurrence");
-                            }
-                            marker.addTo(map);
-                            markers.push([coords[1], coords[0]]);
+                                marker.bindPopup(popupContent || "Occurrence").openPopup();
+                            });
                         }
-                    });
 
-                    // Adjust the view if markers were added
-                    if (markers.length > 0) {
-                        const bounds = L.latLngBounds(markers);
-                        map.fitBounds(bounds);
+                        markers.addLayer(marker);
+                        bounds.push(latLng);
+                    }
+                }
+
+                // Process next batch or fit bounds
+                if (endIndex < features.length) {
+                    setTimeout(() => {
+                        processBatch(features, endIndex, batchSize, markers, mapConfig, map);
+                    }, 10); // Small timeout to allow UI to update
+                } else {
+                    // All features processed, fit bounds if needed
+                    if (bounds.length > 0) {
+                        map.fitBounds(L.latLngBounds(bounds), {
+                            maxZoom: 12,
+                            padding: [50, 50]
+                        });
                     }
                 }
             }
-            // Keep compatibility with the old format
-            else if (data && data[dataSource]) {
-                const coordinatesSource = mapConfig.layers[0].source;
 
-                if (data[dataSource][coordinatesSource]) {
-                    data[dataSource][coordinatesSource].forEach(point => {
-                        L.circle([point.coordinates[1], point.coordinates[0]], {
-                            ...mapConfig.layers[0].style,
-                        })
-                            .bindPopup(`Occurrences: ${point.count}`)
-                            .addTo(map);
+            // Process a batch of legacy format points
+            function processLegacyBatch(points, startIndex, batchSize, markers, mapConfig, map) {
+                const endIndex = Math.min(startIndex + batchSize, points.length);
+                const bounds = [];
+
+                for (let i = startIndex; i < endIndex; i++) {
+                    const point = points[i];
+                    const latLng = [point.coordinates[1], point.coordinates[0]];
+
+                    const marker = L.circleMarker(latLng, {
+                        ...mapConfig.layers[0].style,
+                        radius: 5 // Smaller radius for better performance
                     });
 
-                    // Ajuster la vue
-                    const bounds = L.latLngBounds(
-                        data[dataSource][coordinatesSource].map(point => [point.coordinates[1], point.coordinates[0]])
-                    );
-                    map.fitBounds(bounds);
+                    // Add popup only on click
+                    marker.on('click', function () {
+                        marker.bindPopup(`Occurrences: ${point.count || 1}`).openPopup();
+                    });
+
+                    markers.addLayer(marker);
+                    bounds.push(latLng);
+                }
+
+                // Process next batch or fit bounds
+                if (endIndex < points.length) {
+                    setTimeout(() => {
+                        processLegacyBatch(points, endIndex, batchSize, markers, mapConfig, map);
+                    }, 10);
+                } else {
+                    // All points processed, fit bounds if needed
+                    if (bounds.length > 0) {
+                        map.fitBounds(L.latLngBounds(bounds), {
+                            maxZoom: 12,
+                            padding: [50, 50]
+                        });
+                    }
                 }
             }
-        }
 
         // =====================================
         // Chart Type Management & Data Processing
@@ -751,7 +877,7 @@
                 dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
             } else if (datasetConfig.backgroundColor) {
                 dataset.backgroundColor = datasetConfig.backgroundColor;
-                dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
+                dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
             } else {
                 dataset.backgroundColor = '#000000';
                 dataset.borderColor = '#000000';
@@ -877,6 +1003,33 @@
 
             // Pour les autres types de graphiques...
             const chartData = prepareChartData(config, data);
+
+            // Vérifier si les données sont vides
+            let hasData = false;
+
+            if (chartData && chartData.datasets) {
+                // Vérifier si au moins un dataset contient des données
+                hasData = chartData.datasets.some(dataset => {
+                    // Vérifier si le dataset a des données et qu'elles ne sont pas toutes nulles/0
+                    return dataset.data &&
+                           dataset.data.length > 0 &&
+                           dataset.data.some(value => value !== null && value !== undefined && value !== 0);
+                });
+            }
+
+            // Si aucune donnée n'est disponible, afficher un message
+            if (!hasData) {
+                if (ctx) {
+                    // Remplacer le canvas par un div avec le message
+                    const container = ctx.parentNode;
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'flex items-center justify-center h-64';
+                    messageDiv.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+                    container.replaceChild(messageDiv, ctx);
+                }
+                return;
+            }
+
             const chartOptions = prepareChartOptions(config);
             const plugins = [];
 
@@ -1026,5 +1179,90 @@
                 });
             }
         };
+
+        /**
+             * Custom plugin for drawing percentage labels on taxonomic distribution chart
+             */
+            window.percentagePlugin = {
+                id: 'percentagePlugin',
+                afterDraw: function (chart) {
+                    const ctx = chart.ctx;
+
+                    // Vérifier si c'est un graphique circulaire ou en barres
+                    if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
+                        // Code original pour les graphiques circulaires
+                        chart.data.datasets.forEach(function (dataset, i) {
+                            const meta = chart.getDatasetMeta(i);
+                            meta.data.forEach(function (element, index) {
+                                // Ne pas afficher si la valeur est trop petite
+                                const value = dataset.data[index];
+                                if (value < 2) return; // Skip small values
+
+                                // Calcul de la position pour l'étiquette
+                                const angle = element.startAngle + (element.endAngle - element.startAngle) / 2;
+                                const radius = (element.innerRadius + element.outerRadius) / 2;
+                                const x = element.x + Math.cos(angle) * radius * 0.7;
+                                const y = element.y + Math.sin(angle) * radius * 0.7;
+
+                                // Dessiner le pourcentage
+                                ctx.save();
+                                ctx.fillStyle = '#FFFFFF';
+                                ctx.font = 'bold 14px system-ui';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+
+                                // Ajouter un contour noir pour améliorer la lisibilité
+                                ctx.strokeStyle = '#000000';
+                                ctx.lineWidth = 3;
+                                ctx.lineJoin = 'round';
+                                ctx.strokeText(value.toFixed(1) + '%', x, y);
+                                ctx.fillText(value.toFixed(1) + '%', x, y);
+
+                                ctx.restore();
+                            });
+                        });
+                    } else if (chart.config.type === 'bar') {
+                        // Nouveau code pour les graphiques en barres
+                        chart.data.datasets.forEach(function (dataset, i) {
+                            const meta = chart.getDatasetMeta(i);
+                            meta.data.forEach(function (element, index) {
+                                const value = dataset.data[index];
+                                if (value < 2) return; // Skip small values
+
+                                // Obtenir les dimensions et la position de la barre
+                                const { x, y, width, height } = element.getProps(['x', 'y', 'width', 'height']);
+
+                                // Calculer le centre de la barre
+                                let centerX, centerY;
+
+                                // Vérifier si c'est un graphique horizontal ou vertical
+                                if (chart.options.indexAxis === 'y') {
+                                    // Graphique horizontal
+                                    centerX = x + width / 2;
+                                    centerY = y;
+                                } else {
+                                    // Graphique vertical
+                                    centerX = x;
+                                    centerY = y + height / 2;
+                                }
+
+                                // Dessiner le pourcentage
+                                ctx.save();
+                                ctx.fillStyle = '#FFFFFF';
+                                ctx.font = 'bold 14px system-ui';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'middle';
+
+                                ctx.strokeStyle = '#000000';
+                                ctx.lineWidth = 3;
+                                ctx.lineJoin = 'round';
+                                ctx.strokeText(value.toFixed(1) + '%', centerX, centerY);
+                                ctx.fillText(value.toFixed(1) + '%', centerX, centerY);
+                                ctx.restore();
+                            });
+                        });
+                    }
+                }
+            };
     </script>
 {% endblock %}

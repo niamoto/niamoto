@@ -236,98 +236,71 @@
 
             var geometry = plot.geometry;
 
-            // Base layers with backup options
-            const baseLayers = {
-                "Satellite": L.tileLayer.wms("https://carto10.gouv.nc/arcgis/services/fond_imagerie/MapServer/WMSServer", {
-                    layers: '0',
-                    format: 'image/png',
-                    transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
-                    timeout: 5000
-                }),
-                "Carte": L.tileLayer.wms('https://carto.gouv.nc/arcgis/services/fond_cartographie/MapServer/WMSServer', {
-                    layers: '0',
-                    format: 'image/png',
-                    transparent: true,
-                    attribution: "<a href='http://www.geoportal.gouv.nc/'>Géorep</a> <i> - Gouvernement de la Nouvelle-Calédonie</i>",
-                    // Add a short timeout to avoid waiting for the full browser timeout
-                    timeout: 5000
-                }),
-                // Backup map sources (global)
-                "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }),
-                // Alternative satellite imagery
-                "ESRI Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-                })
-            };
+            // Get map configuration from widget config or defaults
+            const baseLayersConfig = (mapConfig.map_config && mapConfig.map_config.base_layers) ||
+            (mapping.map_config && mapping.map_config.base_layers) ||
+            []; // Fallback to empty array if no config
 
-            // Tracker to check if primary map sources are available
-            let primaryLayerAvailable = false;
-            let primaryLayersLoaded = 0;
-            const totalPrimaryLayers = 2; // Number of primary layers (Satellite and Carte)
+            // Default configurations
+            const defaultZoom = (mapConfig.map_config && mapConfig.map_config.default_zoom) ||
+            (mapping.map_config && mapping.map_config.default_zoom) || 7;
+            const maxZoom = (mapConfig.map_config && mapConfig.map_config.max_zoom) ||
+            (mapping.map_config && mapping.map_config.max_zoom) || 12;
 
-            // Function to check layer availability
-            function checkLayersAvailability() {
-                if (primaryLayersLoaded >= totalPrimaryLayers && !primaryLayerAvailable) {
-                    // No primary map source is available, switch to ESRI Satellite
-                    console.log("Primary map sources are unavailable, using ESRI Satellite");
-                    map.removeLayer(baseLayers["Satellite"]);
-                    map.addLayer(baseLayers["ESRI Satellite"]);
-                    // Force the primaryLayersLoaded to avoid further checks
-                    primaryLayersLoaded = totalPrimaryLayers;
+            // Base layers with global defaults
+            const baseLayers = {};
+
+            // Always include global backups for reliability
+            baseLayers["OpenStreetMap"] = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: maxZoom
+            });
+
+            baseLayers["ESRI Satellite"] = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            maxZoom: maxZoom
+            });
+
+            // Add configured layers
+            let defaultLayer = baseLayers["ESRI Satellite"]; // Fallback default
+
+            baseLayersConfig.forEach(layerConfig => {
+                // Create layer based on type (WMS or standard)
+                if (layerConfig.url_wms) {
+                    // WMS layer
+                    baseLayers[layerConfig.name] = L.tileLayer.wms(layerConfig.url_wms, {
+                    layers: layerConfig.wms_layers || '0',
+                    format: layerConfig.format || 'image/png',
+                    transparent: true,
+                    attribution: layerConfig.attribution || '',
+                    maxZoom: maxZoom,
+                    timeout: 5000
+                    });
+                } else if (layerConfig.url) {
+                    // Standard tile layer
+                    baseLayers[layerConfig.name] = L.tileLayer(layerConfig.url, {
+                    attribution: layerConfig.attribution || '',
+                    maxZoom: maxZoom
+                    });
                 }
-            }
 
-            // Create map with Satellite as default layer
+                // Set as default layer if specified
+                if (layerConfig.default && baseLayers[layerConfig.name]) {
+                    defaultLayer = baseLayers[layerConfig.name];
+                }
+            });
+
+            // Create map with default layer
             const map = L.map(mapId, {
-                layers: [baseLayers["Satellite"]],
+                layers: [defaultLayer],
+                zoom: defaultZoom,
+                maxZoom: maxZoom,
                 scrollWheelZoom: false
             });
 
             // Add layer control
             L.control.layers(baseLayers).addTo(map);
             map.attributionControl.setPrefix(false);
-
-            // Set a timeout to automatically switch to backup layer if primary layers don't load quickly
-            let mapLoadTimeout = setTimeout(function() {
-                if (!primaryLayerAvailable) {
-                    console.log("Map load timeout reached, switching to backup layer");
-                    map.removeLayer(baseLayers["Satellite"]);
-                    map.addLayer(baseLayers["ESRI Satellite"]);
-                    // Force the primaryLayersLoaded to avoid further checks
-                    primaryLayersLoaded = totalPrimaryLayers;
-                }
-            }, 3000); // 3 seconds timeout
-
-            // Listen for tile loading events on primary layers
-            baseLayers["Satellite"].on('tileerror', function(error) {
-                console.log("Error loading Satellite layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
-
-            baseLayers["Satellite"].on('load', function() {
-                console.log("Satellite layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
-
-            baseLayers["Carte"].on('tileerror', function(error) {
-                console.log("Error loading Carte layer:", error);
-                primaryLayersLoaded++;
-                checkLayersAvailability();
-            });
-
-            baseLayers["Carte"].on('load', function() {
-                console.log("Carte layer loaded successfully");
-                primaryLayerAvailable = true;
-                primaryLayersLoaded++;
-                clearTimeout(mapLoadTimeout); // Clear the timeout as we have a successful load
-            });
 
             // Display plot geometry if available
             if (geometry) {
@@ -344,10 +317,6 @@
                 map.fitBounds(geoJsonLayer.getBounds());
                 var currentZoom = map.getZoom();
                 map.setZoom(currentZoom - 3);
-            } else {
-                console.warn("No geographic coordinates found.");
-                // Set default view if no geometry is found
-                map.setView([-21.291237, 165.516418], 8);
             }
         }
 
@@ -396,7 +365,6 @@
             let labels = [];
 
             if (!config.datasets || !Array.isArray(config.datasets)) {
-                console.warn('No datasets configuration provided');
                 return {labels: [], datasets: []};
             }
 
@@ -581,7 +549,7 @@
                 dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColors;
             } else if (datasetConfig.backgroundColor) {
                 dataset.backgroundColor = datasetConfig.backgroundColor;
-                dataset.borderColor = datasetConfig.borderColor || datasetConfig.backgroundColor;
+                dataset.borderColor = datasetConfig.borderColor || dataset.backgroundColor;
             } else {
                 dataset.backgroundColor = '#000000';
                 dataset.borderColor = '#000000';
@@ -661,7 +629,22 @@
                     return;
                 }
 
-                const value = parseFloat(rawValue.toFixed(1));
+                // Déterminer si nous devons afficher un pourcentage
+                const isPercentage = config.options.format === 'percentage';
+                const multiplier = config.options.multiplier || 1;
+                const precision = config.options.precision !== undefined ? config.options.precision : 1;
+
+                // Calculer la valeur à afficher - Ensure it's a number first
+                let value;
+                if (isPercentage) {
+                    // Pour les pourcentages, multiplier par 100 et arrondir selon la précision demandée
+                    const numericValue = parseFloat(rawValue) || 0;
+                    value = parseFloat((numericValue * multiplier).toFixed(precision));
+                } else {
+                    // Always ensure we have a numeric value before calling toFixed
+                    const numericValue = parseFloat(rawValue) || 0;
+                    value = parseFloat(numericValue.toFixed(precision));
+                }
 
                 const gaugeOptions = {
                     id: widgetId,
@@ -672,7 +655,7 @@
                     title: config.title,
                     gaugeColor: "#eee",
                     levelColors: config.options.sectors.map(s => s.color),
-                    decimals: 1,
+                    decimals: config.options.precision !== undefined ? config.options.precision : 1,
                     gaugeWidthScale: 0.6,
                     counter: true,
                     pointer: true,
@@ -707,6 +690,33 @@
 
             // Pour les autres types de graphiques...
             const chartData = prepareChartData(config, data);
+
+            // Vérifier si les données sont vides
+            let hasData = false;
+
+            if (chartData && chartData.datasets) {
+                // Vérifier si au moins un dataset contient des données
+                hasData = chartData.datasets.some(dataset => {
+                    // Vérifier si le dataset a des données et qu'elles ne sont pas toutes nulles/0
+                    return dataset.data &&
+                           dataset.data.length > 0 &&
+                           dataset.data.some(value => value !== null && value !== undefined && value !== 0);
+                });
+            }
+
+            // Si aucune donnée n'est disponible, afficher un message
+            if (!hasData) {
+                if (ctx) {
+                    // Remplacer le canvas par un div avec le message
+                    const container = ctx.parentNode;
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'flex items-center justify-center h-64';
+                    messageDiv.innerHTML = '<p class="text-gray-500 italic">Pas de données disponibles</p>';
+                    container.replaceChild(messageDiv, ctx);
+                }
+                return;
+            }
+
             const chartOptions = prepareChartOptions(config);
             const plugins = [];
 
@@ -854,6 +864,91 @@
                         ctx.restore();
                     });
                 });
+            }
+        };
+
+        /**
+         * Custom plugin for drawing percentage labels on taxonomic distribution chart
+         */
+        window.percentagePlugin = {
+            id: 'percentagePlugin',
+            afterDraw: function (chart) {
+                const ctx = chart.ctx;
+
+                // Vérifier si c'est un graphique circulaire ou en barres
+                if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
+                    // Code original pour les graphiques circulaires
+                    chart.data.datasets.forEach(function (dataset, i) {
+                        const meta = chart.getDatasetMeta(i);
+                        meta.data.forEach(function (element, index) {
+                            // Ne pas afficher si la valeur est trop petite
+                            const value = dataset.data[index];
+                            if (value < 2) return; // Skip small values
+
+                            // Calcul de la position pour l'étiquette
+                            const angle = element.startAngle + (element.endAngle - element.startAngle) / 2;
+                            const radius = (element.innerRadius + element.outerRadius) / 2;
+                            const x = element.x + Math.cos(angle) * radius * 0.7;
+                            const y = element.y + Math.sin(angle) * radius * 0.7;
+
+                            // Dessiner le pourcentage
+                            ctx.save();
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.font = 'bold 14px system-ui';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+
+                            // Ajouter un contour noir pour améliorer la lisibilité
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 3;
+                            ctx.lineJoin = 'round';
+                            ctx.strokeText(value.toFixed(1) + '%', x, y);
+                            ctx.fillText(value.toFixed(1) + '%', x, y);
+
+                            ctx.restore();
+                        });
+                    });
+                } else if (chart.config.type === 'bar') {
+                    // Nouveau code pour les graphiques en barres
+                    chart.data.datasets.forEach(function (dataset, i) {
+                        const meta = chart.getDatasetMeta(i);
+                        meta.data.forEach(function (element, index) {
+                            const value = dataset.data[index];
+                            if (value < 2) return; // Skip small values
+
+                            // Obtenir les dimensions et la position de la barre
+                            const { x, y, width, height } = element.getProps(['x', 'y', 'width', 'height']);
+
+                            // Calculer le centre de la barre
+                            let centerX, centerY;
+
+                            // Vérifier si c'est un graphique horizontal ou vertical
+                            if (chart.options.indexAxis === 'y') {
+                                // Graphique horizontal
+                                centerX = x + width / 2;
+                                centerY = y;
+                            } else {
+                                // Graphique vertical
+                                centerX = x;
+                                centerY = y + height / 2;
+                            }
+
+                            // Dessiner le pourcentage
+                            ctx.save();
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.font = 'bold 14px system-ui';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+
+                            ctx.strokeStyle = '#000000';
+                            ctx.lineWidth = 3;
+                            ctx.lineJoin = 'round';
+                            ctx.strokeText(value.toFixed(1) + '%', centerX, centerY);
+                            ctx.fillText(value.toFixed(1) + '%', centerX, centerY);
+                            ctx.restore();
+                        });
+                    });
+                }
             }
         };
     </script>

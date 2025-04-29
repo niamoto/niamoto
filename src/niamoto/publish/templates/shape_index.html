@@ -1,0 +1,280 @@
+{% extends '_base.html' %}
+
+{% block title %}Niamoto - Zones Géographiques{% endblock %}
+
+{% block extra_head %}
+<style>
+    .search-container {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+
+    #searchInput {
+        width: 100%;
+        padding: 0.75rem 1rem 0.75rem 3rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #718096;
+    }
+
+    /* Styles pour les onglets */
+    .tabs-container {
+        margin-bottom: 2rem;
+    }
+
+    .tabs-header {
+        display: flex;
+        overflow-x: auto;
+        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 1rem;
+    }
+
+    .tab-button {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.3s;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+    }
+
+    .tab-button:hover {
+        background-color: #f7fafc;
+    }
+
+    .tab-button.active {
+        border-bottom-color: #4299e1;
+        color: #4299e1;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    .shape-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+
+    .shape-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .shape-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    .shape-card-header {
+        padding: 1rem;
+        background-color: #f7fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .shape-card-body {
+        padding: 1rem;
+    }
+
+    .shape-info {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .shape-info-label {
+        color: #718096;
+        font-size: 0.875rem;
+    }
+
+    .shape-info-value {
+        font-weight: 500;
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 3rem;
+        color: #718096;
+        font-style: italic;
+    }
+
+    .shape-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.25rem 0.75rem;
+        background-color: #edf2f7;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #4a5568;
+        margin-left: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .shape-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .tabs-header {
+            flex-wrap: nowrap;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 mt-16">
+    <h1 class="text-3xl font-bold mb-6">Zones Géographiques</h1>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Rechercher une zone géographique..."
+            aria-label="Rechercher une zone géographique">
+        <svg class="search-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+    </div>
+
+    <div id="noResults" class="no-results hidden">
+        <p>Aucune zone géographique trouvée pour cette recherche.</p>
+    </div>
+
+    <div class="tabs-container" id="shapesContainer">
+        <div class="tabs-header">
+            {% for type_name, type_data in shapes_by_type.items() %}
+            <div class="tab-button{% if loop.first %} active{% endif %}" data-tab="{{ type_name }}">
+                {{ type_data.type_label }}
+                <span class="shape-badge">{{ type_data.shapes|length }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% for type_name, type_data in shapes_by_type.items() %}
+        <div class="tab-content{% if loop.first %} active{% endif %}" data-type="{{ type_name }}">
+            <div class="shape-grid">
+                {% for shape in type_data.shapes %}
+                <a href="{{ depth }}shape/{{ shape.id }}.html" class="shape-card" data-id="{{ shape.id }}"
+                    data-name="{{ shape.name|lower }}" data-type="{{ type_name }}">
+                    <div class="shape-card-header">
+                        <h3 class="font-bold text-lg">{{ shape.name }}</h3>
+                    </div>
+                    <div class="shape-card-body">
+                        {% if shape.land_area_ha is defined %}
+                        <div class="shape-info">
+                            <span class="shape-info-label">Surface totale:</span>
+                            <span class="shape-info-value">{{ '{:,.0f}'.format(shape.land_area_ha)|replace(',', ' ')
+                                }} ha</span>
+                        </div>
+                        {% endif %}
+
+                        {% if shape.forest_area_ha is defined %}
+                        <div class="shape-info">
+                            <span class="shape-info-label">Surface forestière:</span>
+                            <span class="shape-info-value">{{ '{:,.0f}'.format(shape.forest_area_ha)|replace(',', '
+                                ') }} ha</span>
+                        </div>
+                        {% endif %}
+
+                        {% if shape.elevation_median is defined %}
+                        <div class="shape-info">
+                            <span class="shape-info-label">Altitude médiane:</span>
+                            <span class="shape-info-value">{{ shape.elevation_median }} m</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Set up tabs functionality
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const tabName = this.dataset.tab;
+
+                // Remove active class from all buttons and contents
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+
+                // Add active class to current button and content
+                this.classList.add('active');
+                document.querySelector(`.tab-content[data-type="${tabName}"]`).classList.add('active');
+            });
+        });
+
+        // Set up search functionality
+        const searchInput = document.getElementById('searchInput');
+        const shapeCards = document.querySelectorAll('.shape-card');
+        const tabContainers = document.querySelectorAll('.tab-content');
+        const noResultsMessage = document.getElementById('noResults');
+
+        searchInput.addEventListener('input', function () {
+            const searchTerm = this.value.toLowerCase().trim();
+            let hasResults = false;
+
+            if (searchTerm === '') {
+                // If search is empty, restore original tab view
+                shapeCards.forEach(card => {
+                    card.style.display = '';
+                });
+                tabContainers.forEach(container => {
+                    container.style.display = '';
+                });
+                document.querySelector('.tab-button.active').click();
+                noResultsMessage.style.display = 'none';
+                return;
+            }
+
+            // Show all tabs content for searching
+            tabContainers.forEach(container => {
+                container.classList.add('active');
+            });
+
+            // Hide/show cards based on search term
+            shapeCards.forEach(card => {
+                const name = card.dataset.name;
+                const type = card.dataset.type;
+                const matches = name.includes(searchTerm);
+
+                card.style.display = matches ? '' : 'none';
+
+                if (matches) {
+                    hasResults = true;
+                }
+            });
+
+            // Show/hide no results message
+            noResultsMessage.style.display = hasResults ? 'none' : 'block';
+        });
+    });
+</script>
+{% endblock %}

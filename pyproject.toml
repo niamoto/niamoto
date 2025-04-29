@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niamoto"
-version = "0.4.1"
+version = "0.4.2"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -73,8 +73,8 @@ dependencies = [
     "pyarrow>=19.0.0",
     # numpy - Fundamental package for scientific computing in Python.
     # Documentation: https://numpy.org/
-    "numpy>=1.24.0,<2.0.0;python_version>='3.10' and python_version<'3.11'",  # Pour Python 3.10
-    "numpy==2.2.3;python_version>='3.11'",  # Pour Python 3.11+
+    "numpy>=1.24.0,<2.0.0;python_version>='3.10' and python_version<'3.11'", # Pour Python 3.10
+    "numpy==2.2.3;python_version>='3.11'", # Pour Python 3.11+
     # ---------------------------
     # Command Line Interface (CLI)
     # ---------------------------
@@ -109,6 +109,7 @@ dependencies = [
     "rtree>=1.3.0",
     # tomli - TOML parser for Python 3.11 and later.
     "tomli;python_version<'3.11'",
+    "requests>=2.32.3",
 ]
 
 [project.urls]
@@ -147,6 +148,10 @@ dev = [
     # pytest-mock - Thin-wrapper around the mock package for easier use with pytest.
     # Documentation: https://github.com/pytest-dev/pytest-mock
     "pytest-mock>=3.12.0",
+
+    # requests-mock - Mock HTTP requests made by the requests library.
+    # Documentation: https://requests-mock.readthedocs.io/
+    "requests-mock>=1.12.1",
 
     # hypothesis - Library for property-based testing.
     # Documentation: https://hypothesis.readthedocs.io/

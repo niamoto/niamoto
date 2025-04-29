@@ -233,16 +233,19 @@ class ExporterService:
                 taxons = self._get_entities_for_group("taxon")
                 self._generate_taxonomy_tree(taxons)
                 self._generate_all_taxa_json(taxons)
+                self.page_generator.generate_taxon_index_page(taxons)
 
             if not group or group == "plot":
                 plots = self._get_entities_for_group("plot")
                 self._generate_plot_list(plots)
                 self._generate_all_plots_json(plots)
+                self.page_generator.generate_plot_index_page(plots)
 
             if not group or group == "shape":
                 shapes = self._get_entities_for_group("shape")
                 self._generate_shape_list(shapes)
                 self._generate_all_shapes_json(shapes)
+                self.page_generator.generate_shape_index_page(shapes)
 
         except Exception as e:
             raise GenerationError(

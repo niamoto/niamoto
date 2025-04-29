@@ -41,9 +41,18 @@ def import_commands(ctx):
     type=click.Choice(["file", "occurrence"]),
     help="Source of taxonomy data: 'file' (default) or 'occurrence'.",
 )
+@click.option(
+    "--with-api/--no-api",
+    is_flag=True,
+    default=None,
+    help="Enable/disable API enrichment (default is from config).",
+)
 @error_handler(log=True, raise_error=True)
 def import_taxonomy(
-    csvfile: Optional[str], ranks: Optional[str], source: Optional[str] = None
+    csvfile: Optional[str],
+    ranks: Optional[str],
+    source: Optional[str] = None,
+    with_api: Optional[bool] = None,
 ) -> None:
     """
     Import taxonomy data from a CSV file or extract from occurrences.
@@ -52,7 +61,8 @@ def import_taxonomy(
 
     Options:
     --source: Specify the source of taxonomy data ('file' or 'occurrence').
-              If 'occurrence', taxonomy will be extracted from occurrence data.
+    If 'occurrence', taxonomy will be extracted from occurrence data.
+    --with-api: Enable API enrichment (default is from config).
     """
     # Get configuration
     config = Config()
@@ -85,6 +95,26 @@ def import_taxonomy(
             details={"missing": ["ranks"]},
         )
 
+    api_config = None
+    source_def = config.imports.get("taxonomy", {})
+
+    if with_api is not None:  # CLI flag provided
+        if with_api:  # CLI flag set to enable
+            api_config = source_def.get("api_enrichment", {})
+            if not api_config:
+                print_error(
+                    "API enrichment enabled but no configuration found in import.yml"
+                )
+            else:
+                api_config["enabled"] = True
+        else:  # CLI flag set to disable
+            api_config = {"enabled": False}
+    elif source_def.get("api_enrichment", {}).get(
+        "enabled", False
+    ):  # Use config file setting
+        api_config = source_def.get("api_enrichment", {})
+        api_config["enabled"] = True
+
     # Import data
     try:
         importer = ImporterService(config.database_path)
@@ -105,7 +135,7 @@ def import_taxonomy(
                     type: csv
                     path: "imports/occurrences.csv"
                     source: "occurrence"
-                    ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
+                    ranks: "family,genus,species,infra"
                     occurrence_columns:
                         taxon_id: "id_taxonref"
                         family: "family"
@@ -124,12 +154,16 @@ def import_taxonomy(
                 )
 
             result = importer.import_taxonomy_from_occurrences(
-                file_path, tuple(rank_list), occ_columns
+                file_path, tuple(rank_list), occ_columns, api_config
             )
         else:  # Default to file
-            result = importer.import_taxonomy(file_path, tuple(rank_list))
+            result = importer.import_taxonomy(file_path, tuple(rank_list), api_config)
 
         print_info(result)
+
+        if api_config and api_config.get("enabled"):
+            print_info("Taxonomy data enriched with API information.")
+
     except FileError as e:
         raise FileError(
             file_path=file_path,
@@ -147,6 +181,7 @@ def import_taxonomy(
 @click.argument("file", required=False)
 @click.option("--id-field", help="Name of the ID field.")
 @click.option("--location-field", help="Name of the location field.")
+@click.option("--locality-field", help="Name of the locality field.")
 @click.option(
     "--link-field", help="Field in plot_ref to use for linking with occurrences."
 )
@@ -159,6 +194,7 @@ def import_plots(
     file: Optional[str],
     id_field: Optional[str],
     location_field: Optional[str],
+    locality_field: Optional[str],
     link_field: Optional[str],
     occurrence_link_field: Optional[str],
 ) -> None:
@@ -177,12 +213,13 @@ def import_plots(
     sources = config.imports
 
     source_def = validate_source_config(
-        sources, "plots", ["path", "identifier", "location_field"]
+        sources, "plots", ["path", "identifier", "location_field", "locality_field"]
     )
 
     file_path = file or get_source_path(config, "plots")
     id_field = id_field or source_def.get("identifier")
     location_field = location_field or source_def.get("location_field")
+    locality_field = locality_field or source_def.get("locality_field")
     link_field = link_field or source_def.get("link_field")
     occurrence_link_field = occurrence_link_field or source_def.get(
         "occurrence_link_field"
@@ -213,6 +250,7 @@ def import_plots(
             file_path,
             id_field,
             location_field,
+            locality_field,
             link_field=link_field,
             occurrence_link_field=occurrence_link_field,
         )
@@ -375,25 +413,113 @@ def import_all() -> None:
         DataImportError: If any import operation fails
     """
     print_info("Starting full data import...")
-    ctx = click.get_current_context()
+    config = Config()
 
     try:
+        # Create a single ImporterService instance to reuse
+        importer = ImporterService(config.database_path)
+        imports_config = config.imports
+
         # Import taxonomy
-        ctx.invoke(import_taxonomy)
+        print_info("Importing taxonomy...")
+        source_def = validate_source_config(
+            imports_config, "taxonomy", ["path", "ranks"]
+        )
+        file_path = source_def.get("path")
+        rank_list = source_def.get("ranks", "").split(",")
+        tax_source = source_def.get("source", "file")
+
+        # Validate file path first
+        if not os.path.exists(file_path):
+            raise FileError(
+                file_path=file_path,
+                message="File not found",
+                details={"path": file_path},
+            )
+
+        api_config = None
+        if source_def.get("api_enrichment", {}).get("enabled", False):
+            api_config = source_def.get("api_enrichment", {})
+            api_config["enabled"] = True
+
+        reset_table(config.database_path, "taxon_ref")
+
+        if tax_source == "occurrence":
+            occ_columns = source_def.get("occurrence_columns", {})
+            if not occ_columns:
+                raise ConfigurationError(
+                    config_key="taxonomy.occurrence_columns",
+                    message="Missing occurrence columns mapping configuration",
+                    details={
+                        "expected": "dictionary mapping taxonomy fields to occurrence columns"
+                    },
+                )
+            result = importer.import_taxonomy_from_occurrences(
+                file_path, tuple(rank_list), occ_columns, api_config
+            )
+        else:
+            result = importer.import_taxonomy(file_path, tuple(rank_list), api_config)
+        print_info(result)
 
         # Import occurrences
-        ctx.invoke(import_occurrences)
+        print_info("Importing occurrences...")
+        source_def = validate_source_config(
+            imports_config, "occurrences", ["path", "identifier", "location_field"]
+        )
+        file_path = get_source_path(config, "occurrences")
+        taxon_id = source_def.get("identifier")
+        location_field = source_def.get("location_field")
+
+        reset_table(config.database_path, "occurrences")
+        result = importer.import_occurrences(file_path, taxon_id, location_field)
+        print_info(result)
 
         # Import plots
-        ctx.invoke(import_plots)
+        print_info("Importing plots...")
+        source_def = validate_source_config(
+            imports_config,
+            "plots",
+            ["path", "identifier", "location_field", "locality_field"],
+        )
+        file_path = get_source_path(config, "plots")
+        id_field = source_def.get("identifier")
+        location_field = source_def.get("location_field")
+        locality_field = source_def.get("locality_field")
+        link_field = source_def.get("link_field")
+        occurrence_link_field = source_def.get("occurrence_link_field")
+
+        reset_table(config.database_path, "plot_ref")
+        result = importer.import_plots(
+            file_path,
+            id_field,
+            location_field,
+            locality_field,
+            link_field=link_field,
+            occurrence_link_field=occurrence_link_field,
+        )
+        print_info(result)
 
         # Import shapes
-        ctx.invoke(import_shapes)
+        print_info("Importing shapes...")
+        shapes_config = imports_config.get("shapes", [])
+        if shapes_config and isinstance(shapes_config, list):
+            result = importer.import_shapes(shapes_config)
+            print_info(result)
+        else:
+            print_info("No shapes configured, skipping")
+
+        # Import occurrence-plots if configured
+        if "occurrence_plots" in imports_config:
+            print_info("Importing occurrence-plot links...")
+            file_path = get_source_path(config, "occurrence_plots")
+            reset_table(config.database_path, "occurrences_plots")
+            result = importer.import_occurrence_plot_links(file_path)
+            print_info(result)
 
         print_success("Data import completed")
     except Exception as e:
         raise DataImportError(
-            message="Full import failed", details={"last_step": str(e), "error": str(e)}
+            message="Full import failed", details={"error": str(e)}
         ) from e
 
 
