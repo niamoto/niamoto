@@ -3,7 +3,8 @@ from pydantic import field_validator
 from sqlalchemy import text
 import pandas as pd
 
-from niamoto.core.plugins.base import LoaderPlugin, PluginType, register, PluginConfig
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 
 
 class NestedSetConfig(PluginConfig):

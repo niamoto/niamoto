@@ -7,12 +7,8 @@ from typing import Dict, Any, List, Union, Optional
 from pydantic import BaseModel, Field
 import pandas as pd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -133,7 +129,7 @@ class ClassObjectFieldAggregator(TransformerPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
-        validated_config = super().validate_config(config)
+        validated_config = self.config_model(**config)
         params = validated_config.params
 
         # Validate fields configuration

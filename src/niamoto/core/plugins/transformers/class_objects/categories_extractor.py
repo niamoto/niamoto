@@ -4,16 +4,19 @@ Extracts values for ordered categories from a single field.
 """
 
 from typing import Dict, Any, List
-from pydantic import Field
+from pydantic import BaseModel, ValidationError
 import pandas as pd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
+
+
+class CategoriesExtractorParams(BaseModel):
+    """Specific parameters for the Categories Extractor plugin."""
+
+    class_object: str
+    categories_order: List[str]  # Enforce list of strings
 
 
 class ClassObjectCategoriesConfig(PluginConfig):
@@ -21,22 +24,8 @@ class ClassObjectCategoriesConfig(PluginConfig):
 
     plugin: str = "class_object_categories_extractor"
     source: str = "shape_stats"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "class_object": "land_use",
-            "categories_order": [
-                "NUM",
-                "UM",
-                "Sec",
-                "Humide",
-                "Très Humide",
-                "Réserve",
-                "PPE",
-                "Concessions",
-                "Forêt",
-            ],
-        }
-    )
+    # Use the specific params model instead of Dict[str, Any]
+    params: CategoriesExtractorParams
 
 
 @register("class_object_categories_extractor", PluginType.TRANSFORMER)
@@ -45,36 +34,27 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
 
     config_model = ClassObjectCategoriesConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration."""
-        validated_config = super().validate_config(config)
-
-        params = validated_config.params
-
-        # Validate class_object is specified
-        if not params.get("class_object"):
+    def validate_config(self, config: Dict[str, Any]) -> ClassObjectCategoriesConfig:
+        """Validate plugin configuration using Pydantic model."""
+        try:
+            # Pydantic validation handles structure and types (including List[str])
+            validated_config = self.config_model(**config)
+            return validated_config
+        except ValidationError as e:
+            # Re-raise Pydantic errors as DataTransformError for consistency
+            # Get plugin name from input config dict
+            plugin_name = config.get("plugin", "unknown_plugin")
             raise DataTransformError(
-                "class_object must be specified", details={"config": config}
+                f"Invalid configuration for {plugin_name}: {e}",
+                details={"pydantic_error": e.errors(), "config": config},
             )
-
-        # Validate axis configuration
-        axis_config = params.get("axis", {})
-        if not isinstance(axis_config, dict):
+        except Exception as e:  # Catch other potential errors during validation
+            # Get plugin name from input config dict
+            plugin_name = config.get("plugin", "unknown_plugin")
             raise DataTransformError(
-                "axis configuration must be a dictionary", details={"config": config}
+                f"Unexpected error validating configuration for {plugin_name}",
+                details={"error": str(e), "config": config},
             )
-
-        if not axis_config.get("field"):
-            raise DataTransformError(
-                "axis.field must be specified", details={"config": config}
-            )
-
-        if not axis_config.get("output"):
-            raise DataTransformError(
-                "axis.output must be specified", details={"config": config}
-            )
-
-        return validated_config
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, List]:
         """
@@ -99,13 +79,15 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
             }
         """
         try:
-            # Validate configuration
-            validated_config = self.config_model(**config)
-            params = validated_config.params
+            # Use validated config directly if passed or re-validate
+            if isinstance(config, self.config_model):
+                validated_config = config
+            else:
+                validated_config = self.validate_config(config)
 
-            # Get parameters
-            class_object_field = params["class_object"]
-            categories = params["categories_order"]
+            params = validated_config.params
+            class_object_name = params.class_object
+            categories_order = params.categories_order
 
             # Check required columns exist
             required_columns = ["class_object", "class_name", "class_value"]
@@ -122,13 +104,13 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
                 )
 
             # Filter data for this class_object
-            field_data = data[data["class_object"] == class_object_field]
+            field_data = data[data["class_object"] == class_object_name]
 
             if len(field_data) == 0:
                 raise DataTransformError(
-                    f"No data found for class_object {class_object_field}",
+                    f"No data found for class_object {class_object_name}",
                     details={
-                        "field": class_object_field,
+                        "field": class_object_name,
                         "available_class_objects": data["class_object"]
                         .unique()
                         .tolist(),
@@ -136,10 +118,10 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
                 )
 
             # Initialize results with ordered categories
-            results = {"categories": categories, "values": []}
+            results = {"categories": categories_order, "values": []}
 
             # Extract values for each category in order
-            for category in categories:
+            for category in categories_order:
                 # Get value where class_name equals category
                 category_data = field_data[field_data["class_name"] == category]
                 if len(category_data) > 0:

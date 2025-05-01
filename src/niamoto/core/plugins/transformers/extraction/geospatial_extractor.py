@@ -11,12 +11,8 @@ from shapely.geometry import Point
 from shapely.wkb import loads as load_wkb
 from shapely.wkt import loads as load_wkt
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
 from pydantic import field_validator
 

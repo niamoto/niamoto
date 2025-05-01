@@ -12,12 +12,8 @@ from shapely.geometry import mapping
 import topojson as tp
 import yaml
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.database import Database
 
 from shapely.ops import transform
