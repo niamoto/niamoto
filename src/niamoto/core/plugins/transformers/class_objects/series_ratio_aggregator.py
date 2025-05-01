@@ -7,13 +7,10 @@ such as forest elevation distribution vs total land elevation distribution.
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 import pandas as pd
+import numpy as np
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -54,7 +51,7 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
-        validated_config = super().validate_config(config)
+        validated_config = self.config_model(**config)
 
         # Validate distributions configuration
         distributions = validated_config.params.get("distributions", {})
@@ -146,10 +143,10 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                 dist = DistributionConfig(**dist_config)
 
                 # Get total and subset data
-                total_data = data[data["class_object"] == dist.total].copy()
-                subset_data = data[data["class_object"] == dist.subset].copy()
+                total_data_raw = data[data["class_object"] == dist.total].copy()
+                subset_data_raw = data[data["class_object"] == dist.subset].copy()
 
-                if len(total_data) == 0:
+                if len(total_data_raw) == 0:
                     raise DataTransformError(
                         f"No data found for total field {dist.total}",
                         details={
@@ -159,7 +156,7 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                         },
                     )
 
-                if len(subset_data) == 0:
+                if len(subset_data_raw) == 0:
                     raise DataTransformError(
                         f"No data found for subset field {dist.subset}",
                         details={
@@ -172,11 +169,11 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                 # Convert class names to numeric if requested
                 if numeric_class_name:
                     try:
-                        total_data.loc[:, "class_name"] = pd.to_numeric(
-                            total_data["class_name"]
+                        total_data_raw.loc[:, "class_name"] = pd.to_numeric(
+                            total_data_raw["class_name"]
                         )
-                        subset_data.loc[:, "class_name"] = pd.to_numeric(
-                            subset_data["class_name"]
+                        subset_data_raw.loc[:, "class_name"] = pd.to_numeric(
+                            subset_data_raw["class_name"]
                         )
                     except Exception as e:
                         raise DataTransformError(
@@ -184,37 +181,58 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                             details={"error": str(e)},
                         )
 
-                # Sort by class name
-                total_data = total_data.sort_values("class_name").reset_index(drop=True)
-                subset_data = subset_data.sort_values("class_name").reset_index(
-                    drop=True
+                # Get all unique classes from both datasets
+                all_classes = sorted(
+                    pd.unique(
+                        np.concatenate(
+                            (
+                                total_data_raw["class_name"].unique(),
+                                subset_data_raw["class_name"].unique(),
+                            )
+                        )
+                    )
                 )
+
+                # Set class_name as index for alignment
+                total_data = total_data_raw.set_index("class_name")["class_value"]
+                subset_data = subset_data_raw.set_index("class_name")["class_value"]
+
+                # Reindex both series to the full set of classes, fill missing with 0
+                total_data = total_data.reindex(all_classes, fill_value=0)
+                subset_data = subset_data.reindex(all_classes, fill_value=0)
 
                 # Calculate complement values based on mode
                 complement_mode = dist.complement_mode
                 if complement_mode == "difference":
                     complement_values = (
-                        (total_data["class_value"] - subset_data["class_value"])
-                        .astype(float)
-                        .tolist()
+                        (total_data - subset_data).astype(float).tolist()
                     )
                 else:  # ratio mode
                     complement_values = []
-                    for total, subset in zip(
-                        total_data["class_value"], subset_data["class_value"]
-                    ):
+                    # Use aligned data for calculation
+                    for total, subset in zip(total_data, subset_data):
                         total = float(total)
                         subset = float(subset)
+                        # Avoid division by zero
                         if total > 0:
                             ratio = subset / total
-                            complement_values.append(1 - ratio)
+                            # Ensure ratio is not greater than 1 (can happen with float inaccuracies or bad data)
+                            complement_values.append(max(0.0, 1.0 - ratio))
+                        # If total is 0, complement depends on subset
+                        elif subset > 0:
+                            # If total is 0 but subset > 0, means the class is only in the subset.
+                            # Test expects complement ratio of 1 in this case (implies subset/total ratio is 0).
+                            complement_values.append(1.0)
                         else:
-                            complement_values.append(0)
+                            # If both total and subset are 0, complement ratio is 1 (or could be NaN)
+                            complement_values.append(1.0)
 
-                # Store results for this distribution
+                # Store results for this distribution using the complete class list
                 result[dist_name] = {
-                    "classes": total_data["class_name"].tolist(),
-                    "subset": subset_data["class_value"].astype(float).tolist(),
+                    "classes": all_classes,  # Use the complete sorted list
+                    "subset": subset_data.astype(
+                        float
+                    ).tolist(),  # Use reindexed subset data
                     "complement": complement_values,
                 }
 

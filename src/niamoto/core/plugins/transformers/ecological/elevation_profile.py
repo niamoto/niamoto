@@ -15,12 +15,8 @@ from rasterio.mask import mask
 import rasterio.features
 from shapely.geometry import Polygon, MultiPolygon
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 

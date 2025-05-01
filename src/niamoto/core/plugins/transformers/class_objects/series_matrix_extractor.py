@@ -3,17 +3,17 @@ Plugin for extracting and transforming multiple series from class objects into a
 Each series can be scaled and optionally complemented (100 - value).
 """
 
-from typing import Dict, Any
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List
+from pydantic import BaseModel, Field, ValidationError
 import pandas as pd
+import numpy as np
+import logging
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
+
+log = logging.getLogger(__name__)
 
 
 class SeriesConfig(BaseModel):
@@ -33,23 +33,19 @@ class AxisConfig(BaseModel):
     sort: bool = Field(True, description="Sort axis values")
 
 
+class SeriesMatrixParams(BaseModel):
+    """Specific model for the 'params' structure"""
+
+    source: str | None = None
+    axis: AxisConfig
+    series: List[SeriesConfig] = Field(..., min_length=1)
+
+
 class ClassObjectSeriesMatrixConfig(PluginConfig):
     """Configuration for series matrix extractor plugin"""
 
     plugin: str = "class_object_series_matrix_extractor"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "source": "shape_stats",
-            "axis": {"field": "class_name", "numeric": True, "sort": True},
-            "series": [
-                {
-                    "name": "forest_um",
-                    "class_object": "ratio_forest_um_elevation",
-                    "scale": 100,
-                }
-            ],
-        }
-    )
+    params: SeriesMatrixParams
 
 
 @register("class_object_series_matrix_extractor", PluginType.TRANSFORMER)
@@ -58,120 +54,164 @@ class ClassObjectSeriesMatrixExtractor(TransformerPlugin):
 
     config_model = ClassObjectSeriesMatrixConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
+    def validate_config(self, config: Dict[str, Any]) -> ClassObjectSeriesMatrixConfig:
         """Validate plugin configuration"""
-        validated_config = super().validate_config(config)
-
-        # Validate that at least one series is specified
-        series = validated_config.params.get("series", [])
-        if not series:
+        try:
+            validated_config = self.config_model(**config)
+            return validated_config
+        except ValidationError as e:
+            plugin_name = config.get("plugin", "class_object_series_matrix_extractor")
             raise DataTransformError(
-                "At least one series must be specified",
-                details={"config": config},
+                f"Invalid configuration for {plugin_name}: {e}",
+                details={"pydantic_error": e.errors(), "config": config},
             )
-
-        return validated_config
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """Transform shape statistics data into series matrix.
 
         Args:
             data: DataFrame containing shape statistics
-            config: Configuration dictionary with:
-                - params.axis: Configuration for common axis
-                - params.series: List of series configurations
+            config: Configuration dictionary (validated by Pydantic)
 
         Returns:
-            Dictionary with class_name (axis values) and series data
-
-        Example output:
-            {
-                "class_name": [0, 200, 400, 600, 800],
-                "series": {
-                    "forest_um": [20, 30, 40, 30, 20],
-                    "forest_num": [25, 35, 45, 35, 25],
-                    "hors_foret_um": [80, 70, 60, 70, 80],
-                    "hors_foret_num": [75, 65, 55, 65, 75]
-                }
-            }
+            Dictionary with axis values and series data matrix.
         """
         try:
-            # Validate configuration
             validated_config = self.validate_config(config)
             params = validated_config.params
+            axis_config = params.axis
+            series_list = params.series
 
-            # Get axis configuration
-            axis_config = AxisConfig(**params["axis"])
-
-            # Initialize result structure
-            result = {"class_name": [], "series": {}}
-
-            # Process first series to get axis values
-            if not params["series"]:
-                return result
-
-            first_series = params["series"][0]
-            axis_data = data[
-                data["class_object"] == first_series["class_object"]
+            first_series_config = series_list[0]
+            initial_axis_data = data[
+                data["class_object"] == first_series_config.class_object
             ].copy()
 
-            # Convert and sort axis values if configured
+            if initial_axis_data.empty:
+                raise DataTransformError(
+                    f"No data found for initial class_object '{first_series_config.class_object}' needed for axis",
+                    details={"config": config},
+                )
+
+            if axis_config.field not in initial_axis_data.columns:
+                raise DataTransformError(
+                    f"Axis field '{axis_config.field}' not found in data for initial class_object '{first_series_config.class_object}'",
+                    details={"available_columns": initial_axis_data.columns.tolist()},
+                )
+
+            initial_axis_data = initial_axis_data.dropna(subset=[axis_config.field])
+            if initial_axis_data.empty:
+                raise DataTransformError(
+                    f"Axis field '{axis_config.field}' contains only null values for initial class_object '{first_series_config.class_object}'",
+                    details={"config": config},
+                )
+
+            axis_values = initial_axis_data[axis_config.field]
             if axis_config.numeric:
                 try:
-                    axis_data.loc[:, axis_config.field] = pd.to_numeric(
-                        axis_data[axis_config.field]
-                    )
-                except Exception as e:
+                    axis_values = pd.to_numeric(axis_values)
+                except ValueError as e:
                     raise DataTransformError(
-                        "Failed to convert axis values to numeric",
+                        f"Failed to convert axis values to numeric for initial class_object '{first_series_config.class_object}'",
                         details={"error": str(e)},
                     )
 
+            common_axis = axis_values.unique()
             if axis_config.sort:
-                axis_data = axis_data.sort_values(axis_config.field)
+                if pd.api.types.is_numeric_dtype(common_axis) or axis_config.numeric:
+                    common_axis = np.sort(common_axis)
+                else:
+                    try:
+                        common_axis = sorted(common_axis.astype(str))
+                    except Exception:
+                        log.warning(
+                            f"Could not sort non-numeric axis '{axis_config.field}'. Using unique values as is."
+                        )
 
-            # Store axis values
-            result["class_name"] = axis_data[axis_config.field].tolist()
+            result = {axis_config.field: common_axis.tolist(), "series": {}}
+            axis_df = pd.DataFrame({axis_config.field: common_axis})
 
-            # Process each series
-            for series_config in params["series"]:
-                series = SeriesConfig(**series_config)
-
-                # Get series data
-                series_data = data[data["class_object"] == series.class_object].copy()
+            for series_config in series_list:
+                series_data = data[
+                    data["class_object"] == series_config.class_object
+                ].copy()
 
                 if series_data.empty:
-                    raise DataTransformError(
-                        f"No data found for class_object {series.class_object}",
-                        details={
-                            "available_class_objects": data["class_object"]
-                            .unique()
-                            .tolist()
-                        },
+                    log.warning(
+                        f"No data found for class_object '{series_config.class_object}'. Filling series '{series_config.name}' with NaN."
                     )
+                    result["series"][series_config.name] = [np.nan] * len(common_axis)
+                    continue
 
-                # Convert and sort values
+                required_cols = [axis_config.field, "class_value"]
+                if not all(col in series_data.columns for col in required_cols):
+                    log.warning(
+                        f"Missing required columns ({required_cols}) for class_object '{series_config.class_object}'. Filling series '{series_config.name}' with NaN."
+                    )
+                    result["series"][series_config.name] = [np.nan] * len(common_axis)
+                    continue
+
+                series_data = series_data.dropna(subset=required_cols)
+                if series_data.empty:
+                    log.warning(
+                        f"No valid data points (after dropping nulls in {required_cols}) for class_object '{series_config.class_object}'. Filling series '{series_config.name}' with NaN."
+                    )
+                    result["series"][series_config.name] = [np.nan] * len(common_axis)
+                    continue
+
+                current_axis_values = series_data[axis_config.field]
                 if axis_config.numeric:
-                    series_data.loc[:, axis_config.field] = pd.to_numeric(
-                        series_data[axis_config.field]
+                    try:
+                        current_axis_values = pd.to_numeric(current_axis_values)
+                    except Exception as e:
+                        log.warning(
+                            f"Failed to convert axis values to numeric for class_object '{series_config.class_object}'. Skipping series '{series_config.name}'. Error: {e}"
+                        )
+                        result["series"][series_config.name] = [np.nan] * len(
+                            common_axis
+                        )
+                        continue
+                series_data.loc[:, axis_config.field] = current_axis_values
+
+                try:
+                    values = (
+                        series_data["class_value"].astype(float) * series_config.scale
                     )
-                if axis_config.sort:
-                    series_data = series_data.sort_values(axis_config.field)
+                    if series_config.complement:
+                        values = 100 - values
+                except Exception as e:
+                    log.warning(
+                        f"Failed to process values for class_object '{series_config.class_object}'. Skipping series '{series_config.name}'. Error: {e}"
+                    )
+                    result["series"][series_config.name] = [np.nan] * len(common_axis)
+                    continue
 
-                # Convert values to float and apply scale
-                values = series_data["class_value"].astype(float) * series.scale
+                current_series_df = (
+                    pd.DataFrame(
+                        {
+                            axis_config.field: series_data[axis_config.field],
+                            "value": values,
+                        }
+                    )
+                    .groupby(axis_config.field)
+                    .mean()
+                    .reset_index()
+                )
 
-                # Apply complement if configured
-                if series.complement:
-                    values = 100 - values
+                aligned_series = pd.merge(
+                    axis_df, current_series_df, on=axis_config.field, how="left"
+                )
 
-                # Store series values
-                result["series"][series.name] = values.tolist()
+                result["series"][series_config.name] = aligned_series["value"].tolist()
 
             return result
 
+        except DataTransformError:
+            raise
         except Exception as e:
+            log.exception(f"Unexpected error during series matrix extraction: {e}")
             raise DataTransformError(
-                "Failed to extract series matrix",
+                "Failed to extract series matrix due to an unexpected error.",
                 details={"error": str(e), "config": config},
+                cause=e,
             )
