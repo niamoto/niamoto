@@ -2,259 +2,191 @@ import logging
 from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 from pydantic import BaseModel, Field
 
-from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
+from niamoto.core.plugins.base import PluginType, WidgetPlugin, register
 
 logger = logging.getLogger(__name__)
 
 
-# Pydantic model for Stacked Area Plot parameters validation
 class StackedAreaPlotParams(BaseModel):
-    title: Optional[str] = Field(None, description="Optional title for the plot.")
-    x_axis: str = Field(..., description="Field name for the X-axis (often time).")
-    y_axis: str = Field(..., description="Field name for the Y-axis (values).")
-    color_field: str = Field(..., description="Field name used to segment areas.")
-    line_group: Optional[str] = Field(
-        None, description="Field name to group lines within areas (optional)."
+    """Parameters for the Stacked Area Plot widget."""
+
+    title: Optional[str] = None
+    description: Optional[str] = None
+    x_field: str = Field(
+        ..., description="Field name for the X-axis (usually dates/categories)."
     )
-    hover_name: Optional[str] = Field(
-        None, description="Field to display as the main label on hover."
+    y_fields: List[str] = Field(
+        ..., description="List of field names for each area series."
     )
-    hover_data: Optional[List[str]] = Field(
-        None, description="List of additional fields to display on hover."
+    colors: Optional[List[str]] = Field(
+        None, description="Colors for each series (must match y_fields length)."
     )
-    labels: Optional[dict] = Field(
-        None, description="Dictionary to override axis/legend labels."
+    fill_type: str = Field(
+        "tonexty", description="Fill type for areas: 'tonexty', 'tozeroy', etc."
     )
-    color_discrete_map: Optional[dict] = Field(
-        None, description="Explicit color mapping for discrete colors."
+    axis_titles: Optional[Dict[str, str]] = Field(
+        None, description="Custom axis titles {'x': 'X Label', 'y': 'Y Label'}"
+    )
+    hover_template: Optional[str] = Field(
+        None, description="Custom hover template (Plotly format)."
+    )
+    # New fields for data transformation
+    transform: Optional[str] = Field(
+        None,
+        description="Type of transformation to apply to data: 'extract_series', 'unpivot', 'pivot', etc.",
+    )
+    transform_params: Optional[Dict[str, Any]] = Field(
+        None, description="Parameters for the transformation"
+    )
+    # Fields for field mappings
+    field_mapping: Optional[Dict[str, str]] = Field(
+        None, description="Mapping from data fields to expected column names"
     )
 
 
 @register("stacked_area_plot", PluginType.WIDGET)
 class StackedAreaPlotWidget(WidgetPlugin):
-    """Widget to display a stacked area plot using Plotly Express."""
+    """Widget to display a stacked area chart using Plotly."""
 
     param_schema = StackedAreaPlotParams
 
     def get_dependencies(self) -> Set[str]:
-        """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
+        """Return the set of CSS/JS dependencies."""
         return set()
-
-    def _get_nested_data(self, data: Dict, key_path: str) -> Any:
-        """Access nested dictionary data using dot notation.
-
-        Args:
-            data: The dictionary to access
-            key_path: Path to the data using dot notation (e.g., 'elevation.classes')
-
-        Returns:
-            The value at the specified path or None if not found
-        """
-        if not key_path or not isinstance(data, dict):
-            return None
-
-        parts = key_path.split(".")
-        current = data
-
-        for part in parts:
-            if isinstance(current, dict) and part in current:
-                current = current[part]
-            else:
-                return None
-
-        return current
 
     def render(self, data: Optional[Any], params: StackedAreaPlotParams) -> str:
         """Generate the HTML for the stacked area plot."""
-        # Debug info
-        print("\n" + "=" * 80)
-        print(
-            f"DEBUG STACKED_AREA_PLOT - data_source: {getattr(params, 'data_source', 'unknown')}"
-        )
-        print(
-            f"DEBUG STACKED_AREA_PLOT - x_axis: {params.x_axis}, y_axis: {params.y_axis}, color_field: {params.color_field}"
-        )
-        print(f"DEBUG STACKED_AREA_PLOT - data type: {type(data)}")
 
-        if isinstance(data, dict):
-            print(f"DEBUG STACKED_AREA_PLOT - Dict top level keys: {list(data.keys())}")
+        # --- Data Processing --- #
 
-            # Handle nested data and convert dictionary to DataFrame
-            processed_data = None
+        # 1. Apply transformation if specified
+        if params.transform:
+            data = transform_data(data, params.transform, params.transform_params)
 
-            # Structure attendue: {'altitudes': [...], 'type1': [...], 'type2': [...], ...}
-            # Où les types sont des catégories de forêts et les valeurs sont des séries temporelles pour chaque altitude
+        # 2. Create a DataFrame if needed
+        df = None
 
-            altitude_key = "altitudes"
-            if altitude_key in data:
-                print(
-                    "DEBUG STACKED_AREA_PLOT - Detected altitude-forest_type structure"
-                )
-                altitudes = data[altitude_key]
+        # If already a DataFrame, use it
+        if isinstance(data, pd.DataFrame):
+            df = data.copy()
 
-                # Identifie toutes les clés représentant les types de forêts (toutes les clés sauf 'altitudes')
-                forest_type_keys = [key for key in data.keys() if key != altitude_key]
-                print(
-                    "DEBUG STACKED_AREA_PLOT - Forest type keys: {}".format(
-                        forest_type_keys
-                    )
-                )
+        # Process dictionary data based on the specified transformation
+        elif isinstance(data, dict):
+            # Case: Extract series from a structure with x_field and multiple y-series
+            if params.transform == "extract_series" and params.transform_params:
+                # The transform_params should specify where to find the x values and y series
+                x_values = None
+                series_dict = None
 
-                if forest_type_keys and len(altitudes) > 0:
-                    # Créer un DataFrame au format long pour le graphique empilé
-                    rows = []
+                # Get the x values
+                if params.x_field in data:
+                    x_values = data[params.x_field]
 
-                    for altitude_idx, altitude in enumerate(altitudes):
-                        for forest_type in forest_type_keys:
-                            if forest_type in data and altitude_idx < len(
-                                data[forest_type]
-                            ):
-                                # Extraire la valeur pour ce type de forêt à cette altitude
-                                value = data[forest_type][altitude_idx]
+                # Get the series data (could be nested)
+                series_field = params.transform_params.get("series_field")
+                if (
+                    series_field
+                    and series_field in data
+                    and isinstance(data[series_field], dict)
+                ):
+                    series_dict = data[series_field]
 
-                                rows.append(
-                                    {
-                                        "altitude": altitude,
-                                        "forest_type": forest_type,
-                                        "value": value,
-                                    }
-                                )
+                # Create DataFrame if we have both components
+                if x_values is not None and series_dict is not None:
+                    df = pd.DataFrame({params.x_field: x_values})
 
-                    if rows:
-                        processed_data = pd.DataFrame(rows)
-                        # Renommer les colonnes pour correspondre aux paramètres attendus
-                        column_mapping = {
-                            "altitude": params.x_axis,
-                            "forest_type": params.color_field,
-                            "value": params.y_axis,
-                        }
-                        processed_data.rename(columns=column_mapping, inplace=True)
-                        print(
-                            "DEBUG STACKED_AREA_PLOT - Successfully created DataFrame with shape:",
-                            processed_data.shape,
-                        )
-            # If we've successfully processed the data, use it instead of the original
-            if processed_data is not None:
-                data = processed_data
-                print(
-                    "DEBUG STACKED_AREA_PLOT - Processed data to DataFrame with shape: {}".format(
-                        data.shape
-                    )
-                )
+                    # Add each series as a column
+                    for y_field in params.y_fields:
+                        if y_field in series_dict:
+                            df[y_field] = series_dict[y_field]
+
+            # Generic approach - use our utility
             else:
-                print(
-                    "DEBUG STACKED_AREA_PLOT - Could not process dictionary data to DataFrame"
-                )
+                # For stacked area plots, we need to try each y_field
+                # First see if we can create a base DataFrame with x_field
+                base_df = None
+                for y_field in params.y_fields:
+                    temp_df = convert_to_dataframe(
+                        data=data,
+                        x_field=params.x_field,
+                        y_field=y_field,
+                        mapping=params.field_mapping,
+                    )
 
-        # Check if data is a non-empty DataFrame
-        if not isinstance(data, pd.DataFrame) or data.empty:
-            logger.warning(
-                "No data or invalid data type provided to StackedAreaPlotWidget "
-                "(expected non-empty DataFrame)."
-            )
-            # Print data for debugging
-            if data is not None:
-                print(f"DEBUG STACKED_AREA_PLOT - Input data: {data}")
-            return "<p class='info'>No valid data available for stacked area plot.</p>"
+                    if temp_df is not None:
+                        if base_df is None:
+                            base_df = temp_df[[params.x_field, y_field]]
+                        else:
+                            # Add this y_field column to the base DataFrame
+                            base_df[y_field] = temp_df[y_field]
 
-        # Validate required columns
-        required_cols = {params.x_axis, params.y_axis, params.color_field}
-        if params.line_group:
-            required_cols.add(params.line_group)
-        if params.hover_name:
-            required_cols.add(params.hover_name)
-        if params.hover_data:
-            hover_data_list = (
-                params.hover_data
-                if isinstance(params.hover_data, list)
-                else [params.hover_data]
-            )
-            required_cols.update(hover_data_list)
+                df = base_df
 
-        missing_cols = required_cols - set(data.columns)
+        # --- Data Validation --- #
+        if df is None or df.empty:
+            logger.warning("No valid data available for StackedAreaPlotWidget.")
+            return "<p class='info'>No data available for the stacked area plot.</p>"
+
+        # Check that all required columns are present
+        required_cols = {params.x_field} | set(params.y_fields)
+        missing_cols = required_cols - set(df.columns)
+
         if missing_cols:
-            logger.error(
-                f"Missing required columns for StackedAreaPlotWidget: {missing_cols}"
-            )
-            print(
-                f"DEBUG STACKED_AREA_PLOT - Available columns: {data.columns.tolist()}"
-            )
-            return f"<p class='error'>Configuration Error: Missing columns {missing_cols}.</p>"
+            missing_y_fields = set(params.y_fields) & missing_cols
+            if missing_y_fields:
+                # If we're missing some y_fields, we'll continue with those we have
+                available_y_fields = [y for y in params.y_fields if y in df.columns]
+                if not available_y_fields:
+                    logger.error(f"All y_fields are missing: {params.y_fields}")
+                    return "<p class='error'>No series data available. Missing all specified y_fields.</p>"
 
-        # Attempt to convert Y-axis to numeric if it's not already
-        if not pd.api.types.is_numeric_dtype(data[params.y_axis]):
-            try:
-                data[params.y_axis] = pd.to_numeric(
-                    data[params.y_axis], errors="coerce"
+                logger.warning(
+                    f"Some y_fields are missing: {missing_y_fields}. Continuing with: {available_y_fields}"
                 )
-                if data[params.y_axis].isnull().any():
-                    logger.warning(
-                        f"Column '{params.y_axis}' used for Y-axis contains non-numeric values or NaNs after conversion. Plot might be affected."
-                    )
-                    # Optionally drop rows with NaN y-values, or return error
-                    # data.dropna(subset=[params.y_axis], inplace=True)
-                    # For now, let Plotly handle potential issues
-            except Exception as e:
-                logger.error(
-                    f"Failed to convert Y-axis column '{params.y_axis}' to numeric: {e}"
-                )
-                return f"<p class='error'>Data Error: Could not process numeric Y-axis column '{params.y_axis}'.</p>"
+                params.y_fields = available_y_fields
 
-        # Attempt to convert X-axis to datetime if it looks like one, Plotly often handles this
-        # but explicit conversion can be safer
+            # If x_field is missing, it's a critical error
+            if params.x_field in missing_cols:
+                logger.error(f"Missing critical x_field: {params.x_field}")
+                return f"<p class='error'>Missing x-axis field: {params.x_field}</p>"
+
+        # --- Generate Plot --- #
         try:
-            # Basic check if it's not already datetime or numeric (which Plotly can handle)
-            if not pd.api.types.is_datetime64_any_dtype(
-                data[params.x_axis]
-            ) and not pd.api.types.is_numeric_dtype(data[params.x_axis]):
-                data[params.x_axis] = pd.to_datetime(
-                    data[params.x_axis], errors="coerce"
-                )
-                if data[params.x_axis].isnull().any():
-                    logger.warning(
-                        f"Column '{params.x_axis}' used for X-axis contains values that could not be converted to datetime. Plot might be affected."
+            fig = go.Figure()
+
+            # Add traces for each series
+            colors = params.colors or None
+            for i, y_field in enumerate(params.y_fields):
+                color = colors[i] if colors and i < len(colors) else None
+
+                # Create the trace
+                fig.add_trace(
+                    go.Scatter(
+                        x=df[params.x_field],
+                        y=df[y_field],
+                        name=y_field,
+                        fill=params.fill_type,
+                        line=dict(color=color) if color else None,
+                        stackgroup="one",  # Stack traces on top of each other
+                        hovertemplate=params.hover_template
+                        if params.hover_template
+                        else None,
                     )
-                    # data.dropna(subset=[params.x_axis], inplace=True)
-        except Exception as e:
-            logger.warning(
-                f"Could not convert X-axis column '{params.x_axis}' to datetime: {e}. Plotly will attempt to interpret it."
-            )
+                )
 
-        try:
-            # Prepare arguments for px.area, filtering out None values
-            plot_args = {
-                "data_frame": data,
-                "x": params.x_axis,
-                "y": params.y_axis,
-                "color": params.color_field,
-                "line_group": params.line_group,
-                "hover_name": params.hover_name,
-                "hover_data": params.hover_data,
-                "labels": params.labels or {},
-                "title": params.title or "",  # Use Widget title
-                "color_discrete_map": params.color_discrete_map,
-            }
-            plot_args = {k: v for k, v in plot_args.items() if v is not None}
-
-            fig = px.area(**plot_args)
-
-            # Layout updates
+            # Update layout
             fig.update_layout(
-                margin={"r": 10, "t": 30 if params.title else 10, "l": 10, "b": 10},
-                yaxis_title=params.labels.get(params.y_axis, params.y_axis)
-                if params.labels
-                else params.y_axis,
-                xaxis_title=params.labels.get(params.x_axis, params.x_axis)
-                if params.labels
-                else params.x_axis,
-                legend_title_text=params.labels.get(
-                    params.color_field, params.color_field
-                )
-                if params.labels
-                else params.color_field,
+                title=None,  # Handled by container
+                xaxis_title=params.axis_titles.get("x")
+                if params.axis_titles
+                else params.x_field,
+                yaxis_title=params.axis_titles.get("y") if params.axis_titles else None,
+                legend_title_text="Series",
+                margin={"r": 10, "t": 30, "l": 10, "b": 10},
             )
 
             # Render figure to HTML
@@ -263,4 +195,4 @@ class StackedAreaPlotWidget(WidgetPlugin):
 
         except Exception as e:
             logger.exception(f"Error rendering StackedAreaPlotWidget: {e}")
-            return f"<p class='error'>Error generating stacked area plot: {e}</p>"
+            return f"<p class='error'>Error generating stacked area plot: {str(e)}</p>"

@@ -81,13 +81,6 @@ class RadialGaugeWidget(WidgetPlugin):
 
     def render(self, data: Optional[Any], params: RadialGaugeParams) -> str:
         """Generate the HTML for the radial gauge."""
-        # Debug output
-        print("\n" + "=" * 80)
-        print("DEBUG RADIAL_GAUGE - params:", params)
-        print("DEBUG RADIAL_GAUGE - data type:", type(data))
-        if isinstance(data, dict):
-            print("DEBUG RADIAL_GAUGE - data keys:", list(data.keys()))
-
         value = None
         if isinstance(data, pd.DataFrame):
             if data.empty:
@@ -112,11 +105,9 @@ class RadialGaugeWidget(WidgetPlugin):
                     logger.error(
                         f"Nested value field '{params.value_field}' not found in dict."
                     )
-                    print("DEBUG RADIAL_GAUGE - Available data:", data)
                     return f"<p class='error'>Configuration Error: Nested value field '{params.value_field}' missing.</p>"
             elif params.value_field not in data:
                 logger.error(f"Value field '{params.value_field}' not found in dict.")
-                print("DEBUG RADIAL_GAUGE - Available data:", data)
                 return f"<p class='error'>Configuration Error: Value field '{params.value_field}' missing.</p>"
             else:
                 value = data[params.value_field]

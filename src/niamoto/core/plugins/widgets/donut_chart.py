@@ -64,16 +64,6 @@ class DonutChartWidget(WidgetPlugin):
 
     def render(self, data: Optional[Any], params: DonutChartParams) -> str:
         """Generate the HTML for the donut chart or subplots."""
-        # Debug output
-        print("\n" + "=" * 80)
-        print("DEBUG DONUT_CHART - params:", params)
-        print("DEBUG DONUT_CHART - data type:", type(data))
-        if isinstance(data, dict):
-            print("DEBUG DONUT_CHART - data keys:", list(data.keys()))
-            for key in data.keys():
-                print(f"DEBUG DONUT_CHART - data[{key}] type:", type(data[key]))
-                if isinstance(data[key], (list, dict)):
-                    print(f"DEBUG DONUT_CHART - data[{key}] structure:", data[key])
 
         df_plot = None
         fig = None  # Initialize fig
