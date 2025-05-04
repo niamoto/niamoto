@@ -93,32 +93,14 @@ class LinePlotWidget(WidgetPlugin):
 
     def render(self, data: Optional[Any], params: LinePlotParams) -> str:
         """Generate the HTML for the line plot."""
-        # Debug info
-        print("\n" + "=" * 80)
-        print(
-            "DEBUG LINE_PLOT - data_source: {}".format(
-                getattr(params, "data_source", "unknown")
-            )
-        )
-        print(
-            "DEBUG LINE_PLOT - x_axis: {}, y_axis: {}".format(
-                params.x_axis, params.y_axis
-            )
-        )
-        print("DEBUG LINE_PLOT - data type: {}".format(type(data)))
 
         # Process dictionary data
         if isinstance(data, dict):
-            print("DEBUG LINE_PLOT - Dict top level keys: {}".format(list(data.keys())))
-
             # Handle specific case for fragmentation_distribution data
             processed_data = None
 
             # Case 1: Dictionary with direct keys for x and y axes
             if params.x_axis in data and params.y_axis in data:
-                print(
-                    "DEBUG LINE_PLOT - Basic dictionary structure detected with direct keys"
-                )
                 x_values = data[params.x_axis]
                 y_values = (
                     data[params.y_axis]
@@ -153,7 +135,6 @@ class LinePlotWidget(WidgetPlugin):
             elif "sizes" in data and (
                 "areas" in data or "cumulative" in data or "values" in data
             ):
-                print("DEBUG LINE_PLOT - Fragmentation distribution structure detected")
                 x_values = data["sizes"]
 
                 # Determine which field to use for y-axis values
@@ -181,9 +162,6 @@ class LinePlotWidget(WidgetPlugin):
 
             # Case 3: Try using dot notation to access nested data
             elif "." in params.x_axis or "." in params.y_axis:
-                print(
-                    "DEBUG LINE_PLOT - Trying to process dot notation for nested access"
-                )
                 x_data = self._get_nested_data(data, params.x_axis)
                 y_data = self._get_nested_data(
                     data,
@@ -208,15 +186,12 @@ class LinePlotWidget(WidgetPlugin):
 
             # If we've processed data successfully, use it
             if processed_data is not None:
-                print(
-                    "DEBUG LINE_PLOT - Successfully processed dictionary to DataFrame with shape: {}".format(
-                        processed_data.shape
-                    )
-                )
                 data = processed_data
             else:
-                print("DEBUG LINE_PLOT - Could not process dictionary to DataFrame")
-                print("DEBUG LINE_PLOT - Input data: {}".format(data))
+                logger.warning(
+                    "DEBUG LINE_PLOT - Could not process dictionary to DataFrame"
+                )
+                logger.warning("DEBUG LINE_PLOT - Input data: {}".format(data))
 
         # Continue with DataFrame validation and plotting
         if data is None or not isinstance(data, pd.DataFrame) or data.empty:
@@ -247,9 +222,6 @@ class LinePlotWidget(WidgetPlugin):
         if missing_cols:
             logger.error(
                 "Missing required columns for LinePlotWidget: {}".format(missing_cols)
-            )
-            print(
-                "DEBUG LINE_PLOT - Available columns: {}".format(data.columns.tolist())
             )
             return (
                 "<p class='error'>Configuration Error: Missing columns {}.</p>".format(

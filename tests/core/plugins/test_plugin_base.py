@@ -136,9 +136,9 @@ class ConcreteExporterPlugin(ExporterPlugin):
 
     # No config_model or validate_config needed for base class testing
 
-    def execute(self, target_config: "TargetConfig", repository: Any) -> None:  # noqa: F821
+    def export(self, target_config: "TargetConfig", repository: Any) -> None:  # noqa: F821
         """Dummy export implementation."""
-        print("ConcreteExporterPlugin.execute called.")
+        print("ConcreteExporterPlugin.export called.")
         # No return value expected
         pass
 
@@ -151,8 +151,8 @@ class TestExporterPlugin(NiamotoTestCase):
         plugin = ConcreteExporterPlugin(MagicMock())
         self.assertEqual(plugin.type, PluginType.EXPORTER)
 
-    def test_execute_callable(self):
-        """Test the abstract execute method can be called."""
+    def test_export_callable(self):
+        """Test the abstract export method can be called."""
         plugin = ConcreteExporterPlugin(MagicMock())
         # Pass dummy objects for target_config and repository
         mock_target_config = (
@@ -160,10 +160,10 @@ class TestExporterPlugin(NiamotoTestCase):
         )  # In real tests, this would be a TargetConfig instance
         mock_repository = MagicMock()
         try:
-            # Check that execute runs without raising NotImplementedError
-            plugin.execute(target_config=mock_target_config, repository=mock_repository)
+            # Check that export runs without raising NotImplementedError
+            plugin.export(target_config=mock_target_config, repository=mock_repository)
         except Exception as e:
-            self.fail(f"ExporterPlugin.execute raised exception unexpectedly: {e}")
+            self.fail(f"ExporterPlugin.export raised exception unexpectedly: {e}")
 
 
 class ConcreteWidgetPlugin(WidgetPlugin):
