@@ -1,0 +1,26 @@
+{% extends "_layouts/_base.html" %}
+
+{% block content %}
+    {# Try to find a meaningful title for the group #}
+    {% set group_title = group_config.name | default(group_by | title) | default('Group Index') %}
+    {# Define page_title for the base template #}
+    {% set page_title = group_title + ' | ' + (site.title | default('Niamoto Export')) %}
+
+    <h2>{{ group_title }}</h2>
+
+    {% if items %}
+        <ul>
+            {% for item in items %}
+                {# Construct detail URL based on group_config.output_pattern #}
+                {% set item_id_str = item[id_column] | string %}
+                {% set safe_item_id = item_id_str.replace('/', '_').replace('\\', '_') %}
+                {% set detail_url = group_config.output_pattern.format(group_by=group_by, id=safe_item_id) %}
+                {# Attempt to find a display name for the item #}
+                {% set item_name = item.name | default(item.plot_name) | default(item[id_column]) %}
+                <li><a href="{{ detail_url | relative_url }}">{{ item_name }}</a></li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No items found for this group.</p>
+    {% endif %}
+{% endblock %}

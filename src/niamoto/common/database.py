@@ -6,9 +6,8 @@ add instances to the database, and close sessions.
 """
 
 from typing import TypeVar, Any, Optional, List, Dict
-
 from sqlalchemy import create_engine, exc, text, inspect
-from sqlalchemy.orm import scoped_session, sessionmaker, Query, Session
+from sqlalchemy.orm import scoped_session, sessionmaker, Session
 
 from niamoto.common.exceptions import (
     DatabaseError,
@@ -18,6 +17,10 @@ from niamoto.common.exceptions import (
     TransactionError,
 )
 from niamoto.common.utils import error_handler
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -98,27 +101,6 @@ class Database:
             raise DatabaseWriteError(
                 table_name=instance.__tablename__,
                 message="Failed to add and commit instance",
-                details={"error": str(e)},
-            )
-
-    @staticmethod
-    @error_handler(log=True, raise_error=True)
-    def execute_query(query: Query[T]) -> Optional[List[Any]]:
-        """
-        Execute a given query and handle any database-related exceptions.
-
-        Args:
-            query (Query[T]): A SQLAlchemy query object.
-
-        Returns:
-            Optional[List[Any]]: The result of the query if successful, None otherwise.
-        """
-        try:
-            return query.all()
-        except exc.SQLAlchemyError as e:
-            raise DatabaseQueryError(
-                query=str(query),
-                message="Query execution failed",
                 details={"error": str(e)},
             )
 
@@ -261,3 +243,123 @@ class Database:
             raise DatabaseError(
                 message="Failed to rollback transaction", details={"error": str(e)}
             )
+
+    def get_table_columns(self, table_name: str) -> List[str]:
+        """Retrieves the list of column names for a given table."""
+        query = f"PRAGMA table_info({table_name});"
+        try:
+            with self.engine.connect() as connection:
+                result = connection.execute(text(query))
+                columns_info = result.fetchall()
+                # The column name is the second element (index 1) in each row returned by PRAGMA table_info
+                column_names = [row[1] for row in columns_info]
+                if not column_names:
+                    logger.warning(
+                        f"Could not retrieve columns for table '{table_name}', it might not exist or has no columns."
+                    )
+                return column_names
+        except exc.SQLAlchemyError as e:
+            logger.error(
+                f"Database error getting columns for table '{table_name}': {e}"
+            )
+            # Depending on desired strictness, could return empty list or re-raise
+            return []
+        except Exception as e:  # Catch potential issues like table name injection, though PRAGMA is safer
+            logger.error(
+                f"Unexpected error getting columns for table '{table_name}': {e}"
+            )
+            return []
+
+    def fetch_all(
+        self, query: str, params: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """Executes a raw SQL query and returns all results as a list of dictionaries."""
+        session = self.get_new_session()
+        try:
+            result = session.execute(text(query), params)
+            # Use mappings().all() to get results as list of dicts
+            rows = result.mappings().all()
+            logger.debug(
+                f"Executed fetch_all query '{query}' with params {params}. Found {len(rows)} rows."
+            )
+            return rows
+        except exc.SQLAlchemyError as e:
+            logger.error(
+                f"Database error executing fetch_all query '{query}' with params {params}: {e}"
+            )
+            session.rollback()  # Rollback in case of error
+            # Depending on desired behavior, could raise an exception or return empty list
+            raise DatabaseError(
+                message="Failed to execute fetch_all query",
+                details={"query": query, "params": params, "error": str(e)},
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error executing fetch_all query '{query}' with params {params}: {e}",
+                exc_info=True,
+            )
+            session.rollback()
+            raise DatabaseError(
+                message="Unexpected error during fetch_all query",
+                details={"query": query, "params": params, "error": str(e)},
+            )
+        finally:
+            session.close()
+            logger.debug("Session closed after fetch_all.")
+
+    def fetch_one(
+        self, query: str, params: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Executes a raw SQL query and returns the first result as a dictionary, or None if no result."""
+        session = self.get_new_session()
+        try:
+            result = session.execute(text(query), params)
+            # Use mappings().first() to get the first result as a dict (or None)
+            row = result.mappings().first()
+            if row:
+                logger.debug(
+                    f"Executed fetch_one query '{query}' with params {params}. Found row."
+                )
+            else:
+                logger.debug(
+                    f"Executed fetch_one query '{query}' with params {params}. No row found."
+                )
+            return row
+        except exc.SQLAlchemyError as e:
+            logger.error(
+                f"Database error executing fetch_one query '{query}' with params {params}: {e}"
+            )
+            session.rollback()
+            raise DatabaseError(
+                message="Failed to execute fetch_one query",
+                details={"query": query, "params": params, "error": str(e)},
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error executing fetch_one query '{query}' with params {params}: {e}",
+                exc_info=True,
+            )
+            session.rollback()
+            raise DatabaseError(
+                message="Unexpected error during fetch_one query",
+                details={"query": query, "params": params, "error": str(e)},
+            )
+        finally:
+            session.close()
+            logger.debug("Session closed after fetch_one.")
+
+    def execute_query(self, query: str, params: dict = None) -> Any:
+        """Executes a given SQL query using the current session."""
+        session = self.get_new_session()
+        try:
+            result = session.execute(text(query), params)
+            return result.fetchall()
+        except exc.SQLAlchemyError as e:
+            session.rollback()
+            raise DatabaseQueryError(
+                query=query,
+                message="Query execution failed",
+                details={"error": str(e)},
+            )
+        finally:
+            session.close()

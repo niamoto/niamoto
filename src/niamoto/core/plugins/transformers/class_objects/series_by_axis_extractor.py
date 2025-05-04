@@ -7,12 +7,8 @@ from typing import Dict, Any
 from pydantic import BaseModel, Field
 import pandas as pd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -55,7 +51,7 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration"""
-        validated_config = super().validate_config(config)
+        validated_config = self.config_model(**config)
 
         # Validate that at least one type is specified
         types = validated_config.params.get("types", {})
@@ -159,6 +155,10 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
             return result
 
         except Exception as e:
+            # If it's already a DataTransformError, re-raise it to preserve the specific message
+            if isinstance(e, DataTransformError):
+                raise e
+            # Otherwise, wrap it in a generic DataTransformError
             raise DataTransformError(
                 "Failed to extract series by axis",
                 details={"error": str(e), "config": config},

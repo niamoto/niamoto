@@ -8,12 +8,8 @@ from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -57,7 +53,7 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
-        validated_config = super().validate_config(config)
+        validated_config = self.config_model(**config)
 
         # Validate required fields are specified
         params = validated_config.params
