@@ -30,6 +30,13 @@ from .registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
+# List of core plugin modules to load automatically
+CORE_PLUGIN_MODULES = [
+    "niamoto.core.plugins.transformers",
+    "niamoto.core.plugins.exporters",
+    "niamoto.core.plugins.widgets",
+]
+
 
 def is_plugin_class(obj):
     """

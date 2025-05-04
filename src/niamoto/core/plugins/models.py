@@ -130,10 +130,14 @@ class HtmlExporterParams(BasePluginParams):
         "_layouts/_base.html", description="Default base template for pages"
     )
     copy_assets_from: List[str] = Field(
-        default_factory=list, description="List of asset directories to copy"
+        default_factory=list, description="List of user asset directories/files to copy"
     )
     site: SiteConfig = Field(default_factory=SiteConfig)
     navigation: List[NavigationItem] = Field(default_factory=list)
+    include_default_assets: bool = Field(
+        default=True,
+        description="Whether to automatically include Niamoto's default CSS/JS assets",
+    )
 
 
 class GroupConfigWeb(BaseModel):
@@ -141,8 +145,8 @@ class GroupConfigWeb(BaseModel):
 
     group_by: str
     data_source: Optional[str] = None
-    index_template: str
-    page_template: str
+    index_template: Optional[str] = None  # Template for the index page, optional
+    page_template: Optional[str] = None  # Template for the detail page, optional
     output_pattern: str
     index_output_pattern: str
     widgets: List[WidgetConfig]
@@ -290,10 +294,14 @@ class TargetConfig(BaseModel):
                 # Validate params
                 HtmlExporterParams(**params)
                 # Validate groups list contains GroupConfigWeb models
-                self.groups = [GroupConfigWeb(**g) for g in groups]
+                self.groups = [
+                    g if isinstance(g, GroupConfigWeb) else GroupConfigWeb(**g)
+                    for g in groups
+                ]
                 # Validate static_pages (must exist if exporter is html, uses StaticPageConfig)
                 self.static_pages = [
-                    StaticPageConfig(**sp) for sp in (static_pages or [])
+                    sp if isinstance(sp, StaticPageConfig) else StaticPageConfig(**sp)
+                    for sp in (static_pages or [])
                 ]
 
             elif exporter_name == "json_api_exporter":

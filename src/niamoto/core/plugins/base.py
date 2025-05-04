@@ -108,9 +108,9 @@ class ExporterPlugin(Plugin, ABC):
     # Concrete exporters should define: config_model = MyExporterConfig (for overall params)
 
     @abstractmethod
-    def execute(self, target_config: "TargetConfig", repository: Any) -> None:
+    def export(self, target_config: "TargetConfig", repository: Any) -> None:
         """
-        Execute the export process for a specific target configuration.
+        Export data based on the provided target configuration.
 
         Args:
             target_config: The validated Pydantic model representing the

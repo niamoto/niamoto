@@ -1,0 +1,16 @@
+{% extends "_layouts/_base.html" %}
+
+{% block content %}
+    <article>
+        {% if page.title %}
+            <h2>{{ page.title }}</h2>
+        {% endif %}
+
+        {# Content from markdown or loaded file #}
+        {% if page_content_html %}
+            {{ page_content_html | safe }}
+        {% else %}
+            <p><em>(No content provided for this page)</em></p>
+        {% endif %}
+    </article>
+{% endblock %}
