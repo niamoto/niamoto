@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.10, <4"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -794,6 +793,15 @@ wheels = [
 ]
 
 [[package]]
+name = "narwhals"
+version = "1.37.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/13/e1/a602073ef14da8f065b08c178861cf782f08a3676492042566ae3ccc5671/narwhals-1.37.1.tar.gz", hash = "sha256:1eb8f17ff00e6c471d5afb704e9068f41657234eb73bde2ee66ad975a170015b", size = 272029 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/e3/79d95ed89f46b134dd801b54375e362c505303bd739a6737efc14d0de835/narwhals-1.37.1-py3-none-any.whl", hash = "sha256:6f358a23b7351897d6efb45496dc0528918ce4ca6c8f9631594885cd873576a7", size = 332366 },
+]
+
+[[package]]
 name = "niamoto"
 version = "0.4.2"
 source = { editable = "." }
@@ -805,9 +813,11 @@ dependencies = [
     { name = "geoalchemy2" },
     { name = "geopandas" },
     { name = "loguru" },
+    { name = "markdown-it-py" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas" },
+    { name = "plotly" },
     { name = "prompt-toolkit" },
     { name = "pyarrow" },
     { name = "pydantic" },
@@ -867,6 +877,7 @@ requires-dist = [
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.88.3" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8.17.2" },
     { name = "loguru", specifier = ">=0.7.2" },
+    { name = "markdown-it-py", specifier = ">=3.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "myst-parser", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "numpy", marker = "python_full_version == '3.10.*'", specifier = ">=1.24.0,<2.0.0" },
@@ -874,6 +885,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2.1" },
     { name = "pandas-stubs", marker = "extra == 'dev'", specifier = ">=2.1.1.230928" },
     { name = "pathspec", marker = "extra == 'dev'", specifier = ">=0.11.2" },
+    { name = "plotly", specifier = ">=5.20.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "prompt-toolkit", specifier = ">=3.0.43" },
     { name = "pyarrow", specifier = ">=19.0.0" },
@@ -907,7 +919,6 @@ requires-dist = [
     { name = "types-shapely", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "types-tabulate", marker = "extra == 'dev'", specifier = ">=0.9.0.3" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "nodeenv"
@@ -1128,6 +1139,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/13/fc/128cc9cb8f03208bdbf93d3aa862e16d376844a14f9a0ce5cf4507372de4/platformdirs-4.3.6.tar.gz", hash = "sha256:357fb2acbc885b0419afd3ce3ed34564c13c9b95c89360cd9563f73aa5e2b907", size = 21302 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3c/a6/bc1012356d8ece4d66dd75c4b9fc6c1f6650ddd5991e421177d9f8f671be/platformdirs-4.3.6-py3-none-any.whl", hash = "sha256:73e575e1408ab8103900836b97580d5307456908a03e92031bab39e4554cc3fb", size = 18439 },
+]
+
+[[package]]
+name = "plotly"
+version = "6.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "narwhals" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c7/cc/e41b5f697ae403f0b50e47b7af2e36642a193085f553bf7cc1169362873a/plotly-6.0.1.tar.gz", hash = "sha256:dd8400229872b6e3c964b099be699f8d00c489a974f2cfccfad5e8240873366b", size = 8094643 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/02/65/ad2bc85f7377f5cfba5d4466d5474423a3fb7f6a97fd807c06f92dd3e721/plotly-6.0.1-py3-none-any.whl", hash = "sha256:4714db20fea57a435692c548a4eb4fae454f7daddf15f8d8ba7e1045681d7768", size = 14805757 },
 ]
 
 [[package]]
