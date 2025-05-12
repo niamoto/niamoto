@@ -676,6 +676,26 @@ Please make sure to follow our coding standards:
 
 `niamoto` is distributed under the terms of the [GPL-3.0-or-later](https://spdx.org/licenses/GPL-3.0-or-later.html) license.
 
+## Release and Publishing
+
+To release a new version of Niamoto, follow these steps:
+
+1. **Update version** in `pyproject.toml`
+2. **Update CHANGELOG.md** with the changes in the new version
+3. **Build and publish** to PyPI using the publish script:
+
+```bash
+# Option 1: Set token in environment (recommended)
+export PYPI_TOKEN=your-pypi-token-here
+bash scripts/publish.sh
+
+# Option 2: Without environment variable
+bash scripts/publish.sh
+# Then enter "__token__" as username and your PyPI token as password when prompted
+```
+
+**Note**: PyPI no longer supports username/password authentication. You must use an API token, which you can generate at [PyPI Account Management](https://pypi.org/manage/account/) in the "API tokens" section.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each release.
