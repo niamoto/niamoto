@@ -10,7 +10,8 @@ import logging
 
 from niamoto.common.config import Config
 from niamoto.common.exceptions import DataLoadError
-from niamoto.core.plugins.base import LoaderPlugin, PluginType, register, PluginConfig
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 from pydantic import ConfigDict
 
 

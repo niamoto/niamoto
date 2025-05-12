@@ -7,12 +7,8 @@ from pydantic import BaseModel, Field
 import pandas as pd
 import geopandas as gpd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.common.exceptions import DataTransformError
 
