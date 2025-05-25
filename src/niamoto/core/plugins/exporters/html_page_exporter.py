@@ -47,6 +47,7 @@ class HtmlPageExporter(ExporterPlugin):
         """Initialize the exporter with database connection."""
         super().__init__(db)
         self._navigation_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self._navigation_js_generated: Set[str] = set()
 
     def _get_nested_data(
         self, data_dict: Dict[str, Any], key_path: str
@@ -502,6 +503,9 @@ class HtmlPageExporter(ExporterPlugin):
             id_column = f"{group_by_key}_id"
             table_name = group_by_key
 
+            # Generate navigation JS file for this group (only once)
+            self._generate_navigation_js(group_config, output_dir)
+
             # Define the group-specific output directory prefix based on group_by_key
             group_output_path_prefix = group_by_key
             group_output_dir = output_dir / group_output_path_prefix
@@ -678,25 +682,9 @@ class HtmlPageExporter(ExporterPlugin):
 
                                 # Handle data source differently for hierarchical nav widget
                                 if is_hierarchical_nav:
-                                    # For hierarchical nav, get referential data from params
-                                    referential_data_source = widget_config.params.get(
-                                        "referential_data"
-                                    )
-                                    if not referential_data_source:
-                                        logger.error(
-                                            "No 'referential_data' parameter found for hierarchical_nav_widget"
-                                        )
-                                        rendered_widgets[widget_key] = (
-                                            "<!-- Widget Error: Missing 'referential_data' parameter -->"
-                                        )
-                                        continue
-
-                                    # Load navigation data
-                                    final_widget_data = (
-                                        self._load_and_cache_navigation_data(
-                                            referential_data_source
-                                        )
-                                    )
+                                    # For hierarchical nav, we pass a flag to indicate data should be loaded from JS
+                                    # The widget will check for this flag
+                                    final_widget_data = {"load_from_js": True}
 
                                     # Inject current item ID into params
                                     if hasattr(validated_widget_params, "model_dump"):
@@ -913,6 +901,62 @@ class HtmlPageExporter(ExporterPlugin):
                 exc_info=True,
             )
             return []
+
+    def _generate_navigation_js(
+        self, group_config: "GroupConfigWeb", output_dir: Path
+    ) -> None:
+        """
+        Generate JavaScript file with navigation data for a specific group.
+        Only generates once per group to avoid duplication.
+
+        Args:
+            group_config: The group configuration containing hierarchy information
+            output_dir: The output directory for the export
+        """
+        group_by_key = group_config.group_by
+
+        # Check if already generated for this group
+        if group_by_key in self._navigation_js_generated:
+            return
+
+        # Get reference table name based on group
+        reference_table = f"{group_by_key}_ref"
+
+        # Load navigation data
+        navigation_data = self._load_and_cache_navigation_data(reference_table)
+        if not navigation_data:
+            logger.warning(f"No navigation data to generate JS for {group_by_key}")
+            return
+
+        try:
+            # Create JS directory if it doesn't exist
+            js_dir = output_dir / "js"
+            js_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generic filename and variable name based on group
+            js_filename = f"{group_by_key}_navigation.js"
+            var_name = f"{group_by_key}NavigationData"
+
+            # Simply dump all data as-is - let the widget handle the structure
+            # This preserves all original field names and data
+            js_content = f"const {var_name} = {json.dumps(navigation_data, separators=(',', ':'))};"
+
+            # Write JS file
+            js_path = js_dir / js_filename
+            js_path.write_text(js_content, encoding="utf-8")
+
+            # Mark as generated
+            self._navigation_js_generated.add(group_by_key)
+
+            logger.info(
+                f"Generated navigation JS file: {js_path} with variable {var_name}"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to generate navigation JS for {group_by_key}: {e}",
+                exc_info=True,
+            )
 
     def _get_group_index_data(
         self, repository: Database, table_name: str, id_column: str

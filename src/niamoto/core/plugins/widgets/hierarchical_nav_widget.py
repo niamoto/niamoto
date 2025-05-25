@@ -9,7 +9,7 @@ like taxonomies, geographical zones, or any nested set/parent-child relationship
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional, Set
 
 from pydantic import BaseModel, Field
 
@@ -95,24 +95,29 @@ class HierarchicalNavWidget(WidgetPlugin):
             "/assets/css/niamoto_hierarchical_nav.css",
         }
 
-    def render(
-        self, data_list: List[Dict[str, Any]], params: HierarchicalNavWidgetParams
-    ) -> str:
+    def render(self, data_list: Any, params: HierarchicalNavWidgetParams) -> str:
         """
         Generate the HTML for the hierarchical navigation widget.
 
         Args:
-            data_list: Complete list of items from the reference data source
+            data_list: Either the data or a flag to load from JS file
             params: Validated widget parameters including current_item_id
 
         Returns:
             HTML string for the widget
         """
-        if not data_list:
-            logger.warning(
-                f"No data provided for hierarchical navigation widget with source '{params.referential_data}'"
-            )
-            return '<div class="hierarchical-nav-empty">No navigation data available.</div>'
+        # Check if we should load data from JS file
+        load_from_js = isinstance(data_list, dict) and data_list.get(
+            "load_from_js", False
+        )
+
+        # Generate generic file and variable names based on referential_data
+        # Extract group name from referential_data (e.g., "taxon_ref" -> "taxon")
+        group_name = params.referential_data.replace("_ref", "")
+
+        # Use generic naming convention
+        js_file = f"{group_name}_navigation.js"
+        data_var = f"{group_name}NavigationData"
 
         # Process base_url to replace {{ depth }} with appropriate relative path
         base_url = params.base_url
@@ -150,11 +155,11 @@ class HierarchicalNavWidget(WidgetPlugin):
             </div>
         ''')
 
-        # Prepare configuration for JavaScript
+        # Prepare configuration for JavaScript (without data)
         js_config = {
             "containerId": container_id,
             "searchInputId": search_id,
-            "items": data_list,
+            "dataVar": data_var,  # Name of the JS variable containing data
             "params": {
                 "idField": params.id_field,
                 "nameField": params.name_field,
@@ -170,16 +175,41 @@ class HierarchicalNavWidget(WidgetPlugin):
         }
 
         # JavaScript initialization
-        html_parts.append(f"""
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {{
-                if (typeof NiamotoHierarchicalNav !== 'undefined') {{
-                    new NiamotoHierarchicalNav({json.dumps(js_config, ensure_ascii=False)});
-                }} else {{
-                    console.error('NiamotoHierarchicalNav script not loaded. Make sure niamoto_hierarchical_nav.js is included.');
-                }}
-            }});
-            </script>
-        """)
+        if load_from_js:
+            # Load data from external JS file
+            html_parts.append(f"""
+                <script src="../js/{js_file}"></script>
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {{
+                    // Wait for both the widget script and data to be loaded
+                    if (typeof NiamotoHierarchicalNav !== 'undefined' && typeof {data_var} !== 'undefined') {{
+                        const config = {json.dumps(js_config, ensure_ascii=False)};
+                        config.items = {data_var};  // Get data from loaded JS file
+                        new NiamotoHierarchicalNav(config);
+                    }} else {{
+                        if (typeof NiamotoHierarchicalNav === 'undefined') {{
+                            console.error('NiamotoHierarchicalNav script not loaded. Make sure niamoto_hierarchical_nav.js is included.');
+                        }}
+                        if (typeof {data_var} === 'undefined') {{
+                            console.error('Navigation data not loaded. Make sure {js_file} is included and contains {data_var}.');
+                        }}
+                    }}
+                }});
+                </script>
+            """)
+        else:
+            # Use inline data (fallback for compatibility)
+            js_config["items"] = data_list if isinstance(data_list, list) else []
+            html_parts.append(f"""
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {{
+                    if (typeof NiamotoHierarchicalNav !== 'undefined') {{
+                        new NiamotoHierarchicalNav({json.dumps(js_config, ensure_ascii=False)});
+                    }} else {{
+                        console.error('NiamotoHierarchicalNav script not loaded. Make sure niamoto_hierarchical_nav.js is included.');
+                    }}
+                }});
+                </script>
+            """)
 
         return "\n".join(html_parts)
