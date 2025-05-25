@@ -1,0 +1,71 @@
+/* niamoto_hierarchical_nav.css */
+/* Styles for the hierarchical navigation widget - complements Tailwind v4 */
+
+/* Custom scrollbar for tree container */
+.hierarchical-nav-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.hierarchical-nav-container::-webkit-scrollbar-track {
+    background-color: #f3f4f6;
+}
+
+.hierarchical-nav-container::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 3px;
+}
+
+.hierarchical-nav-container::-webkit-scrollbar-thumb:hover {
+    background-color: #9ca3af;
+}
+
+/* Tree node styles */
+.tree-node {
+    user-select: none;
+}
+
+/* Chevron animation */
+.chevron {
+    transition: transform 200ms;
+}
+
+.tree-node.expanded > .tree-node-content .chevron {
+    transform: rotate(90deg);
+}
+
+/* Active node highlight */
+.tree-node-content.active {
+    background-color: rgba(31, 185, 157, 0.1);
+    border-left: 2px solid var(--color-primary);
+}
+
+.tree-node-content.active .tree-node-link {
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+/* Hover effects */
+.tree-node-content:hover {
+    background-color: #f9fafb;
+}
+
+/* Loading animation */
+.loading-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 16rem;
+    color: #6b7280;
+}
+
+.loading-placeholder::after {
+    content: "Loading";
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { content: "Loading"; }
+    25% { content: "Loading."; }
+    50% { content: "Loading.."; }
+    75% { content: "Loading..."; }
+}

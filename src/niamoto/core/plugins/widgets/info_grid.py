@@ -74,11 +74,11 @@ class InfoGridWidget(WidgetPlugin):
     # get_container_html is inherited from WidgetPlugin
 
     def render(self, data: Optional[Any], params: InfoGridParams) -> str:
-        """Generate the HTML for the info grid."""
+        """Generate the HTML for the info grid using Tailwind CSS."""
         # Data IS used now if item.source is specified
         if not params.items:
             logger.warning("No items provided to InfoGridWidget.")
-            return "<p class='info'>No information items configured for this grid.</p>"
+            return "<p class='text-gray-500 italic p-4'>No information items configured for this grid.</p>"
 
         # Check if data is needed but not provided
         if data is None and any(item.source for item in params.items):
@@ -87,17 +87,35 @@ class InfoGridWidget(WidgetPlugin):
             )
             # Optionally return an error, or just render items without sourced values
 
-        # Determine column class (assuming Bootstrap-like grid)
-        col_class = "col"
+        # Determine grid columns for Tailwind
+        grid_cols_class = "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
         if params.grid_columns:
-            if 1 <= params.grid_columns <= 12:
-                # Simple mapping, e.g., 2 -> col-md-6, 3 -> col-md-4, 4 -> col-md-3
-                span = max(1, 12 // params.grid_columns)
-                col_class = f"col-md-{span}"
+            if 1 <= params.grid_columns <= 6:
+                # Map number of columns to Tailwind grid classes
+                grid_cols_mapping = {
+                    1: "grid-cols-1",
+                    2: "grid-cols-1 md:grid-cols-2",
+                    3: "grid-cols-1 md:grid-cols-3",
+                    4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
+                    5: "grid-cols-1 md:grid-cols-3 lg:grid-cols-5",
+                    6: "grid-cols-1 md:grid-cols-3 lg:grid-cols-6",
+                }
+                grid_cols_class = grid_cols_mapping.get(
+                    params.grid_columns, grid_cols_class
+                )
             else:
                 logger.warning(
-                    f"Invalid grid_columns value: {params.grid_columns}. Using auto columns."
+                    f"Invalid grid_columns value: {params.grid_columns}. Using default responsive grid."
                 )
+
+        # Container for the whole widget with title if provided
+        title_html = ""
+        if params.title:
+            title_html = f'<div class="mb-4"><h3 class="text-lg font-medium text-gray-900">{params.title}</h3></div>'
+
+        description_html = ""
+        if params.description:
+            description_html = f'<div class="mb-4"><p class="text-sm text-gray-500">{params.description}</p></div>'
 
         item_html_parts = []
         for item in params.items:
@@ -124,6 +142,10 @@ class InfoGridWidget(WidgetPlugin):
             if item_value is None:
                 continue
 
+            # Check if value is a dictionary with a 'value' key
+            if isinstance(item_value, dict) and "value" in item_value:
+                item_value = item_value["value"]
+
             # Default display value is the string representation
             display_value = str(item_value)
 
@@ -140,35 +162,68 @@ class InfoGridWidget(WidgetPlugin):
 
                 try:
                     # Attempt conversion and formatting
-                    numeric_value = int(value_to_format)
-                    display_value = f"{numeric_value:,}".replace(
-                        ",", " "
-                    )  # French style thousands separator
+                    numeric_value = float(
+                        value_to_format
+                    )  # Use float to handle decimal values
+                    # Format integers without decimal places, otherwise use 2 decimal places
+                    if numeric_value.is_integer():
+                        display_value = f"{int(numeric_value):,}".replace(
+                            ",", " "
+                        )  # French style thousands separator
+                    else:
+                        display_value = f"{numeric_value:,.2f}".replace(
+                            ",", " "
+                        ).replace(".", ",")  # French style formatting
                 except (ValueError, TypeError):
                     logger.warning(
                         f"Could not format value '{value_to_format}' as number for item '{item.label}'."
                     )
 
-            # --- HTML Generation --- #
-            icon_html = f'<i class="{item.icon} mr-2"></i>' if item.icon else ""
-            unit_html = f'<span class="unit">{item.unit}</span>' if item.unit else ""
-            description_html = (
-                f' title="{item.description}"' if item.description else ""
-            )
+            # --- HTML Generation with Tailwind CSS --- #
+            # Handle icons - support for Font Awesome and other icon libraries
+            icon_html = ""
+            if item.icon:
+                if item.icon.startswith("fa"):
+                    # Font Awesome icon
+                    icon_html = f'<i class="{item.icon} mr-2"></i>'
+                else:
+                    # Assume it's a simple icon name and use Font Awesome solid as default
+                    icon_html = f'<i class="fas fa-{item.icon} mr-2"></i>'
 
-            item_html = f'''
-            <div class="{col_class} mb-3 info-grid-item" {description_html}>
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">{icon_html}{item.label}</h5>
-                        <p class="card-text display-5">{display_value}{unit_html}</p>
-                        </div>
+            unit_html = (
+                f'<span class="text-gray-500 text-sm ml-1">{item.unit}</span>'
+                if item.unit
+                else ""
+            )
+            tooltip_attr = f'title="{item.description}"' if item.description else ""
+
+            # Generate HTML for each item with Tailwind styling
+            item_html = f"""
+            <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
+                <div class="flex flex-col h-full">
+                    <div class="text-sm font-medium text-gray-500 mb-1">{icon_html}{item.label}</div>
+                    <div class="text-2xl font-semibold text-gray-900">{display_value}{unit_html}</div>
                 </div>
             </div>
-            '''
+            """
             item_html_parts.append(item_html)
 
-        # Wrap items in a row
-        output_html = f'<div class="row">{" ".join(item_html_parts)}</div>'
+        # If no items were rendered, show a message
+        if not item_html_parts:
+            return (
+                "<p class='text-gray-500 italic p-4'>No data available for display.</p>"
+            )
+
+        # Wrap items in a responsive grid layout
+        items_html = "\n".join(item_html_parts)
+        output_html = f"""
+        <div class="info-grid-widget">
+            {title_html}
+            {description_html}
+            <div class="grid {grid_cols_class} gap-4">
+                {items_html}
+            </div>
+        </div>
+        """
 
         return output_html

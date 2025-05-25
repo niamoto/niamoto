@@ -4,19 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ page_title | default(site.title | default('Niamoto Export')) }}</title>
-    <!-- Basic Styling (can be overridden by user assets) -->
-    <style>
-        body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
-        header, footer { background-color: #f1f1f1; padding: 10px 20px; }
-        nav ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 15px; }
-        nav a { text-decoration: none; color: #333; }
-        main { padding: 20px; flex-grow: 1; }
-        footer { text-align: center; margin-top: auto; }
-        .widget { border: 1px solid #eee; margin-bottom: 15px; padding: 15px; }
-        .widget-title { margin-top: 0; }
-        .widget-description { font-size: 0.9em; color: #555; }
-        pre { background-color: #f8f8f8; border: 1px solid #ddd; padding: 10px; overflow-x: auto; }
-    </style>
+    <!-- Tailwind CSS v4 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1fb99d'
+                    },
+                    gridTemplateColumns: {
+                        '12': 'repeat(12, minmax(0, 1fr))'
+                    },
+                    gridColumn: {
+                        'span-1': 'span 1 / span 1',
+                        'span-2': 'span 2 / span 2',
+                        'span-3': 'span 3 / span 3',
+                        'span-4': 'span 4 / span 4',
+                        'span-5': 'span 5 / span 5',
+                        'span-6': 'span 6 / span 6',
+                        'span-7': 'span 7 / span 7',
+                        'span-8': 'span 8 / span 8',
+                        'span-9': 'span 9 / span 9',
+                        'span-10': 'span 10 / span 10',
+                        'span-11': 'span 11 / span 11',
+                        'span-12': 'span 12 / span 12'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="{{ '/assets/css/font-awesome/6.6.0_all.min.css' | relative_url(depth|default(0)) }}">
+    <!-- Base CSS with custom styles -->
+    <link rel="stylesheet" href="{{ '/assets/css/niamoto.css' | relative_url(depth|default(0)) }}">
+    <link rel="stylesheet" href="{{ '/assets/css/niamoto_hierarchical_nav.css' | relative_url(depth|default(0)) }}">
     <!-- Block for additional CSS/JS dependencies (from widgets or user) -->
     <!-- Jinja filters/functions might be needed for managing assets -->
     {% set css_dependencies = [] %}
@@ -32,44 +54,61 @@
     {% endif %}
 
     {% for css_file in css_dependencies %}
-        <link rel="stylesheet" href="{{ css_file | relative_url }}">
+        <link rel="stylesheet" href="{{ css_file | relative_url(depth|default(0)) }}">
     {% endfor %}
     {% block styles %}{% endblock %}
 </head>
-<body>
-    <header>
-        <h1>{{ site.title | default('Niamoto Export') }}</h1>
-        {% if site.logo_header %}
-            {# Assuming logo path is relative to output_dir/assets #}
-            <img src="{{ ('assets/' + site.logo_header.split('/')[-1]) | relative_url }}" alt="Logo" height="50">
-        {% endif %}
-        {% if navigation %}
-            <nav>
-                <ul>
-                    {% for item in navigation %}
-                        <li><a href="{{ item.url | relative_url }}">{{ item.text }}</a></li>
-                    {% endfor %}
-                </ul>
-            </nav>
-        {% endif %}
+<body class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    {% if site.logo_header %}
+                        <img src="{{ ('/assets/' + site.logo_header) | relative_url(depth|default(0)) }}" alt="Logo" class="h-10 w-auto mr-4">
+                    {% endif %}
+                    <h1 class="text-xl font-semibold text-gray-900">{{ site.title | default('Niamoto Export') }}</h1>
+                </div>
+                {% if navigation %}
+                    <nav>
+                        <ul class="flex space-x-4">
+                            {% for item in navigation %}
+                                <li>
+                                    <a href="{{ item.url | relative_url(depth|default(0)) }}"
+                                       class="nav-link">
+                                        {{ item.text }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
     </header>
 
-    <main>
+    <!-- Main Content -->
+    <main class="flex-1">
         {% block content %}
             <!-- Page specific content goes here -->
         {% endblock %}
     </main>
 
-    <footer>
-        <p>Generated by Niamoto</p>
-        {% if site.logo_footer %}
-             <img src="{{ ('assets/' + site.logo_footer.split('/')[-1]) | relative_url }}" alt="Footer Logo" height="30">
-        {% endif %}
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex justify-between items-center">
+                <p class="text-sm text-gray-600">Generated by Niamoto</p>
+                {% if site.logo_footer %}
+                    <img src="{{ ('/assets/' + site.logo_footer) | relative_url(depth|default(0)) }}" alt="Footer Logo" class="h-8 w-auto">
+                {% endif %}
+            </div>
+        </div>
     </footer>
 
     <!-- Block for JavaScript dependencies -->
     {% for js_file in js_dependencies %}
-        <script src="{{ js_file | relative_url }}"></script>
+        <script src="{{ js_file | relative_url(depth|default(0)) }}"></script>
     {% endfor %}
     {% block scripts %}
     {% endblock %}
