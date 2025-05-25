@@ -9,28 +9,27 @@ exports:
   # ------------------------------------------------------------
   # Cible 1: Génération du Site Web Statique Complet
   # ------------------------------------------------------------
+
   - name: web_pages
     enabled: true
     exporter: html_page_exporter # Plugin gérant la génération du site HTML
 
     params:
       # --- Paramètres Généraux de l'Exportateur HTML ---
-      template_dir: "niamoto_project/templates/" # Où chercher les templates Jinja (priorité au projet)
+      template_dir: "templates/" # Où chercher les templates Jinja (priorité au projet)
       output_dir: "exports/web"                 # Où générer le site web
-      base_template: "_layouts/_base.html"      # Template de base pour toutes les pages
-      copy_assets_from:                         # Dossiers d'assets à copier
-        - "src/niamoto/publish/assets"          # Assets par défaut de Niamoto/Plugin
-        - "niamoto_project/assets/"             # Assets spécifiques du projet (CSS, JS, images...)
+      #base_template: "_layouts/_base.html"      # Template de base pour toutes les pages
+      #include_default_assets: true # This is the default, no need to add unless setting to false
 
       # --- Configuration Globale du Site (disponible dans tous les templates via {{ site.* }}) ---
       site:
         title: "Flore de Nouvelle-Calédonie (Exemple Niamoto)" # Titre affiché (ex: <title>, header)
-        logo_header: "assets/images/logo_site.png"            # Optionnel: Logo pour l'en-tête
-        # logo_footer: "assets/images/logo_partenaire.png"    # Optionnel: Autre logo pour pied de page
+        logo_header: "files/niamoto_logo.png"            # Optionnel: Logo pour l'en-tête
+        logo_footer: "files/niamoto_logo.png"    # Optionnel: Autre logo pour pied de page
         lang: "fr"                                            # Langue pour la balise <html>
         # Ajoutez d'autres métadonnées globales si nécessaire (auteur, description...)
 
-      # --- Configuration de la Navigation Principale (disponible via {{ navigation }}) ---
+      #--- Configuration de la Navigation Principale (disponible via {{ navigation }}) ---
       navigation:
         - text: "Accueil"
           url: "/"                             # Lien vers /exports/web/index.html
@@ -45,23 +44,26 @@ exports:
         - text: "À Propos"
           url: "/about.html"                   # Lien vers page statique
 
+      copy_assets_from:                         # Dossiers d'assets à copier
+        - "templates/assets/"             # Assets spécifiques du projet (CSS, JS, images...)
+
     # --- Définition des Pages Statiques (Accueil, A Propos, etc.) ---
     static_pages:
       # Page d'accueil principale
       - name: home
-        template: "main_index.html"            # Utilise niamoto_project/templates/main_index.html (ou défaut)
+        template: "index.html"            # Utilise niamoto_project/templates/main_index.html (ou défaut)
         output_file: "index.html"              # Génère /exports/web/index.html
         context:                               # Données spécifiques pour cette page
           welcome_title: "Bienvenue"
           intro_text: "Explorez la richesse de la flore de Nouvelle-Calédonie à travers cette plateforme."
 
       # Page "À Propos" (contenu depuis fichier Markdown externe)
-      - name: about
+      - name: export_plugins
         template: "_layouts/static_page.html"  # Utilise un template générique pour page statique
-        output_file: "about.html"
+        output_file: "export_plugins.html"
         context:
-          title: "À Propos de ce Projet"
-          content_source: "niamoto_project/content/about.md" # Chemin vers le fichier Markdown
+          title: "Système d'Export"
+          content_source: "templates/content/export-plugins.md" # Chemin vers le fichier Markdown
 
       # Page "Méthodologie" (contenu directement en Markdown ici)
       - name: methodology
@@ -88,28 +90,40 @@ exports:
 
       # ------------------------- Groupe: Taxon (Plugins Spécialisés) -------------------------
       - group_by: taxon
-        index_template: "taxon/index.html"          # Template pour /exports/web/taxon/index.html
-        page_template: "taxon/detail.html"         # Template pour /exports/web/taxon/{id}.html
+        #index_template: "taxon/index.html"          # Template pour /exports/web/taxon/index.html
+        page_template: "_layouts/group_detail_with_sidebar.html"  # Template avec sidebar pour navigation
         output_pattern: "taxon/{id}.html"
         index_output_pattern: "taxon/index.html"
         widgets: # Widgets utilisés dans taxon/detail.html
+
+          # --- Navigation Hiérarchique ---
+          - plugin: hierarchical_nav_widget
+            title: "Navigation taxonomique"
+            data_source: ""  # Ignoré par ce widget
+            params:
+              referential_data: "taxon_ref"  # Table contenant la hiérarchie complète
+              id_field: "id"
+              name_field: "full_name"
+              # Méthode Nested Set (pour taxonomie)
+              lft_field: "lft"
+              rght_field: "rght"
+              level_field: "level"
+              parent_id_field: "parent_id"  # Optionnel mais utile pour le JS
+              base_url: "{{ depth }}taxon/"  # URL relative avec placeholder
+              show_search: true
 
           # --- Info Panel ---
           - plugin: info_grid # Votre plugin spécialisé pour les infos
             data_source: general_info # Clé où trouver les données
             params:
               title: "Informations générales"
-              layout: grid # Option de mise en page
-              fields: # Liste des champs à afficher
+              grid_columns: 2
+              items:
                 - { source: name, label: Taxon }
                 - { source: parent_family, label: "Famille" }
                 - { source: parent_genus, label: "Genre" }
                 - { source: rank, label: "Rang", format: "map", mapping: { "family": "Famille", "genus": "Genre", "species": "Espèce", "subspecies": "Sous-espèce" } }
                 - { source: occurrences_count, label: "Nombre d'occurrences", format: "number" }
-                - { source: redlist_cat, label: "Catégorie UICN", format: "map", mapping: { "CR": "En danger critique", "EN": "En danger", "VU": "Vulnérable", "NT": "Quasi menacé", "LC": "Préoccupation mineure", "DD": "Données insuffisantes", "NE": "Non évalué" } }
-                - { source: endemia_url, format: "link", display_text: "Fiche Endemia" }
-                - { source: id_florical, format: "link", display_text: "Florical", base_url: "http://publish.plantnet-project.org/project/florical_fr/collection/florical/taxons/details/" }
-                - { source: images, label: "Images", format: "gallery", image_mapping: { url: "big_thumb", thumbnail: "small_thumb", author: "auteur", date: "datmaj" } }
 
           # --- Carte Interactive ---
           - plugin: interactive_map # Votre plugin spécialisé pour les cartes
@@ -117,6 +131,8 @@ exports:
             params:
               title: "Distribution géographique"
               description: Distribution géographique des occurrences
+              mapbox_style: "carto-positron"  # Style de la carte
+              zoom: 7  # Niveau de zoom (valeurs plus élevées = plus de zoom)
               layers: # Configuration des couches
                 - id: "occurrences" # Nom interne de la couche
                   source: coordinates # Clé dans data_source pour les géométries/points
@@ -131,25 +147,32 @@ exports:
               title: "Sous-taxons principaux"
               description: "Principaux sous-taxons (espèce, sous-espèce)"
               orientation: h # 'h' pour horizontal
-              x_field: counts # Clé pour les données numériques (axe X ici)
-              y_field: tops   # Clé pour les catégories (axe Y ici)
-              xaxis_title: "Nombre d'occurrences"
-              yaxis_title: "Sous-taxon"
-              sort: descending # Indication pour trier (optionnel, géré par plugin)
-              color_palette: "viridis" # Option de palette de couleurs
+              x_axis: "counts"  # Valeurs numériques sur l'axe horizontal
+              y_axis: "tops"    # Noms des taxons sur l'axe vertical
+              sort_order: "descending"
+              labels:
+                x_axis: "Nombre d'observations"
+                y_axis: "Taxon"
+              # color_palette removed, use color_discrete_map or color_continuous_scale if needed
 
           # --- Bar Plot - Distribution DBH ---
           - plugin: bar_plot
             data_source: dbh_distribution
             params:
-              title: "Distribution diamétrique (DBH)"
+              title: "Distribution DBH"
               description: Répartition par classe de diamètre
-              orientation: v # 'v' pour vertical (défaut)
-              x_field: bins # Clé pour les catégories (axe X)
-              y_field: percentages # Clé pour les valeurs (axe Y)
-              xaxis_title: "Classe de diamètre (cm)"
-              yaxis_title: "Fréquence (%)"
-              color: "#4CAF50" # Couleur unique pour les barres
+              transform: "bins_to_df"
+              transform_params:
+                bin_field: "bins"
+                count_field: "counts"
+                x_field: "bin"
+                y_field: "count"
+              orientation: v
+              x_axis: "bin"
+              y_axis: "count"
+              labels:
+                x_axis: "Classe de diamètre (cm)"
+                y_axis: "Fréquence (%)"
 
           # --- Bar Plot - Phénologie (Multi-barres groupées) ---
           - plugin: bar_plot
@@ -157,17 +180,51 @@ exports:
             params:
               title: "Phénologie"
               description: Phénologie des états fertiles (fleur, fruit)
+              transform: "monthly_data"
+              transform_params:
+                labels_field: "labels"
+                data_field: "month_data"
+                melt: true  # Transforme en format long pour faciliter le groupement
               orientation: v
-              x_field: labels # Mois sur l'axe X
-              # Liste des séries Y à afficher groupées
-              y_fields:
-                - { field: "month_data.fleur", name: "Fleur", color: "#FFD700" }
-                - { field: "month_data.fruit", name: "Fruit", color: "#DC143C" }
-              barmode: group # Mode groupé (le plugin doit le gérer)
-              xaxis_title: "Mois"
-              yaxis_title: "Fréquence (%)"
-              yaxis_range: [0, 50] # Limite de l'axe Y
-              legend: { position: "bottom" } # Position de la légende
+              barmode: group
+              x_axis: "labels"
+              y_axis: "value"
+              color_field: "series"
+              color_discrete_map:
+                fleur: "#FFB74D"
+                fruit: "#81C784"
+              labels:              # Corrected structure for labels
+                x_axis: "Mois"
+                y_axis: "Fréquence (%)"
+                color_field: "État phénologique" # Label for the color legend
+              range_y: [0, 50]
+              # legend removed (handled by Plotly/CSS)
+
+          # --- Bar Plot - Milieu de Vie (Holdridge) ---
+          - plugin: bar_plot
+            data_source: holdridge_distribution
+            params:
+              title: "Milieu de vie (Holdridge)"
+              description: "Répartition des occurrences par type d'habitat"
+              transform: "category_with_labels"
+              transform_params:
+                category_field: "categories"
+                count_field: "counts"
+                label_field: "labels"
+                percentage_field: "percentages"
+                use_percentages: true
+                x_field: "category_label"
+                y_field: "value"
+              x_axis: "category_label"
+              y_axis: "value"
+              orientation: "v"
+              labels:
+                category_label: "Type d'habitat"
+                value: "Pourcentage (%)"
+              color_discrete_map:
+                "Sec": "#F9A825"
+                "Humide": "#43A047"
+                "Très humide": "#1E88E5"
 
           # --- Donut Chart - Distribution Substrat ---
           - plugin: donut_chart # Votre plugin spécialisé pour les camemberts
@@ -175,27 +232,12 @@ exports:
             params:
               title: "Distribution substrat"
               description: "Distribution des occurrences par substrat"
-              labels: ['Ultramafique (UM)', 'non-Ultramafique (NUM)'] # Labels fixes pour les parts
-              values_fields: ['um_percent', 'num_percent'] # Clés pour trouver les valeurs correspondantes
-              colors: ['#e1a553', '#a97742'] # Couleurs pour les parts
-              hole: 0.5 # Taille du trou (0 pour camembert, >0 pour donut)
-              show_labels_on_parts: true # Option pour afficher % sur les parts
-
-          # --- Bar Plot - Milieu de Vie (Holdridge) ---
-          - plugin: bar_plot
-            data_source: holdridge_distribution
-            params:
-              title: "Milieu de vie (Holdridge)"
-              description: Fréquence par milieu de vie
-              orientation: v
-              x_field: categories # Clé pour les catégories (sec, humide...)
-              y_field: percentages # Clé pour les pourcentages
-              xaxis_title: "Milieu de vie"
-              yaxis_title: "Fréquence (%)"
-              yaxis_range: [0, 100]
-              # Mapping de couleurs basé sur la catégorie X
-              color_source: x_field # Le plugin utilise cette clé pour appliquer le mapping
-              color_mapping: {'sec': '#8B0000', 'humide': '#FFEB3B', 'Très humide': '#1E88E5'}
+              label_mapping:
+                num: 'non-Ultramafique (NUM)'
+                um: 'Ultramafique (UM)'
+              color_discrete_sequence: ['#a97742', '#e1a553'] # NUM color, then UM color
+              hole_size: 0.5 # Renamed from 'hole'
+              legend_orientation: 'h' # Optional: horizontal legend
 
           # --- Bar Plot - Répartition Pluviométrie ---
           - plugin: bar_plot
@@ -203,25 +245,37 @@ exports:
             params:
               title: "Répartition pluviométrie"
               description: Distribution pluviométrique des occurrences
+              transform: "bins_to_df"
+              transform_params:
+                bin_field: "bins"
+                count_field: "counts"
+                x_field: "bin"   # Changé pour clarifier
+                y_field: "count" # Changé pour clarifier
               orientation: h
-              x_field: counts
-              y_field: bins
-              xaxis_title: "Nombre d'occurrences"
-              yaxis_title: "Pluviométrie (mm/an)"
-              yaxis_reversed: true # Inverser l'axe Y
+              x_axis: "count"    # Nombre d'occurrences sur l'axe X
+              y_axis: "bin"      # Valeurs de pluviométrie sur l'axe Y
+              labels:
+                x_axis: "Nombre d'occurrences"
+                y_axis: "Précipitations (mm)"
 
           # --- Bar Plot - Répartition Altitudinale ---
           - plugin: bar_plot
             data_source: elevation_distribution
             params:
-              title: "Répartition altitudinale"
+              title: "Distribution altitudinale"
               description: "Distribution altitudinale des occurrences"
+              transform: "bins_to_df"
+              transform_params:
+                bin_field: "bins"
+                count_field: "counts"
+                x_field: "bin"
+                y_field: "count"
               orientation: h
-              x_field: counts
-              y_field: bins
-              xaxis_title: "Nombre d'occurrences"
-              yaxis_title: "Altitude (m)"
-              yaxis_reversed: true
+              x_axis: "count"    # Nombre d'occurrences sur l'axe X
+              y_axis: "bin"      # Valeurs d'altitude sur l'axe Y
+              labels:
+                x_axis: "Nombre d'occurrences"
+                y_axis: "Altitude (m)"
 
           # --- Bar Plot - Stratification ---
           - plugin: bar_plot
@@ -230,12 +284,14 @@ exports:
               title: "Stratification"
               description: Répartition des occurrences par strate
               orientation: h
-              x_field: counts
-              y_field: labels
-              xaxis_title: "Nombre d'occurrences"
-              yaxis_title: "Strate"
+              x_axis: "counts" # Corrected key
+              y_axis: "labels" # Corrected key
+              labels:              # Corrected structure for labels
+                x_axis: "Nombre d'occurrences"
+                y_axis: "Strate"
               # Couleurs spécifiques basées sur l'ordre des labels Y (le plugin doit respecter l'ordre)
-              colors: ["#90A4AE", "#66BB6A", "#43A047", "#2E7D32"]
+              color_field: "labels" # Le plugin utilise cette clé pour appliquer le mapping
+              color_discrete_map: {'Sous-bois': "#90A4AE", 'Sous-Canopée': "#66BB6A", 'Canopée': "#43A047", 'Emergent': "#2E7D32"} # Ordre: Coeur, Mature, Secondaire?
 
           # --- Radial Gauge - Hauteur maximale ---
           - plugin: radial_gauge # Votre plugin spécialisé pour les jauges
@@ -366,33 +422,49 @@ exports:
 
       # ------------------------- Groupe: Plot (Plugins Spécialisés) -------------------------
       - group_by: plot
-        index_template: "plot/index.html"             # Template pour /exports/web/plot/index.html
-        page_template: "plot/detail.html"            # Template pour /exports/web/plot/{id}.html
+        #index_template: "plot/index.html"             # Template pour /exports/web/plot/index.html
+        #page_template: "plot/detail.html"            # Template pour /exports/web/plot/{id}.html
         output_pattern: "plot/{id}.html"
         index_output_pattern: "plot/index.html"
         widgets: # Widgets utilisés dans plot/detail.html
+
+          # --- Navigation Hiérarchique (Plots groupés par localité) ---
+          - plugin: hierarchical_nav_widget
+            title: "Navigation par parcelles"
+            data_source: ""  # Ignoré par ce widget
+            params:
+              referential_data: "plot_ref"  # Table de référence des parcelles
+              id_field: "id"
+              name_field: "name"
+              # Méthode de regroupement simple
+              group_by_field: "locality"  # Grouper par localité
+              group_by_label_field: "locality_label"  # Label du groupe
+              base_url: "{{ depth }}plot/"
+              show_search: true
 
           # --- Info Panel ---
           - plugin: info_grid # Votre plugin spécialisé pour les infos
             data_source: general_info # Clé JSON contenant les données pour ce panneau
             params:
               title: "Informations générales"
-              layout: grid
-              fields:
-                - { source: plot_name, label: "Parcelle" }
-                - { source: rainfall, label: "Précipitation annuelle moyenne", format: "number", units: "mm" }
-                - { source: elevation, label: "Altitude", format: "number", units: "m" }
-                - { source: holdridge, label: "Milieu de vie", format: "map", mapping: { "1": "Sec", "2": "Humide", "3": "Très humide" } }
-                - { source: in_um, label: "Substrat", format: "map", mapping: { "true": "Substrat ultramafique", "false": "Substrat non-ultramafique" } }
-                - { source: nb_families, label: "Nombre de familles" }
-                - { source: nb_species, label: "Nombre d'espèces" }
-                - { source: occurrences_count, label: "Nombre d'occurrences", format: "number" }
+              grid_columns: 2
+              items:
+                - { label: "Parcelle", source: "plot_name" }
+                - { label: "Précipitation annuelle moyenne", source: "rainfall", unit: "mm" }
+                - { label: "Altitude", source: "elevation", unit: "m" }
+                - { label: "Milieu de vie", source: "holdridge", format: "map", mapping: { "1": "Sec", "2": "Humide", "3": "Très humide" } }
+                - { label: "Substrat", source: "in_um", format: "map", mapping: { "true": "Substrat ultramafique", "false": "Substrat non-ultramafique" } }
+                - { label: "Nombre de familles" }
+                - { label: "Nombre d'espèces" }
+                - { label: "Nombre d'occurrences", source: "occurrences_count", format: "number" }
 
           # --- Carte Interactive ---
           - plugin: interactive_map # Votre plugin spécialisé pour les cartes
             data_source: map_panel # Clé JSON contenant les données pour la carte
             params:
               title: "Localisation de la parcelle"
+              mapbox_style: "carto-positron"  # Style de la carte
+              #zoom: 7  # Niveau de zoom (valeurs plus élevées = plus de zoom)
               layers:
                 - { id: "plot", source: geometry, type: "geojson", style: { color: "#1fb99d", weight: 2, fillOpacity: 0 } }
 
@@ -403,12 +475,13 @@ exports:
               title: "Familles dominantes"
               description: "Les dix familles botaniques les plus fréquentes"
               orientation: h
-              x_field: counts
-              y_field: tops
-              xaxis_title: "Nombre d'occurrences"
-              yaxis_title: "Famille"
-              sort: descending # Tri implicite par valeur (plugin doit gérer)
-              color_palette: "Spectral" # Palette pour couleurs générées
+              x_axis: "counts" # Corrected key
+              y_axis: "tops" # Corrected key
+              sort_order: "descending" # Corrected key
+              labels:                # Corrected structure for labels
+                x_axis: "Nombre d'occurrences"
+                y_axis: "Famille"
+              # color_palette removed, use color_discrete_map or color_continuous_scale if needed
 
           # --- Bar Plot - Espèces Principales ---
           - plugin: bar_plot
@@ -417,12 +490,13 @@ exports:
               title: "Espèces principales"
               description: "Les dix espèces botaniques les plus fréquentes"
               orientation: h
-              x_field: counts
-              y_field: tops
-              xaxis_title: "Nombre d'occurrences"
-              yaxis_title: "Espèce"
-              sort: descending
-              color_palette: "Plotly3"
+              x_axis: "counts" # Corrected key
+              y_axis: "tops" # Corrected key
+              sort_order: "descending" # Corrected key
+              labels:                # Corrected structure for labels
+                x_axis: "Nombre d'occurrences"
+                y_axis: "Espèce"
+              # color_palette removed, use color_discrete_map or color_continuous_scale if needed
 
           # --- Bar Plot - Distribution Diamétrique (DBH) Parcelle ---
           - plugin: bar_plot
@@ -431,11 +505,12 @@ exports:
               title: "Distribution diamétrique (DBH)"
               description: "Distribution des DBH par classe de diamètre"
               orientation: v
-              x_field: bins
-              y_field: counts
-              xaxis_title: "DBH (cm)"
-              yaxis_title: "Nombre d'occurrences"
-              color: "#4CAF50"
+              x_axis: "bins"
+              y_axis: "counts"
+              labels:                # Corrected structure for labels
+                x_axis: "DBH (cm)"
+                y_axis: "Nombre d'occurrences"
+              # color removed (use color_discrete_map if specific colors needed per category)
 
           # --- Bar Plot - Stratification Parcelle ---
           - plugin: bar_plot
@@ -444,11 +519,14 @@ exports:
               title: "Stratification"
               description: "Distribution des arbres selon la classification de Dawkins"
               orientation: h
-              x_field: counts
-              y_field: labels
-              xaxis_title: "Nombre d'occurrences"
-              yaxis_title: "Strate"
-              colors: ["#90A4AE", "#66BB6A", "#43A047", "#2E7D32"] # Couleurs spécifiques par label Y
+              x_axis: "counts"
+              y_axis: "labels" # Utiliser les labels de strates pour l'axe Y
+              labels:
+                x_axis: "Nombre d'occurrences"
+                y_axis: "Strate"
+              # Couleurs spécifiques basées sur l'ordre des labels Y (le plugin doit respecter l'ordre)
+              color_field: "labels" # Le plugin utilise cette clé pour appliquer le mapping
+              color_discrete_map: {'Sous-bois': "#90A4AE", 'Sous-Canopée': "#66BB6A", 'Canopée': "#43A047", 'Emergent': "#2E7D32"} # Ordre: Coeur, Mature, Secondaire?
 
           # --- Donut Chart - Types Taxonomiques ---
           - plugin: donut_chart # Votre plugin spécialisé pour les camemberts
@@ -456,12 +534,12 @@ exports:
             params:
               title: "Types de plantes"
               description: "Distinction selon les grands types de plantes arborescentes"
-              labels_field: 'labels' # Clé pour les noms des parts
-              values_field: 'percentages' # Clé pour les valeurs des parts
-              colors: ['#4285F4', '#A8A8A8', '#F4B400', '#0F9D58'] # Couleurs spécifiques
-              hole: 0.4 # Taille du trou
-              legend: { position: 'right' } # Position légende
-              show_labels_on_parts: true # Afficher % sur les parts
+              labels_field: 'labels' # Added required field
+              values_field: 'percentages' # Added required field
+              color_discrete_sequence: ['#4285F4', '#A8A8A8', '#F4B400', '#0F9D58'] # Ensure order matches labels: Pteridophytes, Gymnospermae, Monocotyledonae, Dicotyledonae
+              hole_size: 0.4 # Correct parameter name
+              text_info: 'percent+label' # Show percentage and label on slices
+              # legend_orientation: 'v' # Default is vertical, 'h' for horizontal
 
           # --- Bar Plot - Arbres Vivants/Morts (Barres empilées) ---
           - plugin: bar_plot # Le plugin bar_plot doit gérer le mode empilé
@@ -470,19 +548,14 @@ exports:
               title: "Arbres vivants/morts"
               description: "Proportion des arbres vivants et morts sur pied (DBH >= 10cm)"
               orientation: v
-              x_field: categories # Supposons une clé comme ['Arbres']
               # Liste des séries Y à empiler
-              y_fields:
-                # Note: L'accès à l'index [0] ou [1] de 'percentages' doit être géré par le plugin
-                # en se basant sur l'ordre ou un indice explicite si nécessaire.
-                # Ici, on suppose que le plugin sait mapper 'Mort' au premier élément et 'Vivant' au second.
-                - { field: "percentages", dataset_index: 0, name: "Mort", color: '#FF0000' }
-                - { field: "percentages", dataset_index: 1, name: "Vivant", color: '#8BC34A' }
-              barmode: stack # Mode empilé
-              xaxis_title: ''
-              yaxis_title: 'Proportion (%)'
-              yaxis_range: [0, 100]
-              show_value_labels: center # Option pour afficher les valeurs au centre des barres
+              x_axis: "labels" # Corrected key
+              y_axis: "percentages"
+              barmode: stack
+              labels:
+                x_axis: ''
+                y_axis: 'Proportion (%)'
+              # Le plugin doit gérer le formatage du tooltip (formatForestCoverTooltip)
 
           # --- Radial Gauge - Taux Identification Espèce ---
           - plugin: radial_gauge # Votre plugin spécialisé pour les jauges
@@ -647,27 +720,42 @@ exports:
 
       # ------------------------- Groupe: Shape (Plugins Spécialisés) -------------------------
       - group_by: shape
-        index_template: "shape/index.html"            # Template pour /exports/web/shape/index.html
-        page_template: "shape/detail.html"           # Template pour /exports/web/shape/{id}.html
+        #index_template: "shape/index.html"            # Template pour /exports/web/shape/index.html
+        #page_template: "shape/detail.html"           # Template pour /exports/web/shape/{id}.html
         output_pattern: "shape/{id}.html"
         index_output_pattern: "shape/index.html"
         widgets: # Widgets utilisés dans shape/detail.html
+
+          # --- Navigation Hiérarchique (Shapes avec parent_id) ---
+          - plugin: hierarchical_nav_widget
+            title: "Navigation par zones"
+            data_source: ""  # Ignoré par ce widget
+            params:
+              referential_data: "shape_ref"  # Table de référence des shapes
+              id_field: "id"
+              name_field: "name"
+              # Méthode Parent ID
+              parent_id_field: "parent_shape_id"  # Si les shapes ont une hiérarchie
+              # OU méthode de regroupement
+              # group_by_field: "type"  # Grouper par type (commune, province, etc.)
+              base_url: "{{ depth }}shape/"
+              show_search: false  # Désactiver la recherche pour cet exemple
 
           # --- Info Panel ---
           - plugin: info_grid # Votre plugin spécialisé pour les infos
             data_source: general_info # Clé JSON pour les infos générales du shape
             params:
               title: "Informations générales"
-              layout: grid
-              fields:
-                - { source: land_area_ha, label: "Surface totale", format: "number", units: "ha" }
-                - { source: forest_area_ha, label: "Surface forêt", format: "number", units: "ha" }
-                - { source: forest_mining_ha, label: "Forêt sur mine", format: "number", units: "ha" }
-                - { source: forest_reserve_ha, label: "Forêt en réserve", format: "number", units: "ha" }
-                - { source: forest_ppe_ha, label: "Forêt sur captage (PPE)", format: "number", units: "ha" }
-                - { source: rainfall, label: "Pluviométrie", format: "range", units: "mm" }
-                - { source: elevation_median, label: "Altitude médiane", format: "number", units: "m" }
-                - { source: elevation_max, label: "Altitude maximale", format: "number", units: "m" }
+              grid_columns: 2
+              items:
+                - { label: "Surface totale", source: "land_area_ha", unit: "ha" }
+                - { label: "Surface forêt", source: "forest_area_ha", unit: "ha" }
+                - { label: "Forêt sur mine", source: "forest_mining_ha", unit: "ha" }
+                - { label: "Forêt en réserve", source: "forest_reserve_ha", unit: "ha" }
+                - { label: "Forêt sur captage (PPE)", source: "forest_ppe_ha", unit: "ha" }
+                - { label: "Pluviométrie", source: "rainfall", format: "range", units: "mm" }
+                - { label: "Altitude médiane", source: "elevation_median", unit: "m" }
+                - { label: "Altitude maximale", source: "elevation_max", unit: "m" }
 
           # --- Carte Interactive ---
           - plugin: interactive_map # Votre plugin spécialisé pour les cartes
@@ -675,40 +763,48 @@ exports:
             params:
               title: "Distribution de la forêt"
               description: "Distribution de la forêt dans l'emprise sélectionnée"
-              layers: # Plusieurs couches ici
-                - id: shape
-                  source: shape_coords # Clé dans 'geography' pour le contour du shape
-                  type: "geojson" # Type de données géo
-                  style: { color: "#1fb99d", weight: 2, fillOpacity: 0 } # Style de la couche
+              mapbox_style: "carto-positron"
+              #zoom: 8.5  # Configure the zoom level (higher values zoom in more)
+              layers: # Define layers in rendering order (last one on top)
                 - id: forest
-                  source: forest_cover_coords # Clé dans 'geography' pour la forêt
+                  source: forest_cover_coords
                   type: "geojson"
-                  style: { color: "#228b22", weight: 0.3, fillColor: "#228b22", fillOpacity: 0.8 }
+                  style:
+                    color: "#228b22"          # Forest boundary color (not used)
+                    weight: 0                 # No boundary for forest
+                    fillColor: "#228b22"      # Forest fill color
+                    fillOpacity: 0.8          # Forest fill opacity
+                - id: shape
+                  source: shape_coords
+                  type: "geojson"
+                  style:
+                    color: "#E30B5C"          # Raspberry color for high contrast
+                    weight: 3                # Very thick border
+                    fillOpacity: 0            # No fill - transparent
 
-          # --- Donut Chart - Couverture Forestière (Multiples) ---
-          # Voir note précédente: ce plugin devra gérer les subplots ou générer 3 divs.
-          # Ici, on configure pour l'emprise globale, le plugin devra être adapté.
-          - plugin: donut_chart
+          # --- Sunburst Forêt/Hors-Forêt --- #
+          - plugin: sunburst_chart
             data_source: forest_cover
             params:
               title: "Couverture forestière"
-              description: "Comparaison Emprise / Non-Ultramafique / Ultramafique"
-              # Le plugin doit comprendre qu'il faut créer 3 doughnuts basés sur les sous-clés
-              # 'emprise', 'num', 'um' de la data_source.
-              datasets: # Structure pour indiquer les multiples doughnuts
-                - name: "Emprise"
-                  values_source: emprise # Cherche emprise.forest, emprise.non_forest
-                  colors: ['#2E7D32', '#F4E4BC']
-                - name: "Non-Ultramafique"
-                  values_source: num # Cherche num.forest, num.non_forest
-                  colors: ['#2E7D32', '#C5A98B']
-                - name: "Ultramafique"
-                  values_source: um # Cherche um.forest, um.non_forest
-                  colors: ['#2E7D32', '#8B7355']
-              labels: ['Forêt', 'Hors-forêt'] # Labels communs
-              hole: 0.2 # Taille du trou
-              show_labels_on_parts: true # Afficher % (plugin doit gérer le format)
-              # Le plugin doit gérer la mise en page (subplots ou divs séparées)
+              description: "Proportion forêt/hors-forêt pour l'Emprise, les zones Non-Ultramafiques et Ultramafiques."
+              category_labels:
+                emprise: "Emprise"
+                num: "Non-UM"
+                um: "UM"
+              leaf_labels:
+                forest: "Forêt"
+                non_forest: "Hors-forêt"
+              leaf_colors:
+                "Forêt": '#2E7D32' # Common color for Forest
+                "Hors-forêt": # Specific colors for Non-Forest per category
+                  emprise: '#F4E4BC'
+                  num: '#C5A98B'
+                  um: '#8B7355'
+                  default: '#D3D3D3' # Fallback if category missing
+              branchvalues: "total" # Values represent total size of sector
+              text_info: "percent parent" # Show percentage relative to parent category
+              opacity: 0.8 # Set opacity to 80%
 
           # --- Bar Plot - Occupation du Sol ---
           - plugin: bar_plot
@@ -717,59 +813,41 @@ exports:
               title: "Occupation du sol"
               description: "Superficie occupée par type"
               orientation: v
-              x_field: categories # Clé JSON pour les catégories
-              y_field: values    # Clé JSON pour les superficies
-              xaxis_title: ''
-              yaxis_title: 'Superficie (ha)'
+              x_axis: "categories" # Corrected key
+              y_axis: "values"    # Corrected key
+              labels:              # Corrected structure for labels
+                x_axis: ''
+                y_axis: 'Superficie (ha)'
               # Mapping de couleurs basé sur la catégorie X
-              color_source: x_field
-              color_mapping:
-                NUM: "#8B4513"
-                UM: "#CD853F"
-                Sec: "#8B0000"
-                Humide: "#FFEB3B"
-                "Très Humide": "#1E88E5"
-                Réserve: "#4CAF50"
-                PPE: "#90CAF9"
-                Concessions: "#E57373"
-                Forêt: "#2E7D32"
-              # Le plugin doit gérer le formatage de l'axe Y si besoin (formatSurfaceValue)
-
-          # --- Bar Plot - Distribution Altitudinale (Forêt/Hors-Forêt Empilé) ---
-          - plugin: bar_plot # Le plugin doit gérer le mode empilé
-            data_source: elevation_distribution.elevation # Accès à la clé imbriquée
-            params:
-              title: "Distribution altitudinale"
-              description: "Distribution altitudinale de la forêt et du hors-forêt"
-              orientation: h # Barres horizontales
-              # x_fields pour l'empilement horizontal
-              x_fields:
-                - { field: "complement", name: "Hors-forêt", color: "#F4E4BC" }
-                - { field: "subset", name: "Forêt", color: "#2E7D32" }
-              y_field: classes # Classes d'altitude sur l'axe Y
-              barmode: stack # Mode empilé
-              xaxis_title: 'Superficie (ha)'
-              yaxis_title: 'Altitude (m)'
-              yaxis_reversed: true
+              color_field: "categories" # Utilise la colonne X pour la couleur
+              color_discrete_map:
+                 Sol_mineral: '#8D6E63'
+                 Sol_organique: '#5D4037'
 
           # --- Bar Plot - Forêt et Milieux de Vie (Holdridge Empilé) ---
           - plugin: bar_plot # Le plugin doit gérer le mode empilé
             data_source: holdridge
             params:
-              title: "Forêt et milieux de vie (Holdridge)"
-              description: "Distribution de la forêt selon les milieux"
-              orientation: v # Barres verticales
-              x_values: ['Sec', 'Humide', 'Très humide'] # Catégories X fixes
-              # Séries Y à empiler
-              y_fields:
-                # Le plugin doit savoir extraire les sous-clés 'sec', 'humide', 'tres_humide'
-                - { field: "non_forest", name: 'Hors-forêt', color: '#F4E4BC', subkeys: ['sec', 'humide', 'tres_humide']}
-                - { field: "forest", name: 'Forêt', color: '#2E7D32', subkeys: ['sec', 'humide', 'tres_humide']}
-              transform: "toPercentage" # Le plugin doit gérer la transformation en %
-              barmode: stack
-              xaxis_title: 'Type de milieu'
-              yaxis_title: 'Proportion (%)'
-              yaxis_range: [0, 100]
+              title: "Diagramme de Holdridge"
+              description: "Répartition des types d'habitats selon Holdridge"
+              transform: "nested_dict_to_long"
+              transform_params:
+                primary_keys: ["forest", "non_forest"]
+                category_field: "habitat_type"
+                value_field: "percentage"
+                type_field: "cover_type"
+              x_axis: "habitat_type"
+              y_axis: "percentage"
+              color_field: "cover_type"
+              orientation: "v"
+              barmode: "group"
+              labels:
+                habitat_type: "Type d'habitat"
+                percentage: "Couverture (%)"
+                cover_type: "Type de couverture"
+              color_discrete_map:
+                "forest": "#1B5E20"
+                "non_forest": "#FBC02D"
 
           # --- Donut Chart - Types Forestiers ---
           - plugin: donut_chart
@@ -792,69 +870,78 @@ exports:
             params:
               title: "Couverture forestière par altitude et substrat"
               description: "Distribution altitudinale de la couverture forestière"
-              orientation: h
-              # Séries X empilées (une sera négative)
-              x_fields:
-                - { field: "series.forest_um", name: 'Forêt (UM)', color: '#90EE90', transform: "negate" } # Le plugin applique la négation
-                - { field: "series.forest_num", name: 'Forêt (NUM)', color: '#2E7D32' }
-              y_field: class_name # Classes d'altitude sur l'axe Y
-              barmode: relative # Mode pour pyramide/divergent
-              xaxis_title: 'Couverture (%)'
-              xaxis_range: [-100, 100]
-              # Le plugin doit gérer le formatage des ticks de l'axe X pour afficher des valeurs absolues
-              xaxis_tick_format: "absolute"
-              yaxis_title: 'Altitude (m)'
-              yaxis_reversed: true
-              legend: { position: 'bottom' }
-              # Le plugin doit gérer le formatage du tooltip (formatForestCoverTooltip)
+              # Transformation spécifique pour les données d'élévation forestière
+              transform: "forest_cover_by_elevation"
+              transform_params:
+                series_key: "forest_um"  # Série à extraire du dictionnaire series
+              # Configuration du graphique
+              orientation: "h"
+              x_axis: "values"
+              y_axis: "class_name"
+              barmode: "relative"
+              # Affichage
+              labels:
+                class_name: 'Altitude (m)'
+                values: 'Couverture (%)'
 
           # --- Stacked Area Chart - Types Forestiers par Altitude ---
-          # Il faut un plugin dédié pour les aires empilées
-          - plugin: stacked_area_plot # Votre plugin spécialisé pour aires empilées
+          - plugin: stacked_area_plot
             data_source: forest_types_by_elevation
             params:
               title: "Types forestiers par altitude"
-              description: "Distribution des types de forêts selon l'altitude"
-              x_field: 'altitudes' # Axe X
-              # Champs Y à empiler
-              y_fields:
-                - { field: 'secondaire', name: 'Forêt secondaire', color: '#C5E1A5' }
-                - { field: 'mature', name: 'Forêt mature', color: '#7CB342' }
-                - { field: 'coeur', name: 'Forêt de coeur', color: '#2E7D32' }
-              transform: "stackedPercentage" # Le plugin doit calculer les % empilés
-              sort_by: 'x_field' # Le plugin doit trier par altitude avant de tracer
-              xaxis_title: 'Altitude (m)'
-              yaxis_title: 'Fréquence (%)'
-              yaxis_range: [0, 100]
-              legend: { position: 'bottom' }
-              # Le plugin doit gérer le formatage du tooltip (formatForestTypeElevationTooltip)
+              description: "Répartition des types de forêts selon l'altitude"
+              # Transformation spécifique pour structure de séries
+              transform: "extract_series"
+              transform_params:
+                x_field: "altitudes"
+                series_field: "series"
+                categories: ["coeur", "mature", "secondaire"]
+              # Configuration du graphique
+              x_field: "altitudes"
+              y_fields: ["coeur", "mature", "secondaire"]
+              colors: ["#1B5E20", "#43A047", "#8BC34A"]
+              # Paramètres d'affichage
+              fill_type: "tonexty"
+              axis_titles:
+                x: "Altitude (m)"
+                y: "Couverture (%)"
+              legend_title: "Types forestiers"
+              color_discrete_map:
+                "coeur": "#1B5E20"
+                "mature": "#4CAF50"
+                "secondaire": "#8BC34A"
 
           # --- Line Plot - Distribution des Fragments Forestiers ---
-          # Il faut un plugin dédié pour les lignes simples (ou bar_plot pourrait le gérer ?)
           - plugin: line_plot # Votre plugin spécialisé pour lignes
             data_source: fragmentation_distribution
             params:
               title: "Distribution des fragments forestiers"
               description: "Aire cumulée de chaque fragment forestier classé par taille"
-              x_field: 'sizes' # Taille des fragments (Axe X)
-              y_field: 'values' # Aire cumulée (Axe Y)
-              transform: 'toPercentage' # Le plugin gère la conversion en %
-              sort_by: 'x_field' # Le plugin trie par taille
-              xaxis_type: logarithmic # Axe X logarithmique
-              xaxis_title: 'Surface du fragment (ha)'
-              yaxis_title: 'Aire cumulée (%)'
-              yaxis_range: [0, 100]
-              fill: 'tozeroy' # Remplir l'aire sous la courbe
-              color: '#2E7D32' # Couleur de la ligne/remplissage
-              show_legend: false
+              # Nouvelle approche de transformation
+              transform: "extract_series"
+              transform_params:
+                x_field: "sizes"
+                y_field: "values"
+              # Configuration du graphique
+              x_axis: "sizes"
+              y_axis: "values"
+              # Configuration de l'affichage
+              line_mode: "lines"
+              line_shape: "linear"
+              markers: true
+              log_x: true  # Échelle logarithmique pour l'axe X
+              labels:
+                x: "Surface du fragment (ha)"
+                y: "Aire cumulée (%)"
+              color: "#2E7D32"  # Couleur verte forestière
 
           # --- Radial Gauge - Fragmentation ---
           - plugin: radial_gauge
-            data_source: fragmentation.meff # Accès à la clé imbriquée
+            data_source: fragmentation # Accès à la clé imbriquée
             params:
               title: "Fragmentation (Taille effective de maillage)"
               description: "Probabilité que deux points appartiennent au même fragment"
-              value_field: value # Clé JSON de la valeur
+              value_field: meff.value # Chemin correct pour accéder à la valeur numérique
               min_value: 0
               max_value: 1000
               units: 'km²'
@@ -865,6 +952,98 @@ exports:
                 - { range: [400, 600], color: '#e8dd0f' }
                 - { range: [600, 800], color: '#81e042' }
                 - { range: [800, 1000], color: '#049f50' }
+
+          # --- Donut Chart - Land Use Types ---
+          - plugin: donut_chart
+            data_source: land_use
+            params:
+              title: "Couverture forestière par type"
+              values_field: "values" # Field containing the numerical values
+              labels_field: "categories" # Field containing the category labels
+              description: "Répartition des types d'utilisation du sol"
+              hole_size: 0.4
+              # show_labels_on_parts retiré (Plotly gère mieux avec textinfo)
+              text_info: 'percent+label' # Show percentage and label
+
+          # --- Bar Plot - Distribution Elevation ---
+          - plugin: bar_plot
+            data_source: elevation_distribution
+            params:
+              title: "Distribution des aires par élévation"
+              description: "Répartition des surfaces par classe d'élévation"
+              # Utilisation de la transformation spécifique pour élévation
+              transform: "elevation_distribution"
+              # Configuration du graphique
+              x_axis: "values"
+              y_axis: "class_name"
+              # Configuration de l'affichage
+              orientation: "h"
+              barmode: "relative"
+              labels:
+                class_name: 'Altitude (m)'
+                values: 'Couverture (%)'
+
+          # --- Bar Plot - Forêt et Milieux de Vie (Holdridge Empilé) ---
+          - plugin: bar_plot
+            data_source: holdridge
+            params:
+              title: "Diagramme de Holdridge"
+              description: "Répartition des types d'habitats selon Holdridge"
+              transform: "nested_dict_to_long"
+              transform_params:
+                primary_keys: ["forest", "non_forest"]
+                category_field: "habitat_type"
+                value_field: "percentage"
+                type_field: "cover_type"
+              x_axis: "habitat_type"
+              y_axis: "percentage"
+              color_field: "cover_type"
+              barmode: "group"
+              labels:
+                habitat_type: "Type d'habitat"
+                percentage: "Couverture (%)"
+                cover_type: "Type de couverture"
+              color_discrete_map:
+                "forest": "#1B5E20"
+                "non_forest": "#FBC02D"
+
+          # --- Bar Plot - Couverture forestière par élévation ---
+          - plugin: bar_plot
+            data_source: forest_cover_by_elevation
+            params:
+              title: "Couverture forestière par élévation"
+              description: "Répartition de la forêt selon l'altitude"
+              transform: "forest_cover_by_elevation"
+              transform_params:
+                class_field: "class_name"
+                series_field: "series"
+                series_key: "forest_um"
+              x_axis: "values"
+              y_axis: "class_name"
+              orientation: "h"
+              barmode: "relative"
+              labels:
+                class_name: 'Altitude (m)'
+                values: 'Couverture forestière (%)'
+
+          # --- Bar Plot - Forêt par Altitude ---
+          - plugin: bar_plot
+            data_source: forest_cover_by_elevation
+            params:
+              title: "Forêt par altitude"
+              description: "Couverture forestière par tranche d'altitude"
+              # Transformation spécifique pour données forestières par élévation
+              transform: "forest_cover_by_elevation"
+              transform_params:
+                series_key: "forest_um"
+              # Configuration du graphique
+              x_axis: "class_name"
+              y_axis: "values"
+              # Affichage
+              orientation: "v"
+              title_x: "Altitude (m)"
+              title_y: "Couverture (%)"
+              color: "#1B5E20"
 
       # --------------------- Fin Groupe: Shape -------------------------
 

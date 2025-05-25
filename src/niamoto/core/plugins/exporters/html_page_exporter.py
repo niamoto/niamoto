@@ -43,6 +43,11 @@ logger = logging.getLogger(__name__)
 class HtmlPageExporter(ExporterPlugin):
     """Generates a static HTML website based on the export configuration."""
 
+    def __init__(self, db: Database):
+        """Initialize the exporter with database connection."""
+        super().__init__(db)
+        self._navigation_cache: Dict[str, List[Dict[str, Any]]] = {}
+
     def _get_nested_data(
         self, data_dict: Dict[str, Any], key_path: str
     ) -> Optional[Any]:
@@ -142,16 +147,27 @@ class HtmlPageExporter(ExporterPlugin):
             )
 
             # --- Add relative_url filter ---
-            def make_relative_url(url):
-                """Ensures URL is root-relative (starts with '/')."""
+            def make_relative_url(url, depth=0):
+                """Creates proper relative URLs based on page depth."""
                 if not isinstance(url, str):
                     return url  # Return as is if not a string
-                # Simple approach: make it root-relative
-                # More complex logic might be needed for true relative paths based on page depth
-                if url.startswith(("http://", "https://", "#")):
-                    return url  # Keep absolute URLs and anchors as is
-                if not url.startswith("/"):
-                    return "/" + url
+
+                # Keep absolute URLs and anchors as is
+                if url.startswith(
+                    ("http://", "https://", "#", "mailto:", "javascript:")
+                ):
+                    return url
+
+                # Handle root-relative URLs
+                if url.startswith("/"):
+                    # Convert to relative based on depth
+                    # depth=0 means root level, depth=1 means one folder deep, etc.
+                    if depth == 0:
+                        return url[1:]  # Remove leading slash for root level
+                    else:
+                        return "../" * depth + url[1:]
+
+                # Already relative URL
                 return url
 
             jinja_env.filters["relative_url"] = make_relative_url
@@ -576,7 +592,7 @@ class HtmlPageExporter(ExporterPlugin):
                 continue
 
             detail_template_name = (
-                group_config.page_template or "_layouts/group_detail.html"
+                group_config.page_template or "_layouts/group_detail_with_sidebar.html"
             )
 
             # Outer try for the entire detail page generation process for this group
@@ -615,7 +631,11 @@ class HtmlPageExporter(ExporterPlugin):
                             widget_key = f"{widget_config.plugin}_{widget_config.data_source}_{i}"  # Unique key per widget instance
 
                             try:
-                                # ... (widget processing logic remains the same) ...
+                                # Check if this is the hierarchical navigation widget
+                                is_hierarchical_nav = (
+                                    widget_config.plugin == "hierarchical_nav_widget"
+                                )
+
                                 widget_plugin_class = plugin_registry.get_plugin(
                                     widget_config.plugin, PluginType.WIDGET
                                 )
@@ -656,57 +676,101 @@ class HtmlPageExporter(ExporterPlugin):
                                         )
                                         continue  # Skip rendering this widget if validation fails
 
-                                # Get and process data source
-                                data_source_key = widget_config.data_source
-                                raw_widget_data = self._get_nested_data(
-                                    item_data, data_source_key
-                                )
-
-                                if raw_widget_data is None:
-                                    logger.warning(
-                                        f"Data source '{data_source_key}' not found for widget '{widget_config.plugin}' "
-                                        f"in {group_by_key} ID {item_id}. Skipping widget."
+                                # Handle data source differently for hierarchical nav widget
+                                if is_hierarchical_nav:
+                                    # For hierarchical nav, get referential data from params
+                                    referential_data_source = widget_config.params.get(
+                                        "referential_data"
                                     )
-                                    rendered_widgets[widget_key] = (
-                                        f"<!-- Widget Error: Data source '{data_source_key}' not found -->"
-                                    )
-                                    continue
-
-                                # Process data (JSON parse, DataFrame conversion)
-                                final_widget_data = raw_widget_data
-                                if isinstance(raw_widget_data, str):
-                                    try:
-                                        parsed_data = json.loads(raw_widget_data)
-                                        final_widget_data = parsed_data
-                                        if (
-                                            isinstance(parsed_data, list)
-                                            and parsed_data
-                                        ):
-                                            try:
-                                                df = pd.DataFrame(parsed_data)
-                                                final_widget_data = df
-                                                # logger.debug(f"Converted '{data_source_key}' to DataFrame for '{widget_config.plugin}'.")
-                                            except Exception as df_err:
-                                                logger.warning(
-                                                    f"Could not convert parsed data from '{data_source_key}' to DataFrame for '{widget_config.plugin}'. Passing parsed list/dict. Error: {df_err}",
-                                                    exc_info=False,
-                                                )
-                                    except json.JSONDecodeError:
-                                        logger.warning(
-                                            f"Data source '{data_source_key}' for '{widget_config.plugin}' in {group_by_key} ID {item_id} "
-                                            f"is string but not valid JSON. Passing raw string.",
-                                            exc_info=False,
-                                        )
-                                        # final_widget_data remains raw_widget_data
-                                    except Exception as parse_err:
+                                    if not referential_data_source:
                                         logger.error(
-                                            f"Error processing data for '{widget_config.plugin}' (source: {data_source_key}): {parse_err}",
-                                            exc_info=True,
+                                            "No 'referential_data' parameter found for hierarchical_nav_widget"
                                         )
                                         rendered_widgets[widget_key] = (
-                                            f"<!-- Widget Error: Failed to process data source '{data_source_key}' -->"
+                                            "<!-- Widget Error: Missing 'referential_data' parameter -->"
                                         )
                                         continue
+
+                                    # Load navigation data
+                                    final_widget_data = (
+                                        self._load_and_cache_navigation_data(
+                                            referential_data_source
+                                        )
+                                    )
+
+                                    # Inject current item ID into params
+                                    if hasattr(validated_widget_params, "model_dump"):
+                                        params_dict = (
+                                            validated_widget_params.model_dump()
+                                        )
+                                    else:
+                                        params_dict = dict(validated_widget_params)
+
+                                    params_dict["current_item_id"] = item_id
+
+                                    # Re-validate with updated params
+                                    try:
+                                        validated_widget_params = (
+                                            widget_instance.param_schema.model_validate(
+                                                params_dict
+                                            )
+                                        )
+                                    except Exception as e:
+                                        logger.error(
+                                            f"Failed to inject current_item_id for hierarchical nav: {e}"
+                                        )
+                                else:
+                                    # Get and process data source normally for other widgets
+                                    data_source_key = widget_config.data_source
+                                    raw_widget_data = self._get_nested_data(
+                                        item_data, data_source_key
+                                    )
+
+                                    if raw_widget_data is None:
+                                        logger.warning(
+                                            f"Data source '{data_source_key}' not found for widget '{widget_config.plugin}' "
+                                            f"in {group_by_key} ID {item_id}. Skipping widget."
+                                        )
+                                        rendered_widgets[widget_key] = (
+                                            f"<!-- Widget Error: Data source '{data_source_key}' not found -->"
+                                        )
+                                        continue
+
+                                    # Process data (JSON parse, DataFrame conversion)
+                                    final_widget_data = raw_widget_data
+                                    if isinstance(raw_widget_data, str):
+                                        try:
+                                            parsed_data = json.loads(raw_widget_data)
+                                            final_widget_data = parsed_data
+                                            if (
+                                                isinstance(parsed_data, list)
+                                                and parsed_data
+                                            ):
+                                                try:
+                                                    df = pd.DataFrame(parsed_data)
+                                                    final_widget_data = df
+                                                    # logger.debug(f"Converted '{data_source_key}' to DataFrame for '{widget_config.plugin}'.")
+                                                except Exception as df_err:
+                                                    logger.warning(
+                                                        f"Could not convert parsed data from '{data_source_key}' to DataFrame for '{widget_config.plugin}'. Passing parsed list/dict. Error: {df_err}",
+                                                        exc_info=False,
+                                                    )
+                                        except json.JSONDecodeError:
+                                            logger.warning(
+                                                f"Data source '{data_source_key}' for '{widget_config.plugin}' in {group_by_key} ID {item_id} "
+                                                f"is string but not valid JSON. Passing raw string.",
+                                                exc_info=False,
+                                            )
+                                            # final_widget_data remains raw_widget_data
+                                        except Exception as parse_err:
+                                            logger.error(
+                                                f"Error processing data for '{widget_config.plugin}' (source: {data_source_key}): {parse_err}",
+                                                exc_info=True,
+                                            )
+                                            rendered_widgets[widget_key] = (
+                                                f"<!-- Widget Error: Failed to process data source '{data_source_key}' -->"
+                                            )
+                                            continue
 
                                 # Render the widget
                                 widget_content_html = widget_instance.render(
@@ -731,6 +795,9 @@ class HtmlPageExporter(ExporterPlugin):
                         # End widget loop for this item
 
                         # Prepare context and render detail page for this item
+                        # Calculate depth based on output pattern
+                        depth = group_config.output_pattern.count("/")
+
                         detail_context = {
                             "site": html_params.site.model_dump()
                             if html_params.site
@@ -744,6 +811,7 @@ class HtmlPageExporter(ExporterPlugin):
                             "item": item_data,
                             "widgets": rendered_widgets,
                             "dependencies": list(widget_dependencies),
+                            "depth": depth,  # Add depth for relative URLs
                         }
                         rendered_detail_html = detail_template.render(detail_context)
 
@@ -791,6 +859,60 @@ class HtmlPageExporter(ExporterPlugin):
 
         # End group loop
         logger.info("Data group processing finished.")
+
+    def _load_and_cache_navigation_data(
+        self, referential_data_source: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Load and cache navigation reference data.
+
+        Args:
+            referential_data_source: Name of the reference table (e.g., 'taxon_ref')
+
+        Returns:
+            List of all items from the reference table
+        """
+        # Check cache first
+        if referential_data_source in self._navigation_cache:
+            logger.debug(
+                f"Using cached navigation data for '{referential_data_source}'"
+            )
+            return self._navigation_cache[referential_data_source]
+
+        logger.info(f"Loading navigation data from table '{referential_data_source}'")
+
+        try:
+            # Verify table exists
+            if not self.db.has_table(referential_data_source):
+                logger.error(
+                    f"Reference table '{referential_data_source}' does not exist"
+                )
+                return []
+
+            # Load all data from reference table
+            query = f'SELECT * FROM "{referential_data_source}"'
+            results = self.db.fetch_all(query)
+
+            if results:
+                # Convert to list of dicts and cache
+                data_list = [dict(row) for row in results]
+                self._navigation_cache[referential_data_source] = data_list
+                logger.debug(
+                    f"Loaded {len(data_list)} items from '{referential_data_source}'"
+                )
+                return data_list
+            else:
+                logger.warning(
+                    f"No data found in reference table '{referential_data_source}'"
+                )
+                return []
+
+        except Exception as e:
+            logger.error(
+                f"Error loading navigation data from '{referential_data_source}': {e}",
+                exc_info=True,
+            )
+            return []
 
     def _get_group_index_data(
         self, repository: Database, table_name: str, id_column: str

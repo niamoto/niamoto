@@ -120,7 +120,6 @@ class RadialGaugeWidget(WidgetPlugin):
             return "<p class='info'>Invalid data type for gauge.</p>"
 
         if value is None:
-            logger.warning("Could not extract a value for the gauge.")
             return "<p class='info'>No value available for gauge.</p>"
 
         try:
