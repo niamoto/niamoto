@@ -145,10 +145,10 @@ class HierarchicalNavWidget(WidgetPlugin):
                 </div>
             ''')
 
-        # Tree container
+        # Tree container - removed max-height to avoid double scroll
         html_parts.append(f'''
             <div id="{container_id}"
-                 class="overflow-y-auto max-h-[calc(100vh-12rem)]"
+                 class="hierarchical-nav-tree"
                  role="tree"
                  aria-label="Navigation hiérarchique">
                 <!-- Tree will be populated by JavaScript -->
@@ -180,21 +180,26 @@ class HierarchicalNavWidget(WidgetPlugin):
             html_parts.append(f"""
                 <script src="../js/{js_file}"></script>
                 <script>
-                document.addEventListener('DOMContentLoaded', function() {{
-                    // Wait for both the widget script and data to be loaded
+                // Use a more robust initialization approach
+                function initializeHierarchicalNav() {{
                     if (typeof NiamotoHierarchicalNav !== 'undefined' && typeof {data_var} !== 'undefined') {{
                         const config = {json.dumps(js_config, ensure_ascii=False)};
                         config.items = {data_var};  // Get data from loaded JS file
+                        console.log('Initializing hierarchical nav with', config.items.length, 'items');
                         new NiamotoHierarchicalNav(config);
                     }} else {{
-                        if (typeof NiamotoHierarchicalNav === 'undefined') {{
-                            console.error('NiamotoHierarchicalNav script not loaded. Make sure niamoto_hierarchical_nav.js is included.');
-                        }}
-                        if (typeof {data_var} === 'undefined') {{
-                            console.error('Navigation data not loaded. Make sure {js_file} is included and contains {data_var}.');
-                        }}
+                        // Retry after a short delay if dependencies aren't loaded yet
+                        setTimeout(initializeHierarchicalNav, 50);
                     }}
-                }});
+                }}
+
+                // Start initialization when DOM is ready
+                if (document.readyState === 'loading') {{
+                    document.addEventListener('DOMContentLoaded', initializeHierarchicalNav);
+                }} else {{
+                    // DOM is already loaded
+                    initializeHierarchicalNav();
+                }}
                 </script>
             """)
         else:
