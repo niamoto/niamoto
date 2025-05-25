@@ -28,6 +28,14 @@ class NiamotoHierarchicalNav {
 
         // Build and render tree
         this.buildTree();
+
+        // Auto-scroll to current item after a delay
+        if (this.currentItemId) {
+            // Increase delay to ensure DOM is fully rendered
+            setTimeout(() => {
+                this.scrollToCurrentItem();
+            }, 500);
+        }
     }
 
     buildTree() {
@@ -43,12 +51,13 @@ class NiamotoHierarchicalNav {
             return;
         }
 
-        // Expand path to current item
+
+        // Expand path to current item BEFORE rendering
         if (this.currentItemId) {
             this.expandToItem(this.currentItemId);
         }
 
-        // Render the tree
+        // Render the tree with expanded nodes
         this.renderTree();
     }
 
@@ -69,6 +78,7 @@ class NiamotoHierarchicalNav {
             };
 
             // Pop stack until we find the parent
+            // The parent is the one whose right value is greater than our right value
             while (stack.length > 1 &&
                    stack[stack.length - 1][this.params.rghtField] < item[this.params.rghtField]) {
                 stack.pop();
@@ -77,9 +87,15 @@ class NiamotoHierarchicalNav {
             // Add to parent's children
             stack[stack.length - 1].children.push(node);
 
-            // If not a leaf, push onto stack
+            // If not a leaf, push onto stack with all necessary fields
             if (!node.isLeaf) {
-                stack.push(node);
+                // Make sure the node has all required fields for future comparisons
+                const stackNode = {
+                    ...node,
+                    [this.params.idField]: item[this.params.idField],
+                    [this.params.rghtField]: item[this.params.rghtField]
+                };
+                stack.push(stackNode);
             }
         }
 
@@ -153,11 +169,13 @@ class NiamotoHierarchicalNav {
 
         const html = nodes.map(node => {
             const id = node[this.params.idField];
+            const idStr = String(id); // Always use string IDs for consistency
             const name = node[this.params.nameField] || 'Sans nom';
             const hasChildren = node.children && node.children.length > 0;
-            const isExpanded = this.expandedNodes.has(id);
-            const isCurrent = String(id) === String(this.currentItemId);
+            const isExpanded = this.expandedNodes.has(idStr);
+            const isCurrent = idStr === String(this.currentItemId);
             const isGroup = node.isGroup || false;
+
 
             // Build URL for non-group items
             let url = '#';
@@ -195,12 +213,12 @@ class NiamotoHierarchicalNav {
                 isGroup ? 'text-gray-900' : ''
             ].filter(Boolean).join(' ');
 
-            // Indentation based on level
-            const indent = `${level * 1.5}rem`;
+            // Indentation based on level (reduced from 1.5 to 1rem)
+            const indent = `${level * 0.1}rem`;
 
             // Node HTML
             let nodeHtml = `
-                <div class="${nodeClasses}" data-id="${id}" data-level="${level}">
+                <div class="${nodeClasses}" data-id="${idStr}" data-level="${level}">
                     <div class="${contentClasses}" style="padding-left: ${indent}">
                         ${chevron}
             `;
@@ -278,14 +296,20 @@ class NiamotoHierarchicalNav {
 
     expandToItem(itemId) {
         // Find the item and all its ancestors
-        const ancestors = this.findAncestors(this.treeData, itemId, []);
-        if (ancestors) {
-            // Expand all ancestors
-            ancestors.forEach(id => this.expandedNodes.add(id));
+        const ancestors = this.findAncestors(this.treeData, String(itemId), []);
+        if (ancestors && ancestors.length > 0) {
+            // Expand all ancestors (they should already be strings from findAncestors)
+            ancestors.forEach(id => {
+                this.expandedNodes.add(id);
+            });
         }
     }
 
     findAncestors(nodes, targetId, ancestors) {
+        if (!nodes || nodes.length === 0) {
+            return null;
+        }
+
         for (const node of nodes) {
             const nodeId = String(node[this.params.idField]);
 
@@ -299,7 +323,9 @@ class NiamotoHierarchicalNav {
                     targetId,
                     [...ancestors, nodeId]
                 );
-                if (found) return found;
+                if (found !== null) {
+                    return found;
+                }
             }
         }
         return null;
@@ -383,6 +409,43 @@ class NiamotoHierarchicalNav {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    scrollToCurrentItem() {
+        const currentNode = this.container.querySelector('.tree-node.current');
+        if (!currentNode) {
+            return;
+        }
+
+        // Find the scrollable container - look for the aside element which is the sidebar
+        const aside = this.container.closest('aside');
+
+        if (!aside) {
+            // No aside, try to find any scrollable parent
+            currentNode.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            return;
+        }
+
+        // Use setTimeout to ensure DOM is fully rendered
+        setTimeout(() => {
+            // Get the actual scrollable element within the aside
+            // The aside itself might not be scrollable, but its child might be
+            const scrollableElement = aside;
+            const nodeRect = currentNode.getBoundingClientRect();
+            const containerRect = scrollableElement.getBoundingClientRect();
+
+            // Calculate the position relative to the scrollable container
+            const relativeTop = nodeRect.top - containerRect.top + scrollableElement.scrollTop;
+
+            // Calculate target scroll position to center the item
+            const targetScroll = relativeTop - (containerRect.height / 2) + (nodeRect.height / 2);
+
+            // Perform the scroll
+            scrollableElement.scrollTo({
+                top: Math.max(0, targetScroll),
+                behavior: 'smooth'
+            });
+        }, 100); // Small delay to ensure DOM is ready
     }
 }
 
