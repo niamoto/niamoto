@@ -493,6 +493,10 @@ def import_all() -> None:
         occurrence_link_field = source_def.get("occurrence_link_field")
 
         reset_table(config.database_path, "plot_ref")
+
+        # Check for hierarchical configuration
+        hierarchy_config = source_def.get("hierarchy")
+
         result = importer.import_plots(
             file_path,
             id_field,
@@ -500,6 +504,7 @@ def import_all() -> None:
             locality_field,
             link_field=link_field,
             occurrence_link_field=occurrence_link_field,
+            hierarchy_config=hierarchy_config,
         )
         print_info(result)
 
