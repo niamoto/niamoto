@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 import plotly.express as px
@@ -9,6 +9,68 @@ from niamoto.common.utils.data_access import convert_to_dataframe, transform_dat
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 
 logger = logging.getLogger(__name__)
+
+
+def generate_colors(count: int) -> List[str]:
+    """Generate harmonious colors using HSL color space and golden ratio.
+
+    Args:
+        count: Number of colors to generate
+
+    Returns:
+        List of hex color strings
+    """
+
+    def hsl_to_rgb(h: float, s: float, lightness: float) -> tuple[int, int, int]:
+        """Convert HSL to RGB."""
+        if s == 0:
+            r = g = b = lightness  # achromatic
+        else:
+
+            def hue_to_rgb(p: float, q: float, t: float) -> float:
+                if t < 0:
+                    t += 1
+                if t > 1:
+                    t -= 1
+                if t < 1 / 6:
+                    return p + (q - p) * 6 * t
+                if t < 1 / 2:
+                    return q
+                if t < 2 / 3:
+                    return p + (q - p) * (2 / 3 - t) * 6
+                return p
+
+            q = (
+                lightness * (1 + s)
+                if lightness < 0.5
+                else lightness + s - lightness * s
+            )
+            p = 2 * lightness - q
+            r = hue_to_rgb(p, q, h + 1 / 3)
+            g = hue_to_rgb(p, q, h)
+            b = hue_to_rgb(p, q, h - 1 / 3)
+
+        return (round(r * 255), round(g * 255), round(b * 255))
+
+    def rgb_to_hex(r: int, g: int, b: int) -> str:
+        """Convert RGB to hex."""
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    colors = []
+    for i in range(count):
+        # Use golden ratio to spread hues evenly
+        hue = (i * 0.618033988749895) % 1
+
+        # Vary saturation slightly
+        saturation = 0.5 + (i % 3) * 0.1
+
+        # Vary lightness to create contrast
+        lightness = 0.4 + (i % 2) * 0.2
+
+        r, g, b = hsl_to_rgb(hue, saturation, lightness)
+        colors.append(rgb_to_hex(r, g, b))
+
+    return colors
 
 
 # Pydantic model for Bar Plot parameters validation
@@ -62,6 +124,9 @@ class BarPlotParams(BaseModel):
     field_mapping: Optional[Dict[str, str]] = Field(
         None, description="Mapping from data fields to expected column names"
     )
+    auto_color: bool = Field(
+        False, description="Automatically generate harmonious colors for each bar"
+    )
 
 
 @register("bar_plot", PluginType.WIDGET)
@@ -70,9 +135,9 @@ class BarPlotWidget(WidgetPlugin):
 
     param_schema = BarPlotParams  # Correct name for validation
 
-    def get_dependencies(self) -> Set[str]:
-        """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
-        return set()
+    def get_dependencies(self) -> List[str]:
+        """Return the list of CSS/JS dependencies. Plotly is handled centrally."""
+        return []
 
     def render(self, data: Optional[Any], params: BarPlotParams) -> str:
         """Generate the HTML for the bar plot."""
@@ -81,7 +146,7 @@ class BarPlotWidget(WidgetPlugin):
 
         # 1. Apply transformation if specified
         if params.transform:
-            data = transform_data(data, params.transform, params.transform_params)
+            data = transform_data(data, params.transform, params.transform_params or {})
 
         # 2. Convert data to DataFrame using our generic utility
         processed_data = convert_to_dataframe(
@@ -146,11 +211,22 @@ class BarPlotWidget(WidgetPlugin):
         if params.sort_order:
             ascending = params.sort_order == "ascending"
             try:
-                # Sort by y_axis value
-                df_plot = df_plot.sort_values(by=params.y_axis, ascending=ascending)
-
-                # If vertical, we need to ensure the x-axis categories respect this order
-                if params.orientation == "v":
+                # Sort by the values axis (depends on orientation)
+                if params.orientation == "h":
+                    # For horizontal bars, sort by x_axis (values)
+                    sort_column = params.x_axis
+                    df_plot = df_plot.sort_values(by=sort_column, ascending=ascending)
+                    # Ensure y-axis categories (labels) respect this order
+                    df_plot[params.y_axis] = pd.Categorical(
+                        df_plot[params.y_axis],
+                        categories=df_plot[params.y_axis].unique(),
+                        ordered=True,
+                    )
+                else:
+                    # For vertical bars, sort by y_axis (values)
+                    sort_column = params.y_axis
+                    df_plot = df_plot.sort_values(by=sort_column, ascending=ascending)
+                    # Ensure x-axis categories (labels) respect this order
                     df_plot[params.x_axis] = pd.Categorical(
                         df_plot[params.x_axis],
                         categories=df_plot[params.x_axis].unique(),
@@ -159,24 +235,55 @@ class BarPlotWidget(WidgetPlugin):
             except KeyError:
                 logger.warning(
                     "Cannot sort by column '{}' as it might be missing after potential aggregation or wrong name.".format(
-                        params.y_axis
+                        sort_column
                     )
                 )
             except Exception as e:
                 logger.error("Error applying sorting: {}".format(e))
 
         try:
+            # Handle automatic coloring
+            color_field = params.color_field
+            color_discrete_sequence = None
+            color_discrete_map = params.color_discrete_map
+
+            if params.auto_color and not params.color_field:
+                # For auto-coloring without grouping, we need to create a color field
+                # that assigns each bar its own category
+                if params.orientation == "h":
+                    # For horizontal bars, each y-axis value gets its own color
+                    category_field = params.y_axis
+                else:
+                    # For vertical bars, each x-axis value gets its own color
+                    category_field = params.x_axis
+
+                # Create a temporary color field that's just a copy of the category field
+                df_plot["_auto_color"] = df_plot[category_field].astype(str)
+                color_field = "_auto_color"
+
+                # Generate colors based on unique categories
+                unique_categories = df_plot[category_field].unique()
+                num_categories = len(unique_categories)
+                generated_colors = generate_colors(num_categories)
+
+                # Create a color mapping
+                color_discrete_map = {
+                    str(cat): color
+                    for cat, color in zip(unique_categories, generated_colors)
+                }
+
             fig = px.bar(
                 df_plot,
                 x=params.x_axis,
                 y=params.y_axis,
-                color=params.color_field,
+                color=color_field,
                 barmode=params.barmode,
                 orientation=params.orientation,
                 text_auto=params.text_auto,
                 hover_name=params.hover_name,
                 hover_data=params.hover_data,
-                color_discrete_map=params.color_discrete_map,
+                color_discrete_map=color_discrete_map,
+                color_discrete_sequence=color_discrete_sequence,
                 color_continuous_scale=params.color_continuous_scale,
                 range_y=params.range_y,
                 labels=params.labels,
@@ -184,18 +291,32 @@ class BarPlotWidget(WidgetPlugin):
             )
 
             # Additional layout updates if needed (e.g., axis titles if not covered by labels)
-            fig.update_layout(
-                margin={"r": 10, "t": 30, "l": 10, "b": 10},  # Adjust margins
-                xaxis_title=params.labels.get(params.x_axis)
+            layout_updates = {
+                "margin": {"r": 10, "t": 30, "l": 10, "b": 10},  # Adjust margins
+                "xaxis_title": params.labels.get(params.x_axis)
                 if params.labels
                 else params.x_axis,
-                yaxis_title=params.labels.get(params.y_axis)
+                "yaxis_title": params.labels.get(params.y_axis)
                 if params.labels
                 else params.y_axis,
-                legend_title_text=params.labels.get(params.color_field)
-                if params.labels and params.color_field
-                else params.color_field,
-            )
+            }
+
+            # Handle legend for auto-coloring
+            if params.auto_color and not params.color_field:
+                # Hide legend when auto-coloring since it would duplicate the axis labels
+                layout_updates["showlegend"] = False
+            else:
+                # Keep legend title for regular color fields
+                layout_updates["legend_title_text"] = (
+                    params.labels.get(params.color_field)
+                    if params.labels and params.color_field
+                    else params.color_field
+                )
+
+            fig.update_layout(**layout_updates)
+
+            # Increase bar width for better visibility
+            fig.update_traces(width=0.6)
 
             # Render figure to HTML
             html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")

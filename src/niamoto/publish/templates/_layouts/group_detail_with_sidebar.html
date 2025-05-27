@@ -44,36 +44,8 @@
                                     <div class="col-span-12">
                                         {{ widget_html | safe }}
                                     </div>
-                                {% elif 'radial_gauge' in widget_key %}
-                                    {# Gauges: 4 per row on desktop, 2 on tablet, 1 on mobile #}
-                                    <div class="col-span-12 sm:col-span-6 lg:col-span-3">
-                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 h-full">
-                                            {{ widget_html | safe }}
-                                        </div>
-                                    </div>
-                                {% elif 'bar_plot' in widget_key or 'donut_chart' in widget_key or 'line_plot' in widget_key or 'scatter_plot' in widget_key %}
-                                    {# Charts: 2 per row on desktop, 1 on mobile #}
-                                    <div class="col-span-12 lg:col-span-6">
-                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                                            {{ widget_html | safe }}
-                                        </div>
-                                    </div>
-                                {% elif 'sunburst_chart' in widget_key or 'stacked_area_plot' in widget_key %}
-                                    {# Complex charts: larger size #}
-                                    <div class="col-span-12 lg:col-span-8">
-                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                                            {{ widget_html | safe }}
-                                        </div>
-                                    </div>
-                                {% elif 'table_view' in widget_key or 'summary_stats' in widget_key %}
-                                    {# Tables and stats: flexible width #}
-                                    <div class="col-span-12 lg:col-span-4">
-                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                                            {{ widget_html | safe }}
-                                        </div>
-                                    </div>
                                 {% else %}
-                                    {# Default: half width on desktop #}
+                                    {# All other widgets: 2 columns on desktop, 1 on mobile #}
                                     <div class="col-span-12 lg:col-span-6">
                                         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                                             {{ widget_html | safe }}
