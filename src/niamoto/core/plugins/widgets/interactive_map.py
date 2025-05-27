@@ -85,6 +85,9 @@ class InteractiveMapParams(BaseModel):
     mapbox_style: Optional[str] = Field(
         None, description="Deprecated: Use map_style instead."
     )
+    show_attribution: bool = Field(
+        default=False, description="Whether to show map attribution"
+    )
 
 
 @register("interactive_map", PluginType.WIDGET)
@@ -110,7 +113,7 @@ class InteractiveMapWidget(WidgetPlugin):
 
         features = geojson_data.get("features", [])
         if not features:
-            logger.warning("GeoJSON FeatureCollection is empty.")
+            """ logger.warning("GeoJSON FeatureCollection is empty.") """
             return pd.DataFrame()  # Return empty DataFrame
 
         records = []
@@ -329,9 +332,9 @@ class InteractiveMapWidget(WidgetPlugin):
         # If after processing, we don't have a valid DataFrame for plotting, exit
         # Exception: for choropleth_outline, df_plot might be dummy, but geojson_plot_data must exist
         if (df_plot is None or df_plot.empty) and map_mode != "choropleth_outline":
-            logger.warning(
+            """ logger.warning(
                 "No data or invalid data type provided to InteractiveMapWidget (expected non-empty DataFrame or parseable GeoJSON/TopoJSON dict)."
-            )
+            ) """
             return "<p class='info'>No valid data available for the map.</p>"
         elif map_mode == "choropleth_outline" and not geojson_plot_data:
             logger.warning("Failed to generate GeoJSON for choropleth outline map.")
@@ -546,9 +549,42 @@ class InteractiveMapWidget(WidgetPlugin):
                         % str(e)
                     )
             if fig:
-                fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-                html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-                return html_content
+                fig.update_layout(
+                    margin={"r": 0, "t": 0, "l": 0, "b": 0},
+                    annotations=[],  # Remove any annotations including attribution
+                )
+                # Disable attribution for map layers
+                if hasattr(fig, "update_mapboxes"):
+                    fig.update_mapboxes(
+                        accesstoken=None,
+                        style=params.map_style
+                        if params.map_style
+                        else "carto-positron",
+                    )
+                html_content = fig.to_html(
+                    full_html=False,
+                    include_plotlyjs="cdn",
+                    config={
+                        "displayModeBar": True,
+                        "displaylogo": False,  # Remove Plotly logo
+                        "modeBarButtonsToRemove": [
+                            "sendDataToCloud"
+                        ],  # Remove cloud button
+                        "toImageButtonOptions": {
+                            "format": "png",
+                            "filename": "niamoto_map",
+                            "height": 500,
+                            "width": 700,
+                        },
+                    },
+                )
+                attribution_class = (
+                    " hide-attribution" if not params.show_attribution else ""
+                )
+                return (
+                    """<div class="widget map-widget%s"><div class="map-container">%s</div></div>"""
+                    % (attribution_class, html_content)
+                )
             else:
                 return "<p class='error'>Failed to create map figure.</p>"
 
@@ -874,7 +910,11 @@ class InteractiveMapWidget(WidgetPlugin):
                 map_center={"lat": center_lat, "lon": center_lon},
                 margin={"r": 0, "t": 0, "l": 0, "b": 0},
                 height=500,
+                annotations=[],  # Remove any annotations including attribution
             )
+            # Disable attribution for map layers
+            if hasattr(fig, "update_mapboxes"):
+                fig.update_mapboxes(accesstoken=None, style="carto-positron")
             logger.debug("Layout updated successfully")
         except Exception as e:
             logger.error("Error updating figure layout: %s", str(e), exc_info=True)
@@ -890,17 +930,52 @@ class InteractiveMapWidget(WidgetPlugin):
                     title_elements.append("<p>%s</p>" % params.description)
 
                 title_html = "".join(title_elements)
-                map_html = fig.to_html(full_html=False, include_plotlyjs="cdn")
+                map_html = fig.to_html(
+                    full_html=False,
+                    include_plotlyjs="cdn",
+                    config={
+                        "displayModeBar": True,
+                        "displaylogo": False,  # Remove Plotly logo
+                        "modeBarButtonsToRemove": [
+                            "sendDataToCloud"
+                        ],  # Remove cloud button
+                        "toImageButtonOptions": {
+                            "format": "png",
+                            "filename": "niamoto_map",
+                            "height": 500,
+                            "width": 700,
+                        },
+                    },
+                )
+                attribution_class = (
+                    " hide-attribution" if not params.show_attribution else ""
+                )
                 return """
-                <div class="widget map-widget">
+                <div class="widget map-widget%s">
                     %s
                     <div class="map-container">
                         %s
                     </div>
                 </div>
-                """ % (title_html, map_html)
+                """ % (attribution_class, title_html, map_html)
             else:
-                return fig.to_html(full_html=False, include_plotlyjs="cdn")
+                return fig.to_html(
+                    full_html=False,
+                    include_plotlyjs="cdn",
+                    config={
+                        "displayModeBar": True,
+                        "displaylogo": False,  # Remove Plotly logo
+                        "modeBarButtonsToRemove": [
+                            "sendDataToCloud"
+                        ],  # Remove cloud button
+                        "toImageButtonOptions": {
+                            "format": "png",
+                            "filename": "niamoto_map",
+                            "height": 500,
+                            "width": 700,
+                        },
+                    },
+                )
 
         except Exception as e:
             logger.error("Error generating HTML: %s", str(e), exc_info=True)

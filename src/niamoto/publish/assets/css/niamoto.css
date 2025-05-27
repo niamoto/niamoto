@@ -253,3 +253,50 @@ html {
     display: none;
   }
 }
+
+/* Interactive Map Widget Styles */
+.map-widget {
+  position: relative;
+}
+
+/* Hide map attribution when configured */
+.map-widget.hide-attribution .leaflet-control-attribution,
+.map-widget.hide-attribution .mapboxgl-ctrl-attrib,
+.map-widget.hide-attribution .plotly-notifier,
+.map-widget.hide-attribution .modebar-btn[data-title*="plotly"],
+.map-widget.hide-attribution .js-plotly-plot .plotly .modebar-btn[data-title*="plotly"],
+.map-widget.hide-attribution .cartodb-attribution,
+.map-widget.hide-attribution [class*="attribution"],
+.map-widget.hide-attribution .maplibregl-ctrl-attrib {
+  display: none !important;
+}
+
+/* Par défaut, cacher l'attribution pour toutes les cartes */
+.map-widget .leaflet-control-attribution,
+.map-widget .mapboxgl-ctrl-attrib,
+.map-widget .plotly-notifier,
+.map-widget .cartodb-attribution,
+.map-widget [class*="attribution"],
+.map-widget .maplibregl-ctrl-attrib {
+  display: none !important;
+}
+
+/* Better positioning for map controls */
+.map-widget .mapboxgl-ctrl-bottom-right,
+.map-widget .leaflet-bottom {
+  bottom: 10px;
+  right: 10px;
+}
+
+/* Fix attribution display on small screens */
+.map-widget .mapboxgl-ctrl-attrib {
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 2px 5px;
+  font-size: 10px;
+}
+
+/* Ensure map container has proper height */
+.map-container {
+  min-height: 400px;
+  height: 500px;
+}
