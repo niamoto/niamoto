@@ -27,6 +27,7 @@ from niamoto.common.exceptions import (
     OutputError,
     CSVError,
     LoggingError,
+    DataTransformError,
 )
 
 console = Console()
@@ -128,6 +129,15 @@ def handle_error(
         raise_error: Whether to re-raise the error
         console_output: Whether to output to console
     """
+    # Check if this error has already been handled (to avoid duplicate output)
+    if hasattr(error, "_handled") and error._handled:
+        if raise_error:
+            raise error
+        return
+
+    # Mark error as handled
+    error._handled = True
+
     # Get error message - use get_user_message if available
     if hasattr(error, "get_user_message") and callable(
         getattr(error, "get_user_message")
@@ -146,7 +156,11 @@ def handle_error(
 
     # Console output if requested
     if console_output:
-        console.print(f"[red]✗ {error_message}[/red]")
+        # For DataTransformError, use a more contextual message
+        if isinstance(error, DataTransformError):
+            console.print(f"[yellow]⚠ {error_message}[/yellow]")
+        else:
+            console.print(f"[red]✗ {error_message}[/red]")
 
     # Re-raise if requested, but avoid cascade
     if raise_error:

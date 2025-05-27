@@ -13,6 +13,7 @@
       - [Method 2: Extraction from Occurrences](#method-2-extraction-from-occurrences)
       - [API Enrichment (Optional)](#api-enrichment-optional)
     - [Plots Configuration](#plots-configuration)
+      - [Hierarchical Plot Structure](#hierarchical-plot-structure)
     - [Occurrences Configuration](#occurrences-configuration)
     - [Shape Statistics Configuration](#shape-statistics-configuration)
     - [Shapes Configuration](#shapes-configuration)
@@ -148,7 +149,7 @@ api_enrichment:
 
 ### Plots Configuration
 
-Options for importing plot data.
+Options for importing plot data with support for hierarchical relationships.
 
 ```yaml
 plots:
@@ -170,6 +171,72 @@ plots:
 | `location_field`        | Field with geometry data             | Yes      | `"geo_pt"`            |
 | `link_field`            | Field in plot_ref for links          | No       | `"locality"`          |
 | `occurrence_link_field` | Field in occurrences for links       | No       | `"plot_name"`         |
+
+#### Hierarchical Plot Structure
+
+Niamoto supports a three-level hierarchy for organizing plots:
+
+1. **Plot** (lowest level) - Individual sampling locations
+2. **Locality** (middle level) - Geographical groupings of plots
+3. **Country** (highest level) - Country or territory containing localities
+
+This hierarchy is automatically established through the CSV data structure. Here's how to configure it:
+
+##### CSV Structure Example
+
+Your plots CSV file should include columns that define the hierarchy:
+
+```csv
+id_plot,plot,locality,country,lat,lon,geo_pt
+PLOT001,Forest Plot A,Mont-Dore,Nouvelle-Calédonie,-22.2666,166.4535,"POINT(166.4535 -22.2666)"
+PLOT002,Forest Plot B,Mont-Dore,Nouvelle-Calédonie,-22.2750,166.4620,"POINT(166.4620 -22.2750)"
+PLOT003,Coastal Plot,Nouméa,Nouvelle-Calédonie,-22.2758,166.4580,"POINT(166.4580 -22.2758)"
+```
+
+##### Field Mapping
+
+The hierarchical structure is built using these fields:
+
+- **plot**: The name of the individual plot (maps to `locality_field`)
+- **locality**: The locality containing the plot
+- **country**: The country or territory
+
+##### Navigation Generation
+
+The hierarchical structure enables automatic generation of navigation widgets that allow users to:
+
+- Browse plots by country → locality → plot
+- See aggregated statistics at each level
+- Navigate between related plots in the same locality
+
+##### Example with Hierarchical Navigation Widget
+
+```yaml
+# In export.yml
+hierarchical_nav:
+  type: hierarchical_nav_widget
+  title: "Browse Plots"
+  description: "Navigate through plots by location"
+  source: plot_hierarchy
+  options:
+    levels:
+      - field: "country"
+        label: "Country"
+        icon: "fa-globe"
+      - field: "locality"
+        label: "Locality"
+        icon: "fa-map-marker"
+      - field: "plot"
+        label: "Plot"
+        icon: "fa-tree"
+```
+
+##### Best Practices
+
+1. **Consistent Naming**: Use standardized names for localities and countries
+2. **Complete Hierarchy**: Ensure every plot has both locality and country values
+3. **Unique Identifiers**: Plot identifiers should be globally unique
+4. **Coordinate Validation**: Verify that plot coordinates fall within their declared locality/country
 
 ### Occurrences Configuration
 

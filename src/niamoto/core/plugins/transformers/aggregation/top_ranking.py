@@ -86,103 +86,165 @@ class TopRanking(TransformerPlugin):
             if field_data.empty:
                 return {"tops": [], "counts": []}
 
-            # Get unique taxon IDs
-            taxon_ids = set(field_data.dropna().unique())
-            if not taxon_ids:
-                return {"tops": [], "counts": []}
+            target_ranks = validated_config["params"]["target_ranks"]
 
-            # Convert taxon_ids to a comma-separated string
-            # Ensure IDs are integers before converting to string
-            taxon_ids_str = ",".join(str(int(id)) for id in taxon_ids)
+            # Handle different field types
+            if field == "taxon_ref_id":
+                return self._process_taxon_ranking(
+                    field_data, target_ranks, validated_config["params"]["count"]
+                )
+            elif field in ["plot_ref_id", "plot_id"]:
+                return self._process_plot_ranking(
+                    field_data, target_ranks, validated_config["params"]["count"]
+                )
+            else:
+                # For other fields, try to process as taxon_ref_id
+                return self._process_taxon_ranking(
+                    field_data, target_ranks, validated_config["params"]["count"]
+                )
 
-            # Query initial taxons
+        except Exception as e:
+            raise ValueError(f"Invalid configuration: {str(e)}") from e
+
+    def _process_taxon_ranking(
+        self, field_data: pd.Series, target_ranks: list, count: int
+    ) -> Dict[str, Any]:
+        """Process ranking based on taxon_ref_id field."""
+        # Get unique taxon IDs
+        taxon_ids = set(field_data.dropna().unique())
+        if not taxon_ids:
+            return {"tops": [], "counts": []}
+
+        # Convert taxon_ids to a comma-separated string
+        # Ensure IDs are integers before converting to string
+        taxon_ids_str = ",".join(str(int(id)) for id in taxon_ids)
+
+        # Query initial taxons
+        query = f"""
+            SELECT id, full_name, rank_name, parent_id
+            FROM taxon_ref
+            WHERE id IN ({taxon_ids_str})
+        """
+
+        result = self.db.execute_select(query)
+        if not result:
+            return {"tops": [], "counts": []}
+
+        # Build initial taxon dictionary
+        taxon_dict = {}
+        for row in result.fetchall():
+            taxon_dict[row[0]] = {
+                "id": row[0],
+                "full_name": row[1],
+                "rank_name": row[2],
+                "parent_id": row[3],
+            }
+
+        # Query parent taxons iteratively
+        parent_ids = {
+            taxon["parent_id"]
+            for taxon in taxon_dict.values()
+            if taxon["parent_id"] is not None
+        }
+        while parent_ids:
+            # Convert parent_ids to string
+            parent_ids_str = ",".join(str(id) for id in parent_ids)
+
+            # Query parents
             query = f"""
                 SELECT id, full_name, rank_name, parent_id
                 FROM taxon_ref
-                WHERE id IN ({taxon_ids_str})
+                WHERE id IN ({parent_ids_str})
             """
 
             result = self.db.execute_select(query)
             if not result:
-                return {"tops": [], "counts": []}
+                break
 
-            # Build initial taxon dictionary
-            taxon_dict = {}
+            # Add parents to dictionary
             for row in result.fetchall():
-                taxon_dict[row[0]] = {
-                    "id": row[0],
+                parent_id = row[0]
+                taxon_dict[parent_id] = {
+                    "id": parent_id,
                     "full_name": row[1],
                     "rank_name": row[2],
                     "parent_id": row[3],
                 }
 
-            # Query parent taxons iteratively
+            # Get next level of parents
             parent_ids = {
                 taxon["parent_id"]
                 for taxon in taxon_dict.values()
                 if taxon["parent_id"] is not None
+                and taxon["parent_id"] not in taxon_dict
             }
-            while parent_ids:
-                # Convert parent_ids to string
-                parent_ids_str = ",".join(str(id) for id in parent_ids)
 
-                # Query parents
-                query = f"""
-                    SELECT id, full_name, rank_name, parent_id
-                    FROM taxon_ref
-                    WHERE id IN ({parent_ids_str})
-                """
+        # Count items by target rank
+        item_counts = {}
 
-                result = self.db.execute_select(query)
-                if not result:
-                    break
+        for taxon_id in field_data.dropna():
+            if taxon_id in taxon_dict:
+                current_id = taxon_id
+                while current_id is not None:
+                    current_taxon = taxon_dict.get(current_id)
+                    if not current_taxon:
+                        break
 
-                # Add parents to dictionary
-                for row in result.fetchall():
-                    parent_id = row[0]
-                    taxon_dict[parent_id] = {
-                        "id": parent_id,
-                        "full_name": row[1],
-                        "rank_name": row[2],
-                        "parent_id": row[3],
-                    }
+                    if current_taxon["rank_name"] in target_ranks:
+                        item_name = current_taxon["full_name"]
+                        item_counts[item_name] = item_counts.get(item_name, 0) + 1
+                        break
 
-                # Get next level of parents
-                parent_ids = {
-                    taxon["parent_id"]
-                    for taxon in taxon_dict.values()
-                    if taxon["parent_id"] is not None
-                    and taxon["parent_id"] not in taxon_dict
-                }
+                    current_id = current_taxon["parent_id"]
 
-            # Count items by target rank
-            item_counts = {}
-            target_ranks = validated_config["params"]["target_ranks"]
+        # Sort items by count and get top N
+        sorted_items = sorted(item_counts.items(), key=lambda x: x[1], reverse=True)
+        top_items = sorted_items[:count]
 
-            for taxon_id in field_data.dropna():
-                if taxon_id in taxon_dict:
-                    current_id = taxon_id
-                    while current_id is not None:
-                        current_taxon = taxon_dict.get(current_id)
-                        if not current_taxon:
-                            break
+        # Split into tops and counts
+        tops = [item[0] for item in top_items]
+        counts = [item[1] for item in top_items]
 
-                        if current_taxon["rank_name"] in target_ranks:
-                            item_name = current_taxon["full_name"]
-                            item_counts[item_name] = item_counts.get(item_name, 0) + 1
-                            break
+        return {"tops": tops, "counts": counts}
 
-                        current_id = current_taxon["parent_id"]
+    def _process_plot_ranking(
+        self, field_data: pd.Series, target_ranks: list, count: int
+    ) -> Dict[str, Any]:
+        """Process ranking based on plot_id/plot_ref_id field - count taxa within specific plots."""
+        # Get unique plot IDs
+        plot_ids = set(field_data.dropna().unique())
+        if not plot_ids:
+            return {"tops": [], "counts": []}
 
-            # Sort items by count and get top N
-            sorted_items = sorted(item_counts.items(), key=lambda x: x[1], reverse=True)
-            top_items = sorted_items[: validated_config["params"]["count"]]
+        # Convert plot_ids to a comma-separated string
+        plot_ids_str = ",".join(str(int(id)) for id in plot_ids)
 
-            # Split into tops and counts
-            tops = [item[0] for item in top_items]
-            counts = [item[1] for item in top_items]
+        # Query to get taxa counts for these specific plots using nested set model
+        # Use plot_ref_id in the query since that's what's in the occurrences table
+        query = f"""
+            SELECT tr_target.full_name, COUNT(*) as occurrence_count
+            FROM occurrences o
+            JOIN taxon_ref tr_source ON o.taxon_ref_id = tr_source.id
+            JOIN taxon_ref tr_target ON (
+                tr_target.lft <= tr_source.lft
+                AND tr_target.rght >= tr_source.rght
+                AND tr_target.rank_name IN ({",".join([f"'{rank}'" for rank in target_ranks])})
+            )
+            WHERE o.plot_ref_id IN ({plot_ids_str})
+            GROUP BY tr_target.full_name
+            ORDER BY occurrence_count DESC
+            LIMIT {count}
+        """
 
-            return {"tops": tops, "counts": counts}
+        result = self.db.execute_select(query)
+        if not result:
+            return {"tops": [], "counts": []}
 
-        except Exception as e:
-            raise ValueError(f"Invalid configuration: {str(e)}") from e
+        # Extract results
+        tops = []
+        counts = []
+        for row in result.fetchall():
+            tops.append(row[0])
+            counts.append(row[1])
+
+        return {"tops": tops, "counts": counts}

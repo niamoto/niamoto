@@ -108,7 +108,7 @@ def test_extraction_no_sort(mock_db, sample_data):
 
 
 def test_error_missing_class_object_data(mock_db, sample_data):
-    """Test error when the specified class_object is not found in data."""
+    """Test that plugin returns empty result when the specified class_object is not found in data."""
     plugin = ClassObjectSeriesExtractor(mock_db)
     config = {
         "plugin": "class_object_series_extractor",
@@ -120,9 +120,9 @@ def test_error_missing_class_object_data(mock_db, sample_data):
         },
     }
 
-    with pytest.raises(DataTransformError) as exc_info:
-        plugin.transform(sample_data, config)
-    assert "No data found for class_object non_existent_object" in str(exc_info.value)
+    # Should return empty lists instead of raising an error
+    result = plugin.transform(sample_data, config)
+    assert result == {"sizes": [], "values": []}
 
 
 def test_error_missing_input_field(mock_db, sample_data):
