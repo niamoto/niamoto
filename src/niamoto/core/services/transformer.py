@@ -119,30 +119,41 @@ class TransformerService:
 
                     # Process each widget
                     for widget_name, widget_config in widgets_config.items():
-                        # Load the transformation plugin
-                        transformer = PluginRegistry.get_plugin(
-                            widget_config["plugin"], PluginType.TRANSFORMER
-                        )(self.db)
+                        try:
+                            # Load the transformation plugin
+                            transformer = PluginRegistry.get_plugin(
+                                widget_config["plugin"], PluginType.TRANSFORMER
+                            )(self.db)
 
-                        # Transform the data
-                        config = {
-                            "plugin": widget_config["plugin"],
-                            "params": {
-                                "source": widget_config.get("source"),
-                                "field": widget_config.get("field"),
-                                **widget_config.get("params", {}),
-                            },
-                            "group_id": group_id,
-                        }
-                        results = transformer.transform(group_data, config)
+                            # Transform the data
+                            config = {
+                                "plugin": widget_config["plugin"],
+                                "params": {
+                                    "source": widget_config.get("source"),
+                                    "field": widget_config.get("field"),
+                                    **widget_config.get("params", {}),
+                                },
+                                "group_id": group_id,
+                            }
+                            results = transformer.transform(group_data, config)
 
-                        # Save the results
-                        if results:
-                            self._save_widget_results(
-                                group_by=group_by_name,
-                                group_id=group_id,
-                                results={widget_name: results},
-                            )
+                            # Save the results
+                            if results:
+                                self._save_widget_results(
+                                    group_by=group_by_name,
+                                    group_id=group_id,
+                                    results={widget_name: results},
+                                )
+                        except Exception as e:
+                            # Log the error but continue processing other widgets
+                            error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
+                            logger.warning(error_msg)
+                            # Only show in console if it's not an expected empty data case
+                            if not (
+                                isinstance(e, DataTransformError)
+                                and "No data found" in str(e)
+                            ):
+                                self.console.print(f"[yellow]⚠ {error_msg}[/yellow]")
 
                         progress.advance(config_task)
 
