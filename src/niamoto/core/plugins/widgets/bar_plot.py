@@ -113,9 +113,6 @@ class BarPlotWidget(WidgetPlugin):
             or not isinstance(processed_data, pd.DataFrame)
             or processed_data.empty
         ):
-            logger.warning(
-                "No valid DataFrame available for BarPlotWidget after processing input."
-            )
             return "<p class='info'>No data available for the bar plot.</p>"
 
         # Verify required columns are present in the processed DataFrame

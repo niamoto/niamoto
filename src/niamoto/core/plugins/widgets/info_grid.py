@@ -175,9 +175,9 @@ class InfoGridWidget(WidgetPlugin):
                             ",", " "
                         ).replace(".", ",")  # French style formatting
                 except (ValueError, TypeError):
-                    logger.warning(
+                    """ logger.warning(
                         f"Could not format value '{value_to_format}' as number for item '{item.label}'."
-                    )
+                    ) """
 
             # --- HTML Generation with Tailwind CSS --- #
             # Handle icons - support for Font Awesome and other icon libraries
