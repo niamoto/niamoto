@@ -3,6 +3,7 @@ import logging
 from typing import Any, List, Optional, Set
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import topojson
 from pydantic import BaseModel, Field
 
@@ -45,11 +46,11 @@ class InteractiveMapParams(BaseModel):
         None, description="Additional fields for hover tooltip."
     )
     map_type: str = Field(
-        default="scatter_mapbox", description="'scatter_mapbox' or 'choropleth_mapbox'."
+        default="scatter_map", description="'scatter_map' or 'choropleth_map'."
     )
-    mapbox_style: str = Field(
+    map_style: str = Field(
         default="carto-positron",
-        description="Mapbox base style (e.g., 'open-street-map', 'carto-positron', 'stamen-terrain').",
+        description="Map base style (e.g., 'open-street-map', 'carto-positron', 'stamen-terrain').",
     )
     zoom: float = Field(default=9.0, description="Initial zoom level of the map")
     center_lat: Optional[float] = Field(
@@ -68,7 +69,7 @@ class InteractiveMapParams(BaseModel):
         None, description="Min/max for color scale."
     )
     size_max: Optional[int] = Field(
-        default=15, description="Maximum marker size for scatter_mapbox."
+        default=15, description="Maximum marker size for scatter_map."
     )
     opacity: Optional[float] = Field(
         default=0.8, description="Marker/feature opacity (0 to 1)."
@@ -79,6 +80,10 @@ class InteractiveMapParams(BaseModel):
     )
     layers: Optional[List[dict]] = Field(
         None, description="List of layer configurations for multi-layer maps."
+    )
+    # Deprecated field for backward compatibility
+    mapbox_style: Optional[str] = Field(
+        None, description="Deprecated: Use map_style instead."
     )
 
 
@@ -248,7 +253,7 @@ class InteractiveMapWidget(WidgetPlugin):
                     )
                     geojson_plot_data = json.loads(geojson_str)  # Parse string to dict
                     map_mode = "choropleth_outline"
-                    # Create a dummy DataFrame needed by choropleth_mapbox
+                    # Create a dummy DataFrame needed by choropleth_map
                     # Add an 'id' property to the first feature for matching
                     if geojson_plot_data and geojson_plot_data.get("features"):
                         geojson_plot_data["features"][0]["id"] = (
@@ -335,17 +340,24 @@ class InteractiveMapWidget(WidgetPlugin):
         required_cols = set()
         # Determine the effective map type
         effective_map_type = params.map_type
+
+        # Handle backward compatibility for deprecated map types
+        if effective_map_type == "scatter_mapbox":
+            effective_map_type = "scatter_map"
+        elif effective_map_type == "choropleth_mapbox":
+            effective_map_type = "choropleth_map"
+
         if not effective_map_type:  # If not specified in params, infer from data
             if map_mode == "choropleth_outline":
                 effective_map_type = (
-                    "choropleth_mapbox"  # Treat outline as choropleth for later logic
+                    "choropleth_map"  # Treat outline as choropleth for later logic
                 )
             else:
-                effective_map_type = "scatter_mapbox"  # Default inferred type
+                effective_map_type = "scatter_map"  # Default inferred type
 
         # --- Check requirements based on effective_map_type and map_mode ---
 
-        if effective_map_type == "scatter_mapbox":
+        if effective_map_type == "scatter_map":
             # Ensure the DataFrame (original or parsed) has lat/lon fields
             # If parsed from GeoJSON, these are standard 'latitude', 'longitude'
             latitude_field = params.latitude_field or "latitude"
@@ -357,7 +369,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 or longitude_field not in df_plot.columns
             ):
                 logger.error(
-                    f"DataFrame missing required coordinate columns ('{latitude_field}', '{longitude_field}') for scatter_mapbox."
+                    f"DataFrame missing required coordinate columns ('{latitude_field}', '{longitude_field}') for scatter_map."
                 )
                 return f"<p class='error'>Data Error: Missing coordinate columns ('{latitude_field}', '{longitude_field}').</p>"
             # Add required columns if they exist (even if check skipped for dummy df)
@@ -386,12 +398,12 @@ class InteractiveMapWidget(WidgetPlugin):
             if params.size_field:
                 required_cols.add(params.size_field)
 
-        elif effective_map_type == "choropleth_mapbox":
+        elif effective_map_type == "choropleth_map":
             # Check for location field only if it's an explicitly configured choropleth
             # (not the implicit choropleth_outline which uses a dummy df)
             if map_mode != "choropleth_outline":
                 if not params.location_field:
-                    return "<p class='error'>Configuration Error: Location field is required for choropleth_mapbox.</p>"
+                    return "<p class='error'>Configuration Error: Location field is required for choropleth_map.</p>"
                 required_cols.add(params.location_field)
 
         # Check for missing columns *in the DataFrame used for plotting*
@@ -410,7 +422,7 @@ class InteractiveMapWidget(WidgetPlugin):
 
         # Calculate center from data only for scatter plots with valid data
         if (
-            effective_map_type == "scatter_mapbox"
+            effective_map_type == "scatter_map"
             and map_mode == "scatter"
             and df_plot is not None
             and not df_plot.empty
@@ -421,12 +433,12 @@ class InteractiveMapWidget(WidgetPlugin):
         try:
             fig = None
             if (
-                effective_map_type == "scatter_mapbox"
+                effective_map_type == "scatter_map"
                 and map_mode == "scatter"
                 and df_plot is not None
                 and not df_plot.empty
             ):
-                fig = px.scatter_mapbox(
+                fig = px.scatter_map(
                     df_plot,
                     lat=latitude_field,
                     lon=longitude_field,
@@ -441,10 +453,12 @@ class InteractiveMapWidget(WidgetPlugin):
                     opacity=params.opacity,
                     zoom=params.zoom,
                     center={"lat": center_lat, "lon": center_lon},
-                    mapbox_style=params.mapbox_style,
+                    map_style=params.map_style
+                    if params.map_style
+                    else params.mapbox_style,
                     title=None,
                 )
-            elif effective_map_type == "choropleth_mapbox":
+            elif effective_map_type == "choropleth_map":
                 # Note: Choropleth expects the original DataFrame, not the potentially
                 # parsed GeoJSON points DataFrame (df_plot) if data was dict.
                 # For now, assuming choropleth always gets a DataFrame directly.
@@ -455,7 +469,7 @@ class InteractiveMapWidget(WidgetPlugin):
                     len(geojson_plot_data.get("features", [])),
                 )
                 try:
-                    fig = px.choropleth_mapbox(
+                    fig = px.choropleth_map(
                         df_plot,  # Use df_plot (original, or dummy for outline)
                         geojson=geojson_plot_data,
                         # For outline, use dummy df location, else use configured
@@ -477,7 +491,9 @@ class InteractiveMapWidget(WidgetPlugin):
                         opacity=params.opacity,
                         zoom=params.zoom,
                         center={"lat": center_lat, "lon": center_lon},
-                        mapbox_style=params.mapbox_style,
+                        map_style=params.map_style
+                        if params.map_style
+                        else params.mapbox_style,
                         title=None,
                     )
                     logger.debug(
@@ -513,11 +529,11 @@ class InteractiveMapWidget(WidgetPlugin):
                         )
 
                     fig.update_layout(
-                        mapbox_zoom=zoom_level,
-                        mapbox_center={"lat": center_lat, "lon": center_lon},
+                        map_zoom=zoom_level,
+                        map_center={"lat": center_lat, "lon": center_lon},
                     )
                     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-                    fig.update_layout(mapbox_accesstoken=None)
+                    # No need for access token with new map types
                     logger.debug("Successfully updated layout for choropleth_outline")
                 except Exception as e:
                     logger.error(
@@ -530,9 +546,7 @@ class InteractiveMapWidget(WidgetPlugin):
                         % str(e)
                     )
             if fig:
-                fig.update_layout(
-                    margin={"r": 0, "t": 0, "l": 0, "b": 0}, mapbox_accesstoken=None
-                )
+                fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
                 html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
                 return html_content
             else:
@@ -628,7 +642,6 @@ class InteractiveMapWidget(WidgetPlugin):
                 logger.debug("Forest style: %s", forest_style)
 
         # Create base figure
-        import plotly.graph_objects as go
 
         fig = go.Figure()
 
@@ -650,7 +663,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 forest_opacity = forest_style.get("fillOpacity", 0.8)
 
                 # Add forest layer
-                fig.add_choroplethmapbox(
+                fig.add_choroplethmap(
                     geojson=forest_geojson,
                     locations=forest_df["id"],
                     z=forest_df["value"],
@@ -703,7 +716,7 @@ class InteractiveMapWidget(WidgetPlugin):
 
                             # Create a line trace
                             fig.add_trace(
-                                go.Scattermapbox(
+                                go.Scattermap(
                                     lon=lons,
                                     lat=lats,
                                     mode="lines",
@@ -723,7 +736,7 @@ class InteractiveMapWidget(WidgetPlugin):
 
                                 # Create a line trace
                                 fig.add_trace(
-                                    go.Scattermapbox(
+                                    go.Scattermap(
                                         lon=lons,
                                         lat=lats,
                                         mode="lines",
@@ -733,7 +746,7 @@ class InteractiveMapWidget(WidgetPlugin):
                                     )
                                 )
 
-                logger.debug("Successfully added shape boundary using Scattermapbox")
+                logger.debug("Successfully added shape boundary using Scattermap")
             except Exception as e:
                 logger.error(
                     "Error adding shape boundary traces: %s", str(e), exc_info=True
@@ -742,7 +755,7 @@ class InteractiveMapWidget(WidgetPlugin):
         # Add a single legend entry for the shape boundary
         if shape_geojson:
             fig.add_trace(
-                go.Scattermapbox(
+                go.Scattermap(
                     lon=[],
                     lat=[],
                     mode="lines",
@@ -856,12 +869,11 @@ class InteractiveMapWidget(WidgetPlugin):
             logger.debug("Layout before update: %s", fig.layout)
 
             fig.update_layout(
-                mapbox_style="carto-positron",
-                mapbox_zoom=zoom_level,
-                mapbox_center={"lat": center_lat, "lon": center_lon},
+                map_style="carto-positron",
+                map_zoom=zoom_level,
+                map_center={"lat": center_lat, "lon": center_lon},
                 margin={"r": 0, "t": 0, "l": 0, "b": 0},
                 height=500,
-                mapbox_accesstoken=None,
             )
             logger.debug("Layout updated successfully")
         except Exception as e:

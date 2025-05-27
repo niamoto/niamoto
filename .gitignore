@@ -110,5 +110,6 @@ dmypy.json
 # AI settings
 /.windsurfrules
 CLAUDE.md
+.claude
 .timetracker
 Pipfile
