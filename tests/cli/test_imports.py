@@ -412,6 +412,7 @@ class TestImportPlots:
                     "locality",
                     link_field=None,
                     occurrence_link_field=None,
+                    hierarchy_config=None,
                 )
 
     def test_import_plots_with_link_fields(self, runner):
@@ -485,6 +486,7 @@ class TestImportPlots:
                     "region",
                     link_field="taxon_id",
                     occurrence_link_field="taxon_id",
+                    hierarchy_config=None,
                 )
 
     def test_import_plots_from_config(self, runner):
@@ -545,6 +547,7 @@ class TestImportPlots:
                     "locality",
                     link_field=None,
                     occurrence_link_field=None,
+                    hierarchy_config=None,
                 )
 
     def test_import_plots_missing_required_fields(self, runner):

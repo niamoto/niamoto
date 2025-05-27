@@ -108,6 +108,7 @@ class TestImporterService(NiamotoTestCase):
             locality_field="locality_name",
             link_field=None,
             occurrence_link_field=None,
+            hierarchy_config=None,
         )
 
     @patch("pathlib.Path.exists")

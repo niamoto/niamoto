@@ -9,7 +9,7 @@ like taxonomies, geographical zones, or any nested set/parent-child relationship
 
 import json
 import logging
-from typing import Any, Optional, Set
+from typing import Any, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -88,12 +88,12 @@ class HierarchicalNavWidget(WidgetPlugin):
 
     param_schema = HierarchicalNavWidgetParams
 
-    def get_dependencies(self) -> Set[str]:
-        """Return the set of CSS/JS dependencies for this widget."""
-        return {
+    def get_dependencies(self) -> List[str]:
+        """Return the list of CSS/JS dependencies for this widget."""
+        return [
             "/assets/js/niamoto_hierarchical_nav.js",
             "/assets/css/niamoto_hierarchical_nav.css",
-        }
+        ]
 
     def render(self, data_list: Any, params: HierarchicalNavWidgetParams) -> str:
         """
