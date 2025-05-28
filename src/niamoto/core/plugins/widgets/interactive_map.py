@@ -53,6 +53,9 @@ class InteractiveMapParams(BaseModel):
         description="Map base style (e.g., 'open-street-map', 'carto-positron', 'stamen-terrain').",
     )
     zoom: float = Field(default=9.0, description="Initial zoom level of the map")
+    auto_zoom: bool = Field(
+        default=False, description="Automatically calculate zoom to fit all data points"
+    )
     center_lat: Optional[float] = Field(
         None, description="Initial map center latitude."
     )
@@ -198,6 +201,61 @@ class InteractiveMapWidget(WidgetPlugin):
         else:
             logger.warning(f"Unsupported data type: {data.get('type')}")
         return None
+
+    def _calculate_zoom_from_bounds(
+        self,
+        min_lat: float,
+        max_lat: float,
+        min_lon: float,
+        max_lon: float,
+        map_height: int = 500,
+        map_width: int = 700,
+    ) -> float:
+        """Calculate appropriate zoom level based on geographic bounds.
+
+        Args:
+            min_lat: Minimum latitude
+            max_lat: Maximum latitude
+            min_lon: Minimum longitude
+            max_lon: Maximum longitude
+            map_height: Map height in pixels (default 500)
+            map_width: Map width in pixels (default 700)
+
+        Returns:
+            Optimal zoom level
+        """
+        import math
+
+        # Calculate the extent
+        lat_diff = max_lat - min_lat
+        lon_diff = max_lon - min_lon
+
+        # Handle edge cases
+        if lat_diff == 0 and lon_diff == 0:
+            return 15.0  # Single point, use high zoom
+
+        # World extent in degrees
+        WORLD_DIM = {"height": 180, "width": 360}
+
+        # Calculate zoom based on both dimensions
+        # Using a simplified formula based on the Mercator projection
+        zoom_lat = (
+            math.log2(WORLD_DIM["height"] * map_height / (lat_diff * 256))
+            if lat_diff > 0
+            else 20
+        )
+        zoom_lon = (
+            math.log2(WORLD_DIM["width"] * map_width / (lon_diff * 256))
+            if lon_diff > 0
+            else 20
+        )
+
+        # Take the minimum zoom to ensure all points are visible
+        # Subtract a small buffer to ensure padding around points
+        zoom = min(zoom_lat, zoom_lon) - 0.5
+
+        # Clamp zoom between reasonable bounds
+        return max(1.0, min(18.0, zoom))
 
     def render(self, data: Optional[Any], params: InteractiveMapParams) -> str:
         """Generate the HTML for the interactive map. Accepts DataFrame or parsed GeoJSON dict."""
@@ -423,7 +481,8 @@ class InteractiveMapWidget(WidgetPlugin):
                 )
                 return f"<p class='error'>Configuration Error: Missing columns {missing_cols}.</p>"
 
-        # Calculate center from data only for scatter plots with valid data
+        # Calculate center and zoom from data only for scatter plots with valid data
+        calculated_zoom = params.zoom  # Default to params zoom
         if (
             effective_map_type == "scatter_map"
             and map_mode == "scatter"
@@ -432,6 +491,19 @@ class InteractiveMapWidget(WidgetPlugin):
         ):
             center_lat = df_plot[latitude_field].mean()
             center_lon = df_plot[longitude_field].mean()
+
+            # Calculate optimal zoom if auto_zoom is enabled
+            if params.auto_zoom:
+                min_lat = df_plot[latitude_field].min()
+                max_lat = df_plot[latitude_field].max()
+                min_lon = df_plot[longitude_field].min()
+                max_lon = df_plot[longitude_field].max()
+                calculated_zoom = self._calculate_zoom_from_bounds(
+                    min_lat, max_lat, min_lon, max_lon
+                )
+                logger.debug(
+                    f"Auto-calculated zoom level: {calculated_zoom} for bounds: lat[{min_lat}, {max_lat}], lon[{min_lon}, {max_lon}]"
+                )
 
         try:
             fig = None
@@ -454,7 +526,7 @@ class InteractiveMapWidget(WidgetPlugin):
                     range_color=params.range_color,
                     size_max=params.size_max,
                     opacity=params.opacity,
-                    zoom=params.zoom,
+                    zoom=calculated_zoom,
                     center={"lat": center_lat, "lon": center_lon},
                     map_style=params.map_style
                     if params.map_style
@@ -509,6 +581,10 @@ class InteractiveMapWidget(WidgetPlugin):
 
                     # Make outline visible for choropleth outline
                     # Calculate center and zoom based on the bounds from GeoJSON
+                    zoom_level = (
+                        calculated_zoom if calculated_zoom is not None else params.zoom
+                    )
+
                     if geojson_plot_data and "bbox" in geojson_plot_data:
                         center_lon = (
                             geojson_plot_data["bbox"][0] + geojson_plot_data["bbox"][2]
@@ -516,8 +592,21 @@ class InteractiveMapWidget(WidgetPlugin):
                         center_lat = (
                             geojson_plot_data["bbox"][1] + geojson_plot_data["bbox"][3]
                         ) / 2
-                        # Use provided zoom or default
-                        zoom_level = params.zoom if params.zoom is not None else 9.0
+
+                        # Calculate optimal zoom if auto_zoom is enabled
+                        if params.auto_zoom:
+                            bbox = geojson_plot_data["bbox"]
+                            zoom_level = self._calculate_zoom_from_bounds(
+                                bbox[1], bbox[3], bbox[0], bbox[2]
+                            )
+                            logger.debug(
+                                "Auto-calculated zoom from bbox: %s for bounds: %s",
+                                zoom_level,
+                                bbox,
+                            )
+                        else:
+                            zoom_level = params.zoom if params.zoom is not None else 9.0
+
                         logger.debug(
                             "Using center and zoom from GeoJSON bbox: center=(%s, %s), zoom=%s",
                             center_lat,
@@ -525,9 +614,9 @@ class InteractiveMapWidget(WidgetPlugin):
                             zoom_level,
                         )
                     else:
-                        zoom_level = params.zoom or 9.0
+                        zoom_level = zoom_level if zoom_level is not None else 9.0
                         logger.debug(
-                            "No bbox in GeoJSON, using provided or default zoom: %s",
+                            "No bbox in GeoJSON, using zoom: %s",
                             zoom_level,
                         )
 
@@ -896,8 +985,25 @@ class InteractiveMapWidget(WidgetPlugin):
 
         # Set up the map layout with zoom from config or default
         try:
-            # Use configured zoom level or default
+            # Calculate optimal zoom if auto_zoom is enabled and we have bounds
             zoom_level = params.zoom if params.zoom is not None else 9.0
+
+            if params.auto_zoom and all_lons and all_lats:
+                min_lon = min(all_lons)
+                max_lon = max(all_lons)
+                min_lat = min(all_lats)
+                max_lat = max(all_lats)
+                zoom_level = self._calculate_zoom_from_bounds(
+                    min_lat, max_lat, min_lon, max_lon
+                )
+                logger.debug(
+                    "Auto-calculated zoom for multi-layer: %s for bounds: lat[%s, %s], lon[%s, %s]",
+                    zoom_level,
+                    min_lat,
+                    max_lat,
+                    min_lon,
+                    max_lon,
+                )
 
             # Apply the layout
             logger.debug("Figure data before layout update:")
