@@ -8,12 +8,8 @@ import os
 import pandas as pd
 import geopandas as gpd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError
 from niamoto.common.config import Config
 

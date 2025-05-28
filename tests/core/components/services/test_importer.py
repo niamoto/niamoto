@@ -2,23 +2,38 @@ import unittest
 from unittest.mock import Mock, patch
 from niamoto.core.services.importer import ImporterService
 import os
+import tempfile
 from tests.common.base_test import NiamotoTestCase
 
 
 class TestImporterService(NiamotoTestCase):
     def setUp(self):
+        # Create a temporary directory for config to avoid creating at project root
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_dir = os.path.join(self.temp_dir, "config")
+
         # Create a mock database and set up the ImporterService
         self.mock_db = Mock()
-        with patch(
-            "niamoto.core.services.importer.Database",
-            return_value=self.mock_db,
-            autospec=True,
+        with (
+            patch(
+                "niamoto.core.services.importer.Database",
+                return_value=self.mock_db,
+                autospec=True,
+            ),
+            patch("niamoto.core.components.imports.taxons.Config") as mock_config,
         ):
+            # Mock Config to prevent creating config directory at project root
+            mock_config.return_value.plugins_dir = self.config_dir
             self.importer_service = ImporterService("mock_db_path")
 
     def tearDown(self):
         """Clean up test fixtures and stop all patches."""
         from unittest import mock
+        import shutil
+
+        # Clean up temporary directory
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
 
         # Stop all active patches to prevent MagicMock leaks
         mock.patch.stopall()
@@ -108,6 +123,7 @@ class TestImporterService(NiamotoTestCase):
             locality_field="locality_name",
             link_field=None,
             occurrence_link_field=None,
+            hierarchy_config=None,
         )
 
     @patch("pathlib.Path.exists")

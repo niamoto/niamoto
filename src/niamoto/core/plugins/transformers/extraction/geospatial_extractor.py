@@ -11,12 +11,8 @@ from shapely.geometry import Point
 from shapely.wkb import loads as load_wkb
 from shapely.wkt import loads as load_wkt
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
 from pydantic import field_validator
 
@@ -206,7 +202,9 @@ class GeospatialExtractor(TransformerPlugin):
             group_by_coordinates = params.get("group_by_coordinates", False)
 
             # Get source data if different from occurrences
-            if source != "occurrences":
+            # Exception: if source is "plots" but we already have aggregated data from nested_set,
+            # use the provided data instead of fetching from source
+            if source != "occurrences" and not (source == "plots" and not data.empty):
                 group_id = config.get("group_id")
                 data = self._get_data_from_source(source, group_id)
 

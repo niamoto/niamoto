@@ -1,0 +1,73 @@
+{% extends "_layouts/_base.html" %}
+
+{% block content %}
+    {# Try to find a meaningful title for the item #}
+    {% set item_title = item.name | default(item.full_name) | default(item.plot_name) | default(item[id_column]) %}
+    {# Define page_title for the base template #}
+    {% set page_title = item_title|string + ' | ' + (site.title | default('Niamoto Export')) %}
+
+    <div class="flex flex-col lg:flex-row min-h-screen bg-gray-50">
+        {# Sidebar with hierarchical navigation #}
+        <aside class="lg:w-80 bg-white border-b lg:border-b-0 lg:border-r border-gray-200 lg:h-screen lg:sticky lg:top-0 lg:overflow-y-auto">
+            <div class="bg-white border-b border-gray-200 p-4">
+                <h2 class="text-lg font-semibold text-gray-900">Navigation</h2>
+            </div>
+            <div class="p-4">
+                {# Find and render the hierarchical navigation widget #}
+                {% for widget_key, widget_html in widgets.items() %}
+                    {% if 'hierarchical_nav_widget' in widget_key %}
+                        {{ widget_html | safe }}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </aside>
+
+        {# Main content area #}
+        <main class="flex-1 lg:overflow-y-auto">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+                {# Widgets in responsive grid layout #}
+                {% if widgets %}
+                    <div class="grid grid-cols-12 gap-4 lg:gap-6">
+                        {% for widget_key, widget_html in widgets.items() %}
+                            {% if 'hierarchical_nav_widget' not in widget_key %}
+                                {# Determine widget size based on type #}
+                                {% if 'interactive_map' in widget_key %}
+                                    {# Map takes full width #}
+                                    <div class="col-span-12">
+                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                            {{ widget_html | safe }}
+                                        </div>
+                                    </div>
+                                {% elif 'info_grid' in widget_key %}
+                                    {# Info grid takes full width #}
+                                    <div class="col-span-12">
+                                        {{ widget_html | safe }}
+                                    </div>
+                                {% else %}
+                                    {# All other widgets: 2 columns on desktop, 1 on mobile #}
+                                    <div class="col-span-12 lg:col-span-6">
+                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                            {{ widget_html | safe }}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-gray-600">No visualizations configured for this item.</p>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+{% endblock %}
+
+{# Include widget dependencies in base template blocks #}
+{% block styles %}
+    {{ super() }}
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+{% endblock %}

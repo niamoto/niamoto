@@ -15,6 +15,7 @@ from .imports import import_commands
 from .transform import transform_commands
 from .export import generate_commands
 from .deploy import deploy_commands
+from .plugins import plugins
 
 
 def create_cli() -> click.Group:
@@ -27,6 +28,7 @@ def create_cli() -> click.Group:
         - `transforms`: Transforms and aggregates raw data for analysis.
         - `export`: Generates static content using processed data.
         - `deploy`: Deploys generated content to supported platforms.
+        - `plugins`: Lists available plugins in the system.
 
     Returns:
         click.Group: The root command group for the Niamoto CLI.
@@ -43,5 +45,6 @@ def create_cli() -> click.Group:
     cli.add_command(transform_commands)
     cli.add_command(generate_commands)
     cli.add_command(deploy_commands)
+    cli.add_command(plugins)
 
     return cli

@@ -7,14 +7,13 @@ from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
+import logging
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
+
+logger = logging.getLogger(__name__)
 
 
 class FieldConfig(BaseModel):
@@ -57,7 +56,7 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
-        validated_config = super().validate_config(config)
+        validated_config = self.config_model(**config)
 
         # Validate required fields are specified
         params = validated_config.params
@@ -110,14 +109,16 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
             filtered_data = data[data["class_object"] == class_object].copy()
 
             if filtered_data.empty:
-                raise DataTransformError(
-                    f"No data found for class_object {class_object}",
-                    details={
-                        "available_class_objects": data["class_object"]
-                        .unique()
-                        .tolist()
-                    },
+                # Return empty result instead of raising an error
+                logger.debug(
+                    f"No data found for class_object {class_object}, returning empty result"
                 )
+                size_config = FieldConfig(**params["size_field"])
+                value_config = FieldConfig(**params["value_field"])
+                return {
+                    size_config.output: [],
+                    value_config.output: [],
+                }
 
             # Get size field configuration
             size_config = FieldConfig(**params["size_field"])

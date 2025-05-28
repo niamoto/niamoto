@@ -7,12 +7,8 @@ from pydantic import Field, field_validator
 
 import pandas as pd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 
 
 class BinaryCounterConfig(PluginConfig):

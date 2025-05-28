@@ -5,6 +5,7 @@ Unit tests for the shape processor plugin.
 import os
 import unittest
 import yaml
+import tempfile
 
 import pandas as pd
 import geopandas as gpd
@@ -27,8 +28,9 @@ class TestShapeProcessor(NiamotoTestCase):
         )
         os.makedirs(self.test_data_dir, exist_ok=True)
 
-        # Create config directory
-        self.config_dir = os.path.join(os.getcwd(), "config")
+        # Create config directory in temporary location
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_dir = os.path.join(self.temp_dir, "config")
         os.makedirs(self.config_dir, exist_ok=True)
 
         # Create test layers with more complex geometries
@@ -172,6 +174,13 @@ class TestShapeProcessor(NiamotoTestCase):
 
         # Initialize processor with config
         self.processor = ShapeProcessor(self.db, self.test_config)
+        # Override the config_dir to use our test config directory
+        self.processor.config_dir = self.temp_dir
+        # Reload the imports config from our test config directory
+        import_yml_path = os.path.join(self.config_dir, "import.yml")
+        if os.path.exists(import_yml_path):
+            with open(import_yml_path, "r") as f:
+                self.processor.imports_config = yaml.safe_load(f)
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -182,9 +191,9 @@ class TestShapeProcessor(NiamotoTestCase):
 
         # Clean up test files if they exist
         try:
-            # Clean up config directory
-            if os.path.exists(self.config_dir):
-                shutil.rmtree(self.config_dir, ignore_errors=True)
+            # Clean up temporary directory (includes config dir)
+            if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
 
             # Clean up test data directory
             if os.path.exists(self.test_data_dir):

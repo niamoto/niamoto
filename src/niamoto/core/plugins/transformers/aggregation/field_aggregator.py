@@ -9,12 +9,8 @@ import os
 import pandas as pd
 import geopandas as gpd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError
 from niamoto.common.config import Config
 
@@ -196,36 +192,14 @@ class FieldAggregator(TransformerPlugin):
                         else:
                             value = None
                     else:  # DB, import, etc.
-                        field_path = field.field
-                        if "." in field_path:
-                            path_parts = field_path.split(".")
-                            base_field = path_parts[0]
-                            nested_keys = path_parts[1:]
-
-                            # Get the base object/dictionary
-                            base_value = self._get_field_value(
-                                field.source, base_field, config.get("group_id")
+                        # Check if it's a JSON field access (contains dot notation)
+                        if "." in field.field:
+                            # Use _get_field_from_table for JSON field extraction
+                            value = self._get_field_from_table(
+                                field.source, field.field, config.get("group_id")
                             )
-
-                            # Navigate through the nested keys
-                            current_value = base_value
-                            if current_value is not None:
-                                for key in nested_keys:
-                                    if isinstance(current_value, dict):
-                                        current_value = current_value.get(
-                                            key
-                                        )  # Use .get() for safety
-                                        if (
-                                            current_value is None
-                                        ):  # Stop if key not found
-                                            break
-                                    # Add elif for list index if needed
-                                    else:  # Cannot navigate further
-                                        current_value = None
-                                        break
-                            value = current_value
                         else:
-                            # Original logic for non-dotted fields
+                            # Use _get_field_value for regular fields
                             value = self._get_field_value(
                                 field.source, field.field, config.get("group_id")
                             )
