@@ -284,27 +284,36 @@ Widget plugins create visualizations and UI components for displaying data.
 - group_by: taxon
   widgets:
     distribution_map:
-      type: map_panel
-      title: "Geographic Distribution"
-      source: distribution_map
-      layers:
-        - id: "occurrences"
-          source: coordinates
-          style:
-            color: "#1fb99d"
-            fillOpacity: 0.5
+      type: interactive_map
+      config:
+        title: "Geographic Distribution"
+        map_type: "scatter_map"
+        latitude_field: "lat"
+        longitude_field: "lon"
+        color_field: "species_count"
+        hover_name: "location_name"
+        zoom: 9.0
+        center_lat: -21.5
+        center_lon: 165.5
 ```
 
 ### Built-in Widget Plugins
 
-| Plugin Name | Purpose | Parameters |
+| Plugin Name | Purpose | Key Parameters |
 |-------------|---------|------------|
-| `bar_chart` | Create bar charts | `datasets`, `labels_key`, `options` |
-| `line_chart` | Create line charts | `datasets`, `labels_key`, `options` |
-| `doughnut_chart` | Create doughnut charts | `datasets`, `labels`, `options` |
-| `map_panel` | Create interactive maps | `layers`, `center`, `zoom` |
-| `info_panel` | Display information panels | `fields`, `layout` |
-| `gauge` | Display gauge charts | `value_key`, `min`, `max`, `sectors` |
+| `info_grid` | Display grid of metrics and info | `items`, `grid_columns`, `title` |
+| `interactive_map` | Create interactive Plotly maps | `map_type`, `latitude_field`, `longitude_field`, `color_field` |
+| `bar_plot` | Create bar charts | `x_axis`, `y_axis`, `color_field`, `barmode` |
+| `donut_chart` | Create donut/pie charts | `labels_field`, `values_field`, `hole_size` |
+| `radial_gauge` | Display gauge visualizations | `value_field`, `min_value`, `max_value`, `unit` |
+| `line_plot` | Create line charts | `x_axis`, `y_axis`, `color_field`, `line_shape` |
+| `stacked_area_plot` | Create stacked area charts | `x_field`, `y_fields`, `colors` |
+| `sunburst_chart` | Create hierarchical sunburst charts | `category_labels`, `leaf_labels`, `leaf_colors` |
+| `hierarchical_nav_widget` | Interactive tree navigation | `referential_data`, `id_field`, `name_field`, `base_url` |
+| `diverging_bar_plot` | Bar plots with positive/negative values | `x_axis`, `y_axis`, `zero_line` |
+| `scatter_plot` | Create scatter plots | `x_axis`, `y_axis`, `color_field`, `size_field` |
+| `summary_stats` | Display statistical summaries | `fields`, `statistics` |
+| `table_view` | Display tabular data | `columns`, `pagination`, `sorting` |
 
 ### Example: Custom Widget Plugin
 

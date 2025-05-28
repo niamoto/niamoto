@@ -9,7 +9,8 @@ import logging
 from typing import Dict, Any, Literal
 from pydantic import Field, model_validator
 
-from niamoto.core.plugins.base import LoaderPlugin, PluginType, register, PluginConfig
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 
 logger = logging.getLogger(__name__)
 

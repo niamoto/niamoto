@@ -1,0 +1,141 @@
+/* niamoto_hierarchical_nav.css */
+/* Styles for the hierarchical navigation widget - complements Tailwind v4 */
+
+/* Tree container styles - no max height to avoid double scroll */
+.hierarchical-nav-tree {
+    padding-right: 0.5rem;
+}
+
+/* Custom scrollbar for the sidebar container (parent) */
+.sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+    background-color: #f3f4f6;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background-color: #9ca3af;
+}
+
+/* Tree node styles */
+.tree-node {
+    user-select: none;
+}
+
+/* Chevron animation */
+.chevron {
+    transition: transform 200ms;
+}
+
+.tree-node.expanded > .tree-node-content .chevron {
+    transform: rotate(90deg);
+}
+
+/* Tree node link styles */
+.tree-node-link {
+    display: block;
+    padding: 0.375rem 0.75rem;
+    color: #4b5563;
+    text-decoration: none;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    transition: all 150ms ease-in-out;
+}
+
+.tree-node-link:hover {
+    background-color: #f3f4f6;
+    color: #111827;
+}
+
+/* Active/current node highlight */
+.tree-node.current .tree-node-content {
+    background-color: rgba(31, 185, 157, 0.1);
+    border-radius: 0.375rem;
+}
+
+.tree-node.current .tree-node-link,
+.tree-node.current a {
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+/* Visual indicator for current item */
+.tree-node.current > .tree-node-content::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 1.5rem;
+    background-color: var(--color-primary);
+    border-radius: 0 3px 3px 0;
+}
+
+/* Tree structure and indentation */
+.tree-children {
+    margin-left: 1.25rem;
+    position: relative;
+}
+
+.tree-children::before {
+    content: '';
+    position: absolute;
+    left: -0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #e5e7eb;
+}
+
+/* Expand/collapse icon */
+.tree-expand-icon {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.375rem;
+    color: #6b7280;
+    flex-shrink: 0;
+    transition: transform 200ms ease-in-out;
+}
+
+.tree-node.expanded .tree-expand-icon {
+    transform: rotate(90deg);
+}
+
+/* Node content container */
+.tree-node-content {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 150ms ease-in-out;
+}
+
+/* Loading animation */
+.loading-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 16rem;
+    color: #6b7280;
+}
+
+.loading-placeholder::after {
+    content: "Loading";
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { content: "Loading"; }
+    25% { content: "Loading."; }
+    50% { content: "Loading.."; }
+    75% { content: "Loading..."; }
+}

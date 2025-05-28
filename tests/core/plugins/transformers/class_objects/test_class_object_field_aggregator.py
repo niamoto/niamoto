@@ -2,7 +2,7 @@
 
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from niamoto.core.plugins.transformers.class_objects.field_aggregator import (
     ClassObjectFieldAggregator,
@@ -39,7 +39,11 @@ def sample_data():
 
 def test_single_field(mock_db, sample_data):
     """Test single field extraction"""
-    plugin = ClassObjectFieldAggregator(mock_db)
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
     config = {
         "plugin": "class_object_field_aggregator",
         "params": {
@@ -61,7 +65,11 @@ def test_single_field(mock_db, sample_data):
 
 def test_range_field(mock_db, sample_data):
     """Test range field extraction"""
-    plugin = ClassObjectFieldAggregator(mock_db)
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
     config = {
         "plugin": "class_object_field_aggregator",
         "params": {
@@ -85,7 +93,11 @@ def test_range_field(mock_db, sample_data):
 
 def test_missing_field(mock_db, sample_data):
     """Test error when field is missing"""
-    plugin = ClassObjectFieldAggregator(mock_db)
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
     config = {
         "plugin": "class_object_field_aggregator",
         "params": {
@@ -107,7 +119,11 @@ def test_missing_field(mock_db, sample_data):
 
 def test_invalid_range_field(mock_db, sample_data):
     """Test error when range field is invalid"""
-    plugin = ClassObjectFieldAggregator(mock_db)
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
     config = {
         "plugin": "class_object_field_aggregator",
         "params": {
@@ -130,7 +146,11 @@ def test_invalid_range_field(mock_db, sample_data):
 
 def test_multiple_fields(mock_db, sample_data):
     """Test multiple field extraction"""
-    plugin = ClassObjectFieldAggregator(mock_db)
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
     config = {
         "plugin": "class_object_field_aggregator",
         "params": {
@@ -162,7 +182,11 @@ def test_multiple_fields(mock_db, sample_data):
 
 def test_missing_source(mock_db, sample_data):
     """Test error when source is missing"""
-    plugin = ClassObjectFieldAggregator(mock_db)
+    with patch(
+        "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {}
+        plugin = ClassObjectFieldAggregator(mock_db)
     config = {
         "plugin": "class_object_field_aggregator",
         "params": {

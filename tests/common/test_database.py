@@ -125,12 +125,14 @@ def test_execute_query(test_database: Any, session: scoped_session) -> None:
     dummy_instance = TaxonRef(full_name="test_query")
     test_database.add_instance_and_commit(dummy_instance)
 
-    query = session.query(TaxonRef).filter_by(full_name="test_query")
+    # Use a raw SQL query string instead of a SQLAlchemy Query object
+    result = test_database.execute_query(
+        "SELECT * FROM taxon_ref WHERE full_name = 'test_query'"
+    )
 
-    result = test_database.execute_query(query)
     assert result is not None
     assert len(result) == 1
-    assert result[0].full_name == "test_query"
+    assert result[0][1] == "test_query"  # Assuming full_name is the second column
 
 
 def test_commit_session(test_database: Any, session: scoped_session) -> None:

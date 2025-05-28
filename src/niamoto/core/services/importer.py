@@ -214,6 +214,7 @@ class ImporterService:
         locality_field: str,
         link_field: Optional[str] = None,
         occurrence_link_field: Optional[str] = None,
+        hierarchy_config: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Import plot data from GeoPackage or CSV.
@@ -225,6 +226,7 @@ class ImporterService:
             locality_field: Field for locality name (mandatory for CSV imports)
             link_field: Field in plot_ref to use for linking with occurrences
             occurrence_link_field: Field in occurrences to use for linking with plots
+            hierarchy_config: Configuration for hierarchical import (optional)
 
         Returns:
             Success message
@@ -252,6 +254,7 @@ class ImporterService:
                 locality_field=locality_field,
                 link_field=link_field,
                 occurrence_link_field=occurrence_link_field,
+                hierarchy_config=hierarchy_config,
             )
         except Exception as e:
             raise DataImportError(

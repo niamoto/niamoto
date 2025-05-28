@@ -4,6 +4,7 @@ This module provides a base test class with common setup and teardown methods
 for Niamoto tests.
 """
 
+import os
 import unittest
 from unittest import mock
 
@@ -17,6 +18,12 @@ class NiamotoTestCase(unittest.TestCase):
 
     # Track active patches to avoid calling stopall() unnecessarily
     _active_patches = []
+
+    def setUp(self):
+        """Set up test environment."""
+        # Set test mode to prevent config file creation
+        os.environ["NIAMOTO_TEST_MODE"] = "1"
+        super().setUp()
 
     def tearDown(self):
         """Clean up test fixtures and stop all patches.
@@ -34,6 +41,11 @@ class NiamotoTestCase(unittest.TestCase):
                 pass
 
         self._active_patches = []
+
+        # Clean up test environment variable
+        os.environ.pop("NIAMOTO_TEST_MODE", None)
+
+        super().tearDown()
 
     def create_mock(self, spec_class):
         """Create a mock with proper spec_set to avoid file creation.

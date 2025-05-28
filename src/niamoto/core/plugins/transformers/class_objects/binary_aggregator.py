@@ -8,12 +8,8 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 import pandas as pd
 
-from niamoto.core.plugins.base import (
-    TransformerPlugin,
-    PluginType,
-    register,
-    PluginConfig,
-)
+from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -63,7 +59,7 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate plugin configuration."""
-        validated_config = super().validate_config(config)
+        validated_config = self.config_model(**config)
         params = validated_config.params
 
         # Validate that source is specified
@@ -175,20 +171,17 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
                         },
                     )
 
-                # Create distribution dictionary
-                distribution = {}
+                # Get unique class names from data for this field
+                unique_classes_in_field = field_data["class_name"].unique()
 
-                # Get unique class names from data
-                unique_classes = field_data["class_name"].unique()
-
-                # Use class mapping if provided, otherwise use class names as is
+                # Use class mapping if provided, otherwise create a default one
                 class_mapping = group.class_mapping or {
-                    cls: cls for cls in unique_classes
+                    cls: cls for cls in unique_classes_in_field
                 }
 
-                # Validate that all classes have a mapping
+                # Validate that all classes in the data have a mapping
                 missing_mappings = [
-                    cls for cls in unique_classes if cls not in class_mapping
+                    cls for cls in unique_classes_in_field if cls not in class_mapping
                 ]
                 if missing_mappings:
                     raise DataTransformError(
@@ -200,15 +193,19 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
                         },
                     )
 
-                # Map classes and values
-                for input_class, output_class in class_mapping.items():
+                # Create distribution dictionary
+                # Initialize distribution for all unique output classes from mapping
+                output_classes = set(class_mapping.values())
+                distribution = {out_cls: 0.0 for out_cls in output_classes}
+
+                # Map classes and aggregate values
+                for input_class in unique_classes_in_field:
+                    output_class = class_mapping[input_class]
                     class_data = field_data[field_data["class_name"] == input_class]
                     if len(class_data) > 0:
-                        distribution[output_class] = float(
+                        distribution[output_class] += float(
                             class_data.iloc[0]["class_value"]
                         )
-                    else:
-                        distribution[output_class] = 0.0
 
                 results[group.label] = distribution
 

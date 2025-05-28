@@ -8,11 +8,11 @@ from pydantic import field_validator, Field
 import pandas as pd
 import numpy as np
 
+from niamoto.core.plugins.models import PluginConfig
 from niamoto.core.plugins.base import (
     TransformerPlugin,
     PluginType,
     register,
-    PluginConfig,
 )
 
 

@@ -73,12 +73,18 @@ class TaxonRef(Base):
 
 class PlotRef(Base):
     """
-    A class used to represent a plot reference.
+    A class used to represent a plot reference with hierarchical support.
 
     Parameters:
         id (Integer): The primary key. :no-index:
         locality (String): The locality of the plot. :noindex:
         geometry (String): The geometry of the plot. :noindex:
+        lft (Integer): The left value for nested set model. :noindex:
+        rght (Integer): The right value for nested set model. :noindex:
+        level (Integer): The level value for nested set model. :noindex:
+        parent_id (Integer): The parent plot id. :noindex:
+        plot_type (String): The type of plot (plot, locality, country). :noindex:
+        extra_data (JSON): Additional fields stored in JSON format. :noindex:
     """
 
     __tablename__ = "plot_ref"
@@ -87,14 +93,30 @@ class PlotRef(Base):
     id_locality = Column(Integer, nullable=False)
     locality = Column(String, nullable=False)
     geometry = Column(String)
+    lft = Column(Integer, nullable=True)
+    rght = Column(Integer, nullable=True)
+    level = Column(Integer, nullable=True)
+    plot_type = Column(String(50), nullable=True)  # 'plot', 'locality', 'country'
+    extra_data = Column(JSON, nullable=True)  # Store JSON as text in SQLite
+
+    if TYPE_CHECKING:
+        parent_id: Optional[int]
+        children: List["PlotRef"]
+    else:
+        parent_id = Column(Integer, ForeignKey("plot_ref.id"), nullable=True)
+        children = relationship("PlotRef", backref="parent", remote_side=[id])
 
     __table_args__ = (
         Index("ix_plot_ref_id", "id"),
         Index("ix_plot_ref_locality", "locality"),
+        Index("ix_plot_ref_plot_type", "plot_type"),
+        Index("ix_plot_ref_parent_id", "parent_id"),
     )
 
     def __repr__(self) -> str:
-        return f"<PlotRef(id={self.id}, locality={self.locality})>"
+        return (
+            f"<PlotRef(id={self.id}, locality={self.locality}, type={self.plot_type})>"
+        )
 
 
 class ShapeRef(Base):

@@ -1,9 +1,9 @@
 # Niamoto
 data/*
-config
 tests/test_data/config/*
 tests/test_data/data/db/*
 tests/test_data/data/sources/raster/*
+test-instance/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -110,5 +110,6 @@ dmypy.json
 # AI settings
 /.windsurfrules
 CLAUDE.md
+.claude
 .timetracker
 Pipfile
