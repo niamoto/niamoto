@@ -462,124 +462,266 @@ For a comprehensive explanation of the transform chain system, including advance
 
 ## export.yml
 
-This file defines how transformed data is visualized and exported.
+This file defines how transformed data is visualized and exported through the static site generator. It specifies pages, their data sources, and the widgets used to visualize the data.
 
-Each export group starts with:
+### Basic Structure
+
+Each export group defines pages for a specific entity type:
 
 ```yaml
 - group_by: taxon  # or plot, shape
   widgets:
-    # Widget definitions
+    widget_name:
+      type: widget_type
+      config:
+        # Widget configuration
 ```
 
-### Widget Types
+### Available Widget Types
 
-Each widget is defined by a type and its parameters:
+Niamoto provides a comprehensive set of widgets for data visualization:
 
-```yaml
-widget_name:
-  type: widget_type
-  title: "Widget Title"
-  description: "Widget description"
-  source: data_source
-  # Additional options
-```
+| Type                    | Description                              | Use Case                        |
+| ----------------------- | ---------------------------------------- | ------------------------------- |
+| `info_grid`             | Grid of key metrics and information     | KPIs, stats, general info       |
+| `interactive_map`       | Interactive Plotly maps                  | Geographic distribution         |
+| `bar_plot`              | Bar charts (grouped, stacked)            | Comparisons, distributions      |
+| `donut_chart`           | Donut or pie charts                      | Proportions, compositions       |
+| `radial_gauge`          | Gauge visualizations                     | Single metrics, percentages     |
+| `line_plot`             | Line charts for trends                   | Time series, trends             |
+| `stacked_area_plot`     | Stacked area charts                      | Evolution, cumulative data      |
+| `sunburst_chart`        | Hierarchical sunburst charts             | Taxonomic/hierarchical data     |
+| `hierarchical_nav_widget` | Interactive tree navigation            | Browsing hierarchical data      |
+| `diverging_bar_plot`    | Bar plots with positive/negative values | Comparisons with baseline       |
+| `scatter_plot`          | Scatter plot visualizations              | Correlations, distributions     |
+| `summary_stats`         | Statistical summaries                    | Data overview                   |
+| `table_view`            | Tabular data display                     | Detailed data                   |
+| `raw_data_widget`       | Display raw data                         | Debug, raw data inspection      |
 
-| Type             | Description                     | Example Use             |
-| ---------------- | ------------------------------- | ----------------------- |
-| `info_panel`     | Displays information in a panel | General information     |
-| `map_panel`      | Displays a map                  | Distribution maps       |
-| `bar_chart`      | Bar chart visualization         | Species distribution    |
-| `doughnut_chart` | Donut chart visualization       | Substrate distribution  |
-| `gauge`          | Gauge visualization             | Maximum height, density |
-| `line_chart`     | Line chart visualization        | Time series data        |
+### Widget Configuration Reference
 
-### Widget Options
-
-Common widget options include:
-
-| Option        | Description        | Required | Applies To   |
-| ------------- | ------------------ | -------- | ------------ |
-| `type`        | Widget type        | Yes      | All widgets  |
-| `title`       | Widget title       | Yes      | All widgets  |
-| `description` | Widget description | No       | All widgets  |
-| `source`      | Data source        | Yes      | All widgets  |
-| `layout`      | Layout type        | No       | `info_panel` |
-| `fields`      | Fields to display  | Yes      | `info_panel` |
-| `layers`      | Map layers         | Yes      | `map_panel`  |
-| `datasets`    | Chart datasets     | Yes      | Charts       |
-| `labels_key`  | Field for labels   | Yes      | Charts       |
-| `value_key`   | Field for value    | Yes      | `gauge`      |
-| `options`     | Chart.js options   | No       | Charts       |
-
-### Common Widget Configurations
-
-**info_panel**:
+#### info_grid
+Display a grid of key information items:
 
 ```yaml
 general_info:
-  type: info_panel
-  title: "General Information"
-  layout: grid
-  fields:
-    - source: name
-      label: "Taxon"
-    - source: rank
-      label: "Rank"
-      format: "map"
-      mapping:
-        "family": "Family"
-        "genus": "Genus"
-        "species": "Species"
-    - source: occurrences_count
-      label: "Number of occurrences"
-      format: "number"
+  type: info_grid
+  config:
+    title: "Forest Statistics"  # optional
+    description: "Key metrics"  # optional
+    grid_columns: 3  # optional, 1-6
+    items:
+      - label: "Total Area"
+        source: stats.forest_area  # dot-notation path
+        unit: "ha"
+        icon: "fas fa-tree"
+        description: "Total forest coverage"
+      - label: "Status"
+        value: "Protected"  # static value
+        icon: "fas fa-shield-alt"
+      - label: "Type"
+        source: stats.forest_type
+        format: "map"  # use mapping
+        mapping:
+          1: "Primary Forest"
+          2: "Secondary Forest"
 ```
 
-**bar_chart**:
+#### interactive_map
+Interactive maps with scatter or choropleth layers:
 
 ```yaml
-dbh_distribution:
-  type: bar_chart
-  title: "DBH Distribution"
-  description: "Distribution of tree diameters"
-  source: dbh_distribution
-  datasets:
-    - label: "Occurrences"
-      data_key: "counts"
-      backgroundColor: "#4CAF50"
-  labels_key: "bins"
-  options:
-    scales:
-      y:
-        title:
-          display: true
-          text: "Number of occurrences"
-      x:
-        title:
-          display: true
-          text: "DBH (cm)"
+distribution_map:
+  type: interactive_map
+  config:
+    title: "Species Distribution"
+    map_type: "scatter_map"  # or 'choropleth_map'
+    zoom: 9.0
+    center_lat: -21.5
+    center_lon: 165.5
+
+    # Scatter map fields
+    latitude_field: "lat"
+    longitude_field: "lon"
+    color_field: "species_count"
+    size_field: "plot_area"
+    size_max: 20
+    hover_name: "plot_name"
+    hover_data: ["elevation", "forest_type"]
+
+    # Styling
+    opacity: 0.8
+    color_continuous_scale: "Viridis"
+    range_color: [0, 100]
 ```
 
-**gauge**:
+#### bar_plot
+Bar charts with multiple configurations:
 
 ```yaml
-height_max:
-  type: gauge
-  title: "Maximum Height"
-  description: "Maximum height reached by the taxon"
-  source: height_max
-  value_key: "max"
-  options:
-    min: 0
-    max: 40
-    units: "m"
-    sectors:
-      - color: '#f02828'
-        range: [0, 10]
-      - color: '#fe6a00'
-        range: [10, 18]
-      # Additional sectors...
+species_by_family:
+  type: bar_plot
+  config:
+    title: "Species by Family"
+    x_axis: "family_name"
+    y_axis: "species_count"
+
+    # Optional configurations
+    orientation: "v"  # 'v' or 'h'
+    barmode: "group"  # 'group', 'stack', 'relative'
+    sort_order: "descending"  # 'ascending', 'descending', null
+    text_auto: true  # show values on bars
+
+    # Color options
+    color_field: "conservation_status"
+    auto_color: true  # generate harmonious colors
+    color_discrete_map:
+      "Endangered": "#ff4444"
+      "Vulnerable": "#ff8844"
+      "Secure": "#44ff44"
+```
+
+#### donut_chart
+Donut or pie charts:
+
+```yaml
+forest_types:
+  type: donut_chart
+  config:
+    title: "Forest Type Distribution"
+    labels_field: "forest_type"
+    values_field: "area_hectares"
+    hole_size: 0.3  # 0 for pie, 0.3 for donut
+
+    # Label mapping
+    label_mapping:
+      "primary": "Primary Forest"
+      "secondary": "Secondary Forest"
+      "plantation": "Forest Plantation"
+```
+
+#### radial_gauge
+Gauge visualizations for metrics:
+
+```yaml
+forest_coverage:
+  type: radial_gauge
+  config:
+    title: "Forest Coverage"
+    value_field: "coverage.percentage"  # supports nested paths
+    min_value: 0
+    max_value: 100
+    unit: "%"
+
+    # Styling
+    gauge_shape: "angular"  # or 'bullet'
+    bar_color: "green"
+    steps:
+      - range: [0, 30]
+        color: "red"
+      - range: [30, 70]
+        color: "yellow"
+      - range: [70, 100]
+        color: "green"
+```
+
+#### line_plot
+Line charts for trends:
+
+```yaml
+population_trends:
+  type: line_plot
+  config:
+    title: "Population Trends"
+    x_axis: "year"
+    y_axis: "population"  # or list: ["pop_1", "pop_2"]
+
+    # Line configuration
+    color_field: "species_name"
+    line_shape: "spline"  # 'linear', 'spline', 'hv', etc.
+    markers: true  # show data points
+
+    # Axis options
+    log_y: false
+    range_y: [0, 1000]
+    labels:
+      year: "Year"
+      population: "Population Count"
+```
+
+#### stacked_area_plot
+Stacked area charts:
+
+```yaml
+forest_evolution:
+  type: stacked_area_plot
+  config:
+    title: "Forest Cover Evolution"
+    x_field: "year"
+    y_fields: ["primary_forest", "secondary_forest", "plantation"]
+
+    # Styling
+    fill_type: "tonexty"  # or 'tozeroy'
+    colors: ["#2ca02c", "#8fbc8f", "#daa520"]
+    axis_titles:
+      x: "Year"
+      y: "Area (hectares)"
+```
+
+#### sunburst_chart
+Hierarchical sunburst charts:
+
+```yaml
+taxonomic_distribution:
+  type: sunburst_chart
+  config:
+    title: "Taxonomic Distribution"
+    branchvalues: "total"  # or 'remainder'
+
+    # Label mapping
+    category_labels:
+      "plant": "Plants"
+      "animal": "Animals"
+    leaf_labels:
+      "fern": "Ferns"
+      "palm": "Palms"
+      "bird": "Birds"
+      "mammal": "Mammals"
+
+    # Colors by category
+    leaf_colors:
+      plant:
+        "fern": "#90ee90"
+        "palm": "#228b22"
+      animal:
+        "bird": "#87ceeb"
+        "mammal": "#daa520"
+```
+
+#### hierarchical_nav_widget
+Interactive tree navigation:
+
+```yaml
+species_browser:
+  type: hierarchical_nav_widget
+  config:
+    title: "Species Browser"
+    referential_data: "taxon_ref"
+    id_field: "taxon_id"
+    name_field: "full_name"
+    base_url: "taxon/"
+
+    # Hierarchy structure (choose one)
+    # Option 1: Parent-child
+    parent_id_field: "parent_id"
+
+    # Option 2: Nested set
+    lft_field: "lft"
+    rght_field: "rght"
+    level_field: "level"
+
+    # Display options
+    show_search: true
 ```
 
 ## Configuration Relationships
