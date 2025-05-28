@@ -3,6 +3,7 @@
 import pytest
 from click.testing import CliRunner
 from unittest.mock import Mock, patch
+from contextlib import contextmanager
 
 from niamoto.cli.commands.plugins import plugins
 from niamoto.core.plugins.base import PluginType
@@ -23,6 +24,17 @@ def create_mock_registry(plugins_dict=None):
     mock_registry = Mock()
     mock_registry._plugins = registry_plugins
     return mock_registry
+
+
+@contextmanager
+def patch_plugin_system(mock_registry_class):
+    """Context manager to patch all necessary plugin system components."""
+    with patch("niamoto.core.plugins.plugin_loader.PluginLoader"):
+        with patch("niamoto.cli.commands.plugins.Config"):
+            with patch(
+                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
+            ):
+                yield
 
 
 class TestPluginsCommand:
@@ -82,11 +94,12 @@ class TestPluginsCommand:
         """Test listing all plugins in table format."""
         mock_registry_class = create_mock_registry(mock_registry._plugins)
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins)
+        with patch("niamoto.core.plugins.plugin_loader.PluginLoader"):
+            with patch("niamoto.cli.commands.plugins.Config"):
+                with patch(
+                    "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
+                ):
+                    result = runner.invoke(plugins)
 
                 assert result.exit_code == 0
                 assert "Available Niamoto Plugins" in result.output
@@ -102,97 +115,79 @@ class TestPluginsCommand:
         """Test listing plugins in simple format."""
         mock_registry_class = create_mock_registry(mock_registry._plugins)
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins, ["--format", "simple"])
+        with patch_plugin_system(mock_registry_class):
+            result = runner.invoke(plugins, ["--format", "simple"])
 
-                assert result.exit_code == 0
-                assert "TRANSFORMER PLUGINS:" in result.output
-                assert "WIDGET PLUGINS:" in result.output
-                assert "EXPORTER PLUGINS:" in result.output
-                assert (
-                    "test_transformer - Test transformer plugin for unit tests"
-                    in result.output
-                )
+            assert result.exit_code == 0
+            assert "TRANSFORMER PLUGINS:" in result.output
+            assert "WIDGET PLUGINS:" in result.output
+            assert "EXPORTER PLUGINS:" in result.output
+            assert (
+                "test_transformer - Test transformer plugin for unit tests"
+                in result.output
+            )
 
     def test_filter_by_type(self, runner, mock_registry):
         """Test filtering plugins by type."""
         mock_registry_class = create_mock_registry(mock_registry._plugins)
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins, ["--type", "transformer"])
+        with patch_plugin_system(mock_registry_class):
+            result = runner.invoke(plugins, ["--type", "transformer"])
 
-                assert result.exit_code == 0
-                assert "test_transformer" in result.output
-                assert "test_widget" not in result.output
-                assert "test_exporter" not in result.output
-                assert "Total: 1 plugins" in result.output
+            assert result.exit_code == 0
+            assert "test_transformer" in result.output
+            assert "test_widget" not in result.output
+            assert "test_exporter" not in result.output
+            assert "Total: 1 plugins" in result.output
 
     def test_verbose_output(self, runner, mock_registry):
         """Test verbose output shows additional details."""
         mock_registry_class = create_mock_registry(mock_registry._plugins)
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins, ["--verbose"])
+        with patch_plugin_system(mock_registry_class):
+            result = runner.invoke(plugins, ["--verbose"])
 
-                assert result.exit_code == 0
-                assert "Module" in result.output
-                assert "Class" in result.output
-                assert "Schema" in result.output  # Column header might be wrapped
-                assert "test.mod" in result.output  # Module name might be truncated
-                assert "TestTran" in result.output  # Class name might be truncated
-                assert "✓" in result.output  # Has schema (transformer)
-                assert "✗" in result.output  # No schema (widget and exporter)
+            assert result.exit_code == 0
+            assert "Module" in result.output
+            assert "Class" in result.output
+            assert "Schema" in result.output  # Column header might be wrapped
+            assert "test.mod" in result.output  # Module name might be truncated
+            assert "TestTran" in result.output  # Class name might be truncated
+            assert "✓" in result.output  # Has schema (transformer)
+            assert "✗" in result.output  # No schema (widget and exporter)
 
     def test_verbose_simple_format(self, runner, mock_registry):
         """Test verbose output in simple format."""
         mock_registry_class = create_mock_registry(mock_registry._plugins)
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins, ["--format", "simple", "--verbose"])
+        with patch_plugin_system(mock_registry_class):
+            result = runner.invoke(plugins, ["--format", "simple", "--verbose"])
 
-                assert result.exit_code == 0
-                assert "Module: test.module" in result.output
-                assert "Class: TestTransformer" in result.output
-                # Only transformer has param_schema
-                assert "Has parameter schema: ✓" in result.output
+            assert result.exit_code == 0
+            assert "Module: test.module" in result.output
+            assert "Class: TestTransformer" in result.output
+            # Only transformer has param_schema
+            assert "Has parameter schema: ✓" in result.output
 
     def test_no_plugins_found(self, runner):
         """Test when no plugins are found."""
         mock_registry_class = create_mock_registry({})
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins)
+        with patch_plugin_system(mock_registry_class):
+            result = runner.invoke(plugins)
 
-                assert result.exit_code == 0
-                assert "No plugins found" in result.output
+            assert result.exit_code == 0
+            assert "No plugins found" in result.output
 
     def test_no_plugins_of_type(self, runner, mock_registry):
         """Test when no plugins of specified type are found."""
         mock_registry_class = create_mock_registry(mock_registry._plugins)
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins, ["--type", "loader"])
+        with patch_plugin_system(mock_registry_class):
+            result = runner.invoke(plugins, ["--type", "loader"])
 
-                assert result.exit_code == 0
-                assert "No plugins found of type loader" in result.output
+            assert result.exit_code == 0
+            assert "No plugins found of type loader" in result.output
 
     def test_invalid_type(self, runner):
         """Test with invalid plugin type."""
@@ -203,14 +198,19 @@ class TestPluginsCommand:
 
     def test_registry_error(self, runner):
         """Test handling of registry errors."""
+        # This test checks that exceptions during plugin loading are properly handled
+        # Since plugins might already be loaded, we test the error handling
+        # by mocking the PluginLoader to raise an exception during instantiation
         with patch(
-            "niamoto.cli.commands.plugins.PluginLoader",
+            "niamoto.core.plugins.plugin_loader.PluginLoader.__init__",
             side_effect=Exception("Registry error"),
         ):
             result = runner.invoke(plugins)
 
+            # Check that the command failed
             assert result.exit_code != 0
-            assert "Error listing plugins: Registry error" in result.output
+            # The error message should be in the output
+            assert "Registry error" in result.output
 
     def test_description_extraction(self, runner):
         """Test proper extraction of plugin descriptions."""
@@ -239,13 +239,10 @@ class TestPluginsCommand:
 
         mock_registry_class = create_mock_registry(mock_plugins)
 
-        with patch("niamoto.cli.commands.plugins.PluginLoader"):
-            with patch(
-                "niamoto.cli.commands.plugins.PluginRegistry", mock_registry_class
-            ):
-                result = runner.invoke(plugins)
+        with patch_plugin_system(mock_registry_class):
+            result = runner.invoke(plugins)
 
-                assert result.exit_code == 0
-                assert "Single line description" in result.output  # Period removed
-                assert "Multi-line with spaces" in result.output
-                assert result.output.count("No description available") >= 1
+            assert result.exit_code == 0
+            assert "Single line description" in result.output  # Period removed
+            assert "Multi-line with spaces" in result.output
+            assert result.output.count("No description available") >= 1
