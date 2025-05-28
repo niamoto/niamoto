@@ -494,89 +494,201 @@ class TaxonomyImporter:
                         # If conversion fails, keep the original value
                         taxon_id = raw_id
 
-            # Skip entries without sufficient data
-            if not genus or not species or pd.isna(genus) or pd.isna(species):
+            # Skip entries without any taxonomic information
+            if not family and not genus:
                 continue
 
-            # Determine rank from data - use the names from configuration
-            if infra and pd.notna(infra):
-                # Use the 4th rank if it exists, otherwise "infra"
-                rank_name = rank_names[3] if len(rank_names) > 3 else "infra"
-            else:
-                # Use the 3rd rank if it exists, otherwise "species"
-                rank_name = rank_names[2] if len(rank_names) > 2 else "species"
+            # Determine rank from data and process accordingly
+            if species and pd.notna(species):
+                # This is a species or infra-species level entry
+                if infra and pd.notna(infra):
+                    # Use the 4th rank if it exists, otherwise "infra"
+                    rank_name = rank_names[3] if len(rank_names) > 3 else "infra"
+                else:
+                    # Use the 3rd rank if it exists, otherwise "species"
+                    rank_name = rank_names[2] if len(rank_names) > 2 else "species"
 
-            # Add family to unique set
-            if family and pd.notna(family):
+                # Add family to unique set
+                if family and pd.notna(family):
+                    unique_families.add(family)
+
+                # Add genus to dict with its family
+                if genus and pd.notna(genus) and family and pd.notna(family):
+                    unique_genera[genus] = family
+
+                # Store all relevant data for species level entries
+                species_data.append(
+                    {
+                        "taxon_id": taxon_id,
+                        "family": family,
+                        "genus": genus,
+                        "species": species,
+                        "infra": infra,
+                        "rank_name": rank_name,
+                        "full_name": self._build_full_name(row, column_mapping),
+                        "authors": self._extract_authors(row, column_mapping),
+                        "taxonref": (
+                            row["taxonref"]
+                            if "taxonref" in row and pd.notna(row["taxonref"])
+                            else None
+                        ),
+                    }
+                )
+            elif genus and pd.notna(genus):
+                # This is a genus-only entry with taxon_id
+                genus_rank = rank_names[1] if len(rank_names) > 1 else "genus"
+                if taxon_id is not None:
+                    # Store genus data with taxon_id for later processing
+                    species_data.append(
+                        {
+                            "taxon_id": taxon_id,
+                            "family": family,
+                            "genus": genus,
+                            "species": None,
+                            "infra": None,
+                            "rank_name": genus_rank,
+                            "full_name": genus,
+                            "authors": self._extract_authors(row, column_mapping),
+                            "taxonref": (
+                                row["taxonref"]
+                                if "taxonref" in row and pd.notna(row["taxonref"])
+                                else None
+                            ),
+                        }
+                    )
+                # Also add to unique genera for hierarchy building
+                if family and pd.notna(family):
+                    unique_genera[genus] = family
+            elif family and pd.notna(family):
+                # This is a family-only entry with taxon_id
+                family_rank = rank_names[0] if rank_names else "family"
+                if taxon_id is not None:
+                    # Store family data with taxon_id for later processing
+                    species_data.append(
+                        {
+                            "taxon_id": taxon_id,
+                            "family": family,
+                            "genus": None,
+                            "species": None,
+                            "infra": None,
+                            "rank_name": family_rank,
+                            "full_name": family,
+                            "authors": self._extract_authors(row, column_mapping),
+                            "taxonref": (
+                                row["taxonref"]
+                                if "taxonref" in row and pd.notna(row["taxonref"])
+                                else None
+                            ),
+                        }
+                    )
+                # Always add to unique families
                 unique_families.add(family)
-
-            # Add genus to dict with its family
-            if genus and pd.notna(genus) and family and pd.notna(family):
-                unique_genera[genus] = family
-
-            # Store all relevant data for species level entries
-            species_data.append(
-                {
-                    "taxon_id": taxon_id,
-                    "family": family,
-                    "genus": genus,
-                    "species": species,
-                    "infra": infra,
-                    "rank_name": rank_name,
-                    "full_name": self._build_full_name(row, column_mapping),
-                    "authors": self._extract_authors(row, column_mapping),
-                    "taxonref": (
-                        row["taxonref"]
-                        if "taxonref" in row and pd.notna(row["taxonref"])
-                        else None
-                    ),
-                }
-            )
 
         # Create the taxonomy entries in the correct order
         taxonomy_entries = []
+
+        # Track which families and genera have explicit taxon_ids
+        families_with_ids = {
+            data["family"]: data
+            for data in species_data
+            if data["rank_name"] == (rank_names[0] if rank_names else "family")
+            and data["taxon_id"] is not None
+        }
+        genera_with_ids = {
+            data["genus"]: data
+            for data in species_data
+            if data["rank_name"] == (rank_names[1] if len(rank_names) > 1 else "genus")
+            and data["taxon_id"] is not None
+        }
 
         # 1. Add families (highest level)
         family_rank = rank_names[0] if rank_names else "family"
 
         for family in unique_families:
-            taxonomy_entries.append(
-                {
-                    "full_name": family,
-                    "rank_name": family_rank,
-                    "authors": "",
-                    "parent_id": None,  # Families are top-level
-                    "taxon_id": None,  # No external ID for automatically generated families
-                    "extra_data": {
-                        "auto_generated": True,
-                        "taxon_type": family_rank,
-                        "original_id": None,
-                    },
-                }
-            )
+            # Check if this family has an explicit taxon_id
+            if family in families_with_ids:
+                # Use the data from species_data with taxon_id
+                data = families_with_ids[family]
+                taxonomy_entries.append(
+                    {
+                        "full_name": data["full_name"],
+                        "rank_name": data["rank_name"],
+                        "authors": data["authors"],
+                        "parent_id": None,  # Families are top-level
+                        "taxon_id": data["taxon_id"],
+                        "extra_data": {
+                            "auto_generated": False,
+                            "taxon_type": family_rank,
+                            "original_id": data["taxon_id"],
+                        },
+                    }
+                )
+            else:
+                # Auto-generate family entry
+                taxonomy_entries.append(
+                    {
+                        "full_name": family,
+                        "rank_name": family_rank,
+                        "authors": "",
+                        "parent_id": None,  # Families are top-level
+                        "taxon_id": None,  # No external ID for automatically generated families
+                        "extra_data": {
+                            "auto_generated": True,
+                            "taxon_type": family_rank,
+                            "original_id": None,
+                        },
+                    }
+                )
 
         # 2. Add genera
         genus_rank = rank_names[1] if len(rank_names) > 1 else "genus"
 
         for genus, family in unique_genera.items():
-            taxonomy_entries.append(
-                {
-                    "full_name": genus,
-                    "rank_name": genus_rank,
-                    "authors": "",
-                    "parent_family_name": family,
-                    "taxon_id": None,
-                    "extra_data": {
-                        "auto_generated": True,
-                        "taxon_type": genus_rank,
-                        "parent_family": family,
-                        "original_id": None,
-                    },
-                }
-            )
+            # Check if this genus has an explicit taxon_id
+            if genus in genera_with_ids:
+                # Use the data from species_data with taxon_id
+                data = genera_with_ids[genus]
+                taxonomy_entries.append(
+                    {
+                        "full_name": data["full_name"],
+                        "rank_name": data["rank_name"],
+                        "authors": data["authors"],
+                        "parent_family_name": family,
+                        "taxon_id": data["taxon_id"],
+                        "extra_data": {
+                            "auto_generated": False,
+                            "taxon_type": genus_rank,
+                            "parent_family": family,
+                            "original_id": data["taxon_id"],
+                        },
+                    }
+                )
+            else:
+                # Auto-generate genus entry
+                taxonomy_entries.append(
+                    {
+                        "full_name": genus,
+                        "rank_name": genus_rank,
+                        "authors": "",
+                        "parent_family_name": family,
+                        "taxon_id": None,
+                        "extra_data": {
+                            "auto_generated": True,
+                            "taxon_type": genus_rank,
+                            "parent_family": family,
+                            "original_id": None,
+                        },
+                    }
+                )
 
         # 3. Add species and subspecies
         for data in species_data:
+            # Skip if this entry was already processed as a family or genus
+            if (
+                data["rank_name"] == family_rank and data["family"] in families_with_ids
+            ) or (data["rank_name"] == genus_rank and data["genus"] in genera_with_ids):
+                continue
+
             # Get the external ID of the taxon
             external_id = data["taxon_id"]
 
