@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 import pandas as pd
 import os
+import tempfile
 
 from niamoto.core.plugins.loaders.stats_loader import StatsLoader, StatsLoaderConfig
 from niamoto.common.exceptions import DataLoadError
@@ -13,10 +14,28 @@ class TestStatsLoader(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
+        # Create a temporary directory for config to avoid creating at project root
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_dir = os.path.join(self.temp_dir, "config")
+
         # Mock the database connection (as expected by Plugin.__init__)
         self.mock_db = MagicMock()
         self.mock_db.engine = MagicMock()
-        self.loader = StatsLoader(db=self.mock_db)
+
+        # Mock Config to prevent creating config directory at project root
+        with patch("niamoto.core.plugins.loaders.stats_loader.Config") as mock_config:
+            mock_config.return_value.get_imports_config = {}
+            mock_config.return_value.config_dir = self.config_dir
+            self.loader = StatsLoader(db=self.mock_db)
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        import shutil
+
+        # Clean up temporary directory
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+        super().tearDown()
 
     # --- Tests for validate_config ---
 

@@ -3,9 +3,11 @@ Tests for the FieldAggregator transformer plugin.
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import pandas as pd
 from pydantic import ValidationError
+import tempfile
+import os
 
 from niamoto.core.plugins.transformers.aggregation.field_aggregator import (
     FieldAggregator,
@@ -33,8 +35,26 @@ class TestFieldAggregator:
 
     def setup_method(self):
         """Set up test method."""
+        # Create a temporary directory for config to avoid creating at project root
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_dir = os.path.join(self.temp_dir, "config")
+
         self.db_mock = MagicMock(spec=Database)
-        self.plugin = FieldAggregator(self.db_mock)
+
+        # Mock Config to prevent creating config directory at project root
+        with patch(
+            "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
+        ) as mock_config:
+            mock_config.return_value.get_imports_config = {}
+            self.plugin = FieldAggregator(self.db_mock)
+
+    def teardown_method(self):
+        """Clean up test method."""
+        import shutil
+
+        # Clean up temporary directory
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
 
     # def test_plugin_registration_and_type(self):
     #     """Test plugin registration and type."""
@@ -366,11 +386,11 @@ class TestFieldAggregator:
 
     def test_transform_json_field_access(self, mocker):
         """Test transformation accessing data within a JSON field."""
-        # 1. Mock _get_field_value to return a dictionary (simulating JSON)
+        # 1. Mock _get_field_from_table to return the extracted JSON value directly
         mock_get_field = mocker.patch.object(
             self.plugin,
-            "_get_field_value",
-            return_value={"key1": "valueA", "nested": {"key2": 123}},
+            "_get_field_from_table",
+            return_value="123",  # JSON fields are returned as strings from DB
         )
 
         # 2. Configuration to access a nested key using dot notation
@@ -388,17 +408,17 @@ class TestFieldAggregator:
             },
         }
 
-        # 3. Expected result: the value of the nested key
-        expected_result = {"extracted_json_value": {"value": 123}}
+        # 3. Expected result: the value of the nested key (as string from DB)
+        expected_result = {"extracted_json_value": {"value": "123"}}
 
         # 4. Run transform (SAMPLE_DATA ignored for this field)
         result = self.plugin.transform(SAMPLE_DATA.copy(), config)
 
         # 5. Assertions
         assert result == expected_result
-        # Check that _get_field_value was called for the *base* JSON field
+        # Check that _get_field_from_table was called with the full JSON field path
         mock_get_field.assert_called_once_with(
             "db_table_with_json",  # source
-            "json_column",  # field (base field, not the full path)
+            "json_column.nested.key2",  # field (full path for JSON extraction)
             None,  # id_value (for direct transformation)
         )

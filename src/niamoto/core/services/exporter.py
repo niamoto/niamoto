@@ -97,7 +97,9 @@ class ExporterService:
                 logger.error(
                     f"Export target '{target_name}' not found in configuration."
                 )
-                raise ConfigurationError(message=f"Target '{target_name}' not found.")
+                raise ConfigurationError(
+                    config_key="exports", message=f"Target '{target_name}' not found."
+                )
             logger.info(f"Starting export process for target: '{target_name}'...")
         else:
             logger.info("Starting export process for all enabled targets...")
@@ -121,7 +123,8 @@ class ExporterService:
             )
             if not exporter_plugin_class:
                 raise ConfigurationError(
-                    message=f"Exporter plugin '{target.exporter}' not found for target '{target.name}'."
+                    config_key="exports.exporter",
+                    message=f"Exporter plugin '{target.exporter}' not found for target '{target.name}'.",
                 )
 
             # Instantiate the plugin (Base ExporterPlugin likely doesn't need db in __init__)

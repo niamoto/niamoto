@@ -8,7 +8,6 @@ from shapely.geometry import Point
 from niamoto.core.plugins.transformers.extraction.geospatial_extractor import (
     GeospatialExtractor,
 )
-from niamoto.common.config import Config
 
 
 @pytest.fixture
@@ -16,20 +15,23 @@ def geospatial_extractor_plugin():
     """Fixture for GeospatialExtractor plugin instance."""
     # Mock database interaction
     mock_db = MagicMock()
-    plugin = GeospatialExtractor(db=mock_db)
 
-    # Mock the config
-    mock_config = MagicMock(spec=Config)
-    mock_config.get_imports_config = {
-        "test_csv": {"path": "data/test.csv", "type": "csv", "identifier": "id"},
-        "test_vector": {
-            "path": "data/test.geojson",
-            "type": "vector",
-            "identifier": "id",
-        },
-    }
-    mock_config.config_dir = "/mock/config"
-    plugin.config = mock_config
+    # Mock Config to prevent creating config directory at project root
+    with patch(
+        "niamoto.core.plugins.transformers.extraction.geospatial_extractor.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {
+            "test_csv": {"path": "data/test.csv", "type": "csv", "identifier": "id"},
+            "test_vector": {
+                "path": "data/test.geojson",
+                "type": "vector",
+                "identifier": "id",
+            },
+        }
+        plugin = GeospatialExtractor(db=mock_db)
+
+    # Set the mocked config on the plugin
+    plugin.config.config_dir = "/mock/config"
 
     return plugin
 

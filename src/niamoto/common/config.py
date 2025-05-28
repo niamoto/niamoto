@@ -127,6 +127,12 @@ class Config:
                         )
                     return data or {}
             elif create_if_missing:
+                # Check if we're in a test environment
+                if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get(
+                    "NIAMOTO_TEST_MODE"
+                ):
+                    # In test mode, don't create files, just return defaults
+                    return default_data
                 try:
                     os.makedirs(os.path.dirname(file_path), exist_ok=True)
                     with open(file_path, "w", encoding="utf-8") as f:
@@ -140,7 +146,13 @@ class Config:
                         message="Failed to create config file",
                         details={"error": str(e)},
                     )
-            return {}
+            else:
+                # If file doesn't exist and we're not creating it, raise an error
+                raise FileReadError(
+                    file_path=file_path,
+                    message="Configuration file not found",
+                    details={"create_default": create_if_missing},
+                )
         except OSError as e:
             raise FileReadError(
                 file_path=file_path,

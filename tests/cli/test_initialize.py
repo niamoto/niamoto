@@ -70,7 +70,7 @@ def test_init_environment_error(runner):
 
 def test_reset_cancelled(runner):
     """Test cancelling reset operation."""
-    try:
+    with runner.isolated_filesystem():
         # Create config directory to simulate existing environment
         os.makedirs("config")
 
@@ -82,9 +82,3 @@ def test_reset_cancelled(runner):
 
             assert result.exit_code == 0
             assert "Environment reset cancelled by user" in result.output
-    finally:
-        # Clean up the config directory
-        if os.path.exists("config"):
-            import shutil
-
-            shutil.rmtree("config", ignore_errors=True)

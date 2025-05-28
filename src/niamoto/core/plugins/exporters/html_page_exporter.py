@@ -216,7 +216,7 @@ class HtmlPageExporter(ExporterPlugin):
                 f"Configuration error in HTML exporter params for target '{target_config.name}': {val_err}"
             )
             raise ConfigurationError(
-                f"Invalid params for {target_config.name}"
+                config_key="params", message=f"Invalid params for {target_config.name}"
             ) from val_err
         except ProcessError as proc_err:
             logger.error(
@@ -711,7 +711,8 @@ class HtmlPageExporter(ExporterPlugin):
                                     )
                                     if not widget_plugin_class:
                                         raise ConfigurationError(
-                                            f"Widget plugin '{widget_config.plugin}' not found."
+                                            config_key="widgets.plugin",
+                                            message=f"Widget plugin '{widget_config.plugin}' not found.",
                                         )
 
                                     widget_instance: WidgetPlugin = widget_plugin_class(

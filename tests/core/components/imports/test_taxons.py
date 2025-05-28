@@ -6,6 +6,8 @@ import unittest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 import pandas as pd
+import tempfile
+import os
 
 from niamoto.core.components.imports.taxons import TaxonomyImporter
 from niamoto.core.models.models import TaxonRef
@@ -22,14 +24,32 @@ class TestTaxonomyImporter(NiamotoTestCase):
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
+        # Create a temporary directory for config to avoid creating at project root
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_dir = os.path.join(self.temp_dir, "config")
+
         # Use MagicMock directly instead of create_mock to avoid spec_set restrictions
         self.mock_db = MagicMock()
         # Set attributes that are accessed in the code
         self.mock_db.db_path = "mock_db_path"
         self.mock_db.engine = MagicMock()
-        self.importer = TaxonomyImporter(self.mock_db)
+
+        # Mock Config to prevent creating config directory at project root
+        with patch("niamoto.core.components.imports.taxons.Config") as mock_config:
+            mock_config.return_value.plugins_dir = self.config_dir
+            self.importer = TaxonomyImporter(self.mock_db)
+
         # Add db_path attribute to match other importers
         self.importer.db_path = "mock_db_path"
+
+    def tearDown(self):
+        """Clean up test fixtures."""
+        import shutil
+
+        # Clean up temporary directory
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+        super().tearDown()
 
     def test_init(self):
         """Test initialization of TaxonomyImporter."""
