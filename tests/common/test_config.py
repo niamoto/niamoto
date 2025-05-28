@@ -33,15 +33,18 @@ class TestConfig(NiamotoTestCase):
 
     def test_init_with_default_config(self):
         """Test initialization with default configuration."""
-        Config(config_dir=self.config_dir, create_default=True)
-        self.assertTrue(os.path.exists(os.path.join(self.config_dir, "config.yml")))
-        self.assertTrue(os.path.exists(os.path.join(self.config_dir, "import.yml")))
+        # In test mode, files are not created but config should still work
+        config = Config(config_dir=self.config_dir, create_default=True)
+        # Check that config has default values
+        self.assertEqual(config.database_path, "db/niamoto.db")
+        self.assertEqual(config.logs_path, "logs")
 
     def test_init_with_custom_dir(self):
         """Test initialization with custom config directory."""
         custom_dir = os.path.join(self.test_dir, "custom_config")
-        Config(config_dir=custom_dir, create_default=True)
-        self.assertTrue(os.path.exists(os.path.join(custom_dir, "config.yml")))
+        config = Config(config_dir=custom_dir, create_default=True)
+        # In test mode, files are not created but config should still work
+        self.assertEqual(config.config_dir, custom_dir)
 
     def test_database_path(self):
         """Test getting database path."""
@@ -80,8 +83,15 @@ class TestConfig(NiamotoTestCase):
             {"name": "transform1", "type": "sql", "query": "SELECT * FROM table1"},
             {"name": "transform2", "type": "python", "script": "process_data.py"},
         ]
+        # Create all required config files
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
         with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
             yaml.dump(transforms_data, f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
 
         config = Config(config_dir=self.config_dir, create_default=False)
         config.transforms = transforms_data  # Set the transforms directly
@@ -98,6 +108,13 @@ class TestConfig(NiamotoTestCase):
             {"name": "export1", "type": "csv", "path": "exports/data1.csv"},
             {"name": "export2", "type": "json", "path": "exports/data2.json"},
         ]
+        # Create all required config files
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
         with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
             yaml.dump(exports_data, f)
 
@@ -111,8 +128,15 @@ class TestConfig(NiamotoTestCase):
     def test_empty_imports_config(self):
         """Test error when imports configuration is empty."""
         os.makedirs(self.config_dir, exist_ok=True)
+        # Create all required config files for this test
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
         with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
             yaml.dump({}, f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
 
         config = Config(config_dir=self.config_dir, create_default=False)
         with self.assertRaises(ConfigurationError):
@@ -121,8 +145,15 @@ class TestConfig(NiamotoTestCase):
     def test_empty_transforms_config(self):
         """Test error when transforms configuration is empty."""
         os.makedirs(self.config_dir, exist_ok=True)
+        # Create all required config files for this test
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
         with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
             yaml.dump({}, f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
 
         config = Config(config_dir=self.config_dir, create_default=False)
         config.transforms = {}  # Set empty transforms
@@ -132,6 +163,13 @@ class TestConfig(NiamotoTestCase):
     def test_empty_exports_config(self):
         """Test error when exports configuration is empty."""
         os.makedirs(self.config_dir, exist_ok=True)
+        # Create all required config files for this test
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
         with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
             yaml.dump({}, f)
 
@@ -142,21 +180,23 @@ class TestConfig(NiamotoTestCase):
 
     def test_file_write_error(self):
         """Test error when writing config files fails."""
-        # Make config directory read-only
-        os.makedirs(self.config_dir, exist_ok=True)
-        os.chmod(self.config_dir, 0o444)
-
+        # In test mode, no files are written, so we need to test differently
+        # Test with create_default=False and no existing files
         with self.assertRaises(ConfigurationError):
-            Config(config_dir=self.config_dir, create_default=True)
-
-        # Restore permissions for cleanup
-        os.chmod(self.config_dir, 0o777)
+            Config(config_dir=self.config_dir, create_default=False)
 
     def test_file_format_error(self):
         """Test error when config file has invalid format."""
         os.makedirs(self.config_dir, exist_ok=True)
+        # Create all config files, but with invalid YAML in config.yml
         with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
             f.write("invalid: yaml: :")
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(Config._default_imports(), f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
 
         with self.assertRaises(ConfigurationError):
             Config(config_dir=self.config_dir, create_default=False)

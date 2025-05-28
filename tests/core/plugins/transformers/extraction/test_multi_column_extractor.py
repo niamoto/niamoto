@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 from niamoto.core.plugins.transformers.extraction.multi_column_extractor import (
     MultiColumnExtractor,
 )
-from niamoto.common.config import Config
 
 
 @pytest.fixture
@@ -14,16 +13,16 @@ def multi_column_extractor_plugin():
     """Fixture for MultiColumnExtractor plugin instance."""
     # Mock database interaction
     mock_db = MagicMock()
-    plugin = MultiColumnExtractor(db=mock_db)
 
-    # Mock the config
-    mock_config = MagicMock(spec=Config)
-    mock_config.get_imports_config = {
-        "test_csv": {"path": "data/test.csv", "type": "csv", "identifier": "id"}
-    }
-    mock_config.config_dir = "/mock/config"
-    plugin.config = mock_config
-    plugin.imports_config = mock_config.get_imports_config
+    # Mock Config to prevent creating config directory at project root
+    with patch(
+        "niamoto.core.plugins.transformers.extraction.multi_column_extractor.Config"
+    ) as mock_config:
+        mock_config.return_value.get_imports_config = {
+            "test_csv": {"path": "data/test.csv", "type": "csv", "identifier": "id"}
+        }
+        mock_config.return_value.config_dir = "/mock/config"
+        plugin = MultiColumnExtractor(db=mock_db)
 
     return plugin
 

@@ -89,6 +89,19 @@ class LandUseAnalysis(TransformerPlugin):
 
     config_model = LandUseConfig
 
+    def validate_config(self, config: Dict[str, Any]) -> LandUseConfig:
+        """Validate the plugin configuration."""
+        try:
+            validated_config = self.config_model(**config)
+            return validated_config
+        except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
+            raise DataTransformError(
+                f"Invalid configuration for {self.__class__.__name__}: {str(e)}",
+                details={"config": config, "error": str(e)},
+            ) from e
+
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Analyze land use from multiple layers.
