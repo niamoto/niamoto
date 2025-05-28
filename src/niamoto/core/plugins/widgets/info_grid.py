@@ -146,6 +146,10 @@ class InfoGridWidget(WidgetPlugin):
             if isinstance(item_value, dict) and "value" in item_value:
                 item_value = item_value["value"]
 
+            # Skip item if the extracted value is None
+            if item_value is None:
+                continue
+
             # Default display value is the string representation
             display_value = str(item_value)
 
@@ -208,11 +212,9 @@ class InfoGridWidget(WidgetPlugin):
             """
             item_html_parts.append(item_html)
 
-        # If no items were rendered, show a message
+        # If no items were rendered, return empty string
         if not item_html_parts:
-            return (
-                "<p class='text-gray-500 italic p-4'>No data available for display.</p>"
-            )
+            return ""
 
         # Wrap items in a responsive grid layout
         items_html = "\n".join(item_html_parts)
