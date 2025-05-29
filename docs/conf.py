@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath("../src/niamoto"))
 project = "niamoto"
 copyright = "2025, Julien Barbe"
 author = "Julien Barbe"
-release = "0.5.0"
+release = "0.5.1"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
