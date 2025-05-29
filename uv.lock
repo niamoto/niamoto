@@ -885,7 +885,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2.1" },
     { name = "pandas-stubs", marker = "extra == 'dev'", specifier = ">=2.1.1.230928" },
     { name = "pathspec", marker = "extra == 'dev'", specifier = ">=0.11.2" },
-    { name = "plotly", specifier = ">=5.20.0" },
+    { name = "plotly", specifier = ">=5.24.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "prompt-toolkit", specifier = ">=3.0.43" },
     { name = "pyarrow", specifier = ">=19.0.0" },
