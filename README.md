@@ -105,6 +105,29 @@ To set up a development environment for Niamoto, you must have `uv` installed on
 
   The previous command already installed the project in editable mode (with the -e flag). This means source code changes are immediately reflected without needing to reinstall the package.
 
+5. **Managing Multiple Niamoto Installations**:
+
+  When using `uv pip install -e .`, you may have multiple Niamoto installations on your system:
+
+  - **Editable installation**: Installed in your project's virtual environment (e.g., `.venv/lib/python3.12/site-packages`)
+  - **Global installation**: May exist if previously installed with `pip install niamoto` or `pipx install niamoto`
+
+  To check which version you're using:
+  ```bash
+  # Check which niamoto executable is being used
+  which niamoto
+
+  # Check installed version with uv
+  uv pip show niamoto
+  ```
+
+  If you have a global installation (e.g., via pipx in `~/.local/bin/niamoto`) that conflicts with your development version:
+
+  - **Option 1**: Use `uv run niamoto` from your project directory to ensure the editable version is used
+  - **Option 2**: Activate your virtual environment with `source .venv/bin/activate` before running `niamoto`
+  - **Option 3**: Uninstall the global version with `pipx uninstall niamoto` to avoid confusion
+  - **Option 4**: Reinstall globally from your local code with `pipx install --editable .`
+
 ## Taxonomy Data Import
 
 Niamoto offers two methods for importing taxonomic data:

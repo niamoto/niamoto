@@ -118,7 +118,8 @@ dependencies = [
     # ---------------------
     # Plotly - Interactive graphing library
     # Documentation: https://plotly.com/python/
-    "plotly>=5.20.0", # Added Plotly
+    # Note: Scattermap was introduced in 5.24.0
+    "plotly>=5.24.0", # Minimum version for Scattermap support
 ]
 
 [project.urls]
