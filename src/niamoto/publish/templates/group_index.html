@@ -1,0 +1,510 @@
+{% extends '_base.html' %}
+
+{% block title %}{{ page_config.title | default('Index') }} - {{ site.title | default('Niamoto') }}{% endblock %}
+
+{% block styles %}
+<style>
+    .endemic-badge {
+        background-color: #10b981;
+        color: white;
+    }
+
+    /* Les styles sont maintenant appliqués directement via JavaScript */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">{{ page_config.title | default(group_by | title) }}</h1>
+
+    <!-- Recherche -->
+    <div class="relative mb-8">
+        <input type="text" id="searchInput"
+               placeholder="Rechercher..."
+               aria-label="Rechercher"
+               class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+        <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+    </div>
+
+    <!-- Filtres dynamiques -->
+    <div class="flex flex-wrap gap-4 mb-8" id="filtersContainer">
+        <!-- Les filtres seront générés dynamiquement par JavaScript -->
+    </div>
+
+    <!-- Barre de stats et toggle de vue -->
+    <div class="flex justify-between items-center mb-6">
+        <div id="resultCount" class="text-sm text-gray-600">Chargement...</div>
+        <div class="flex gap-2">
+            <button id="gridViewBtn"
+                    class="p-2 border border-gray-300 rounded-md bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-primary"
+                    title="Vue en grille">
+                <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2z"/>
+                </svg>
+            </button>
+            <button id="listViewBtn"
+                    class="p-2 border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-primary"
+                    title="Vue en liste">
+                <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M5 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Conteneur des éléments -->
+    <div class="items-grid" id="itemsContainer">
+        <!-- Les éléments seront injectés ici par JavaScript -->
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex justify-center mt-8" id="pagination">
+        <!-- Les boutons de pagination seront injectés ici -->
+    </div>
+
+    <!-- Message aucun résultat -->
+    <div class="text-center py-12 text-gray-500 italic hidden" id="noResults">
+        <p>Aucun élément trouvé pour cette recherche.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Configuration et données injectées par le plugin
+    const indexConfig = {{ index_config | tojson | safe }};
+    const itemsData = {{ items_data | tojson | safe }};
+    const pageDepth = {{ depth | default(0) }};
+
+    // Variables globales
+    let currentPage = 1;
+    let filteredItems = [...itemsData];
+    let currentView = 'grid';
+    const itemsPerPage = indexConfig.page_config.items_per_page || 20;
+
+    // Fonction pour créer des URLs relatives
+    function makeRelativeUrl(url) {
+        if (!url || typeof url !== 'string') return url;
+
+        // Keep absolute URLs and anchors as is
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('#') ||
+            url.startsWith('mailto:') || url.startsWith('javascript:')) {
+            return url;
+        }
+
+        // Handle root-relative URLs
+        if (url.startsWith('/')) {
+            // Convert to relative based on depth
+            if (pageDepth === 0) {
+                return url.substr(1);  // Remove leading slash for root level
+            } else {
+                return '../'.repeat(pageDepth) + url.substr(1);
+            }
+        }
+
+        // Already relative URL
+        return url;
+    }
+
+    // Éléments DOM
+    const searchInput = document.getElementById('searchInput');
+    const filtersContainer = document.getElementById('filtersContainer');
+    const itemsContainer = document.getElementById('itemsContainer');
+    const paginationElement = document.getElementById('pagination');
+    const resultCountElement = document.getElementById('resultCount');
+    const noResultsElement = document.getElementById('noResults');
+    const gridViewBtn = document.getElementById('gridViewBtn');
+    const listViewBtn = document.getElementById('listViewBtn');
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', function() {
+        generateFilters();
+        setupEventListeners();
+        applyFiltersAndSort();
+
+        // Restaurer la vue sauvegardée ou initialiser par défaut
+        const savedView = localStorage.getItem(`${indexConfig.group_by}ViewPreference`);
+        if (savedView) {
+            setView(savedView);
+        } else {
+            setView('grid'); // Vue par défaut
+        }
+    });
+
+    // Génération dynamique des filtres
+    function generateFilters() {
+        const filtersHTML = indexConfig.display_fields
+            .filter(field => field.type === 'select' || field.type === 'boolean')
+            .map(field => {
+                if (field.type === 'boolean') {
+                    return `
+                        <div class="flex-1 min-w-48">
+                            <label for="${field.name}Filter" class="block text-sm font-medium text-gray-700 mb-2">${field.label || field.name}</label>
+                            <select id="${field.name}Filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                                <option value="all">Tous</option>
+                                <option value="true">Oui</option>
+                                <option value="false">Non</option>
+                            </select>
+                        </div>
+                    `;
+                } else if (field.dynamic_options) {
+                    // Générer les options depuis les données
+                    const uniqueValues = [...new Set(itemsData
+                        .map(item => getFieldValue(item, field))
+                        .filter(value => value)
+                    )].sort();
+
+                    const optionsHTML = uniqueValues.map(value =>
+                        `<option value="${value}">${value}</option>`
+                    ).join('');
+
+                    return `
+                        <div class="flex-1 min-w-48">
+                            <label for="${field.name}Filter" class="block text-sm font-medium text-gray-700 mb-2">${field.label || field.name}</label>
+                            <select id="${field.name}Filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                                <option value="all">Tous</option>
+                                ${optionsHTML}
+                            </select>
+                        </div>
+                    `;
+                } else if (field.filter_options) {
+                    const optionsHTML = field.filter_options.map(option =>
+                        `<option value="${option.value}">${option.label}</option>`
+                    ).join('');
+
+                    return `
+                        <div class="flex-1 min-w-48">
+                            <label for="${field.name}Filter" class="block text-sm font-medium text-gray-700 mb-2">${field.label || field.name}</label>
+                            <select id="${field.name}Filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                                <option value="all">Tous</option>
+                                ${optionsHTML}
+                            </select>
+                        </div>
+                    `;
+                }
+                return '';
+            }).join('');
+
+        // Ajouter les contrôles de tri
+        const sortHTML = `
+            <div class="flex-1 min-w-48">
+                <label for="sortBy" class="block text-sm font-medium text-gray-700 mb-2">Trier par</label>
+                <select id="sortBy" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                    ${indexConfig.display_fields.map(field =>
+                        `<option value="${field.name}">${field.label || field.name}</option>`
+                    ).join('')}
+                </select>
+            </div>
+            <div class="flex-1 min-w-48">
+                <label for="sortOrder" class="block text-sm font-medium text-gray-700 mb-2">Ordre</label>
+                <select id="sortOrder" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                    <option value="asc">Croissant</option>
+                    <option value="desc">Décroissant</option>
+                </select>
+            </div>
+        `;
+
+        filtersContainer.innerHTML = filtersHTML + sortHTML;
+    }
+
+    // Configuration des event listeners
+    function setupEventListeners() {
+        searchInput.addEventListener('input', applyFiltersAndSort);
+
+        // Event listeners pour tous les filtres
+        filtersContainer.addEventListener('change', applyFiltersAndSort);
+
+        gridViewBtn.addEventListener('click', () => setView('grid'));
+        listViewBtn.addEventListener('click', () => setView('list'));
+    }
+
+    // Extraction de valeur de champ avec chemins complexes
+    function getFieldValue(item, field) {
+        if (!field || !field.source) {
+            return null;
+        }
+
+        const keys = field.source.split('.');
+        let value = item;
+
+        for (const key of keys) {
+            if (value && typeof value === 'object') {
+                value = value[key];
+            } else {
+                value = null;
+                break;
+            }
+        }
+
+        // Utiliser fallback si nécessaire
+        if ((value === undefined || value === null) && field.fallback) {
+            value = item[field.fallback];
+        }
+
+        return value;
+    }
+
+    // Application des filtres et tri
+    function applyFiltersAndSort() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+
+        // Récupérer les valeurs de tous les filtres
+        const filterValues = {};
+        indexConfig.display_fields.forEach(field => {
+            if (field.type === 'select' || field.type === 'boolean') {
+                const filterElement = document.getElementById(`${field.name}Filter`);
+                if (filterElement) {
+                    filterValues[field.name] = filterElement.value;
+                }
+            }
+        });
+
+        const sortBy = document.getElementById('sortBy')?.value || 'name';
+        const sortOrder = document.getElementById('sortOrder')?.value || 'asc';
+
+        // Filtrer les éléments
+        filteredItems = itemsData.filter(item => {
+            // Filtre de recherche
+            const searchableFields = indexConfig.display_fields
+                .filter(field => field.searchable)
+                .map(field => getFieldValue(item, field))
+                .filter(value => value)
+                .join(' ')
+                .toLowerCase();
+
+            const matchesSearch = !searchTerm || searchableFields.includes(searchTerm);
+
+            // Filtres spécifiques
+            const matchesFilters = Object.entries(filterValues).every(([fieldName, filterValue]) => {
+                if (filterValue === 'all') return true;
+
+                const field = indexConfig.display_fields.find(f => f.name === fieldName);
+                const itemValue = getFieldValue(item, field);
+
+                if (field.type === 'boolean') {
+                    return String(itemValue) === filterValue;
+                } else {
+                    return itemValue === filterValue;
+                }
+            });
+
+            return matchesSearch && matchesFilters;
+        });
+
+        // Trier
+        const sortField = indexConfig.display_fields.find(f => f.name === sortBy);
+        if (sortField) {
+            filteredItems.sort((a, b) => {
+                const valueA = getFieldValue(a, sortField);
+                const valueB = getFieldValue(b, sortField);
+
+                let comparison = 0;
+                if (typeof valueA === 'string' && typeof valueB === 'string') {
+                    comparison = valueA.localeCompare(valueB);
+                } else {
+                    comparison = (valueA || 0) - (valueB || 0);
+                }
+
+                return sortOrder === 'desc' ? -comparison : comparison;
+            });
+        }
+
+        currentPage = 1;
+        renderItems();
+    }
+
+    // Rendu des éléments
+    function renderItems() {
+        if (filteredItems.length === 0) {
+            itemsContainer.innerHTML = '';
+            paginationElement.innerHTML = '';
+            noResultsElement.classList.remove('hidden');
+            resultCountElement.textContent = 'Aucun élément trouvé';
+            return;
+        }
+
+        noResultsElement.classList.add('hidden');
+
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, filteredItems.length);
+        const currentItems = filteredItems.slice(startIndex, endIndex);
+
+        resultCountElement.textContent = `Affichage de ${startIndex + 1}-${endIndex} sur ${filteredItems.length} éléments`;
+
+        if (currentView === 'grid') {
+            renderGridView(currentItems);
+        } else {
+            renderListView(currentItems);
+        }
+
+        renderPagination();
+    }
+
+    // Vue grille générique
+    function renderGridView(items) {
+        itemsContainer.className = "items-grid";
+
+        // Appliquer les styles directement via JavaScript
+        itemsContainer.style.display = 'grid';
+        itemsContainer.style.gridTemplateColumns = window.innerWidth <= 768 ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))';
+        itemsContainer.style.gap = '1.5rem';
+        itemsContainer.style.flexDirection = ''; // Reset flex styles
+        itemsContainer.innerHTML = items.map(item => `
+            <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                <div class="p-6">
+                    <h3 class="font-bold text-lg mb-3">
+                        <a href="${makeRelativeUrl(indexConfig.output_pattern.replace('{id}', item[indexConfig.id_column]))}"
+                           class="text-primary hover:text-green-700 transition-colors">
+                            ${getFieldValue(item, indexConfig.display_fields.find(f => f.name === 'name')) || item[indexConfig.id_column]}
+                        </a>
+                    </h3>
+                    ${renderItemFields(item)}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Vue liste générique
+    function renderListView(items) {
+        itemsContainer.className = "items-list";
+
+        // Appliquer les styles directement via JavaScript
+        itemsContainer.style.display = 'flex';
+        itemsContainer.style.flexDirection = 'column';
+        itemsContainer.style.gap = '1rem';
+        itemsContainer.style.gridTemplateColumns = ''; // Reset grid styles
+        itemsContainer.innerHTML = items.map(item => `
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <a href="${makeRelativeUrl(indexConfig.output_pattern.replace('{id}', item[indexConfig.id_column]))}"
+                           class="text-primary hover:text-green-700 font-semibold text-lg transition-colors">
+                            ${getFieldValue(item, indexConfig.display_fields.find(f => f.name === 'name')) || item[indexConfig.id_column]}
+                        </a>
+                        ${renderItemFields(item, true)}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Rendu des champs d'un élément
+    function renderItemFields(item, inline = false) {
+        return indexConfig.display_fields
+            .filter(field => field.name !== 'name' && field.display !== 'hidden')
+            .map(field => {
+                const value = getFieldValue(item, field);
+                if (!value) return '';
+
+                const label = field.label || field.name;
+                const displayValue = formatFieldValue(value, field);
+
+                if (inline) {
+                    return `<div class="mt-2"><span class="text-gray-500 text-sm">${label}: <span class="font-medium text-gray-700">${displayValue}</span></span></div>`;
+                } else {
+                    return `
+                        <div class="flex justify-between items-center py-1 border-b border-gray-100 last:border-b-0">
+                            <span class="text-gray-600 text-sm font-medium">${label}:</span>
+                            <span class="text-gray-900 text-sm">${displayValue}</span>
+                        </div>
+                    `;
+                }
+            }).join('');
+    }
+
+    // Formatage des valeurs de champs
+    function formatFieldValue(value, field) {
+        switch (field.format) {
+            case 'badge':
+                if (field.type === 'boolean' && value) {
+                    return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Endémique</span>`;
+                }
+                return value;
+            case 'map':
+                if (field.mapping && field.mapping[value]) {
+                    return field.mapping[value];
+                }
+                return value;
+            case 'number':
+                return new Intl.NumberFormat('fr-FR').format(value);
+            default:
+                return value;
+        }
+    }
+
+    // Gestion des vues
+    function setView(viewType) {
+        currentView = viewType;
+
+        if (viewType === 'grid') {
+            gridViewBtn.classList.add('bg-green-600', 'text-white');
+            gridViewBtn.classList.remove('bg-white', 'text-gray-700');
+            listViewBtn.classList.remove('bg-green-600', 'text-white');
+            listViewBtn.classList.add('bg-white', 'text-gray-700');
+        } else {
+            listViewBtn.classList.add('bg-green-600', 'text-white');
+            listViewBtn.classList.remove('bg-white', 'text-gray-700');
+            gridViewBtn.classList.remove('bg-green-600', 'text-white');
+            gridViewBtn.classList.add('bg-white', 'text-gray-700');
+        }
+
+        localStorage.setItem(`${indexConfig.group_by}ViewPreference`, viewType);
+        renderItems();
+    }
+
+    // Pagination
+    function renderPagination() {
+        const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+
+        if (totalPages <= 1) {
+            paginationElement.innerHTML = '';
+            return;
+        }
+
+        const buttonClasses = "px-3 py-2 mx-1 text-sm border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-primary focus:border-primary transition-colors";
+        const activeButtonClasses = "px-3 py-2 mx-1 text-sm border border-primary rounded-md bg-primary text-white hover:bg-green-700 transition-colors";
+        const disabledButtonClasses = "px-3 py-2 mx-1 text-sm border border-gray-300 rounded-md bg-gray-100 text-gray-400 cursor-not-allowed";
+
+        let paginationHTML = `
+            <button onclick="goToPage(1)" class="${currentPage === 1 ? disabledButtonClasses : buttonClasses}" ${currentPage === 1 ? 'disabled' : ''}>
+                « Premier
+            </button>
+            <button onclick="goToPage(${currentPage - 1})" class="${currentPage === 1 ? disabledButtonClasses : buttonClasses}" ${currentPage === 1 ? 'disabled' : ''}>
+                ‹ Précédent
+            </button>
+        `;
+
+        const maxPagesToShow = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        for (let i = startPage; i <= endPage; i++) {
+            paginationHTML += `
+                <button onclick="goToPage(${i})" class="${i === currentPage ? activeButtonClasses : buttonClasses}">
+                    ${i}
+                </button>
+            `;
+        }
+
+        paginationHTML += `
+            <button onclick="goToPage(${currentPage + 1})" class="${currentPage === totalPages ? disabledButtonClasses : buttonClasses}" ${currentPage === totalPages ? 'disabled' : ''}>
+                Suivant ›
+            </button>
+            <button onclick="goToPage(${totalPages})" class="${currentPage === totalPages ? disabledButtonClasses : buttonClasses}" ${currentPage === totalPages ? 'disabled' : ''}>
+                Dernier »
+            </button>
+        `;
+
+        paginationElement.innerHTML = paginationHTML;
+    }
+
+    function goToPage(page) {
+        currentPage = page;
+        renderItems();
+        window.scrollTo({ top: itemsContainer.offsetTop - 100, behavior: 'smooth' });
+    }
+</script>
+{% endblock %}

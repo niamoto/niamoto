@@ -1,23 +1,67 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="{{ site.lang | default('en') }}">
 <head>
     <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>{% block title %}Niamoto{% endblock %}</title>
-{% block extra_head %}
-    {% endblock %}
-    <link rel="stylesheet" href="{{ depth }}js/vendor/tailwindcss/2.2.19_dist_tailwind.css">
-    <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.9.4_leaflet.css">
-    <link rel="stylesheet" href="{{ depth }}css/font-awesome/6.6.0_all.min.css">
-    <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.5.3_MarkerCluster.css" />
-    <link rel="stylesheet" href="{{ depth }}js/vendor/leaflet/1.5.3_MarkerCluster.Default.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site.title | default('Niamoto') }}{% endblock %}</title>
 
+    {% block extra_head %}{% endblock %}
+
+    <!-- Tailwind CSS v4 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '{{ site.primary_color | default("#1fb99d") }}',
+                        'nav-bg': '{{ site.nav_color | default("#228b22") }}'
+                    },
+                    gridTemplateColumns: {
+                        '12': 'repeat(12, minmax(0, 1fr))'
+                    },
+                    gridColumn: {
+                        'span-1': 'span 1 / span 1',
+                        'span-2': 'span 2 / span 2',
+                        'span-3': 'span 3 / span 3',
+                        'span-4': 'span 4 / span 4',
+                        'span-5': 'span 5 / span 5',
+                        'span-6': 'span 6 / span 6',
+                        'span-7': 'span 7 / span 7',
+                        'span-8': 'span 8 / span 8',
+                        'span-9': 'span 9 / span 9',
+                        'span-10': 'span 10 / span 10',
+                        'span-11': 'span 11 / span 11',
+                        'span-12': 'span 12 / span 12'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="{{ '/assets/css/font-awesome/6.6.0_all.min.css' | relative_url(depth|default(0)) }}">
+    <!-- Base CSS with custom styles -->
+    <link rel="stylesheet" href="{{ '/assets/css/niamoto.css' | relative_url(depth|default(0)) }}">
+    <link rel="stylesheet" href="{{ '/assets/css/niamoto_hierarchical_nav.css' | relative_url(depth|default(0)) }}">
+    <!-- Block for additional CSS/JS dependencies (from widgets or user) -->
+    {% set css_dependencies = [] %}
+    {% set js_dependencies = [] %}
+    {% if dependencies %}
+        {% for dep in dependencies %}
+            {% if dep.endswith('.css') %}
+                {% set _ = css_dependencies.append(dep) %}
+            {% elif dep.endswith('.js') %}
+                {% set _ = js_dependencies.append(dep) %}
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    {% for css_file in css_dependencies %}
+        <link rel="stylesheet" href="{{ css_file | relative_url(depth|default(0)) }}">
+    {% endfor %}
+    {% block styles %}{% endblock %}
 
     <style>
-        ul {
-            list-style-type: none;
-        }
-
         .loader-container {
             position: absolute;
             top: 0;
@@ -40,19 +84,17 @@
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
+
         .button-container {
             transition: all 0.3s ease;
         }
+
         .button-container.fixed {
             position: fixed;
-            top: 63px; /* Adjust this value to match the height of your navigation menu */
+            top: 63px;
             left: 0;
             right: 0;
             z-index: 1000;
@@ -62,33 +104,35 @@
         }
     </style>
 </head>
-<body>
+<body class="min-h-screen bg-gray-50">
+    <!-- Include navigation - will use user's _nav.html if available, otherwise fallback to default -->
     {% include '_nav.html' %}
-    <div class="flex flex-col lg:flex-row">
+
+    <!-- Main Content -->
+    <div class="flex flex-col lg:flex-row pt-16">
         {% block sidebar %}
         {% endblock %}
         <div class="w-full">
             {% block content %}
+                <!-- Page specific content goes here -->
             {% endblock %}
         </div>
     </div>
+
+    <!-- Include footer - will use user's _footer.html if available, otherwise fallback to default -->
     {% include '_footer.html' %}
-    <script src="{% block chart_js %}{{ depth }}js/vendor/chart/4.4.2_chart.js{% endblock %}"></script>
-    <script src="{% block d3_js %}{{ depth }}js/vendor/d3/7.8.5_d3.js{% endblock %}"></script>
-    <script src="{% block jquery_js %}{{ depth }}js/vendor/jquery/3.6.0_jquery.js{% endblock %}"></script>
-    <script src="{% block lodash %}{{ depth }}js/vendor/lodash/4.17.21_lodash.min.js{% endblock %}"></script>
-    <script src="{% block raphael_js %}{{ depth }}js/vendor/raphael/2.3.0_raphael.js{% endblock %}"></script>
-    <script src="{% block justgage_js %}{{ depth }}js/vendor/justgage/1.6.1_justgage.js{% endblock %}"></script>
-    <script src="{% block map_js %}{{ depth }}js/vendor/leaflet/1.9.4_leaflet.js{% endblock %}"></script>
-    <script src="{% block map_markercluster_js %}{{ depth }}js/vendor/leaflet/1.5.3_leaflet.markercluster.js{% endblock %}"></script>
+
+    <!-- Block for JavaScript dependencies -->
+    {% for js_file in js_dependencies %}
+        <script src="{{ js_file | relative_url(depth|default(0)) }}"></script>
+    {% endfor %}
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-        const buttonContainer = document.getElementById('buttonContainer');
-
-            // Only proceed if the button container exists
+            const buttonContainer = document.getElementById('buttonContainer');
             if (buttonContainer) {
                 const buttonContainerOffset = buttonContainer.offsetTop;
-                const navHeight = 60; // Adjust this value to match your navigation height
+                const navHeight = 60;
 
                 window.onscroll = () => {
                     if (window.pageYOffset > buttonContainerOffset - navHeight) {
@@ -97,12 +141,11 @@
                         buttonContainer.classList.remove('fixed');
                     }
                 };
-
-                // Initial check in case the page is loaded scrolled
                 window.onscroll();
             }
         });
     </script>
+
     {% block extra_scripts %}
     {% endblock %}
 </body>
