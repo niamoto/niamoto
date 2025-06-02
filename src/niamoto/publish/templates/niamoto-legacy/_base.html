@@ -88,7 +88,7 @@
             // Only proceed if the button container exists
             if (buttonContainer) {
                 const buttonContainerOffset = buttonContainer.offsetTop;
-                const navHeight = 60; // Adjust this value to match your navigation height
+                const navHeight = 63; // Keep in sync with .button-container.fixed CSS
 
                 window.onscroll = () => {
                     if (window.pageYOffset > buttonContainerOffset - navHeight) {

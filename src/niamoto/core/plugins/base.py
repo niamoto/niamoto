@@ -182,8 +182,17 @@ class WidgetPlugin(Plugin, ABC):
         # Access common config directly, specific params via config.params
         width = config.params.get("width", "auto")
         height = config.params.get("height", "auto")
-        title = config.title
-        description = config.description
+
+        # Support both structures for backward compatibility:
+        # 1. New structure: title/description at widget level
+        # 2. Old structure: title/description in params
+        title = config.title if config.title is not None else config.params.get("title")
+        description = (
+            config.description
+            if config.description is not None
+            else config.params.get("description")
+        )
+
         css_class = config.params.get(
             "class_name", ""
         )  # Example of accessing specific param
