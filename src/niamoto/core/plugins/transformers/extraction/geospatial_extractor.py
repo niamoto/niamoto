@@ -167,9 +167,10 @@ class GeospatialExtractor(TransformerPlugin):
                 query += f" WHERE id = {id_value}"
 
             result = self.db.execute_select(query)
+            # Pour SQLAlchemy moderne, on utilise .keys() pour obtenir les noms de colonnes
             df = pd.DataFrame(
                 result.fetchall(),
-                columns=[desc[0] for desc in result.cursor.description],
+                columns=result.keys(),
             )
             return df
 

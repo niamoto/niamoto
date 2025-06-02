@@ -965,11 +965,12 @@ class HtmlPageExporter(ExporterPlugin):
             List of all items from the reference table
         """
         # Check cache first
-        if referential_data_source in self._navigation_cache:
+        cache_key = f"{referential_data_source}:{','.join(required_fields) if required_fields else '*'}"
+        if cache_key in self._navigation_cache:
             logger.debug(
                 f"Using cached navigation data for '{referential_data_source}'"
             )
-            return self._navigation_cache[referential_data_source]
+            return self._navigation_cache[cache_key]
 
         logger.info(f"Loading navigation data from table '{referential_data_source}'")
 
@@ -1242,12 +1243,11 @@ class HtmlPageExporter(ExporterPlugin):
         try:
             # Fetch index data
             index_data = self._get_group_index_data(repository, table_name, id_column)
-            if index_data is None:
+            if not index_data:
                 logger.error(
-                    f"Failed to fetch index data for group '{group_by_key}'. Skipping group."
+                    f"No index data found for group '{group_by_key}'. Skipping index generation."
                 )
                 return
-            logger.debug(f"Fetched {len(index_data)} items for '{group_by_key}' index.")
 
             # Use traditional template
             index_template_name = group_config.index_template or "group_index.html"
