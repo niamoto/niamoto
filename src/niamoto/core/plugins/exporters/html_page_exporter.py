@@ -952,13 +952,14 @@ class HtmlPageExporter(ExporterPlugin):
         logger.info("Data group processing finished.")
 
     def _load_and_cache_navigation_data(
-        self, referential_data_source: str
+        self, referential_data_source: str, required_fields: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Load and cache navigation reference data.
 
         Args:
             referential_data_source: Name of the reference table (e.g., 'taxon_ref')
+            required_fields: List of specific fields to select. If None, selects all fields.
 
         Returns:
             List of all items from the reference table
@@ -980,8 +981,14 @@ class HtmlPageExporter(ExporterPlugin):
                 )
                 return []
 
-            # Load all data from reference table
-            query = f'SELECT * FROM "{referential_data_source}"'
+            # Build query with specific fields or all fields
+            if required_fields:
+                # Escape field names to prevent SQL injection
+                escaped_fields = [f'"{field}"' for field in required_fields]
+                fields_str = ", ".join(escaped_fields)
+                query = f'SELECT {fields_str} FROM "{referential_data_source}"'
+            else:
+                query = f'SELECT * FROM "{referential_data_source}"'
             results = self.db.fetch_all(query)
 
             if results:
@@ -1005,6 +1012,47 @@ class HtmlPageExporter(ExporterPlugin):
             )
             return []
 
+    def _extract_navigation_fields(self, group_config: "GroupConfigWeb") -> List[str]:
+        """
+        Extract required fields from hierarchical navigation widgets in the group.
+
+        Args:
+            group_config: The group configuration
+
+        Returns:
+            List of field names required for navigation
+        """
+        required_fields = set()
+
+        # Look for hierarchical navigation widgets in the group
+        for widget_config in group_config.widgets:
+            if widget_config.plugin == "hierarchical_nav_widget":
+                params = widget_config.params
+
+                # Add all potential hierarchy fields
+                if "id_field" in params:
+                    required_fields.add(params["id_field"])
+                if "name_field" in params:
+                    required_fields.add(params["name_field"])
+                if "parent_id_field" in params:
+                    required_fields.add(params["parent_id_field"])
+                if "lft_field" in params:
+                    required_fields.add(params["lft_field"])
+                if "rght_field" in params:
+                    required_fields.add(params["rght_field"])
+                if "level_field" in params:
+                    required_fields.add(params["level_field"])
+                if "group_by_field" in params:
+                    required_fields.add(params["group_by_field"])
+                if "group_by_label_field" in params:
+                    required_fields.add(params["group_by_label_field"])
+
+        # If no hierarchical widgets found, use default minimal set
+        if not required_fields:
+            required_fields = {"id", "name", "full_name"}
+
+        return list(required_fields)
+
     def _generate_navigation_js(
         self, group_config: "GroupConfigWeb", output_dir: Path
     ) -> None:
@@ -1025,8 +1073,13 @@ class HtmlPageExporter(ExporterPlugin):
         # Get reference table name based on group
         reference_table = f"{group_by_key}_ref"
 
-        # Load navigation data
-        navigation_data = self._load_and_cache_navigation_data(reference_table)
+        # Extract required fields from hierarchical navigation widgets
+        required_fields = self._extract_navigation_fields(group_config)
+
+        # Load navigation data with only required fields
+        navigation_data = self._load_and_cache_navigation_data(
+            reference_table, required_fields
+        )
         if not navigation_data:
             logger.warning(f"No navigation data to generate JS for {group_by_key}")
             return

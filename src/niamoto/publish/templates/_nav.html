@@ -1,9 +1,9 @@
 <nav class="bg-nav-bg p-0 fixed w-full top-0 shadow-md z-50 custom-nav">
     <div class="container mx-auto flex flex-wrap items-center justify-between">
         <div class="flex items-center flex-shrink-0 text-white mr-6">
-            <a class="inline-flex items-center py-2 px-4 text-white no-underline" href="{{ '/' | relative_url(depth|default(0)) }}">
+            <a class="inline-flex items-center py-2 px-4 text-white no-underline" href="{{ '../' * (depth|default(0)) }}index.html">
                 {% if site.logo_header %}
-                    <img src="{{ ('/assets/' + site.logo_header) | relative_url(depth|default(0)) }}" alt="Logo" class="h-8 w-auto mr-2">
+                    <img src="{{ '../' * (depth|default(0)) }}assets/{{ site.logo_header }}" alt="Logo" class="h-8 w-auto mr-2">
                 {% endif %}
                 <span class="site-title">{{ site.title | default('Niamoto') }}</span>
             </a>
@@ -25,7 +25,7 @@
                     {% for item in navigation %}
                         <li class="mr-3">
                             <a class="nav-link inline-block py-2 px-3 text-white no-underline"
-                               href="{{ item.url | relative_url(depth|default(0)) }}">
+                               href="{{ '../' * (depth|default(0)) }}{{ item.url.lstrip('/') }}">
                                 {{ item.text }}
                             </a>
                         </li>
@@ -33,7 +33,7 @@
                 {% else %}
                     <!-- Default navigation if none provided -->
                     <li class="mr-3">
-                        <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="{{ '/' | relative_url(depth|default(0)) }}">
+                        <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="{{ '../' * (depth|default(0)) }}index.html">
                             <i class="fas fa-home menu-icon"></i>Accueil
                         </a>
                     </li>
