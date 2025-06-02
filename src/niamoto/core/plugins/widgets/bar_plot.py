@@ -127,6 +127,13 @@ class BarPlotParams(BaseModel):
     auto_color: bool = Field(
         False, description="Automatically generate harmonious colors for each bar"
     )
+    bar_width: Optional[float] = Field(
+        None,
+        description="Width of bars (0.0 to 1.0). If None, width is calculated automatically based on data count",
+    )
+    filter_zero_values: bool = Field(
+        False, description="Remove bars with zero or null values from the plot"
+    )
 
 
 @register("bar_plot", PluginType.WIDGET)
@@ -206,6 +213,15 @@ class BarPlotWidget(WidgetPlugin):
 
         # Create a copy to avoid modifying the original
         df_plot = processed_data.copy()
+
+        # Filter zero values if requested
+        if params.filter_zero_values:
+            # Remove rows where y-axis value is 0 or null
+            mask = pd.notna(df_plot[params.y_axis]) & (df_plot[params.y_axis] != 0)
+            df_plot = df_plot[mask]
+            logger.debug(
+                f"Filtered {len(processed_data) - len(df_plot)} zero/null values from data"
+            )
 
         # Apply sorting if specified
         if params.sort_order:
@@ -315,8 +331,21 @@ class BarPlotWidget(WidgetPlugin):
 
             fig.update_layout(**layout_updates)
 
-            # Increase bar width for better visibility
-            fig.update_traces(width=0.6)
+            # Calculate and set bar width for better visibility
+            bar_width = params.bar_width
+            if bar_width is None:
+                # Auto-calculate width based on number of bars
+                num_bars = len(df_plot)
+                if num_bars <= 5:
+                    bar_width = 0.8
+                elif num_bars <= 10:
+                    bar_width = 0.6
+                elif num_bars <= 20:
+                    bar_width = 0.4
+                else:
+                    bar_width = 0.3
+
+            fig.update_traces(width=bar_width)
 
             # Render figure to HTML
             html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")

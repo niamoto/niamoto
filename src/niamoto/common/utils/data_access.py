@@ -255,19 +255,48 @@ def transform_data(
         count_field = params.get("count_field", "counts")
         x_field = params.get("x_field", "bin")
         y_field = params.get("y_field", "count")
+        use_percentages = params.get("use_percentages", False)
+        percentage_field = params.get("percentage_field", "percentages")
 
         if isinstance(data, dict) and bin_field in data and count_field in data:
             # Get the data
             bins = data[bin_field]
             counts = data[count_field]
 
+            # Use percentages if available and requested
+            if use_percentages and percentage_field in data:
+                values = data[percentage_field]
+            else:
+                values = counts
+
             # Make sure lengths match - typically we have one more bin than count
-            if len(bins) == len(counts) + 1:
+            if len(bins) == len(values) + 1:
                 bins = bins[:-1]  # Remove the last bin
 
-            if len(bins) == len(counts):
+            if len(bins) == len(values):
+                # Create bin labels for better display
+                bin_labels = []
+                for i in range(len(bins)):
+                    if i < len(bins) - 1:
+                        # Create range labels like "10-20"
+                        next_bin = (
+                            bins[i + 1]
+                            if i + 1 < len(bins)
+                            else bins[i] + (bins[i] - bins[i - 1] if i > 0 else 10)
+                        )
+                        bin_labels.append(f"{bins[i]}-{next_bin}")
+                    else:
+                        # Last bin - handle as "X+"
+                        bin_labels.append(f"{bins[i]}+")
+
                 # Create a DataFrame with the correct column names
-                return pd.DataFrame({x_field: bins, y_field: counts})
+                return pd.DataFrame(
+                    {
+                        x_field: bin_labels,
+                        y_field: values,
+                        "bin_value": bins,  # Keep original bin values for sorting
+                    }
+                )
 
     # Transformation pour données mensuelles/phénologiques
     elif transform_type == "monthly_data":
