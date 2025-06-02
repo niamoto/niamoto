@@ -986,9 +986,9 @@ class HtmlPageExporter(ExporterPlugin):
                 # Escape field names to prevent SQL injection
                 escaped_fields = [f'"{field}"' for field in required_fields]
                 fields_str = ", ".join(escaped_fields)
-                query = f'SELECT {fields_str} FROM "{referential_data_source}"'
+                query = f'SELECT {fields_str} FROM "{referential_data_source}" ORDER BY "id"'
             else:
-                query = f'SELECT * FROM "{referential_data_source}"'
+                query = f'SELECT * FROM "{referential_data_source}" ORDER BY "id"'
             results = self.db.fetch_all(query)
 
             if results:
