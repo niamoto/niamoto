@@ -472,7 +472,7 @@ class HtmlPageExporter(ExporterPlugin):
 
                     # Determine the template to use
                     template_name = (
-                        page_config.template or "_layouts/static_page.html"
+                        page_config.template or "static_page.html"
                     )  # Fallback to default
                     try:
                         template = jinja_env.get_template(template_name)
@@ -583,78 +583,104 @@ class HtmlPageExporter(ExporterPlugin):
                     )
                     continue  # Skip processing this group if directory management failed
 
-                # Fetch index data
-                index_data = self._get_group_index_data(
-                    repository, table_name, id_column
-                )
-                if index_data is None:
-                    logger.error(
-                        f"Failed to fetch index data for group '{group_by_key}'. Skipping group."
-                    )
-                    continue
-                logger.debug(
-                    f"Fetched {len(index_data)} items for '{group_by_key}' index."
-                )
-
                 # --- Render Index Page ---
-                index_template_name = (
-                    group_config.index_template or "_layouts/group_index.html"
-                )
-                try:
-                    index_template = jinja_env.get_template(index_template_name)
-                    logger.debug(f"Rendering index template: {index_template_name}")
+                # Check if group has index_generator configuration
+                if (
+                    hasattr(group_config, "index_generator")
+                    and group_config.index_generator
+                ):
+                    try:
+                        # Use new index generator plugin
+                        from niamoto.core.plugins.exporters.index_generator import (
+                            IndexGeneratorPlugin,
+                        )
+                        from niamoto.core.plugins.models import IndexGeneratorConfig
 
-                    index_context = {
-                        "site": html_params.site,
-                        "navigation": html_params.navigation,
-                        "group_by": group_by_key,
-                        "items": index_data,
-                        "group_config": group_config,  # Pass the full group config object
-                    }
-                    # Output index file to the specific group directory
-                    index_output_file = Path(
-                        group_config.index_output_pattern.format(group_by=group_by_key)
-                    )
+                        # Convert to dict if it's already a config object
+                        if hasattr(group_config.index_generator, "model_dump"):
+                            index_config_dict = (
+                                group_config.index_generator.model_dump()
+                            )
+                        else:
+                            index_config_dict = group_config.index_generator
 
-                    # Check if index_output_pattern already includes the group name to avoid duplication
-                    # Look for both the template variable {group_by}/ and hardcoded group_by_key/ (e.g. "taxon/")
-                    if (
-                        f"{group_by_key}/" in group_config.index_output_pattern
-                        or "{group_by}/" in group_config.index_output_pattern
-                    ):
-                        # Remove the group prefix from output path to avoid duplication
-                        index_output_path = output_dir / index_output_file
-                    else:
-                        # Keep current behavior for backward compatibility
-                        index_output_path = group_output_dir / index_output_file
+                        # Validate and create config
+                        index_config = IndexGeneratorConfig(**index_config_dict)
 
-                    index_output_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(index_output_path, "w", encoding="utf-8") as f:
-                        f.write(index_template.render(index_context))
+                        if index_config.enabled:
+                            logger.info(
+                                f"Using IndexGeneratorPlugin for group '{group_by_key}'"
+                            )
+
+                            # Create plugin instance
+                            index_generator = IndexGeneratorPlugin(repository)
+
+                            # Generate index page
+                            index_generator.generate_index(
+                                group_by_key,
+                                index_config,
+                                output_dir,
+                                jinja_env,
+                                html_params,
+                            )
+                            logger.debug(
+                                f"Index page generated using IndexGeneratorPlugin for '{group_by_key}'"
+                            )
+                        else:
+                            logger.info(
+                                f"IndexGenerator disabled for group '{group_by_key}', skipping index generation"
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Error using IndexGeneratorPlugin for group '{group_by_key}': {e}",
+                            exc_info=True,
+                        )
+                        # Fall back to traditional method
+                        logger.info(
+                            f"Falling back to traditional index generation for group '{group_by_key}'"
+                        )
+                        self._generate_traditional_index(
+                            group_config,
+                            group_by_key,
+                            repository,
+                            table_name,
+                            id_column,
+                            jinja_env,
+                            html_params,
+                            output_dir,
+                            group_output_dir,
+                        )
+                else:
+                    # Use traditional index generation
                     logger.debug(
-                        f"Rendered index page for '{group_by_key}': {index_output_path}"
+                        f"Using traditional index generation for group '{group_by_key}'"
+                    )
+                    self._generate_traditional_index(
+                        group_config,
+                        group_by_key,
+                        repository,
+                        table_name,
+                        id_column,
+                        jinja_env,
+                        html_params,
+                        output_dir,
+                        group_output_dir,
                     )
 
-                except Exception as e:
-                    logger.error(
-                        f"Could not load or render group index template '{index_template_name}' for group '{group_config.group_by}': {e}",
-                        exc_info=True,
-                    )
-                    # Decide whether to raise or continue
-                    continue  # Skip to next group if index page fails
                 # --- End Render Index Page ---
 
                 # --- Render Detail Pages ---
+                # Get index data for detail pages (needed for both traditional and new method)
+                index_data = self._get_group_index_data(
+                    repository, table_name, id_column
+                )
                 if not index_data:
                     logger.info(
                         f"No items found for group '{group_by_key}', skipping detail pages."
                     )
                     continue
 
-                detail_template_name = (
-                    group_config.page_template
-                    or "_layouts/group_detail_with_sidebar.html"
-                )
+                detail_template_name = group_config.page_template or "group_detail.html"
 
                 # Outer try for the entire detail page generation process for this group
                 try:
@@ -1133,3 +1159,84 @@ class HtmlPageExporter(ExporterPlugin):
                 exc_info=True,
             )
             return None
+
+    def _generate_traditional_index(
+        self,
+        group_config,
+        group_by_key: str,
+        repository: Database,
+        table_name: str,
+        id_column: str,
+        jinja_env,
+        html_params,
+        output_dir: Path,
+        group_output_dir: Path,
+    ) -> None:
+        """
+        Generate index page using the traditional method (for backward compatibility).
+
+        Args:
+            group_config: Group configuration
+            group_by_key: Group type key
+            repository: Database instance
+            table_name: Name of the data table
+            id_column: Name of the ID column
+            jinja_env: Jinja2 environment
+            html_params: HTML exporter parameters
+            output_dir: Base output directory
+            group_output_dir: Group-specific output directory
+        """
+        try:
+            # Fetch index data
+            index_data = self._get_group_index_data(repository, table_name, id_column)
+            if index_data is None:
+                logger.error(
+                    f"Failed to fetch index data for group '{group_by_key}'. Skipping group."
+                )
+                return
+            logger.debug(f"Fetched {len(index_data)} items for '{group_by_key}' index.")
+
+            # Use traditional template
+            index_template_name = group_config.index_template or "group_index.html"
+
+            index_template = jinja_env.get_template(index_template_name)
+            logger.debug(f"Rendering traditional index template: {index_template_name}")
+
+            index_context = {
+                "site": html_params.site,
+                "navigation": html_params.navigation,
+                "group_by": group_by_key,
+                "items": index_data,
+                "group_config": group_config,
+                "id_column": id_column,
+            }
+
+            # Output index file to the specific group directory
+            index_output_file = Path(
+                group_config.index_output_pattern.format(group_by=group_by_key)
+            )
+
+            # Check if index_output_pattern already includes the group name to avoid duplication
+            if (
+                f"{group_by_key}/" in group_config.index_output_pattern
+                or "{group_by}/" in group_config.index_output_pattern
+            ):
+                # Remove the group prefix from output path to avoid duplication
+                index_output_path = output_dir / index_output_file
+            else:
+                # Keep current behavior for backward compatibility
+                index_output_path = group_output_dir / index_output_file
+
+            index_output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(index_output_path, "w", encoding="utf-8") as f:
+                f.write(index_template.render(index_context))
+            logger.debug(
+                f"Rendered traditional index page for '{group_by_key}': {index_output_path}"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error generating traditional index for group '{group_by_key}': {e}",
+                exc_info=True,
+            )
+            raise
