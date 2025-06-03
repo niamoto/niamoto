@@ -213,11 +213,16 @@ def transform_data(
             if rows:
                 return pd.DataFrame(rows)
 
-    # Transformation spécifique pour les données forestières par élévation
-    elif transform_type == "forest_cover_by_elevation":
+    # Transformation générique pour extraire une série de données avec classes
+    elif transform_type == "extract_single_series":
         class_field = params.get("class_field", "class_name")
         series_field = params.get("series_field", "series")
-        series_key = params.get("series_key", "forest_um")
+        series_key = params.get("series_key")
+        class_suffix = params.get(
+            "class_suffix", ""
+        )  # Pour ajouter un suffixe aux classes
+        value_label = params.get("value_label", "values")
+        class_label = params.get("class_label", "class_name")
 
         if isinstance(data, dict) and class_field in data:
             # Cas où les données sont dans la structure attendue
@@ -226,13 +231,23 @@ def transform_data(
                 if series_key in data[series_field]:
                     values = data[series_field][series_key]
                     if len(classes) == len(values):
-                        return pd.DataFrame({"class_name": classes, "values": values})
+                        # Convertir les classes en chaînes avec suffixe optionnel
+                        class_labels = [f"{cls}{class_suffix}" for cls in classes]
+                        return pd.DataFrame(
+                            {class_label: class_labels, value_label: values}
+                        )
             # Rechercher directement une clé correspondant à la série spécifiée
-            elif series_key in data and isinstance(data[series_key], list):
+            elif (
+                series_key and series_key in data and isinstance(data[series_key], list)
+            ):
                 classes = data[class_field]
                 values = data[series_key]
                 if len(classes) == len(values):
-                    return pd.DataFrame({"class_name": classes, "values": values})
+                    # Convertir les classes en chaînes avec suffixe optionnel
+                    class_labels = [f"{cls}{class_suffix}" for cls in classes]
+                    return pd.DataFrame(
+                        {class_label: class_labels, value_label: values}
+                    )
 
     # Transformation spécifique pour l'extraction de données d'élévation
     elif transform_type == "elevation_distribution":
@@ -248,6 +263,113 @@ def transform_data(
 
                 if len(classes) == len(subset):
                     return pd.DataFrame({"class_name": classes, "values": subset})
+
+    # Transformation générique pour données avec subset/complement en format empilé
+    elif transform_type == "subset_complement_stacked":
+        data_field = params.get("data_field", None)
+        classes_field = params.get("classes_field", "classes")
+        subset_field = params.get("subset_field", "subset")
+        complement_field = params.get("complement_field", "complement")
+        class_label = params.get("class_label", "class")
+        subset_label = params.get("subset_label", "Subset")
+        complement_label = params.get("complement_label", "Complement")
+        value_field = params.get("value_field", "value")
+        type_field = params.get("type_field", "type")
+        class_suffix = params.get(
+            "class_suffix", ""
+        )  # Pour ajouter "m" aux altitudes par exemple
+
+        # Extraire les données du bon niveau
+        if data_field and isinstance(data, dict) and data_field in data:
+            data = data[data_field]
+
+        if (
+            isinstance(data, dict)
+            and classes_field in data
+            and subset_field in data
+            and complement_field in data
+        ):
+            classes = data[classes_field]
+            subset = data[subset_field]
+            complement = data[complement_field]
+
+            if len(classes) == len(subset) == len(complement):
+                # Créer un DataFrame en format long pour barres empilées
+                rows = []
+                for i, cls in enumerate(classes):
+                    # Ajouter la ligne pour le subset
+                    rows.append(
+                        {
+                            class_label: f"{cls}{class_suffix}",
+                            type_field: subset_label,
+                            value_field: subset[i],
+                        }
+                    )
+                    # Ajouter la ligne pour le complement
+                    rows.append(
+                        {
+                            class_label: f"{cls}{class_suffix}",
+                            type_field: complement_label,
+                            value_field: complement[i],
+                        }
+                    )
+
+                return pd.DataFrame(rows)
+
+    # Transformation pour graphique pyramide (valeurs négatives/positives)
+    elif transform_type == "pyramid_chart":
+        class_field = params.get("class_field", "class_name")
+        series_field = params.get("series_field", "series")
+        left_series = params.get(
+            "left_series"
+        )  # Série pour le côté gauche (valeurs négatives)
+        right_series = params.get(
+            "right_series"
+        )  # Série pour le côté droit (valeurs positives)
+        left_label = params.get("left_label", "Left")
+        right_label = params.get("right_label", "Right")
+        class_suffix = params.get("class_suffix", "")
+        value_field = params.get("value_field", "value")
+        type_field = params.get("type_field", "type")
+        class_label = params.get("class_label", "class")
+
+        if isinstance(data, dict) and class_field in data and series_field in data:
+            classes = data[class_field]
+            series_data = data[series_field]
+
+            if (
+                isinstance(series_data, dict)
+                and left_series in series_data
+                and right_series in series_data
+            ):
+                left_values = series_data[left_series]
+                right_values = series_data[right_series]
+
+                if len(classes) == len(left_values) == len(right_values):
+                    rows = []
+                    for i, cls in enumerate(classes):
+                        # Côté gauche avec valeurs négatives
+                        rows.append(
+                            {
+                                class_label: f"{cls}{class_suffix}",
+                                type_field: left_label,
+                                value_field: -abs(
+                                    left_values[i]
+                                ),  # Négatif pour le côté gauche
+                            }
+                        )
+                        # Côté droit avec valeurs positives
+                        rows.append(
+                            {
+                                class_label: f"{cls}{class_suffix}",
+                                type_field: right_label,
+                                value_field: abs(
+                                    right_values[i]
+                                ),  # Positif pour le côté droit
+                            }
+                        )
+
+                    return pd.DataFrame(rows)
 
     # Transformation for histograms (bins/counts)
     elif transform_type == "bins_to_df":
