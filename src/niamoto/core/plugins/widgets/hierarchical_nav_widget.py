@@ -185,7 +185,6 @@ class HierarchicalNavWidget(WidgetPlugin):
                     if (typeof NiamotoHierarchicalNav !== 'undefined' && typeof {data_var} !== 'undefined') {{
                         const config = {json.dumps(js_config, ensure_ascii=False)};
                         config.items = {data_var};  // Get data from loaded JS file
-                        console.log('Initializing hierarchical nav with', config.items.length, 'items');
                         new NiamotoHierarchicalNav(config);
                     }} else {{
                         // Retry after a short delay if dependencies aren't loaded yet

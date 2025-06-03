@@ -242,7 +242,6 @@ class InteractiveMapWidget(WidgetPlugin):
         params: InteractiveMapParams,
     ) -> str:
         """Render a map using client-side TopoJSON to GeoJSON conversion."""
-        logger.debug("Rendering client-side TopoJSON map")
 
         # Calculate bounds for centering and zoom from TopoJSON data
         center_lat = (
@@ -258,41 +257,58 @@ class InteractiveMapWidget(WidgetPlugin):
 
         # Create the HTML with embedded TopoJSON and JavaScript conversion
         html_content = f"""
-        <div id="{map_id}" style="width: 100%; height: 500px;"></div>
+        <div id="{map_id}" style="width: 100%; height: 500px; position: relative;">
+            <div id="{map_id}_loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div class="spinner" style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #1fb99d; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <p style="margin-top: 10px; color: #666;">Chargement de la carte...</p>
+                </div>
+            </div>
+            <style>
+                @keyframes spin {{
+                    0% {{ transform: rotate(0deg); }}
+                    100% {{ transform: rotate(360deg); }}
+                }}
+            </style>
+        </div>
 
         <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
         <script src="https://unpkg.com/topojson-client@3"></script>
         <script>
-        (function() {{
-            // Embedded TopoJSON data
-            const niamotoTopoData = {json.dumps(topojson_data)};
+        // Defer map initialization until DOM is ready and page is loaded
+        if (document.readyState === 'loading') {{
+            document.addEventListener('DOMContentLoaded', initializeMap{map_id});
+        }} else {{
+            // DOM is already loaded, initialize after a small delay to ensure other content loads first
+            setTimeout(initializeMap{map_id}, 100);
+        }}
 
-            // Style configurations
-            const shapeStyle = {json.dumps(shape_style)};
-            const forestStyle = {json.dumps(forest_style)};
+        function initializeMap{map_id}() {{
+            // Use requestAnimationFrame to ensure smooth loading
+            requestAnimationFrame(function() {{
+                // Embedded TopoJSON data
+                const niamotoTopoData = {json.dumps(topojson_data)};
 
-            console.log('Loading client-side TopoJSON map with data:', Object.keys(niamotoTopoData));
+                // Style configurations
+                const shapeStyle = {json.dumps(shape_style)};
+                const forestStyle = {json.dumps(forest_style)};
 
-            // Create Plotly figure
-            const traces = [];
+                // Create Plotly figure
+                const traces = [];
 
-            // Process forest cover data if available
-            if (niamotoTopoData.forest_cover_coords) {{
-                try {{
+                // Process forest cover data if available
+                if (niamotoTopoData.forest_cover_coords) {{
+                    try {{
                     const forestTopology = niamotoTopoData.forest_cover_coords;
-                    console.log('Forest topology type:', forestTopology.type);
                     const objectKeys = Object.keys(forestTopology.objects || {{}});
-                    console.log('Forest object keys:', objectKeys);
 
                     if (objectKeys.length > 0) {{
                         const objectName = objectKeys[0];
                         const forestGeoJSON = topojson.feature(forestTopology, forestTopology.objects[objectName]);
-                        console.log('Forest GeoJSON type:', forestGeoJSON.type);
-                        console.log('Forest features count:', forestGeoJSON.features ? forestGeoJSON.features.length : 0);
 
                         // Ensure we have features
                         if (forestGeoJSON.features && forestGeoJSON.features.length > 0) {{
-                            // Assign IDs to features if they don't have them
+                            // Assign IDs to features if they don\'t have them
                             forestGeoJSON.features.forEach((feature, index) => {{
                                 if (!feature.id) {{
                                     feature.id = index.toString();
@@ -305,46 +321,41 @@ class InteractiveMapWidget(WidgetPlugin):
 
                             // Create choroplethmap trace
                             const forestTrace = {{
-                                type: 'choroplethmap',
+                                type: \'choroplethmap\',
                                 geojson: forestGeoJSON,
                                 locations: forestGeoJSON.features.map(f => f.id),
                                 z: forestGeoJSON.features.map(() => 1),
-                                featureidkey: 'id',
-                                colorscale: [[0, forestStyle.fillColor || '#228b22'], [1, forestStyle.fillColor || '#228b22']],
+                                featureidkey: \'id\',
+                                colorscale: [[0, forestStyle.fillColor || \'#228b22\'], [1, forestStyle.fillColor || \'#228b22\']],
                                 showscale: false,
                                 marker: {{
                                     opacity: forestStyle.fillOpacity || 0.6,
                                     line: {{width: 0}}
                                 }},
-                                name: 'Forest Cover',
-                                hovertemplate: '%{{properties.name}}<extra></extra>'
+                                name: \'Forest Cover\',
+                                hovertemplate: \'%{{properties.name}}<extra></extra>\'
                             }};
                             traces.push(forestTrace);
-                            console.log('Added forest layer with', forestGeoJSON.features.length, 'features');
                         }} else {{
-                            console.warn('No features in forest GeoJSON');
+                            console.warn(\'No features in forest GeoJSON\');
                         }}
                     }} else {{
-                        console.warn('No objects found in forest TopoJSON');
+                        console.warn(\'No objects found in forest TopoJSON\');
                     }}
                 }} catch (e) {{
-                    console.error('Error processing forest cover TopoJSON:', e);
+                    console.error(\'Error processing forest cover TopoJSON:\', e);
+                    }}
                 }}
-            }}
 
-            // Process shape boundary data if available
-            if (niamotoTopoData.shape_coords) {{
-                try {{
-                    const shapeTopology = niamotoTopoData.shape_coords;
-                    console.log('Shape topology type:', shapeTopology.type);
-                    const objectKeys = Object.keys(shapeTopology.objects || {{}});
-                    console.log('Shape object keys:', objectKeys);
+                // Process shape boundary data if available
+                if (niamotoTopoData.shape_coords) {{
+                    try {{
+                        const shapeTopology = niamotoTopoData.shape_coords;
+                        const objectKeys = Object.keys(shapeTopology.objects || {{}});
 
-                    if (objectKeys.length > 0) {{
-                        const objectName = objectKeys[0];
-                        const shapeGeoJSON = topojson.feature(shapeTopology, shapeTopology.objects[objectName]);
-                        console.log('Shape GeoJSON type:', shapeGeoJSON.type);
-                        console.log('Shape features count:', shapeGeoJSON.features ? shapeGeoJSON.features.length : 0);
+                        if (objectKeys.length > 0) {{
+                            const objectName = objectKeys[0];
+                            const shapeGeoJSON = topojson.feature(shapeTopology, shapeTopology.objects[objectName]);
 
                         // Process each feature to extract boundary lines
                         if (shapeGeoJSON.features && shapeGeoJSON.features.length > 0) {{
@@ -415,15 +426,14 @@ class InteractiveMapWidget(WidgetPlugin):
                                 showlegend: true
                             }});
 
-                            console.log('Added shape boundary with', shapeGeoJSON.features.length, 'features');
                         }} else {{
-                            console.warn('No features in shape GeoJSON');
+                            console.warn(\'No features in shape GeoJSON\');
                         }}
                     }} else {{
-                        console.warn('No objects found in shape TopoJSON');
+                        console.warn(\'No objects found in shape TopoJSON\');
                     }}
                 }} catch (e) {{
-                    console.error('Error processing shape coords TopoJSON:', e);
+                    console.error(\'Error processing shape coords TopoJSON:\', e);
                 }}
             }}
 
@@ -451,7 +461,6 @@ class InteractiveMapWidget(WidgetPlugin):
                 }} else {{
                     zoom = 8;
                 }}
-                console.log('Calculated bounds from bbox:', bounds, 'zoom:', zoom);
             }} else if (niamotoTopoData.forest_cover_coords && niamotoTopoData.forest_cover_coords.bbox) {{
                 const bbox = niamotoTopoData.forest_cover_coords.bbox;
                 bounds = {{
@@ -460,7 +469,6 @@ class InteractiveMapWidget(WidgetPlugin):
                         lon: (bbox[0] + bbox[2]) / 2
                     }}
                 }};
-                console.log('Using forest bbox for bounds:', bounds);
             }}
 
             // Fallback to calculating from traces if needed
@@ -497,7 +505,6 @@ class InteractiveMapWidget(WidgetPlugin):
                             lon: (minLon + maxLon) / 2
                         }}
                     }};
-                    console.log('Calculated bounds from traces:', bounds);
                 }}
             }}
 
@@ -534,59 +541,23 @@ class InteractiveMapWidget(WidgetPlugin):
                 }}
             }};
 
-            // Render the map
-            console.log('Rendering map with', traces.length, 'traces');
-            Plotly.newPlot('{map_id}', traces, layout, config).then(() => {{
-                console.log('Client-side TopoJSON map rendered successfully');
-
-                // Style the attribution to match other maps
-                setTimeout(() => {{
-                    const plotlyDiv = document.getElementById('{map_id}');
-                    if (plotlyDiv) {{
-                        // Find and style the attribution container
-                        const mapContainer = plotlyDiv.querySelector('.js-plotly-plot .plotly');
-                        if (mapContainer) {{
-                            const observer = new MutationObserver((mutations) => {{
-                                const attribution = plotlyDiv.querySelector('.mapboxgl-ctrl-attrib, .maplibregl-ctrl-attrib');
-                                if (attribution) {{
-                                    // Apply consistent styling
-                                    attribution.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-                                    attribution.style.padding = '2px 5px';
-                                    attribution.style.fontSize = '11px';
-                                    attribution.style.borderRadius = '3px';
-                                    attribution.style.border = '1px solid rgba(0,0,0,0.1)';
-                                    attribution.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
-
-                                    // Ensure the container is positioned correctly
-                                    const parent = attribution.parentElement;
-                                    if (parent && parent.classList.contains('mapboxgl-ctrl-bottom-right')) {{
-                                        parent.style.bottom = '10px';
-                                        parent.style.right = '10px';
-                                    }}
-
-                                    observer.disconnect();
-                                }}
-                            }});
-
-                            observer.observe(mapContainer, {{ childList: true, subtree: true }});
-
-                            // Also try immediate styling in case attribution is already there
-                            const attribution = plotlyDiv.querySelector('.mapboxgl-ctrl-attrib, .maplibregl-ctrl-attrib');
-                            if (attribution) {{
-                                attribution.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-                                attribution.style.padding = '2px 5px';
-                                attribution.style.fontSize = '11px';
-                                attribution.style.borderRadius = '3px';
-                                attribution.style.border = '1px solid rgba(0,0,0,0.1)';
-                                attribution.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
-                            }}
-                        }}
+                // Render the map
+                Plotly.newPlot('{map_id}', traces, layout, config).then(() => {{
+                    // Hide loader once map is rendered
+                    const loader = document.getElementById('{map_id}_loader');
+                    if (loader) {{
+                        loader.style.display = 'none';
                     }}
-                }}, 100);
-            }}).catch(error => {{
-                console.error('Error rendering map:', error);
+                }}).catch(error => {{
+                    console.error('Error rendering map:', error);
+                    // Hide loader even on error and show error message
+                    const loader = document.getElementById('{map_id}_loader');
+                    if (loader) {{
+                        loader.innerHTML = '<p style="color: #e74c3c;">Erreur lors du chargement de la carte</p>';
+                    }}
+                }});
             }});
-        }})();
+        }}
         </script>
         """
 
@@ -653,30 +624,23 @@ class InteractiveMapWidget(WidgetPlugin):
 
     def render(self, data: Optional[Any], params: InteractiveMapParams) -> str:
         """Generate the HTML for the interactive map. Accepts DataFrame or parsed GeoJSON dict."""
-        logger.debug("MAIN RENDER CALLED - data type: %s", type(data))
 
         # Early return if no data
         if data is None:
-            logger.debug("No data provided to interactive map widget")
             return "<div class='alert alert-warning'>No valid map data available.</div>"
 
         # If multi-layer map configuration is provided AND we have shape_coords in data (shape group)
         if params.layers and isinstance(data, dict) and "shape_coords" in data:
-            logger.debug("Using multi-layer map with %s layers", len(params.layers))
             try:
                 result = self._render_multi_layer_map(data, params)
                 return result
             except Exception as e:
-                logger.error(
-                    "Error rendering multi-layer map: %s", str(e), exc_info=True
-                )
                 return (
                     "<div class='alert alert-danger'>Failed to render multi-layer map: %s</div>"
                     % str(e)
                 )
 
         # For other groups (taxon, plot, etc.), use the original rendering approach
-        logger.debug("Using standard rendering approach (not multi-layer)")
 
         # Handle DataFrame input
         df_plot = None
@@ -693,9 +657,6 @@ class InteractiveMapWidget(WidgetPlugin):
                 and isinstance(data["shape_coords"], dict)
                 and data["shape_coords"].get("type") == "Topology"
             ):
-                logger.debug(
-                    "Received dict data, attempting to parse shape_coords as TopoJSON."
-                )
                 try:
                     topo_data = data["shape_coords"]
                     # Convert TopoJSON to GeoJSON FeatureCollection. Requires object name ('data' in this case).
@@ -703,9 +664,6 @@ class InteractiveMapWidget(WidgetPlugin):
                     geojson_str = topojson.Topology(
                         topo_data, object_name="data"
                     ).to_geojson()
-                    logger.debug(
-                        "Successfully converted shape_coords TopoJSON to GeoJSON"
-                    )
                     geojson_plot_data = json.loads(geojson_str)  # Parse string to dict
                     map_mode = "choropleth_outline"
                     # Create a dummy DataFrame needed by choropleth_map
@@ -723,15 +681,11 @@ class InteractiveMapWidget(WidgetPlugin):
                             and isinstance(data["forest_cover_coords"], dict)
                             and data["forest_cover_coords"].get("type") == "Topology"
                         ):
-                            logger.debug("Processing forest_cover_coords as TopoJSON")
                             try:
                                 forest_topo_data = data["forest_cover_coords"]
                                 forest_geojson_str = topojson.Topology(
                                     forest_topo_data, object_name="data"
                                 ).to_geojson()
-                                logger.debug(
-                                    "Successfully converted forest_cover_coords TopoJSON to GeoJSON"
-                                )
                                 forest_geojson_data = json.loads(forest_geojson_str)
                                 # Add forest data as an additional feature with distinct ID
                                 if forest_geojson_data and forest_geojson_data.get(
@@ -773,16 +727,13 @@ class InteractiveMapWidget(WidgetPlugin):
                     map_mode = "scatter"
             # If not TopoJSON, attempt to parse as GeoJSON Point FeatureCollection
             elif map_mode == "scatter":  # Only try if not already handled as TopoJSON
-                logger.debug(
-                    "Received dict data, attempting to parse as GeoJSON points."
-                )
                 df_plot = self._parse_geojson_points(data)
                 if df_plot is None:  # Parsing failed
                     logger.warning("Failed to parse dict data as GeoJSON points.")
                 # map_mode remains 'scatter'
 
         # If after processing, we don't have a valid DataFrame for plotting, exit
-        # Exception: for choropleth_outline, df_plot might be dummy, but geojson_plot_data must exist
+        # Exception: for choropleth_outline, df_plot is dummy, but geojson_plot_data must exist
         if (df_plot is None or df_plot.empty) and map_mode != "choropleth_outline":
             """ logger.warning(
                 "No data or invalid data type provided to InteractiveMapWidget (expected non-empty DataFrame or parseable GeoJSON/TopoJSON dict)."
@@ -1078,19 +1029,10 @@ class InteractiveMapWidget(WidgetPlugin):
 
     def _render_multi_layer_map(self, data: dict, params: InteractiveMapParams) -> str:
         """Render a multi-layer map based on the configuration in params.layers."""
-        logger.debug("RENDER_MULTI_LAYER_MAP CALLED")
-        logger.debug(
-            "Data keys: %s", data.keys() if isinstance(data, dict) else "Not a dict"
-        )
-        logger.debug("Params has layers: %s", params.layers is not None)
-        logger.debug("Number of layers: %s", len(params.layers) if params.layers else 0)
 
         # Si aucune couche n'est définie, on ne peut pas rendre la carte
         if not params.layers:
-            logger.debug("ERROR - No layers defined in params")
             return "<div class='alert alert-warning'>No layers defined for interactive map.</div>"
-
-        logger.debug("-" * 50)
 
         # Store data for TopoJSON embedding (if use_topojson is enabled)
         topojson_data = {}
@@ -1112,29 +1054,17 @@ class InteractiveMapWidget(WidgetPlugin):
 
             # Extract source data
             source_data = data.get(source_key) if isinstance(data, dict) else None
-            logger.debug(
-                "Processing layer with source_key=%s, data found: %s",
-                source_key,
-                source_data is not None,
-            )
             if source_data is None:
-                logger.debug("No data found for source_key=%s", source_key)
                 continue
 
             # Store relevant GeoJSON and styles for shape and forest
             if source_key == "shape_coords":
-                logger.debug(
-                    "Processing shape_coords, data type: %s", type(source_data)
-                )
                 try:
                     processed_data = self._process_geojson_or_topojson(source_data)
 
                     if params.use_topojson:
                         # For TopoJSON mode: optimize if needed and store for client-side conversion
                         if processed_data and processed_data.get("type") == "Topology":
-                            logger.debug(
-                                "Data already in TopoJSON format - using as-is"
-                            )
                             topojson_data[source_key] = processed_data
                             shape_geojson = processed_data  # Keep TopoJSON for client-side conversion
                         elif processed_data:
@@ -1144,35 +1074,21 @@ class InteractiveMapWidget(WidgetPlugin):
                             )
                             topojson_data[source_key] = optimized_data
                             shape_geojson = optimized_data  # Keep TopoJSON for client-side conversion
-                            logger.debug(
-                                "Applied TopoJSON optimization for reduced file size"
-                            )
                     else:
                         # Regular mode: use GeoJSON directly
                         shape_geojson = processed_data
 
-                    logger.debug(
-                        "Processed shape_coords successfully: %s",
-                        shape_geojson is not None,
-                    )
                 except Exception as e:
                     logger.error("Error processing shape_coords: %s", str(e))
                 shape_style = layer_style
-                logger.debug("Shape style: %s", shape_style)
 
             elif source_key == "forest_cover_coords":
-                logger.debug(
-                    "Processing forest_cover_coords, data type: %s", type(source_data)
-                )
                 try:
                     processed_data = self._process_geojson_or_topojson(source_data)
 
                     if params.use_topojson:
                         # For TopoJSON mode: optimize if needed and store for client-side conversion
                         if processed_data and processed_data.get("type") == "Topology":
-                            logger.debug(
-                                "Forest data already in TopoJSON format - using as-is"
-                            )
                             topojson_data[source_key] = processed_data
                             forest_geojson = processed_data  # Keep TopoJSON for client-side conversion
                         elif processed_data:
@@ -1182,21 +1098,13 @@ class InteractiveMapWidget(WidgetPlugin):
                             )
                             topojson_data[source_key] = optimized_data
                             forest_geojson = optimized_data  # Keep TopoJSON for client-side conversion
-                            logger.debug(
-                                "Applied TopoJSON optimization for forest data"
-                            )
                     else:
                         # Regular mode: use GeoJSON directly
                         forest_geojson = processed_data
 
-                    logger.debug(
-                        "Processed forest_cover_coords successfully: %s",
-                        forest_geojson is not None,
-                    )
                 except Exception as e:
                     logger.error("Error processing forest_cover_coords: %s", str(e))
                 forest_style = layer_style
-                logger.debug("Forest style: %s", forest_style)
 
         # Handle TopoJSON mode with client-side rendering
         if params.use_topojson and topojson_data:
@@ -1255,7 +1163,6 @@ class InteractiveMapWidget(WidgetPlugin):
                     marker_line_color=forest_color,
                     name="Forest Cover",
                 )
-                logger.debug("Successfully added forest layer to the figure")
             except Exception as e:
                 logger.error("Error adding forest layer: %s", str(e), exc_info=True)
 
@@ -1496,7 +1403,6 @@ class InteractiveMapWidget(WidgetPlugin):
 
         # Generate HTML
         try:
-            logger.debug("About to generate HTML")
             map_html = fig.to_html(
                 full_html=False,
                 include_plotlyjs="cdn",
@@ -1525,5 +1431,4 @@ class InteractiveMapWidget(WidgetPlugin):
 
         except Exception as e:
             logger.error("Error generating HTML: %s", str(e), exc_info=True)
-            logger.debug("Exception generating HTML: %s", str(e))
             return "<p class='error'>Failed to generate map HTML.</p>"
