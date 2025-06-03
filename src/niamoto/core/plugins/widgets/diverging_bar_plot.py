@@ -6,6 +6,10 @@ import plotly.graph_objects as go
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +149,7 @@ class DivergingBarPlotWidget(WidgetPlugin):
             )
 
             # Layout updates
-            layout_args = {
+            layout_updates = {
                 "title": None,  # Title handled by container
                 "xaxis_title": params.yaxis_title
                 if params.orientation == "h"
@@ -158,19 +162,18 @@ class DivergingBarPlotWidget(WidgetPlugin):
             }
             # Add zero line for clarity
             if params.orientation == "h":
-                layout_args["xaxis_zeroline"] = True
-                layout_args["xaxis_zerolinecolor"] = "grey"
-                layout_args["xaxis_zerolinewidth"] = 1
+                layout_updates["xaxis_zeroline"] = True
+                layout_updates["xaxis_zerolinecolor"] = "grey"
+                layout_updates["xaxis_zerolinewidth"] = 1
             else:
-                layout_args["yaxis_zeroline"] = True
-                layout_args["yaxis_zerolinecolor"] = "grey"
-                layout_args["yaxis_zerolinewidth"] = 1
+                layout_updates["yaxis_zeroline"] = True
+                layout_updates["yaxis_zerolinecolor"] = "grey"
+                layout_updates["yaxis_zerolinewidth"] = 1
 
-            fig.update_layout(**layout_args)
+            apply_plotly_defaults(fig, layout_updates)
 
             # Render figure to HTML
-            html_content = fig.to_html(full_html=False, include_plotlyjs=False)
-            return html_content
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception(f"Error rendering DivergingBarPlotWidget: {e}")
