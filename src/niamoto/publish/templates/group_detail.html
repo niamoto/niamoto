@@ -35,7 +35,7 @@
                                 {% if 'interactive_map' in widget_key %}
                                     {# Map takes full width #}
                                     <div class="col-span-12">
-                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                        <div >
                                             {{ widget_html | safe }}
                                         </div>
                                     </div>
@@ -47,7 +47,7 @@
                                 {% else %}
                                     {# All other widgets: 2 columns on desktop, 1 on mobile #}
                                     <div class="col-span-12 lg:col-span-6">
-                                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                        <div >
                                             {{ widget_html | safe }}
                                         </div>
                                     </div>
