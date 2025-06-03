@@ -316,6 +316,56 @@ def transform_data(
 
                 return pd.DataFrame(rows)
 
+    # Transformation pour aires empilées normalisées (stacked area à 100%)
+    elif transform_type == "stacked_area_normalized":
+        x_field = params.get("x_field", "x")
+        y_fields = params.get("y_fields", [])  # Liste des séries à empiler
+
+        if (
+            isinstance(data, dict)
+            and x_field in data
+            and all(field in data for field in y_fields)
+        ):
+            x_values = data[x_field]
+
+            # Créer un DataFrame avec x et toutes les séries
+            df_data = {x_field: x_values}
+            for field in y_fields:
+                df_data[field] = data[field]
+
+            df = pd.DataFrame(df_data)
+
+            # Calculer le total pour chaque point x pour la normalisation
+            df["total"] = df[y_fields].sum(axis=1)
+
+            # Convertir en pourcentages (0-100%)
+            for field in y_fields:
+                df[field] = (df[field] / df["total"] * 100).fillna(0)
+
+            # Supprimer la colonne total
+            df = df.drop("total", axis=1)
+
+            return df
+
+    # Transformation pour une série simple en DataFrame (pour area chart)
+    elif transform_type == "simple_series_to_df":
+        x_field = params.get("x_field", "x")
+        y_field = params.get("y_field", "y")
+        series_name = params.get(
+            "series_name", "series"
+        )  # Nom de la série pour la légende
+
+        if isinstance(data, dict) and x_field in data and y_field in data:
+            x_values = data[x_field]
+            y_values = data[y_field]
+
+            if len(x_values) == len(y_values):
+                # Convertir les valeurs en pourcentages si nécessaire
+                if params.get("convert_to_percentage", False):
+                    y_values = [v * 100 for v in y_values]
+
+                return pd.DataFrame({x_field: x_values, series_name: y_values})
+
     # Transformation pour graphique pyramide (valeurs négatives/positives)
     elif transform_type == "pyramid_chart":
         class_field = params.get("class_field", "class_name")
