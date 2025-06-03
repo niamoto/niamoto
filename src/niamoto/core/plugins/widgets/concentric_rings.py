@@ -115,28 +115,9 @@ class ConcentricRingsWidget(WidgetPlugin):
 
                 # Calculate percentages for each segment
                 total = sum(values)
-                percentages = [
-                    round((value / total * 100), 1) if total > 0 else 0
-                    for value in values
-                ]
 
-                # Create text for segments (show percentage for first category in all rings)
-                text_values = []
-                for i, (category, percentage) in enumerate(
-                    zip(categories, percentages)
-                ):
-                    # Show percentage for first category (forest) with conditional formatting
-                    if i == 0:  # First category (forest)
-                        # Force display even for small segments
-                        text_values.append(f"{percentage}%")
-                    else:
-                        text_values.append("")  # No text for other segments
-
-                # Adjust font size based on ring position (smaller rings get smaller text)
-                ring_index = params.ring_order.index(ring_key)
-                font_size = max(
-                    8, 12 - ring_index
-                )  # Decrease font size for inner rings
+                # Don't show any text on the pie segments - we'll use annotations instead
+                text_values = [""] * len(categories)
 
                 # Add pie chart for this ring
                 fig.add_trace(
@@ -149,48 +130,70 @@ class ConcentricRingsWidget(WidgetPlugin):
                             colors=ring_colors,
                             line=dict(color="#FFFFFF", width=params.border_width),
                         ),
-                        textinfo="text",
-                        textposition="inside",  # Force inside positioning
-                        textfont=dict(
-                            size=font_size, color="white", family="Arial Bold"
-                        ),
+                        textinfo="none",  # No text on pie segments
                         showlegend=False,
                         name=params.ring_labels.get(ring_key, ring_key.upper()),
                         sort=False,
                         direction="clockwise",
                         rotation=0,
-                        insidetextorientation="radial",  # Better text orientation for small segments
                     )
                 )
 
-            # Add annotations for ring labels positioned in the non-forest (second) segments
-            # Since rotation=0, first segment (forest) is at top, second segment (non_forest) is at bottom
-
+            # Add annotations for ring labels and percentages
             for i, ring_key in enumerate(params.ring_order):
                 if ring_key not in data:
                     continue
 
-                # Calculate radial position for each ring's non-forest segment
+                ring_data = data[ring_key]
+                if not isinstance(ring_data, dict):
+                    continue
+
+                # Calculate percentage for first category (forest)
+                categories = list(ring_data.keys())
+                values = list(ring_data.values())
+                total = sum(values)
+                if total > 0 and len(categories) > 0:
+                    forest_percentage = round((values[0] / total * 100), 1)
+                else:
+                    forest_percentage = 0
+
+                # Position for ring labels (in beige/non-forest segments)
                 if i == 0:  # Innermost ring - center of the hole
-                    x, y = 0.5, 0.5
-                elif i == 1:  # Middle ring - positioned in its beige area (bottom half)
-                    x, y = 0.5, 0.32
-                elif (
-                    i == 2
-                ):  # Outermost ring - positioned in its beige area (bottom half)
-                    x, y = 0.5, 0.18
+                    label_x, label_y = 0.5, 0.5
+                    # Position for forest percentage (in green segment, top)
+                    percent_x, percent_y = 0.5, 0.75
+                elif i == 1:  # Middle ring
+                    label_x, label_y = 0.5, 0.32
+                    # Position for forest percentage (in green segment, top)
+                    percent_x, percent_y = 0.5, 0.85
+                elif i == 2:  # Outermost ring
+                    label_x, label_y = 0.5, 0.18
+                    # Position for forest percentage (in green segment, top)
+                    percent_x, percent_y = 0.5, 0.95
                 else:
                     # For more rings, distribute them evenly
-                    y = 0.5 - (0.16 * i)
-                    x = 0.5
+                    label_y = 0.5 - (0.16 * i)
+                    label_x = 0.5
+                    percent_x, percent_y = 0.5, 0.9 + (0.05 * i)
 
+                # Add ring label annotation
                 fig.add_annotation(
                     text=params.ring_labels.get(ring_key, ring_key.upper()),
-                    x=x,
-                    y=y,
+                    x=label_x,
+                    y=label_y,
                     font=dict(size=14, color="black", family="Arial Bold"),
                     showarrow=False,
                 )
+
+                # Add percentage annotation for forest segment
+                if forest_percentage > 0:
+                    fig.add_annotation(
+                        text=f"{forest_percentage}%",
+                        x=percent_x,
+                        y=percent_y,
+                        font=dict(size=10, color="white", family="Arial Bold"),
+                        showarrow=False,
+                    )
 
             fig.update_layout(
                 title=params.title,
