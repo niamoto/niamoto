@@ -11,6 +11,71 @@ from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 logger = logging.getLogger(__name__)
 
 
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert hex color to RGB."""
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def rgb_to_hex(r: int, g: int, b: int) -> str:
+    """Convert RGB to hex."""
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def generate_gradient_colors(
+    base_color: str, count: int, mode: str = "luminance"
+) -> List[str]:
+    """Generate a gradient of colors based on a base color.
+
+    Args:
+        base_color: Base color in hex format (e.g., '#1fb99d')
+        count: Number of colors to generate
+        mode: Gradient mode - 'luminance' (light to dark) or 'saturation' (saturated to pale)
+
+    Returns:
+        List of hex color strings forming a gradient
+    """
+    if count <= 0:
+        return []
+
+    if count == 1:
+        return [base_color]
+
+    # Convert base color to RGB
+    r, g, b = hex_to_rgb(base_color)
+
+    colors = []
+
+    if mode == "luminance":
+        # Create gradient from lighter to darker
+        for i in range(count):
+            # Calculate factor: 0.3 (lightest) to 1.0 (original color)
+            factor = 0.3 + (0.7 * i / (count - 1))
+
+            # Apply factor to create gradient
+            new_r = int(r * factor + 255 * (1 - factor))
+            new_g = int(g * factor + 255 * (1 - factor))
+            new_b = int(b * factor + 255 * (1 - factor))
+
+            colors.append(rgb_to_hex(new_r, new_g, new_b))
+
+    elif mode == "saturation":
+        # Create gradient from saturated to pale
+        for i in range(count):
+            # Calculate factor: 1.0 (full saturation) to 0.3 (pale)
+            factor = 1.0 - (0.7 * i / (count - 1))
+
+            # Mix with gray to reduce saturation
+            gray = 128
+            new_r = int(r * factor + gray * (1 - factor))
+            new_g = int(g * factor + gray * (1 - factor))
+            new_b = int(b * factor + gray * (1 - factor))
+
+            colors.append(rgb_to_hex(new_r, new_g, new_b))
+
+    return colors
+
+
 def generate_colors(count: int) -> List[str]:
     """Generate harmonious colors using HSL color space and golden ratio.
 
@@ -126,6 +191,14 @@ class BarPlotParams(BaseModel):
     )
     auto_color: bool = Field(
         False, description="Automatically generate harmonious colors for each bar"
+    )
+    gradient_color: Optional[str] = Field(
+        None,
+        description="Base color for gradient generation (e.g., '#1fb99d'). Overrides auto_color if set",
+    )
+    gradient_mode: Optional[str] = Field(
+        "luminance",
+        description="Gradient mode: 'luminance' (light to dark) or 'saturation' (saturated to pale)",
     )
     bar_width: Optional[float] = Field(
         None,
@@ -263,7 +336,35 @@ class BarPlotWidget(WidgetPlugin):
             color_discrete_sequence = None
             color_discrete_map = params.color_discrete_map
 
-            if params.auto_color and not params.color_field:
+            # Check if gradient color is specified
+            if params.gradient_color and not params.color_field:
+                # For gradient coloring without grouping, we need to create a color field
+                # that assigns each bar its own category
+                if params.orientation == "h":
+                    # For horizontal bars, each y-axis value gets its own color
+                    category_field = params.y_axis
+                else:
+                    # For vertical bars, each x-axis value gets its own color
+                    category_field = params.x_axis
+
+                # Create a temporary color field that's just a copy of the category field
+                df_plot["_gradient_color"] = df_plot[category_field].astype(str)
+                color_field = "_gradient_color"
+
+                # Generate gradient colors based on unique categories
+                unique_categories = df_plot[category_field].unique()
+                num_categories = len(unique_categories)
+                generated_colors = generate_gradient_colors(
+                    params.gradient_color, num_categories, params.gradient_mode
+                )
+
+                # Create a color mapping
+                color_discrete_map = {
+                    str(cat): color
+                    for cat, color in zip(unique_categories, generated_colors)
+                }
+
+            elif params.auto_color and not params.color_field:
                 # For auto-coloring without grouping, we need to create a color field
                 # that assigns each bar its own category
                 if params.orientation == "h":
