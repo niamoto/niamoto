@@ -6,6 +6,10 @@ import plotly.graph_objects as go
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -238,10 +242,12 @@ class RadialGaugeWidget(WidgetPlugin):
         try:
             fig = go.Figure(go.Indicator(**gauge_args))
 
-            fig.update_layout(margin={"r": 10, "t": 10, "l": 10, "b": 10}, height=250)
+            # Apply Plotly defaults with custom layout
+            layout_updates = {"height": 250}
+            apply_plotly_defaults(fig, layout_updates)
 
-            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            return html_content
+            # Render with standard config
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception(f"Error rendering RadialGaugeWidget: {e}")

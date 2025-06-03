@@ -489,3 +489,137 @@ html {
         border-top-color: #1a202c;
     }
 }
+
+/* Plotly Modebar Styling - Elegant horizontal toolbar */
+.js-plotly-plot .modebar-container {
+    position: absolute !important;
+    top: -30px !important;
+    right: 0 !important;
+    left: auto !important;
+    background: transparent !important;
+    padding: 4px 8px !important;
+    transition: all 0.3s ease !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transform: translateY(-5px) !important;
+}
+
+/* Show modebar on widget hover with slight delay */
+.widget-modern:hover .js-plotly-plot .modebar-container,
+.widget-content:hover .js-plotly-plot .modebar-container,
+.js-plotly-plot:hover .modebar-container {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(15px) !important;
+    transition-delay: 0.2s !important; /* Small delay before showing */
+}
+
+
+/* Modebar group styling */
+.js-plotly-plot .modebar-group {
+    display: flex !important;
+    gap: 2px !important;
+    align-items: center !important;
+}
+
+/* Individual button styling */
+.js-plotly-plot .modebar-btn {
+    background: transparent !important;
+    border: none !important;
+    padding: 6px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+    opacity: 0.7 !important;
+    position: relative !important;
+}
+
+.js-plotly-plot .modebar-btn:hover {
+    background: rgba(34, 139, 34, 0.1) !important;
+    opacity: 1 !important;
+    transform: translateY(-1px) !important;
+}
+
+.js-plotly-plot .modebar-btn:active {
+    transform: translateY(0) !important;
+}
+
+/* Icon color */
+.js-plotly-plot .modebar-btn svg {
+    fill: #228b22 !important;
+    width: 18px !important;
+    height: 18px !important;
+}
+
+.js-plotly-plot .modebar-btn:hover svg {
+    fill: #1e7e1e !important;
+}
+
+/* Add separator between button groups */
+.js-plotly-plot .modebar-group:not(:last-child)::after {
+    content: '';
+    display: block;
+    width: 1px;
+    height: 20px;
+    background: rgba(34, 139, 34, 0.2);
+    margin: 0 4px;
+}
+
+/* Ensure widget content has proper spacing */
+.widget-modern .widget-content {
+    position: relative;
+    /* Remove extra padding since modebar is hidden by default */
+}
+
+/* Hide the plotly logo/watermark but keep the modebar */
+.js-plotly-plot .plotly-notifier {
+    display: none !important;
+}
+
+/* Hide the "Produced with Plotly" watermark */
+.js-plotly-plot text[text-anchor="end"]:has-text("Produced"),
+.js-plotly-plot tspan:has-text("Produced"),
+.js-plotly-plot .infolayer .annotation:last-child text {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Responsive adjustments for modebar */
+@media (max-width: 640px) {
+    .js-plotly-plot .modebar-container {
+        top: -36px !important;
+        padding: 3px 6px !important;
+    }
+
+    .js-plotly-plot .modebar-btn {
+        padding: 4px !important;
+    }
+
+    .js-plotly-plot .modebar-btn svg {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    .widget-modern .widget-content {
+        padding-top: 45px !important;
+    }
+}
+
+/* Dark mode support for modebar */
+@media (prefers-color-scheme: dark) {
+    .js-plotly-plot .modebar-container {
+        background: rgba(31, 41, 55, 0.95) !important;
+        border-color: rgba(34, 139, 34, 0.3) !important;
+    }
+
+    .js-plotly-plot .modebar-container:hover {
+        background: rgba(31, 41, 55, 1) !important;
+    }
+
+    .js-plotly-plot .modebar-btn:hover {
+        background: rgba(34, 139, 34, 0.2) !important;
+    }
+
+    .js-plotly-plot .modebar-group:not(:last-child)::after {
+        background: rgba(34, 139, 34, 0.3);
+    }
+}

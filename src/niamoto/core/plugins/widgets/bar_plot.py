@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 
 from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -409,7 +413,6 @@ class BarPlotWidget(WidgetPlugin):
 
             # Additional layout updates if needed (e.g., axis titles if not covered by labels)
             layout_updates = {
-                "margin": {"r": 10, "t": 30, "l": 10, "b": 10},  # Adjust margins
                 "xaxis_title": params.labels.get(params.x_axis)
                 if params.labels
                 else params.x_axis,
@@ -430,7 +433,8 @@ class BarPlotWidget(WidgetPlugin):
                     else params.color_field
                 )
 
-            fig.update_layout(**layout_updates)
+            # Apply Plotly defaults (includes watermark removal)
+            apply_plotly_defaults(fig, layout_updates)
 
             # Calculate and set bar width for better visibility
             bar_width = params.bar_width
@@ -448,9 +452,8 @@ class BarPlotWidget(WidgetPlugin):
 
             fig.update_traces(width=bar_width)
 
-            # Render figure to HTML
-            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            return html_content
+            # Render figure to HTML with standard config
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception("Error rendering BarPlotWidget: {}".format(e))

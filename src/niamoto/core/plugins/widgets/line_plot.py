@@ -6,6 +6,10 @@ import plotly.express as px
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -286,27 +290,27 @@ class LinePlotWidget(WidgetPlugin):
 
             fig = px.line(**line_args)
 
-            fig.update_layout(
-                margin={"r": 10, "t": 30, "l": 10, "b": 10},
-                xaxis_title=params.labels.get(params.x_axis)
+            layout_updates = {
+                "xaxis_title": params.labels.get(params.x_axis)
                 if params.labels
                 else params.x_axis,
-                yaxis_title=params.labels.get(
+                "yaxis_title": params.labels.get(
                     params.y_axis if isinstance(params.y_axis, str) else "value"
                 )
                 if params.labels
                 else (params.y_axis if isinstance(params.y_axis, str) else "Value"),
-                legend_title_text=params.labels.get(params.color_field)
+                "legend_title_text": params.labels.get(params.color_field)
                 if params.labels and params.color_field
                 else params.color_field,
-            )
+            }
+
+            apply_plotly_defaults(fig, layout_updates)
 
             # Handle logarithmic x-axis if specified in params
             if hasattr(params, "xaxis_type") and params.xaxis_type == "logarithmic":
                 fig.update_xaxes(type="log")
 
-            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            return html_content
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception("Error rendering LinePlotWidget: {}".format(e))

@@ -6,6 +6,10 @@ import plotly.express as px
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,20 +147,20 @@ class ScatterPlotWidget(WidgetPlugin):
 
             fig = px.scatter(**plot_args)
 
-            # Layout updates (optional, px usually does a good job)
-            fig.update_layout(
-                margin={
+            # Layout updates
+            layout_updates = {
+                "margin": {
                     "r": 10,
                     "t": 30 if params.title else 10,
                     "l": 10,
                     "b": 10,
                 },  # Adjust top margin if title exists
-                # height=400 # Example height adjustment
-            )
+            }
+
+            apply_plotly_defaults(fig, layout_updates)
 
             # Render figure to HTML
-            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            return html_content
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception(f"Error rendering ScatterPlotWidget: {e}")

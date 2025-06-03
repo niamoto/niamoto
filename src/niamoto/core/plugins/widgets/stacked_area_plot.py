@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 
 from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
 from niamoto.core.plugins.base import PluginType, WidgetPlugin, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +193,7 @@ class StackedAreaPlotWidget(WidgetPlugin):
                 fig.add_trace(go.Scatter(**trace_args))
 
             # Update layout
-            layout_args = {
+            layout_updates = {
                 "title": None,  # Handled by container
                 "xaxis_title": params.axis_titles.get("x")
                 if params.axis_titles
@@ -198,20 +202,18 @@ class StackedAreaPlotWidget(WidgetPlugin):
                 if params.axis_titles
                 else None,
                 "legend_title_text": "Series",
-                "margin": {"r": 10, "t": 30, "l": 10, "b": 10},
             }
 
             # Apply logarithmic scales if requested
             if params.log_x:
-                layout_args["xaxis_type"] = "log"
+                layout_updates["xaxis_type"] = "log"
             if params.log_y:
-                layout_args["yaxis_type"] = "log"
+                layout_updates["yaxis_type"] = "log"
 
-            fig.update_layout(**layout_args)
+            apply_plotly_defaults(fig, layout_updates)
 
             # Render figure to HTML
-            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            return html_content
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception(f"Error rendering StackedAreaPlotWidget: {e}")

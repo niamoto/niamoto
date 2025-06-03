@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -195,18 +199,15 @@ class ConcentricRingsWidget(WidgetPlugin):
                         showarrow=False,
                     )
 
-            fig.update_layout(
-                title=params.title,
-                margin=dict(t=50, l=50, r=50, b=50),
-                height=params.height,
-                showlegend=False,
-            )
+            layout_updates = {
+                "title": params.title,
+                "margin": dict(t=50, l=50, r=50, b=50),
+                "height": params.height,
+                "showlegend": False,
+            }
+            apply_plotly_defaults(fig, layout_updates)
 
-            return fig.to_html(
-                full_html=False,
-                include_plotlyjs="cdn",
-                config={"displayModeBar": False},
-            )
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.error(
