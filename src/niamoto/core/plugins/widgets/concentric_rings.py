@@ -135,7 +135,7 @@ class ConcentricRingsWidget(WidgetPlugin):
                         name=params.ring_labels.get(ring_key, ring_key.upper()),
                         sort=False,
                         direction="clockwise",
-                        rotation=0,
+                        rotation=-30,  # Rotation vers la gauche pour mettre les pourcentages dans le vert
                     )
                 )
 
@@ -157,24 +157,24 @@ class ConcentricRingsWidget(WidgetPlugin):
                 else:
                     forest_percentage = 0
 
-                # Position for ring labels (in beige/non-forest segments)
+                # Position for ring labels and percentages
                 if i == 0:  # Innermost ring - center of the hole
-                    label_x, label_y = 0.5, 0.5
-                    # Position for forest percentage (in green segment, top)
-                    percent_x, percent_y = 0.5, 0.75
-                elif i == 1:  # Middle ring
-                    label_x, label_y = 0.5, 0.32
-                    # Position for forest percentage (in green segment, top)
-                    percent_x, percent_y = 0.5, 0.85
-                elif i == 2:  # Outermost ring
-                    label_x, label_y = 0.5, 0.18
-                    # Position for forest percentage (in green segment, top)
-                    percent_x, percent_y = 0.5, 0.95
+                    label_x, label_y = 0.5, 0.4  # Décalé vers le bas
+                    # Position for forest percentage (UM - remonté un peu)
+                    percent_x, percent_y = 0.5, 0.67
+                elif i == 1:  # Middle ring - décalé vers le bas
+                    label_x, label_y = 0.5, 0.22  # Plus bas
+                    # Position for forest percentage (NUM - remonté un peu)
+                    percent_x, percent_y = 0.5, 0.77
+                elif i == 2:  # Outermost ring - décalé vers le bas
+                    label_x, label_y = 0.5, 0.08  # Encore plus bas
+                    # Position for forest percentage (Emprise - remonté un peu)
+                    percent_x, percent_y = 0.5, 0.87
                 else:
                     # For more rings, distribute them evenly
-                    label_y = 0.5 - (0.16 * i)
+                    label_y = 0.5 - (0.18 * i)  # Plus d'espacement vers le bas
                     label_x = 0.5
-                    percent_x, percent_y = 0.5, 0.9 + (0.05 * i)
+                    percent_x, percent_y = 0.5, 0.82 + (0.04 * i)
 
                 # Add ring label annotation
                 fig.add_annotation(
@@ -191,7 +191,7 @@ class ConcentricRingsWidget(WidgetPlugin):
                         text=f"{forest_percentage}%",
                         x=percent_x,
                         y=percent_y,
-                        font=dict(size=10, color="white", family="Arial Bold"),
+                        font=dict(size=14, color="white", family="Arial Bold"),
                         showarrow=False,
                     )
 
