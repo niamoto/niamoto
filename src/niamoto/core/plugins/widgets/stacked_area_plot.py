@@ -34,6 +34,12 @@ class StackedAreaPlotParams(BaseModel):
     hover_template: Optional[str] = Field(
         None, description="Custom hover template (Plotly format)."
     )
+    log_x: Optional[bool] = Field(
+        False, description="Use logarithmic scale for X-axis."
+    )
+    log_y: Optional[bool] = Field(
+        False, description="Use logarithmic scale for Y-axis."
+    )
     # New fields for data transformation
     transform: Optional[str] = Field(
         None,
@@ -164,30 +170,44 @@ class StackedAreaPlotWidget(WidgetPlugin):
                 color = colors[i] if colors and i < len(colors) else None
 
                 # Create the trace
-                fig.add_trace(
-                    go.Scatter(
-                        x=df[params.x_field],
-                        y=df[y_field],
-                        name=y_field,
-                        fill=params.fill_type,
-                        line=dict(color=color) if color else None,
-                        stackgroup="one",  # Stack traces on top of each other
-                        hovertemplate=params.hover_template
-                        if params.hover_template
-                        else None,
-                    )
-                )
+                trace_args = {
+                    "x": df[params.x_field],
+                    "y": df[y_field],
+                    "name": y_field,
+                    "fill": params.fill_type,
+                    "stackgroup": "one",  # Stack traces on top of each other
+                }
+
+                if params.hover_template:
+                    trace_args["hovertemplate"] = params.hover_template
+
+                # Apply color to both line and fill
+                if color:
+                    trace_args["line"] = dict(color=color, width=0)  # No line border
+                    trace_args["fillcolor"] = color
+
+                fig.add_trace(go.Scatter(**trace_args))
 
             # Update layout
-            fig.update_layout(
-                title=None,  # Handled by container
-                xaxis_title=params.axis_titles.get("x")
+            layout_args = {
+                "title": None,  # Handled by container
+                "xaxis_title": params.axis_titles.get("x")
                 if params.axis_titles
                 else params.x_field,
-                yaxis_title=params.axis_titles.get("y") if params.axis_titles else None,
-                legend_title_text="Series",
-                margin={"r": 10, "t": 30, "l": 10, "b": 10},
-            )
+                "yaxis_title": params.axis_titles.get("y")
+                if params.axis_titles
+                else None,
+                "legend_title_text": "Series",
+                "margin": {"r": 10, "t": 30, "l": 10, "b": 10},
+            }
+
+            # Apply logarithmic scales if requested
+            if params.log_x:
+                layout_args["xaxis_type"] = "log"
+            if params.log_y:
+                layout_args["yaxis_type"] = "log"
+
+            fig.update_layout(**layout_args)
 
             # Render figure to HTML
             html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
