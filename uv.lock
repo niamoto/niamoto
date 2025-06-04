@@ -884,6 +884,7 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "bump2version" },
     { name = "pre-commit" },
     { name = "tox" },
 ]
@@ -946,6 +947,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "bump2version", specifier = ">=1.0.1" },
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "tox", specifier = ">=4.26.0" },
 ]

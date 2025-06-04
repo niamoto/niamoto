@@ -225,6 +225,7 @@ dev = [
 
 [dependency-groups]
 dev = [
+    "bump2version>=1.0.1",
     "pre-commit>=4.1.0",
     "tox>=4.26.0",
 ]
