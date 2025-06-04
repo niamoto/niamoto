@@ -226,4 +226,5 @@ dev = [
 [dependency-groups]
 dev = [
     "pre-commit>=4.1.0",
+    "tox>=4.26.0",
 ]

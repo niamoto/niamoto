@@ -162,6 +162,10 @@ class TestHtmlPageExporter(NiamotoTestCase):
             detail_template
         )
 
+        # Also create templates at root level for new template structure
+        (self.template_dir / "group_index.html").write_text(index_template)
+        (self.template_dir / "group_detail.html").write_text(detail_template)
+
     def test_init(self):
         """Test exporter initialization."""
         exporter = HtmlPageExporter(self.mock_db)
@@ -386,7 +390,7 @@ class TestHtmlPageExporter(NiamotoTestCase):
             GroupConfigWeb(
                 group_by="taxon",
                 data_source="db",
-                template="_layouts/group_detail_with_sidebar.html",
+                template="group_detail.html",
                 output_pattern="{group_by}/{id}.html",
                 index_output_pattern="{group_by}/index.html",
                 widgets=[],
@@ -501,10 +505,16 @@ class TestHtmlPageExporter(NiamotoTestCase):
         # Mock database
         self.mock_db.has_table.return_value = True
         self.mock_db.get_table_columns.return_value = ["plot_id", "name"]
-        self.mock_db.fetch_all.side_effect = [
-            [{"plot_id": 1, "name": "Plot 1"}],
-            [],  # Navigation data
-        ]
+
+        def fetch_all_side_effect(query, *args, **kwargs):
+            if "plot_ref" in query or "taxon_ref" in query:
+                return []  # Navigation data
+            elif "plot" in query:
+                return [{"plot_id": 1, "name": "Plot 1"}]
+            else:
+                return []
+
+        self.mock_db.fetch_all.side_effect = fetch_all_side_effect
         self.mock_db.fetch_one.return_value = {"plot_id": 1, "name": "Plot 1"}
 
         groups = [
