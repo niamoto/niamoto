@@ -864,6 +864,11 @@ dev = [
     { name = "types-tabulate" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.12.1" },
@@ -919,6 +924,9 @@ requires-dist = [
     { name = "types-shapely", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "types-tabulate", marker = "extra == 'dev'", specifier = ">=0.9.0.3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pre-commit", specifier = ">=4.1.0" }]
 
 [[package]]
 name = "nodeenv"

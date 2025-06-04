@@ -147,11 +147,16 @@ class IndexGeneratorPlugin(ExporterPlugin):
             # Process each item
             processed_items = []
             for item in items:
-                # Parse JSON fields
-                if "general_info" in item:
-                    general_info = self._parse_json_field(item["general_info"])
-                    if general_info:
-                        item["general_info"] = general_info
+                # Parse all JSON fields (not just general_info)
+                for key, value in item.items():
+                    # Try to parse any field that looks like JSON
+                    if isinstance(value, str) and value.strip().startswith("{"):
+                        parsed_value = self._parse_json_field(value)
+                        if parsed_value:
+                            item[key] = parsed_value
+                    elif isinstance(value, dict):
+                        # Already a dict, no need to parse
+                        item[key] = value
 
                 # Apply filters if configured
                 if config.filters:
