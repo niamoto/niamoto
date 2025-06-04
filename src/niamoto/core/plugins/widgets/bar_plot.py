@@ -211,6 +211,9 @@ class BarPlotParams(BaseModel):
     filter_zero_values: bool = Field(
         False, description="Remove bars with zero or null values from the plot"
     )
+    show_legend: bool = Field(
+        True, description="Show or hide the legend. Default is True to show the legend"
+    )
 
 
 @register("bar_plot", PluginType.WIDGET)
@@ -421,12 +424,16 @@ class BarPlotWidget(WidgetPlugin):
                 else params.y_axis,
             }
 
-            # Handle legend for auto-coloring
-            if params.auto_color and not params.color_field:
+            # Handle legend visibility
+            if not params.show_legend:
+                # User explicitly wants to hide the legend
+                layout_updates["showlegend"] = False
+            elif params.auto_color and not params.color_field:
                 # Hide legend when auto-coloring since it would duplicate the axis labels
                 layout_updates["showlegend"] = False
             else:
-                # Keep legend title for regular color fields
+                # Show legend with proper title for regular color fields
+                layout_updates["showlegend"] = True
                 layout_updates["legend_title_text"] = (
                     params.labels.get(params.color_field)
                     if params.labels and params.color_field

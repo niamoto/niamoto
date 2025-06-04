@@ -206,12 +206,13 @@ class WidgetPlugin(Plugin, ABC):
                 <div class="widget-header-modern">
                     <h3 class="widget-title-modern">
                         {title}
-                        <span class="info-tooltip" title="{description.replace('"', "&quot;").replace("'", "&#39;")}">
+                        <span class="info-tooltip" data-tooltip="{description.replace('"', "&quot;").replace("'", "&#39;")}">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <path d="M9,9h0a3,3,0,0,1,6,0c0,2-3,3-3,3"></path>
                                 <line x1="12" y1="17" x2="12.01" y2="17"></line>
                             </svg>
+                            <span class="tooltip-text">{description}</span>
                         </span>
                     </h3>
                 </div>

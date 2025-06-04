@@ -36,8 +36,9 @@ html {
     border-radius: 12px;
     border: 1px solid #e2e8f0;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
+    overflow: visible; /* Changed from hidden to visible for tooltips */
     transition: all 0.3s ease;
+    position: relative;
 }
 
 .widget-modern:hover {
@@ -48,6 +49,8 @@ html {
 .widget-modern .widget-content {
     padding: 20px;
     background-color: white;
+    overflow: visible; /* Allow tooltips to overflow */
+    position: relative;
 }
 
 .widget-header {
@@ -135,7 +138,6 @@ html {
 
 /* Navigation links */
 .nav-link {
-    color: #4b5563;
     padding: 0.5rem 0.75rem;
     border-radius: 0.375rem;
     font-size: 0.875rem;
@@ -146,7 +148,6 @@ html {
 }
 
 .nav-link:hover {
-    color: #111827;
     background-color: #f3f4f6;
 }
 
@@ -315,7 +316,8 @@ html {
     border-radius: 12px 12px 0 0;
     margin: -1px -1px 0 -1px; /* Align with widget border */
     position: relative;
-    overflow: hidden;
+    overflow: visible; /* Changed to visible for tooltips */
+    z-index: 10; /* Ensure header is above content */
 }
 
 .widget-header-modern::before {
@@ -368,59 +370,52 @@ html {
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
 }
 
-/* Modern CSS tooltip */
-.info-tooltip::before,
-.info-tooltip::after {
+/* Tooltip text element */
+.tooltip-text {
     position: absolute;
     visibility: hidden;
     opacity: 0;
-    pointer-events: none;
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    z-index: 1000;
-}
-
-.info-tooltip::before {
-    content: attr(title);
-    background: #2d3748;
-    color: white;
-    font-size: 13px;
+    background: white;
+    color: #374151;
+    font-size: 14px;
     font-weight: 400;
-    padding: 10px 14px;
+    padding: 12px 16px;
     border-radius: 8px;
     white-space: normal;
-    max-width: 280px;
+    max-width: 350px;
+    min-width: 200px;
     word-wrap: break-word;
     text-align: left;
-    line-height: 1.5;
+    line-height: 1.6;
     box-shadow:
-        0 10px 25px rgba(0, 0, 0, 0.15),
-        0 4px 6px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    bottom: 100%;
+        0 10px 25px rgba(0, 0, 0, 0.12),
+        0 4px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    top: calc(100% + 20px);
     left: 50%;
-    transform: translateX(-50%) translateY(-8px) scale(0.9);
+    transform: translateX(-50%) translateY(-5px);
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 9999; /* Very high z-index */
+    pointer-events: none;
 }
 
-.info-tooltip::after {
+/* Arrow for tooltip */
+.tooltip-text::before {
     content: '';
-    border: 6px solid transparent;
-    border-top-color: #2d3748;
-    bottom: 100%;
+    position: absolute;
+    top: -6px;
     left: 50%;
-    transform: translateX(-50%) translateY(2px) scale(0.9);
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-bottom-color: white;
+    filter: drop-shadow(0 -2px 2px rgba(0, 0, 0, 0.06));
 }
 
-.info-tooltip:hover::before,
-.info-tooltip:hover::after {
+/* Show tooltip on hover */
+.info-tooltip:hover .tooltip-text {
     visibility: visible;
     opacity: 1;
-    transform: translateX(-50%) translateY(-8px) scale(1);
-}
-
-.info-tooltip:hover::after {
-    transform: translateX(-50%) translateY(2px) scale(1);
+    transform: translateX(-50%) translateY(0);
 }
 
 /* Alternative color schemes for variety - Green-based palette */
@@ -463,9 +458,9 @@ html {
     }
 
     .info-tooltip::before {
-        max-width: 220px;
-        font-size: 12px;
-        padding: 8px 12px;
+        max-width: 280px;
+        font-size: 13px;
+        padding: 10px 14px;
     }
 
     .info-tooltip svg {
@@ -482,11 +477,12 @@ html {
 
     .info-tooltip::before {
         background: #1a202c;
-        border-color: rgba(255, 255, 255, 0.2);
+        color: #e5e7eb;
+        border-color: rgba(255, 255, 255, 0.1);
     }
 
     .info-tooltip::after {
-        border-top-color: #1a202c;
+        border-bottom-color: #1a202c;
     }
 }
 
@@ -524,6 +520,7 @@ html {
 
 /* Individual button styling */
 .js-plotly-plot .modebar-btn {
+    height: 30px !important;
     background: transparent !important;
     border: none !important;
     padding: 6px !important;
@@ -531,6 +528,10 @@ html {
     transition: all 0.2s ease !important;
     opacity: 0.7 !important;
     position: relative !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn svg {
+    top: 0 !important;
 }
 
 .js-plotly-plot .modebar-btn:hover {
@@ -562,6 +563,10 @@ html {
     height: 20px;
     background: rgba(34, 139, 34, 0.2);
     margin: 0 4px;
+}
+
+.maplibregl-ctrl-attrib {
+    display: none !important;
 }
 
 /* Ensure widget content has proper spacing */
@@ -606,14 +611,6 @@ html {
 
 /* Dark mode support for modebar */
 @media (prefers-color-scheme: dark) {
-    .js-plotly-plot .modebar-container {
-        background: rgba(31, 41, 55, 0.95) !important;
-        border-color: rgba(34, 139, 34, 0.3) !important;
-    }
-
-    .js-plotly-plot .modebar-container:hover {
-        background: rgba(31, 41, 55, 1) !important;
-    }
 
     .js-plotly-plot .modebar-btn:hover {
         background: rgba(34, 139, 34, 0.2) !important;

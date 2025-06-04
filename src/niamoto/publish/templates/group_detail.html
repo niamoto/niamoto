@@ -6,12 +6,10 @@
     {# Define page_title for the base template #}
     {% set page_title = item_title|string + ' | ' + (site.title | default('Niamoto Export')) %}
 
-    <div class="flex flex-col lg:flex-row min-h-screen bg-gray-50">
+    <div class="flex flex-col lg:flex-row min-h-screen bg-gray-50 pt-16">
         {# Sidebar with hierarchical navigation #}
-        <aside class="lg:w-80 bg-white border-b lg:border-b-0 lg:border-r border-gray-200 lg:h-screen lg:sticky lg:top-0 lg:overflow-y-auto">
-            <div class="bg-white border-b border-gray-200 p-4">
-                <h2 class="text-lg font-semibold text-gray-900">Navigation</h2>
-            </div>
+        <aside class="lg:w-80 bg-white border-b lg:border-b-0 lg:border-r border-gray-200 lg:h-screen lg:sticky lg:top-16 lg:overflow-y-auto">
+
             <div class="p-4">
                 {# Find and render the hierarchical navigation widget #}
                 {% for widget_key, widget_html in widgets.items() %}
