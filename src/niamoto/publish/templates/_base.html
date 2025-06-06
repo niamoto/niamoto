@@ -7,37 +7,8 @@
 
     {% block extra_head %}{% endblock %}
 
-    <!-- Tailwind CSS v4 -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '{{ site.primary_color | default("#1fb99d") }}',
-                        'nav-bg': '{{ site.nav_color | default("#228b22") }}'
-                    },
-                    gridTemplateColumns: {
-                        '12': 'repeat(12, minmax(0, 1fr))'
-                    },
-                    gridColumn: {
-                        'span-1': 'span 1 / span 1',
-                        'span-2': 'span 2 / span 2',
-                        'span-3': 'span 3 / span 3',
-                        'span-4': 'span 4 / span 4',
-                        'span-5': 'span 5 / span 5',
-                        'span-6': 'span 6 / span 6',
-                        'span-7': 'span 7 / span 7',
-                        'span-8': 'span 8 / span 8',
-                        'span-9': 'span 9 / span 9',
-                        'span-10': 'span 10 / span 10',
-                        'span-11': 'span 11 / span 11',
-                        'span-12': 'span 12 / span 12'
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- Tailwind CSS - Local build -->
+    <link rel="stylesheet" href="{{ '/assets/css/vendor/tailwind/tailwind.min.css' | relative_url(depth|default(0)) }}">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="{{ '/assets/css/font-awesome/6.6.0_all.min.css' | relative_url(depth|default(0)) }}">
     <!-- Base CSS with custom styles -->
@@ -57,7 +28,11 @@
     {% endif %}
 
     {% for css_file in css_dependencies %}
-        <link rel="stylesheet" href="{{ css_file | relative_url(depth|default(0)) }}">
+        {% if css_file.startswith('http://') or css_file.startswith('https://') or css_file.startswith('//') %}
+            <link rel="stylesheet" href="{{ css_file }}">
+        {% else %}
+            <link rel="stylesheet" href="{{ css_file | relative_url(depth|default(0)) }}">
+        {% endif %}
     {% endfor %}
     {% block styles %}{% endblock %}
 
@@ -109,7 +84,7 @@
     {% include '_nav.html' %}
 
     <!-- Main Content -->
-    <div class="flex flex-col lg:flex-row pt-16">
+    <div class="flex flex-col lg:flex-row pt-8">
         {% block sidebar %}
         {% endblock %}
         <div class="w-full">
@@ -124,7 +99,11 @@
 
     <!-- Block for JavaScript dependencies -->
     {% for js_file in js_dependencies %}
-        <script src="{{ js_file | relative_url(depth|default(0)) }}"></script>
+        {% if js_file.startswith('http://') or js_file.startswith('https://') or js_file.startswith('//') %}
+            <script src="{{ js_file }}"></script>
+        {% else %}
+            <script src="{{ js_file | relative_url(depth|default(0)) }}"></script>
+        {% endif %}
     {% endfor %}
 
     <script>

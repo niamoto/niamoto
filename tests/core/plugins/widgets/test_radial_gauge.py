@@ -26,7 +26,9 @@ class TestRadialGaugeWidget(NiamotoTestCase):
         """Test dependencies method."""
         dependencies = self.widget.get_dependencies()
         self.assertIsInstance(dependencies, set)
-        self.assertEqual(len(dependencies), 0)
+        self.assertEqual(len(dependencies), 1)
+        # Should contain the Plotly CDN URL
+        self.assertTrue(any("plotly" in dep for dep in dependencies))
 
     def test_get_nested_data_simple_key(self):
         """Test _get_nested_data with simple key."""

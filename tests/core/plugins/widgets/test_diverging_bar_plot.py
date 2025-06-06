@@ -26,7 +26,9 @@ class TestDivergingBarPlotWidget(NiamotoTestCase):
         """Test dependencies method."""
         dependencies = self.widget.get_dependencies()
         self.assertIsInstance(dependencies, set)
-        self.assertEqual(len(dependencies), 0)
+        self.assertEqual(len(dependencies), 1)
+        # Should contain the Plotly CDN URL
+        self.assertTrue(any("plotly" in dep for dep in dependencies))
 
     def test_render_basic_horizontal(self):
         """Test rendering with basic horizontal diverging bar plot."""

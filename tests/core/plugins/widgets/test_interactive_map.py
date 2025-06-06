@@ -329,9 +329,9 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
             }
         )
 
-        # Mock plotly figure
+        # Mock plotly figure - now using to_json() instead of to_html()
         mock_fig = Mock()
-        mock_fig.to_html.return_value = "<div>Test Map</div>"
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
         mock_scatter_map.return_value = mock_fig
 
         params = InteractiveMapParams(
@@ -340,7 +340,7 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
 
         result = self.widget.render(df, params)
 
-        self.assertIn("Test Map", result)
+        self.assertIn("plotly-graph-div", result)
         self.assertIn("map-widget", result)
         mock_scatter_map.assert_called_once()
 
@@ -380,14 +380,14 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
 
         with patch("plotly.express.scatter_map") as mock_scatter_map:
             mock_fig = Mock()
-            mock_fig.to_html.return_value = "<div>Test Map</div>"
+            mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
             mock_scatter_map.return_value = mock_fig
 
             params = InteractiveMapParams(map_type="scatter_map")
 
             result = self.widget.render(geojson_data, params)
 
-            self.assertIn("Test Map", result)
+            self.assertIn("plotly-graph-div", result)
 
     @patch("topojson.Topology")
     def test_render_topojson_parsing(self, mock_topology_class):
@@ -428,14 +428,14 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
 
         # Mock plotly figure
         mock_fig = Mock()
-        mock_fig.to_html.return_value = "<div>Test Map</div>"
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
         mock_scatter_map.return_value = mock_fig
 
         params = InteractiveMapParams(map_type="scatter_map", auto_zoom=True)
 
         result = self.widget.render(df, params)
 
-        self.assertIn("Test Map", result)
+        self.assertIn("plotly-graph-div", result)
 
         # Check that scatter_map was called with calculated zoom
         call_args = mock_scatter_map.call_args
@@ -514,7 +514,7 @@ class TestInteractiveMapWidgetMultiLayer(NiamotoTestCase):
         mock_fig = Mock()
         mock_fig.data = []
         mock_fig.layout = {}
-        mock_fig.to_html.return_value = "<div>Multi-layer Map</div>"
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
         mock_figure_class.return_value = mock_fig
 
         params = InteractiveMapParams(
@@ -529,7 +529,7 @@ class TestInteractiveMapWidgetMultiLayer(NiamotoTestCase):
 
         result = self.widget.render(data, params)
 
-        self.assertIn("Multi-layer Map", result)
+        self.assertIn("plotly-graph-div", result)
 
     def test_render_multi_layer_no_layers(self):
         """Test multi-layer rendering with no layers defined."""
@@ -575,11 +575,11 @@ class TestInteractiveMapWidgetMultiLayer(NiamotoTestCase):
         with patch.object(
             self.widget,
             "_render_client_side_topojson_map",
-            return_value="<div>TopoJSON Map</div>",
+            return_value="<div class='plotly-graph-div'>TopoJSON Map</div>",
         ):
             result = self.widget.render(data, params)
 
-            self.assertIn("TopoJSON Map", result)
+            self.assertIn("plotly-graph-div", result)
 
     def test_render_client_side_topojson_map(self):
         """Test client-side TopoJSON map rendering."""
@@ -602,7 +602,9 @@ class TestInteractiveMapWidgetMultiLayer(NiamotoTestCase):
         )
 
         self.assertIn("niamoto_map_", result)  # Should contain unique map ID
-        self.assertIn("topojson-client", result)  # Should include TopoJSON library
+        self.assertIn(
+            "topojson.feature", result
+        )  # Should include TopoJSON functionality
         self.assertIn("Plotly.newPlot", result)  # Should include Plotly rendering
         self.assertIn(
             "Chargement de la carte", result

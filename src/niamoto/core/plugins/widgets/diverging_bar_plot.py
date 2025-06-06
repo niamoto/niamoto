@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
+    get_plotly_dependencies,
     render_plotly_figure,
 )
 
@@ -49,7 +50,7 @@ class DivergingBarPlotWidget(WidgetPlugin):
 
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
-        return set()
+        return get_plotly_dependencies()
 
     def render(self, data: Optional[Any], params: DivergingBarPlotParams) -> str:
         """Generate the HTML for the diverging bar plot."""

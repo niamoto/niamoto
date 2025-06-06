@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Niamoto styles sans @apply pour v4 */
+.widget-modern {
+  background-color: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow: visible;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.widget-modern:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
+}
+
+.widget-header-modern {
+  background: linear-gradient(135deg, #228b22 0%, #2d8f47 50%, #1f7a1f 100%);
+  padding: 16px 20px;
+  border-radius: 12px 12px 0 0;
+  margin: -1px -1px 0 -1px;
+  position: relative;
+  overflow: visible;
+  z-index: 10;
+}
+
+.widget-title-modern {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1;
+}
+
+.widget-content {
+  padding: 20px;
+  background-color: white;
+  overflow: visible;
+  position: relative;
+}
+
+.info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+}
+
+.info-tooltip:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.tooltip-text {
+  position: absolute;
+  visibility: hidden;
+  opacity: 0;
+  background: white;
+  color: #374151;
+  font-size: 14px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  max-width: 350px;
+  min-width: 200px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e5e7eb;
+  top: calc(100% + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.tooltip-text::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: white;
+}
+
+.info-tooltip:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.chart-container {
+  position: relative;
+  height: 400px;
+  width: 100%;
+}
+
+.chart-container.small {
+  height: 300px;
+}
+
+.chart-container.large {
+  height: 500px;
+}
+
+.hide-attribution .plotly .modebar {
+  display: none !important;
+}
+
+.map-widget.hide-attribution .leaflet-control-attribution {
+  display: none !important;
+}
+
+/* Plotly modebar styling */
+.js-plotly-plot .modebar-container {
+  position: absolute !important;
+  top: -30px !important;
+  right: 0 !important;
+  background: transparent !important;
+  opacity: 0 !important;
+  transition: all 0.3s ease !important;
+}
+
+.widget-modern:hover .js-plotly-plot .modebar-container {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.js-plotly-plot .modebar-btn svg {
+  fill: #228b22 !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.maplibregl-ctrl-attrib {
+  display: none !important;
+}

@@ -29,8 +29,10 @@ class TestBarPlotWidget(NiamotoTestCase):
     def test_get_dependencies(self):
         """Test dependencies method."""
         dependencies = self.widget.get_dependencies()
-        self.assertIsInstance(dependencies, list)
-        self.assertEqual(len(dependencies), 0)
+        self.assertIsInstance(dependencies, set)
+        self.assertGreater(
+            len(dependencies), 0
+        )  # Should contain at least Plotly dependency
 
     def test_render_basic_dataframe(self):
         """Test rendering with basic DataFrame."""

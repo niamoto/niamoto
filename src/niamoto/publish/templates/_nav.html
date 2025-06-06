@@ -3,7 +3,7 @@
         <div class="flex items-center flex-shrink-0 text-white mr-6">
             <a class="inline-flex items-center py-2 px-4 text-white no-underline" href="{{ '../' * (depth|default(0)) }}index.html">
                 {% if site.logo_header %}
-                    <img src="{{ '../' * (depth|default(0)) }}assets/{{ site.logo_header }}" alt="Logo" class="h-8 w-auto mr-2">
+                    <img src="{{ '../' * (depth|default(0)) }}assets/{{ site.logo_header }}" alt="Logo" class="h-8 w-auto mr-2 logo-embossed">
                 {% endif %}
                 <span class="site-title">{{ site.title | default('Niamoto') }}</span>
             </a>
@@ -97,5 +97,18 @@
 
     .menu-icon {
         margin-right: 8px;
+    }
+
+    .logo-embossed {
+        background-color: #ffffff;
+        border-radius: 6px;
+        box-shadow:
+            /* Ombre intérieure pour l'effet enfoncé */
+            inset 0 2px 4px rgba(0, 0, 0, 0.3),
+            inset 0 1px 2px rgba(0, 0, 0, 0.2),
+            /* Petite ombre extérieure subtile */
+            0 1px 0 rgba(255, 255, 255, 0.2);
+        /* Bordure subtile pour accentuer l'effet */
+        border: 1px solid rgba(0, 0, 0, 0.1);
     }
 </style>
