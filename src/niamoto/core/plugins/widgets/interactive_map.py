@@ -8,6 +8,11 @@ import topojson
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    get_plotly_dependencies,
+    render_plotly_figure,
+    get_plotly_config,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -104,11 +109,12 @@ class InteractiveMapWidget(WidgetPlugin):
     param_schema = InteractiveMapParams
 
     def get_dependencies(self) -> Set[str]:
-        """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
-        dependencies = set()
-        # Add topojson-client if TopoJSON optimization is being used
-        # Note: This would need to be checked at render time for the specific params
-        return dependencies
+        """Return the set of CSS/JS dependencies."""
+        # Get Plotly from centralized dependency
+        deps = get_plotly_dependencies()
+        # Add topojson-client; it is ~7 kB minified and cached.
+        deps.add("/assets/js/vendor/topojson/3.1.0_topojson.js")
+        return deps
 
     def _parse_geojson_points(self, geojson_data: dict) -> Optional[pd.DataFrame]:
         """Parses a GeoJSON FeatureCollection of Points into a DataFrame."""
@@ -260,7 +266,7 @@ class InteractiveMapWidget(WidgetPlugin):
         <div id="{map_id}" style="width: 100%; height: 500px; position: relative;">
             <div id="{map_id}_loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
                 <div style="display: flex; flex-direction: column; align-items: center;">
-                    <div class="spinner" style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #1fb99d; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <div class="spinner" style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #2d5016; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                     <p style="margin-top: 10px; color: #666;">Chargement de la carte...</p>
                 </div>
             </div>
@@ -272,8 +278,6 @@ class InteractiveMapWidget(WidgetPlugin):
             </style>
         </div>
 
-        <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-        <script src="https://unpkg.com/topojson-client@3"></script>
         <script>
         // Defer map initialization until DOM is ready and page is loaded
         if (document.readyState === 'loading') {{
@@ -284,6 +288,24 @@ class InteractiveMapWidget(WidgetPlugin):
         }}
 
         function initializeMap{map_id}() {{
+            // Check if topojson is available, if not, wait for it to load
+            if (typeof topojson === 'undefined') {{
+                // Wait for topojson to load, but with a maximum retry count
+                if (!initializeMap{map_id}.retryCount) {{
+                    initializeMap{map_id}.retryCount = 0;
+                }}
+                initializeMap{map_id}.retryCount++;
+
+                if (initializeMap{map_id}.retryCount < 50) {{ // Max 5 seconds (50 * 100ms)
+                    setTimeout(initializeMap{map_id}, 100);
+                    return;
+                }} else {{
+                    console.error('TopoJSON library failed to load after 5 seconds');
+                    document.getElementById('{map_id}_loader').innerHTML = '<p style="color: red;">Erreur: Impossible de charger la bibliothèque TopoJSON</p>';
+                    return;
+                }}
+            }}
+
             // Use requestAnimationFrame to ensure smooth loading
             requestAnimationFrame(function() {{
                 // Embedded TopoJSON data
@@ -377,7 +399,7 @@ class InteractiveMapWidget(WidgetPlugin):
                                                     mode: 'lines',
                                                     line: {{
                                                         width: shapeStyle.weight || 2,
-                                                        color: shapeStyle.color || '#1fb99d'
+                                                        color: shapeStyle.color || '#2d5016'
                                                     }},
                                                     showlegend: false,
                                                     hoverinfo: 'skip'
@@ -398,7 +420,7 @@ class InteractiveMapWidget(WidgetPlugin):
                                                         mode: 'lines',
                                                         line: {{
                                                             width: shapeStyle.weight || 2,
-                                                            color: shapeStyle.color || '#1fb99d'
+                                                            color: shapeStyle.color || '#2d5016'
                                                         }},
                                                         showlegend: false,
                                                         hoverinfo: 'skip'
@@ -420,7 +442,7 @@ class InteractiveMapWidget(WidgetPlugin):
                                 mode: 'lines',
                                 line: {{
                                     width: shapeStyle.weight || 2,
-                                    color: shapeStyle.color || '#1fb99d'
+                                    color: shapeStyle.color || '#2d5016'
                                 }},
                                 name: 'Shape Boundary',
                                 showlegend: true
@@ -903,7 +925,7 @@ class InteractiveMapWidget(WidgetPlugin):
                         else "layer"
                         if "layer" in df_plot.columns
                         else "value",
-                        color_discrete_map={"shape": "#1fb99d", "forest": "#228b22"}
+                        color_discrete_map={"shape": "#2d5016", "forest": "#228b22"}
                         if "layer" in df_plot.columns
                         else params.color_discrete_map,
                         hover_name=params.hover_name,
@@ -995,23 +1017,10 @@ class InteractiveMapWidget(WidgetPlugin):
                         if params.map_style
                         else "carto-positron",
                     )
-                html_content = fig.to_html(
-                    full_html=False,
-                    include_plotlyjs="cdn",
-                    config={
-                        "displayModeBar": True,
-                        "displaylogo": False,  # Remove Plotly logo
-                        "modeBarButtonsToRemove": [
-                            "sendDataToCloud"
-                        ],  # Remove cloud button
-                        "toImageButtonOptions": {
-                            "format": "png",
-                            "filename": "niamoto_map",
-                            "height": 500,
-                            "width": 700,
-                        },
-                    },
-                )
+                # Use centralized render function
+                custom_config = get_plotly_config()
+                custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
+                html_content = render_plotly_figure(fig, custom_config)
                 attribution_class = (
                     " hide-attribution" if not params.show_attribution else ""
                 )
@@ -1183,7 +1192,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 shape_geojson_for_plotly = shape_geojson
 
             # Use style from configuration instead of hardcoded values
-            shape_color = shape_style.get("color", "#1fb99d")
+            shape_color = shape_style.get("color", "#2d5016")
             shape_width = shape_style.get("weight", 2)
 
             logger.debug(
@@ -1403,23 +1412,10 @@ class InteractiveMapWidget(WidgetPlugin):
 
         # Generate HTML
         try:
-            map_html = fig.to_html(
-                full_html=False,
-                include_plotlyjs="cdn",
-                config={
-                    "displayModeBar": True,
-                    "displaylogo": False,  # Remove Plotly logo
-                    "modeBarButtonsToRemove": [
-                        "sendDataToCloud"
-                    ],  # Remove cloud button
-                    "toImageButtonOptions": {
-                        "format": "png",
-                        "filename": "niamoto_map",
-                        "height": 500,
-                        "width": 700,
-                    },
-                },
-            )
+            # Use centralized render function
+            custom_config = get_plotly_config()
+            custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
+            map_html = render_plotly_figure(fig, custom_config)
             attribution_class = (
                 " hide-attribution" if not params.show_attribution else ""
             )

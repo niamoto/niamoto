@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, List
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
+    get_plotly_dependencies,
     render_plotly_figure,
 )
 
@@ -48,7 +49,7 @@ class ConcentricRingsWidget(WidgetPlugin):
 
     def get_dependencies(self) -> set:
         """Return the set of CSS/JS dependencies."""
-        return set()
+        return get_plotly_dependencies()
 
     def render(
         self, data: Dict[str, Dict[str, float]], params: ConcentricRingsParams

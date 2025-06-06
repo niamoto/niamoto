@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Set
 
 import pandas as pd
 import plotly.express as px
@@ -10,6 +10,7 @@ from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     render_plotly_figure,
+    get_plotly_dependencies,
 )
 
 logger = logging.getLogger(__name__)
@@ -222,9 +223,9 @@ class BarPlotWidget(WidgetPlugin):
 
     param_schema = BarPlotParams  # Correct name for validation
 
-    def get_dependencies(self) -> List[str]:
-        """Return the list of CSS/JS dependencies. Plotly is handled centrally."""
-        return []
+    def get_dependencies(self) -> Set[str]:
+        """Return the set of CSS/JS dependencies."""
+        return get_plotly_dependencies()
 
     def render(self, data: Optional[Any], params: BarPlotParams) -> str:
         """Generate the HTML for the bar plot."""

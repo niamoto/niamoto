@@ -9,6 +9,7 @@ from niamoto.common.utils.data_access import convert_to_dataframe, transform_dat
 from niamoto.core.plugins.base import PluginType, WidgetPlugin, register
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
+    get_plotly_dependencies,
     render_plotly_figure,
 )
 
@@ -66,7 +67,7 @@ class StackedAreaPlotWidget(WidgetPlugin):
 
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies."""
-        return set()
+        return get_plotly_dependencies()
 
     def render(self, data: Optional[Any], params: StackedAreaPlotParams) -> str:
         """Generate the HTML for the stacked area plot."""
