@@ -182,17 +182,52 @@ class WidgetPlugin(Plugin, ABC):
         # Access common config directly, specific params via config.params
         width = config.params.get("width", "auto")
         height = config.params.get("height", "auto")
-        title = config.title
-        description = config.description
+
+        # Support both structures for backward compatibility:
+        # 1. New structure: title/description at widget level
+        # 2. Old structure: title/description in params
+        title = config.title if config.title is not None else config.params.get("title")
+        description = (
+            config.description
+            if config.description is not None
+            else config.params.get("description")
+        )
+
         css_class = config.params.get(
             "class_name", ""
         )  # Example of accessing specific param
 
         # Use the provided widget_id for the container div
+        title_html = ""
+        if title:
+            if description:
+                # Title with elegant tooltip for description
+                title_html = f"""
+                <div class="widget-header-modern">
+                    <h3 class="widget-title-modern">
+                        {title}
+                        <span class="info-tooltip" data-tooltip="{description.replace('"', "&quot;").replace("'", "&#39;")}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M9,9h0a3,3,0,0,1,6,0c0,2-3,3-3,3"></path>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                            <span class="tooltip-text">{description}</span>
+                        </span>
+                    </h3>
+                </div>
+                """
+            else:
+                # Title without tooltip
+                title_html = f"""
+                <div class="widget-header-modern">
+                    <h3 class="widget-title-modern">{title}</h3>
+                </div>
+                """
+
         return f"""
-        <div id="{widget_id}" class="widget {css_class}" style="width:{width}; height:{height};">
-            {f'<h3 class="widget-title">{title}</h3>' if title else ""}
-            {f'<p class="widget-description">{description}</p>' if description else ""}
+        <div id="{widget_id}" class="widget widget-modern {css_class}" style="width:{width}; height:{height};">
+            {title_html}
             <div class="widget-content">
                 {content}
             </div>

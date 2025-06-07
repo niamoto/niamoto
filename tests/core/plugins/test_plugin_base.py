@@ -218,10 +218,15 @@ class TestWidgetPlugin(NiamotoTestCase):
             config=mock_widget_config,
         )
 
-        self.assertIn('<div id="widget-123" class="widget test-class"', result)
+        self.assertIn(
+            '<div id="widget-123" class="widget widget-modern test-class"', result
+        )
         self.assertIn('style="width:100%; height:200px;"', result)
-        self.assertIn('<h3 class="widget-title">Test Title</h3>', result)
-        self.assertIn('<p class="widget-description">Test Description</p>', result)
+        self.assertIn('<h3 class="widget-title-modern">', result)
+        self.assertIn("Test Title", result)
+        self.assertIn(
+            '<span class="info-tooltip" data-tooltip="Test Description">', result
+        )
 
         self.assertIn('<div class="widget-content">', result)
         self.assertIn(widget_content_html, result)

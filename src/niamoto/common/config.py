@@ -184,7 +184,6 @@ class Config:
             "taxonomy": {"type": "csv", "path": "imports/taxonomy.csv"},
             "occurrences": {"type": "csv", "path": "imports/occurrences.csv"},
             "plots": {"type": "vector", "path": "imports/plots.gpkg"},
-            "occurrence_plots": {"type": "csv", "path": "imports/occurrence-plots.csv"},
         }
 
     @staticmethod

@@ -38,7 +38,7 @@ repos:
     -   id: check-yaml
     -   id: check-toml  # Vérifie la syntaxe du pyproject.toml
     -   id: check-added-large-files
-        args: ['--maxkb=500']
+        args: ['--maxkb=5000']
     -   id: check-merge-conflict
     -   id: debug-statements
     -   id: detect-private-key

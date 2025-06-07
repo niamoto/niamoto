@@ -105,7 +105,26 @@ To set up a development environment for Niamoto, you must have `uv` installed on
 
   The previous command already installed the project in editable mode (with the -e flag). This means source code changes are immediately reflected without needing to reinstall the package.
 
-5. **Managing Multiple Niamoto Installations**:
+5. **Tailwind CSS Setup (Optional)**:
+
+  Niamoto uses Tailwind CSS for styling its web exports. To build the CSS locally:
+
+  ```bash
+  # Download Tailwind CSS standalone binary (one-time setup)
+  curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.13/tailwindcss-macos-arm64
+  chmod +x tailwindcss-macos-arm64
+
+  # Build the CSS
+  python scripts/build_tailwind_standalone.py
+  ```
+
+  Note: The Tailwind binary is platform-specific. Replace `macos-arm64` with your platform:
+  - macOS Intel: `tailwindcss-macos-x64`
+  - Linux ARM: `tailwindcss-linux-arm64`
+  - Linux x64: `tailwindcss-linux-x64`
+  - Windows: `tailwindcss-windows-x64.exe`
+
+6. **Managing Multiple Niamoto Installations**:
 
   When using `uv pip install -e .`, you may have multiple Niamoto installations on your system:
 

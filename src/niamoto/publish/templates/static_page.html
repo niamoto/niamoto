@@ -1,0 +1,147 @@
+{% extends "_base.html" %}
+
+{% block content %}
+    <div class="static-page-container max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% if welcome_title %}
+            <div class="welcome-section text-center mb-12">
+                <h1 class="text-4xl sm:text-5xl font-bold text-gray-800 mb-4">{{ welcome_title }}</h1>
+                <div class="w-24 h-1 bg-green-600 mx-auto"></div>
+            </div>
+        {% endif %}
+
+        {% if page.title and page.title != welcome_title %}
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-8">{{ page.title }}</h1>
+        {% endif %}
+
+        {# Content from markdown or loaded file #}
+        <div class="bg-white rounded-lg shadow-md p-8 mb-8">
+            {% if page_content_html %}
+                <div class="markdown-content">
+                    {{ page_content_html | safe }}
+                </div>
+            {% else %}
+                <p class="text-gray-500 italic text-center py-8">(Aucun contenu disponible pour cette page)</p>
+            {% endif %}
+        </div>
+
+        {# Quick navigation cards if on homepage #}
+        {% if welcome_title %}
+            <div class="navigation-cards mt-16">
+                <h2 class="text-2xl font-bold text-gray-800 mb-8 text-center">Explorer les données</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <a href="{{ '../' * (depth|default(0)) }}taxon/index.html" class="card-link">
+                        <div class="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow p-6 text-center">
+                            <div class="text-4xl mb-4">🌿</div>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Taxons</h3>
+                            <p class="text-gray-600">Explorer les espèces et sous-espèces d'Afrique Centrale</p>
+                        </div>
+                    </a>
+                    <a href="{{ '../' * (depth|default(0)) }}plot/index.html" class="card-link">
+                        <div class="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow p-6 text-center">
+                            <div class="text-4xl mb-4">📍</div>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Parcelles</h3>
+                            <p class="text-gray-600">Découvrir les parcelles forestières étudiées</p>
+                        </div>
+                    </a>
+                    <a href="{{ '../' * (depth|default(0)) }}shape/index.html" class="card-link">
+                        <div class="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow p-6 text-center">
+                            <div class="text-4xl mb-4">🗺️</div>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Zones d'étude</h3>
+                            <p class="text-gray-600">Visualiser les zones géographiques d'étude</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <style>
+        /* Styles pour le contenu markdown */
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .markdown-content h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #374151;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .markdown-content p {
+            color: #4b5563;
+            margin-bottom: 1rem;
+            line-height: 1.75;
+        }
+
+        .markdown-content ul {
+            list-style-type: disc;
+            list-style-position: inside;
+            margin-bottom: 1rem;
+            margin-left: 1rem;
+        }
+
+        .markdown-content ul li {
+            color: #4b5563;
+            margin-bottom: 0.5rem;
+        }
+
+        .markdown-content strong {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .markdown-content em {
+            font-style: italic;
+        }
+
+        .markdown-content a {
+            color: #059669;
+            text-decoration: underline;
+            transition: color 0.2s;
+        }
+
+        .markdown-content a:hover {
+            color: #047857;
+        }
+
+        /* Animation pour les cartes */
+        .card-link {
+            text-decoration: none;
+            display: block;
+            transition: transform 0.2s;
+        }
+
+        .card-link:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Ajustement du padding principal */
+        .static-page-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+
+        /* Style responsive */
+        @media (max-width: 640px) {
+            .welcome-section h1 {
+                font-size: 1.875rem;
+            }
+
+            .markdown-content h2 {
+                font-size: 1.25rem;
+            }
+
+            .markdown-content h3 {
+                font-size: 1.125rem;
+            }
+        }
+    </style>
+{% endblock %}

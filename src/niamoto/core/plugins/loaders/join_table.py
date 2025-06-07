@@ -63,7 +63,7 @@ class JoinTableLoader(LoaderPlugin):
             'grouping': 'plot_ref',  # Field in main table for grouping
             'plugin': 'join_table',
             'key': 'id_plot',  # Key in reference table
-            'join_table': 'occurrence_plots',  # Join table
+            'join_table': 'custom_links',  # Join table
             'keys': {
                 'source': 'id_occurrence',  # Key in join table linking to main table
                 'reference': 'id_plot'  # Key in join table linking to reference

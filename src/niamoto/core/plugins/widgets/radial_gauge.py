@@ -6,6 +6,11 @@ import plotly.graph_objects as go
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    get_plotly_dependencies,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +48,16 @@ class RadialGaugeParams(BaseModel):
     gauge_shape: str = Field(
         "angular", description="Shape of the gauge ('angular' or 'bullet')."
     )
+    style_mode: Optional[str] = Field(
+        "classic",
+        description="Style mode: 'classic' (with steps), 'minimal' (simple), 'gradient', or 'contextual'",
+    )
+    show_axis: Optional[bool] = Field(True, description="Show axis labels and ticks")
+    value_format: Optional[str] = Field(
+        None,
+        description="Format string for the value (e.g., '.1f' for 1 decimal, '.0%' for percentage)",
+    )
+    units: Optional[str] = Field(None, description="Deprecated: use 'unit' instead")
 
 
 @register("radial_gauge", PluginType.WIDGET)
@@ -53,7 +68,7 @@ class RadialGaugeWidget(WidgetPlugin):
 
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
-        return set()
+        return get_plotly_dependencies()
 
     def _get_nested_data(self, data: Dict, key_path: str) -> Any:
         """Access nested dictionary data using dot notation.
@@ -132,30 +147,108 @@ class RadialGaugeWidget(WidgetPlugin):
             logger.error(f"Error converting value '{value}' to numeric: {e}")
             return f"<p class='error'>Error processing gauge value: {e}</p>"
 
+        # Handle deprecated units parameter
+        if params.units and not params.unit:
+            params.unit = params.units
+
+        # Apply value formatting if specified
+        number_config = {"suffix": params.unit if params.unit else ""}
+        if params.value_format:
+            if params.value_format.endswith("%"):
+                # Handle percentage formatting
+                number_config["valueformat"] = params.value_format
+                numeric_value = (
+                    numeric_value * 100
+                    if params.value_format == ".0%"
+                    else numeric_value
+                )
+            else:
+                number_config["valueformat"] = params.value_format
+
+        # Configure style based on style_mode
+        bar_color = params.bar_color
+        bar_thickness = None  # Default thickness
+
+        if params.style_mode == "contextual":
+            # Determine color based on value position in range
+            value_ratio = (numeric_value - params.min_value) / (
+                params.max_value - params.min_value
+            )
+            if value_ratio < 0.33:
+                bar_color = "#f02828"  # Red for low values
+            elif value_ratio < 0.66:
+                bar_color = "#fe6a00"  # Orange for medium values
+            else:
+                bar_color = "#049f50"  # Green for high values
+            # Use same thickness as minimal style
+            bar_thickness = 0.8
+
         gauge_args = {
             "mode": "gauge+number",
             "value": numeric_value,
             "title": {"text": params.description or ""},
-            "number": {"suffix": params.unit if params.unit else ""},
+            "number": number_config,
             "gauge": {
-                "axis": {"range": [params.min_value, params.max_value]},
-                "bar": {"color": params.bar_color},
+                "axis": {
+                    "range": [params.min_value, params.max_value],
+                    "visible": params.show_axis,
+                },
+                "bar": {"color": bar_color},
                 "bgcolor": params.background_color,
                 "shape": params.gauge_shape,
             },
         }
-        if params.steps:
+
+        # Apply bar thickness if specified
+        if bar_thickness is not None:
+            gauge_args["gauge"]["bar"]["thickness"] = bar_thickness
+
+        # Apply style-specific configurations
+        if params.style_mode == "minimal":
+            # Minimal style: no steps, clean look
+            gauge_args["gauge"]["bgcolor"] = "#f5f5f5"  # Light gray background
+            gauge_args["gauge"]["borderwidth"] = 0
+            gauge_args["gauge"]["bar"]["thickness"] = 0.8
+
+        elif params.style_mode == "contextual":
+            # Contextual style: same clean look as minimal but with dynamic colors
+            gauge_args["gauge"]["bgcolor"] = "#f5f5f5"  # Light gray background
+            gauge_args["gauge"]["borderwidth"] = 0
+            # Bar thickness already set above
+
+        elif params.style_mode == "gradient":
+            # For gradient style, we'll use a single color bar but with a gradient background
+            # This creates a cleaner look
+            gauge_args["gauge"]["bgcolor"] = (
+                "#e8f5f3"  # Very light version of the bar color
+            )
+            gauge_args["gauge"]["borderwidth"] = 0
+            gauge_args["gauge"]["bar"]["thickness"] = 0.75
+
+            # If bar_color contains RGB, extract it for gradient
+            if params.bar_color:
+                # Use the bar color as is
+                gauge_args["gauge"]["bar"]["color"] = params.bar_color
+            else:
+                # Default gradient color
+                gauge_args["gauge"]["bar"]["color"] = "#1fb99d"
+
+        elif params.style_mode == "classic" and params.steps:
+            # Classic style with defined color steps
             gauge_args["gauge"]["steps"] = params.steps
+
         if params.threshold:
             gauge_args["gauge"]["threshold"] = params.threshold
 
         try:
             fig = go.Figure(go.Indicator(**gauge_args))
 
-            fig.update_layout(margin={"r": 10, "t": 10, "l": 10, "b": 10}, height=250)
+            # Apply Plotly defaults with custom layout
+            layout_updates = {"height": 250}
+            apply_plotly_defaults(fig, layout_updates)
 
-            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            return html_content
+            # Render with standard config
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception(f"Error rendering RadialGaugeWidget: {e}")

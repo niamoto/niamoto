@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    get_plotly_dependencies,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +59,7 @@ class SunburstChartWidget(WidgetPlugin):
 
     def get_dependencies(self) -> set:
         """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
-        return set()
+        return get_plotly_dependencies()
 
     def render(
         self, data: Dict[str, Dict[str, float]], params: SunburstChartWidgetParams
@@ -186,17 +191,14 @@ class SunburstChartWidget(WidgetPlugin):
             # Then create the figure with this trace
             fig = go.Figure(data=[sunburst_trace])
 
-            fig.update_layout(
-                margin=dict(t=5, l=5, r=5, b=5),  # Reduced margins
-                height=450,  # Slightly taller for better label visibility
+            layout_updates = {
+                "margin": dict(t=5, l=5, r=5, b=5),  # Reduced margins
+                "height": 450,  # Slightly taller for better label visibility
                 # Sunburst charts manage colors via trace marker, so no colorscale needed here
-            )
+            }
+            apply_plotly_defaults(fig, layout_updates)
 
-            return fig.to_html(
-                full_html=False,
-                include_plotlyjs="cdn",
-                config={"displayModeBar": False},
-            )
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.error(f"Failed to generate Sunburst chart: {e}", exc_info=True)
