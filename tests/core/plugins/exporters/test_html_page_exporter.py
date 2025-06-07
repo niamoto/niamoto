@@ -803,6 +803,27 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertTrue(existing_file.exists())
         self.assertEqual(existing_file.read_text(), "Should not be deleted")
 
+    def test_validate_template_availability(self):
+        """Test template availability validation."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        # Mock Jinja environment
+        mock_jinja_env = Mock()
+
+        # Test successful template loading
+        mock_jinja_env.get_template.return_value = Mock()
+        result = exporter._validate_template_availability(
+            mock_jinja_env, "test_template.html"
+        )
+        self.assertTrue(result)
+
+        # Test template not found
+        mock_jinja_env.get_template.side_effect = Exception("Template not found")
+        result = exporter._validate_template_availability(
+            mock_jinja_env, "missing_template.html"
+        )
+        self.assertFalse(result)
+
 
 if __name__ == "__main__":
     import unittest

@@ -191,6 +191,29 @@ class IndexGeneratorConfig(BaseModel):
     views: Optional[List[IndexGeneratorViewConfig]] = None
     output_pattern: str = "{group_by}/{id}.html"  # Pattern for detail links
 
+    @model_validator(mode="after")
+    def validate_template_compatibility(cls, self):
+        """Validate template configuration for compatibility."""
+        # Check for legacy template paths and suggest modern alternatives
+        legacy_templates = {
+            "_layouts/group_index.html": "group_index.html",
+            "_layouts/group_detail.html": "group_detail.html",
+        }
+
+        if self.template in legacy_templates:
+            import warnings
+
+            warnings.warn(
+                f"Template path '{self.template}' is deprecated. "
+                f"Use '{legacy_templates[self.template]}' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            # Auto-correct the template path
+            self.template = legacy_templates[self.template]
+
+        return self
+
 
 class GroupConfigWeb(BaseModel):
     """Configuration for a group within a 'web_pages' target."""

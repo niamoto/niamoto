@@ -531,3 +531,29 @@ class TestIndexGeneratorModels(NiamotoTestCase):
         self.assertEqual(config.page_config.items_per_page, 50)
         self.assertEqual(len(config.views), 2)
         self.assertTrue(config.views[0].default)
+
+    def test_template_compatibility_validation(self):
+        """Test that legacy template paths are automatically updated."""
+        import warnings
+
+        # Test legacy template path gets converted
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            config = IndexGeneratorConfig(
+                template="_layouts/group_index.html",  # Legacy path
+                display_fields=[
+                    IndexGeneratorDisplayField(
+                        name="name", source="name", label="Name", type="text"
+                    )
+                ],
+                page_config=IndexGeneratorPageConfig(title="Test Index"),
+            )
+
+            # Check that template was auto-corrected
+            self.assertEqual(config.template, "group_index.html")
+
+            # Check that warning was issued
+            self.assertEqual(len(w), 1)
+            self.assertIn("deprecated", str(w[0].message))
+            self.assertIn("group_index.html", str(w[0].message))

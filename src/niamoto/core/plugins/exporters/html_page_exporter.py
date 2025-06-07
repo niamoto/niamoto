@@ -182,6 +182,13 @@ class HtmlPageExporter(ExporterPlugin):
                 f"Jinja environment set up with user dir '{user_template_dir}' and default dir '{default_template_path}'"
             )
 
+            # Log available templates for debugging
+            try:
+                available_templates = jinja_env.list_templates()
+                logger.debug(f"Available templates: {available_templates}")
+            except Exception as e:
+                logger.warning(f"Could not list available templates: {e}")
+
             # 3. Setup Markdown parser
             md = MarkdownIt()
             logger.debug("Markdown parser initialized.")
@@ -950,6 +957,26 @@ class HtmlPageExporter(ExporterPlugin):
 
         # End group loop
         logger.info("Data group processing finished.")
+
+    def _validate_template_availability(
+        self, jinja_env: Environment, template_name: str
+    ) -> bool:
+        """
+        Validate that a template is available in the Jinja environment.
+
+        Args:
+            jinja_env: The Jinja2 environment
+            template_name: Name of the template to check
+
+        Returns:
+            True if template is available, False otherwise
+        """
+        try:
+            jinja_env.get_template(template_name)
+            return True
+        except Exception as e:
+            logger.warning(f"Template '{template_name}' not available: {e}")
+            return False
 
     def _load_and_cache_navigation_data(
         self, referential_data_source: str, required_fields: Optional[List[str]] = None

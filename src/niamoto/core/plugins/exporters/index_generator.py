@@ -252,7 +252,17 @@ class IndexGeneratorPlugin(ExporterPlugin):
             }
 
             # Load and render template
-            template = jinja_env.get_template(config.template)
+            try:
+                template = jinja_env.get_template(config.template)
+            except Exception as template_error:
+                logger.error(
+                    f"Failed to load template '{config.template}' for group '{group_by}'. "
+                    f"Available templates: {jinja_env.list_templates()}"
+                )
+                raise ProcessError(
+                    f"Template '{config.template}' not found for group '{group_by}'"
+                ) from template_error
+
             rendered_html = template.render(context)
 
             # Write output
