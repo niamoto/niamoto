@@ -178,14 +178,13 @@ class HierarchicalNavWidget(WidgetPlugin):
         if load_from_js:
             # Load data from external JS file
             html_parts.append(f"""
-                <script src="../js/{js_file}"></script>
+                <script src="../assets/js/{js_file}"></script>
                 <script>
                 // Use a more robust initialization approach
                 function initializeHierarchicalNav() {{
                     if (typeof NiamotoHierarchicalNav !== 'undefined' && typeof {data_var} !== 'undefined') {{
                         const config = {json.dumps(js_config, ensure_ascii=False)};
                         config.items = {data_var};  // Get data from loaded JS file
-                        console.log('Initializing hierarchical nav with', config.items.length, 'items');
                         new NiamotoHierarchicalNav(config);
                     }} else {{
                         // Retry after a short delay if dependencies aren't loaded yet

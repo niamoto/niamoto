@@ -7,6 +7,11 @@ from plotly.subplots import make_subplots
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    get_plotly_dependencies,
+    render_plotly_figure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,7 @@ class DonutChartWidget(WidgetPlugin):
 
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
-        return set()
+        return get_plotly_dependencies()
 
     # get_container_html is inherited from WidgetPlugin
 
@@ -173,12 +178,12 @@ class DonutChartWidget(WidgetPlugin):
                 return "<p class='info'>No valid data found for any configured subplot.</p>"
 
             # Update overall layout
-            fig.update_layout(
-                title_text=params.title,
-                showlegend=False,  # Usually hide legend for multiple side-by-side donuts
-                margin=dict(l=20, r=20, t=50, b=20),  # Adjust margins as needed
-                # annotations=[dict(text=params.description, showarrow=False, xref='paper', yref='paper', x=0.5, y=1.1)] # Add description?
-            )
+            layout_updates = {
+                "title_text": params.title,
+                "showlegend": False,  # Usually hide legend for multiple side-by-side donuts
+                "margin": dict(l=20, r=20, t=50, b=20),  # Adjust margins as needed
+            }
+            apply_plotly_defaults(fig, layout_updates)
 
         # === EXISTING Logic (if not subplots) ===
         elif not fig:  # Only run if subplot logic didn't create a figure
@@ -341,7 +346,7 @@ class DonutChartWidget(WidgetPlugin):
                     )
 
                     # Layout updates
-                    layout_args = {
+                    layout_updates = {
                         "title": params.title,
                         "showlegend": True,
                         "legend_orientation": params.legend_orientation,
@@ -349,7 +354,7 @@ class DonutChartWidget(WidgetPlugin):
                         "uniformtext_mode": "hide",
                         "margin": dict(l=20, r=20, t=30, b=20),  # Adjust margins
                     }
-                    fig_single.update_layout(**layout_args)
+                    apply_plotly_defaults(fig_single, layout_updates)
 
                     fig = fig_single  # Assign the single figure
                 except Exception as e:
@@ -366,11 +371,8 @@ class DonutChartWidget(WidgetPlugin):
         # --- HTML Output --- #
         if fig:
             try:
-                # Increase default height slightly for subplots with titles
-                height = 400 if not params.subplots else 450
-                html_output = fig.to_html(
-                    full_html=False, include_plotlyjs="cdn", default_height=height
-                )
+                # Render using utility function
+                html_output = render_plotly_figure(fig)
                 # Wrap in a div with class for potential CSS styling
                 return f"<div class='plotly-chart-widget donut-chart-widget'>{html_output}</div>"
             except Exception as e:

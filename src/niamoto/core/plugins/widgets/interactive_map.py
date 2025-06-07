@@ -8,6 +8,11 @@ import topojson
 from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    get_plotly_dependencies,
+    render_plotly_figure,
+    get_plotly_config,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -91,6 +96,10 @@ class InteractiveMapParams(BaseModel):
     show_attribution: bool = Field(
         default=False, description="Whether to show map attribution"
     )
+    use_topojson: bool = Field(
+        default=False,
+        description="Whether to optimize GeoJSON to TopoJSON format for reduced file size. Note: data already in TopoJSON format (from shape_processor) will not be re-optimized.",
+    )
 
 
 @register("interactive_map", PluginType.WIDGET)
@@ -100,8 +109,12 @@ class InteractiveMapWidget(WidgetPlugin):
     param_schema = InteractiveMapParams
 
     def get_dependencies(self) -> Set[str]:
-        """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
-        return set()
+        """Return the set of CSS/JS dependencies."""
+        # Get Plotly from centralized dependency
+        deps = get_plotly_dependencies()
+        # Add topojson-client; it is ~7 kB minified and cached.
+        deps.add("/assets/js/vendor/topojson/3.1.0_topojson.js")
+        return deps
 
     def _parse_geojson_points(self, geojson_data: dict) -> Optional[pd.DataFrame]:
         """Parses a GeoJSON FeatureCollection of Points into a DataFrame."""
@@ -202,6 +215,380 @@ class InteractiveMapWidget(WidgetPlugin):
             logger.warning(f"Unsupported data type: {data.get('type')}")
         return None
 
+    def _optimize_geojson_to_topojson(self, geojson_data: dict) -> Optional[dict]:
+        """Convert GeoJSON to optimized TopoJSON using same parameters as shape_processor."""
+        try:
+            if geojson_data.get("type") != "FeatureCollection":
+                logger.warning("Can only convert FeatureCollection to TopoJSON")
+                return geojson_data
+
+            # Use same optimization as shape_processor.py (line 240-241)
+            # topology = tp.Topology(geojson, prequantize=True)
+            # return topology.to_dict()
+            topology = topojson.Topology(
+                data=geojson_data,
+                prequantize=True,  # Same as shape_processor
+            )
+
+            result = topology.to_dict()
+            logger.debug(
+                "Successfully optimized GeoJSON to TopoJSON using shape_processor parameters"
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"Error optimizing to TopoJSON: {e}", exc_info=True)
+            return geojson_data  # Return original data on failure
+
+    def _render_client_side_topojson_map(
+        self,
+        topojson_data: dict,
+        shape_style: dict,
+        forest_style: dict,
+        params: InteractiveMapParams,
+    ) -> str:
+        """Render a map using client-side TopoJSON to GeoJSON conversion."""
+
+        # Calculate bounds for centering and zoom from TopoJSON data
+        center_lat = (
+            params.center_lat if params.center_lat is not None else -21.0
+        )  # Default to New Caledonia
+        center_lon = params.center_lon if params.center_lon is not None else 165.0
+        zoom_level = params.zoom if params.zoom is not None else 9.0
+
+        # Generate a unique ID for this map
+        map_id = (
+            f"niamoto_map_{hash(json.dumps(topojson_data, sort_keys=True)) % 10000}"
+        )
+
+        # Create the HTML with embedded TopoJSON and JavaScript conversion
+        html_content = f"""
+        <div id="{map_id}" style="width: 100%; height: 500px; position: relative;">
+            <div id="{map_id}_loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div class="spinner" style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #2d5016; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <p style="margin-top: 10px; color: #666;">Chargement de la carte...</p>
+                </div>
+            </div>
+            <style>
+                @keyframes spin {{
+                    0% {{ transform: rotate(0deg); }}
+                    100% {{ transform: rotate(360deg); }}
+                }}
+            </style>
+        </div>
+
+        <script>
+        // Defer map initialization until DOM is ready and page is loaded
+        if (document.readyState === 'loading') {{
+            document.addEventListener('DOMContentLoaded', initializeMap{map_id});
+        }} else {{
+            // DOM is already loaded, initialize after a small delay to ensure other content loads first
+            setTimeout(initializeMap{map_id}, 100);
+        }}
+
+        function initializeMap{map_id}() {{
+            // Check if topojson is available, if not, wait for it to load
+            if (typeof topojson === 'undefined') {{
+                // Wait for topojson to load, but with a maximum retry count
+                if (!initializeMap{map_id}.retryCount) {{
+                    initializeMap{map_id}.retryCount = 0;
+                }}
+                initializeMap{map_id}.retryCount++;
+
+                if (initializeMap{map_id}.retryCount < 50) {{ // Max 5 seconds (50 * 100ms)
+                    setTimeout(initializeMap{map_id}, 100);
+                    return;
+                }} else {{
+                    console.error('TopoJSON library failed to load after 5 seconds');
+                    document.getElementById('{map_id}_loader').innerHTML = '<p style="color: red;">Erreur: Impossible de charger la bibliothèque TopoJSON</p>';
+                    return;
+                }}
+            }}
+
+            // Use requestAnimationFrame to ensure smooth loading
+            requestAnimationFrame(function() {{
+                // Embedded TopoJSON data
+                const niamotoTopoData = {json.dumps(topojson_data)};
+
+                // Style configurations
+                const shapeStyle = {json.dumps(shape_style)};
+                const forestStyle = {json.dumps(forest_style)};
+
+                // Create Plotly figure
+                const traces = [];
+
+                // Process forest cover data if available
+                if (niamotoTopoData.forest_cover_coords) {{
+                    try {{
+                    const forestTopology = niamotoTopoData.forest_cover_coords;
+                    const objectKeys = Object.keys(forestTopology.objects || {{}});
+
+                    if (objectKeys.length > 0) {{
+                        const objectName = objectKeys[0];
+                        const forestGeoJSON = topojson.feature(forestTopology, forestTopology.objects[objectName]);
+
+                        // Ensure we have features
+                        if (forestGeoJSON.features && forestGeoJSON.features.length > 0) {{
+                            // Assign IDs to features if they don\'t have them
+                            forestGeoJSON.features.forEach((feature, index) => {{
+                                if (!feature.id) {{
+                                    feature.id = index.toString();
+                                }}
+                                if (!feature.properties) {{
+                                    feature.properties = {{}};
+                                }}
+                                feature.properties.name = `Forest ${{index}}`;
+                            }});
+
+                            // Create choroplethmap trace
+                            const forestTrace = {{
+                                type: \'choroplethmap\',
+                                geojson: forestGeoJSON,
+                                locations: forestGeoJSON.features.map(f => f.id),
+                                z: forestGeoJSON.features.map(() => 1),
+                                featureidkey: \'id\',
+                                colorscale: [[0, forestStyle.fillColor || \'#228b22\'], [1, forestStyle.fillColor || \'#228b22\']],
+                                showscale: false,
+                                marker: {{
+                                    opacity: forestStyle.fillOpacity || 0.6,
+                                    line: {{width: 0}}
+                                }},
+                                name: \'Forest Cover\',
+                                hovertemplate: \'%{{properties.name}}<extra></extra>\'
+                            }};
+                            traces.push(forestTrace);
+                        }} else {{
+                            console.warn(\'No features in forest GeoJSON\');
+                        }}
+                    }} else {{
+                        console.warn(\'No objects found in forest TopoJSON\');
+                    }}
+                }} catch (e) {{
+                    console.error(\'Error processing forest cover TopoJSON:\', e);
+                    }}
+                }}
+
+                // Process shape boundary data if available
+                if (niamotoTopoData.shape_coords) {{
+                    try {{
+                        const shapeTopology = niamotoTopoData.shape_coords;
+                        const objectKeys = Object.keys(shapeTopology.objects || {{}});
+
+                        if (objectKeys.length > 0) {{
+                            const objectName = objectKeys[0];
+                            const shapeGeoJSON = topojson.feature(shapeTopology, shapeTopology.objects[objectName]);
+
+                        // Process each feature to extract boundary lines
+                        if (shapeGeoJSON.features && shapeGeoJSON.features.length > 0) {{
+                            shapeGeoJSON.features.forEach((feature, featureIndex) => {{
+                                const geometry = feature.geometry;
+                                if (!geometry || !geometry.coordinates) return;
+
+                                const processCoordinates = (coords, geomType) => {{
+                                    if (geomType === 'Polygon') {{
+                                        coords.forEach((ring, ringIndex) => {{
+                                            if (ring.length > 0) {{
+                                                const lons = ring.map(p => p[0]);
+                                                const lats = ring.map(p => p[1]);
+
+                                                traces.push({{
+                                                    type: 'scattermap',
+                                                    lon: lons,
+                                                    lat: lats,
+                                                    mode: 'lines',
+                                                    line: {{
+                                                        width: shapeStyle.weight || 2,
+                                                        color: shapeStyle.color || '#2d5016'
+                                                    }},
+                                                    showlegend: false,
+                                                    hoverinfo: 'skip'
+                                                }});
+                                            }}
+                                        }});
+                                    }} else if (geomType === 'MultiPolygon') {{
+                                        coords.forEach((polygon, polyIndex) => {{
+                                            polygon.forEach((ring, ringIndex) => {{
+                                                if (ring.length > 0) {{
+                                                    const lons = ring.map(p => p[0]);
+                                                    const lats = ring.map(p => p[1]);
+
+                                                    traces.push({{
+                                                        type: 'scattermap',
+                                                        lon: lons,
+                                                        lat: lats,
+                                                        mode: 'lines',
+                                                        line: {{
+                                                            width: shapeStyle.weight || 2,
+                                                            color: shapeStyle.color || '#2d5016'
+                                                        }},
+                                                        showlegend: false,
+                                                        hoverinfo: 'skip'
+                                                    }});
+                                                }}
+                                            }});
+                                        }});
+                                    }}
+                                }};
+
+                                processCoordinates(geometry.coordinates, geometry.type);
+                            }});
+
+                            // Add a single legend entry for shape boundary
+                            traces.push({{
+                                type: 'scattermap',
+                                lon: [],
+                                lat: [],
+                                mode: 'lines',
+                                line: {{
+                                    width: shapeStyle.weight || 2,
+                                    color: shapeStyle.color || '#2d5016'
+                                }},
+                                name: 'Shape Boundary',
+                                showlegend: true
+                            }});
+
+                        }} else {{
+                            console.warn(\'No features in shape GeoJSON\');
+                        }}
+                    }} else {{
+                        console.warn(\'No objects found in shape TopoJSON\');
+                    }}
+                }} catch (e) {{
+                    console.error(\'Error processing shape coords TopoJSON:\', e);
+                }}
+            }}
+
+            // Calculate bounds from TopoJSON data
+            let bounds = null;
+            let zoom = {zoom_level};
+
+            // Try to calculate bounds from the TopoJSON bbox
+            if (niamotoTopoData.shape_coords && niamotoTopoData.shape_coords.bbox) {{
+                const bbox = niamotoTopoData.shape_coords.bbox;
+                bounds = {{
+                    center: {{
+                        lat: (bbox[1] + bbox[3]) / 2,
+                        lon: (bbox[0] + bbox[2]) / 2
+                    }}
+                }};
+                // Calculate zoom based on bbox
+                const latDiff = bbox[3] - bbox[1];
+                const lonDiff = bbox[2] - bbox[0];
+                // Simple zoom calculation - adjust as needed
+                if (latDiff < 0.5 && lonDiff < 0.5) {{
+                    zoom = 10;
+                }} else if (latDiff < 1 && lonDiff < 1) {{
+                    zoom = 9;
+                }} else {{
+                    zoom = 8;
+                }}
+            }} else if (niamotoTopoData.forest_cover_coords && niamotoTopoData.forest_cover_coords.bbox) {{
+                const bbox = niamotoTopoData.forest_cover_coords.bbox;
+                bounds = {{
+                    center: {{
+                        lat: (bbox[1] + bbox[3]) / 2,
+                        lon: (bbox[0] + bbox[2]) / 2
+                    }}
+                }};
+            }}
+
+            // Fallback to calculating from traces if needed
+            if (!bounds && traces.length > 0) {{
+                let minLat = Infinity, maxLat = -Infinity;
+                let minLon = Infinity, maxLon = -Infinity;
+
+                traces.forEach(trace => {{
+                    if (trace.type === 'scattermap' && trace.lon && trace.lat) {{
+                        trace.lon.forEach(lon => {{
+                            if (lon < minLon) minLon = lon;
+                            if (lon > maxLon) maxLon = lon;
+                        }});
+                        trace.lat.forEach(lat => {{
+                            if (lat < minLat) minLat = lat;
+                            if (lat > maxLat) maxLat = lat;
+                        }});
+                    }} else if (trace.type === 'choroplethmap' && trace.geojson) {{
+                        // Try to extract bounds from GeoJSON if available
+                        if (trace.geojson.bbox) {{
+                            const bbox = trace.geojson.bbox;
+                            if (bbox[0] < minLon) minLon = bbox[0];
+                            if (bbox[2] > maxLon) maxLon = bbox[2];
+                            if (bbox[1] < minLat) minLat = bbox[1];
+                            if (bbox[3] > maxLat) maxLat = bbox[3];
+                        }}
+                    }}
+                }});
+
+                if (minLat !== Infinity) {{
+                    bounds = {{
+                        center: {{
+                            lat: (minLat + maxLat) / 2,
+                            lon: (minLon + maxLon) / 2
+                        }}
+                    }};
+                }}
+            }}
+
+            // Create layout
+            const layout = {{
+                map: {{
+                    style: "{params.map_style or "carto-positron"}",
+                    center: bounds ? bounds.center : {{lat: {center_lat}, lon: {center_lon}}},
+                    zoom: zoom
+                }},
+                margin: {{r: 0, t: 0, l: 0, b: 0}},
+                height: 500,
+                showlegend: true,
+                legend: {{
+                    x: 0.02,
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: 'black',
+                    borderwidth: 1
+                }},
+                annotations: []
+            }};
+
+            // Create config
+            const config = {{
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['sendDataToCloud', 'lasso2d', 'select2d'],
+                toImageButtonOptions: {{
+                    format: 'png',
+                    filename: 'niamoto_map',
+                    height: 500,
+                    width: 700
+                }}
+            }};
+
+                // Render the map
+                Plotly.newPlot('{map_id}', traces, layout, config).then(() => {{
+                    // Hide loader once map is rendered
+                    const loader = document.getElementById('{map_id}_loader');
+                    if (loader) {{
+                        loader.style.display = 'none';
+                    }}
+                }}).catch(error => {{
+                    console.error('Error rendering map:', error);
+                    // Hide loader even on error and show error message
+                    const loader = document.getElementById('{map_id}_loader');
+                    if (loader) {{
+                        loader.innerHTML = '<p style="color: #e74c3c;">Erreur lors du chargement de la carte</p>';
+                    }}
+                }});
+            }});
+        }}
+        </script>
+        """
+
+        attribution_class = " hide-attribution" if not params.show_attribution else ""
+
+        return f"""<div class="map-widget{attribution_class}">
+            <div class="map-container">{html_content}</div>
+        </div>"""
+
     def _calculate_zoom_from_bounds(
         self,
         min_lat: float,
@@ -259,30 +646,23 @@ class InteractiveMapWidget(WidgetPlugin):
 
     def render(self, data: Optional[Any], params: InteractiveMapParams) -> str:
         """Generate the HTML for the interactive map. Accepts DataFrame or parsed GeoJSON dict."""
-        logger.debug("MAIN RENDER CALLED - data type: %s", type(data))
 
         # Early return if no data
         if data is None:
-            logger.debug("No data provided to interactive map widget")
             return "<div class='alert alert-warning'>No valid map data available.</div>"
 
         # If multi-layer map configuration is provided AND we have shape_coords in data (shape group)
         if params.layers and isinstance(data, dict) and "shape_coords" in data:
-            logger.debug("Using multi-layer map with %s layers", len(params.layers))
             try:
                 result = self._render_multi_layer_map(data, params)
                 return result
             except Exception as e:
-                logger.error(
-                    "Error rendering multi-layer map: %s", str(e), exc_info=True
-                )
                 return (
                     "<div class='alert alert-danger'>Failed to render multi-layer map: %s</div>"
                     % str(e)
                 )
 
         # For other groups (taxon, plot, etc.), use the original rendering approach
-        logger.debug("Using standard rendering approach (not multi-layer)")
 
         # Handle DataFrame input
         df_plot = None
@@ -299,9 +679,6 @@ class InteractiveMapWidget(WidgetPlugin):
                 and isinstance(data["shape_coords"], dict)
                 and data["shape_coords"].get("type") == "Topology"
             ):
-                logger.debug(
-                    "Received dict data, attempting to parse shape_coords as TopoJSON."
-                )
                 try:
                     topo_data = data["shape_coords"]
                     # Convert TopoJSON to GeoJSON FeatureCollection. Requires object name ('data' in this case).
@@ -309,9 +686,6 @@ class InteractiveMapWidget(WidgetPlugin):
                     geojson_str = topojson.Topology(
                         topo_data, object_name="data"
                     ).to_geojson()
-                    logger.debug(
-                        "Successfully converted shape_coords TopoJSON to GeoJSON"
-                    )
                     geojson_plot_data = json.loads(geojson_str)  # Parse string to dict
                     map_mode = "choropleth_outline"
                     # Create a dummy DataFrame needed by choropleth_map
@@ -329,15 +703,11 @@ class InteractiveMapWidget(WidgetPlugin):
                             and isinstance(data["forest_cover_coords"], dict)
                             and data["forest_cover_coords"].get("type") == "Topology"
                         ):
-                            logger.debug("Processing forest_cover_coords as TopoJSON")
                             try:
                                 forest_topo_data = data["forest_cover_coords"]
                                 forest_geojson_str = topojson.Topology(
                                     forest_topo_data, object_name="data"
                                 ).to_geojson()
-                                logger.debug(
-                                    "Successfully converted forest_cover_coords TopoJSON to GeoJSON"
-                                )
                                 forest_geojson_data = json.loads(forest_geojson_str)
                                 # Add forest data as an additional feature with distinct ID
                                 if forest_geojson_data and forest_geojson_data.get(
@@ -379,16 +749,13 @@ class InteractiveMapWidget(WidgetPlugin):
                     map_mode = "scatter"
             # If not TopoJSON, attempt to parse as GeoJSON Point FeatureCollection
             elif map_mode == "scatter":  # Only try if not already handled as TopoJSON
-                logger.debug(
-                    "Received dict data, attempting to parse as GeoJSON points."
-                )
                 df_plot = self._parse_geojson_points(data)
                 if df_plot is None:  # Parsing failed
                     logger.warning("Failed to parse dict data as GeoJSON points.")
                 # map_mode remains 'scatter'
 
         # If after processing, we don't have a valid DataFrame for plotting, exit
-        # Exception: for choropleth_outline, df_plot might be dummy, but geojson_plot_data must exist
+        # Exception: for choropleth_outline, df_plot is dummy, but geojson_plot_data must exist
         if (df_plot is None or df_plot.empty) and map_mode != "choropleth_outline":
             """ logger.warning(
                 "No data or invalid data type provided to InteractiveMapWidget (expected non-empty DataFrame or parseable GeoJSON/TopoJSON dict)."
@@ -558,7 +925,7 @@ class InteractiveMapWidget(WidgetPlugin):
                         else "layer"
                         if "layer" in df_plot.columns
                         else "value",
-                        color_discrete_map={"shape": "#1fb99d", "forest": "#228b22"}
+                        color_discrete_map={"shape": "#2d5016", "forest": "#228b22"}
                         if "layer" in df_plot.columns
                         else params.color_discrete_map,
                         hover_name=params.hover_name,
@@ -650,28 +1017,16 @@ class InteractiveMapWidget(WidgetPlugin):
                         if params.map_style
                         else "carto-positron",
                     )
-                html_content = fig.to_html(
-                    full_html=False,
-                    include_plotlyjs="cdn",
-                    config={
-                        "displayModeBar": True,
-                        "displaylogo": False,  # Remove Plotly logo
-                        "modeBarButtonsToRemove": [
-                            "sendDataToCloud"
-                        ],  # Remove cloud button
-                        "toImageButtonOptions": {
-                            "format": "png",
-                            "filename": "niamoto_map",
-                            "height": 500,
-                            "width": 700,
-                        },
-                    },
-                )
+                # Use centralized render function
+                custom_config = get_plotly_config()
+                custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
+                html_content = render_plotly_figure(fig, custom_config)
                 attribution_class = (
                     " hide-attribution" if not params.show_attribution else ""
                 )
+
                 return (
-                    """<div class="widget map-widget%s"><div class="map-container">%s</div></div>"""
+                    """<div class="map-widget%s"><div class="map-container">%s</div></div>"""
                     % (attribution_class, html_content)
                 )
             else:
@@ -683,19 +1038,13 @@ class InteractiveMapWidget(WidgetPlugin):
 
     def _render_multi_layer_map(self, data: dict, params: InteractiveMapParams) -> str:
         """Render a multi-layer map based on the configuration in params.layers."""
-        logger.debug("RENDER_MULTI_LAYER_MAP CALLED")
-        logger.debug(
-            "Data keys: %s", data.keys() if isinstance(data, dict) else "Not a dict"
-        )
-        logger.debug("Params has layers: %s", params.layers is not None)
-        logger.debug("Number of layers: %s", len(params.layers) if params.layers else 0)
 
         # Si aucune couche n'est définie, on ne peut pas rendre la carte
         if not params.layers:
-            logger.debug("ERROR - No layers defined in params")
             return "<div class='alert alert-warning'>No layers defined for interactive map.</div>"
 
-        logger.debug("-" * 50)
+        # Store data for TopoJSON embedding (if use_topojson is enabled)
+        topojson_data = {}
 
         # Extract shape and forest coordinates from data dictionary if present
         shape_geojson = None
@@ -714,68 +1063,91 @@ class InteractiveMapWidget(WidgetPlugin):
 
             # Extract source data
             source_data = data.get(source_key) if isinstance(data, dict) else None
-            logger.debug(
-                "Processing layer with source_key=%s, data found: %s",
-                source_key,
-                source_data is not None,
-            )
             if source_data is None:
-                logger.debug("No data found for source_key=%s", source_key)
                 continue
 
             # Store relevant GeoJSON and styles for shape and forest
             if source_key == "shape_coords":
-                logger.debug(
-                    "Processing shape_coords, data type: %s", type(source_data)
-                )
                 try:
-                    shape_geojson = self._process_geojson_or_topojson(source_data)
-                    logger.debug(
-                        "Processed shape_coords successfully: %s",
-                        shape_geojson is not None,
-                    )
-                    if shape_geojson:
-                        logger.debug(
-                            "Shape GeoJSON type: %s, features: %s",
-                            shape_geojson.get("type"),
-                            len(shape_geojson.get("features", [])),
-                        )
+                    processed_data = self._process_geojson_or_topojson(source_data)
+
+                    if params.use_topojson:
+                        # For TopoJSON mode: optimize if needed and store for client-side conversion
+                        if processed_data and processed_data.get("type") == "Topology":
+                            topojson_data[source_key] = processed_data
+                            shape_geojson = processed_data  # Keep TopoJSON for client-side conversion
+                        elif processed_data:
+                            # Convert to TopoJSON for optimization
+                            optimized_data = self._optimize_geojson_to_topojson(
+                                processed_data
+                            )
+                            topojson_data[source_key] = optimized_data
+                            shape_geojson = optimized_data  # Keep TopoJSON for client-side conversion
+                    else:
+                        # Regular mode: use GeoJSON directly
+                        shape_geojson = processed_data
+
                 except Exception as e:
                     logger.error("Error processing shape_coords: %s", str(e))
                 shape_style = layer_style
-                logger.debug("Shape style: %s", shape_style)
 
             elif source_key == "forest_cover_coords":
-                logger.debug(
-                    "Processing forest_cover_coords, data type: %s", type(source_data)
-                )
                 try:
-                    forest_geojson = self._process_geojson_or_topojson(source_data)
-                    logger.debug(
-                        "Processed forest_cover_coords successfully: %s",
-                        forest_geojson is not None,
-                    )
-                    if forest_geojson:
-                        logger.debug(
-                            "Forest GeoJSON type: %s, features: %s",
-                            forest_geojson.get("type"),
-                            len(forest_geojson.get("features", [])),
-                        )
+                    processed_data = self._process_geojson_or_topojson(source_data)
+
+                    if params.use_topojson:
+                        # For TopoJSON mode: optimize if needed and store for client-side conversion
+                        if processed_data and processed_data.get("type") == "Topology":
+                            topojson_data[source_key] = processed_data
+                            forest_geojson = processed_data  # Keep TopoJSON for client-side conversion
+                        elif processed_data:
+                            # Convert to TopoJSON for optimization
+                            optimized_data = self._optimize_geojson_to_topojson(
+                                processed_data
+                            )
+                            topojson_data[source_key] = optimized_data
+                            forest_geojson = optimized_data  # Keep TopoJSON for client-side conversion
+                    else:
+                        # Regular mode: use GeoJSON directly
+                        forest_geojson = processed_data
+
                 except Exception as e:
                     logger.error("Error processing forest_cover_coords: %s", str(e))
                 forest_style = layer_style
-                logger.debug("Forest style: %s", forest_style)
 
-        # Create base figure
+        # Handle TopoJSON mode with client-side rendering
+        if params.use_topojson and topojson_data:
+            return self._render_client_side_topojson_map(
+                topojson_data, shape_style, forest_style, params
+            )
 
+        # Create base figure for regular GeoJSON mode
         fig = go.Figure()
 
         # Add forest cover layer if available
         if forest_geojson:
             try:
+                # Handle both GeoJSON and TopoJSON formats
+                if forest_geojson.get("type") == "Topology":
+                    # For TopoJSON, we'll need to handle this in JavaScript
+                    # For now, convert back to GeoJSON for Plotly
+                    objects_keys = list(forest_geojson.get("objects", {}).keys())
+                    if objects_keys:
+                        object_name = objects_keys[0]
+                        topology = topojson.Topology(
+                            forest_geojson, object_name=object_name
+                        )
+                        geojson_str = topology.to_geojson()
+                        forest_geojson_for_plotly = json.loads(geojson_str)
+                    else:
+                        forest_geojson_for_plotly = forest_geojson
+                else:
+                    forest_geojson_for_plotly = forest_geojson
+
                 # Create matching DataFrame for feature IDs
                 forest_ids = [
-                    feature.get("id") for feature in forest_geojson.get("features", [])
+                    feature.get("id")
+                    for feature in forest_geojson_for_plotly.get("features", [])
                 ]
                 forest_df = pd.DataFrame(
                     {"id": forest_ids, "value": [1] * len(forest_ids)}
@@ -787,9 +1159,9 @@ class InteractiveMapWidget(WidgetPlugin):
                 )  # Default to forest green
                 forest_opacity = forest_style.get("fillOpacity", 0.8)
 
-                # Add forest layer
+                # Add forest layer (using GeoJSON for Plotly)
                 fig.add_choroplethmap(
-                    geojson=forest_geojson,
+                    geojson=forest_geojson_for_plotly,
                     locations=forest_df["id"],
                     z=forest_df["value"],
                     featureidkey="id",
@@ -800,14 +1172,27 @@ class InteractiveMapWidget(WidgetPlugin):
                     marker_line_color=forest_color,
                     name="Forest Cover",
                 )
-                logger.debug("Successfully added forest layer to the figure")
             except Exception as e:
                 logger.error("Error adding forest layer: %s", str(e), exc_info=True)
 
         # Add shape boundary layer (without fill) - AFTER the forest layer to ensure it's on top
         if shape_geojson:
+            # Handle both GeoJSON and TopoJSON formats
+            if shape_geojson.get("type") == "Topology":
+                # Convert TopoJSON to GeoJSON for Plotly rendering
+                objects_keys = list(shape_geojson.get("objects", {}).keys())
+                if objects_keys:
+                    object_name = objects_keys[0]
+                    topology = topojson.Topology(shape_geojson, object_name=object_name)
+                    geojson_str = topology.to_geojson()
+                    shape_geojson_for_plotly = json.loads(geojson_str)
+                else:
+                    shape_geojson_for_plotly = shape_geojson
+            else:
+                shape_geojson_for_plotly = shape_geojson
+
             # Use style from configuration instead of hardcoded values
-            shape_color = shape_style.get("color", "#1fb99d")
+            shape_color = shape_style.get("color", "#2d5016")
             shape_width = shape_style.get("weight", 2)
 
             logger.debug(
@@ -818,7 +1203,7 @@ class InteractiveMapWidget(WidgetPlugin):
 
             # Extract coordinates from GeoJSON to create line traces
             try:
-                for feature in shape_geojson.get("features", []):
+                for feature in shape_geojson_for_plotly.get("features", []):
                     # Process geometry based on its type
                     geometry_type = feature.get("geometry", {}).get("type", "")
                     coordinates = feature.get("geometry", {}).get("coordinates", [])
@@ -1027,63 +1412,19 @@ class InteractiveMapWidget(WidgetPlugin):
 
         # Generate HTML
         try:
-            logger.debug("About to generate HTML")
-            if params.title or params.description:
-                title_elements = []
-                if params.title:
-                    title_elements.append("<h3>%s</h3>" % params.title)
-                if params.description:
-                    title_elements.append("<p>%s</p>" % params.description)
+            # Use centralized render function
+            custom_config = get_plotly_config()
+            custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
+            map_html = render_plotly_figure(fig, custom_config)
+            attribution_class = (
+                " hide-attribution" if not params.show_attribution else ""
+            )
 
-                title_html = "".join(title_elements)
-                map_html = fig.to_html(
-                    full_html=False,
-                    include_plotlyjs="cdn",
-                    config={
-                        "displayModeBar": True,
-                        "displaylogo": False,  # Remove Plotly logo
-                        "modeBarButtonsToRemove": [
-                            "sendDataToCloud"
-                        ],  # Remove cloud button
-                        "toImageButtonOptions": {
-                            "format": "png",
-                            "filename": "niamoto_map",
-                            "height": 500,
-                            "width": 700,
-                        },
-                    },
-                )
-                attribution_class = (
-                    " hide-attribution" if not params.show_attribution else ""
-                )
-                return """
-                <div class="widget map-widget%s">
-                    %s
-                    <div class="map-container">
-                        %s
-                    </div>
-                </div>
-                """ % (attribution_class, title_html, map_html)
-            else:
-                return fig.to_html(
-                    full_html=False,
-                    include_plotlyjs="cdn",
-                    config={
-                        "displayModeBar": True,
-                        "displaylogo": False,  # Remove Plotly logo
-                        "modeBarButtonsToRemove": [
-                            "sendDataToCloud"
-                        ],  # Remove cloud button
-                        "toImageButtonOptions": {
-                            "format": "png",
-                            "filename": "niamoto_map",
-                            "height": 500,
-                            "width": 700,
-                        },
-                    },
-                )
+            return (
+                """<div class="map-widget%s"><div class="map-container">%s</div></div>"""
+                % (attribution_class, map_html)
+            )
 
         except Exception as e:
             logger.error("Error generating HTML: %s", str(e), exc_info=True)
-            logger.debug("Exception generating HTML: %s", str(e))
             return "<p class='error'>Failed to generate map HTML.</p>"

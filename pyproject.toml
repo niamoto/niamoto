@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niamoto"
-version = "0.5.1"
+version = "0.5.2"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -221,4 +221,11 @@ dev = [
     "ipython>=8.17.2",
     "setuptools>=75.8.0",
     "bump2version>=1.0.1"
+]
+
+[dependency-groups]
+dev = [
+    "bump2version>=1.0.1",
+    "pre-commit>=4.1.0",
+    "tox>=4.26.0",
 ]

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Set
 
 import pandas as pd
 import plotly.express as px
@@ -7,8 +7,78 @@ from pydantic import BaseModel, Field
 
 from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.widgets.plotly_utils import (
+    apply_plotly_defaults,
+    render_plotly_figure,
+    get_plotly_dependencies,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert hex color to RGB."""
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def rgb_to_hex(r: int, g: int, b: int) -> str:
+    """Convert RGB to hex."""
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def generate_gradient_colors(
+    base_color: str, count: int, mode: str = "luminance"
+) -> List[str]:
+    """Generate a gradient of colors based on a base color.
+
+    Args:
+        base_color: Base color in hex format (e.g., '#1fb99d')
+        count: Number of colors to generate
+        mode: Gradient mode - 'luminance' (light to dark) or 'saturation' (saturated to pale)
+
+    Returns:
+        List of hex color strings forming a gradient
+    """
+    if count <= 0:
+        return []
+
+    if count == 1:
+        return [base_color]
+
+    # Convert base color to RGB
+    r, g, b = hex_to_rgb(base_color)
+
+    colors = []
+
+    if mode == "luminance":
+        # Create gradient from lighter to darker
+        for i in range(count):
+            # Calculate factor: 0.3 (lightest) to 1.0 (original color)
+            factor = 0.3 + (0.7 * i / (count - 1))
+
+            # Apply factor to create gradient
+            new_r = int(r * factor + 255 * (1 - factor))
+            new_g = int(g * factor + 255 * (1 - factor))
+            new_b = int(b * factor + 255 * (1 - factor))
+
+            colors.append(rgb_to_hex(new_r, new_g, new_b))
+
+    elif mode == "saturation":
+        # Create gradient from saturated to pale
+        for i in range(count):
+            # Calculate factor: 1.0 (full saturation) to 0.3 (pale)
+            factor = 1.0 - (0.7 * i / (count - 1))
+
+            # Mix with gray to reduce saturation
+            gray = 128
+            new_r = int(r * factor + gray * (1 - factor))
+            new_g = int(g * factor + gray * (1 - factor))
+            new_b = int(b * factor + gray * (1 - factor))
+
+            colors.append(rgb_to_hex(new_r, new_g, new_b))
+
+    return colors
 
 
 def generate_colors(count: int) -> List[str]:
@@ -127,6 +197,24 @@ class BarPlotParams(BaseModel):
     auto_color: bool = Field(
         False, description="Automatically generate harmonious colors for each bar"
     )
+    gradient_color: Optional[str] = Field(
+        None,
+        description="Base color for gradient generation (e.g., '#1fb99d'). Overrides auto_color if set",
+    )
+    gradient_mode: Optional[str] = Field(
+        "luminance",
+        description="Gradient mode: 'luminance' (light to dark) or 'saturation' (saturated to pale)",
+    )
+    bar_width: Optional[float] = Field(
+        None,
+        description="Width of bars (0.0 to 1.0). If None, width is calculated automatically based on data count",
+    )
+    filter_zero_values: bool = Field(
+        False, description="Remove bars with zero or null values from the plot"
+    )
+    show_legend: bool = Field(
+        True, description="Show or hide the legend. Default is True to show the legend"
+    )
 
 
 @register("bar_plot", PluginType.WIDGET)
@@ -135,9 +223,9 @@ class BarPlotWidget(WidgetPlugin):
 
     param_schema = BarPlotParams  # Correct name for validation
 
-    def get_dependencies(self) -> List[str]:
-        """Return the list of CSS/JS dependencies. Plotly is handled centrally."""
-        return []
+    def get_dependencies(self) -> Set[str]:
+        """Return the set of CSS/JS dependencies."""
+        return get_plotly_dependencies()
 
     def render(self, data: Optional[Any], params: BarPlotParams) -> str:
         """Generate the HTML for the bar plot."""
@@ -207,6 +295,15 @@ class BarPlotWidget(WidgetPlugin):
         # Create a copy to avoid modifying the original
         df_plot = processed_data.copy()
 
+        # Filter zero values if requested
+        if params.filter_zero_values:
+            # Remove rows where y-axis value is 0 or null
+            mask = pd.notna(df_plot[params.y_axis]) & (df_plot[params.y_axis] != 0)
+            df_plot = df_plot[mask]
+            logger.debug(
+                f"Filtered {len(processed_data) - len(df_plot)} zero/null values from data"
+            )
+
         # Apply sorting if specified
         if params.sort_order:
             ascending = params.sort_order == "ascending"
@@ -247,7 +344,35 @@ class BarPlotWidget(WidgetPlugin):
             color_discrete_sequence = None
             color_discrete_map = params.color_discrete_map
 
-            if params.auto_color and not params.color_field:
+            # Check if gradient color is specified
+            if params.gradient_color and not params.color_field:
+                # For gradient coloring without grouping, we need to create a color field
+                # that assigns each bar its own category
+                if params.orientation == "h":
+                    # For horizontal bars, each y-axis value gets its own color
+                    category_field = params.y_axis
+                else:
+                    # For vertical bars, each x-axis value gets its own color
+                    category_field = params.x_axis
+
+                # Create a temporary color field that's just a copy of the category field
+                df_plot["_gradient_color"] = df_plot[category_field].astype(str)
+                color_field = "_gradient_color"
+
+                # Generate gradient colors based on unique categories
+                unique_categories = df_plot[category_field].unique()
+                num_categories = len(unique_categories)
+                generated_colors = generate_gradient_colors(
+                    params.gradient_color, num_categories, params.gradient_mode
+                )
+
+                # Create a color mapping
+                color_discrete_map = {
+                    str(cat): color
+                    for cat, color in zip(unique_categories, generated_colors)
+                }
+
+            elif params.auto_color and not params.color_field:
                 # For auto-coloring without grouping, we need to create a color field
                 # that assigns each bar its own category
                 if params.orientation == "h":
@@ -292,7 +417,6 @@ class BarPlotWidget(WidgetPlugin):
 
             # Additional layout updates if needed (e.g., axis titles if not covered by labels)
             layout_updates = {
-                "margin": {"r": 10, "t": 30, "l": 10, "b": 10},  # Adjust margins
                 "xaxis_title": params.labels.get(params.x_axis)
                 if params.labels
                 else params.x_axis,
@@ -301,26 +425,43 @@ class BarPlotWidget(WidgetPlugin):
                 else params.y_axis,
             }
 
-            # Handle legend for auto-coloring
-            if params.auto_color and not params.color_field:
+            # Handle legend visibility
+            if not params.show_legend:
+                # User explicitly wants to hide the legend
+                layout_updates["showlegend"] = False
+            elif params.auto_color and not params.color_field:
                 # Hide legend when auto-coloring since it would duplicate the axis labels
                 layout_updates["showlegend"] = False
             else:
-                # Keep legend title for regular color fields
+                # Show legend with proper title for regular color fields
+                layout_updates["showlegend"] = True
                 layout_updates["legend_title_text"] = (
                     params.labels.get(params.color_field)
                     if params.labels and params.color_field
                     else params.color_field
                 )
 
-            fig.update_layout(**layout_updates)
+            # Apply Plotly defaults (includes watermark removal)
+            apply_plotly_defaults(fig, layout_updates)
 
-            # Increase bar width for better visibility
-            fig.update_traces(width=0.6)
+            # Calculate and set bar width for better visibility
+            bar_width = params.bar_width
+            if bar_width is None:
+                # Auto-calculate width based on number of bars
+                num_bars = len(df_plot)
+                if num_bars <= 5:
+                    bar_width = 0.8
+                elif num_bars <= 10:
+                    bar_width = 0.6
+                elif num_bars <= 20:
+                    bar_width = 0.4
+                else:
+                    bar_width = 0.3
 
-            # Render figure to HTML
-            html_content = fig.to_html(full_html=False, include_plotlyjs="cdn")
-            return html_content
+            fig.update_traces(width=bar_width)
+
+            # Render figure to HTML with standard config
+            return render_plotly_figure(fig)
 
         except Exception as e:
             logger.exception("Error rendering BarPlotWidget: {}".format(e))

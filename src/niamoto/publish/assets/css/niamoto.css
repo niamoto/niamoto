@@ -3,300 +3,620 @@
 
 /* Smooth scrolling */
 html {
-  scroll-behavior: smooth;
+    scroll-behavior: smooth;
 }
 
 /* Base transitions */
 .transition-base {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+    transition-property:
+        background-color, border-color, color, fill, stroke, opacity,
+        box-shadow, transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
 }
 
 /* Widget containers and layout */
 .widget-container {
-  background-color: white;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  overflow: hidden;
+    background-color: white;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    overflow: hidden;
 }
 
 .widget-container:hover {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Modern widget styling */
+.widget-modern {
+    background-color: white;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    overflow: visible; /* Changed from hidden to visible for tooltips */
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.widget-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.widget-modern .widget-content {
+    padding: 20px;
+    background-color: white;
+    overflow: visible; /* Allow tooltips to overflow */
+    position: relative;
 }
 
 .widget-header {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  background-color: #f9fafb;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    background-color: #f9fafb;
 }
 
 .widget-title {
-  font-size: 1rem;
-  font-weight: 500;
-  color: #111827;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #111827;
 }
 
 .widget-content {
-  padding: 1rem;
+    padding: 1rem;
 }
 
 /* Grid system for widgets */
 .widget-grid {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.5rem;
 }
 
-.widget-col-12 { grid-column: span 12; }
-.widget-col-6 { grid-column: span 6; }
-.widget-col-4 { grid-column: span 4; }
-.widget-col-3 { grid-column: span 3; }
+.widget-col-12 {
+    grid-column: span 12;
+}
+.widget-col-6 {
+    grid-column: span 6;
+}
+.widget-col-4 {
+    grid-column: span 4;
+}
+.widget-col-3 {
+    grid-column: span 3;
+}
 
 @media (max-width: 1024px) {
-  .widget-col-6 { grid-column: span 12; }
-  .widget-col-4 { grid-column: span 6; }
-  .widget-col-3 { grid-column: span 6; }
+    .widget-col-6 {
+        grid-column: span 12;
+    }
+    .widget-col-4 {
+        grid-column: span 6;
+    }
+    .widget-col-3 {
+        grid-column: span 6;
+    }
 }
 
 @media (max-width: 640px) {
-  .widget-col-4,
-  .widget-col-3 { grid-column: span 12; }
+    .widget-col-4,
+    .widget-col-3 {
+        grid-column: span 12;
+    }
 }
 
 /* Sidebar navigation */
 .sidebar-nav {
-  background-color: white;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  padding: 1rem;
-  max-height: calc(100vh - 6rem);
-  overflow-y: auto;
+    background-color: white;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    padding: 1rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
 }
 
 .sidebar-nav::-webkit-scrollbar {
-  width: 6px;
+    width: 6px;
 }
 
 .sidebar-nav::-webkit-scrollbar-track {
-  background-color: #f3f4f6;
+    background-color: #f3f4f6;
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background-color: #9ca3af;
-  border-radius: 3px;
+    background-color: #9ca3af;
+    border-radius: 3px;
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background-color: #6b7280;
+    background-color: #6b7280;
 }
 
 /* Navigation links */
 .nav-link {
-  color: #4b5563;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  text-decoration: none;
-  display: block;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+    display: block;
 }
 
 .nav-link:hover {
-  color: #111827;
-  background-color: #f3f4f6;
+    background-color: #f3f4f6;
 }
 
 .nav-link-active {
-  color: #111827;
-  background-color: #f3f4f6;
+    color: #111827;
+    background-color: #f3f4f6;
 }
 
 /* Cards */
 .card {
-  background-color: white;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    background-color: white;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .card-header {
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .card-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
 }
 
 .card-content {
-  padding: 1.5rem;
+    padding: 1.5rem;
 }
 
 /* Info Grid */
 .info-grid {
-  display: grid;
-  gap: 1rem;
+    display: grid;
+    gap: 1rem;
 }
 
 .info-grid-item {
-  background-color: #f9fafb;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  border: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
 }
 
 .info-grid-label {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
 }
 
 .info-grid-value {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
 }
 
 /* Search Input */
 .search-input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .search-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(31, 185, 157, 0.1);
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(31, 185, 157, 0.1);
 }
 
 /* Chart containers */
 .chart-container {
-  position: relative;
-  height: 400px;
-  width: 100%;
+    position: relative;
+    height: 400px;
+    width: 100%;
 }
 
 .chart-container.small {
-  height: 300px;
+    height: 300px;
 }
 
 .chart-container.large {
-  height: 500px;
+    height: 500px;
 }
 
 /* Loading states */
 .loading {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  background-color: #e5e7eb;
-  border-radius: 0.375rem;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    background-color: #e5e7eb;
+    border-radius: 0.375rem;
 }
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: .5;
-  }
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
 }
 
 .loading-spinner {
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid #e5e7eb;
-  border-top-color: #2563eb;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Utility classes */
 .truncate-2 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .truncate-3 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
 }
 
 /* Responsive visibility */
 @media (max-width: 768px) {
-  .hide-mobile {
-    display: none;
-  }
+    .hide-mobile {
+        display: none;
+    }
 }
 
 @media (min-width: 769px) {
-  .show-mobile {
-    display: none;
-  }
+    .show-mobile {
+        display: none;
+    }
 }
 
 /* Interactive Map Widget Styles */
 .map-widget {
-  position: relative;
-}
-
-/* Hide map attribution when configured */
-.map-widget.hide-attribution .leaflet-control-attribution,
-.map-widget.hide-attribution .mapboxgl-ctrl-attrib,
-.map-widget.hide-attribution .plotly-notifier,
-.map-widget.hide-attribution .modebar-btn[data-title*="plotly"],
-.map-widget.hide-attribution .js-plotly-plot .plotly .modebar-btn[data-title*="plotly"],
-.map-widget.hide-attribution .cartodb-attribution,
-.map-widget.hide-attribution [class*="attribution"],
-.map-widget.hide-attribution .maplibregl-ctrl-attrib {
-  display: none !important;
-}
-
-/* Par défaut, cacher l'attribution pour toutes les cartes */
-.map-widget .leaflet-control-attribution,
-.map-widget .mapboxgl-ctrl-attrib,
-.map-widget .plotly-notifier,
-.map-widget .cartodb-attribution,
-.map-widget [class*="attribution"],
-.map-widget .maplibregl-ctrl-attrib {
-  display: none !important;
-}
-
-/* Better positioning for map controls */
-.map-widget .mapboxgl-ctrl-bottom-right,
-.map-widget .leaflet-bottom {
-  bottom: 10px;
-  right: 10px;
-}
-
-/* Fix attribution display on small screens */
-.map-widget .mapboxgl-ctrl-attrib {
-  background-color: rgba(255, 255, 255, 0.8);
-  padding: 2px 5px;
-  font-size: 10px;
+    position: relative;
 }
 
 /* Ensure map container has proper height */
 .map-container {
-  min-height: 400px;
-  height: 500px;
+    min-height: 400px;
+    height: 500px;
+}
+
+/* Modern Widget Header Styles */
+.widget-header-modern {
+    background: linear-gradient(135deg, #228b22 0%, #2d8f47 50%, #1f7a1f 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+    padding: 16px 20px;
+    border-radius: 12px 12px 0 0;
+    margin: -1px -1px 0 -1px; /* Align with widget border */
+    position: relative;
+    overflow: visible; /* Changed to visible for tooltips */
+    z-index: 10; /* Ensure header is above content */
+}
+
+.widget-header-modern::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+    pointer-events: none;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.widget-title-modern {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 1;
+}
+
+/* Info Tooltip Styles */
+.info-tooltip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+    transition: all 0.2s ease;
+    opacity: 0.8;
+}
+
+.info-tooltip:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.info-tooltip svg {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+/* Tooltip text element */
+.tooltip-text {
+    position: absolute;
+    visibility: hidden;
+    opacity: 0;
+    background: white;
+    color: #374151;
+    font-size: 14px;
+    font-weight: 400;
+    padding: 12px 16px;
+    border-radius: 8px;
+    white-space: normal;
+    max-width: 350px;
+    min-width: 200px;
+    word-wrap: break-word;
+    text-align: left;
+    line-height: 1.6;
+    box-shadow:
+        0 10px 25px rgba(0, 0, 0, 0.12),
+        0 4px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    top: calc(100% + 20px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-5px);
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 9999; /* Very high z-index */
+    pointer-events: none;
+}
+
+/* Arrow for tooltip */
+.tooltip-text::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-bottom-color: white;
+    filter: drop-shadow(0 -2px 2px rgba(0, 0, 0, 0.06));
+}
+
+/* Show tooltip on hover */
+.info-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Alternative color schemes for variety - Green-based palette */
+.widget:nth-child(2n) .widget-header-modern {
+    background: linear-gradient(135deg, #228b22 0%, #32a852 50%, #1e7e1e 100%);
+}
+
+.widget:nth-child(3n) .widget-header-modern {
+    background: linear-gradient(135deg, #2d8b47 0%, #228b22 50%, #5cb85c 100%);
+}
+
+.widget:nth-child(4n) .widget-header-modern {
+    background: linear-gradient(135deg, #1f7a1f 0%, #228b22 50%, #3e9b3e 100%);
+}
+
+.widget:nth-child(5n) .widget-header-modern {
+    background: linear-gradient(135deg, #228b22 0%, #4caf50 50%, #2e7d32 100%);
+}
+
+.widget:nth-child(6n) .widget-header-modern {
+    background: linear-gradient(135deg, #388e3c 0%, #228b22 50%, #1b5e20 100%);
+}
+
+.widget:nth-child(7n) .widget-header-modern {
+    background: linear-gradient(135deg, #228b22 0%, #66bb6a 50%, #2e7d32 100%);
+}
+
+.widget:nth-child(8n) .widget-header-modern {
+    background: linear-gradient(135deg, #43a047 0%, #228b22 50%, #1b5e20 100%);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .widget-header-modern {
+        padding: 12px 16px;
+    }
+
+    .widget-title-modern {
+        font-size: 14px;
+    }
+
+    .info-tooltip::before {
+        max-width: 280px;
+        font-size: 13px;
+        padding: 10px 14px;
+    }
+
+    .info-tooltip svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .widget-header-modern {
+        background: linear-gradient(135deg, #1b5e20 0%, #228b22 50%, #2e7d32 100%);
+    }
+
+    .info-tooltip::before {
+        background: #1a202c;
+        color: #e5e7eb;
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .info-tooltip::after {
+        border-bottom-color: #1a202c;
+    }
+}
+
+/* Plotly Modebar Styling - Elegant horizontal toolbar */
+.js-plotly-plot .modebar-container {
+    position: absolute !important;
+    top: -30px !important;
+    right: 0 !important;
+    left: auto !important;
+    background: transparent !important;
+    padding: 4px 8px !important;
+    transition: all 0.3s ease !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transform: translateY(-5px) !important;
+}
+
+/* Show modebar on widget hover with slight delay */
+.widget-modern:hover .js-plotly-plot .modebar-container,
+.widget-content:hover .js-plotly-plot .modebar-container,
+.js-plotly-plot:hover .modebar-container {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(15px) !important;
+    transition-delay: 0.2s !important; /* Small delay before showing */
+}
+
+
+/* Modebar group styling */
+.js-plotly-plot .modebar-group {
+    display: flex !important;
+    gap: 2px !important;
+    align-items: center !important;
+}
+
+/* Individual button styling */
+.js-plotly-plot .modebar-btn {
+    height: 30px !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 6px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+    opacity: 0.7 !important;
+    position: relative !important;
+}
+
+.js-plotly-plot .plotly .modebar-btn svg {
+    top: 0 !important;
+}
+
+.js-plotly-plot .modebar-btn:hover {
+    background: rgba(34, 139, 34, 0.1) !important;
+    opacity: 1 !important;
+    transform: translateY(-1px) !important;
+}
+
+.js-plotly-plot .modebar-btn:active {
+    transform: translateY(0) !important;
+}
+
+/* Icon color */
+.js-plotly-plot .modebar-btn svg {
+    fill: #228b22 !important;
+    width: 18px !important;
+    height: 18px !important;
+}
+
+.js-plotly-plot .modebar-btn:hover svg {
+    fill: #1e7e1e !important;
+}
+
+/* Add separator between button groups */
+.js-plotly-plot .modebar-group:not(:last-child)::after {
+    content: '';
+    display: block;
+    width: 1px;
+    height: 20px;
+    background: rgba(34, 139, 34, 0.2);
+    margin: 0 4px;
+}
+
+.maplibregl-ctrl-attrib {
+    display: none !important;
+}
+
+/* Ensure widget content has proper spacing */
+.widget-modern .widget-content {
+    position: relative;
+    /* Remove extra padding since modebar is hidden by default */
+}
+
+/* Hide the plotly logo/watermark but keep the modebar */
+.js-plotly-plot .plotly-notifier {
+    display: none !important;
+}
+
+/* Hide the "Produced with Plotly" watermark */
+.js-plotly-plot text[text-anchor="end"]:has-text("Produced"),
+.js-plotly-plot tspan:has-text("Produced"),
+.js-plotly-plot .infolayer .annotation:last-child text {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Responsive adjustments for modebar */
+@media (max-width: 640px) {
+    .js-plotly-plot .modebar-container {
+        top: -36px !important;
+        padding: 3px 6px !important;
+    }
+
+    .js-plotly-plot .modebar-btn {
+        padding: 4px !important;
+    }
+
+    .js-plotly-plot .modebar-btn svg {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    .widget-modern .widget-content {
+        padding-top: 45px !important;
+    }
+}
+
+/* Dark mode support for modebar */
+@media (prefers-color-scheme: dark) {
+
+    .js-plotly-plot .modebar-btn:hover {
+        background: rgba(34, 139, 34, 0.2) !important;
+    }
+
+    .js-plotly-plot .modebar-group:not(:last-child)::after {
+        background: rgba(34, 139, 34, 0.3);
+    }
 }

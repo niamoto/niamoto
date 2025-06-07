@@ -64,10 +64,27 @@ class PluginRegistry:
 
             # Check if plugin already registered
             if name in cls._plugins[actual_type]:
-                raise PluginRegistrationError(
-                    f"Plugin {name} already registered for type {actual_type.value}",
-                    details={"plugin": name, "type": actual_type.value},
-                )
+                # Check if it's the same plugin class - if so, allow it (for pipeline re-runs)
+                existing_plugin = cls._plugins[actual_type][name]
+
+                # Compare by class name and module path since reloaded modules create new class objects
+                existing_id = f"{existing_plugin.__module__}.{existing_plugin.__name__}"
+                new_id = f"{plugin_class.__module__}.{plugin_class.__name__}"
+
+                if existing_id == new_id:
+                    # Same plugin class (by module and name), skip registration
+                    return
+                else:
+                    # Different plugin class with same name - this is an error
+                    raise PluginRegistrationError(
+                        f"Plugin {name} already registered for type {actual_type.value} with different class",
+                        details={
+                            "plugin": name,
+                            "type": actual_type.value,
+                            "existing_class": existing_id,
+                            "new_class": new_id,
+                        },
+                    )
 
             # Register plugin
             cls._plugins[actual_type][name] = plugin_class

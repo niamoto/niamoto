@@ -137,6 +137,27 @@ def test_display_next_steps(capsys):
     assert "Deploy content" in captured.out
 
 
+def test_display_next_steps_includes_stats_commands(capsys):
+    """Test that display_next_steps includes the stats command and its options"""
+    display_next_steps()
+    captured = capsys.readouterr()
+
+    # Remove line breaks and extra spaces for more reliable matching
+    output = captured.out.replace("\n", " ").replace("  ", " ")
+
+    # Verify the stats exploration section is present
+    assert "Have fun exploring your data and generating insights!" in captured.out
+
+    # Verify specific stats commands are present (checking for key parts)
+    assert "niamoto stats" in output
+    assert "--detailed" in output
+    assert "--group taxon" in output
+    assert "--suggestions" in output
+    assert "--export stats.json" in output
+    assert "Display general statistics about your data" in output
+    assert "Get exploration suggestions based on your data" in output
+
+
 @patch("click.confirm")
 def test_confirm_action_yes(mock_confirm):
     """Test confirm_action when user confirms"""

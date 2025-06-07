@@ -9,7 +9,6 @@ from click.testing import CliRunner
 from niamoto.cli.commands.imports import (
     import_all,
     import_occurrences,
-    import_occurrence_plots,
     import_plots,
     import_shapes,
     import_taxonomy,
@@ -811,111 +810,6 @@ class TestImportOccurrences:
 
                 assert result.exit_code == 1
                 assert "Occurrences import failed" in result.output
-
-
-class TestImportOccurrencePlots:
-    """Tests for the import_occurrence_plots command."""
-
-    def test_import_occurrence_plots_with_file(self, runner):
-        """Test importing occurrence-plot links with explicit file."""
-        with runner.isolated_filesystem():
-            # Create a temporary CSV file with test data
-            with open("occurrence_plots.csv", "w") as f:
-                f.write("occurrence_id,plot_id\n")
-                f.write("1,10\n")
-                f.write("2,10\n")
-                f.write("3,20\n")
-
-            with (
-                mock.patch("niamoto.cli.commands.imports.Config") as mock_config,
-                mock.patch(
-                    "niamoto.cli.commands.imports.ImporterService"
-                ) as mock_importer,
-                mock.patch("niamoto.cli.commands.imports.reset_table") as mock_reset,
-            ):
-                # Configure mocks
-                config = mock_config.return_value
-                config.database_path = "/path/to/db.sqlite"
-                config.imports = {
-                    "occurrence_plots": {
-                        "path": "occurrence_plots.csv",
-                        "left_key": "occurrence_id",
-                        "right_key": "plot_id",
-                    }
-                }
-                mock_importer.return_value.import_occurrence_plot_links.return_value = (
-                    "Successfully imported 3 occurrence-plot links"
-                )
-
-                result = runner.invoke(
-                    import_occurrence_plots, ["occurrence_plots.csv"]
-                )
-
-                assert result.exit_code == 0
-                assert "Successfully imported 3 occurrence-plot links" in result.output
-                mock_reset.assert_called_once_with(
-                    "/path/to/db.sqlite", "occurrences_plots"
-                )
-                mock_importer.return_value.import_occurrence_plot_links.assert_called_once_with(
-                    "occurrence_plots.csv"
-                )
-
-    def test_import_occurrence_plots_from_config(self, runner):
-        """Test importing occurrence-plot links using configuration."""
-        with runner.isolated_filesystem():
-            # Create a temporary CSV file
-            with open("occurrence_plots.csv", "w") as f:
-                f.write("occurrence_id,plot_id\n")
-                f.write("1,10\n")
-
-            with (
-                mock.patch("niamoto.cli.commands.imports.Config") as mock_config,
-                mock.patch(
-                    "niamoto.cli.commands.imports.ImporterService"
-                ) as mock_importer,
-                mock.patch("niamoto.cli.commands.imports.reset_table") as mock_reset,
-                mock.patch(
-                    "niamoto.cli.commands.imports.get_source_path",
-                    return_value="occurrence_plots.csv",
-                ),
-            ):
-                # Configure mocks
-                config = mock_config.return_value
-                config.database_path = "/path/to/db.sqlite"
-                config.imports = {
-                    "occurrence_plots": {
-                        "path": "occurrence_plots.csv",
-                        "left_key": "occurrence_id",
-                        "right_key": "plot_id",
-                    }
-                }
-                mock_importer.return_value.import_occurrence_plot_links.return_value = (
-                    "Successfully imported 1 occurrence-plot link"
-                )
-
-                result = runner.invoke(import_occurrence_plots, [])
-
-                assert result.exit_code == 0
-                assert "Successfully imported 1 occurrence-plot link" in result.output
-                mock_reset.assert_called_once_with(
-                    "/path/to/db.sqlite", "occurrences_plots"
-                )
-                mock_importer.return_value.import_occurrence_plot_links.assert_called_once_with(
-                    "occurrence_plots.csv"
-                )
-
-    def test_import_occurrence_plots_missing_config(self, runner):
-        """Test error when occurrence_plots configuration is missing."""
-        with runner.isolated_filesystem():
-            with mock.patch("niamoto.cli.commands.imports.Config") as mock_config:
-                config = mock_config.return_value
-                config.database_path = "/path/to/db.sqlite"
-                config.imports = {}  # Empty config, missing occurrence_plots
-
-                result = runner.invoke(import_occurrence_plots, [])
-
-                assert result.exit_code == 1
-                assert "not found in configuration" in result.output
 
 
 class TestImportShapes:

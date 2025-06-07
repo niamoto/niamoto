@@ -109,8 +109,9 @@ class PluginLoader:
             )  # Go up one level from plugins directory to get project root
             if project_root not in sys.path:
                 sys.path.insert(0, project_root)
+                logger.debug(f"Added {project_root} to sys.path")
             else:
-                print(f"DEBUG: {project_root} already in sys.path")
+                logger.debug(f"Path {project_root} already in sys.path")
 
             # Load plugins for each type
             for plugin_type in PluginType:

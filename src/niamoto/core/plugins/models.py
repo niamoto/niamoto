@@ -140,6 +140,58 @@ class HtmlExporterParams(BasePluginParams):
     )
 
 
+class IndexGeneratorDisplayField(BaseModel):
+    """Configuration for a display field in the index generator."""
+
+    name: str
+    source: str  # JSON path like "general_info.name.value"
+    fallback: Optional[str] = None  # Fallback field if source is None
+    type: str = "text"  # text, select, boolean, json_array
+    label: Optional[str] = None
+    searchable: bool = False
+    format: Optional[str] = None  # badge, map, number, etc.
+    mapping: Optional[Dict[str, str]] = None  # For format="map"
+    filter_options: Optional[List[Dict[str, str]]] = None  # Static options
+    dynamic_options: bool = False  # Generate options from data
+    display: str = "normal"  # normal, hidden, image_preview
+
+
+class IndexGeneratorFilterConfig(BaseModel):
+    """Configuration for filtering items in index generator."""
+
+    field: str  # JSON path to filter on
+    values: List[Union[str, int, bool]]  # Allowed values
+    operator: str = "in"  # in, not_in, equals, etc.
+
+
+class IndexGeneratorPageConfig(BaseModel):
+    """Configuration for the page display in index generator."""
+
+    title: str
+    description: Optional[str] = None
+    items_per_page: int = 20
+
+
+class IndexGeneratorViewConfig(BaseModel):
+    """Configuration for display views in index generator."""
+
+    type: str  # grid, list
+    template: Optional[str] = None  # Optional custom template
+    default: bool = False
+
+
+class IndexGeneratorConfig(BaseModel):
+    """Complete configuration for the index generator."""
+
+    enabled: bool = True
+    template: str = "group_index.html"
+    page_config: IndexGeneratorPageConfig
+    filters: Optional[List[IndexGeneratorFilterConfig]] = None
+    display_fields: List[IndexGeneratorDisplayField]
+    views: Optional[List[IndexGeneratorViewConfig]] = None
+    output_pattern: str = "{group_by}/{id}.html"  # Pattern for detail links
+
+
 class GroupConfigWeb(BaseModel):
     """Configuration for a group within a 'web_pages' target."""
 
@@ -150,6 +202,7 @@ class GroupConfigWeb(BaseModel):
     output_pattern: str
     index_output_pattern: str
     widgets: List[WidgetConfig]
+    index_generator: Optional[IndexGeneratorConfig] = None  # New index generator config
 
 
 # --- Models for JSON API Exporter ('json_api_exporter') ---

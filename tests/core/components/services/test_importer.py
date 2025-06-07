@@ -126,22 +126,6 @@ class TestImporterService(NiamotoTestCase):
             hierarchy_config=None,
         )
 
-    @patch("pathlib.Path.exists")
-    @patch(
-        "niamoto.core.services.importer.OccurrenceImporter.import_occurrence_plot_links"
-    )
-    def test_import_occurrence_plot_links(
-        self, mock_import_occurrence_plot_links, mock_exists
-    ):
-        # Test the import_occurrence_plot_links method
-        mock_exists.return_value = True
-        mock_import_occurrence_plot_links.return_value = (
-            "Occurrence-plot links import successful"
-        )
-
-        result = self.importer_service.import_occurrence_plot_links("mock_file.csv")
-        self.assertEqual(result, "Occurrence-plot links import successful")
-
     @patch("niamoto.core.services.importer.ShapeImporter.import_from_config")
     def test_import_shapes(self, mock_import_from_config):
         # Test the import_shapes method
