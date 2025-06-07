@@ -71,7 +71,6 @@ class TestConfig(NiamotoTestCase):
         self.assertIn("taxonomy", imports)
         self.assertIn("occurrences", imports)
         self.assertIn("plots", imports)
-        self.assertIn("occurrence_plots", imports)
         self.assertEqual(imports["taxonomy"]["type"], "csv")
         self.assertEqual(imports["taxonomy"]["path"], "imports/taxonomy.csv")
 

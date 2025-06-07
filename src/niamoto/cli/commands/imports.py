@@ -331,44 +331,6 @@ def import_occurrences(
         ) from e
 
 
-@import_commands.command(name="occurrence-plots")
-@click.argument("csvfile", required=False)
-@error_handler(log=True, raise_error=True)
-def import_occurrence_plots(csvfile: Optional[str]) -> None:
-    """
-    Import occurrence-plot links from a CSV file.
-
-    If no file is provided, uses the path from import.yml.
-
-    Raises:
-        ConfigurationError: If configuration is invalid
-        ValidationError: If required fields are missing
-        FileError: If file is not found or invalid
-        DataImportError: If import operation fails
-    """
-    config = Config()
-    sources = config.imports
-
-    validate_source_config(
-        sources, "occurrence_plots", ["path", "left_key", "right_key"]
-    )
-
-    file_path = csvfile or get_source_path(config, "occurrence_plots")
-
-    db_path = config.database_path
-    importer = ImporterService(db_path)
-    reset_table(db_path, "occurrences_plots")
-
-    try:
-        result = importer.import_occurrence_plot_links(file_path)
-        print_info(result)
-    except Exception as e:
-        raise DataImportError(
-            message="Occurrence-plot links import failed",
-            details={"file": file_path, "error": str(e)},
-        ) from e
-
-
 @import_commands.command(name="shapes")
 @error_handler(log=True, raise_error=True)
 def import_shapes() -> None:
@@ -516,14 +478,6 @@ def import_all() -> None:
             print_info(result)
         else:
             print_info("No shapes configured, skipping")
-
-        # Import occurrence-plots if configured
-        if "occurrence_plots" in imports_config:
-            print_info("Importing occurrence-plot links...")
-            file_path = get_source_path(config, "occurrence_plots")
-            reset_table(config.database_path, "occurrences_plots")
-            result = importer.import_occurrence_plot_links(file_path)
-            print_info(result)
 
         print_success("Data import completed")
     except Exception as e:

@@ -31,7 +31,7 @@ def generate_commands(ctx, target: Optional[str]):
         ctx.invoke(export_pages, target=target)
 
 
-@generate_commands.command(name="pages")
+@generate_commands.command(name="web_pages")
 @click.option(
     "--target",
     type=str,

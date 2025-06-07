@@ -262,35 +262,6 @@ class ImporterService:
             ) from e
 
     @error_handler(log=True, raise_error=True)
-    def import_occurrence_plot_links(self, csvfile: str) -> str:
-        """
-        Import occurrence-plot links.
-
-        Args:
-            csvfile: Path to CSV file
-
-        Returns:
-            Success message
-
-        Raises:
-            ValidationError: If parameters are invalid
-            FileReadError: If file cannot be read
-            DataImportError: If import fails
-        """
-        if not csvfile:
-            raise ValidationError("csvfile", "CSV file path cannot be empty")
-
-        if not Path(csvfile).exists():
-            raise FileReadError(csvfile, "File not found")
-
-        try:
-            return self.occurrence_importer.import_occurrence_plot_links(csvfile)
-        except Exception as e:
-            raise DataImportError(
-                "Failed to import occurrence-plot links", details={"error": str(e)}
-            ) from e
-
-    @error_handler(log=True, raise_error=True)
     def import_shapes(self, shapes_config: List[Dict[str, Any]]) -> str:
         """
         Import shape data.
