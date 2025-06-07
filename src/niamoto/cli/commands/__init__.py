@@ -16,6 +16,8 @@ from .transform import transform_commands
 from .export import generate_commands
 from .deploy import deploy_commands
 from .plugins import plugins
+from .run import run_pipeline
+from .stats import stats_command
 
 
 def create_cli() -> click.Group:
@@ -46,5 +48,7 @@ def create_cli() -> click.Group:
     cli.add_command(generate_commands)
     cli.add_command(deploy_commands)
     cli.add_command(plugins)
+    cli.add_command(run_pipeline)
+    cli.add_command(stats_command)
 
     return cli

@@ -127,8 +127,8 @@ class RichCLI(click.Group):
             f"\n[bold]Niamoto CLI, version {VERSION}[/bold]\n"
             "\n[bold yellow]Usage:[/bold yellow] niamoto [OPTIONS] COMMAND [ARGS]...\n\n"
             "Command line interface for Niamoto.\n"
-            "This CLI provides commands for managing taxonomy data, plots, occurrences\n"
-            "and generating static content.\n\n"
+            "This CLI provides commands for managing ecological data through a configurable\n"
+            "pipeline system with import, transform, and export stages.\n\n"
             "[bold yellow]Options:[/bold yellow]\n"
             "  --help  [dim]Show this message and exit.[/dim]\n\n"
         )
@@ -194,6 +194,16 @@ def display_next_steps() -> None:
             ],
         },
         {
+            "title": "Explore available plugins",
+            "commands": [
+                "niamoto plugins # List all available Niamoto plugins",
+                "niamoto plugins --type transformer # List transformer plugins only",
+                "niamoto plugins --type loader     # List loader plugins only",
+                "niamoto plugins --type exporter   # List exporter plugins only",
+                "niamoto plugins --type widget     # List widget plugins only",
+            ],
+        },
+        {
             "title": "Import data",
             "commands": [
                 "niamoto import taxonomy <file>     # Import taxonomy data",
@@ -205,19 +215,26 @@ def display_next_steps() -> None:
         {
             "title": "Transform data",
             "commands": [
-                "niamoto transform --group taxon # Transform data by taxon",
-                "niamoto transform --group plot  # Transform data by plot",
-                "niamoto transform --group shape # Transform data by shape",
-                "niamoto transform # Transform for all groups",
+                "niamoto transform --group <name> # Transform data by configured group",
+                "niamoto transform # Transform for all configured groups",
+                "# Groups are defined in your transform.yml configuration file",
             ],
         },
         {
             "title": "Export content",
             "commands": [
-                "niamoto export pages --group taxon # Export static pages by taxon",
-                "niamoto export pages --group plot  # Export static pages by plot",
-                "niamoto export pages --group shape # Export static pages by shape",
-                "niamoto export # Export for all groups",
+                "niamoto export web_pages --group <name> # Export static pages by configured group",
+                "niamoto export # Export for all configured groups",
+                "# Groups are defined in your export.yml configuration file",
+            ],
+        },
+        {
+            "title": "Run the complete pipeline",
+            "commands": [
+                "niamoto run # Run the complete Niamoto data pipeline: import, transform, and export",
+                "niamoto run --skip-import     # Run transform and export only",
+                "niamoto run --skip-transform  # Run import and export only",
+                "niamoto run --skip-export     # Run import and transform only",
             ],
         },
         {
@@ -229,7 +246,14 @@ def display_next_steps() -> None:
         },
         {
             "title": "Have fun exploring your data and generating insights!",
-            "commands": [],
+            "commands": [
+                "niamoto stats # Display general statistics about your data",
+                "niamoto stats --detailed # Show detailed statistics with top items",
+                "niamoto stats --group taxon # Show statistics for a specific group",
+                "niamoto stats --suggestions # Get exploration suggestions based on your data",
+                "niamoto stats --export stats.json # Export statistics to JSON or CSV",
+                "# Explore the generated website in outputs/website/",
+            ],
         },
     ]
 

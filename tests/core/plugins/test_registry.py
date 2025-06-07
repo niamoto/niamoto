@@ -94,9 +94,25 @@ class TestPluginRegistry(NiamotoTestCase):
         # Register a plugin
         PluginRegistry.register_plugin("test_plugin", MockPlugin)
 
-        # Try to register another plugin with the same name and type
+        # Try to register the same plugin class again - should succeed (allow re-registration)
+        PluginRegistry.register_plugin("test_plugin", MockPlugin)  # Should not raise
+
+        # Verify plugin is still registered
+        plugin = PluginRegistry.get_plugin("test_plugin", PluginType.TRANSFORMER)
+        self.assertEqual(plugin, MockPlugin)
+
+    def test_register_plugin_different_class_same_name(self):
+        """Test registering different plugin classes with the same name should fail."""
+        # Register a plugin
+        PluginRegistry.register_plugin("test_plugin", MockPlugin)
+
+        # Create a different plugin class
+        class DifferentMockPlugin(Plugin):
+            type = PluginType.TRANSFORMER
+
+        # Try to register a different plugin class with the same name - should fail
         with self.assertRaises(PluginRegistrationError):
-            PluginRegistry.register_plugin("test_plugin", MockPlugin)
+            PluginRegistry.register_plugin("test_plugin", DifferentMockPlugin)
 
     def test_register_plugin_generic_exception(self):
         """Test registering a plugin with a generic exception."""
