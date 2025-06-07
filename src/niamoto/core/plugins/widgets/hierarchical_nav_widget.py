@@ -178,7 +178,7 @@ class HierarchicalNavWidget(WidgetPlugin):
         if load_from_js:
             # Load data from external JS file
             html_parts.append(f"""
-                <script src="../js/{js_file}"></script>
+                <script src="../assets/js/{js_file}"></script>
                 <script>
                 // Use a more robust initialization approach
                 function initializeHierarchicalNav() {{
