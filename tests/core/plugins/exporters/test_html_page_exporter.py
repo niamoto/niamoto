@@ -637,7 +637,7 @@ class TestHtmlPageExporter(NiamotoTestCase):
         exporter._generate_navigation_js(group_config, self.output_dir)
 
         # Check JS file was created
-        js_file = self.output_dir / "js" / "taxon_navigation.js"
+        js_file = self.output_dir / "assets" / "js" / "taxon_navigation.js"
         self.assertTrue(js_file.exists())
 
         # Check content

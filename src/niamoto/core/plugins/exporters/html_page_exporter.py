@@ -1087,7 +1087,7 @@ class HtmlPageExporter(ExporterPlugin):
 
         try:
             # Create JS directory if it doesn't exist
-            js_dir = output_dir / "js"
+            js_dir = output_dir / "assets/js"
             js_dir.mkdir(parents=True, exist_ok=True)
 
             # Generic filename and variable name based on group
