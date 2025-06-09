@@ -1,0 +1,243 @@
+# Example export configuration using database_aggregator data
+# This shows how to use aggregated data in widgets and static pages
+
+exports:
+  - name: analytics_dashboard
+    enabled: true
+    exporter: html_page_exporter
+
+    params:
+      output_dir: "exports/web"
+
+      site:
+        title: "Niamoto Analytics Dashboard"
+        description: "Comprehensive biodiversity data analytics"
+        primary_color: "#2e7d32"
+
+      # Static pages with database aggregator data
+      static_pages:
+        # Main dashboard page
+        - name: dashboard
+          output_file: "index.html"
+          widgets:
+            # Site overview metrics
+            - plugin: info_grid
+              title: "Site Overview"
+              data_source: site_overview  # From database_aggregator
+              params:
+                grid_columns: 4
+                items:
+                  - label: "Total Species"
+                    source: "total_species"
+                    icon: "fa-leaf"
+                    description: "Number of species in database"
+                  - label: "Total Occurrences"
+                    source: "total_occurrences"
+                    icon: "fa-map-marker"
+                    description: "Number of occurrence records"
+                  - label: "Endemic Species"
+                    source: "endemic_percentage"
+                    unit: "%"
+                    icon: "fa-star"
+                    description: "Percentage of endemic species"
+                  - label: "Data Quality"
+                    source: "coordinate_completeness.completeness_percentage"
+                    unit: "%"
+                    icon: "fa-check-circle"
+                    description: "Spatial data completeness"
+
+            # Forest analysis charts
+            - plugin: bar_plot
+              title: "Species Diversity by Forest Type"
+              data_source: forest_analysis
+              params:
+                data_key: "forest_types"
+                x_axis: "area_name"
+                y_axis: "species_count"
+                color_field: "area_type"
+                orientation: "v"
+                height: 400
+
+            - plugin: donut_chart
+              title: "Conservation Status Distribution"
+              data_source: forest_analysis
+              params:
+                data_key: "conservation_status"
+                labels_field: "status"
+                values_field: "species_count"
+                hole_size: 0.4
+
+        # Data quality report page
+        - name: data_quality
+          output_file: "data-quality.html"
+          widgets:
+            # Overall quality score
+            - plugin: radial_gauge
+              title: "Overall Data Quality Score"
+              data_source: data_quality_report
+              params:
+                value_field: "overall_data_quality"
+                min_value: 0
+                max_value: 100
+                unit: "%"
+                style_mode: "contextual"
+
+            # Quality breakdown
+            - plugin: info_grid
+              title: "Data Completeness by Category"
+              data_source: data_quality_report
+              params:
+                grid_columns: 3
+                items:
+                  - label: "Taxonomic Completeness"
+                    source: "taxonomy_completeness.completeness_pct"
+                    unit: "%"
+                    description: "Species with complete taxonomic hierarchy"
+                  - label: "Spatial Completeness"
+                    source: "spatial_completeness.completeness_pct"
+                    unit: "%"
+                    description: "Occurrences with valid coordinates"
+                  - label: "Plot Data Completeness"
+                    source: "plot_completeness.completeness_pct"
+                    unit: "%"
+                    description: "Plots with elevation data"
+
+            # Quality details table
+            - plugin: table_view
+              title: "Detailed Quality Metrics"
+              data_source: data_quality_report
+              params:
+                columns:
+                  - field: "category"
+                    title: "Category"
+                  - field: "metric"
+                    title: "Metric"
+                  - field: "valid_count"
+                    title: "Valid Records"
+                    format: "number"
+                  - field: "total_count"
+                    title: "Total Records"
+                    format: "number"
+                  - field: "completeness_pct"
+                    title: "Completeness %"
+                    format: "decimal:1"
+
+        # Database administration page
+        - name: admin
+          output_file: "admin.html"
+          widgets:
+            # Database size info
+            - plugin: info_grid
+              title: "Database Information"
+              data_source: database_metrics
+              params:
+                grid_columns: 2
+                items:
+                  - label: "Database Size"
+                    source: "database_size_mb"
+                    unit: "MB"
+                    icon: "fa-database"
+                  - label: "Total Records"
+                    source: "total_occurrences"  # From site_overview
+                    icon: "fa-list"
+
+            # Table sizes
+            - plugin: bar_plot
+              title: "Table Sizes (Row Count)"
+              data_source: database_metrics
+              params:
+                data_key: "table_sizes"
+                x_axis: "table_name"
+                y_axis: "row_count"
+                orientation: "v"
+
+            # Analytics summary
+            - plugin: summary_stats
+              title: "Key Metrics Summary"
+              data_source: site_overview
+              params:
+                metrics:
+                  - field: "total_species"
+                    label: "Species"
+                    format: "number"
+                  - field: "total_occurrences"
+                    label: "Occurrences"
+                    format: "number"
+                  - field: "endemic_percentage"
+                    label: "Endemism Rate"
+                    format: "percentage"
+                  - field: "occurrences_per_species"
+                    label: "Avg Occ/Species"
+                    format: "decimal:1"
+
+        # Forest analysis page
+        - name: forest_analysis
+          output_file: "forest-analysis.html"
+          widgets:
+            # Province comparison
+            - plugin: bar_plot
+              title: "Species Diversity by Province"
+              data_source: forest_analysis
+              params:
+                data_key: "provinces"
+                x_axis: "area_name"
+                y_axis: "species_count"
+                color: "#2e7d32"
+                height: 400
+
+            # Forest type comparison
+            - plugin: scatter_plot
+              title: "Forest Type Analysis: Species vs DBH"
+              data_source: forest_analysis
+              params:
+                data_key: "forest_types"
+                x_axis: "species_count"
+                y_axis: "avg_dbh"
+                color_field: "area_name"
+                size_field: "occurrence_count"
+                height: 500
+
+            # Taxonomic hierarchy
+            - plugin: sunburst_chart
+              title: "Taxonomic Rank Distribution"
+              data_source: forest_analysis
+              params:
+                data_key: "taxonomic_ranks"
+                labels_field: "rank_name"
+                values_field: "count"
+
+            # Detailed forest data table
+            - plugin: table_view
+              title: "Forest Type Details"
+              data_source: forest_analysis
+              params:
+                data_key: "forest_types"
+                columns:
+                  - field: "area_name"
+                    title: "Forest Type"
+                  - field: "species_count"
+                    title: "Species"
+                    format: "number"
+                  - field: "occurrence_count"
+                    title: "Occurrences"
+                    format: "number"
+                  - field: "avg_dbh"
+                    title: "Avg DBH (cm)"
+                    format: "decimal:1"
+                sort_by: "species_count"
+                ascending: false
+
+      # Navigation menu
+      navigation:
+        - text: "Dashboard"
+          url: "/index.html"
+        - text: "Data Quality"
+          url: "/data-quality.html"
+        - text: "Forest Analysis"
+          url: "/forest-analysis.html"
+        - text: "Administration"
+          url: "/admin.html"
+
+      # Copy assets
+      copy_assets_from:
+        - "templates/assets/"

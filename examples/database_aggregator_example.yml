@@ -1,0 +1,245 @@
+# Example configuration for database_aggregator plugin
+# This demonstrates various ways to use the plugin for site-wide analytics
+
+groups:
+  # Global statistics group - site-wide aggregations
+  - group_by: global
+    widgets_data:
+
+      # Basic site statistics
+      site_overview:
+        plugin: database_aggregator
+        params:
+          queries:
+            # Simple scalar queries
+            total_species:
+              sql: "SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'"
+              description: "Total number of species in the database"
+
+            total_occurrences:
+              sql: "SELECT COUNT(*) FROM occurrences"
+              description: "Total number of occurrence records"
+
+            total_plots:
+              sql: "SELECT COUNT(*) FROM plot_ref WHERE plot_type = 'plot'"
+              description: "Total number of monitoring plots"
+
+            endemic_species:
+              sql: "SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species' AND JSON_EXTRACT(extra_data, '$.endemic') = 'true'"
+              description: "Number of endemic species"
+
+            # Single row query for data quality
+            coordinate_completeness:
+              sql: |
+                SELECT
+                  COUNT(CASE WHEN geo_pt IS NOT NULL THEN 1 END) as with_coordinates,
+                  COUNT(*) as total_occurrences,
+                  ROUND(COUNT(CASE WHEN geo_pt IS NOT NULL THEN 1 END) * 100.0 / COUNT(*), 1) as completeness_percentage
+                FROM occurrences
+              format: "single_row"
+              description: "Spatial data completeness metrics"
+
+          # Computed fields using the query results
+          computed_fields:
+            endemic_percentage:
+              expression: "round((endemic_species * 100.0) / total_species, 1) if total_species > 0 else 0"
+              dependencies: ["endemic_species", "total_species"]
+              description: "Percentage of endemic species"
+
+            occurrences_per_species:
+              expression: "round(total_occurrences / total_species, 1) if total_species > 0 else 0"
+              dependencies: ["total_occurrences", "total_species"]
+              description: "Average occurrences per species"
+
+            occurrences_per_plot:
+              expression: "round(total_occurrences / total_plots, 1) if total_plots > 0 else 0"
+              dependencies: ["total_occurrences", "total_plots"]
+              description: "Average occurrences per plot"
+
+          validation:
+            check_referential_integrity: true
+            required_tables: ["taxon_ref", "occurrences", "plot_ref"]
+            max_execution_time: 30
+
+      # Forest type analysis using templates
+      forest_analysis:
+        plugin: database_aggregator
+        params:
+          # Define reusable query templates
+          templates:
+            spatial_summary:
+              sql: |
+                SELECT
+                  s.label as area_name,
+                  s.type_label as area_type,
+                  COUNT(DISTINCT t.id) as species_count,
+                  COUNT(o.id) as occurrence_count,
+                  ROUND(AVG(CAST(JSON_EXTRACT(o.extra_data, '$.dbh') AS FLOAT)), 2) as avg_dbh
+                FROM shape_ref s
+                LEFT JOIN occurrences o ON ST_Contains(ST_GeomFromText(s.location), o.geo_pt)
+                LEFT JOIN taxon_ref t ON o.taxon_ref_id = t.id AND t.rank_name = 'species'
+                WHERE s.type = '{shape_type}'
+                GROUP BY s.id, s.label, s.type_label
+                ORDER BY occurrence_count DESC
+              params: ["shape_type"]
+              description: "Spatial summary statistics by shape type"
+
+            rank_distribution:
+              sql: |
+                SELECT
+                  rank_name,
+                  COUNT(*) as count,
+                  ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM taxon_ref), 1) as percentage
+                FROM taxon_ref
+                GROUP BY rank_name
+                ORDER BY count DESC
+              params: []
+              description: "Distribution of taxonomic ranks"
+
+          queries:
+            # Use templates with different parameters
+            forest_types:
+              template: "spatial_summary"
+              template_params:
+                shape_type: "forest_type"
+              format: "table"
+              description: "Species diversity by forest type"
+
+            provinces:
+              template: "spatial_summary"
+              template_params:
+                shape_type: "province"
+              format: "table"
+              description: "Species diversity by province"
+
+            taxonomic_ranks:
+              template: "rank_distribution"
+              template_params: {}
+              format: "table"
+              description: "Distribution of taxonomic ranks"
+
+            # Complex aggregation for conservation analysis
+            conservation_status:
+              sql: |
+                SELECT
+                  COALESCE(JSON_EXTRACT(t.extra_data, '$.conservation_status'), 'Unknown') as status,
+                  COUNT(DISTINCT t.id) as species_count,
+                  COUNT(o.id) as occurrence_count,
+                  ROUND(COUNT(DISTINCT t.id) * 100.0 / (
+                    SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'
+                  ), 1) as species_percentage
+                FROM taxon_ref t
+                LEFT JOIN occurrences o ON t.id = o.taxon_ref_id
+                WHERE t.rank_name = 'species'
+                GROUP BY JSON_EXTRACT(t.extra_data, '$.conservation_status')
+                ORDER BY species_count DESC
+              format: "table"
+              description: "Species count by conservation status"
+
+      # Data quality assessment
+      data_quality_report:
+        plugin: database_aggregator
+        params:
+          queries:
+            # Taxonomy completeness
+            taxonomy_completeness:
+              sql: |
+                SELECT
+                  'Taxonomy' as category,
+                  'Species with family' as metric,
+                  COUNT(CASE WHEN family_count.family_id IS NOT NULL THEN 1 END) as valid_count,
+                  COUNT(*) as total_count,
+                  ROUND(COUNT(CASE WHEN family_count.family_id IS NOT NULL THEN 1 END) * 100.0 / COUNT(*), 1) as completeness_pct
+                FROM taxon_ref t
+                LEFT JOIN (
+                  SELECT t2.id, f.id as family_id
+                  FROM taxon_ref t2
+                  JOIN taxon_ref f ON (t2.lft BETWEEN f.lft AND f.rght AND f.rank_name = 'family')
+                  WHERE t2.rank_name = 'species'
+                ) family_count ON t.id = family_count.id
+                WHERE t.rank_name = 'species'
+              format: "single_row"
+
+            # Spatial data quality
+            spatial_completeness:
+              sql: |
+                SELECT
+                  'Spatial' as category,
+                  'Occurrences with valid coordinates' as metric,
+                  COUNT(CASE
+                    WHEN geo_pt IS NOT NULL
+                    AND ST_X(geo_pt) BETWEEN -180 AND 180
+                    AND ST_Y(geo_pt) BETWEEN -90 AND 90
+                    THEN 1 END) as valid_count,
+                  COUNT(*) as total_count,
+                  ROUND(COUNT(CASE
+                    WHEN geo_pt IS NOT NULL
+                    AND ST_X(geo_pt) BETWEEN -180 AND 180
+                    AND ST_Y(geo_pt) BETWEEN -90 AND 90
+                    THEN 1 END) * 100.0 / COUNT(*), 1) as completeness_pct
+                FROM occurrences
+              format: "single_row"
+
+            # Plot data completeness
+            plot_completeness:
+              sql: |
+                SELECT
+                  'Plots' as category,
+                  'Plots with elevation data' as metric,
+                  COUNT(CASE WHEN JSON_EXTRACT(extra_data, '$.elevation') IS NOT NULL THEN 1 END) as valid_count,
+                  COUNT(*) as total_count,
+                  ROUND(COUNT(CASE WHEN JSON_EXTRACT(extra_data, '$.elevation') IS NOT NULL THEN 1 END) * 100.0 / COUNT(*), 1) as completeness_pct
+                FROM plot_ref
+                WHERE plot_type = 'plot'
+              format: "single_row"
+
+          computed_fields:
+            overall_data_quality:
+              expression: "round((taxonomy_score + spatial_score + plot_score) / 3, 1)"
+              dependencies: ["taxonomy_score", "spatial_score", "plot_score"]
+              description: "Overall data quality score"
+
+            taxonomy_score:
+              expression: "taxonomy_completeness['completeness_pct'] if 'completeness_pct' in taxonomy_completeness else 0"
+              dependencies: ["taxonomy_completeness"]
+
+            spatial_score:
+              expression: "spatial_completeness['completeness_pct'] if 'completeness_pct' in spatial_completeness else 0"
+              dependencies: ["spatial_completeness"]
+
+            plot_score:
+              expression: "plot_completeness['completeness_pct'] if 'completeness_pct' in plot_completeness else 0"
+              dependencies: ["plot_completeness"]
+
+      # Database size and performance metrics
+      database_metrics:
+        plugin: database_aggregator
+        params:
+          queries:
+            table_sizes:
+              sql: |
+                SELECT
+                  name as table_name,
+                  CASE
+                    WHEN name = 'taxon_ref' THEN (SELECT COUNT(*) FROM taxon_ref)
+                    WHEN name = 'occurrences' THEN (SELECT COUNT(*) FROM occurrences)
+                    WHEN name = 'plot_ref' THEN (SELECT COUNT(*) FROM plot_ref)
+                    WHEN name = 'shape_ref' THEN (SELECT COUNT(*) FROM shape_ref)
+                    ELSE 0
+                  END as row_count
+                FROM sqlite_master
+                WHERE type = 'table'
+                AND name IN ('taxon_ref', 'occurrences', 'plot_ref', 'shape_ref')
+                ORDER BY row_count DESC
+              format: "table"
+              description: "Row counts for main tables"
+
+            database_size:
+              sql: "SELECT page_count * page_size as size_bytes FROM pragma_page_count(), pragma_page_size()"
+              description: "Total database size in bytes"
+
+          computed_fields:
+            database_size_mb:
+              expression: "round(database_size / (1024 * 1024), 2)"
+              dependencies: ["database_size"]
+              description: "Database size in megabytes"

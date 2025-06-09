@@ -9,6 +9,7 @@ __all__ = [
     # Aggregation
     "FieldAggregator",
     "TopRanking",
+    "DatabaseAggregator",
     # Extraction
     "DirectAttribute",
     "GeospatialExtractor",
