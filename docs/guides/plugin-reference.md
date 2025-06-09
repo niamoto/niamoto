@@ -1,6 +1,17 @@
-# Niamoto Plugin Types Reference
+# Plugin System Reference
 
-Niamoto's plugin system is organized into four main types, each serving a specific purpose in the data pipeline. This reference guide explains each plugin type, its configuration schema, and provides examples of both built-in and custom implementations.
+Niamoto's plugin system is organized into four main types, each serving a specific purpose in the data pipeline. This comprehensive reference guide explains each plugin type, configuration schemas, and provides examples of both built-in and custom implementations.
+
+## Overview
+
+The Niamoto plugin architecture enables extensible data processing through four plugin types:
+
+1. **Loader Plugins**: Import and load data from various sources
+2. **Transformer Plugins**: Process and analyze data
+3. **Exporter Plugins**: Generate outputs and exports
+4. **Widget Plugins**: Create visualizations and UI components
+
+Each plugin type has specific configuration patterns and capabilities designed for different stages of the data pipeline.
 
 ## 1. Loader Plugins
 
@@ -116,10 +127,108 @@ Transformer plugins perform calculations, transformations, and analyses on loade
 | `binned_distribution` | Create histograms | `source`, `field`, `bins`, `labels` |
 | `categorical_distribution` | Analyze categories | `source`, `field`, `categories` |
 | `statistical_summary` | Calculate statistics | `source`, `field`, `stats` |
-| `top_ranking` | Find top N items | `source`, `field`, `count` |
+| `top_ranking` | Find top N items | `source`, `field`, `count`, `mode` |
 | `field_aggregator` | Aggregate fields | `fields` (array of mappings) |
 | `geospatial_extractor` | Extract spatial data | `source`, `field`, `format` |
 | `transform_chain` | Chain transformations | `steps` (array of plugins) |
+
+### Top Ranking Plugin (Detailed)
+
+The `top_ranking` plugin is a flexible transformer that calculates top N items using three different modes:
+
+#### Common Parameters
+
+```yaml
+plugin: top_ranking
+params:
+  source: string        # Source data table/collection
+  field: string         # Field to analyze
+  count: integer        # Number of top items to return (default: 10)
+  mode: string          # One of: 'direct', 'hierarchical', 'join'
+  aggregate_function: string  # 'count', 'sum', 'avg' (default: 'count')
+```
+
+#### Mode 1: Direct Counting
+The simplest mode - counts occurrences of values directly.
+
+```yaml
+top_plots:
+  plugin: top_ranking
+  params:
+    source: plots
+    field: locality_name
+    count: 10
+    mode: direct
+```
+
+#### Mode 2: Hierarchical Navigation
+Navigates a hierarchy to find items at a specific rank.
+
+```yaml
+top_families:
+  plugin: top_ranking
+  params:
+    source: occurrences
+    field: taxon_ref_id
+    count: 10
+    mode: hierarchical
+    hierarchy_table: taxon_ref
+    hierarchy_columns:
+      id: id
+      name: full_name
+      rank: rank_name
+      parent_id: parent_id
+    target_ranks: ["family"]
+```
+
+#### Mode 3: Join-Based Counting
+Performs joins between tables to count related items.
+
+```yaml
+top_species_by_plot:
+  plugin: top_ranking
+  params:
+    source: plots
+    field: plot_id
+    count: 10
+    mode: join
+    join_table: occurrences
+    join_columns:
+      source_id: plot_ref_id
+      hierarchy_id: taxon_ref_id
+    hierarchy_table: taxon_ref
+    hierarchy_columns:
+      id: id
+      name: full_name
+      rank: rank_name
+      left: lft
+      right: rght
+    target_ranks: ["species", "subspecies"]
+```
+
+#### Advanced Features
+
+**Custom Aggregation Functions**:
+```yaml
+params:
+  aggregate_function: sum
+  aggregate_field: stem_diameter
+```
+
+**Nested Set Model Support**:
+```yaml
+hierarchy_columns:
+  left: lft
+  right: rght
+```
+
+**Output Format**:
+```json
+{
+  "tops": ["Item1", "Item2", "Item3"],
+  "counts": [100, 85, 72]
+}
+```
 
 ### Example: Custom Transformer Plugin
 
@@ -202,26 +311,37 @@ Exporter plugins handle the output generation from transformed data.
 ### Configuration Schema (export.yml)
 
 ```yaml
-- group_by: taxon
-  widgets:
-    dbh_distribution:
-      type: bar_chart
-      title: "DBH Distribution"
-      source: dbh_distribution
-      datasets:
-        - label: "Occurrences"
-          data_key: "counts"
-          backgroundColor: "#4CAF50"
-      labels_key: "bins"
+exports:
+  - name: website_export
+    exporter: html_page_exporter
+    params:
+      output_dir: "exports/web"
+      base_url: "/"
+
+      static_pages:
+        - name: home
+          output_file: "index.html"
+          template: "home.html"
+
+      entity_pages:
+        - group: taxon
+          template: "taxon_detail.html"
+          output_pattern: "taxon/{{ id }}.html"
+
+  - name: api_export
+    exporter: api_generator
+    params:
+      output_dir: "exports/api"
+      format: "json"
 ```
 
 ### Built-in Exporter Plugins
 
 | Plugin Name | Purpose | Parameters |
 |-------------|---------|------------|
-| `html` | Generate HTML exports | `template`, `output_dir` |
+| `html_page_exporter` | Generate HTML websites | `output_dir`, `base_url`, `static_pages`, `entity_pages` |
 | `api_generator` | Generate API data | `output_dir`, `format` |
-| `page_generator` | Generate static pages | `template`, `output_dir` |
+| `index_generator` | Generate search indexes | `output_dir`, `groups` |
 
 ### Example: Custom Exporter Plugin
 
@@ -281,26 +401,33 @@ Widget plugins create visualizations and UI components for displaying data.
 ### Configuration Schema (export.yml)
 
 ```yaml
-- group_by: taxon
-  widgets:
-    distribution_map:
-      type: interactive_map
-      config:
-        title: "Geographic Distribution"
-        map_type: "scatter_map"
-        latitude_field: "lat"
-        longitude_field: "lon"
-        color_field: "species_count"
-        hover_name: "location_name"
-        zoom: 9.0
-        center_lat: -21.5
-        center_lon: 165.5
+widgets:
+  - plugin: interactive_map
+    data_source: distribution_data
+    params:
+      title: "Geographic Distribution"
+      map_type: "scatter_map"
+      latitude_field: "lat"
+      longitude_field: "lon"
+      color_field: "species_count"
+      hover_name: "location_name"
+      zoom: 9.0
+      center_lat: -21.5
+      center_lon: 165.5
+
+  - plugin: bar_plot
+    data_source: species_counts
+    params:
+      title: "Species Distribution"
+      x_axis: "species"
+      y_axis: "count"
+      auto_color: true
 ```
 
 ### Built-in Widget Plugins
 
 | Plugin Name | Purpose | Key Parameters |
-|-------------|---------|------------|
+|-------------|---------|--------------|
 | `info_grid` | Display grid of metrics and info | `items`, `grid_columns`, `title` |
 | `interactive_map` | Create interactive Plotly maps | `map_type`, `latitude_field`, `longitude_field`, `color_field` |
 | `bar_plot` | Create bar charts | `x_axis`, `y_axis`, `color_field`, `barmode` |
@@ -314,6 +441,8 @@ Widget plugins create visualizations and UI components for displaying data.
 | `scatter_plot` | Create scatter plots | `x_axis`, `y_axis`, `color_field`, `size_field` |
 | `summary_stats` | Display statistical summaries | `fields`, `statistics` |
 | `table_view` | Display tabular data | `columns`, `pagination`, `sorting` |
+
+For detailed widget documentation, see the [Widget Reference Guide](widget-reference.md).
 
 ### Example: Custom Widget Plugin
 
@@ -385,3 +514,188 @@ class HeatmapWidget(WidgetPlugin):
 
         return html
 ```
+
+## Plugin Development Best Practices
+
+### 1. Configuration Validation
+
+Always validate configuration parameters:
+
+```python
+def validate_config(self, config):
+    required_params = ["source", "field"]
+    for param in required_params:
+        if param not in config:
+            raise ValueError(f"Missing required parameter: {param}")
+    return config
+```
+
+### 2. Error Handling
+
+Implement robust error handling:
+
+```python
+def transform(self, data, config):
+    try:
+        # Plugin logic here
+        result = self.process_data(data, config)
+        return result
+    except Exception as e:
+        logger.error(f"Plugin {self.__class__.__name__} failed: {str(e)}")
+        raise
+```
+
+### 3. Data Validation
+
+Validate input data:
+
+```python
+def transform(self, data, config):
+    if data is None or data.empty:
+        return {"error": "No data provided"}
+
+    required_fields = config.get("required_fields", [])
+    missing_fields = [f for f in required_fields if f not in data.columns]
+    if missing_fields:
+        raise ValueError(f"Missing required fields: {missing_fields}")
+```
+
+### 4. Performance Optimization
+
+For large datasets, implement chunking:
+
+```python
+def transform(self, data, config):
+    chunk_size = config.get("chunk_size", 1000)
+    results = []
+
+    for chunk in pd.read_csv(data_source, chunksize=chunk_size):
+        chunk_result = self.process_chunk(chunk, config)
+        results.append(chunk_result)
+
+    return self.combine_results(results)
+```
+
+### 5. Documentation
+
+Document plugin parameters and usage:
+
+```python
+class MyPlugin(TransformerPlugin):
+    """
+    Calculate species diversity metrics.
+
+    Parameters:
+        source (str): Source data table
+        species_field (str): Column containing species names
+        index_type (str): Type of diversity index ('shannon', 'simpson')
+
+    Returns:
+        dict: Dictionary containing diversity metrics
+
+    Example:
+        ```yaml
+        diversity:
+          plugin: diversity_calculator
+          params:
+            source: occurrences
+            species_field: species_name
+            index_type: shannon
+        ```
+    """
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Plugin Not Found
+```bash
+# Check plugin registration
+niamoto plugins --type transformer
+```
+
+#### Configuration Errors
+```yaml
+# Validate YAML syntax
+python -c "import yaml; yaml.safe_load(open('config/transform.yml'))"
+```
+
+#### Data Issues
+```bash
+# Check data availability
+niamoto stats --detailed
+```
+
+### Performance Issues
+
+#### Top Ranking Plugin Performance
+
+- **Direct mode** is fastest for simple counting
+- **Hierarchical mode** performance depends on hierarchy depth
+- **Join mode** can be slow for large datasets; ensure proper indexes exist
+
+#### General Performance Tips
+
+- Add database indexes on frequently used join columns
+- Use chunked processing for large datasets
+- Implement caching for expensive calculations
+- Use nested set columns (left/right) for hierarchical data
+
+### Debugging
+
+Enable verbose logging:
+
+```bash
+niamoto transform --verbose
+export NIAMOTO_LOG_LEVEL=DEBUG
+```
+
+Check plugin-specific logs:
+
+```bash
+tail -f logs/niamoto.log | grep "plugin"
+```
+
+## Plugin Registry
+
+### Registration
+
+Plugins are automatically registered using decorators:
+
+```python
+@register("my_plugin", PluginType.TRANSFORMER)
+class MyPlugin(TransformerPlugin):
+    pass
+```
+
+### Discovery
+
+Niamoto discovers plugins in:
+
+1. Built-in plugin directories
+2. `plugins/` directory in your project
+3. Installed Python packages with `niamoto_` prefix
+
+### Listing Plugins
+
+```bash
+# List all plugins
+niamoto plugins
+
+# List by type
+niamoto plugins --type transformer
+niamoto plugins --type widget
+
+# Show plugin details
+niamoto plugins --plugin top_ranking --details
+```
+
+## Related Documentation
+
+- [Widget Reference Guide](widget-reference.md) - Detailed widget documentation
+- [Custom Plugin Development](custom-plugin.md) - Creating custom plugins
+- [Transform Chain Guide](transform-chain-guide.md) - Chaining transformations
+- [Configuration Guide](configuration.md) - YAML configuration reference
+
+For troubleshooting plugin issues, see the [Common Issues Guide](../troubleshooting/common-issues.md).
