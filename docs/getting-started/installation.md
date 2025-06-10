@@ -136,6 +136,7 @@ You should see:
 ├── imports/
 ├── exports/
 ├── plugins/
+├── templates/
 └── logs/
 ```
 

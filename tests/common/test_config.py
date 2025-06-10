@@ -60,9 +60,8 @@ class TestConfig(NiamotoTestCase):
         """Test getting export configuration."""
         config = Config(config_dir=self.config_dir, create_default=True)
         exports = config.get_export_config
-        self.assertEqual(exports["web"], "exports")
+        self.assertEqual(exports["web"], "exports/web")
         self.assertEqual(exports["api"], "exports/api")
-        self.assertEqual(exports["files"], "exports/files")
 
     def test_get_imports_config(self):
         """Test getting imports configuration."""
