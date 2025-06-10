@@ -135,7 +135,7 @@ class RadialGaugeWidget(WidgetPlugin):
             return "<p class='info'>Invalid data type for gauge.</p>"
 
         if value is None:
-            return "<p class='info'>No value available for gauge.</p>"
+            return "<p class='info'>No value available.</p>"
 
         try:
             numeric_value = pd.to_numeric(value, errors="coerce")
