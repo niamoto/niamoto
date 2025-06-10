@@ -53,6 +53,33 @@ class Environment:
             imports_root = os.path.join(self.config.get_niamoto_home(), "imports")
             os.makedirs(imports_root, exist_ok=True)
 
+            # Create plugins directory if configured
+            if (
+                "plugins" in self.config.config
+                and "path" in self.config.config["plugins"]
+            ):
+                plugins_path = self.config.config["plugins"]["path"]
+                if not os.path.isabs(plugins_path):
+                    plugins_path = os.path.join(
+                        self.config.get_niamoto_home(), plugins_path
+                    )
+                os.makedirs(plugins_path, exist_ok=True)
+
+            # Create templates directory if configured
+            if (
+                "templates" in self.config.config
+                and "path" in self.config.config["templates"]
+            ):
+                templates_path = self.config.config["templates"]["path"]
+                if not os.path.isabs(templates_path):
+                    templates_path = os.path.join(
+                        self.config.get_niamoto_home(), templates_path
+                    )
+                os.makedirs(templates_path, exist_ok=True)
+                # Also create assets subdirectory
+                assets_path = os.path.join(templates_path, "assets")
+                os.makedirs(assets_path, exist_ok=True)
+
             # Initialize database
             try:
                 db = Database(self.config.database_path)
@@ -84,24 +111,15 @@ class Environment:
                         details={"error": str(e)},
                     )
 
-            # Clear exports directory while preserving 'files' directory
-            exports_dir = self.config.get_export_config.get(
-                "web"
-            )  # Base exports directory
-            if exports_dir and os.path.exists(exports_dir):
+            # Clear web exports directory
+            web_dir = self.config.get_export_config.get("web")
+            if web_dir and os.path.exists(web_dir):
                 try:
-                    # Remove all files and directories in exports except 'files'
-                    for item in os.listdir(exports_dir):
-                        item_path = os.path.join(exports_dir, item)
-                        if item != "files":
-                            if os.path.isfile(item_path):
-                                os.remove(item_path)
-                            elif os.path.isdir(item_path):
-                                shutil.rmtree(item_path)
+                    shutil.rmtree(web_dir)
                 except OSError as e:
                     raise FileWriteError(
-                        file_path=exports_dir,
-                        message="Failed to clear exports directory",
+                        file_path=web_dir,
+                        message="Failed to clear web exports directory",
                         details={"error": str(e)},
                     )
 
