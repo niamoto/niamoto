@@ -94,6 +94,134 @@ exports:
         page_template: "_layouts/group_detail_with_sidebar.html"  # Template avec sidebar pour navigation
         output_pattern: "taxon/{id}.html"
         index_output_pattern: "taxon/index.html"
+        index_generator:
+          enabled: true
+          template: "group_index.html"
+
+          page_config:
+            title: "Liste des Taxons"
+            description: "Espèces et sous-espèces de Nouvelle-Calédonie"
+            items_per_page: 24
+
+          # Filtres pour inclure seulement species et infra
+          filters:
+            - field: "general_info.rank.value"
+              values: ["species", "infra"]
+              operator: "in"
+
+          # Champs à afficher et filtrer
+          display_fields:
+            - name: "name"
+              source: "general_info.name.value"
+              fallback: "full_name"
+              type: "text"
+              label: "Nom scientifique"
+              searchable: true
+
+            - name: "rank"
+              source: "general_info.rank.value"
+              type: "select"
+              label: "Rang taxonomique"
+              format: "map"
+              mapping:
+                "species": "Espèce"
+                "infra": "Sous-espèce"
+              filter_options:
+                - {value: "species", label: "Espèce"}
+                - {value: "infra", label: "Sous-espèce"}
+
+            - name: "parent_family"
+              source: "general_info.parent_family.value"
+              type: "select"
+              label: "Famille"
+              dynamic_options: true
+
+            - name: "parent_genus"
+              source: "general_info.parent_genus.value"
+              type: "text"
+              label: "Genre"
+
+            - name: "endemic"
+              source: "general_info.endemic.value"
+              type: "boolean"
+              label: "Endémisme"
+              format: "badge"
+              inline_badge: true
+              true_label: "Endémique"
+              badge_color: "bg-green-600 text-white px-2 py-1 rounded-full text-xs font-semibold ml-2"
+
+            - name: "occurrences_count"
+              source: "general_info.occurrences_count.value"
+              type: "text"
+              label: "Nombre d'occurrences"
+              format: "number"
+
+            - name: "redlist_cat"
+              source: "general_info.redlist_cat.value"
+              type: "select"
+              label: "Catégorie UICN"
+              format: "map"
+              inline_badge: true
+              mapping:
+                "CR": "CR"
+                "EN": "EN"
+                "VU": "VU"
+                "NT": "NT"
+                "LC": "LC"
+                "DD": "DD"
+                "NE": "NE"
+              tooltip_mapping:
+                "CR": "En danger critique"
+                "EN": "En danger"
+                "VU": "Vulnérable"
+                "NT": "Quasi menacé"
+                "LC": "Préoccupation mineure"
+                "DD": "Données insuffisantes"
+                "NE": "Non évalué"
+              badge_colors:
+                "CR": "bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold ml-2"
+                "EN": "bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-semibold ml-2"
+                "VU": "bg-yellow-400 text-black px-2 py-1 rounded-full text-xs font-semibold ml-2"
+                "NT": "bg-green-700 text-white px-2 py-1 rounded-full text-xs font-semibold ml-2"
+                "LC": "bg-green-600 text-white px-2 py-1 rounded-full text-xs font-semibold ml-2"
+                "DD": "bg-gray-500 text-white px-2 py-1 rounded-full text-xs font-semibold ml-2"
+                "NE": "bg-gray-400 text-black px-2 py-1 rounded-full text-xs font-semibold ml-2"
+              filter_options:
+                - {value: "CR", label: "En danger critique (CR)"}
+                - {value: "EN", label: "En danger (EN)"}
+                - {value: "VU", label: "Vulnérable (VU)"}
+                - {value: "NT", label: "Quasi menacé (NT)"}
+                - {value: "LC", label: "Préoccupation mineure (LC)"}
+
+            - name: "images"
+              source: "general_info.images.value"
+              type: "json_array"
+              display: "image_preview"
+
+            - name: "endemia_url"
+              source: "general_info.endemia_url.value"
+              type: "text"
+              display: "link"
+              link_label: "Endemia"
+              link_title: "Voir sur Endemia"
+              link_target: "_blank"
+              css_class: "bg-amber-50 text-green-600 hover:bg-amber-100 px-3 py-1 rounded-md text-sm font-medium no-underline ml-2 transition-colors"
+
+            - name: "id_florical"
+              source: "general_info.id_florical.value"
+              type: "text"
+              display: "link"
+              link_label: "Florical"
+              link_template: "https://publish.plantnet-project.org/project/florical_fr/collection/florical/taxons/details/{value}"
+              link_title: "Voir sur Florical"
+              link_target: "_blank"
+              css_class: "bg-emerald-50 text-teal-600 hover:bg-emerald-100 px-3 py-1 rounded-md text-sm font-medium no-underline ml-2 transition-colors"
+
+          views:
+            - type: "grid"
+              default: true
+            - type: "list"
+
         widgets: # Widgets utilisés dans taxon/detail.html
 
           # --- Navigation Hiérarchique ---

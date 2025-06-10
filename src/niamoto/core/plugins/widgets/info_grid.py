@@ -1,5 +1,6 @@
 import logging
 from typing import Any, List, Optional, Set, Union, Dict
+import json
 
 from pydantic import BaseModel, Field
 
@@ -9,6 +10,19 @@ from niamoto.common.utils.dict_utils import get_nested_value
 logger = logging.getLogger(__name__)
 
 # --- Pydantic Models for Validation ---
+
+
+class ImageMapping(BaseModel):
+    """Model for configuring image field mappings."""
+
+    url: str = Field("url", description="Field name for the full-size image URL")
+    thumbnail: str = Field(
+        "small_thumb", description="Field name for the thumbnail URL"
+    )
+    author: Optional[str] = Field(
+        None, description="Field name for the image author/photographer"
+    )
+    date: Optional[str] = Field(None, description="Field name for the image date")
 
 
 class InfoItem(BaseModel):
@@ -35,6 +49,9 @@ class InfoItem(BaseModel):
     )
     mapping: Optional[Dict[str, str]] = Field(
         None, description="Optional mapping for the 'map' format."
+    )
+    image_mapping: Optional[ImageMapping] = Field(
+        None, description="Optional image field mapping for the 'image' format."
     )
 
 
@@ -182,6 +199,15 @@ class InfoGridWidget(WidgetPlugin):
                     """ logger.warning(
                         f"Could not format value '{value_to_format}' as number for item '{item.label}'."
                     ) """
+            elif item.format == "image" and item.image_mapping:
+                # Handle image gallery format
+                # Debug log to see what we're getting
+                logger.debug(
+                    f"Image data type: {type(item_value)}, content: {str(item_value)[:200]}..."
+                )
+                display_value = self._render_image_gallery(
+                    item_value, item.image_mapping, item.label
+                )
 
             # --- HTML Generation with Tailwind CSS --- #
             # Handle icons - support for Font Awesome and other icon libraries
@@ -202,14 +228,25 @@ class InfoGridWidget(WidgetPlugin):
             tooltip_attr = f'title="{item.description}"' if item.description else ""
 
             # Generate HTML for each item with Tailwind styling
-            item_html = f"""
-            <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
-                <div class="flex flex-col h-full">
-                    <div class="text-sm font-medium text-gray-500 mb-1">{icon_html}{item.label}</div>
-                    <div class="text-2xl font-semibold text-gray-900">{display_value}{unit_html}</div>
+            # Special handling for image format
+            if item.format == "image":
+                item_html = f"""
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
+                    <div class="flex flex-col h-full">
+                        <div class="text-sm font-medium text-gray-500 mb-3">{icon_html}{item.label}</div>
+                        <div class="flex-1">{display_value}</div>
+                    </div>
                 </div>
-            </div>
-            """
+                """
+            else:
+                item_html = f"""
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
+                    <div class="flex flex-col h-full">
+                        <div class="text-sm font-medium text-gray-500 mb-1">{icon_html}{item.label}</div>
+                        <div class="text-2xl font-semibold text-gray-900">{display_value}{unit_html}</div>
+                    </div>
+                </div>
+                """
             item_html_parts.append(item_html)
 
         # If no items were rendered, return empty string
@@ -229,3 +266,142 @@ class InfoGridWidget(WidgetPlugin):
         """
 
         return output_html
+
+    def _render_image_gallery(
+        self, image_data: Any, image_mapping: ImageMapping, label: str
+    ) -> str:
+        """Render an image gallery similar to the listView implementation."""
+        if not image_data:
+            return '<div class="text-center text-gray-400 text-sm py-4">Aucune image disponible</div>'
+
+        # Handle the case where image_data might be a string representation of a list
+        if isinstance(image_data, str):
+            # If it's a URL starting with http, treat as single image
+            if image_data.startswith("http"):
+                image_data = [image_data]
+            else:
+                try:
+                    # Try to parse as literal_eval for Python literals first
+                    import ast
+
+                    if image_data.startswith("[") and image_data.endswith("]"):
+                        image_data = ast.literal_eval(image_data)
+                    elif image_data.startswith("{") and image_data.endswith("}"):
+                        image_data = ast.literal_eval(image_data)
+                    else:
+                        # Try JSON parsing
+                        image_data = json.loads(image_data)
+                except (ValueError, SyntaxError, json.JSONDecodeError):
+                    # If all parsing fails, treat as single URL
+                    image_data = [image_data]
+
+        all_images = []
+        display_images = []
+        modal_images = []
+
+        # Handle different data formats
+        if isinstance(image_data, list):
+            # Array of image objects or URLs
+            for img in image_data:
+                if isinstance(img, dict):
+                    # Extract thumbnail URL for display
+                    thumbnail_url = (
+                        img.get(image_mapping.thumbnail)
+                        or img.get("small_thumb")
+                        or img.get(image_mapping.url)
+                        or img.get("url", "")
+                    )
+                    if thumbnail_url:
+                        all_images.append(thumbnail_url)
+
+                    # Extract full-size URL for modal
+                    modal_url = (
+                        img.get("big_thumb")
+                        or img.get(image_mapping.url)
+                        or img.get("url", "")
+                    )
+                    if modal_url:
+                        modal_images.append(modal_url)
+                elif isinstance(img, str):
+                    all_images.append(img)
+                    modal_images.append(img)
+            display_images = all_images[:6]  # Show first 6 images
+        elif isinstance(image_data, dict):
+            # Single image object
+            thumbnail_url = (
+                image_data.get(image_mapping.thumbnail)
+                or image_data.get("small_thumb")
+                or image_data.get(image_mapping.url)
+                or image_data.get("url", "")
+            )
+            if thumbnail_url:
+                all_images = [thumbnail_url]
+                display_images = all_images
+
+            modal_url = (
+                image_data.get("big_thumb")
+                or image_data.get(image_mapping.url)
+                or image_data.get("url", "")
+            )
+            if modal_url:
+                modal_images = [modal_url]
+
+        if not all_images:
+            return '<div class="text-center text-gray-400 text-sm py-4">Aucune image disponible</div>'
+
+        # Generate unique gallery ID
+        gallery_id = f"info-gallery-{hash(label) % 10000}"
+
+        # Create image elements
+        image_elements = []
+        for index, image_url in enumerate(display_images):
+            # Escape quotes properly for HTML attributes
+            escaped_modal_images = json.dumps(modal_images).replace('"', "&quot;")
+            image_elements.append(f"""
+                <div class="w-16 h-16 bg-cover bg-center rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                     style="background-image: url('{image_url}')"
+                     title="Image {index + 1}"
+                     onclick="openImageLightbox({escaped_modal_images}, {index})">
+                </div>
+            """)
+
+        # Hidden images
+        hidden_images = []
+        for index, image_url in enumerate(all_images[6:], start=6):
+            escaped_modal_images = json.dumps(modal_images).replace('"', "&quot;")
+            hidden_images.append(f"""
+                <div class="w-16 h-16 bg-cover bg-center rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity hidden gallery-hidden"
+                     style="background-image: url('{image_url}')"
+                     title="Image {index + 1}"
+                     onclick="openImageLightbox({escaped_modal_images}, {index})">
+                </div>
+            """)
+
+        remaining_count = len(all_images) - len(display_images)
+        expand_button = ""
+        collapse_button = ""
+
+        if remaining_count > 0:
+            expand_button = f"""
+                <div class="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium cursor-pointer hover:bg-gray-200 transition-colors expand-btn"
+                     onclick="expandImageGallery('{gallery_id}', this)">
+                    +{remaining_count}
+                </div>
+            """
+            collapse_button = f"""
+                <div class="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium cursor-pointer hover:bg-gray-200 transition-colors collapse-btn hidden"
+                     onclick="collapseImageGallery('{gallery_id}', this)">
+                    −
+                </div>
+            """
+
+        gallery_html = f'''
+            <div id="{gallery_id}" class="grid grid-cols-5 gap-2 max-w-sm">
+                {"".join(image_elements)}
+                {"".join(hidden_images)}
+                {expand_button}
+                {collapse_button}
+            </div>
+        '''
+
+        return gallery_html
