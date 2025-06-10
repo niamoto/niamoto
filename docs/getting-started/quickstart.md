@@ -30,6 +30,7 @@ my-niamoto-project/
 ├── imports/         # Source data (CSV, GeoPackage...)
 ├── exports/         # Generated website
 ├── plugins/         # Custom plugins
+├── plugins/         # Custom templates
 ├── db/             # SQLite database
 └── logs/           # Log files
 ```
@@ -61,43 +62,30 @@ taxonomy:
   type: csv
   path: "imports/occurrences.csv"
   source: "occurrence"
-  ranks: "family,genus,species"
+  ranks: "family,genus,species,infra"
   occurrence_columns:
     taxon_id: "id_taxon"
     family: "family"
     genus: "genus"
-    species: "species_name"
+    species: "species"
+    infra: "infra"
 
 # Import occurrences (trees)
 occurrences:
   type: csv
   path: "imports/occurrences.csv"
-  mapping:
-    id_occurrence: "id"
-    taxon_ref_id: "id_taxon"
-    geo_pt:
-      x: "longitude"
-      y: "latitude"
-    properties:
-      - dbh
-      - height
-      - observer
-      - date_obs
+  identifier: "id_taxonref"
+  location_field: "geo_pt"
 
 # Import plots
 plots:
   type: csv
   path: "imports/plots.csv"
-  mapping:
-    id_plot: "plot_id"
-    name: "plot_name"
-    geo_pt:
-      x: "longitude"
-      y: "latitude"
-    properties:
-      - elevation
-      - slope
-      - aspect
+  identifier: "id_plot"
+  locality_field: "plot"
+  location_field: "geo_pt"
+  link_field: "locality"
+  occurrence_link_field: "plot_name"
 
 # Import geographic shapes
 shapes:

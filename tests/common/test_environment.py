@@ -104,15 +104,14 @@ class TestEnvironment(NiamotoTestCase):
 
         mock_exists.side_effect = exists_side_effect
 
-        # Mock the web directory contents
-        web_dir = self.mock_config.get_export_config["web"]
-        mock_listdir.return_value = ["file1.txt", "dir1", "files"]
+        # Mock the web directory contents - not used anymore since entire directory is removed
+        mock_listdir.return_value = ["file1.txt", "dir1"]
 
         def isfile_side_effect(path):
             return os.path.basename(path) == "file1.txt"
 
         def isdir_side_effect(path):
-            return os.path.basename(path) in ["dir1", "files"]
+            return os.path.basename(path) == "dir1"
 
         mock_isfile.side_effect = isfile_side_effect
         mock_isdir.side_effect = isdir_side_effect
@@ -126,9 +125,8 @@ class TestEnvironment(NiamotoTestCase):
             # Verify that the existing database file has been removed
             mock_remove.assert_any_call(self.mock_config.database_path)
 
-            # Verify that files and directories in web directory are handled correctly
-            mock_remove.assert_any_call(os.path.join(web_dir, "file1.txt"))
-            mock_rmtree.assert_any_call(os.path.join(web_dir, "dir1"))
+            # Verify that the web directory has been removed completely
+            mock_rmtree.assert_any_call(self.mock_config.get_export_config["web"])
 
             # Verify that the API directory has been removed
             mock_rmtree.assert_any_call(self.mock_config.get_export_config["api"])
