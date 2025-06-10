@@ -229,3 +229,9 @@ dev = [
     "pre-commit>=4.1.0",
     "tox>=4.26.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/niamoto"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"assets" = "assets"
