@@ -91,6 +91,17 @@ class SunburstChartWidget(WidgetPlugin):
 
         total_root_value = 0
 
+        # Check if all values are zero or null (no meaningful data)
+        all_values = []
+        for category_data in data.values():
+            if isinstance(category_data, dict):
+                all_values.extend(
+                    [v for v in category_data.values() if isinstance(v, (int, float))]
+                )
+
+        if not all_values or all(v == 0 for v in all_values):
+            return "<p class='info'>No data available.</p>"
+
         def default_category_label(k):
             return k.capitalize()
 

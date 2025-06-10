@@ -76,6 +76,12 @@ class DivergingBarPlotWidget(WidgetPlugin):
 
         # Prepare data (sorting)
         df_plot = data.copy()
+
+        # Check if all y-axis values are zero or null (no meaningful data)
+        y_values = df_plot[params.y_axis]
+        if pd.isna(y_values).all() or (y_values == 0).all():
+            return "<p class='info'>Pas de données disponibles.</p>"
+
         if params.sort_values:
             try:
                 df_plot = df_plot.sort_values(by=params.y_axis, ascending=True)

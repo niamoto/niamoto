@@ -42,6 +42,16 @@ niamoto export
 
 **✨ That's it!** Your ecological data website is ready at `exports/web/`.
 
+## 🖼️ Screenshots
+
+### Taxonomic Index Page
+![Taxonomic Index](assets/screenshots/taxon-index.png)
+*Browse and search through your taxonomic data with interactive filters*
+
+### Taxon Detail Page
+![Taxon Detail](assets/screenshots/taxon-detail.png)
+*Detailed view with statistics, distributions, and interactive visualizations*
+
 ## ✨ Features
 
 - 🌿 **Ecological Data Management** - Import and manage taxonomic, occurrence, and plot data
@@ -68,6 +78,7 @@ Niamoto is perfect for:
 ## 📖 Table of Contents
 
 - [🚀 Quick Start](#-quick-start)
+- [🖼️ Screenshots](#️-screenshots)
 - [✨ Features](#-features)
 - [🎯 Use Cases](#-use-cases)
 - [📦 Installation](#-installation)

@@ -330,6 +330,11 @@ class DonutChartWidget(WidgetPlugin):
 
             # --- Final Plot Generation (if not subplot) --- #
             if df_plot is not None and not df_plot.empty:
+                # Check if all values are zero or null (no meaningful data)
+                if effective_values_field and effective_values_field in df_plot.columns:
+                    y_values = df_plot[effective_values_field]
+                    if pd.isna(y_values).all() or (y_values == 0).all():
+                        return "<p class='info'>No data available.</p>"
                 try:
                     fig_single = go.Figure(
                         data=[
