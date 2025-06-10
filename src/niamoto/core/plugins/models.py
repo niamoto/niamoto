@@ -153,7 +153,29 @@ class IndexGeneratorDisplayField(BaseModel):
     mapping: Optional[Dict[str, str]] = None  # For format="map"
     filter_options: Optional[List[Dict[str, str]]] = None  # Static options
     dynamic_options: bool = False  # Generate options from data
-    display: str = "normal"  # normal, hidden, image_preview
+    display: str = "normal"  # normal, hidden, image_preview, link
+
+    # Badge-specific fields
+    inline_badge: bool = False  # Display as inline badge in title
+    badge_color: Optional[str] = (
+        None  # CSS classes for badge (e.g., "bg-green-600 text-white")
+    )
+    badge_style: Optional[str] = None  # Inline CSS styles for badge
+    badge_colors: Optional[Dict[str, str]] = None  # Map values to CSS classes
+    badge_styles: Optional[Dict[str, str]] = None  # Map values to inline styles
+    true_label: Optional[str] = None  # Label for boolean=true
+    false_label: Optional[str] = None  # Label for boolean=false
+    tooltip_mapping: Optional[Dict[str, str]] = None  # Tooltips for mapped values
+
+    # Link-specific fields (for display="link")
+    link_template: Optional[str] = (
+        None  # URL template with placeholders (e.g., "https://example.com/{value}")
+    )
+    link_label: Optional[str] = None  # Link text label
+    link_title: Optional[str] = None  # Link title attribute (tooltip)
+    link_target: Optional[str] = None  # Link target (_blank, _self, etc.)
+    css_class: Optional[str] = None  # CSS classes for styling
+    css_style: Optional[str] = None  # Inline CSS styles
 
 
 class IndexGeneratorFilterConfig(BaseModel):

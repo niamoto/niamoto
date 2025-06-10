@@ -59,6 +59,42 @@
             </div>
         </main>
     </div>
+
+    <!-- Modal pour afficher une image en grand -->
+<div id="imageModal" class="fixed inset-0 bg-black bg-opacity-90 hidden z-50 flex items-center justify-center p-4">
+    <div class="relative w-full h-full max-w-5xl max-h-full flex items-center justify-center mt-20">
+        <!-- Bouton fermer -->
+        <button onclick="closeImageModal()" class="absolute top-4 right-4 text-white hover:text-gray-300 text-3xl leading-none z-10 bg-black bg-opacity-50 rounded-full w-12 h-12 flex items-center justify-center">
+            ×
+        </button>
+
+        <!-- Flèche précédente -->
+        <button id="prevImageBtn" onclick="previousImage()" class="absolute left-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 text-4xl z-10 bg-black bg-opacity-50 rounded-full w-12 h-12 flex items-center justify-center hidden">
+            ‹
+        </button>
+
+        <!-- Conteneur central pour loader et image -->
+        <div class="flex items-center justify-center w-full h-full min-h-96">
+            <!-- Loader -->
+            <div id="imageLoader" class="flex items-center justify-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div>
+            </div>
+
+            <!-- Image en grand -->
+            <img id="modalImage" src="" alt="" class="max-w-full max-h-full object-contain hidden">
+        </div>
+
+        <!-- Flèche suivante -->
+        <button id="nextImageBtn" onclick="nextImage()" class="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 text-4xl z-10 bg-black bg-opacity-50 rounded-full w-12 h-12 flex items-center justify-center hidden">
+            ›
+        </button>
+
+        <!-- Indicateur de position -->
+        <div id="imageCounter" class="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 px-3 py-1 rounded hidden">
+            <span id="currentImageIndex">1</span> / <span id="totalImages">1</span>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {# Include widget dependencies in base template blocks #}
@@ -68,4 +104,225 @@
 
 {% block scripts %}
     {{ super() }}
+{% endblock %}
+{% block extra_scripts %}
+<script>
+    // Variables globales pour la navigation dans la modal
+    let currentImageArray = [];
+    let currentImageIndex = 0;
+
+    // Définir les fonctions dans l'objet window pour qu'elles soient accessibles globalement
+    window.openImageLightbox = function(images, startIndex = 0) {
+            currentImageArray = images;
+            currentImageIndex = startIndex;
+
+            showCurrentImage();
+
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Empêcher le scroll de la page
+
+            updateNavigationButtons();
+        };
+
+        // Fonction pour afficher l'image actuelle
+        window.showCurrentImage = function() {
+            const modalImage = document.getElementById('modalImage');
+            const imageLoader = document.getElementById('imageLoader');
+            const currentIndexSpan = document.getElementById('currentImageIndex');
+            const totalImagesSpan = document.getElementById('totalImages');
+
+            // Vérifier que tous les éléments existent
+            if (!modalImage || !imageLoader || !currentIndexSpan || !totalImagesSpan) {
+                console.error('Elements manquants pour la modal:', {
+                    modalImage: !!modalImage,
+                    imageLoader: !!imageLoader,
+                    currentIndexSpan: !!currentIndexSpan,
+                    totalImagesSpan: !!totalImagesSpan
+                });
+                return;
+            }
+
+            // Afficher le loader et cacher l'image
+            imageLoader.classList.remove('hidden');
+            modalImage.classList.add('hidden');
+
+            // Mettre à jour les compteurs
+            currentIndexSpan.textContent = currentImageIndex + 1;
+            totalImagesSpan.textContent = currentImageArray.length;
+
+            // Charger la nouvelle image
+            const newImage = new Image();
+            newImage.onload = function() {
+                // Une fois l'image chargée, l'afficher et cacher le loader
+                modalImage.src = newImage.src;
+                imageLoader.classList.add('hidden');
+                modalImage.classList.remove('hidden');
+            };
+            newImage.onerror = function() {
+                // En cas d'erreur, afficher un message et cacher le loader
+                imageLoader.innerHTML = '<div class="text-white text-center"><p>Erreur de chargement</p><p class="text-sm opacity-75">Image non disponible</p></div>';
+                setTimeout(() => {
+                    imageLoader.innerHTML = '<div class="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div>';
+                    imageLoader.classList.add('hidden');
+                }, 2000);
+            };
+            newImage.src = currentImageArray[currentImageIndex];
+
+            // Afficher/masquer le compteur et les flèches selon le nombre d'images
+            const imageCounter = document.getElementById('imageCounter');
+            const prevBtn = document.getElementById('prevImageBtn');
+            const nextBtn = document.getElementById('nextImageBtn');
+
+            // Vérifier que les éléments de navigation existent
+            if (!imageCounter || !prevBtn || !nextBtn) {
+                console.error('Elements de navigation manquants:', {
+                    imageCounter: !!imageCounter,
+                    prevBtn: !!prevBtn,
+                    nextBtn: !!nextBtn
+                });
+                return;
+            }
+
+            if (currentImageArray.length > 1) {
+                imageCounter.classList.remove('hidden');
+                prevBtn.classList.remove('hidden');
+                nextBtn.classList.remove('hidden');
+            } else {
+                imageCounter.classList.add('hidden');
+                prevBtn.classList.add('hidden');
+                nextBtn.classList.add('hidden');
+            }
+        };
+
+        // Fonction pour mettre à jour les boutons de navigation
+        window.updateNavigationButtons = function() {
+            const prevBtn = document.getElementById('prevImageBtn');
+            const nextBtn = document.getElementById('nextImageBtn');
+
+            // Désactiver/activer les boutons selon la position
+            if (currentImageIndex === 0) {
+                prevBtn.style.opacity = '0.5';
+                prevBtn.style.cursor = 'not-allowed';
+            } else {
+                prevBtn.style.opacity = '1';
+                prevBtn.style.cursor = 'pointer';
+            }
+
+            if (currentImageIndex === currentImageArray.length - 1) {
+                nextBtn.style.opacity = '0.5';
+                nextBtn.style.cursor = 'not-allowed';
+            } else {
+                nextBtn.style.opacity = '1';
+                nextBtn.style.cursor = 'pointer';
+            }
+        };
+
+        // Fonction pour aller à l'image précédente
+        window.previousImage = function() {
+            if (currentImageIndex > 0) {
+                currentImageIndex--;
+                showCurrentImage();
+                updateNavigationButtons();
+            }
+        };
+
+        // Fonction pour aller à l'image suivante
+        window.nextImage = function() {
+            if (currentImageIndex < currentImageArray.length - 1) {
+                currentImageIndex++;
+                showCurrentImage();
+                updateNavigationButtons();
+            }
+        };
+
+        // Fonction pour fermer la modal
+        window.closeImageModal = function() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; // Restaurer le scroll
+        };
+
+        // Fonction pour expandre la galerie d'images
+        window.expandImageGallery = function(galleryId, button) {
+            const gallery = document.getElementById(galleryId);
+            if (!gallery) {
+                console.error('Galerie non trouvée:', galleryId);
+                return;
+            }
+
+            const hiddenImages = gallery.querySelectorAll('.gallery-hidden');
+            const expandBtn = gallery.querySelector('.expand-btn');
+            const collapseBtn = gallery.querySelector('.collapse-btn');
+
+            if (!expandBtn || !collapseBtn) {
+                console.error('Boutons expand/collapse manquants dans la galerie:', galleryId);
+                return;
+            }
+
+            // Afficher toutes les images cachées
+            hiddenImages.forEach(img => img.classList.remove('hidden'));
+
+            // Masquer le bouton + et afficher le bouton −
+            expandBtn.classList.add('hidden');
+            collapseBtn.classList.remove('hidden');
+        };
+
+        // Fonction pour réduire la galerie d'images
+        window.collapseImageGallery = function(galleryId, button) {
+            const gallery = document.getElementById(galleryId);
+            if (!gallery) {
+                console.error('Galerie non trouvée:', galleryId);
+                return;
+            }
+
+            const hiddenImages = gallery.querySelectorAll('.gallery-hidden');
+            const expandBtn = gallery.querySelector('.expand-btn');
+            const collapseBtn = gallery.querySelector('.collapse-btn');
+
+            if (!expandBtn || !collapseBtn) {
+                console.error('Boutons expand/collapse manquants dans la galerie:', galleryId);
+                return;
+            }
+
+            // Masquer les images supplémentaires
+            hiddenImages.forEach(img => img.classList.add('hidden'));
+
+            // Afficher le bouton + et masquer le bouton −
+            expandBtn.classList.remove('hidden');
+            collapseBtn.classList.add('hidden');
+        };
+
+        // Fermer la modal en cliquant en dehors de l'image
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('imageModal');
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeImageModal();
+                    }
+                });
+            }
+        });
+
+        // Navigation au clavier
+        document.addEventListener('keydown', function(e) {
+            const modal = document.getElementById('imageModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                switch(e.key) {
+                    case 'Escape':
+                        closeImageModal();
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        previousImage();
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        nextImage();
+                        break;
+                }
+            }
+        });
+</script>
 {% endblock %}
