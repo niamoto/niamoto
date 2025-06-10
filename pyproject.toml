@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niamoto"
-version = "0.5.5"
+version = "0.5.6"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
