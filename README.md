@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/niamoto_logo.png" alt="Niamoto Logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/niamoto/niamoto/main/assets/niamoto_logo.png" alt="Niamoto Logo" width="200"/>
 
   <h1>Niamoto</h1>
 
@@ -45,11 +45,11 @@ niamoto export
 ## 🖼️ Screenshots
 
 ### Taxonomic Index Page
-![Taxonomic Index](assets/screenshots/taxon-index.png)
+![Taxonomic Index](https://raw.githubusercontent.com/niamoto/niamoto/main/assets/screenshots/taxon-index.png)
 *Browse and search through your taxonomic data with interactive filters*
 
 ### Taxon Detail Page
-![Taxon Detail](assets/screenshots/taxon-detail.png)
+![Taxon Detail](https://raw.githubusercontent.com/niamoto/niamoto/main/assets/screenshots/taxon-detail.png)
 *Detailed view with statistics, distributions, and interactive visualizations*
 
 ## ✨ Features
