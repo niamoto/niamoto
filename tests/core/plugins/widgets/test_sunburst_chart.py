@@ -258,10 +258,10 @@ class TestSunburstChartWidget(NiamotoTestCase):
 
         result = self.widget.render(data, params)
 
-        # Should render successfully (empty sunburst)
+        # Should return no data message for empty data
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
-        self.assertIn("plotly-graph-div", result)
+        self.assertIn("No data available", result)
 
     def test_render_zero_values(self):
         """Test rendering with zero values."""
@@ -278,6 +278,22 @@ class TestSunburstChartWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
+
+    def test_render_all_zero_values(self):
+        """Test rendering with all values being zero."""
+        data = {
+            "category1": {"zero_item1": 0, "zero_item2": 0},
+            "category2": {"zero_item3": 0, "zero_item4": 0},
+        }
+
+        params = SunburstChartWidgetParams()
+
+        result = self.widget.render(data, params)
+
+        # Should return no data message when all values are zero
+        self.assertIsInstance(result, str)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertIn("No data available", result)
 
     def test_render_negative_values(self):
         """Test rendering with negative values."""

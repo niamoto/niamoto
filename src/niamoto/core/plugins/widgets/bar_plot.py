@@ -295,10 +295,19 @@ class BarPlotWidget(WidgetPlugin):
         # Create a copy to avoid modifying the original
         df_plot = processed_data.copy()
 
-        # Check if all y-axis values are zero or null (no meaningful data)
-        y_values = df_plot[params.y_axis]
-        if pd.isna(y_values).all() or (y_values == 0).all():
-            return "<p class='info'>No data available.</p>"
+        # Check if all values are zero or null (no meaningful data)
+        # The value column depends on orientation
+        if params.orientation == "h":
+            # Horizontal bars: values are on x-axis
+            value_column = params.x_axis
+        else:
+            # Vertical bars: values are on y-axis
+            value_column = params.y_axis
+
+        if value_column in df_plot.columns:
+            values = df_plot[value_column]
+            if pd.isna(values).all() or (values == 0).all():
+                return "<p class='info'>No data available.</p>"
 
         # Filter zero values if requested
         if params.filter_zero_values:
