@@ -154,16 +154,7 @@ class RadialGaugeWidget(WidgetPlugin):
         # Apply value formatting if specified
         number_config = {"suffix": params.unit if params.unit else ""}
         if params.value_format:
-            if params.value_format.endswith("%"):
-                # Handle percentage formatting
-                number_config["valueformat"] = params.value_format
-                numeric_value = (
-                    numeric_value * 100
-                    if params.value_format == ".0%"
-                    else numeric_value
-                )
-            else:
-                number_config["valueformat"] = params.value_format
+            number_config["valueformat"] = params.value_format
 
         # Configure style based on style_mode
         bar_color = params.bar_color
