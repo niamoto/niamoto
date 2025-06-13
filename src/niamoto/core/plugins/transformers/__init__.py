@@ -32,4 +32,6 @@ __all__ = [
     "SeriesExtractor",
     "SeriesMatrixExtractor",
     "SeriesRatioAggregator",
+    # Format conversion transformers
+    "NiamotoToDwcOccurrenceTransformer",
 ]
