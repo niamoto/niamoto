@@ -270,30 +270,21 @@ class IndexApiFieldMapping(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def check_single_entry(cls, values):
-        if isinstance(values, dict) and len(values) != 1:
-            # Wrap the original dict under 'mapping' key if it's not already
-            # This allows writing "- id: id" directly in YAML
-            # But internally stores it as mapping={'id': 'id'}
-            if "mapping" not in values:  # Avoid double wrapping
-                # Check if it's already a valid structure by trying to parse
-                try:
-                    cls(mapping=values)  # Try parsing as is first
-                    return values  # It was already {'mapping': {...}}
-                except ValidationError:
-                    # Assume it's the short form like {'id': 'id'}
-                    return {"mapping": values}
-        # If it's already {'mapping': {...}}, proceed
-        elif (
-            isinstance(values, dict)
-            and "mapping" in values
-            and len(values["mapping"]) == 1
-        ):
-            return values
-        # If it's just a string like "- field_name", treat as simple mapping
-        elif isinstance(values, str):
+        # Handle string values like "field_name"
+        if isinstance(values, str):
             return {"mapping": {values: values}}
 
-        raise ValueError("Field mapping must be a dict with one key or a string.")
+        # Handle dict values
+        if isinstance(values, dict):
+            # If it already has a mapping key, use it
+            if "mapping" in values:
+                return values
+
+            # Otherwise, treat the whole dict as the mapping
+            # This supports syntax like: {"id": "id"} or {"endpoint": {"generator": "..."}}
+            return {"mapping": values}
+
+        raise ValueError("Field mapping must be a dict or a string.")
 
     def get_output_key(self) -> str:
         return list(self.mapping.keys())[0]
@@ -315,16 +306,26 @@ class GroupConfigApi(BaseModel):
     data_source: Optional[str] = None
     detail: DetailApiConfig = Field(default_factory=DetailApiConfig)
     index: Optional[IndexApiConfig] = None
+    json_options: Optional[Dict[str, Any]] = None
 
 
 # --- Models for Darwin Core Exporter (uses json_api_exporter + transformer) ---
 
 
 class DwcMappingValue(BaseModel):
-    """Represents how to generate a value for a DwC term (generator)."""
+    """Represents how to generate a value for a DwC term (generator or source)."""
 
-    generator: str
+    generator: Optional[str] = None
+    source: Optional[str] = None
     params: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_generator_or_source(self):
+        if not self.generator and not self.source:
+            raise ValueError("Either 'generator' or 'source' must be specified")
+        if self.generator and self.source:
+            raise ValueError("Cannot specify both 'generator' and 'source'")
+        return self
 
 
 class DwcTransformerParams(BasePluginParams):
@@ -341,6 +342,8 @@ class GroupConfigDwc(BaseModel):
     data_source: Optional[str] = None
     transformer_plugin: str
     transformer_params: DwcTransformerParams
+    index: Optional[IndexApiConfig] = None  # Support pour l'index
+    json_options: Optional[Dict[str, Any]] = None
 
 
 # --- Top-Level Export Configuration Models ---
@@ -385,11 +388,18 @@ class TargetConfig(BaseModel):
                 # Validate groups list contains GroupConfigApi or GroupConfigDwc models
                 validated_groups = []
                 for g in groups:
+                    # Skip if already validated
+                    if isinstance(g, (GroupConfigApi, GroupConfigDwc)):
+                        validated_groups.append(g)
+                        continue
+
                     # Heuristic: check if transformer_plugin key exists for DwC type
-                    if "transformer_plugin" in g:
+                    if isinstance(g, dict) and "transformer_plugin" in g:
                         validated_groups.append(GroupConfigDwc(**g))
-                    else:
+                    elif isinstance(g, dict):
                         validated_groups.append(GroupConfigApi(**g))
+                    else:
+                        raise ValueError(f"Invalid group configuration: {g}")
                 self.groups = validated_groups
                 # Ensure static_pages is None or empty
                 if static_pages:

@@ -751,9 +751,82 @@ templates/
 4. **Enable compression**: Gzip static files
 5. **Progressive enhancement**: Core content works without JavaScript
 
+## JSON API Exports
+
+In addition to HTML websites, Niamoto can generate JSON API exports for machine-readable data access.
+
+### Basic API Export
+
+```yaml
+exports:
+  - name: json_api
+    enabled: true
+    exporter: json_api_exporter
+
+    params:
+      output_dir: "exports/api"
+      detail_output_pattern: "{group}/{id}.json"
+      index_output_pattern: "all_{group}.json"
+
+      json_options:
+        indent: 4
+        ensure_ascii: false
+
+    groups:
+      - group_by: taxon
+        detail:
+          pass_through: true  # Include all transformed data
+        index:
+          fields:            # Select specific fields for index
+            - id: taxon_id
+            - name: general_info.name.value
+            - rank: general_info.rank.value
+            - endpoint:
+                generator: endpoint_url
+                params:
+                  base_path: "/api"
+```
+
+### Darwin Core Export
+
+For biodiversity data sharing, export in Darwin Core format:
+
+```yaml
+exports:
+  - name: dwc_occurrence_json
+    enabled: true
+    exporter: json_api_exporter
+
+    params:
+      output_dir: "exports/dwc"
+      detail_output_pattern: "taxon/{id}_occurrences_dwc.json"
+
+    groups:
+      - group_by: taxon
+        transformer_plugin: niamoto_to_dwc_occurrence
+        transformer_params:
+          mapping:
+            scientificName: "@source.taxonref"
+            decimalLatitude:
+              generator: format_coordinates
+              params:
+                source_field: "@source.geo_pt"
+                type: "latitude"
+            # ... complete Darwin Core mapping
+```
+
+This generates machine-readable data compatible with GBIF and other biodiversity networks.
+
+**Key differences from HTML exports:**
+- **Data-focused**: Serializes data rather than generating templates
+- **Field mapping**: Selective field inclusion and transformation
+- **Standards support**: Built-in Darwin Core transformer
+- **API structure**: Index files for discovery, detail files for complete data
+
 ## Next Steps
 
+- [API Export Guide](api-export-guide.md) - Complete JSON API documentation
+- [Darwin Core Export Guide](darwin-core-export.md) - Biodiversity data standards
 - [Deployment Guide](deployment.md) - Publishing your site
 - [Widget Reference](widget-reference.md) - Complete widget documentation
 - [Template Development](template-development.md) - Advanced template customization
-- [API Export](api-export.md) - Generating JSON APIs alongside HTML

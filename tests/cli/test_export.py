@@ -5,7 +5,7 @@ from click.testing import CliRunner
 from unittest import mock
 from pathlib import Path
 
-from niamoto.cli.commands.export import generate_commands
+from niamoto.cli.commands.export import export_command
 from niamoto.common.exceptions import (
     TemplateError,
     GenerationError,
@@ -48,7 +48,7 @@ def test_export_pages_no_group(mock_config, mock_path, mock_exporter):
     mock_config_instance.exports = {"some": "config"}
 
     runner = CliRunner()
-    result = runner.invoke(generate_commands, ["web_pages"])
+    result = runner.invoke(export_command, ["--target", "web_pages"])
 
     assert result.exit_code == 0
     # Check ExporterService is called with db_path and config
@@ -57,7 +57,7 @@ def test_export_pages_no_group(mock_config, mock_path, mock_exporter):
     )
     # Check run_export is called instead of export_data
     mock_exporter.return_value.run_export.assert_called_once_with(
-        target_name=None, group_filter=None
+        target_name="web_pages", group_filter=None
     )
 
 
@@ -68,7 +68,9 @@ def test_export_pages_with_group(mock_config, mock_path, mock_exporter):
     mock_config_instance.exports = {"some": "config"}
 
     runner = CliRunner()
-    result = runner.invoke(generate_commands, ["web_pages", "--group", "taxon"])
+    result = runner.invoke(
+        export_command, ["--target", "web_pages", "--group", "taxon"]
+    )
 
     assert result.exit_code == 0
     # Check ExporterService is called with db_path and config
@@ -77,7 +79,7 @@ def test_export_pages_with_group(mock_config, mock_path, mock_exporter):
     )
     # Check run_export is called with the right group
     mock_exporter.return_value.run_export.assert_called_once_with(
-        target_name=None, group_filter="taxon"
+        target_name="web_pages", group_filter="taxon"
     )
 
 
@@ -95,7 +97,9 @@ def test_export_pages_invalid_group(mock_config, mock_path):
 
         runner = CliRunner()
         # We need to catch exceptions here to validate the error is raised
-        result = runner.invoke(generate_commands, ["web_pages", "--group", "invalid"])
+        result = runner.invoke(
+            export_command, ["--target", "web_pages", "--group", "invalid"]
+        )
 
         # Test should fail with an exit code of 1
         assert result.exit_code == 1
@@ -108,7 +112,7 @@ def test_export_pages_missing_config(mock_config):
     mock_config_instance.exports = None
 
     runner = CliRunner()
-    result = runner.invoke(generate_commands, ["web_pages"])
+    result = runner.invoke(export_command, ["--target", "web_pages"])
 
     # In test environment, we're not exiting but raising the exception
     assert result.exit_code == 0
@@ -129,7 +133,7 @@ def test_export_pages_template_error(mock_config, mock_path, mock_exporter):
 
     runner = CliRunner()
     # Don't use catch_exceptions=False as the error handler is expected to handle it
-    result = runner.invoke(generate_commands, ["web_pages"])
+    result = runner.invoke(export_command, ["--target", "web_pages"])
 
     # With the error_handler decorator, this will exit with code 1 instead of raising
     assert result.exit_code == 1
@@ -149,7 +153,7 @@ def test_export_pages_generation_error(mock_config, mock_path, mock_exporter):
 
     runner = CliRunner()
     # Don't use catch_exceptions=False as the error handler is expected to handle it
-    result = runner.invoke(generate_commands, ["web_pages"])
+    result = runner.invoke(export_command, ["--target", "web_pages"])
 
     # With the error_handler decorator, this will exit with code 1 instead of raising
     assert result.exit_code == 1
@@ -162,7 +166,7 @@ def test_export_default_command(mock_config, mock_path, mock_exporter):
     mock_config_instance.exports = {"some": "config"}
 
     runner = CliRunner()
-    result = runner.invoke(generate_commands)
+    result = runner.invoke(export_command)
 
     assert result.exit_code == 0
     # Check ExporterService is called with db_path and config
