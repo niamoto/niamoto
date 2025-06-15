@@ -514,9 +514,6 @@ def import_all() -> None:
             # print_info("No shapes configured, skipping")  # Suppress intermediate output
             pass
 
-        # Calculate total duration and create metrics summary
-        from datetime import datetime
-
         end_time = datetime.now()
 
         # Parse all import results and create metrics

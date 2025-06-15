@@ -619,7 +619,7 @@ class TestPlotImporter(NiamotoTestCase):
 
     def test_validate_geometry_geos_exception(self):
         """Test validate_geometry handling GEOS exception."""
-        from shapely import GEOSException
+        from shapely.errors import GEOSException
 
         with patch(
             "niamoto.core.components.imports.plots.loads",

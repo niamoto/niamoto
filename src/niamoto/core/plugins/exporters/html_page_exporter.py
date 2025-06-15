@@ -414,7 +414,8 @@ class HtmlPageExporter(ExporterPlugin):
                 f"Processing static page: '{page_config.name}' -> {page_config.output_file}"
             )
             try:
-                template = jinja_env.get_template(page_config.template)
+                template_name = page_config.template or "static_page.html"
+                template = jinja_env.get_template(template_name)
 
                 # Prepare context
                 context = {
