@@ -170,7 +170,7 @@ class TestPluginsCommand:
         assert "Schema" in result.output  # Column header might be wrapped
         assert "test.mod" in result.output  # Module name might be truncated
         assert "TestTran" in result.output  # Class name might be truncated
-        assert "✓" in result.output  # Has schema (transformer)
+        assert "✅" in result.output  # Has schema (transformer)
         assert "✗" in result.output  # No schema (widget and exporter)
 
     def test_verbose_simple_format(self, runner, mock_registry):
@@ -192,7 +192,7 @@ class TestPluginsCommand:
         assert "Module: test.module" in result.output
         assert "Class: TestTransformer" in result.output
         # Only transformer has param_schema
-        assert "Has parameter schema: ✓" in result.output
+        assert "Has parameter schema: ✅" in result.output
 
     def test_no_plugins_found(self, runner):
         """Test when no plugins are found."""

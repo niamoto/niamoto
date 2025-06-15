@@ -13,8 +13,6 @@ from rich.progress import (
     SpinnerColumn,
     BarColumn,
     TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
 )
 from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
 from shapely.geometry.base import BaseGeometry
@@ -90,17 +88,20 @@ class ShapeImporter:
                     # En cas d'erreur, on ignore pour le comptage
                     pass
 
+            # Capture start time
+            import time
+
+            start_time = time.time()
+
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeElapsedColumn(),
-                TextColumn("•"),
-                TimeRemainingColumn(),
+                refresh_per_second=10,
             ) as progress:
                 task = progress.add_task(
-                    description=f"[green]Importing {total_features} features...",
+                    description="[green]Importing shapes...",
                     total=total_features,
                 )
 
@@ -131,36 +132,47 @@ class ShapeImporter:
                                 try:
                                     if not self._is_valid_feature(feature):
                                         import_stats["skipped"] += 1
-                                        continue
-
-                                    geom = shape(feature["geometry"])
-
-                                    # Correction automatique des géométries invalides
-                                    if not geom.is_valid:
-                                        from shapely.validation import make_valid
-
-                                        geom = make_valid(geom)
-
-                                    geom_wgs84 = self.transform_geometry(
-                                        geom, transformer
-                                    )
-                                    label = self._get_feature_label(feature, shape_info)
-                                    if not label:
-                                        import_stats["skipped"] += 1
-                                        continue
-
-                                    if self._update_or_create_shape(
-                                        label, shape_info, geom_wgs84, import_stats
-                                    ):
-                                        import_stats["added"] += 1
                                     else:
-                                        import_stats["updated"] += 1
+                                        geom = shape(feature["geometry"])
 
-                                    import_stats["processed"] += 1
-                                    progress.update(task, advance=1)
+                                        # Correction automatique des géométries invalides
+                                        if not geom.is_valid:
+                                            from shapely.validation import make_valid
+
+                                            geom = make_valid(geom)
+
+                                        geom_wgs84 = self.transform_geometry(
+                                            geom, transformer
+                                        )
+                                        label = self._get_feature_label(
+                                            feature, shape_info
+                                        )
+                                        if not label:
+                                            import_stats["skipped"] += 1
+                                        else:
+                                            if self._update_or_create_shape(
+                                                label,
+                                                shape_info,
+                                                geom_wgs84,
+                                                import_stats,
+                                            ):
+                                                import_stats["added"] += 1
+                                            else:
+                                                import_stats["updated"] += 1
+
+                                            import_stats["processed"] += 1
+
                                 except Exception as e:
                                     import_stats["errors"].append(str(e))
                                     import_stats["skipped"] += 1
+
+                                # Update progress with real-time duration (always, regardless of success/skip/error)
+                                current_duration = time.time() - start_time
+                                progress.update(
+                                    task,
+                                    advance=1,
+                                    description=f"[green]Importing shapes • {current_duration:.1f}s[/green]",
+                                )
                     except Exception as e:
                         # Pour toute erreur lors de l'ouverture ou du traitement du fichier,
                         # lever une DataValidationError indiquant un format invalide.
@@ -168,6 +180,13 @@ class ShapeImporter:
                             "Invalid shape file format",
                             [{"error": str(e), "file": str(shape_info["path"])}],
                         )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green]✅ shapes import completed • {duration:.1f}s[/green]",
+                )
 
                 try:
                     self.db.session.commit()

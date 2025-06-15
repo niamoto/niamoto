@@ -23,13 +23,7 @@ import importlib.resources
 from jinja2 import Environment, FileSystemLoader, select_autoescape, ChoiceLoader
 from pydantic import ValidationError
 from markdown_it import MarkdownIt
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-    TimeRemainingColumn,
-)
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
@@ -55,6 +49,15 @@ class HtmlPageExporter(ExporterPlugin):
         super().__init__(db)
         self._navigation_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._navigation_js_generated: Set[str] = set()
+
+        # Initialize statistics tracking
+        self.stats: Dict[str, Any] = {
+            "start_time": None,
+            "end_time": None,
+            "groups_processed": {},
+            "total_files_generated": 0,
+            "errors_count": 0,
+        }
 
     def _get_nested_data(
         self, data_dict: Dict[str, Any], key_path: str
@@ -88,6 +91,11 @@ class HtmlPageExporter(ExporterPlugin):
             group_filter: Optional filter to apply to the groups.
         """
         logger.info(f"Starting HTML page export for target: '{target_config.name}'")
+
+        # Initialize stats timing
+        from datetime import datetime
+
+        self.stats["start_time"] = datetime.now()
 
         try:
             # 1. Validate and parse specific HTML exporter parameters
@@ -214,11 +222,16 @@ class HtmlPageExporter(ExporterPlugin):
                 group_filter,
             )
 
+            # Mark completion time
+            self.stats["end_time"] = datetime.now()
+
             logger.info(
                 f"HTML export finished successfully for target: '{target_config.name}'"
             )
 
         except ValidationError as val_err:
+            self.stats["errors_count"] += 1
+            self.stats["end_time"] = datetime.now()
             logger.error(
                 f"Configuration error in HTML exporter params for target '{target_config.name}': {val_err}"
             )
@@ -226,11 +239,15 @@ class HtmlPageExporter(ExporterPlugin):
                 config_key="params", message=f"Invalid params for {target_config.name}"
             ) from val_err
         except ProcessError as proc_err:
+            self.stats["errors_count"] += 1
+            self.stats["end_time"] = datetime.now()
             logger.error(
                 f"Processing error during HTML export for '{target_config.name}': {proc_err}"
             )
             raise  # Re-raise process errors
         except Exception as e:
+            self.stats["errors_count"] += 1
+            self.stats["end_time"] = datetime.now()
             logger.error(
                 f"Unexpected error during HTML export for target '{target_config.name}': {e}",
                 exc_info=True,
@@ -392,111 +409,79 @@ class HtmlPageExporter(ExporterPlugin):
         if not static_pages:
             return
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeRemainingColumn(),
-        ) as progress:
-            task = progress.add_task(
-                "[green]Generating static pages[/green]", total=len(static_pages)
+        for page_config in static_pages:
+            logger.debug(
+                f"Processing static page: '{page_config.name}' -> {page_config.output_file}"
             )
+            try:
+                template = jinja_env.get_template(page_config.template)
 
-            for page_config in static_pages:
-                progress.update(
-                    task, description=f"[green]Generating {page_config.name}[/green]"
-                )
-                logger.debug(
-                    f"Processing static page: '{page_config.name}' -> {page_config.output_file}"
-                )
-                try:
-                    template = jinja_env.get_template(page_config.template)
+                # Prepare context
+                context = {
+                    "site": html_params.site.model_dump() if html_params.site else {},
+                    "navigation": html_params.navigation
+                    if html_params.navigation
+                    else [],
+                    "page": page_config.context.model_dump()
+                    if page_config.context
+                    else {},
+                    "output_file": page_config.output_file,
+                }
 
-                    # Prepare context
-                    context = {
-                        "site": html_params.site.model_dump()
-                        if html_params.site
-                        else {},
-                        "navigation": html_params.navigation
-                        if html_params.navigation
-                        else [],
-                        "page": page_config.context.model_dump()
-                        if page_config.context
-                        else {},
-                        "output_file": page_config.output_file,
-                    }
-
-                    # Handle content source or markdown
-                    page_content_html = None  # Initialize content variable
-                    if page_config.context:
-                        if page_config.context.content_markdown:
-                            # Render Markdown content
+                # Handle content source or markdown
+                page_content_html = None  # Initialize content variable
+                if page_config.context:
+                    if page_config.context.content_markdown:
+                        # Render Markdown content
+                        try:
+                            page_content_html = md.render(
+                                page_config.context.content_markdown
+                            )
+                        except Exception as md_err:
+                            logger.error(
+                                f"Error rendering markdown for static page '{page_config.name}': {md_err}"
+                            )
+                            page_content_html = (
+                                "<p><em>Error rendering Markdown content.</em></p>"
+                            )
+                    elif page_config.context.content_source:
+                        # Load content from file
+                        # Assume content_source is relative to project/config or absolute
+                        # A better approach might involve resolving paths relative to the config file location.
+                        content_path = Path(page_config.context.content_source)
+                        if content_path.is_file():
                             try:
-                                page_content_html = md.render(
-                                    page_config.context.content_markdown
-                                )
-                            except Exception as md_err:
+                                content_raw = content_path.read_text(encoding="utf-8")
+                                # Check extension to decide if it needs markdown processing
+                                if content_path.suffix.lower() in [
+                                    ".md",
+                                    ".markdown",
+                                ]:
+                                    page_content_html = md.render(content_raw)
+                                else:
+                                    # Assume it's already HTML or text to be included directly
+                                    page_content_html = content_raw  # Might need |safe in template if HTML
+                            except Exception as read_err:
                                 logger.error(
-                                    f"Error rendering markdown for static page '{page_config.name}': {md_err}"
+                                    f"Error reading content file '{content_path}' for static page '{page_config.name}': {read_err}"
                                 )
-                                page_content_html = (
-                                    "<p><em>Error rendering Markdown content.</em></p>"
-                                )
-                        elif page_config.context.content_source:
-                            # Load content from file
-                            # Assume content_source is relative to project/config or absolute
-                            # A better approach might involve resolving paths relative to the config file location.
-                            content_path = Path(page_config.context.content_source)
-                            if content_path.is_file():
-                                try:
-                                    content_raw = content_path.read_text(
-                                        encoding="utf-8"
-                                    )
-                                    # Check extension to decide if it needs markdown processing
-                                    if content_path.suffix.lower() in [
-                                        ".md",
-                                        ".markdown",
-                                    ]:
-                                        page_content_html = md.render(content_raw)
-                                    else:
-                                        # Assume it's already HTML or text to be included directly
-                                        page_content_html = content_raw  # Might need |safe in template if HTML
-                                except Exception as read_err:
-                                    logger.error(
-                                        f"Error reading content file '{content_path}' for static page '{page_config.name}': {read_err}"
-                                    )
-                                    page_content_html = f"<p><em>Error loading content from {content_path}.</em></p>"
-                            else:
-                                logger.warning(
-                                    f"Content source file not found for static page '{page_config.name}': {content_path}"
-                                )
-                                page_content_html = f"<p><em>Content file not found: {content_path}</em></p>"
+                                page_content_html = f"<p><em>Error loading content from {content_path}.</em></p>"
+                        else:
+                            logger.warning(
+                                f"Content source file not found for static page '{page_config.name}': {content_path}"
+                            )
+                            page_content_html = f"<p><em>Content file not found: {content_path}</em></p>"
 
-                    context["page_content_html"] = (
-                        page_content_html  # Pass rendered/loaded HTML to context
-                    )
+                context["page_content_html"] = (
+                    page_content_html  # Pass rendered/loaded HTML to context
+                )
 
-                    # Determine the template to use
-                    template_name = (
-                        page_config.template or "static_page.html"
-                    )  # Fallback to default
-                    try:
-                        template = jinja_env.get_template(template_name)
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to process static page '{page_config.name}' ({page_config.template} -> {page_config.output_file}): {e}",
-                            exc_info=True,
-                        )
-                        # Decide whether to raise or continue
-
-                    rendered_html = template.render(context)
-                    output_file_path = output_dir / page_config.output_file
-                    output_file_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(output_file_path, "w", encoding="utf-8") as f:
-                        f.write(rendered_html)
-                    logger.debug(f"Rendered static page: {output_file_path}")
-
+                # Determine the template to use
+                template_name = (
+                    page_config.template or "static_page.html"
+                )  # Fallback to default
+                try:
+                    template = jinja_env.get_template(template_name)
                 except Exception as e:
                     logger.error(
                         f"Failed to process static page '{page_config.name}' ({page_config.template} -> {page_config.output_file}): {e}",
@@ -504,8 +489,20 @@ class HtmlPageExporter(ExporterPlugin):
                     )
                     # Decide whether to raise or continue
 
-                # Update progress
-                progress.update(task, advance=1)
+                rendered_html = template.render(context)
+                output_file_path = output_dir / page_config.output_file
+                output_file_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(output_file_path, "w", encoding="utf-8") as f:
+                    f.write(rendered_html)
+                self.stats["total_files_generated"] += 1
+                logger.debug(f"Rendered static page: {output_file_path}")
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to process static page '{page_config.name}' ({page_config.template} -> {page_config.output_file}): {e}",
+                    exc_info=True,
+                )
+                # Decide whether to raise or continue
 
         logger.info("Static pages processed.")
 
@@ -525,142 +522,100 @@ class HtmlPageExporter(ExporterPlugin):
 
         plugin_registry = PluginRegistry()
 
-        # Filter groups if needed
-        groups_to_process = groups
-        if group_filter:
-            groups_to_process = [g for g in groups if g.group_by == group_filter]
-
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeRemainingColumn(),
-        ) as progress:
-            task = progress.add_task(
-                "[cyan]Processing groups[/cyan]", total=len(groups_to_process)
-            )
-
-            for group_config in groups:
-                # Update progress with group name
-                progress.update(
-                    task,
-                    description=f"[cyan]Processing group: {group_config.group_by}[/cyan]",
+        for group_config in groups:
+            # Skip group if filter is set and doesn't match
+            if group_filter and group_config.group_by != group_filter:
+                logger.debug(
+                    f"Skipping group '{group_config.group_by}' due to filter '{group_filter}'."
                 )
+                continue
 
-                # Skip group if filter is set and doesn't match
-                if group_filter and group_config.group_by != group_filter:
-                    logger.debug(
-                        f"Skipping group '{group_config.group_by}' due to filter '{group_filter}'."
-                    )
-                    continue
+            group_by_key = group_config.group_by
+            logger.info(f"Processing group: '{group_by_key}'")
+            id_column = f"{group_by_key}_id"
+            table_name = group_by_key
 
-                group_by_key = group_config.group_by
-                logger.info(f"Processing group: '{group_by_key}'")
-                id_column = f"{group_by_key}_id"
-                table_name = group_by_key
+            # Generate navigation JS file for this group (only once)
+            self._generate_navigation_js(group_config, output_dir)
 
-                # Generate navigation JS file for this group (only once)
-                self._generate_navigation_js(group_config, output_dir)
+            # Define the group-specific output directory prefix based on group_by_key
+            group_output_path_prefix = group_by_key
+            group_output_dir = output_dir / group_output_path_prefix
 
-                # Define the group-specific output directory prefix based on group_by_key
-                group_output_path_prefix = group_by_key
-                group_output_dir = output_dir / group_output_path_prefix
-
-                # Clear group directory only if filter matches or no filter is set
-                try:
-                    if (
-                        group_filter == group_by_key
-                    ):  # Only clear if this specific group is targeted
-                        if group_output_dir.exists() and any(
-                            group_output_dir.iterdir()
-                        ):
-                            logger.warning(
-                                f"Clearing specific group directory: {group_output_dir}"
-                            )
-                            shutil.rmtree(group_output_dir)
-
-                    # Always ensure the group directory exists (might have been cleared or never existed)
-                    group_output_dir.mkdir(parents=True, exist_ok=True)
-
-                except OSError as e:
-                    logger.error(
-                        f"Error managing group directory {group_output_dir}: {e}",
-                        exc_info=True,
-                    )
-                    continue  # Skip processing this group if directory management failed
-
-                # --- Render Index Page ---
-                # Check if group has index_generator configuration
+            # Clear group directory only if filter matches or no filter is set
+            try:
                 if (
-                    hasattr(group_config, "index_generator")
-                    and group_config.index_generator
-                ):
-                    try:
-                        # Use new index generator plugin
-                        from niamoto.core.plugins.exporters.index_generator import (
-                            IndexGeneratorPlugin,
+                    group_filter == group_by_key
+                ):  # Only clear if this specific group is targeted
+                    if group_output_dir.exists() and any(group_output_dir.iterdir()):
+                        logger.warning(
+                            f"Clearing specific group directory: {group_output_dir}"
                         )
-                        from niamoto.core.plugins.models import IndexGeneratorConfig
+                        shutil.rmtree(group_output_dir)
 
-                        # Convert to dict if it's already a config object
-                        if hasattr(group_config.index_generator, "model_dump"):
-                            index_config_dict = (
-                                group_config.index_generator.model_dump()
-                            )
-                        else:
-                            index_config_dict = group_config.index_generator
+                # Always ensure the group directory exists (might have been cleared or never existed)
+                group_output_dir.mkdir(parents=True, exist_ok=True)
 
-                        # Validate and create config
-                        index_config = IndexGeneratorConfig(**index_config_dict)
+            except OSError as e:
+                logger.error(
+                    f"Error managing group directory {group_output_dir}: {e}",
+                    exc_info=True,
+                )
+                continue  # Skip processing this group if directory management failed
 
-                        if index_config.enabled:
-                            logger.info(
-                                f"Using IndexGeneratorPlugin for group '{group_by_key}'"
-                            )
+            # --- Render Index Page ---
+            # Check if group has index_generator configuration
+            if (
+                hasattr(group_config, "index_generator")
+                and group_config.index_generator
+            ):
+                try:
+                    # Use new index generator plugin
+                    from niamoto.core.plugins.exporters.index_generator import (
+                        IndexGeneratorPlugin,
+                    )
+                    from niamoto.core.plugins.models import IndexGeneratorConfig
 
-                            # Create plugin instance
-                            index_generator = IndexGeneratorPlugin(repository)
+                    # Convert to dict if it's already a config object
+                    if hasattr(group_config.index_generator, "model_dump"):
+                        index_config_dict = group_config.index_generator.model_dump()
+                    else:
+                        index_config_dict = group_config.index_generator
 
-                            # Generate index page
-                            index_generator.generate_index(
-                                group_by_key,
-                                index_config,
-                                output_dir,
-                                jinja_env,
-                                html_params,
-                            )
-                            logger.debug(
-                                f"Index page generated using IndexGeneratorPlugin for '{group_by_key}'"
-                            )
-                        else:
-                            logger.info(
-                                f"IndexGenerator disabled for group '{group_by_key}', skipping index generation"
-                            )
-                    except Exception as e:
-                        logger.error(
-                            f"Error using IndexGeneratorPlugin for group '{group_by_key}': {e}",
-                            exc_info=True,
-                        )
-                        # Fall back to traditional method
+                    # Validate and create config
+                    index_config = IndexGeneratorConfig(**index_config_dict)
+
+                    if index_config.enabled:
                         logger.info(
-                            f"Falling back to traditional index generation for group '{group_by_key}'"
+                            f"Using IndexGeneratorPlugin for group '{group_by_key}'"
                         )
-                        self._generate_traditional_index(
-                            group_config,
+
+                        # Create plugin instance
+                        index_generator = IndexGeneratorPlugin(repository)
+
+                        # Generate index page
+                        index_generator.generate_index(
                             group_by_key,
-                            repository,
-                            table_name,
-                            id_column,
+                            index_config,
+                            output_dir,
                             jinja_env,
                             html_params,
-                            output_dir,
-                            group_output_dir,
                         )
-                else:
-                    # Use traditional index generation
-                    logger.debug(
-                        f"Using traditional index generation for group '{group_by_key}'"
+                        logger.debug(
+                            f"Index page generated using IndexGeneratorPlugin for '{group_by_key}'"
+                        )
+                    else:
+                        logger.info(
+                            f"IndexGenerator disabled for group '{group_by_key}', skipping index generation"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error using IndexGeneratorPlugin for group '{group_by_key}': {e}",
+                        exc_info=True,
+                    )
+                    # Fall back to traditional method
+                    logger.info(
+                        f"Falling back to traditional index generation for group '{group_by_key}'"
                     )
                     self._generate_traditional_index(
                         group_config,
@@ -673,34 +628,57 @@ class HtmlPageExporter(ExporterPlugin):
                         output_dir,
                         group_output_dir,
                     )
-
-                # --- End Render Index Page ---
-
-                # --- Render Detail Pages ---
-                # Get index data for detail pages (needed for both traditional and new method)
-                index_data = self._get_group_index_data(
-                    repository, table_name, id_column
+            else:
+                # Use traditional index generation
+                logger.debug(
+                    f"Using traditional index generation for group '{group_by_key}'"
                 )
-                if not index_data:
-                    logger.info(
-                        f"No items found for group '{group_by_key}', skipping detail pages."
-                    )
-                    continue
+                self._generate_traditional_index(
+                    group_config,
+                    group_by_key,
+                    repository,
+                    table_name,
+                    id_column,
+                    jinja_env,
+                    html_params,
+                    output_dir,
+                    group_output_dir,
+                )
 
-                detail_template_name = group_config.page_template or "group_detail.html"
+            # --- End Render Index Page ---
 
-                # Outer try for the entire detail page generation process for this group
-                try:
-                    # Pre-load detail template once per group
-                    detail_template = jinja_env.get_template(detail_template_name)
-                    logger.info(
-                        f"Generating detail pages for {len(index_data)} items in group '{group_by_key}' using template '{detail_template_name}'..."
-                    )
+            # --- Render Detail Pages ---
+            # Get index data for detail pages (needed for both traditional and new method)
+            index_data = self._get_group_index_data(repository, table_name, id_column)
+            if not index_data:
+                logger.info(
+                    f"No items found for group '{group_by_key}', skipping detail pages."
+                )
+                continue
 
-                    # Loop through items to generate detail pages
-                    # Add a sub-task for detail pages in the main progress
-                    detail_task = progress.add_task(
-                        f"[blue]Generating {group_by_key} detail pages[/blue]",
+            detail_template_name = group_config.page_template or "group_detail.html"
+
+            # Outer try for the entire detail page generation process for this group
+            try:
+                # Pre-load detail template once per group
+                detail_template = jinja_env.get_template(detail_template_name)
+                logger.info(
+                    f"Generating detail pages for {len(index_data)} items in group '{group_by_key}' using template '{detail_template_name}'..."
+                )
+
+                # Create a new progress bar for this group with the harmonized format
+                import time
+
+                start_time = time.time()
+
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                ) as group_progress:
+                    detail_task = group_progress.add_task(
+                        f"[green]Generating {group_by_key} detail pages[/green]",
                         total=len(index_data),
                     )
 
@@ -710,7 +688,7 @@ class HtmlPageExporter(ExporterPlugin):
                             logger.warning(
                                 f"Skipping item with missing ID in group '{group_by_key}' based on id_column '{id_column}'. Item data: {item_summary}"
                             )
-                            progress.update(detail_task, advance=1)
+                            group_progress.update(detail_task, advance=1)
                             continue
 
                         # Inner try for processing a single item
@@ -721,7 +699,7 @@ class HtmlPageExporter(ExporterPlugin):
                             )
                             if not item_data:
                                 # Warning already logged in _get_item_detail_data
-                                progress.update(detail_task, advance=1)
+                                group_progress.update(detail_task, advance=1)
                                 continue
 
                             rendered_widgets: Dict[str, str] = {}
@@ -927,6 +905,7 @@ class HtmlPageExporter(ExporterPlugin):
                             detail_output_path.parent.mkdir(parents=True, exist_ok=True)
                             with open(detail_output_path, "w", encoding="utf-8") as f:
                                 f.write(rendered_detail_html)
+                            self.stats["total_files_generated"] += 1
                             # logger.debug(f"Rendered detail page: {detail_output_path}")
 
                         except Exception as item_render_err:  # Catch errors specific to rendering this single item
@@ -936,24 +915,33 @@ class HtmlPageExporter(ExporterPlugin):
                             )
                             # Continue to the next item even if one fails
 
-                        # Update progress
-                        progress.update(detail_task, advance=1)
+                        # Update progress after each item (success or failure)
+                        current_duration = time.time() - start_time
+                        group_progress.update(
+                            detail_task,
+                            advance=1,
+                            description=f"[green]Generating {group_by_key} detail pages • {current_duration:.1f}s[/green]",
+                        )
+
+                    # Update task description to show completion after all items processed
+                    duration = time.time() - start_time
+                    group_progress.update(
+                        detail_task,
+                        description=f"[green]✅ {group_by_key} detail pages completed • {duration:.1f}s[/green]",
+                    )
 
                     # End item loop for this group
 
-                # Corresponding except for the outer try block (template loading or other group-wide detail errors)
-                except Exception as detail_group_err:
-                    logger.error(
-                        f"Failed processing detail pages for group '{group_by_key}': {detail_group_err}",
-                        exc_info=True,
-                    )
-                    # Continue processing the next group if detail page generation fails for this one
-                    continue
+            # Corresponding except for the outer try block (template loading or other group-wide detail errors)
+            except Exception as detail_group_err:
+                logger.error(
+                    f"Failed processing detail pages for group '{group_by_key}': {detail_group_err}",
+                    exc_info=True,
+                )
+                # Continue processing the next group if detail page generation fails for this one
+                continue
 
-                # --- End Render Detail Pages ---
-
-                # Update progress for group
-                progress.update(task, advance=1)
+            # --- End Render Detail Pages ---
 
         # End group loop
         logger.info("Data group processing finished.")
@@ -1128,6 +1116,7 @@ class HtmlPageExporter(ExporterPlugin):
             # Write JS file
             js_path = js_dir / js_filename
             js_path.write_text(js_content, encoding="utf-8")
+            self.stats["total_files_generated"] += 1
 
             # Mark as generated
             self._navigation_js_generated.add(group_by_key)
@@ -1310,6 +1299,7 @@ class HtmlPageExporter(ExporterPlugin):
             index_output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(index_output_path, "w", encoding="utf-8") as f:
                 f.write(index_template.render(index_context))
+            self.stats["total_files_generated"] += 1
             logger.debug(
                 f"Rendered traditional index page for '{group_by_key}': {index_output_path}"
             )
