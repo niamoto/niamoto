@@ -136,7 +136,7 @@ def _display_table(console: Console, plugins: dict, verbose: bool) -> None:
         if verbose:
             module = plugin_class.__module__
             class_name = plugin_class.__name__
-            has_schema = "✓" if hasattr(plugin_class, "param_schema") else "✗"
+            has_schema = "✅" if hasattr(plugin_class, "param_schema") else "✗"
             row.extend([module, class_name, has_schema])
 
         table.add_row(*row)
@@ -168,7 +168,7 @@ def _display_simple(console: Console, plugins: dict, verbose: bool) -> None:
                 console.print(f"    [dim]Module: {module}[/dim]")
                 console.print(f"    [dim]Class: {plugin_class.__name__}[/dim]")
                 if hasattr(plugin_class, "param_schema"):
-                    console.print("    [dim]Has parameter schema: ✓[/dim]")
+                    console.print("    [dim]Has parameter schema: ✅[/dim]")
 
 
 def _get_description(plugin_class) -> str:

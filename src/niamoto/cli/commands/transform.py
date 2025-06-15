@@ -15,7 +15,15 @@ from niamoto.common.exceptions import (
 )
 from niamoto.common.utils.error_handler import error_handler
 from niamoto.core.services.transformer import TransformerService
-from ..utils.console import print_success, print_info, print_warning
+from ..utils.console import (
+    print_success,
+    print_info,
+    print_warning,
+    print_start,
+    print_operation_complete,
+    print_operation_metrics,
+)
+from ..utils.metrics import MetricsCollector
 
 
 @click.group(name="transform", invoke_without_command=True)
@@ -151,15 +159,23 @@ def process_transformations(
 
         # Process transformations
         if group:
-            print_info(f"Processing transformations for group: {group}")
+            print_start(f"Processing transformations for group: {group}")
         else:
-            print_info("Processing all transformation groups")
+            print_start("Processing all transformation groups")
 
-        service.transform_data(
+        # Execute the transformation
+        results = service.transform_data(
             group_by=group, csv_file=data, recreate_table=recreate_table
         )
 
-        print_success("Data transformation completed successfully")
+        # Create and display metrics
+        if results:
+            transform_metrics = MetricsCollector.create_transform_metrics(results)
+            print_operation_metrics(transform_metrics, "transform")
+        elif hasattr(service, "transform_metrics") and service.transform_metrics:
+            print_operation_metrics(service.transform_metrics, "transform")
+        else:
+            print_operation_complete("Data transformation")
 
     except ConfigurationError as e:
         print_warning(f"Error reading configuration: {str(e)}")

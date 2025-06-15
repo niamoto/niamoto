@@ -474,12 +474,9 @@ class TestTransformerService(NiamotoTestCase):
         else:
             self.assertEqual(params["widget2"], 3.14)
 
-    @patch("niamoto.core.services.transformer.Progress")
     @patch("niamoto.core.services.transformer.TransformerService._filter_configs")
     @patch("niamoto.core.services.transformer.PluginLoader")
-    def test_transform_data_error(
-        self, mock_plugin_loader, mock_filter_configs, mock_progress
-    ):
+    def test_transform_data_error(self, mock_plugin_loader, mock_filter_configs):
         """Test transform_data method with error."""
 
         # Mock plugin loader to avoid plugin loading errors
@@ -503,10 +500,6 @@ class TestTransformerService(NiamotoTestCase):
 
         for key, value in error_details.items():
             print(f"    - {key}: {value}")
-
-        # Mock progress context manager
-        mock_progress_instance = Mock()
-        mock_progress.return_value.__enter__.return_value = mock_progress_instance
 
         # Create a fresh instance of TransformerService with our mocked plugin loader
         service = TransformerService("mock_db_path", self.mock_config)

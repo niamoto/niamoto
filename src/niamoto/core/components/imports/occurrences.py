@@ -12,7 +12,6 @@ from rich.progress import (
     SpinnerColumn,
     BarColumn,
     TextColumn,
-    TimeRemainingColumn,
 )
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -38,6 +37,7 @@ class OccurrenceImporter:
     def __init__(self, db: Database):
         self.db = db
         self.db_path = self.db.db_path
+        self.last_linking_data = None  # Store linking statistics for summary
 
     @error_handler(log=True, raise_error=True)
     def analyze_data(self, csvfile: str) -> List[Tuple[str, str]]:
@@ -315,12 +315,16 @@ class OccurrenceImporter:
             chunk_size = 1000
             num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
 
+            # Capture start time
+            import time
+
+            start_time = time.time()
+
             progress = Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeRemainingColumn(),
             )
 
             with progress:
@@ -331,7 +335,20 @@ class OccurrenceImporter:
                 for i in range(0, len(df), chunk_size):
                     chunk = df.iloc[i : i + chunk_size]
                     chunk.to_sql("occurrences", engine, if_exists="append", index=False)
-                    progress.update(task, advance=1)
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Importing occurrences • {current_duration:.1f}s[/green]",
+                    )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green]✅ occurrences import completed • {duration:.1f}s[/green]",
+                )
 
             # Get final count before validation
             result = self.db.execute_sql(
@@ -385,7 +402,8 @@ class OccurrenceImporter:
             linked_count = self._get_linked_occurrence_count()
             unlinked_count = total_count - linked_count
 
-            self._format_link_status(
+            # Store linking data for later use in summary
+            self.last_linking_data = self._format_link_status(
                 total_count=total_count,
                 linked_count=linked_count,
                 linked_by_taxon_id=linked_stats["linked_count"],
@@ -457,24 +475,62 @@ class OccurrenceImporter:
         updates = []
         linked_count = 0
 
-        for _, row in occurrences_df.iterrows():
-            occ_id = row["id"]
-            external_taxon_id = (
-                row[taxon_id_column] if pd.notna(row[taxon_id_column]) else None
-            )
-            external_taxon_id_str = (
-                str(external_taxon_id) if external_taxon_id is not None else None
-            )
+        # Only show progress if there are occurrences to process
+        if not occurrences_df.empty:
+            # Capture start time
+            import time
 
-            # Try to link by taxon ID
-            if external_taxon_id_str and external_taxon_id_str in taxon_id_to_taxon:
-                updates.append(
-                    {
-                        "occ_id": occ_id,
-                        "taxon_id": taxon_id_to_taxon[external_taxon_id_str],
-                    }
+            start_time = time.time()
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            ) as progress:
+                task = progress.add_task(
+                    "[green]Linking occurrences to taxonomy...",
+                    total=len(occurrences_df),
                 )
-                linked_count += 1
+
+                for _, row in occurrences_df.iterrows():
+                    occ_id = row["id"]
+                    external_taxon_id = (
+                        row[taxon_id_column] if pd.notna(row[taxon_id_column]) else None
+                    )
+                    external_taxon_id_str = (
+                        str(external_taxon_id)
+                        if external_taxon_id is not None
+                        else None
+                    )
+
+                    # Try to link by taxon ID
+                    if (
+                        external_taxon_id_str
+                        and external_taxon_id_str in taxon_id_to_taxon
+                    ):
+                        updates.append(
+                            {
+                                "occ_id": occ_id,
+                                "taxon_id": taxon_id_to_taxon[external_taxon_id_str],
+                            }
+                        )
+                        linked_count += 1
+
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Linking occurrences to taxonomy • {current_duration:.1f}s[/green]",
+                    )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green]✅ taxonomy linking completed • {duration:.1f}s[/green]",
+                )
 
         # Apply updates in batches
         self._apply_batch_updates(updates)
@@ -495,23 +551,80 @@ class OccurrenceImporter:
             return
 
         batch_size = 1000
-        for i in range(0, len(updates), batch_size):
-            batch = updates[i : i + batch_size]
+        num_batches = len(updates) // batch_size + (
+            1 if len(updates) % batch_size > 0 else 0
+        )
 
-            # Build CASE statement
-            case_stmt = " ".join(
-                f"WHEN {update['occ_id']} THEN {update['taxon_id']}" for update in batch
-            )
+        # Only show progress if there are multiple batches or significant updates
+        if len(updates) > batch_size:
+            # Capture start time
+            import time
 
-            ids = ", ".join(str(update["occ_id"]) for update in batch)
+            start_time = time.time()
 
-            query = f"""
-            UPDATE occurrences
-            SET taxon_ref_id = CASE id {case_stmt} END
-            WHERE id IN ({ids})
-            """
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            ) as progress:
+                task = progress.add_task(
+                    "[green]Saving taxonomy links...", total=num_batches
+                )
 
-            self.db.execute_sql(query)
+                for i in range(0, len(updates), batch_size):
+                    batch = updates[i : i + batch_size]
+
+                    # Build CASE statement
+                    case_stmt = " ".join(
+                        f"WHEN {update['occ_id']} THEN {update['taxon_id']}"
+                        for update in batch
+                    )
+
+                    ids = ", ".join(str(update["occ_id"]) for update in batch)
+
+                    query = f"""
+                    UPDATE occurrences
+                    SET taxon_ref_id = CASE id {case_stmt} END
+                    WHERE id IN ({ids})
+                    """
+
+                    self.db.execute_sql(query)
+
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Saving taxonomy links • {current_duration:.1f}s[/green]",
+                    )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green]✅ taxonomy links saved • {duration:.1f}s[/green]",
+                )
+        else:
+            # For smaller updates, process without progress bar
+            for i in range(0, len(updates), batch_size):
+                batch = updates[i : i + batch_size]
+
+                # Build CASE statement
+                case_stmt = " ".join(
+                    f"WHEN {update['occ_id']} THEN {update['taxon_id']}"
+                    for update in batch
+                )
+
+                ids = ", ".join(str(update["occ_id"]) for update in batch)
+
+                query = f"""
+                UPDATE occurrences
+                SET taxon_ref_id = CASE id {case_stmt} END
+                WHERE id IN ({ids})
+                """
+
+                self.db.execute_sql(query)
 
     def _get_unlinked_examples(self, taxon_id_column: str, limit=5):
         """
@@ -567,7 +680,6 @@ class OccurrenceImporter:
         """
         from rich.table import Table
         from rich.console import Console
-        from rich.panel import Panel
 
         # Créer une console si non fournie
         if console is None:
@@ -599,15 +711,34 @@ class OccurrenceImporter:
                     "Failed to link", str(unlinked_count), unlinked_percent, style="red"
                 )
 
-        # Print the table
-        console.print(table)
+        # TODO: Remove these prints to move to final summary
+        # # Print the table
+        # console.print(table)
 
-        # Print examples if there are any
+        # # Print examples if there are any
+        # if unlinked_examples:
+        #     console.print(
+        #         Panel(
+        #             unlinked_examples,
+        #             title="Sample of Unlinked Occurrences",
+        #             border_style="red",
+        #         )
+        #     )
+
+        # Return data structure for use in final summary
+        linking_stats = {
+            "total": total_count,
+            "linked": linked_count,
+            "failed": unlinked_count,
+            "type": "occurrences",
+        }
+
+        unlinked_samples = []
         if unlinked_examples:
-            console.print(
-                Panel(
-                    unlinked_examples,
-                    title="Sample of Unlinked Occurrences",
-                    border_style="red",
-                )
-            )
+            # Parse the examples string into a list
+            lines = unlinked_examples.strip().split("\n")
+            for line in lines:
+                if line.strip().startswith("- "):
+                    unlinked_samples.append(line.strip()[2:])  # Remove "- " prefix
+
+        return {"linking_stats": linking_stats, "unlinked_samples": unlinked_samples}

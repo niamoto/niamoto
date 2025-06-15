@@ -131,6 +131,7 @@ Transformer plugins perform calculations, transformations, and analyses on loade
 | `field_aggregator` | Aggregate fields | `fields` (array of mappings) |
 | `geospatial_extractor` | Extract spatial data | `source`, `field`, `format` |
 | `transform_chain` | Chain transformations | `steps` (array of plugins) |
+| `niamoto_to_dwc_occurrence` | Convert to Darwin Core format | `occurrence_list_source`, `mapping` |
 
 ### Top Ranking Plugin (Detailed)
 
@@ -297,6 +298,65 @@ class DiversityIndexCalculator(TransformerPlugin):
             raise ValueError(f"Unsupported index type: {index_type}")
 ```
 
+### Darwin Core Occurrence Transformer (Detailed)
+
+The `niamoto_to_dwc_occurrence` plugin converts Niamoto taxon data into Darwin Core Occurrence format for biodiversity data sharing.
+
+#### Purpose
+
+- Transforms occurrence records to Darwin Core standard
+- Enables GBIF and biodiversity network integration
+- Provides standardized field mapping and validation
+- Handles coordinate parsing and date formatting
+
+#### Configuration
+
+```yaml
+transformer_plugin: niamoto_to_dwc_occurrence
+transformer_params:
+  occurrence_list_source: "occurrences"  # Source table for occurrence data
+  mapping:
+    # Core Darwin Core terms
+    type: "Occurrence"
+    basisOfRecord: "HumanObservation"
+
+    # Generated fields
+    occurrenceID:
+      generator: unique_occurrence_id
+      params:
+        prefix: "niaocc_"
+        source_field: "@source.id"
+
+    # Coordinate extraction
+    decimalLatitude:
+      generator: format_coordinates
+      params:
+        source_field: "@source.geo_pt"
+        type: "latitude"
+
+    # Direct field mapping
+    scientificName: "@source.taxonref"
+    taxonRank: "@taxon.general_info.rank.value"
+```
+
+#### Reference System
+
+**@source References**: Individual occurrence data from the occurrences table
+**@taxon References**: Taxonomic metadata from the taxon table
+
+#### Built-in Generators
+
+- `format_coordinates`: Parse POINT geometry to decimal degrees
+- `format_event_date`: Convert month numbers to ISO 8601 dates
+- `extract_specific_epithet`: Parse scientific names for specific epithets
+- `format_measurements`: Structure measurement data with units
+- `format_phenology`: Convert flower/fruit flags to text descriptions
+- `format_habitat`: Combine environmental variables into descriptions
+
+#### Output
+
+Returns a list of Darwin Core occurrence records for each taxon, or an empty list if no occurrences exist.
+
 ## 3. Exporter Plugins
 
 Exporter plugins handle the output generation from transformed data.
@@ -340,6 +400,7 @@ exports:
 | Plugin Name | Purpose | Parameters |
 |-------------|---------|------------|
 | `html_page_exporter` | Generate HTML websites | `output_dir`, `base_url`, `static_pages`, `entity_pages` |
+| `json_api_exporter` | Generate JSON API files | `output_dir`, `detail_output_pattern`, `index_output_pattern`, `json_options` |
 | `api_generator` | Generate API data | `output_dir`, `format` |
 | `index_generator` | Generate search indexes | `output_dir`, `groups` |
 

@@ -253,16 +253,18 @@ class TestImportAll:
                 importer_instance.import_plots.return_value = "Plots OK"
                 importer_instance.import_shapes.return_value = "Shapes OK"
 
+                # Mock the occurrence_importer to avoid JSON serialization issues
+                mock_occurrence_importer = mock.MagicMock()
+                mock_occurrence_importer.last_linking_data = (
+                    None  # Set to None to avoid JSON serialization
+                )
+                importer_instance.occurrence_importer = mock_occurrence_importer
+
                 result = runner.invoke(import_all, [])
 
                 assert result.exit_code == 0
-                assert "Starting full data import..." in result.output
-                assert "Importing taxonomy..." in result.output
-                assert "Taxonomy import OK" in result.output
-                assert "Importing occurrences..." in result.output
-                assert "Occurrences OK" in result.output
-                # ... add assertions for plots and shapes if desired ...
-                assert "[>] Data import completed" in result.output
+                assert "Starting full data import" in result.output
+                assert "Import Summary" in result.output
 
                 # Verify reset was called for taxonomy
                 mock_reset.assert_any_call(

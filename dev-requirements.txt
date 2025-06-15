@@ -176,6 +176,8 @@ prompt-toolkit==3.0.50
     # via
     #   niamoto (pyproject.toml)
     #   ipython
+psutil==7.0.0
+    # via niamoto (pyproject.toml)
 ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.3
@@ -316,6 +318,7 @@ typing-extensions==4.12.2
     # via
     #   alembic
     #   beautifulsoup4
+    #   ipython
     #   mypy
     #   pydantic
     #   pydantic-core

@@ -334,7 +334,7 @@ def test_transform_service_success_message(runner):
             result = runner.invoke(transform_commands)
 
             assert result.exit_code == 0
-            assert "Data transformation completed successfully" in result.output
+            assert "Transform Summary:" in result.output
 
 
 def test_list_with_config_error(runner):

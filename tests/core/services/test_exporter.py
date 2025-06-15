@@ -146,12 +146,16 @@ class TestExporterService(NiamotoTestCase):
 
         service = ExporterService(self.db_path, self.mock_config)
 
-        with self.assertRaises(ConfigurationError) as context:
-            service.run_export()
+        # ConfigurationError is now caught and handled gracefully in results
+        results = service.run_export()
 
+        # Check that the error is captured in the results
+        self.assertIn("test_export", results)
+        self.assertEqual(results["test_export"]["status"], "error")
         self.assertIn(
-            "Exporter plugin 'mock_exporter' not found", str(context.exception)
+            "Exporter plugin 'mock_exporter' not found", results["test_export"]["error"]
         )
+        self.assertEqual(results["test_export"]["errors"], 1)
 
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")
@@ -170,10 +174,14 @@ class TestExporterService(NiamotoTestCase):
 
         service = ExporterService(self.db_path, self.mock_config)
 
-        with self.assertRaises(ProcessError) as context:
-            service.run_export()
+        # Should not raise an exception but capture the error in results
+        results = service.run_export()
 
-        self.assertIn("Plugin instantiation failed", str(context.exception))
+        # Check that the error is captured in the results
+        self.assertIn("test_export", results)
+        self.assertEqual(results["test_export"]["status"], "error")
+        self.assertIn("Init error", results["test_export"]["error"])
+        self.assertEqual(results["test_export"]["errors"], 1)
 
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")
@@ -195,10 +203,14 @@ class TestExporterService(NiamotoTestCase):
 
         service = ExporterService(self.db_path, self.mock_config)
 
-        with self.assertRaises(ProcessError) as context:
-            service.run_export()
+        # Should not raise an exception but capture the error in results
+        results = service.run_export()
 
-        self.assertIn("Export failed for target 'test_export'", str(context.exception))
+        # Check that the error is captured in the results
+        self.assertIn("test_export", results)
+        self.assertEqual(results["test_export"]["status"], "error")
+        self.assertIn("Export error", results["test_export"]["error"])
+        self.assertEqual(results["test_export"]["errors"], 1)
 
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")

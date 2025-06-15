@@ -377,7 +377,13 @@ def display_group_statistics(stats: Dict[str, Any], group: str, detailed: bool) 
     table.add_column("Value", justify="right", style="yellow")
 
     for key, value in stats.items():
-        if key not in ["Column Names", "Rank Distribution", "Categories", "Error"]:
+        if key not in [
+            "Column Names",
+            "Rank Distribution",
+            "Categories",
+            "Error",
+            "Types",
+        ]:
             table.add_row(key, f"{value:,}")
 
     console.print(table)

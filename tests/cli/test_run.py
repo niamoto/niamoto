@@ -54,7 +54,7 @@ def test_run_pipeline_help(runner):
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_all_phases(
     mock_export,
     mock_transform,
@@ -87,7 +87,7 @@ def test_run_pipeline_all_phases(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_no_reset(
     mock_export,
     mock_transform,
@@ -121,7 +121,7 @@ def test_run_pipeline_no_reset(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_skip_import(
     mock_export,
     mock_transform,
@@ -151,7 +151,7 @@ def test_run_pipeline_skip_import(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_skip_transform(
     mock_export,
     mock_transform,
@@ -180,7 +180,7 @@ def test_run_pipeline_skip_transform(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_skip_export(
     mock_export,
     mock_transform,
@@ -209,7 +209,7 @@ def test_run_pipeline_skip_export(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_all_phases_skipped(
     mock_export,
     mock_transform,
@@ -243,7 +243,7 @@ def test_run_pipeline_all_phases_skipped(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_with_group_option(
     mock_export,
     mock_transform,
@@ -272,7 +272,7 @@ def test_run_pipeline_with_group_option(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_with_target_option(
     mock_export,
     mock_transform,
@@ -298,7 +298,7 @@ def test_run_pipeline_with_target_option(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_with_verbose_option(
     mock_export,
     mock_transform,
@@ -333,7 +333,7 @@ def test_run_pipeline_with_verbose_option(
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_mixed_options(
     mock_export,
     mock_transform,
@@ -393,7 +393,7 @@ def test_run_pipeline_has_correct_options():
 @patch("niamoto.cli.commands.run.get_config_dir")
 @patch("niamoto.cli.commands.run.import_all")
 @patch("niamoto.cli.commands.run.process_transformations")
-@patch("niamoto.cli.commands.run.export_pages")
+@patch("niamoto.cli.commands.run.export_command")
 def test_run_pipeline_error_continues_to_next_phase_when_phase_skipped(
     mock_export,
     mock_transform,

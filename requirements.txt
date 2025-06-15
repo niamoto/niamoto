@@ -97,6 +97,8 @@ plotly==6.0.1
     # via niamoto (pyproject.toml)
 prompt-toolkit==3.0.50
     # via niamoto (pyproject.toml)
+psutil==7.0.0
+    # via niamoto (pyproject.toml)
 pyarrow==19.0.1
     # via niamoto (pyproject.toml)
 pydantic==2.11.0a2
