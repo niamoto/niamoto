@@ -116,7 +116,8 @@ class ProgressManager:
         if kwargs:
             self._current_progress.update(self._tasks[name], **kwargs)
 
-        self._stats["operations_completed"] += advance
+        if advance > 0:
+            self._stats["operations_completed"] += advance
 
     def complete_task(self, name: str, success_message: Optional[str] = None) -> None:
         """Mark a task as completed."""
