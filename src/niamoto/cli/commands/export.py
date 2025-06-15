@@ -9,7 +9,7 @@ The export command processes targets defined in export.yml:
 - Groups within targets can be filtered
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from pathlib import Path
 
 import click
@@ -18,7 +18,17 @@ from niamoto.common.config import Config
 from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.common.utils.error_handler import error_handler
 from niamoto.core.services.exporter import ExporterService
-from ..utils.console import print_success, print_info, print_error, print_warning
+from ..utils.console import (
+    print_success,
+    print_info,
+    print_error,
+    print_warning,
+    print_start,
+    print_section,
+    print_summary_header,
+    print_operation_metrics,
+)
+from ..utils.metrics import MetricsCollector
 
 
 @click.command(name="export")
@@ -107,34 +117,33 @@ def export_command(
 
         # Run the export process
         if target:
-            print_info(f"🚀 Running export target: '{target}'")
+            print_start(f"Running export target: '{target}'")
             if group:
-                print_info(f"   Filtering to group: '{group}'")
+                print_info(f"Filtering to group: '{group}'")
         else:
-            print_info("🚀 Running all enabled export targets...")
+            print_start("Running all enabled export targets")
 
         # Execute the export
         results = service.run_export(target_name=target, group_filter=group)
 
-        # Show summary
-        _show_export_summary(results)
-
-        print_success("✅ Export process completed successfully!")
+        # Create and display metrics
+        export_metrics = MetricsCollector.create_export_metrics(results)
+        print_operation_metrics(export_metrics, "export")
 
     except ConfigurationError as e:
-        print_error(f"❌ Configuration error: {e}")
+        print_error(f"Configuration error: {e}")
         raise
     except ProcessError as e:
-        print_error(f"❌ Export failed: {e}")
+        print_error(f"Export failed: {e}")
         raise
     except Exception as e:
-        print_error(f"❌ Unexpected error: {e}")
+        print_error(f"Unexpected error: {e}")
         raise
 
 
 def _list_export_targets(service: ExporterService) -> None:
     """List all available export targets from configuration."""
-    print_info("\n📋 Available export targets:\n")
+    print_section("Available export targets")
 
     try:
         targets = service.get_export_targets()
@@ -144,23 +153,21 @@ def _list_export_targets(service: ExporterService) -> None:
             return
 
         for target_name, target_info in targets.items():
-            status = (
-                "✅ enabled" if target_info.get("enabled", False) else "❌ disabled"
-            )
+            status = "enabled" if target_info.get("enabled", False) else "disabled"
             exporter = target_info.get("exporter", "unknown")
 
-            print(f"  • {target_name:<20} [{status}] - Exporter: {exporter}")
+            print_info(f"• {target_name:<20} [{status}] - Exporter: {exporter}")
 
             # Show groups if available
             groups = target_info.get("groups", [])
             if groups:
                 group_names = [g.get("group_by", "unknown") for g in groups]
-                print(f"    Groups: {', '.join(group_names)}")
+                print_info(f"    Groups: {', '.join(group_names)}")
 
             # Show output directory if available
             output_dir = target_info.get("params", {}).get("output_dir")
             if output_dir:
-                print(f"    Output: {output_dir}")
+                print_info(f"    Output: {output_dir}")
 
             print()  # Empty line between targets
 
@@ -172,7 +179,7 @@ def _show_dry_run(
     service: ExporterService, target: Optional[str], group: Optional[str]
 ) -> None:
     """Show what would be exported without actually running."""
-    print_info("\n🔍 DRY RUN - The following would be exported:\n")
+    print_section("DRY RUN - The following would be exported")
 
     try:
         targets = service.get_export_targets()
@@ -188,9 +195,9 @@ def _show_dry_run(
         targets = {k: v for k, v in targets.items() if v.get("enabled", False)}
 
         for target_name, target_info in targets.items():
-            print(f"📦 Target: {target_name}")
-            print(f"   Exporter: {target_info.get('exporter', 'unknown')}")
-            print(
+            print_info(f"Target: {target_name}")
+            print_info(f"   Exporter: {target_info.get('exporter', 'unknown')}")
+            print_info(
                 f"   Output: {target_info.get('params', {}).get('output_dir', 'unknown')}"
             )
 
@@ -199,14 +206,14 @@ def _show_dry_run(
                 # Filter to specific group
                 groups = [g for g in groups if g.get("group_by") == group]
                 if not groups:
-                    print_warning(f"   ⚠️  Group '{group}' not found in this target")
+                    print_warning(f"   Group '{group}' not found in this target")
                     continue
 
             if groups:
-                print("   Groups to export:")
+                print_info("   Groups to export:")
                 for g in groups:
                     group_name = g.get("group_by", "unknown")
-                    print(f"     - {group_name}")
+                    print_info(f"     - {group_name}")
 
             print()
 
@@ -214,12 +221,12 @@ def _show_dry_run(
         print_error(f"Failed to analyze export configuration: {e}")
 
 
-def _show_export_summary(results: dict) -> None:
+def _show_export_summary(results: Dict[str, Any]) -> None:
     """Show a summary of the export results."""
     if not results:
         return
 
-    print_info("\n📊 Export Summary:\n")
+    print_summary_header("Export Summary")
 
     for target_name, target_results in results.items():
         if isinstance(target_results, dict):
@@ -227,13 +234,16 @@ def _show_export_summary(results: dict) -> None:
             errors = target_results.get("errors", 0)
             duration = target_results.get("duration", "unknown")
 
-            status = "✅" if errors == 0 else "⚠️"
-            print(f"  {status} {target_name}:")
-            print(f"     Files generated: {files_generated}")
+            if errors == 0:
+                print_success(f"{target_name}:")
+            else:
+                print_warning(f"{target_name}:")
+
+            print_info(f"     Files generated: {files_generated}")
             if errors > 0:
-                print(f"     Errors: {errors}")
-            print(f"     Duration: {duration}")
+                print_info(f"     Errors: {errors}")
+            print_info(f"     Duration: {duration}")
         else:
-            print(f"  ✅ {target_name}: Completed")
+            print_success(f"{target_name}: Completed")
 
     print()  # Empty line after summary

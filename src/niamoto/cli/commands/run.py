@@ -80,7 +80,7 @@ def run_pipeline(
         niamoto run --group taxon  # Process only taxon data
         niamoto run --target my_site  # Use specific export target
     """
-    print_info("Starting Niamoto pipeline...")
+    print_info("\n🌱 Starting Niamoto pipeline...")
 
     try:
         # Reset phase (unless skipped)

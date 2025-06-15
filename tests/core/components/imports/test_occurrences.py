@@ -774,59 +774,82 @@ class TestOccurrenceImporter(NiamotoTestCase):
         self.assertEqual(result, "")
 
     # Tests for _format_link_status method
-    @patch("rich.console.Console")
-    def test_format_link_status(self, mock_console_class):
+    def test_format_link_status(self):
         """Test _format_link_status method."""
-        mock_console = MagicMock()
-        mock_console_class.return_value = mock_console
-
-        self.importer._format_link_status(
+        result = self.importer._format_link_status(
             total_count=100,
             linked_count=80,
             linked_by_taxon_id=75,
             unlinked_count=20,
-            unlinked_examples="Sample examples",
+            unlinked_examples="  - ID: 1, Original Taxon ID: Species1\n  - ID: 2, Original Taxon ID: Species2",
             console=None,
         )
 
-        # Verify console methods were called
-        mock_console.print.assert_called()
-        # Should print table and panel for unlinked examples
-        self.assertEqual(mock_console.print.call_count, 2)
+        # Verify returned data structure
+        self.assertIn("linking_stats", result)
+        self.assertIn("unlinked_samples", result)
 
-    @patch("rich.console.Console")
-    def test_format_link_status_no_unlinked(self, mock_console_class):
+        # Check linking stats
+        stats = result["linking_stats"]
+        self.assertEqual(stats["total"], 100)
+        self.assertEqual(stats["linked"], 80)
+        self.assertEqual(stats["failed"], 20)
+        self.assertEqual(stats["type"], "occurrences")
+
+        # Check unlinked samples
+        samples = result["unlinked_samples"]
+        self.assertEqual(len(samples), 2)
+        self.assertIn("ID: 1, Original Taxon ID: Species1", samples[0])
+        self.assertIn("ID: 2, Original Taxon ID: Species2", samples[1])
+
+    def test_format_link_status_no_unlinked(self):
         """Test _format_link_status with no unlinked occurrences."""
-        mock_console = MagicMock()
-
-        self.importer._format_link_status(
+        result = self.importer._format_link_status(
             total_count=100,
             linked_count=100,
             linked_by_taxon_id=100,
             unlinked_count=0,
             unlinked_examples="",
-            console=mock_console,
+            console=None,
         )
 
-        # Should only print table, not unlinked examples panel
-        self.assertEqual(mock_console.print.call_count, 1)
+        # Verify returned data structure
+        self.assertIn("linking_stats", result)
+        self.assertIn("unlinked_samples", result)
 
-    @patch("rich.console.Console")
-    def test_format_link_status_zero_total(self, mock_console_class):
+        # Check linking stats
+        stats = result["linking_stats"]
+        self.assertEqual(stats["total"], 100)
+        self.assertEqual(stats["linked"], 100)
+        self.assertEqual(stats["failed"], 0)
+
+        # Should have no unlinked samples
+        self.assertEqual(len(result["unlinked_samples"]), 0)
+
+    def test_format_link_status_zero_total(self):
         """Test _format_link_status with zero total count."""
-        mock_console = MagicMock()
-
-        self.importer._format_link_status(
+        result = self.importer._format_link_status(
             total_count=0,
             linked_count=0,
             linked_by_taxon_id=0,
             unlinked_count=0,
             unlinked_examples="",
-            console=mock_console,
+            console=None,
         )
 
-        # Should still print table
-        mock_console.print.assert_called_once()
+        # Verify returned data structure even with zero counts
+        self.assertIn("linking_stats", result)
+        self.assertIn("unlinked_samples", result)
+
+        # Check linking stats
+        stats = result["linking_stats"]
+        self.assertEqual(stats["total"], 0)
+        self.assertEqual(stats["linked"], 0)
+        self.assertEqual(stats["failed"], 0)
+        self.assertEqual(stats["type"], "occurrences")
+
+        # Should have no unlinked samples
+        self.assertEqual(len(result["unlinked_samples"]), 0)
 
 
 if __name__ == "__main__":

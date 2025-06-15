@@ -120,6 +120,7 @@ dependencies = [
     # Documentation: https://plotly.com/python/
     # Note: Scattermap was introduced in 5.24.0
     "plotly>=5.24.0", # Minimum version for Scattermap support
+    "psutil>=7.0.0",
 ]
 
 [project.urls]

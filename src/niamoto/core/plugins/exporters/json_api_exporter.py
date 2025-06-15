@@ -17,10 +17,20 @@ import gzip
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pydantic import BaseModel, Field, field_validator
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+
+# Check if we're in CLI context for progress display
+try:
+    from niamoto.cli.utils.progress import ProgressManager
+
+    CLI_CONTEXT = True
+except ImportError:
+    CLI_CONTEXT = False
+    ProgressManager = None
+
+# Import Progress for type annotations
+from rich.progress import Progress
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
@@ -65,14 +75,6 @@ class MetadataConfig(BaseModel):
     generate: bool = True
     include_stats: bool = True
     include_schema: bool = False
-
-
-class PerformanceConfig(BaseModel):
-    """Performance optimization configuration."""
-
-    batch_size: int = 100
-    parallel: bool = True
-    max_workers: int = 4
 
 
 class IndexStructure(BaseModel):
@@ -127,7 +129,6 @@ class JsonApiExporterParams(BaseModel):
     json_options: JsonOptions = Field(default_factory=JsonOptions)
     error_handling: ErrorHandling = Field(default_factory=ErrorHandling)
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
-    performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     size_optimization: Optional[Dict[str, Any]] = None
     filters: Optional[Dict[str, Dict[str, Any]]] = None
 
@@ -178,16 +179,28 @@ class JsonApiExporter(ExporterPlugin):
                     g for g in groups_to_process if g.group_by == group_filter
                 ]
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            ) as progress:
-                for group_config in groups_to_process:
-                    self._process_group(
-                        group_config, params, repository, output_dir, progress
-                    )
+            if CLI_CONTEXT and ProgressManager:
+                # Use unified progress manager when in CLI context
+                progress_manager = ProgressManager()
+                with progress_manager.progress_context() as pm:
+                    for group_config in groups_to_process:
+                        self._process_group_with_progress_manager(
+                            group_config, params, repository, output_dir, pm
+                        )
+            else:
+                # Fallback to rich progress for backwards compatibility
+                from rich.progress import SpinnerColumn, BarColumn, TextColumn
+
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                ) as progress:
+                    for group_config in groups_to_process:
+                        self._process_group(
+                            group_config, params, repository, output_dir, progress
+                        )
 
             # Generate metadata if requested
             if params.metadata.generate:
@@ -241,30 +254,16 @@ class JsonApiExporter(ExporterPlugin):
         # Create mapper for this group
         mapper = DataMapper(group_config, params)
 
-        # Process based on performance settings and get items that generated files
-        if (
-            params.performance.parallel
-            and len(group_data) > params.performance.batch_size
-        ):
-            generated_items = self._process_group_parallel(
-                group_data,
-                group_name,
-                group_config,
-                params,
-                output_dir,
-                progress,
-                mapper,
-            )
-        else:
-            generated_items = self._process_group_sequential(
-                group_data,
-                group_name,
-                group_config,
-                params,
-                output_dir,
-                progress,
-                mapper,
-            )
+        # Process group data sequentially
+        generated_items = self._process_group_sequential(
+            group_data,
+            group_name,
+            group_config,
+            params,
+            output_dir,
+            progress,
+            mapper,
+        )
 
         # Generate index file if configured, but only for items that generated files
         if (
@@ -296,8 +295,14 @@ class JsonApiExporter(ExporterPlugin):
         mapper: "DataMapper",
     ) -> List[Dict[str, Any]]:
         """Process group data sequentially. Returns items that generated files."""
+        # Capture start time
+        import time
+
+        start_time = time.time()
+
         task = progress.add_task(
-            f"Generating {group_name} JSON files...", total=len(group_data)
+            f"[green]Generating {group_name} JSON files...[/green]",
+            total=len(group_data),
         )
 
         generated_items = []
@@ -323,58 +328,114 @@ class JsonApiExporter(ExporterPlugin):
             except Exception as e:
                 self._handle_export_error(e, group_name, item, params)
             finally:
-                progress.update(task, advance=1)
+                current_duration = time.time() - start_time
+                progress.update(
+                    task,
+                    advance=1,
+                    description=f"[green]Generating {group_name} JSON files • {current_duration:.1f}s[/green]",
+                )
+
+        # Update task description to show completion
+        duration = time.time() - start_time
+        progress.update(
+            task,
+            description=f"[green]✅ {group_name} export completed • {duration:.1f}s[/green]",
+        )
 
         return generated_items
 
-    def _process_group_parallel(
+    def _process_group_with_progress_manager(
         self,
-        group_data: List[Dict[str, Any]],
-        group_name: str,
         group_config: GroupConfig,
         params: JsonApiExporterParams,
+        repository: Database,
         output_dir: Path,
-        progress: Progress,
-        mapper: "DataMapper",
-    ) -> List[Dict[str, Any]]:
-        """Process group data in parallel. Returns items that generated files."""
-        task = progress.add_task(
-            f"Generating {group_name} JSON files (parallel)...", total=len(group_data)
+        progress_manager: "ProgressManager",
+    ) -> None:
+        """Process a single data group using ProgressManager."""
+        group_name = group_config.group_by
+        logger.info(f"Processing group: {group_name}")
+
+        # Get data for this group
+        data_source = group_config.data_source or f"{group_name}_data"
+        group_data = self._fetch_group_data(repository, data_source, group_name)
+
+        if not group_data:
+            logger.warning(f"No data found for group: {group_name}")
+            progress_manager.add_warning(f"No data found for group: {group_name}")
+            return
+
+        # Apply filters if configured
+        if params.filters and group_name in params.filters:
+            group_data = self._apply_filters(group_data, params.filters[group_name])
+
+        # Initialize stats for this group
+        self.stats["groups_processed"][group_name] = {
+            "total_items": len(group_data),
+            "detail_files": 0,
+            "index_generated": False,
+            "errors": 0,
+        }
+
+        # Create mapper for this group
+        mapper = DataMapper(group_config, params)
+
+        # Add progress task
+        task_name = f"export_{group_name}"
+        progress_manager.add_task(
+            task_name, f"Generating {group_name} JSON files", total=len(group_data)
         )
 
+        # Process group data
         generated_items = []
-
-        with ThreadPoolExecutor(max_workers=params.performance.max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._generate_detail_file,
+        for item in group_data:
+            try:
+                # Use group-specific JSON options if available
+                json_options = self._merge_json_options(
+                    group_config.json_options, params.json_options
+                )
+                file_generated = self._generate_detail_file(
                     item,
                     group_name,
                     group_config,
                     params,
                     output_dir,
                     mapper,
-                    self._merge_json_options(
-                        group_config.json_options, params.json_options
-                    ),
-                ): item
-                for item in group_data
-            }
+                    json_options,
+                )
+                if file_generated:
+                    generated_items.append(item)
+                    self.stats["groups_processed"][group_name]["detail_files"] += 1
+            except Exception as e:
+                self._handle_export_error(e, group_name, item, params)
+                progress_manager.add_error(
+                    f"Error processing {group_name} item: {str(e)}"
+                )
 
-            for future in as_completed(futures):
-                try:
-                    file_generated = future.result()
-                    if file_generated:
-                        item = futures[future]
-                        generated_items.append(item)
-                        self.stats["groups_processed"][group_name]["detail_files"] += 1
-                except Exception as e:
-                    item = futures[future]
-                    self._handle_export_error(e, group_name, item, params)
-                finally:
-                    progress.update(task, advance=1)
+            progress_manager.update_task(task_name, advance=1)
 
-        return generated_items
+        progress_manager.complete_task(
+            task_name, f"Generated {len(generated_items)} {group_name} files"
+        )
+
+        # Generate index file if configured
+        if (
+            hasattr(group_config, "index")
+            and group_config.index
+            and params.index_output_pattern
+        ):
+            json_options = self._merge_json_options(
+                group_config.json_options, params.json_options
+            )
+            self._generate_index_file(
+                generated_items,
+                group_name,
+                group_config,
+                params,
+                output_dir,
+                mapper,
+                json_options,
+            )
 
     def _generate_detail_file(
         self,

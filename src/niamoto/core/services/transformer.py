@@ -8,14 +8,8 @@ import difflib
 import json
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from rich.console import Console
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
 from sqlalchemy.exc import SQLAlchemyError
 from niamoto.common.config import Config
 from niamoto.common.database import Database
@@ -31,6 +25,18 @@ from niamoto.common.utils import error_handler
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
+
+# Check if we're in CLI context for progress display
+try:
+    from niamoto.cli.utils.progress import ProgressManager
+    from niamoto.cli.utils.metrics import OperationMetrics, MetricsCollector
+
+    CLI_CONTEXT = True
+except ImportError:
+    CLI_CONTEXT = False
+    ProgressManager = None
+    OperationMetrics = None
+    MetricsCollector = None
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +56,7 @@ class TransformerService:
         self.config = config
         self.transforms_config = config.get_transforms_config()
         self.console = Console()
+        self.transform_metrics = None  # Store metrics for CLI access
 
         # Initialize plugin loader and load plugins
         self.plugin_loader = PluginLoader()
@@ -64,7 +71,7 @@ class TransformerService:
         group_by: Optional[str] = None,
         csv_file: Optional[str] = None,
         recreate_table: bool = True,
-    ) -> None:
+    ) -> Dict[str, Any]:
         """
         Transform data according to the configuration.
 
@@ -73,89 +80,246 @@ class TransformerService:
             csv_file: Optional CSV file to use instead of the database
             recreate_table: Indicates whether to recreate the results table
 
+        Returns:
+            Dict[str, Any]: Results of the transformation with metrics data
+
         Raises:
             ConfigurationError: If the configuration is invalid
             ProcessError: If the transformation fails
         """
-        # Filtrer les configurations
+        # Initialize metrics collection
+        if CLI_CONTEXT and OperationMetrics:
+            self.transform_metrics = OperationMetrics("transform")
+
+        # Initialize results collection
+        results = {}
+
+        # Filter configurations
         configs = self._filter_configs(group_by)
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("•"),
-            TimeElapsedColumn(),
-            console=self.console,
-        ) as progress:
-            for group_config in configs:
-                # Validate the configuration
-                self.validate_configuration(group_config)
+        try:
+            if CLI_CONTEXT and ProgressManager:
+                # Use unified progress manager when in CLI context
+                progress_manager = ProgressManager(self.console)
+                with progress_manager.progress_context() as pm:
+                    results = self._process_configs_with_progress(
+                        configs, csv_file, recreate_table, pm
+                    )
+            else:
+                # Fallback to simple processing without progress bars
+                results = self._process_configs_simple(
+                    configs, csv_file, recreate_table
+                )
+        except Exception as e:
+            if self.transform_metrics:
+                self.transform_metrics.add_error(str(e))
+            raise
+        finally:
+            if self.transform_metrics:
+                self.transform_metrics.finish()
 
-                # Retrieve group IDs and widgets
-                group_ids = self._get_group_ids(group_config)
-                widgets_config = group_config.get("widgets_data", {})
-                group_by_name = group_config.get("group_by", "unknown")
+        return results
 
-                # Calculate the total number of operations
-                total_ops = len(group_ids) * len(widgets_config)
-                config_task = progress.add_task(
-                    f"[cyan]Processing datas {group_by_name}...", total=total_ops
+    def _process_configs_with_progress(
+        self, configs, csv_file, recreate_table, progress_manager
+    ):
+        """Process configurations with progress display using ProgressManager only."""
+        results = {}
+
+        for group_config in configs:
+            # Validate the configuration
+            self.validate_configuration(group_config)
+
+            # Retrieve group IDs and widgets
+            group_ids = self._get_group_ids(group_config)
+            widgets_config = group_config.get("widgets_data", {})
+            group_by_name = group_config.get("group_by", "unknown")
+
+            # Calculate the total number of operations
+            total_ops = len(group_ids) * len(widgets_config)
+
+            # Add progress task with unique name
+            import time
+
+            task_name = f"transform_{group_by_name}_{int(time.time())}"
+            progress_manager.add_task(
+                task_name, f"Processing {group_by_name} data", total=total_ops
+            )
+
+            # Create or update the table
+            self._create_group_table(group_by_name, widgets_config, recreate_table)
+
+            # Initialize metrics for this group
+            if self.transform_metrics:
+                self.transform_metrics.add_metric(
+                    f"{group_by_name}_items", len(group_ids)
+                )
+                self.transform_metrics.add_metric(
+                    f"{group_by_name}_widgets", len(widgets_config)
                 )
 
-                # Create or update the table
-                self._create_group_table(group_by_name, widgets_config, recreate_table)
+            widgets_generated = 0
 
-                # Process each group
-                for group_id in group_ids:
-                    progress.update(
-                        config_task,
-                        description=f"[cyan]Processing {group_by_name} {group_id}...",
+            # Initialize results for this group
+            results[group_by_name] = {
+                "total_items": len(group_ids),
+                "widgets": {},
+                "start_time": progress_manager._start_time,
+            }
+
+            # Process each group
+            for group_id in group_ids:
+                # Retrieve group data
+                group_data = self._get_group_data(group_config, csv_file, group_id)
+
+                # Process each widget
+                for widget_name, widget_config in widgets_config.items():
+                    # Update description for current item being processed
+                    progress_manager.update_task(
+                        task_name,
+                        advance=0,
+                        description=f"[green] Processing {group_by_name} {group_id}",
                     )
 
-                    # Retrieve group data
-                    group_data = self._get_group_data(group_config, csv_file, group_id)
+                    try:
+                        # Load the transformation plugin
+                        transformer = PluginRegistry.get_plugin(
+                            widget_config["plugin"], PluginType.TRANSFORMER
+                        )(self.db)
 
-                    # Process each widget
-                    for widget_name, widget_config in widgets_config.items():
-                        try:
-                            # Load the transformation plugin
-                            transformer = PluginRegistry.get_plugin(
-                                widget_config["plugin"], PluginType.TRANSFORMER
-                            )(self.db)
+                        # Transform the data
+                        config = {
+                            "plugin": widget_config["plugin"],
+                            "params": {
+                                "source": widget_config.get("source"),
+                                "field": widget_config.get("field"),
+                                **widget_config.get("params", {}),
+                            },
+                            "group_id": group_id,
+                        }
+                        widget_results = transformer.transform(group_data, config)
 
-                            # Transform the data
-                            config = {
-                                "plugin": widget_config["plugin"],
-                                "params": {
-                                    "source": widget_config.get("source"),
-                                    "field": widget_config.get("field"),
-                                    **widget_config.get("params", {}),
-                                },
-                                "group_id": group_id,
-                            }
-                            results = transformer.transform(group_data, config)
+                        # Save the results
+                        if widget_results:
+                            self._save_widget_results(
+                                group_by=group_by_name,
+                                group_id=group_id,
+                                results={widget_name: widget_results},
+                            )
+                            widgets_generated += 1
 
-                            # Save the results
-                            if results:
-                                self._save_widget_results(
-                                    group_by=group_by_name,
-                                    group_id=group_id,
-                                    results={widget_name: results},
-                                )
-                        except Exception as e:
-                            # Log the error but continue processing other widgets
-                            error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
-                            logger.warning(error_msg)
-                            # Only show in console if it's not an expected empty data case
-                            if not (
-                                isinstance(e, DataTransformError)
-                                and "No data found" in str(e)
-                            ):
-                                self.console.print(f"[yellow]⚠ {error_msg}[/yellow]")
+                            # Track widget results
+                            if widget_name not in results[group_by_name]["widgets"]:
+                                results[group_by_name]["widgets"][widget_name] = 0
+                            results[group_by_name]["widgets"][widget_name] += 1
+                    except Exception as e:
+                        # Log the error but continue processing other widgets
+                        error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
+                        logger.warning(error_msg)
+                        progress_manager.add_warning(error_msg)
+                        if self.transform_metrics:
+                            self.transform_metrics.add_warning(error_msg)
 
-                        progress.advance(config_task)
+                    # Update progress
+                    progress_manager.update_task(task_name, advance=1)
+
+            # Update final widget count for this group
+            if self.transform_metrics:
+                self.transform_metrics.add_metric(
+                    f"{group_by_name}_widgets_generated", widgets_generated
+                )
+
+            # Update results with final metrics
+            results[group_by_name]["widgets_generated"] = widgets_generated
+            results[group_by_name]["end_time"] = (
+                datetime.now() if hasattr(progress_manager, "_start_time") else None
+            )
+
+            progress_manager.complete_task(
+                task_name, f"{group_by_name} transformation completed"
+            )
+
+        return results
+
+    def _process_configs_simple(self, configs, csv_file, recreate_table):
+        """Process configurations without progress display (fallback)."""
+        results = {}
+        start_time = datetime.now()
+
+        for group_config in configs:
+            # Validate the configuration
+            self.validate_configuration(group_config)
+
+            # Retrieve group IDs and widgets
+            group_ids = self._get_group_ids(group_config)
+            widgets_config = group_config.get("widgets_data", {})
+            group_by_name = group_config.get("group_by", "unknown")
+
+            # Create or update the table
+            self._create_group_table(group_by_name, widgets_config, recreate_table)
+
+            # Initialize results for this group
+            widgets_generated = 0
+            results[group_by_name] = {
+                "total_items": len(group_ids),
+                "widgets": {},
+                "start_time": start_time,
+            }
+
+            # Process each group
+            for group_id in group_ids:
+                # Retrieve group data
+                group_data = self._get_group_data(group_config, csv_file, group_id)
+
+                # Process each widget
+                for widget_name, widget_config in widgets_config.items():
+                    try:
+                        # Load the transformation plugin
+                        transformer = PluginRegistry.get_plugin(
+                            widget_config["plugin"], PluginType.TRANSFORMER
+                        )(self.db)
+
+                        # Transform the data
+                        config = {
+                            "plugin": widget_config["plugin"],
+                            "params": {
+                                "source": widget_config.get("source"),
+                                "field": widget_config.get("field"),
+                                **widget_config.get("params", {}),
+                            },
+                            "group_id": group_id,
+                        }
+                        widget_results = transformer.transform(group_data, config)
+
+                        # Save the results
+                        if widget_results:
+                            self._save_widget_results(
+                                group_by=group_by_name,
+                                group_id=group_id,
+                                results={widget_name: widget_results},
+                            )
+                            widgets_generated += 1
+
+                            # Track widget results
+                            if widget_name not in results[group_by_name]["widgets"]:
+                                results[group_by_name]["widgets"][widget_name] = 0
+                            results[group_by_name]["widgets"][widget_name] += 1
+                    except Exception as e:
+                        # Log the error but continue processing other widgets
+                        error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
+                        logger.warning(error_msg)
+                        # Only show in console if it's not an expected empty data case
+                        if not (
+                            isinstance(e, DataTransformError)
+                            and "No data found" in str(e)
+                        ):
+                            self.console.print(f"[yellow]⚠ {error_msg}[/yellow]")
+
+            # Update results with final metrics
+            results[group_by_name]["widgets_generated"] = widgets_generated
+            results[group_by_name]["end_time"] = datetime.now()
+
+        return results
 
     def _filter_configs(self, group_by: Optional[str]) -> List[Dict[str, Any]]:
         """Filter configurations by group, attempting various matching strategies."""

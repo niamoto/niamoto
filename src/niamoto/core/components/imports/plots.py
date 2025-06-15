@@ -26,7 +26,6 @@ from rich.progress import (
     SpinnerColumn,
     BarColumn,
     TextColumn,
-    TimeRemainingColumn,
 )
 
 
@@ -440,13 +439,17 @@ class PlotImporter:
             DatabaseError: If database operations fail
         """
         imported_count = 0
+        # Capture start time
+        import time
+
+        start_time = time.time()
+
         with self.db.session() as session:
             progress = Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeRemainingColumn(),
             )
             with progress:
                 task = progress.add_task(
@@ -456,7 +459,21 @@ class PlotImporter:
                     # Use locality_field if provided
                     if self._import_plot(session, row, identifier, locality_field):
                         imported_count += 1
-                    progress.update(task, advance=1)
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                    )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green]✅ plots import completed • {duration:.1f}s[/green]",
+                )
+
                 try:
                     session.commit()
                 except Exception as e:
@@ -721,13 +738,17 @@ class PlotImporter:
 
             total_linked = 0
 
+            # Capture start time
+            import time
+
+            start_time = time.time()
+
             # Process matches in batches
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeRemainingColumn(),
             ) as progress:
                 task = progress.add_task(
                     "[green]Linking occurrences to plots...", total=len(match_list)
@@ -753,9 +774,28 @@ class PlotImporter:
                             )
                             total_linked += affected_rows
 
-                            progress.update(task, advance=1)
+                            # Update progress with real-time duration
+                            current_duration = time.time() - start_time
+                            progress.update(
+                                task,
+                                advance=1,
+                                description=f"[green]Linking occurrences to plots • {current_duration:.1f}s[/green]",
+                            )
                         except Exception:
-                            progress.update(task, advance=1)
+                            # Update progress with real-time duration even on error
+                            current_duration = time.time() - start_time
+                            progress.update(
+                                task,
+                                advance=1,
+                                description=f"[green]Linking occurrences to plots • {current_duration:.1f}s[/green]",
+                            )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green]✅ occurrence linking completed • {duration:.1f}s[/green]",
+                )
 
             return total_linked
 
@@ -1040,6 +1080,11 @@ class PlotImporter:
         country_ids = {}  # country_name -> id
         locality_ids = {}  # (locality_name, country_name) -> id
 
+        # Capture start time
+        import time
+
+        start_time = time.time()
+
         with self.db.session() as session:
             # First pass: create higher level entities (countries and localities)
             unique_countries = (
@@ -1056,13 +1101,17 @@ class PlotImporter:
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeRemainingColumn(),
             ) as progress:
+                # Calculate total operations for unified progress bar
+                total_operations = (
+                    len(unique_countries) + len(unique_localities) + len(plots_data)
+                )
+                task = progress.add_task(
+                    "[green]Importing plots...", total=total_operations
+                )
+
                 # Import countries
                 if len(unique_countries) > 0:
-                    task = progress.add_task(
-                        "[green]Importing countries...", total=len(unique_countries)
-                    )
                     for country in unique_countries:
                         country_id = self._import_hierarchy_level(
                             session,
@@ -1073,12 +1122,15 @@ class PlotImporter:
                             aggregate_geometry,
                         )
                         country_ids[country] = country_id
-                        progress.update(task, advance=1)
+                        # Update progress with real-time duration
+                        current_duration = time.time() - start_time
+                        progress.update(
+                            task,
+                            advance=1,
+                            description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                        )
 
                 # Import localities
-                task = progress.add_task(
-                    "[green]Importing localities...", total=len(unique_localities)
-                )
                 for _, loc_row in unique_localities.iterrows():
                     locality_name = loc_row[levels[1]]
                     country_name = loc_row[levels[2]] if len(levels) > 2 else None
@@ -1095,12 +1147,15 @@ class PlotImporter:
                         filter_by={levels[2]: country_name} if country_name else None,
                     )
                     locality_ids[(locality_name, country_name)] = locality_id
-                    progress.update(task, advance=1)
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                    )
 
                 # Import plots
-                task = progress.add_task(
-                    "[green]Importing plots...", total=len(plots_data)
-                )
                 for _, row in plots_data.iterrows():
                     locality_name = row[levels[1]] if len(levels) > 1 else None
                     country_name = row[levels[2]] if len(levels) > 2 else None
@@ -1113,12 +1168,24 @@ class PlotImporter:
                         session, row, identifier, locality_field, parent_id
                     ):
                         imported_count += 1
-                    progress.update(task, advance=1)
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                    )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green]✅ plots import completed • {duration:.1f}s[/green]",
+                )
 
                 try:
                     session.commit()
                     # Update nested set values
-                    progress.console.print("[yellow]Updating nested set model...")
                     self._update_nested_set_values(session)
                     session.commit()
                 except Exception as e:
