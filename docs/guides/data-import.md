@@ -49,8 +49,7 @@ plots:
 
 # Shape imports (multiple allowed)
 shapes:
-  - name: "provinces"
-    type: geopackage
+  - type: "Provinces"
     path: "imports/shapes/provinces.gpkg"
     # ... shape-specific options
 ```

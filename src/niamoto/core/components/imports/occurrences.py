@@ -295,21 +295,24 @@ class OccurrenceImporter:
         try:
             # Read data
             df = pd.read_csv(file_path, low_memory=False)
-            engine = sqlalchemy.create_engine(f"sqlite:///{self.db_path}")
 
             # Filter for existing taxons if requested
             if only_existing_taxons:
-                valid_taxon_ids = set(
-                    pd.read_sql("SELECT id FROM taxon_ref", engine)["id"]
-                )
-                df = df[df[taxon_id_column].isin(valid_taxon_ids)]
+                with self.db.engine.connect() as conn:
+                    valid_taxon_ids = set(
+                        pd.read_sql("SELECT id FROM taxon_ref", conn)["id"]
+                    )
+                df = df[df[taxon_id_column].isin(valid_taxon_ids)].copy()
 
             # Add ID if needed
             if not id_column_exists:
+                df = df.copy()
                 df["id"] = range(1, len(df) + 1)
 
             # Add taxon reference
-            df["taxon_ref_id"] = None
+            if not df.empty:
+                df = df.copy()
+                df["taxon_ref_id"] = None
 
             # Import in chunks
             chunk_size = 1000
@@ -334,7 +337,10 @@ class OccurrenceImporter:
 
                 for i in range(0, len(df), chunk_size):
                     chunk = df.iloc[i : i + chunk_size]
-                    chunk.to_sql("occurrences", engine, if_exists="append", index=False)
+                    with self.db.engine.connect() as conn:
+                        chunk.to_sql(
+                            "occurrences", conn, if_exists="append", index=False
+                        )
                     # Update progress with real-time duration
                     current_duration = time.time() - start_time
                     progress.update(

@@ -236,3 +236,18 @@ packages = ["src/niamoto"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+filterwarnings = [
+    # Rich wants ipywidgets for Jupyter but we don't need it in tests
+    "ignore::UserWarning:rich.live",
+    # Pandas false positive: our SQLAlchemy connections are valid but pandas doesn't recognize them
+    "ignore:pandas only supports SQLAlchemy connectable:UserWarning",
+    # We handle SettingWithCopyWarning properly with .copy() where needed
+    "ignore::pandas.errors.SettingWithCopyWarning",
+    # Expected warning when we try to auto-detect datetime formats
+    "ignore:Could not infer format:UserWarning",
+]

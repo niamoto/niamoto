@@ -254,8 +254,7 @@ plots:
 ```yaml
 # Import geographic boundaries
 shapes:
-  - name: "provinces"
-    type: geopackage
+  - type: "Provinces"
     path: "imports/shapes/provinces.gpkg"
     id_field: "id"
     name_field: "name"
@@ -263,8 +262,7 @@ shapes:
       - area_km2
       - population
 
-  - name: "forest_types"
-    type: geopackage
+  - type: "Types forestiers"
     path: "imports/shapes/forest_types.gpkg"
     id_field: "forest_id"
     name_field: "forest_name"
@@ -272,8 +270,7 @@ shapes:
       - canopy_cover
       - dominant_family
 
-  - name: "protected_areas"
-    type: geopackage
+  - type: "Aires protégées"
     path: "imports/shapes/protected_areas.gpkg"
     id_field: "pa_id"
     name_field: "pa_name"
