@@ -339,7 +339,7 @@ class JsonApiExporter(ExporterPlugin):
         duration = time.time() - start_time
         progress.update(
             task,
-            description=f"[green]✅ {group_name} export completed • {duration:.1f}s[/green]",
+            description=f"[green][✓] {group_name} export completed • {duration:.1f}s[/green]",
         )
 
         return generated_items

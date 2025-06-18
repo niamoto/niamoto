@@ -43,7 +43,7 @@ def print_success(message: str, icon: bool = True) -> None:
     if not message or not message.strip():
         return
     if icon:
-        prefix = "✅ " if USE_EMOJIS else "[✓] "
+        prefix = "[✓] " if USE_EMOJIS else "[✓] "
     else:
         prefix = ""
     console.print(f"{prefix}{message}", style="green")
@@ -55,7 +55,7 @@ def print_error(message: str, icon: bool = True) -> None:
     if not message or not message.strip():
         return
     if icon:
-        prefix = "❌ " if USE_EMOJIS else "[✗] "
+        prefix = "[✗] " if USE_EMOJIS else "[✗] "
     else:
         prefix = ""
     console.print(f"{prefix}{message}", style="bold red")
@@ -118,7 +118,7 @@ def print_operation_start(operation: str) -> None:
 
 def print_operation_complete(operation: str, details: Optional[str] = None) -> None:
     """Print operation completion message."""
-    prefix = "✅ " if USE_EMOJIS else "[✓] "
+    prefix = "[✓] " if USE_EMOJIS else "[✓] "
     message = f"{prefix}{operation} completed"
     if details:
         message += f" - {details}"
@@ -224,7 +224,7 @@ def print_step_complete(
     step_name: str, count: Optional[int] = None, duration: Optional[float] = None
 ) -> None:
     """Print step completion message."""
-    message = f"✅ {step_name} completed"
+    message = f"[✓] {step_name} completed"
     if count is not None:
         message += f" • {count:,} items"
     if duration is not None:
@@ -300,7 +300,7 @@ def print_import_result(
     file_path: str, count: int, data_type: str, details: Optional[str] = None
 ) -> None:
     """Print import result with file path and count."""
-    message = f"✅ {count:,} {data_type} imported from {file_path}"
+    message = f"[✓] {count:,} {data_type} imported from {file_path}"
     if details:
         message += f". {details}"
     console.print(message, style="green")

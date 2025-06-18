@@ -471,7 +471,7 @@ class PlotImporter:
                 duration = time.time() - start_time
                 progress.update(
                     task,
-                    description=f"[green]✅ plots import completed • {duration:.1f}s[/green]",
+                    description=f"[green][✓] plots import completed • {duration:.1f}s[/green]",
                 )
 
                 try:
@@ -794,7 +794,7 @@ class PlotImporter:
                 duration = time.time() - start_time
                 progress.update(
                     task,
-                    description=f"[green]✅ occurrence linking completed • {duration:.1f}s[/green]",
+                    description=f"[green][✓] occurrence linking completed • {duration:.1f}s[/green]",
                 )
 
             return total_linked
@@ -1180,7 +1180,7 @@ class PlotImporter:
                 duration = time.time() - start_time
                 progress.update(
                     task,
-                    description=f"[green]✅ plots import completed • {duration:.1f}s[/green]",
+                    description=f"[green][✓] plots import completed • {duration:.1f}s[/green]",
                 )
 
                 try:

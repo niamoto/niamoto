@@ -301,7 +301,7 @@ class TaxonomyImporter:
 
                                             # Display only if it's a success/error message
                                             if (
-                                                "✅" in last_message
+                                                "[✓]" in last_message
                                                 or "✗" in last_message
                                             ):
                                                 # Update the task description with the current message
@@ -413,7 +413,7 @@ class TaxonomyImporter:
                     duration = time.time() - start_time
                     progress.update(
                         task_insert,
-                        description=f"[green]✅ taxonomy import completed • {duration:.1f}s[/green]",
+                        description=f"[green][✓] taxonomy import completed • {duration:.1f}s[/green]",
                     )
 
                 # Second pass: update nested set values
@@ -719,6 +719,7 @@ class TaxonomyImporter:
                     "taxon_type": data["rank_name"],
                     "parent_family": data["family"],
                     "parent_genus": data["genus"],
+                    "original_id": data["taxon_id"],
                 },
             }
 
@@ -728,8 +729,8 @@ class TaxonomyImporter:
                 entry["extra_data"][column_mapping["taxon_id"]] = external_id
 
             # Add taxonref to extra_data if available
-            if data["taxonref"]:
-                entry["extra_data"]["taxonref"] = data["taxonref"]
+            # if data["taxonref"]:
+            # entry["extra_data"]["taxonref"] = data["taxonref"]
 
             taxonomy_entries.append(entry)
 
@@ -1063,6 +1064,7 @@ class TaxonomyImporter:
         Raises:
             DatabaseError: If database operation fails
         """
+        print(row)
         taxon_id = int(row["id_taxon"])
         try:
             # Get or create taxon

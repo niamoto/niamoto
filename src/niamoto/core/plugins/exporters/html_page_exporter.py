@@ -928,7 +928,7 @@ class HtmlPageExporter(ExporterPlugin):
                     duration = time.time() - start_time
                     group_progress.update(
                         detail_task,
-                        description=f"[green]✅ {group_by_key} detail pages completed • {duration:.1f}s[/green]",
+                        description=f"[green][✓] {group_by_key} detail pages completed • {duration:.1f}s[/green]",
                     )
 
                     # End item loop for this group

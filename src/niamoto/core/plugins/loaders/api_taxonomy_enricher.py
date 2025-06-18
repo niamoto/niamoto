@@ -216,7 +216,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
             # Log success message
             self.log_messages.append(
-                f"[green]✅ Data successfully retrieved for {query_value}[/green]"
+                f"[green][✓] Data successfully retrieved for {query_value}[/green]"
             )
 
             # Enrich taxon data

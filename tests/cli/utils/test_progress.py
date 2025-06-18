@@ -208,7 +208,7 @@ class TestProgressManager:
         mock_console.print.assert_any_call("   Duration: 45s")
         mock_console.print.assert_any_call("   Operations completed: 3")
         mock_console.print.assert_any_call("   Total operations: 5")
-        mock_console.print.assert_any_call("\n✅ Success", style="bold green")
+        mock_console.print.assert_any_call("\n[✓] Success", style="bold green")
 
     @patch("niamoto.cli.utils.progress.datetime")
     def test_show_summary_with_errors_warnings(self, mock_datetime):
@@ -336,7 +336,7 @@ class TestOperationTracker:
 
         assert tracker.operations == 1
         mock_console.print.assert_called_once_with(
-            "✅ Operation completed successfully", style="green"
+            "[✓] Operation completed successfully", style="green"
         )
 
     def test_error(self):
@@ -348,7 +348,7 @@ class TestOperationTracker:
 
         assert tracker.errors == 1
         mock_console.print.assert_called_once_with(
-            "❌ An error occurred", style="bold red"
+            "[✗] An error occurred", style="bold red"
         )
 
     def test_warning(self):
@@ -391,7 +391,7 @@ class TestOperationTracker:
         )
         mock_console.print.assert_any_call("   Duration: 45s")
         mock_console.print.assert_any_call("   Operations: 5")
-        mock_console.print.assert_any_call("\n✅ Success", style="bold green")
+        mock_console.print.assert_any_call("\n[✓] Success", style="bold green")
 
     @patch("niamoto.cli.utils.progress.datetime")
     def test_show_summary_with_errors_warnings(self, mock_datetime):
