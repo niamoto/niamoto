@@ -101,7 +101,7 @@ class ProgressManager:
         # Update description to include real-time duration
         if description:
             # If description contains completed status, keep it as is
-            if "✅" in description and "completed" in description:
+            if "[✓]" in description and "completed" in description:
                 final_description = description
             else:
                 # Add real-time duration to ongoing task
@@ -145,12 +145,11 @@ class ProgressManager:
             elapsed_str = ""
 
         # Update the description to show completion with final time
-        # Don't add ✅ if it's already in the success_message
-        if success_message and "✅" in success_message:
+        if success_message and "[✓]" in success_message:
             final_description = f"[green]{success_message}{elapsed_str}[/green]"
         else:
             final_description = (
-                f"[green]✅ {success_message or 'completed'}{elapsed_str}[/green]"
+                f"[green][✓] {success_message or 'completed'}{elapsed_str}[/green]"
             )
         self._current_progress.update(task_id, description=final_description)
 
@@ -204,7 +203,7 @@ class ProgressManager:
                 self.console.print(f"   {key}: {value}")
 
         status = (
-            "✅ Success" if self._stats["errors"] == 0 else "⚠️  Completed with errors"
+            "[✓] Success" if self._stats["errors"] == 0 else "⚠️  Completed with errors"
         )
         style = "green" if self._stats["errors"] == 0 else "yellow"
         self.console.print(f"\n{status}", style=f"bold {style}")
@@ -257,12 +256,12 @@ class OperationTracker:
     def complete_operation(self, message: str) -> None:
         """Complete an operation successfully."""
         self.operations += 1
-        self.console.print(f"✅ {message}", style="green")
+        self.console.print(f"[✓] {message}", style="green")
 
     def error(self, message: str) -> None:
         """Record an error."""
         self.errors += 1
-        self.console.print(f"❌ {message}", style="bold red")
+        self.console.print(f"[✗] {message}", style="bold red")
 
     def warning(self, message: str) -> None:
         """Record a warning."""
@@ -287,7 +286,7 @@ class OperationTracker:
         if self.warnings > 0:
             self.console.print(f"   Warnings: {self.warnings}", style="yellow")
 
-        status = "✅ Success" if self.errors == 0 else "⚠️  Completed with errors"
+        status = "[✓] Success" if self.errors == 0 else "⚠️  Completed with errors"
         style = "green" if self.errors == 0 else "yellow"
         self.console.print(f"\n{status}", style=f"bold {style}")
 

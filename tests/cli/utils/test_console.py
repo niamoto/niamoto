@@ -46,14 +46,14 @@ def test_print_success(mock_console):
     """Test success message printing."""
     message = "Operation successful"
     print_success(message)
-    mock_console.print.assert_called_once_with(f"✅ {message}", style="green")
+    mock_console.print.assert_called_once_with(f"[✓] {message}", style="green")
 
 
 def test_print_error(mock_console):
     """Test error message printing."""
     message = "An error occurred"
     print_error(message)
-    mock_console.print.assert_called_once_with(f"❌ {message}", style="bold red")
+    mock_console.print.assert_called_once_with(f"[✗] {message}", style="bold red")
 
 
 def test_print_warning(mock_console):
@@ -116,7 +116,7 @@ class TestPrintFunctions:
         """Test success message printing with icon."""
         message = "Operation successful"
         print_success(message, icon=True)
-        mock_console.print.assert_called_once_with(f"✅ {message}", style="green")
+        mock_console.print.assert_called_once_with(f"[✓] {message}", style="green")
 
     def test_print_success_without_icon(self, mock_console):
         """Test success message printing without icon."""
@@ -138,7 +138,7 @@ class TestPrintFunctions:
         """Test error message printing with icon."""
         message = "An error occurred"
         print_error(message, icon=True)
-        mock_console.print.assert_called_once_with(f"❌ {message}", style="bold red")
+        mock_console.print.assert_called_once_with(f"[✗] {message}", style="bold red")
 
     def test_print_error_without_icon(self, mock_console):
         """Test error message printing without icon."""
@@ -234,7 +234,7 @@ class TestOperationMessages:
         operation = "import"
         print_operation_complete(operation)
         mock_console.print.assert_called_once_with(
-            f"✅ {operation} completed", style="green"
+            f"[✓] {operation} completed", style="green"
         )
 
     def test_print_operation_complete_with_details(self, mock_console):
@@ -243,7 +243,7 @@ class TestOperationMessages:
         details = "100 records processed"
         print_operation_complete(operation, details)
         mock_console.print.assert_called_once_with(
-            f"✅ {operation} completed - {details}", style="green"
+            f"[✓] {operation} completed - {details}", style="green"
         )
 
 
@@ -318,7 +318,7 @@ class TestStepMessages:
         step_name = "Data loading"
         print_step_complete(step_name)
         mock_console.print.assert_called_once_with(
-            f"✅ {step_name} completed", style="green"
+            f"[✓] {step_name} completed", style="green"
         )
 
     def test_print_step_complete_with_count(self, mock_console):
@@ -327,7 +327,7 @@ class TestStepMessages:
         count = 1500
         print_step_complete(step_name, count=count)
         mock_console.print.assert_called_once_with(
-            f"✅ {step_name} completed • 1,500 items", style="green"
+            f"[✓] {step_name} completed • 1,500 items", style="green"
         )
 
     def test_print_step_complete_with_duration_seconds(self, mock_console):
@@ -336,7 +336,7 @@ class TestStepMessages:
         duration = 45.6
         print_step_complete(step_name, duration=duration)
         mock_console.print.assert_called_once_with(
-            f"✅ {step_name} completed • 45.6s", style="green"
+            f"[✓] {step_name} completed • 45.6s", style="green"
         )
 
     def test_print_step_complete_with_duration_minutes(self, mock_console):
@@ -345,7 +345,7 @@ class TestStepMessages:
         duration = 125.7  # 2 minutes 5 seconds
         print_step_complete(step_name, duration=duration)
         mock_console.print.assert_called_once_with(
-            f"✅ {step_name} completed • 2m 5s", style="green"
+            f"[✓] {step_name} completed • 2m 5s", style="green"
         )
 
     def test_print_step_complete_with_count_and_duration(self, mock_console):
@@ -355,7 +355,7 @@ class TestStepMessages:
         duration = 45.6
         print_step_complete(step_name, count=count, duration=duration)
         mock_console.print.assert_called_once_with(
-            f"✅ {step_name} completed • 1,500 items • 45.6s", style="green"
+            f"[✓] {step_name} completed • 1,500 items • 45.6s", style="green"
         )
 
     def test_print_step_progress(self, mock_console):
@@ -451,7 +451,7 @@ class TestImportAndFileMessages:
         data_type = "records"
 
         print_import_result(file_path, count, data_type)
-        expected = f"✅ 500 records imported from {file_path}"
+        expected = f"[✓] 500 records imported from {file_path}"
         mock_console.print.assert_called_once_with(expected, style="green")
 
     def test_print_import_result_with_details(self, mock_console):
@@ -462,7 +462,7 @@ class TestImportAndFileMessages:
         details = "All records valid"
 
         print_import_result(file_path, count, data_type, details)
-        expected = f"✅ 500 records imported from {file_path}. {details}"
+        expected = f"[✓] 500 records imported from {file_path}. {details}"
         mock_console.print.assert_called_once_with(expected, style="green")
 
     def test_print_file_processed_default_action(self, mock_console):

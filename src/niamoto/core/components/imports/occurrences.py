@@ -347,7 +347,7 @@ class OccurrenceImporter:
                 duration = time.time() - start_time
                 progress.update(
                     task,
-                    description=f"[green]✅ occurrences import completed • {duration:.1f}s[/green]",
+                    description=f"[green][✓] occurrences import completed • {duration:.1f}s[/green]",
                 )
 
             # Get final count before validation
@@ -529,7 +529,7 @@ class OccurrenceImporter:
                 duration = time.time() - start_time
                 progress.update(
                     task,
-                    description=f"[green]✅ taxonomy linking completed • {duration:.1f}s[/green]",
+                    description=f"[green][✓] taxonomy linking completed • {duration:.1f}s[/green]",
                 )
 
         # Apply updates in batches
@@ -603,7 +603,7 @@ class OccurrenceImporter:
                 duration = time.time() - start_time
                 progress.update(
                     task,
-                    description=f"[green]✅ taxonomy links saved • {duration:.1f}s[/green]",
+                    description=f"[green][✓] taxonomy links saved • {duration:.1f}s[/green]",
                 )
         else:
             # For smaller updates, process without progress bar

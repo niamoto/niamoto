@@ -54,10 +54,6 @@ class WidgetConfig(BaseModel):
     data_source: str = Field(
         ..., description="Key identifying the data for this widget"
     )
-    params: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Dictionary of parameters specific to this widget plugin",
-    )
     # Common display options often controlled at the widget level in the config
     title: Optional[str] = Field(
         None, description="Optional title displayed above the widget"
@@ -65,7 +61,10 @@ class WidgetConfig(BaseModel):
     description: Optional[str] = Field(
         None, description="Optional description displayed below the title"
     )
-    # Note: width/height removed, better handled via CSS or specific layout params
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Dictionary of parameters specific to this widget plugin",
+    )
 
 
 # --- Models for HTML Exporter ('web_pages') ---
