@@ -308,9 +308,10 @@ def test_transform_error_series_axis_conversion_fails(
     """Test WARNING (not error) when axis field for a specific subsequent series cannot be converted."""
     # Modify sample data to make co2 elevation non-numeric
     sample_data_copy = sample_data.copy()
-    sample_data_copy.loc[sample_data_copy["class_object"] == "co2", "elevation"] = (
-        "not_a_number"
-    )
+    mask = sample_data_copy["class_object"] == "co2"
+    # Convert elevation column to object type to avoid dtype incompatibility warning
+    sample_data_copy["elevation"] = sample_data_copy["elevation"].astype(object)
+    sample_data_copy.loc[mask, "elevation"] = "not_a_number"
 
     # Should not raise an error, but log a warning and fill series2 with NaN
     result = extractor.transform(data=sample_data_copy, config=valid_config)

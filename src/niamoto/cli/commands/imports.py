@@ -509,9 +509,7 @@ def import_all() -> None:
 
             # Collect result for summary
             import_results.append(result)
-            # print_info(result)  # Suppress intermediate output
         else:
-            # print_info("No shapes configured, skipping")  # Suppress intermediate output
             pass
 
         end_time = datetime.now()

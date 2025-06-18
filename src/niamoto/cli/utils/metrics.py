@@ -95,10 +95,10 @@ class MetricsCollector:
             ],
             # Shape patterns
             "shapes": [
-                r"(\d+)\s+processed,\s+\d+\s+added,\s+\d+\s+updated",
                 r"(\d+)\s+shapes?\s+imported",
                 r"Successfully imported (\d+) shapes",
                 r"(\d+)\s+shape files?\s+imported",
+                r"(\d+)\s+processed,\s+\d+\s+added,\s+\d+\s+updated",
             ],
             # Detail patterns for taxonomy
             "families": [r"(\d+)\s+families"],

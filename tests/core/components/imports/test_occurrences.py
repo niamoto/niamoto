@@ -541,11 +541,14 @@ class TestOccurrenceImporter(NiamotoTestCase):
         self.assertIn("Failed to read or process file", str(context.exception))
 
     @patch("pandas.read_csv")
-    @patch("sqlalchemy.create_engine")
-    def test_import_data_database_error(self, mock_create_engine, mock_read_csv):
+    def test_import_data_database_error(self, mock_read_csv):
         """Test _import_data with database error."""
         mock_read_csv.return_value = pd.DataFrame({"name": ["test"]})
-        mock_create_engine.side_effect = SQLAlchemyError("Database connection failed")
+
+        # Mock the database connection to raise an error
+        self.mock_db.engine.connect.side_effect = SQLAlchemyError(
+            "Database connection failed"
+        )
 
         with self.assertRaises(DatabaseError) as context:
             self.importer._import_data("test.csv", "name", False, False)

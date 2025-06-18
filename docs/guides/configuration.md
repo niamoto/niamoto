@@ -292,25 +292,19 @@ List of vector shapes to import.
 
 ```yaml
 shapes:
-  - category: "provinces"
-    type: vector
-    format: directory_shapefiles
+  - type: "Provinces"
     path: "imports/shapes/provinces"
     name_field: "nom"
-    label: "Provinces"
-    description: "Administrative boundaries of the provinces"
+    id_field: "id"
   # Additional shapes...
 ```
 
 | Option        | Description          | Required | Example                          |
 | ------------- | -------------------- | -------- | -------------------------------- |
-| `category`    | Category identifier  | Yes      | `"provinces"`                    |
-| `type`        | Data type            | Yes      | `vector`                         |
-| `format`      | Vector format        | Yes      | `directory_shapefiles`           |
+| `type`        | Type identifier      | Yes      | `"provinces"`                    |
 | `path`        | Path to source file  | Yes      | `"imports/shapes/provinces"`     |
 | `name_field`  | Field with name      | Yes      | `"nom"`                          |
-| `label`       | Human-readable label | Yes      | `"Provinces"`                    |
-| `description` | Description          | No       | `"Administrative boundaries..."` |
+| `id_field`    | Field with shape id  | No       | `"1"`                            |
 
 ### Layers Configuration
 

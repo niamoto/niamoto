@@ -238,9 +238,32 @@ class LinePlotWidget(WidgetPlugin):
         df_plot = data.copy()
         try:
             if df_plot[params.x_axis].dtype == "object":
-                df_plot[params.x_axis] = pd.to_datetime(
-                    df_plot[params.x_axis], errors="ignore"
-                )
+                # Try common datetime formats first to avoid inference warnings
+                common_formats = [
+                    "%Y-%m-%d",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%d/%m/%Y",
+                    "%m/%d/%Y",
+                    "%Y",
+                ]
+                converted = False
+                for fmt in common_formats:
+                    try:
+                        df_plot[params.x_axis] = pd.to_datetime(
+                            df_plot[params.x_axis], format=fmt
+                        )
+                        converted = True
+                        break
+                    except (ValueError, TypeError):
+                        continue
+
+                # If no format worked, try without format (pandas will infer)
+                if not converted:
+                    try:
+                        df_plot[params.x_axis] = pd.to_datetime(df_plot[params.x_axis])
+                    except (ValueError, TypeError):
+                        # If conversion fails, keep original values
+                        pass
         except Exception as e:
             logger.warning(
                 "Could not convert x-axis '{}' to datetime: {}".format(params.x_axis, e)

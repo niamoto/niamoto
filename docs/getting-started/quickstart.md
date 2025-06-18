@@ -89,14 +89,12 @@ plots:
 
 # Import geographic shapes
 shapes:
-  - name: "provinces"
-    type: geopackage
+  - type: "Provinces"
     path: "imports/shapes/provinces.gpkg"
     id_field: "id"
     name_field: "name"
 
-  - name: "forests"
-    type: geopackage
+  - type: "Forets"
     path: "imports/shapes/forests.gpkg"
     id_field: "id"
     name_field: "forest_type"
