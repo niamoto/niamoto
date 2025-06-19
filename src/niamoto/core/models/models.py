@@ -45,13 +45,13 @@ class TaxonRef(Base):
     __tablename__ = "taxon_ref"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    taxon_id = Column(Integer, nullable=True)
     full_name = Column(String(255))
     authors = Column(String(255))
     rank_name = Column(String(50))
     lft = Column(Integer)
     rght = Column(Integer)
     level = Column(Integer)
-    taxon_id = Column(Integer, nullable=True)
     extra_data = Column(JSON, nullable=True)  # Store JSON as text in SQLite
 
     if TYPE_CHECKING:
@@ -90,7 +90,7 @@ class PlotRef(Base):
     __tablename__ = "plot_ref"
 
     id = Column(Integer, primary_key=True)  # Manual ID setting still possible
-    id_locality = Column(Integer, nullable=False)
+    plot_id = Column(Integer, nullable=False)
     locality = Column(String, nullable=False)
     geometry = Column(String)
     lft = Column(Integer, nullable=True)

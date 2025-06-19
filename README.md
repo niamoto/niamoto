@@ -198,7 +198,7 @@ Niamoto includes built-in plugins for data transformation and visualization, wit
 
 For development setup, testing, and contribution guidelines:
 
-📖 **[Development Setup Guide](docs/development/)** | **[Contributing Guidelines](docs/development/contributing.md)**
+📖 **[Development Setup Guide](docs/development/setup.md)** | **[Contributing Guidelines](docs/development/contributing.md)**
 
 ## 📚 Documentation
 

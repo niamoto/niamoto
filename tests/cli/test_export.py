@@ -46,7 +46,7 @@ def mock_exporter():
     with mock.patch("niamoto.cli.commands.export.ExporterService") as mock_exporter:
         # Set up default return values for common methods
         mock_service = mock_exporter.return_value
-        mock_service.run_export.return_value = {"default": "success"}
+        mock_service.run_export.return_value = {"default": {"status": "success"}}
         mock_service.get_export_targets.return_value = {}
         yield mock_exporter
 
