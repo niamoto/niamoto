@@ -208,6 +208,7 @@ class ExporterService:
                             "files_generated": stats.get("total_files_generated", 0),
                             "errors": stats.get("errors_count", 0),
                             "groups_processed": stats.get("groups_processed", {}),
+                            "output_path": stats.get("output_path"),
                         }
                     )
 

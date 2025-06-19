@@ -19,13 +19,11 @@ from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.common.utils.error_handler import error_handler
 from niamoto.core.services.exporter import ExporterService
 from ..utils.console import (
-    print_success,
     print_info,
     print_error,
     print_warning,
     print_start,
     print_section,
-    print_summary_header,
     print_operation_metrics,
 )
 from ..utils.metrics import MetricsCollector
@@ -130,6 +128,9 @@ def export_command(
         export_metrics = MetricsCollector.create_export_metrics(results)
         print_operation_metrics(export_metrics, "export")
 
+        # Display links to generated sites
+        _display_output_links(results)
+
     except ConfigurationError as e:
         print_error(f"Configuration error: {e}")
         raise
@@ -173,6 +174,28 @@ def _list_export_targets(service: ExporterService) -> None:
 
     except Exception as e:
         print_error(f"Failed to list targets: {e}")
+
+
+def _display_output_links(results: Dict[str, Dict[str, Any]]) -> None:
+    """Display links to generated sites."""
+    links_found = False
+
+    for target_name, target_result in results.items():
+        if target_result.get("status") == "success" and target_result.get(
+            "output_path"
+        ):
+            output_path = Path(target_result["output_path"])
+            index_path = output_path / "index.html"
+
+            if index_path.exists():
+                links_found = True
+                # Use file:// protocol for local paths
+                file_url = f"file://{index_path.resolve()}"
+                print_info(f"\n🌐 View generated site: {file_url}")
+
+    if not links_found:
+        # Don't print anything if no links were found
+        pass
 
 
 def _show_dry_run(
@@ -219,31 +242,3 @@ def _show_dry_run(
 
     except Exception as e:
         print_error(f"Failed to analyze export configuration: {e}")
-
-
-def _show_export_summary(results: Dict[str, Any]) -> None:
-    """Show a summary of the export results."""
-    if not results:
-        return
-
-    print_summary_header("Export Summary")
-
-    for target_name, target_results in results.items():
-        if isinstance(target_results, dict):
-            files_generated = target_results.get("files_generated", 0)
-            errors = target_results.get("errors", 0)
-            duration = target_results.get("duration", "unknown")
-
-            if errors == 0:
-                print_success(f"{target_name}:")
-            else:
-                print_warning(f"{target_name}:")
-
-            print_info(f"     Files generated: {files_generated}")
-            if errors > 0:
-                print_info(f"     Errors: {errors}")
-            print_info(f"     Duration: {duration}")
-        else:
-            print_success(f"{target_name}: Completed")
-
-    print()  # Empty line after summary

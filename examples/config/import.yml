@@ -1,12 +1,4 @@
-# Option 1: The main basic "entities"
-# taxonomy:
-#   type: csv
-#   path: "imports/taxonomy.csv"
-#   source: "file"  # Explicite mais optionnel car c'est la valeur par défaut
-#   identifier: "id_taxon"
-#   ranks: "id_famille,id_genre,id_espèce,id_sous-espèce"
-
-# Option 2: Taxonomie extraite des occurrences
+#Taxonomie extraite des occurrences
 taxonomy:
   type: csv
   path: "imports/niamoto_occurrences_202503041446.csv"  # Chemin vers le fichier d'occurrences
@@ -26,7 +18,7 @@ taxonomy:
     # Authentification par clé API dans l'en-tête
     auth_method: "api_key"
     auth_params:
-      key: "your-api-key"  # Votre clé API
+      key: "your_api_key"  # Votre clé API
       location: "header"  # Dans l'en-tête HTTP
       name: "apiKey"      # Nom exact de l'en-tête
     query_params:
@@ -59,21 +51,9 @@ taxonomy:
 
       images: "images"  # Champ pour les images multiples
 
-
-
-
-# plots:
-#   type: vector
-#   format: geopackage
-#   path: "imports/niamoto_plots_202503041405.csv"
-#   identifier: "id_locality"
-#   location_field: "geometry"
-#   link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien
-#   occurrence_link_field: "plot_name"  # Champ à utiliser dans occurrences pour le lien
-
 plots:
   type: csv
-  path: "imports/niamoto_plots_202503041405.csv"
+  path: "imports/plots.csv"
   identifier: "id_plot" # Champ de l'identifiant du plot dans le csv
   locality_field: "plot" # Champ du nom de la localité qui renseignera le champ locality dans plot_ref
   location_field: "geo_pt" # Champ de la géométrie de la localité
@@ -89,73 +69,45 @@ occurrences:
 
 plot_stats:
   type: csv
-  path: "imports/niamoto_plot_frequency_202503041441.csv"
+  path: "imports/raw_plot_stats.csv"
   identifier: "plot_id"
 
 shape_stats:
   type: csv
-  path: "imports/row_shape_stats.csv"
+  path: "imports/raw_shape_stats.csv"
   identifier: "id"
 
-# 2) Multiple shapes (administrative areas, substrates, etc.)
+# Multiple shapes (administrative areas, substrates, etc.)
 shapes:
-  - category: "provinces"
-    type: vector
-    format: directory_shapefiles
+  - type: "Provinces"
     path: "imports/shapes/provinces"
     name_field: "nom"
-    label: "Provinces"
-    description: "Administrative boundaries of the provinces"
 
-  - category: "communes"
-    type: vector
-    format: directory_shapefiles
+  - type: "Communes"
     path: "imports/shapes/communes"
     name_field: "nom"
-    label: "Communes"
-    description: "Administrative boundaries of the communes"
 
-  - category: "protected_areas"
-    type: vector
-    format: directory_shapefiles
+  - type: "Aires protégées"
     path: "imports/shapes/protected_areas"
     name_field: "libelle"
-    label: "Aires protégées"
-    description: "Protected areas"
 
-  - category: "substrates"
-    type: vector
-    format: geopackage
+  - type: "Substrats"
     path: "imports/shapes/substrate.gpkg"
     name_field: "label"
-    label: "Substrats"
-    description: "Substrate types"
 
-  - category: "holdridge"
-    type: vector
-    format: geopackage
+  - type: "Zone de vie"
     path: "imports/shapes/holdridge_zones.gpkg"
     name_field: "zone"
-    label: "Zone de vie"
-    description: "Holdridge life zones"
 
-  - category: "water_catchments"
-    type: vector
-    format: directory_shapefiles
+  - type: "Captage"
     path: "imports/shapes/ppe"
     name_field: "nom_ppe"
-    label: "Captage"
-    description: "Water catchment areas"
 
-  - category: "mines"
-    type: vector
-    format: geopackage
+  - type: "Emprises Minières"
     path: "imports/shapes/mines.gpkg"
     name_field: "region"
-    label: "Emprises Minières"
-    description: "Mining sites"
 
-# 3) Layers: vectors, rasters...
+# Layers: vectors, rasters...
 layers:
   - name: "forest_cover"
     type: vector

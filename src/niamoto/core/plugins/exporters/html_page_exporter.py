@@ -57,6 +57,7 @@ class HtmlPageExporter(ExporterPlugin):
             "groups_processed": {},
             "total_files_generated": 0,
             "errors_count": 0,
+            "output_path": None,
         }
 
     def _get_nested_data(
@@ -106,6 +107,9 @@ class HtmlPageExporter(ExporterPlugin):
 
             output_dir = Path(html_params.output_dir)
             user_template_dir = Path(html_params.template_dir)
+
+            # Store output path for summary display
+            self.stats["output_path"] = str(output_dir.resolve())
 
             # --- Modified Directory Clearing Logic ---
             if (

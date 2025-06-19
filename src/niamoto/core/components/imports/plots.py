@@ -218,7 +218,15 @@ class PlotImporter:
             if missing_cols:
                 raise DataValidationError(
                     "Missing required columns",
-                    [{"field": col, "error": "Column missing"} for col in missing_cols],
+                    [
+                        {
+                            "field": col,
+                            "error": "Column missing",
+                            "available_columns": list(df.columns),
+                            "required": list(required_cols),
+                        }
+                        for col in missing_cols
+                    ],
                 )
 
             # Parse geometry from the location_field
@@ -587,14 +595,12 @@ class PlotImporter:
 
         # Check for existing plot
         existing_plot = (
-            session.query(PlotRef)
-            .filter_by(id_locality=plot_id, locality=locality)
-            .first()
+            session.query(PlotRef).filter_by(plot_id=plot_id, locality=locality).first()
         )
         if not existing_plot:
             plot = PlotRef(
                 id=plot_id,
-                id_locality=plot_id,
+                plot_id=plot_id,
                 locality=locality,
                 geometry=wkt_geometry,
             )
@@ -1076,6 +1082,15 @@ class PlotImporter:
                 [{"field": col, "error": "Column missing"} for col in missing_cols],
             )
 
+        # Pre-scan to collect all plot IDs that will be used
+        reserved_ids = set()
+        for _, row in plots_data.iterrows():
+            try:
+                plot_id = int(row[identifier])
+                reserved_ids.add(plot_id)
+            except (ValueError, KeyError):
+                pass
+
         # Create dictionaries to store relationships
         country_ids = {}  # country_name -> id
         locality_ids = {}  # (locality_name, country_name) -> id
@@ -1120,6 +1135,7 @@ class PlotImporter:
                             plots_data,
                             levels[2],
                             aggregate_geometry,
+                            reserved_ids=reserved_ids,
                         )
                         country_ids[country] = country_id
                         # Update progress with real-time duration
@@ -1145,6 +1161,7 @@ class PlotImporter:
                         aggregate_geometry,
                         parent_id=parent_id,
                         filter_by={levels[2]: country_name} if country_name else None,
+                        reserved_ids=reserved_ids,
                     )
                     locality_ids[(locality_name, country_name)] = locality_id
                     # Update progress with real-time duration
@@ -1211,6 +1228,7 @@ class PlotImporter:
         aggregate_geometry: bool,
         parent_id: Optional[int] = None,
         filter_by: Optional[Dict[str, Any]] = None,
+        reserved_ids: Optional[set] = None,
     ) -> int:
         """
         Import a hierarchy level (country or locality).
@@ -1224,6 +1242,7 @@ class PlotImporter:
             aggregate_geometry: Whether to aggregate geometry from children
             parent_id: Parent entity ID
             filter_by: Additional filters for data selection
+            reserved_ids: Set of IDs that are reserved for manual plots
 
         Returns:
             ID of the imported entity
@@ -1258,9 +1277,27 @@ class PlotImporter:
                 except Exception as e:
                     print(f"Warning: Failed to aggregate geometry for {name}: {e}")
 
-        # Create entity
+        # Create entity with auto-generated ID that avoids reserved IDs
+        if reserved_ids is None:
+            reserved_ids = set()
+
+        # Generate a unique ID based on name and type
+        # Start with a hash-based ID to avoid collisions between similar names
+        generated_id = (
+            abs(hash(f"{level_type}_{name}")) % 100000000
+        )  # Keep it reasonable
+
+        # If the generated ID is reserved, find the next available one
+        while generated_id in reserved_ids:
+            generated_id += 1
+
+        # Also check if it already exists in the database
+        while session.query(PlotRef).filter_by(id=generated_id).first() is not None:
+            generated_id += 1
+
         entity = PlotRef(
-            id_locality=hash(f"{level_type}_{name}") % 1000000,  # Generate unique ID
+            id=generated_id,  # Auto-generated ID that avoids conflicts
+            plot_id=generated_id,  # Same ID for consistency
             locality=name,
             geometry=geometry,
             plot_type=level_type,
@@ -1343,7 +1380,7 @@ class PlotImporter:
         # Check for existing plot
         existing_plot = (
             session.query(PlotRef)
-            .filter_by(id_locality=plot_id, locality=locality, plot_type="plot")
+            .filter_by(plot_id=plot_id, locality=locality, plot_type="plot")
             .first()
         )
         if not existing_plot:
@@ -1361,7 +1398,7 @@ class PlotImporter:
 
             plot = PlotRef(
                 id=plot_id,
-                id_locality=plot_id,
+                plot_id=plot_id,  # Store CSV ID in plot_id for linking
                 locality=locality,
                 geometry=wkt_geometry,
                 plot_type="plot",
