@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niamoto"
-version = "0.5.7"
+version = "0.6.0"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -120,6 +120,7 @@ dependencies = [
     # Documentation: https://plotly.com/python/
     # Note: Scattermap was introduced in 5.24.0
     "plotly>=5.24.0", # Minimum version for Scattermap support
+    "psutil>=7.0.0",
 ]
 
 [project.urls]
@@ -235,3 +236,18 @@ packages = ["src/niamoto"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+filterwarnings = [
+    # Rich wants ipywidgets for Jupyter but we don't need it in tests
+    "ignore::UserWarning:rich.live",
+    # Pandas false positive: our SQLAlchemy connections are valid but pandas doesn't recognize them
+    "ignore:pandas only supports SQLAlchemy connectable:UserWarning",
+    # We handle SettingWithCopyWarning properly with .copy() where needed
+    "ignore::pandas.errors.SettingWithCopyWarning",
+    # Expected warning when we try to auto-detect datetime formats
+    "ignore:Could not infer format:UserWarning",
+]

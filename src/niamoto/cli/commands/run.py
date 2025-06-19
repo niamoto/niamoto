@@ -10,7 +10,7 @@ from niamoto.common.utils.error_handler import error_handler
 from ..utils.console import print_success, print_info, print_error
 from .imports import import_all
 from .transform import process_transformations
-from .export import export_pages
+from .export import export_command
 from .initialize import reset_environment, get_config_dir
 
 
@@ -80,7 +80,7 @@ def run_pipeline(
         niamoto run --group taxon  # Process only taxon data
         niamoto run --target my_site  # Use specific export target
     """
-    print_info("Starting Niamoto pipeline...")
+    print_info("\n🌱 Starting Niamoto pipeline...")
 
     try:
         # Reset phase (unless skipped)
@@ -114,7 +114,9 @@ def run_pipeline(
         # Export phase
         if not skip_export:
             print_info("\n[bold]Phase 3: Export[/bold]")
-            ctx.invoke(export_pages, target=target, group=group)
+            ctx.invoke(
+                export_command, target=target, group=group, list=False, dry_run=False
+            )
         else:
             print_info("\n[dim]Skipping export phase[/dim]")
 

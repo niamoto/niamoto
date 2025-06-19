@@ -15,8 +15,8 @@
   [![PyPI - Version](https://img.shields.io/pypi/v/niamoto?color=blue&style=for-the-badge)](https://pypi.org/project/niamoto)
   [![Python Versions](https://img.shields.io/pypi/pyversions/niamoto?style=for-the-badge)](https://pypi.org/project/niamoto)
   [![License](https://img.shields.io/github/license/niamoto/niamoto?style=for-the-badge)](LICENSE)
-  [![Tests](https://github.com/niamoto/niamoto/workflows/Tests/badge.svg)](https://github.com/niamoto/niamoto/actions)
-  [![Documentation Status](https://readthedocs.org/projects/niamoto/badge/?version=latest)](https://niamoto.readthedocs.io/)
+  [![Codecov (with branch)](https://img.shields.io/codecov/c/github/niamoto/niamoto/main?style=for-the-badge)](https://codecov.io/gh/niamoto/niamoto)
+  [![Read the Docs (version)](https://img.shields.io/readthedocs/niamoto/latest?style=for-the-badge)](https://niamoto.readthedocs.io/)
 
   [🔗 **View Live Demo**](https://niamoto.github.io/niamoto-static-site/) | [📖 **Browse Documentation**](https://niamoto.readthedocs.io/)
 </div>
@@ -58,7 +58,7 @@ niamoto export
 - 📊 **Statistical Analysis** - Built-in plugins for distributions, rankings, and summaries
 - 🗺️ **Geospatial Analysis** - Interactive maps and spatial statistics
 - 📈 **Data Visualization** - Charts, maps, and dashboards with Plotly
-- 🏗️ **Plugin System** - Extensible architecture for custom transformations
+- 🏗️ **Plugin System** - Extensible architecture for custom transformations and generations
 - 🌐 **Static Site Generation** - Generate fast, SEO-friendly websites
 - ⚡ **CLI Interface** - Simple commands for the entire workflow
 - 🔧 **Configuration-Driven** - YAML-based configuration for reproducibility
@@ -79,10 +79,18 @@ Niamoto is perfect for:
 
 - [🚀 Quick Start](#-quick-start)
 - [🖼️ Screenshots](#️-screenshots)
+  - [Taxonomic Index Page](#taxonomic-index-page)
+  - [Taxon Detail Page](#taxon-detail-page)
 - [✨ Features](#-features)
 - [🎯 Use Cases](#-use-cases)
+- [📖 Table of Contents](#-table-of-contents)
 - [📦 Installation](#-installation)
+  - [For Users](#for-users)
+  - [For Developers](#for-developers)
 - [🏃‍♂️ Usage](#️-usage)
+  - [Initial Setup](#initial-setup)
+  - [Data Import](#data-import)
+  - [Generate Statistics and Website](#generate-statistics-and-website)
 - [📂 Project Structure](#-project-structure)
 - [🔧 Configuration](#-configuration)
 - [🧩 Plugin System](#-plugin-system)
@@ -91,7 +99,7 @@ Niamoto is perfect for:
 - [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
 - [❓ FAQ](#-faq)
-- [🤝 Community & Support](#-community--support)
+- [🤝 Community \& Support](#-community--support)
 - [📅 Changelog](#-changelog)
 
 ## 📦 Installation
@@ -190,7 +198,7 @@ Niamoto includes built-in plugins for data transformation and visualization, wit
 
 For development setup, testing, and contribution guidelines:
 
-📖 **[Development Setup Guide](docs/development/)** | **[Contributing Guidelines](docs/development/contributing.md)**
+📖 **[Development Setup Guide](docs/development/setup.md)** | **[Contributing Guidelines](docs/development/contributing.md)**
 
 ## 📚 Documentation
 

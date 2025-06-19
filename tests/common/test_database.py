@@ -132,7 +132,7 @@ def test_execute_query(test_database: Any, session: scoped_session) -> None:
 
     assert result is not None
     assert len(result) == 1
-    assert result[0][1] == "test_query"  # Assuming full_name is the second column
+    assert result[0][2] == "test_query"  # full_name is the third column (index 2)
 
 
 def test_commit_session(test_database: Any, session: scoped_session) -> None:

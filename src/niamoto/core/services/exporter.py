@@ -9,6 +9,8 @@ and orchestrates the execution of export plugins to generate output files.
 """
 
 import logging
+from datetime import datetime
+from typing import Optional, Dict, Any
 from pydantic import ValidationError
 
 from niamoto.common.config import Config
@@ -19,7 +21,6 @@ from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.models import ExportConfig
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -76,16 +77,61 @@ class ExporterService:
 
         logger.info("ExporterService initialized successfully.")
 
+    def get_export_targets(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get all export targets and their configurations.
+
+        Returns:
+            Dict mapping target names to their configuration info.
+        """
+        targets = {}
+
+        if not self.validated_config.exports:
+            return targets
+
+        for target in self.validated_config.exports:
+            targets[target.name] = {
+                "enabled": target.enabled,
+                "exporter": target.exporter,
+                "params": target.params.model_dump()
+                if hasattr(target.params, "model_dump")
+                else target.params,
+                "groups": [
+                    {
+                        "group_by": group.group_by,
+                        **(
+                            group.model_dump(exclude={"group_by"})
+                            if hasattr(group, "model_dump")
+                            else {
+                                k: v
+                                for k, v in group.__dict__.items()
+                                if k != "group_by"
+                            }
+                        ),
+                    }
+                    for group in (target.groups or [])
+                ],
+            }
+
+        return targets
+
     @error_handler(log=True, raise_error=True)
     def run_export(
         self, target_name: Optional[str] = None, group_filter: Optional[str] = None
-    ) -> None:
-        """Executes the specified export target or all enabled targets."""
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Executes the specified export target or all enabled targets.
+
+        Returns:
+            Dict mapping target names to their export results.
+        """
+        results = {}
+
         if not self.validated_config.exports:
             logger.warning(
                 "No export targets defined in the configuration. Nothing to export."
             )
-            return
+            return results
 
         # Determine which targets to process
         targets_to_process = self.validated_config.exports
@@ -106,52 +152,85 @@ class ExporterService:
 
         if not targets_to_process:
             logger.warning("No export targets selected to process.")
-            return
+            return results
 
         found_enabled_target = False
         for target in targets_to_process:
             if not target.enabled:
                 logger.info(f"Skipping disabled export target: '{target.name}'")
+                results[target.name] = {
+                    "status": "skipped",
+                    "reason": "disabled",
+                    "files_generated": 0,
+                    "errors": 0,
+                }
                 continue
 
             found_enabled_target = True
+            start_time = datetime.now()
+
             logger.info(
                 f"Processing export target: '{target.name}' using exporter '{target.exporter}'"
             )
-            exporter_plugin_class = self.plugin_registry.get_plugin(
-                target.exporter, PluginType.EXPORTER
-            )
-            if not exporter_plugin_class:
-                raise ConfigurationError(
-                    config_key="exports.exporter",
-                    message=f"Exporter plugin '{target.exporter}' not found for target '{target.name}'.",
-                )
 
-            # Instantiate the plugin (Base ExporterPlugin likely doesn't need db in __init__)
+            # Initialize result for this target
+            target_result = {
+                "status": "running",
+                "files_generated": 0,
+                "errors": 0,
+                "start_time": start_time,
+                "duration": None,
+            }
+
             try:
+                exporter_plugin_class = self.plugin_registry.get_plugin(
+                    target.exporter, PluginType.EXPORTER
+                )
+                if not exporter_plugin_class:
+                    raise ConfigurationError(
+                        config_key="exports.exporter",
+                        message=f"Exporter plugin '{target.exporter}' not found for target '{target.name}'.",
+                    )
+
+                # Instantiate the plugin
                 exporter_instance = exporter_plugin_class(db=self.db)
-            except Exception as init_err:
-                logger.error(
-                    f"Failed to instantiate exporter plugin '{target.exporter}' for target '{target.name}': {init_err}",
-                    exc_info=True,
-                )
-                raise ProcessError(
-                    f"Plugin instantiation failed for target '{target.name}'"
-                ) from init_err
 
-            # Execute the plugin's export method with validated config
-            try:
+                # Execute the plugin's export method with validated config
                 exporter_instance.export(
                     target_config=target, repository=self.db, group_filter=group_filter
                 )
+
+                # Collect statistics from the exporter if available
+                if hasattr(exporter_instance, "stats"):
+                    stats = exporter_instance.stats
+                    target_result.update(
+                        {
+                            "files_generated": stats.get("total_files_generated", 0),
+                            "errors": stats.get("errors_count", 0),
+                            "groups_processed": stats.get("groups_processed", {}),
+                            "output_path": stats.get("output_path"),
+                        }
+                    )
+
+                target_result["status"] = "success"
+                logger.info(f"Successfully processed export target: '{target.name}'")
+
             except Exception as e:
+                target_result["status"] = "error"
+                target_result["error"] = str(e)
+                target_result["errors"] = 1
+
                 logger.error(
                     f"Error executing exporter plugin '{target.exporter}' for target '{target.name}': {e}",
                     exc_info=True,
                 )
-                # Potentially raise or continue to next target?
-                raise ProcessError(f"Export failed for target '{target.name}'") from e
-            logger.info(f"Successfully processed export target: '{target.name}'")
+                # Continue to next target instead of raising
+                # raise ProcessError(f"Export failed for target '{target.name}'") from e
+
+            finally:
+                end_time = datetime.now()
+                target_result["duration"] = str(end_time - start_time)
+                results[target.name] = target_result
 
         if not found_enabled_target:
             logger.warning("No enabled export targets found to process.")
@@ -160,6 +239,8 @@ class ExporterService:
             logger.info(f"Export process finished for target: '{target_name}'.")
         else:
             logger.info("Export process finished for all enabled targets.")
+
+        return results
 
     # --- Add helper methods as needed for data retrieval, etc. ---
     # Example:
