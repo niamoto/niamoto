@@ -54,6 +54,7 @@ class SpatialLoader(LoaderPlugin):
             )
         """
 
-        return pd.read_sql(
-            query, self.db.engine, params={"id": group_id, "shape_geom": shape_geom}
-        )
+        with self.db.engine.connect() as conn:
+            return pd.read_sql(
+                query, conn, params={"id": group_id, "shape_geom": shape_geom}
+            )

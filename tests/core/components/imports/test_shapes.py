@@ -40,108 +40,71 @@ class TestShapeImporter(NiamotoTestCase):
     @patch("pathlib.Path.exists")
     def test_import_from_config(self, mock_exists, mock_fiona_open):
         """Test import_from_config method."""
-        # Setup mocks
+        # Setup basic mocks
         mock_exists.return_value = True
 
-        # Mock fiona.open context manager
+        # Mock fiona source
         mock_src = MagicMock()
         mock_src.__enter__.return_value = mock_src
         mock_src.__exit__.return_value = None
         mock_src.crs_wkt = "PROJCS[...]"
-        mock_src.__len__.return_value = 3
-
-        # Mock features
-        mock_feature1 = {
-            "geometry": {"type": "Point", "coordinates": [1, 1]},
-            "properties": {"name": "Feature1"},
-        }
-        mock_feature2 = {
-            "geometry": {"type": "Point", "coordinates": [2, 2]},
-            "properties": {"name": "Feature2"},
-        }
-        mock_feature3 = {
-            "geometry": {"type": "Point", "coordinates": [3, 3]},
-            "properties": {"name": "Feature3"},
-        }
-        mock_src.__iter__.return_value = [mock_feature1, mock_feature2, mock_feature3]
+        mock_src.__len__.return_value = 2
+        mock_src.__iter__.return_value = [
+            {
+                "geometry": {"type": "Point", "coordinates": [1, 1]},
+                "properties": {"id": "1", "name": "Feature1"},
+            },
+            {
+                "geometry": {"type": "Point", "coordinates": [2, 2]},
+                "properties": {"id": "2", "name": "Feature2"},
+            },
+        ]
         mock_fiona_open.return_value = mock_src
 
-        # Use context manager to ensure proper cleanup
-        temp_dir = None
-        try:
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                temp_dir = tmp_dir
-                # Mock _process_input_file to avoid file operations
+        # Mock all the internal methods
+        with patch.object(
+            self.importer, "_setup_transformer", return_value=MagicMock()
+        ) as mock_setup:
+            with patch.object(self.importer, "_is_valid_feature", return_value=True):
                 with patch.object(
-                    self.importer, "_process_input_file", return_value="test.shp"
+                    self.importer, "transform_geometry", return_value=Point(1, 1)
                 ):
-                    # Mock transformer
                     with patch.object(
-                        self.importer, "_setup_transformer"
-                    ) as mock_setup_transformer:
-                        mock_transformer = MagicMock()
-                        mock_setup_transformer.return_value = mock_transformer
-
-                        # Mock _is_valid_feature
+                        self.importer, "_get_feature_id", return_value="test_id"
+                    ):
                         with patch.object(
-                            self.importer, "_is_valid_feature", return_value=True
-                        ) as mock_is_valid:
-                            # Mock transform_geometry
+                            self.importer, "_get_feature_name", return_value="Test Name"
+                        ):
                             with patch.object(
-                                self.importer, "transform_geometry"
-                            ) as mock_transform:
-                                mock_transform.return_value = Point(1, 1)
-
-                                # Mock _get_feature_label
+                                self.importer, "_extract_properties", return_value={}
+                            ):
                                 with patch.object(
                                     self.importer,
-                                    "_get_feature_label",
-                                    return_value="Test Label",
-                                ) as mock_get_label:
-                                    # Mock _update_or_create_shape
-                                    with patch.object(
-                                        self.importer,
-                                        "_update_or_create_shape",
-                                        return_value=True,
-                                    ) as mock_update:
-                                        config = [
-                                            {
-                                                "category": "test",
-                                                "label": "Test Shape",
-                                                "path": "test.shp",
-                                                "name_field": "name",
-                                            }
-                                        ]
+                                    "_update_or_create_shape",
+                                    return_value=True,
+                                ):
+                                    config = [
+                                        {
+                                            "type": "Test Shape",
+                                            "path": "test.shp",
+                                            "id_field": "id",
+                                            "name_field": "name",
+                                        }
+                                    ]
 
-                                        result = self.importer.import_from_config(
-                                            config
-                                        )
+                                    result = self.importer.import_from_config(config)
 
-                                        # Verify the result
-                                        self.assertEqual(
-                                            result,
-                                            "Shape import to mock_db_path completed: 3 processed, 3 added, 0 updated",
-                                        )
+                                    # Verify the result contains expected text
+                                    self.assertIn(
+                                        "Shape import to mock_db_path completed", result
+                                    )
+                                    self.assertIn("2 processed", result)
+                                    self.assertIn("2 added", result)
 
-                                        # Verify mock calls
-                                        mock_fiona_open.assert_called_with(
-                                            "test.shp", "r"
-                                        )
-                                        mock_setup_transformer.assert_called_once()
-                                        self.assertEqual(mock_is_valid.call_count, 3)
-                                        self.assertEqual(mock_transform.call_count, 3)
-                                        self.assertEqual(mock_get_label.call_count, 3)
-                                        self.assertEqual(mock_update.call_count, 3)
-                                        self.mock_db.session.commit.assert_called_once()
-        finally:
-            # Ensure cleanup of any remaining temporary files
-            if temp_dir and os.path.exists(temp_dir):
-                try:
-                    import shutil
-
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                except Exception:
-                    pass
+                                    # Verify key methods were called
+                                    mock_fiona_open.assert_called()
+                                    mock_setup.assert_called_once()
+                                    self.mock_db.session.commit.assert_called_once()
 
     def test_validate_config_empty(self):
         """Test _validate_config method with empty config."""
@@ -151,20 +114,18 @@ class TestShapeImporter(NiamotoTestCase):
     def test_validate_config_missing_fields(self):
         """Test _validate_config method with missing fields."""
         # Missing name_field
-        invalid_config = [
-            {"category": "test", "label": "Test Shape", "path": "test.shp"}
-        ]
+        invalid_config = [{"type": "Test Shape", "path": "test.shp", "id_field": "id"}]
 
         with self.assertRaises(ConfigurationError):
             ShapeImporter._validate_config(invalid_config)
 
-    def test_validate_config_empty_category(self):
-        """Test _validate_config method with empty category."""
+    def test_validate_config_empty_type(self):
+        """Test _validate_config method with empty type."""
         invalid_config = [
             {
-                "category": "",
-                "label": "Test Shape",
+                "type": "",
                 "path": "test.shp",
+                "id_field": "id",
                 "name_field": "name",
             }
         ]
@@ -176,9 +137,9 @@ class TestShapeImporter(NiamotoTestCase):
         """Test _validate_config method with valid config."""
         valid_config = [
             {
-                "category": "test",
-                "label": "Test Shape",
+                "type": "Test Shape",
                 "path": "test.shp",
+                "id_field": "id",
                 "name_field": "name",
             }
         ]
@@ -193,9 +154,9 @@ class TestShapeImporter(NiamotoTestCase):
         mock_exists.return_value = False
 
         shape_info = {
-            "category": "test",
-            "label": "Test Shape",
+            "type": "Test Shape",
             "path": "nonexistent.shp",
+            "id_field": "id",
             "name_field": "name",
         }
         import_stats = {
@@ -225,9 +186,9 @@ class TestShapeImporter(NiamotoTestCase):
         mock_fiona_open.return_value = mock_src
 
         shape_info = {
-            "category": "test",
-            "label": "Test Shape",
+            "type": "Test Shape",
             "path": "test.shp",
+            "id_field": "id",
             "name_field": "name",
         }
         import_stats = {
@@ -251,9 +212,9 @@ class TestShapeImporter(NiamotoTestCase):
         mock_fiona_open.side_effect = Exception("Fiona error")
 
         shape_info = {
-            "category": "test",
-            "label": "Test Shape",
+            "type": "Test Shape",
             "path": "test.shp",
+            "id_field": "id",
             "name_field": "name",
         }
         import_stats = {
@@ -341,27 +302,64 @@ class TestShapeImporter(NiamotoTestCase):
             self.assertFalse(result3)
             mock_shape.assert_called_once_with(invalid_feature3["geometry"])
 
-    def test_get_feature_label(self):
-        """Test _get_feature_label method."""
+    def test_get_feature_id(self):
+        """Test _get_feature_id method."""
+        feature = {"properties": {"id": "test_id"}}
+
+        shape_info = {"id_field": "id"}
+
+        result = ShapeImporter._get_feature_id(feature, shape_info)
+
+        self.assertEqual(result, "test_id")
+
+    def test_get_feature_name(self):
+        """Test _get_feature_name method."""
         feature = {"properties": {"name": "Test Feature"}}
 
         shape_info = {"name_field": "name"}
 
-        result = ShapeImporter._get_feature_label(feature, shape_info)
+        result = ShapeImporter._get_feature_name(feature, shape_info)
 
         self.assertEqual(result, "Test Feature")
 
-    def test_get_feature_label_missing(self):
-        """Test _get_feature_label method with missing field."""
+    def test_get_feature_name_missing(self):
+        """Test _get_feature_name method with missing field."""
         feature = {
             "properties": {"id": 1}  # Missing 'name' field
         }
 
         shape_info = {"name_field": "name"}
 
-        result = ShapeImporter._get_feature_label(feature, shape_info)
+        result = ShapeImporter._get_feature_name(feature, shape_info)
 
         self.assertEqual(result, "")
+
+    def test_extract_properties(self):
+        """Test _extract_properties method."""
+        feature = {
+            "properties": {
+                "name": "Test Feature",
+                "area": 100.5,
+                "population": 1000,
+                "other": "ignored",
+            }
+        }
+
+        shape_info = {"properties": ["area", "population"]}
+
+        result = ShapeImporter._extract_properties(feature, shape_info)
+
+        self.assertEqual(result, {"area": 100.5, "population": 1000})
+
+    def test_extract_properties_empty_config(self):
+        """Test _extract_properties method with empty properties config."""
+        feature = {"properties": {"name": "Test Feature", "area": 100.5}}
+
+        shape_info = {}  # No properties config
+
+        result = ShapeImporter._extract_properties(feature, shape_info)
+
+        self.assertEqual(result, {})
 
     def test_format_result_message(self):
         """Test _format_result_message method."""

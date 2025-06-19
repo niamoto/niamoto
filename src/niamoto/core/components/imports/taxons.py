@@ -12,7 +12,6 @@ from rich.progress import (
     SpinnerColumn,
     BarColumn,
     TextColumn,
-    TimeRemainingColumn,
 )
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
@@ -233,10 +232,15 @@ class TaxonomyImporter:
         rank_names = list(ranks) if ranks else []
 
         try:
+            # Capture start time for completion message
+            import time
+
+            start_time = time.time()
+
             with self.db.session() as session:
                 # First pass: insert all taxa into database to get auto-generated IDs
                 # Variable to store the current enrichment message
-                current_enrichment_message = "[green]Importing taxonomy data[/green]"
+                current_enrichment_message = "[green]Importing taxonomy...[/green]"
                 if api_enricher:
                     current_enrichment_message = (
                         "[green]Enriching taxonomy data[/green]"
@@ -247,7 +251,6 @@ class TaxonomyImporter:
                     TextColumn("{task.description}"),
                     BarColumn(),
                     TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                    TimeRemainingColumn(),
                     refresh_per_second=10,
                 ) as progress:
                     task_insert = progress.add_task(
@@ -298,7 +301,7 @@ class TaxonomyImporter:
 
                                             # Display only if it's a success/error message
                                             if (
-                                                "✓" in last_message
+                                                "[✓]" in last_message
                                                 or "✗" in last_message
                                             ):
                                                 # Update the task description with the current message
@@ -391,8 +394,13 @@ class TaxonomyImporter:
                             # Count imported taxa
                             imported_count += 1
 
-                            # Update progress
-                            progress.update(task_insert, advance=1)
+                            # Update progress with real-time duration
+                            current_duration = time.time() - start_time
+                            if api_enricher:
+                                desc = f"[green]Enriching taxonomy data • {current_duration:.1f}s[/green]"
+                            else:
+                                desc = f"[green]Importing taxonomy • {current_duration:.1f}s[/green]"
+                            progress.update(task_insert, advance=1, description=desc)
 
                             # Periodic commit
                             if imported_count % 10 == 0:
@@ -401,8 +409,14 @@ class TaxonomyImporter:
                     # Final commit for all records
                     session.commit()
 
+                    # Update task description to show completion
+                    duration = time.time() - start_time
+                    progress.update(
+                        task_insert,
+                        description=f"[green][✓] taxonomy import completed • {duration:.1f}s[/green]",
+                    )
+
                 # Second pass: update nested set values
-                progress.console.print("[yellow]Updating nested set model...")
                 self._update_nested_set_values(session)
                 session.commit()
 
@@ -705,6 +719,7 @@ class TaxonomyImporter:
                     "taxon_type": data["rank_name"],
                     "parent_family": data["family"],
                     "parent_genus": data["genus"],
+                    "original_id": data["taxon_id"],
                 },
             }
 
@@ -714,8 +729,8 @@ class TaxonomyImporter:
                 entry["extra_data"][column_mapping["taxon_id"]] = external_id
 
             # Add taxonref to extra_data if available
-            if data["taxonref"]:
-                entry["extra_data"]["taxonref"] = data["taxonref"]
+            # if data["taxonref"]:
+            # entry["extra_data"]["taxonref"] = data["taxonref"]
 
             taxonomy_entries.append(entry)
 
@@ -972,6 +987,11 @@ class TaxonomyImporter:
         imported_count = 0
 
         try:
+            # Capture start time
+            import time
+
+            start_time = time.time()
+
             with self.db.session() as session:
                 # Calculate the total number of taxons to process
                 total_taxons = sum(len(df[df["rank"] == rank]) for rank in ranks)
@@ -981,7 +1001,6 @@ class TaxonomyImporter:
                     TextColumn("[progress.description]{task.description}"),
                     BarColumn(),
                     TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                    TimeRemainingColumn(),
                     refresh_per_second=10,  # Refresh more often
                 )
 
@@ -1001,7 +1020,13 @@ class TaxonomyImporter:
                             ) from e
 
                         # Update the progress bar
-                        progress.update(task, advance=1)
+                        # Update progress with real-time duration
+                        current_duration = time.time() - start_time
+                        progress.update(
+                            task,
+                            advance=1,
+                            description=f"[green]Importing taxons • {current_duration:.1f}s[/green]",
+                        )
 
                         # Commit and update nested set values after each rank
                         if imported_count > 0 and imported_count % 1000 == 0:
@@ -1039,6 +1064,7 @@ class TaxonomyImporter:
         Raises:
             DatabaseError: If database operation fails
         """
+        print(row)
         taxon_id = int(row["id_taxon"])
         try:
             # Get or create taxon

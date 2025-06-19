@@ -13,8 +13,6 @@ from rich.progress import (
     SpinnerColumn,
     BarColumn,
     TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
 )
 from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
 from shapely.geometry.base import BaseGeometry
@@ -90,17 +88,20 @@ class ShapeImporter:
                     # En cas d'erreur, on ignore pour le comptage
                     pass
 
+            # Capture start time
+            import time
+
+            start_time = time.time()
+
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeElapsedColumn(),
-                TextColumn("•"),
-                TimeRemainingColumn(),
+                refresh_per_second=10,
             ) as progress:
                 task = progress.add_task(
-                    description=f"[green]Importing {total_features} features...",
+                    description="[green]Importing shapes...",
                     total=total_features,
                 )
 
@@ -131,36 +132,54 @@ class ShapeImporter:
                                 try:
                                     if not self._is_valid_feature(feature):
                                         import_stats["skipped"] += 1
-                                        continue
-
-                                    geom = shape(feature["geometry"])
-
-                                    # Correction automatique des géométries invalides
-                                    if not geom.is_valid:
-                                        from shapely.validation import make_valid
-
-                                        geom = make_valid(geom)
-
-                                    geom_wgs84 = self.transform_geometry(
-                                        geom, transformer
-                                    )
-                                    label = self._get_feature_label(feature, shape_info)
-                                    if not label:
-                                        import_stats["skipped"] += 1
-                                        continue
-
-                                    if self._update_or_create_shape(
-                                        label, shape_info, geom_wgs84, import_stats
-                                    ):
-                                        import_stats["added"] += 1
                                     else:
-                                        import_stats["updated"] += 1
+                                        geom = shape(feature["geometry"])
 
-                                    import_stats["processed"] += 1
-                                    progress.update(task, advance=1)
+                                        # Correction automatique des géométries invalides
+                                        if not geom.is_valid:
+                                            from shapely.validation import make_valid
+
+                                            geom = make_valid(geom)
+
+                                        geom_wgs84 = self.transform_geometry(
+                                            geom, transformer
+                                        )
+                                        shape_id = self._get_feature_id(
+                                            feature, shape_info
+                                        )
+                                        name = self._get_feature_name(
+                                            feature, shape_info
+                                        )
+                                        extra_data = self._extract_properties(
+                                            feature, shape_info
+                                        )
+                                        if not name:
+                                            import_stats["skipped"] += 1
+                                        else:
+                                            if self._update_or_create_shape(
+                                                shape_id,
+                                                name,
+                                                shape_info,
+                                                geom_wgs84,
+                                                extra_data,
+                                            ):
+                                                import_stats["added"] += 1
+                                            else:
+                                                import_stats["updated"] += 1
+
+                                            import_stats["processed"] += 1
+
                                 except Exception as e:
                                     import_stats["errors"].append(str(e))
                                     import_stats["skipped"] += 1
+
+                                # Update progress with real-time duration (always, regardless of success/skip/error)
+                                current_duration = time.time() - start_time
+                                progress.update(
+                                    task,
+                                    advance=1,
+                                    description=f"[green]Importing shapes • {current_duration:.1f}s[/green]",
+                                )
                     except Exception as e:
                         # Pour toute erreur lors de l'ouverture ou du traitement du fichier,
                         # lever une DataValidationError indiquant un format invalide.
@@ -168,6 +187,13 @@ class ShapeImporter:
                             "Invalid shape file format",
                             [{"error": str(e), "file": str(shape_info["path"])}],
                         )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green][✓] shapes import completed • {duration:.1f}s[/green]",
+                )
 
                 try:
                     self.db.session.commit()
@@ -204,7 +230,7 @@ class ShapeImporter:
         if not shapes_config:
             raise ConfigurationError("shapes", "Empty shapes configuration provided")
 
-        required_fields = ["category", "label", "path", "name_field"]
+        required_fields = ["type", "path", "name_field"]
         for shape_info in shapes_config:
             # Check for missing fields
             missing_fields = [
@@ -217,11 +243,11 @@ class ShapeImporter:
                     details={"missing_fields": missing_fields, "config": shape_info},
                 )
 
-            # Check for empty category
-            if not shape_info.get("category"):
+            # Check for empty type
+            if not shape_info.get("type"):
                 raise ConfigurationError(
                     "shapes",
-                    "Empty category field",
+                    "Empty type field",
                     details={"config": shape_info},
                 )
 
@@ -321,14 +347,16 @@ class ShapeImporter:
 
                 geom = shape(feature["geometry"])
                 geom_wgs84 = self.transform_geometry(geom, transformer)
-                label = self._get_feature_label(feature, shape_info)
+                shape_id = self._get_feature_id(feature, shape_info)
+                name = self._get_feature_name(feature, shape_info)
+                extra_data = self._extract_properties(feature, shape_info)
 
-                if not label:
+                if not name:
                     import_stats["skipped"] += 1
                     continue
 
                 if self._update_or_create_shape(
-                    label, shape_info, geom_wgs84, import_stats
+                    shape_id, name, shape_info, geom_wgs84, extra_data
                 ):
                     import_stats["added"] += 1
                 else:
@@ -349,17 +377,41 @@ class ShapeImporter:
         return not geom.is_empty
 
     @staticmethod
-    def _get_feature_label(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:
-        """Get feature label from properties."""
-        label = feature["properties"].get(shape_info["name_field"])
-        return str(label).strip() if label else ""
+    def _get_feature_id(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:
+        """Get feature ID from properties."""
+        id_field = shape_info.get("id_field")
+        if not id_field:
+            return ""
+        shape_id = feature["properties"].get(id_field)
+        return str(shape_id).strip() if shape_id else ""
+
+    @staticmethod
+    def _get_feature_name(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:
+        """Get feature name from properties."""
+        name = feature["properties"].get(shape_info["name_field"])
+        return str(name).strip() if name else ""
+
+    @staticmethod
+    def _extract_properties(
+        feature: Dict[str, Any], shape_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Extract additional properties from feature based on configuration."""
+        extra_data = {}
+        properties_config = shape_info.get("properties", [])
+
+        for prop_name in properties_config:
+            if prop_name in feature["properties"]:
+                extra_data[prop_name] = feature["properties"][prop_name]
+
+        return extra_data
 
     def _update_or_create_shape(
         self,
-        label: str,
+        shape_id: str,
+        name: str,
         shape_info: Dict[str, Any],
         geometry: BaseGeometry,
-        import_stats: Dict[str, Any],
+        extra_data: Dict[str, Any],
     ) -> bool:
         """
         Update or create shape record.
@@ -370,26 +422,29 @@ class ShapeImporter:
         try:
             existing_shape = (
                 self.db.session.query(ShapeRef)
-                .filter_by(label=label, type=shape_info["category"])
+                .filter_by(name=name, type=shape_info["type"])
                 .scalar()
             )
 
             if existing_shape:
+                existing_shape.shape_id = shape_id
                 existing_shape.location = geometry.wkb.hex()
+                existing_shape.extra_data = extra_data
                 return False
             else:
                 new_shape = ShapeRef(
-                    label=label,
-                    type=shape_info["category"],
-                    type_label=shape_info["label"],
+                    shape_id=shape_id,
+                    name=name,
+                    type=shape_info["type"],
                     location=geometry.wkb.hex(),
+                    extra_data=extra_data,
                 )
                 self.db.session.add(new_shape)
                 return True
 
         except SQLAlchemyError as e:
             raise DatabaseError(
-                f"Database error for shape {label}", details={"error": str(e)}
+                f"Database error for shape {name}", details={"error": str(e)}
             )
 
     def _format_result_message(self, stats: Dict[str, Any]) -> str:

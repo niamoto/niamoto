@@ -92,4 +92,5 @@ class JoinTableLoader(LoaderPlugin):
             WHERE j.{validated_config.keys["reference"]} = :id
         """
 
-        return pd.read_sql(query, self.db.engine, params={"id": group_id})
+        with self.db.engine.connect() as conn:
+            return pd.read_sql(query, conn, params={"id": group_id})

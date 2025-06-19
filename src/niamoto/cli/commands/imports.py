@@ -11,7 +11,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.config import Config
 from niamoto.core.services.importer import ImporterService
-from ..utils.console import print_success, print_error, print_info
+from ..utils.console import (
+    print_error,
+    print_info,
+    print_start,
+    print_operation_metrics,
+)
+from ..utils.metrics import MetricsCollector
 from ...common.database import Database
 from ...common.exceptions import (
     ConfigurationError,
@@ -378,8 +384,15 @@ def import_all() -> None:
     Raises:
         DataImportError: If any import operation fails
     """
-    print_info("Starting full data import...")
+    from datetime import datetime
+
+    start_time = datetime.now()
+
+    print_start("Starting full data import")
     config = Config()
+
+    # Collect all import results for summary
+    import_results = []
 
     try:
         # Create a single ImporterService instance to reuse
@@ -387,7 +400,6 @@ def import_all() -> None:
         imports_config = config.imports
 
         # Import taxonomy
-        print_info("Importing taxonomy...")
         source_def = validate_source_config(
             imports_config, "taxonomy", ["path", "ranks"]
         )
@@ -425,10 +437,12 @@ def import_all() -> None:
             )
         else:
             result = importer.import_taxonomy(file_path, tuple(rank_list), api_config)
-        print_info(result)
+
+        # Collect result for summary
+        import_results.append(result)
+        # print_info(result)  # Suppress intermediate output
 
         # Import occurrences
-        print_info("Importing occurrences...")
         source_def = validate_source_config(
             imports_config, "occurrences", ["path", "identifier", "location_field"]
         )
@@ -438,10 +452,25 @@ def import_all() -> None:
 
         reset_table(config.database_path, "occurrences")
         result = importer.import_occurrences(file_path, taxon_id, location_field)
-        print_info(result)
+
+        # Collect result for summary
+        import_results.append(result)
+
+        # Store linking data if available for final summary
+        occurrence_importer = importer.occurrence_importer
+        if (
+            hasattr(occurrence_importer, "last_linking_data")
+            and occurrence_importer.last_linking_data
+        ):
+            import json
+
+            import_results.append(
+                f"LINKING_DATA:{json.dumps(occurrence_importer.last_linking_data)}"
+            )
+
+        # print_info(result)  # Suppress intermediate output
 
         # Import plots
-        print_info("Importing plots...")
         source_def = validate_source_config(
             imports_config,
             "plots",
@@ -468,18 +497,59 @@ def import_all() -> None:
             occurrence_link_field=occurrence_link_field,
             hierarchy_config=hierarchy_config,
         )
-        print_info(result)
+
+        # Collect result for summary
+        import_results.append(result)
+        # print_info(result)  # Suppress intermediate output
 
         # Import shapes
-        print_info("Importing shapes...")
         shapes_config = imports_config.get("shapes", [])
         if shapes_config and isinstance(shapes_config, list):
             result = importer.import_shapes(shapes_config)
-            print_info(result)
-        else:
-            print_info("No shapes configured, skipping")
 
-        print_success("Data import completed")
+            # Collect result for summary
+            import_results.append(result)
+        else:
+            pass
+
+        end_time = datetime.now()
+
+        # Parse all import results and create metrics
+        linking_data = None
+        text_results = []
+
+        for result in import_results:
+            if isinstance(result, str) and result.startswith("LINKING_DATA:"):
+                # Extract linking data
+                import json
+
+                linking_data = json.loads(result.replace("LINKING_DATA:", ""))
+            else:
+                text_results.append(str(result))
+
+        combined_results = "\n".join(text_results)
+        import_metrics = MetricsCollector.parse_import_result(
+            combined_results, "import"
+        )
+        import_metrics.start_time = start_time
+        import_metrics.end_time = end_time
+
+        # Display the summary using the same system as transform/export
+        print_operation_metrics(import_metrics, "import")
+
+        # Add linking statistics if available
+        if linking_data:
+            from ..utils.console import print_linking_status, print_unlinked_samples
+
+            stats = linking_data["linking_stats"]
+            samples = linking_data["unlinked_samples"]
+
+            print_linking_status(
+                stats["total"], stats["linked"], stats["failed"], stats["type"]
+            )
+
+            if samples:
+                print_unlinked_samples(samples, stats["type"])
     except Exception as e:
         raise DataImportError(
             message="Full import failed", details={"error": str(e)}

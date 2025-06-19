@@ -45,13 +45,13 @@ class TaxonRef(Base):
     __tablename__ = "taxon_ref"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    taxon_id = Column(Integer, nullable=True)
     full_name = Column(String(255))
     authors = Column(String(255))
     rank_name = Column(String(50))
     lft = Column(Integer)
     rght = Column(Integer)
     level = Column(Integer)
-    taxon_id = Column(Integer, nullable=True)
     extra_data = Column(JSON, nullable=True)  # Store JSON as text in SQLite
 
     if TYPE_CHECKING:
@@ -90,7 +90,7 @@ class PlotRef(Base):
     __tablename__ = "plot_ref"
 
     id = Column(Integer, primary_key=True)  # Manual ID setting still possible
-    id_locality = Column(Integer, nullable=False)
+    plot_id = Column(Integer, nullable=False)
     locality = Column(String, nullable=False)
     geometry = Column(String)
     lft = Column(Integer, nullable=True)
@@ -125,26 +125,29 @@ class ShapeRef(Base):
 
     Attributes:
         id (int): The primary key. :noindex:
-        label (str): The label of the shape. :noindex:
+        shape_id (str): The external identifier of the shape. :noindex:
+        name (str): The name of the shape. :noindex:
         type (str): The type of the shape. :noindex:
         location (str): The geometry of the shape (MultiPolygon) as WKT. :noindex:
+        extra_data (dict): Additional properties stored in JSON format. :noindex:
     """
 
     __tablename__ = "shape_ref"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    label = Column(String(50), nullable=False)
+    shape_id = Column(String(100), nullable=True)
+    name = Column(String(255), nullable=False)
     type = Column(String(50))
-    type_label = Column(String(50))
     location = Column(String, nullable=False)
+    extra_data = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("ix_shape_ref_id", "id"),
-        Index("ix_shape_ref_label", "label"),
+        Index("ix_shape_ref_shape_id", "shape_id"),
+        Index("ix_shape_ref_name", "name"),
         Index("ix_shape_ref_type", "type"),
-        Index("ix_shape_ref_type_label", "type_label"),
-        Index("ix_shape_ref_label_type", "label", "type", unique=True),
+        Index("ix_shape_ref_name_type", "name", "type", unique=True),
     )
 
     def __repr__(self) -> str:
-        return f"<ShapeRef(id={self.id}, label='{self.label}', type='{self.type}', location='{self.location[:30]}...')>"
+        return f"<ShapeRef(id={self.id}, shape_id='{self.shape_id}', name='{self.name}', type='{self.type}', location='{self.location[:30]}...')>"

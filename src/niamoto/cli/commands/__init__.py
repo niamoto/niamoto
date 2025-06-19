@@ -13,7 +13,7 @@ from .base import RichCLI
 from .initialize import init_environment  # Import de la commande unique
 from .imports import import_commands
 from .transform import transform_commands
-from .export import generate_commands
+from .export import export_command
 from .deploy import deploy_commands
 from .plugins import plugins
 from .run import run_pipeline
@@ -45,7 +45,7 @@ def create_cli() -> click.Group:
     cli.add_command(init_environment, name="init")
     cli.add_command(import_commands)
     cli.add_command(transform_commands)
-    cli.add_command(generate_commands)
+    cli.add_command(export_command)
     cli.add_command(deploy_commands)
     cli.add_command(plugins)
     cli.add_command(run_pipeline)

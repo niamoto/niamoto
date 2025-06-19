@@ -26,7 +26,6 @@ from rich.progress import (
     SpinnerColumn,
     BarColumn,
     TextColumn,
-    TimeRemainingColumn,
 )
 
 
@@ -219,7 +218,15 @@ class PlotImporter:
             if missing_cols:
                 raise DataValidationError(
                     "Missing required columns",
-                    [{"field": col, "error": "Column missing"} for col in missing_cols],
+                    [
+                        {
+                            "field": col,
+                            "error": "Column missing",
+                            "available_columns": list(df.columns),
+                            "required": list(required_cols),
+                        }
+                        for col in missing_cols
+                    ],
                 )
 
             # Parse geometry from the location_field
@@ -440,13 +447,17 @@ class PlotImporter:
             DatabaseError: If database operations fail
         """
         imported_count = 0
+        # Capture start time
+        import time
+
+        start_time = time.time()
+
         with self.db.session() as session:
             progress = Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeRemainingColumn(),
             )
             with progress:
                 task = progress.add_task(
@@ -456,7 +467,21 @@ class PlotImporter:
                     # Use locality_field if provided
                     if self._import_plot(session, row, identifier, locality_field):
                         imported_count += 1
-                    progress.update(task, advance=1)
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                    )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green][✓] plots import completed • {duration:.1f}s[/green]",
+                )
+
                 try:
                     session.commit()
                 except Exception as e:
@@ -570,14 +595,12 @@ class PlotImporter:
 
         # Check for existing plot
         existing_plot = (
-            session.query(PlotRef)
-            .filter_by(id_locality=plot_id, locality=locality)
-            .first()
+            session.query(PlotRef).filter_by(plot_id=plot_id, locality=locality).first()
         )
         if not existing_plot:
             plot = PlotRef(
                 id=plot_id,
-                id_locality=plot_id,
+                plot_id=plot_id,
                 locality=locality,
                 geometry=wkt_geometry,
             )
@@ -721,13 +744,17 @@ class PlotImporter:
 
             total_linked = 0
 
+            # Capture start time
+            import time
+
+            start_time = time.time()
+
             # Process matches in batches
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeRemainingColumn(),
             ) as progress:
                 task = progress.add_task(
                     "[green]Linking occurrences to plots...", total=len(match_list)
@@ -753,9 +780,28 @@ class PlotImporter:
                             )
                             total_linked += affected_rows
 
-                            progress.update(task, advance=1)
+                            # Update progress with real-time duration
+                            current_duration = time.time() - start_time
+                            progress.update(
+                                task,
+                                advance=1,
+                                description=f"[green]Linking occurrences to plots • {current_duration:.1f}s[/green]",
+                            )
                         except Exception:
-                            progress.update(task, advance=1)
+                            # Update progress with real-time duration even on error
+                            current_duration = time.time() - start_time
+                            progress.update(
+                                task,
+                                advance=1,
+                                description=f"[green]Linking occurrences to plots • {current_duration:.1f}s[/green]",
+                            )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green][✓] occurrence linking completed • {duration:.1f}s[/green]",
+                )
 
             return total_linked
 
@@ -1036,9 +1082,23 @@ class PlotImporter:
                 [{"field": col, "error": "Column missing"} for col in missing_cols],
             )
 
+        # Pre-scan to collect all plot IDs that will be used
+        reserved_ids = set()
+        for _, row in plots_data.iterrows():
+            try:
+                plot_id = int(row[identifier])
+                reserved_ids.add(plot_id)
+            except (ValueError, KeyError):
+                pass
+
         # Create dictionaries to store relationships
         country_ids = {}  # country_name -> id
         locality_ids = {}  # (locality_name, country_name) -> id
+
+        # Capture start time
+        import time
+
+        start_time = time.time()
 
         with self.db.session() as session:
             # First pass: create higher level entities (countries and localities)
@@ -1056,13 +1116,17 @@ class PlotImporter:
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeRemainingColumn(),
             ) as progress:
+                # Calculate total operations for unified progress bar
+                total_operations = (
+                    len(unique_countries) + len(unique_localities) + len(plots_data)
+                )
+                task = progress.add_task(
+                    "[green]Importing plots...", total=total_operations
+                )
+
                 # Import countries
                 if len(unique_countries) > 0:
-                    task = progress.add_task(
-                        "[green]Importing countries...", total=len(unique_countries)
-                    )
                     for country in unique_countries:
                         country_id = self._import_hierarchy_level(
                             session,
@@ -1071,14 +1135,18 @@ class PlotImporter:
                             plots_data,
                             levels[2],
                             aggregate_geometry,
+                            reserved_ids=reserved_ids,
                         )
                         country_ids[country] = country_id
-                        progress.update(task, advance=1)
+                        # Update progress with real-time duration
+                        current_duration = time.time() - start_time
+                        progress.update(
+                            task,
+                            advance=1,
+                            description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                        )
 
                 # Import localities
-                task = progress.add_task(
-                    "[green]Importing localities...", total=len(unique_localities)
-                )
                 for _, loc_row in unique_localities.iterrows():
                     locality_name = loc_row[levels[1]]
                     country_name = loc_row[levels[2]] if len(levels) > 2 else None
@@ -1093,14 +1161,18 @@ class PlotImporter:
                         aggregate_geometry,
                         parent_id=parent_id,
                         filter_by={levels[2]: country_name} if country_name else None,
+                        reserved_ids=reserved_ids,
                     )
                     locality_ids[(locality_name, country_name)] = locality_id
-                    progress.update(task, advance=1)
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                    )
 
                 # Import plots
-                task = progress.add_task(
-                    "[green]Importing plots...", total=len(plots_data)
-                )
                 for _, row in plots_data.iterrows():
                     locality_name = row[levels[1]] if len(levels) > 1 else None
                     country_name = row[levels[2]] if len(levels) > 2 else None
@@ -1113,12 +1185,24 @@ class PlotImporter:
                         session, row, identifier, locality_field, parent_id
                     ):
                         imported_count += 1
-                    progress.update(task, advance=1)
+                    # Update progress with real-time duration
+                    current_duration = time.time() - start_time
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
+                    )
+
+                # Update task description to show completion
+                duration = time.time() - start_time
+                progress.update(
+                    task,
+                    description=f"[green][✓] plots import completed • {duration:.1f}s[/green]",
+                )
 
                 try:
                     session.commit()
                     # Update nested set values
-                    progress.console.print("[yellow]Updating nested set model...")
                     self._update_nested_set_values(session)
                     session.commit()
                 except Exception as e:
@@ -1144,6 +1228,7 @@ class PlotImporter:
         aggregate_geometry: bool,
         parent_id: Optional[int] = None,
         filter_by: Optional[Dict[str, Any]] = None,
+        reserved_ids: Optional[set] = None,
     ) -> int:
         """
         Import a hierarchy level (country or locality).
@@ -1157,6 +1242,7 @@ class PlotImporter:
             aggregate_geometry: Whether to aggregate geometry from children
             parent_id: Parent entity ID
             filter_by: Additional filters for data selection
+            reserved_ids: Set of IDs that are reserved for manual plots
 
         Returns:
             ID of the imported entity
@@ -1191,9 +1277,27 @@ class PlotImporter:
                 except Exception as e:
                     print(f"Warning: Failed to aggregate geometry for {name}: {e}")
 
-        # Create entity
+        # Create entity with auto-generated ID that avoids reserved IDs
+        if reserved_ids is None:
+            reserved_ids = set()
+
+        # Generate a unique ID based on name and type
+        # Start with a hash-based ID to avoid collisions between similar names
+        generated_id = (
+            abs(hash(f"{level_type}_{name}")) % 100000000
+        )  # Keep it reasonable
+
+        # If the generated ID is reserved, find the next available one
+        while generated_id in reserved_ids:
+            generated_id += 1
+
+        # Also check if it already exists in the database
+        while session.query(PlotRef).filter_by(id=generated_id).first() is not None:
+            generated_id += 1
+
         entity = PlotRef(
-            id_locality=hash(f"{level_type}_{name}") % 1000000,  # Generate unique ID
+            id=generated_id,  # Auto-generated ID that avoids conflicts
+            plot_id=generated_id,  # Same ID for consistency
             locality=name,
             geometry=geometry,
             plot_type=level_type,
@@ -1276,7 +1380,7 @@ class PlotImporter:
         # Check for existing plot
         existing_plot = (
             session.query(PlotRef)
-            .filter_by(id_locality=plot_id, locality=locality, plot_type="plot")
+            .filter_by(plot_id=plot_id, locality=locality, plot_type="plot")
             .first()
         )
         if not existing_plot:
@@ -1294,7 +1398,7 @@ class PlotImporter:
 
             plot = PlotRef(
                 id=plot_id,
-                id_locality=plot_id,
+                plot_id=plot_id,  # Store CSV ID in plot_id for linking
                 locality=locality,
                 geometry=wkt_geometry,
                 plot_type="plot",
