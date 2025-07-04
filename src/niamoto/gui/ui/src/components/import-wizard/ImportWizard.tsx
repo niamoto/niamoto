@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { FileSelection } from './FileSelection'
 import { ColumnMapper } from './ColumnMapper'
+import { AdvancedOptions } from './AdvancedOptions'
+import { ReviewImport } from './ReviewImport'
 
 export type ImportType = 'taxonomy' | 'plots' | 'occurrences' | 'shapes'
 
 export interface ImportConfig {
-  type: ImportType
+  importType: ImportType
   file?: File
   fileAnalysis?: any
   fieldMappings?: Record<string, string>
@@ -30,13 +32,13 @@ const steps = [
 export function ImportWizard({ onComplete }: ImportWizardProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [config, setConfig] = useState<ImportConfig>({
-    type: 'taxonomy'
+    importType: 'taxonomy'
   })
 
   const canProceed = () => {
     switch (steps[currentStep].id) {
       case 'source':
-        return config.type !== undefined
+        return config.importType !== undefined
       case 'file':
         return config.file !== undefined && config.fileAnalysis !== undefined
       case 'mapping':
@@ -117,13 +119,13 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       <div className="flex-1 overflow-auto p-6">
         {steps[currentStep].id === 'source' && (
           <SourceSelection
-            selectedType={config.type}
-            onSelect={(type) => updateConfig({ type })}
+            selectedType={config.importType}
+            onSelect={(importType) => updateConfig({ importType })}
           />
         )}
         {steps[currentStep].id === 'file' && (
           <FileSelection
-            importType={config.type!}
+            importType={config.importType}
             onFileSelected={(file, analysis) =>
               updateConfig({ file, fileAnalysis: analysis })
             }
@@ -131,16 +133,22 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
         )}
         {steps[currentStep].id === 'mapping' && config.fileAnalysis && (
           <ColumnMapper
-            importType={config.type!}
+            importType={config.importType}
             fileAnalysis={config.fileAnalysis}
             onMappingComplete={(mappings) => updateConfig({ fieldMappings: mappings })}
           />
         )}
         {steps[currentStep].id === 'options' && (
-          <div>Advanced options step - TODO</div>
+          <AdvancedOptions
+            config={config}
+            onUpdate={updateConfig}
+          />
         )}
         {steps[currentStep].id === 'review' && (
-          <div>Review and import step - TODO</div>
+          <ReviewImport
+            config={config}
+            onImport={() => onComplete(config)}
+          />
         )}
       </div>
 

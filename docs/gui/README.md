@@ -77,6 +77,7 @@ niamoto gui --no-browser     # Ne pas ouvrir le navigateur
 - [Parcours utilisateur](user-workflow.md) - Workflow détaillé avec exemples
 - [POC actuel](poc-implementation.md) - État et limitations du prototype
 - [Référence API](api-reference.md) - Documentation des endpoints
+- [Guide de développement](development.md) - Architecture et workflow de développement
 - [Architecture](development/architecture.md) - Détails techniques
 - [Contribution](development/contributing.md) - Guide pour les développeurs
 - [Roadmap](development/roadmap.md) - Évolutions prévues
