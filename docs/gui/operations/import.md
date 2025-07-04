@@ -26,7 +26,9 @@ src/niamoto/gui/ui/src/
     └── import-wizard/
         ├── ImportWizard.tsx    # Main wizard container
         ├── FileSelection.tsx   # File upload with drag-and-drop
-        └── ColumnMapper.tsx    # Visual field mapping interface
+        ├── ColumnMapper.tsx    # Visual field mapping interface
+        ├── AdvancedOptions.tsx # Type-specific advanced settings
+        └── ReviewImport.tsx    # Final review and execution
 ```
 
 ### Key Features Implemented
@@ -50,32 +52,20 @@ src/niamoto/gui/ui/src/
 - **Occurrences**: CSV with species observations
 - **Shapes**: GeoPackage, Shapefile, GeoJSON
 
-### API Endpoints
+### Import Process Flow
 
-```python
-# File analysis endpoint
-POST /api/files/analyze
-Body: FormData {
-    file: File,
-    import_type: "taxonomy" | "plots" | "occurrences" | "shapes"
-}
-Response: {
-    filename: string,
-    type: string,
-    columns: string[],
-    column_types: Record<string, string>,
-    row_count: number,
-    sample_data: any[],
-    suggestions: Record<string, string[]>
-}
-```
+1. **File Upload & Analysis**: Automatic detection of file type and structure
+2. **Field Mapping**: Visual drag-and-drop with auto-suggestions
+3. **Advanced Configuration**: Type-specific options for fine-tuning
+4. **Validation**: Real-time validation with detailed feedback
+5. **Asynchronous Execution**: Background processing with progress tracking
 
 ### Technical Workflow Example
 
 ```typescript
 // 1. User selects import type
 const config: ImportConfig = {
-    type: 'taxonomy'
+    importType: 'taxonomy'  // Note: uses importType, not type
 }
 
 // 2. User uploads file
@@ -89,6 +79,7 @@ const analysis = await fetch('/api/files/analyze', {
     method: 'POST',
     body: formData
 }).then(r => r.json())
+// Returns: { filename, type, columns, column_types, row_count, sample_data, suggestions }
 
 // 4. User maps fields
 const mappings = {
@@ -100,65 +91,89 @@ const mappings = {
 
 // 5. Configuration is generated
 const finalConfig = {
-    type: 'taxonomy',
+    importType: 'taxonomy',
     file: file,
     fileAnalysis: analysis,
     fieldMappings: mappings,
     advancedOptions: {
-        api_enrichment: true
+        taxonomy: {  // Options are nested by import type
+            useApiEnrichment: true,
+            apiProvider: 'gbif',
+            rateLimit: 2,
+            extractFromOccurrences: false,
+            updateExisting: true
+        }
     }
 }
 ```
 
+## Current Features Implemented
+
+### Advanced Options by Import Type
+
+#### Taxonomy Options
+- **API Enrichment**: GBIF or POWO integration with rate limiting
+- **Extract from Occurrences**: Build taxonomy from occurrence data
+- **Update Existing**: Option to update existing taxa records
+
+#### Plots Options
+- **Import Hierarchy**: Support for hierarchical plot structures
+- **Hierarchy Delimiter**: Configurable delimiter for nested plots
+- **Generate IDs**: Auto-generate plot identifiers with custom prefix
+- **Validate Geometry**: Geometry validation before import
+
+#### Occurrences Options
+- **Link to Plots**: Automatic linking to existing plots
+- **Create Missing Taxa**: Option to create taxa entries for unknown IDs
+- **Validate Coordinates**: Coordinate validation
+- **Duplicate Strategy**: Skip, update, or error on duplicates
+
+#### Shapes Options
+- **Simplify Geometry**: Reduce geometry complexity with tolerance
+- **Calculate Area**: Auto-calculate shape areas
+- **Calculate Perimeter**: Auto-calculate shape perimeters
+
+### Import Execution Features
+
+- **Asynchronous Processing**: Background job execution
+- **Progress Tracking**: Real-time progress with polling
+- **Validation Before Import**: Automatic validation on review step
+- **Configuration Export**: Download import config as JSON
+- **Error Handling**: Detailed error and warning messages
+
 ## Remaining Tasks
 
 ### High Priority
-1. **Advanced Options Component**
-   - API enrichment configuration
-   - Hierarchical import settings for plots
-   - Source selection for taxonomy (file vs occurrence)
-   - Rate limiting controls
+1. **Integration with Niamoto Core**
+   - Connect to actual import engine
+   - Real database operations
+   - Proper error handling from backend
 
-2. **Review & Import Component**
-   - Configuration preview
-   - YAML generation preview
-   - Import execution with progress tracking
-   - Error handling and reporting
-
-3. **Import Execution Endpoint**
-   ```python
-   POST /api/import/execute
-   Body: ImportConfig
-   Response: Stream of progress updates
-   ```
+2. **Shapefile Support**
+   - Multi-file upload for .shp/.shx/.dbf
+   - Zip file extraction
+   - Coordinate system detection
 
 ### Medium Priority
-1. **Data Preview Component**
-   - Table view of sample data
-   - Highlight mapped columns
-   - Show data transformations
+1. **Import History**
+   - Persist job history in database
+   - Show previous imports
+   - Re-run functionality
 
-2. **Validation Endpoint**
-   ```python
-   POST /api/import/validate
-   Body: ImportConfig
-   Response: ValidationResult
-   ```
-
-3. **Progress Monitoring**
-   - Real-time import progress
-   - Record count updates
-   - Error accumulation
+2. **Batch Operations**
+   - Import multiple files at once
+   - Queue management interface
 
 ### Low Priority
 1. **Configuration Templates**
-   - Save import configurations
-   - Load previous configurations
-   - Share configurations
+   - Save/load import configurations
+   - Share configurations between users
+   - Template marketplace
 
-2. **Batch Import**
-   - Import multiple files at once
-   - Queue management
+2. **Advanced Transformations**
+   - Custom field transformations
+   - Data cleaning rules
+   - Conditional mappings
 
 ## Design Suggestions
 
@@ -261,6 +276,171 @@ try {
     }
 }
 ```
+
+## API Documentation
+
+### Endpoints
+
+The import functionality is powered by several API endpoints:
+
+#### File Analysis
+```
+POST /api/files/analyze
+Content-Type: multipart/form-data
+
+FormData:
+  - file: File
+  - import_type: string
+
+Response: {
+  filename: string,
+  type: "csv" | "excel" | "json" | "geojson" | "geopackage",
+  columns: string[],
+  column_types: Record<string, string>,
+  row_count?: number,
+  feature_count?: number,  // For spatial files
+  sample_data: any[],
+  suggestions: Record<string, string[]>,
+  geometry_types?: string[],  // For spatial files
+  crs?: string,  // For spatial files
+  bounds?: number[]  // For spatial files
+}
+```
+
+#### Import Validation
+```
+POST /api/imports/validate
+Content-Type: multipart/form-data
+
+FormData:
+  - file: File
+  - import_type: string
+  - file_name: string
+  - field_mappings: string (JSON)
+  - advanced_options?: string (JSON)
+
+Response: {
+  valid: boolean,
+  errors: string[],
+  warnings: string[],
+  summary: {
+    import_type: string,
+    file_name: string,
+    mapped_fields: number,
+    validation_errors: number,
+    validation_warnings: number
+  }
+}
+```
+
+#### Import Execution
+```
+POST /api/imports/execute
+Content-Type: multipart/form-data
+
+FormData:
+  - file: File
+  - import_type: string
+  - file_name: string
+  - field_mappings: string (JSON)
+  - advanced_options?: string (JSON)
+  - validate_only?: boolean
+
+Response: {
+  job_id: string,
+  status: "pending",
+  created_at: string,
+  message: string
+}
+```
+
+#### Job Status
+```
+GET /api/imports/jobs/{job_id}
+
+Response: {
+  id: string,
+  status: "pending" | "running" | "completed" | "failed",
+  import_type: string,
+  file_name: string,
+  created_at: string,
+  started_at?: string,
+  completed_at?: string,
+  progress: number,
+  total_records: number,
+  processed_records: number,
+  errors: string[],
+  warnings: string[]
+}
+```
+
+#### List Jobs
+```
+GET /api/imports/jobs?limit=10&offset=0&status=completed
+
+Response: {
+  total: number,
+  limit: number,
+  offset: number,
+  jobs: ImportJob[]
+}
+```
+
+### Development Workflow
+
+When developing the import interface, use the two-server setup:
+
+1. **API Server** (port 8080):
+   ```bash
+   uv run python -m niamoto gui --no-browser
+   ```
+
+2. **React Dev Server** (port 5173):
+   ```bash
+   cd src/niamoto/gui/ui
+   npm run dev
+   ```
+
+The Vite config includes a proxy that forwards `/api/*` requests to port 8080.
+
+### Testing Tips
+
+1. **Test Files**: Create small CSV files for quick testing
+2. **API Testing**: Use FastAPI docs at http://localhost:8080/docs
+3. **Network Tab**: Monitor API calls in browser DevTools
+4. **State Debugging**: Use React DevTools to inspect component state
+
+### Import Job Management
+
+The import process uses asynchronous job execution with polling:
+
+```typescript
+// Start import job
+const response = await axios.post('/api/imports/execute', formData)
+const jobId = response.data.job_id
+
+// Poll for job status
+const pollInterval = setInterval(async () => {
+  const job = await axios.get(`/api/imports/jobs/${jobId}`)
+
+  if (job.data.status === 'completed') {
+    clearInterval(pollInterval)
+    // Handle success
+  } else if (job.data.status === 'failed') {
+    clearInterval(pollInterval)
+    // Handle error
+  }
+
+  // Update progress UI
+  setProgress(job.data.progress)
+}, 1000)
+```
+
+The ReviewImport component handles this automatically, showing:
+- Progress bar with percentage
+- Record count (processed/total)
+- Real-time error and warning accumulation
+- Success/failure status
 
 ## Future Enhancements
 
