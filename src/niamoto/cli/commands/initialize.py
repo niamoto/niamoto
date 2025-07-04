@@ -5,6 +5,8 @@ Handles database initialization, configuration files and environment setup.
 
 import os
 import click
+import subprocess
+import sys
 
 from ..utils.console import print_success, print_error, print_warning, print_info
 from .base import display_next_steps
@@ -18,8 +20,11 @@ from ...common.utils import error_handler
 @click.option(
     "--reset", is_flag=True, help="Reset the environment if it already exists."
 )
+@click.option(
+    "--no-gui", is_flag=True, help="Do not launch the GUI after initialization."
+)
 @error_handler(log=True, raise_error=True)
-def init_environment(reset: bool) -> None:
+def init_environment(reset: bool, no_gui: bool) -> None:
     """
     Initialize or reset the Niamoto environment, and display its status.
 
@@ -42,7 +47,13 @@ def init_environment(reset: bool) -> None:
             initialize_environment(config_dir)
 
         display_environment_status(config_dir)
-        display_next_steps()
+
+        # Launch GUI unless --no-gui is specified
+        if not no_gui:
+            print_info("\nLaunching configuration interface...")
+            launch_gui()
+        else:
+            display_next_steps()
 
     except Exception as e:
         raise CommandError(
@@ -200,3 +211,24 @@ def check_path(path: str, base_path: str, label: str, is_file: bool = False) -> 
         print_success(f"{label} found")
     else:
         print_warning(f"{label} not found")
+
+
+def launch_gui() -> None:
+    """
+    Launch the Niamoto GUI interface after initialization.
+    """
+    try:
+        # Try to find the niamoto executable
+        import shutil
+
+        niamoto_cmd = shutil.which("niamoto")
+
+        if niamoto_cmd:
+            # Use the niamoto command directly
+            subprocess.run([niamoto_cmd, "gui"], check=False)
+        else:
+            # Fallback: try using Python module
+            subprocess.run([sys.executable, "-m", "niamoto", "gui"], check=False)
+    except Exception as e:
+        print_warning(f"Could not launch GUI automatically: {str(e)}")
+        print_info("You can launch it manually with: niamoto gui")

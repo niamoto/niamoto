@@ -1,0 +1,69 @@
+@layer utilities {
+  .border-border {
+    border-color: theme(--color-border);
+  }
+
+  .bg-background {
+    background-color: theme(--color-background);
+  }
+
+  .text-foreground {
+    color: theme(--color-foreground);
+  }
+
+  .bg-primary {
+    background-color: theme(--color-primary);
+  }
+
+  .text-primary {
+    color: theme(--color-primary);
+  }
+
+  .text-primary-foreground {
+    color: theme(--color-primary-foreground);
+  }
+
+  .bg-secondary {
+    background-color: theme(--color-secondary);
+  }
+
+  .text-secondary-foreground {
+    color: theme(--color-secondary-foreground);
+  }
+
+  .bg-destructive {
+    background-color: theme(--color-destructive);
+  }
+
+  .text-destructive {
+    color: theme(--color-destructive);
+  }
+
+  .text-destructive-foreground {
+    color: theme(--color-destructive-foreground);
+  }
+
+  .text-muted-foreground {
+    color: theme(--color-muted-foreground);
+  }
+
+  .bg-accent {
+    background-color: theme(--color-accent);
+  }
+
+  .text-accent-foreground {
+    color: theme(--color-accent-foreground);
+  }
+
+  .border-input {
+    border-color: theme(--color-input);
+  }
+
+  .ring-ring {
+    --tw-ring-color: theme(--color-ring);
+  }
+
+  .ring-offset-background {
+    --tw-ring-offset-color: theme(--color-background);
+  }
+}

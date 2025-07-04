@@ -127,6 +127,12 @@ This document serves as the main index to track the status and progress of the N
   - Services and components
   - Error handling
 
+- ✅ **Technical Analysis** (`references/technical-analysis.md`)
+  - Architecture and design patterns
+  - Data management strategies
+  - Technical achievements
+  - Project scope and metrics
+
 ### 2.2 API Reference
 - 🚧 **API Documentation** (`api/modules.rst`)
   - Auto-generated Sphinx documentation

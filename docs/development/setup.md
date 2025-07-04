@@ -13,7 +13,7 @@ This guide will help you set up your local development environment for contribut
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/niamoto.git
+git clone https://github.com/niamoto/niamoto.git
 cd niamoto
 ```
 
