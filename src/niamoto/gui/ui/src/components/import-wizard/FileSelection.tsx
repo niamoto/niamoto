@@ -26,6 +26,7 @@ const acceptedFormats: Record<ImportType, Record<string, string[]>> = {
     'application/geopackage+sqlite3': ['.gpkg'],
     'application/x-shapefile': ['.shp'],
     'application/json': ['.json', '.geojson'],
+    'application/zip': ['.zip'],
   },
 }
 
@@ -102,6 +103,11 @@ export function FileSelection({ importType, onFileSelected }: FileSelectionProps
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
                 Supported formats: {Object.values(acceptedFormats[importType]).flat().join(', ')}
+                {importType === 'shapes' && (
+                  <span className="block mt-1 text-amber-600">
+                    Note: For shapefiles, please upload a ZIP containing all required files (.shp, .shx, .dbf, etc.)
+                  </span>
+                )}
               </p>
             </>
           )}

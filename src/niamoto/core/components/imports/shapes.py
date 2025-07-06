@@ -5,6 +5,7 @@ This module contains the ShapeImporter class used to import shape data from vari
 from pathlib import Path
 from typing import List, Dict, Any
 import tempfile
+import zipfile
 
 import fiona
 from pyproj import Transformer, CRS
@@ -111,9 +112,50 @@ class ShapeImporter:
                     if not file_path.exists():
                         raise FileReadError(str(file_path), "Shape file not found")
 
+                    # Create a context manager for ZIP files
+                    temp_dir_ctx = None
+                    shape_path = None
+
                     try:
-                        # Tenter d'ouvrir le fichier avec Fiona
-                        with fiona.open(shape_info["path"], "r") as src:
+                        # Handle ZIP files containing shapefiles
+                        if file_path.suffix.lower() == ".zip":
+                            temp_dir_ctx = tempfile.TemporaryDirectory()
+                            temp_path = Path(temp_dir_ctx.__enter__())
+
+                            # Extract ZIP contents
+                            with zipfile.ZipFile(file_path, "r") as zip_ref:
+                                zip_ref.extractall(temp_path)
+
+                            # Find .shp file (excluding macOS hidden files)
+                            shp_files = [
+                                f
+                                for f in temp_path.glob("**/*.shp")
+                                if not any(
+                                    part.startswith("__MACOSX") or part.startswith("._")
+                                    for part in f.parts
+                                )
+                            ]
+
+                            if not shp_files:
+                                raise DataValidationError(
+                                    "Invalid shape file format",
+                                    [
+                                        {
+                                            "error": "No shapefile found in ZIP",
+                                            "file": str(file_path),
+                                        }
+                                    ],
+                                )
+
+                            # Use the first shapefile found (prefer shallowest)
+                            shp_files.sort(key=lambda p: len(p.parts))
+                            shape_path = str(shp_files[0])
+                        else:
+                            # Use the file directly if not a ZIP
+                            shape_path = str(file_path)
+
+                        # Open and process the shapefile
+                        with fiona.open(shape_path, "r") as src:
                             # Vérifier que le fichier possède un CRS
                             if not src.crs_wkt:
                                 raise DataValidationError(
@@ -187,6 +229,10 @@ class ShapeImporter:
                             "Invalid shape file format",
                             [{"error": str(e), "file": str(shape_info["path"])}],
                         )
+                    finally:
+                        # Clean up temporary directory if created
+                        if temp_dir_ctx:
+                            temp_dir_ctx.__exit__(None, None, None)
 
                 # Update task description to show completion
                 duration = time.time() - start_time

@@ -1,13 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Slider } from '@/components/ui/slider'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Info, AlertCircle, Database, Globe, GitBranch } from 'lucide-react'
 import type { ImportConfig, ImportType } from './ImportWizard'
+import { TaxonomyRankEditor } from './TaxonomyRankEditor'
+import { ApiEnrichmentConfig, type ApiConfig } from './ApiEnrichmentConfig'
+import { PlotHierarchyConfig, type HierarchyConfig } from './PlotHierarchyConfig'
+import { PropertySelector } from './PropertySelector'
 
 interface AdvancedOptionsProps {
   config: ImportConfig
@@ -15,16 +18,15 @@ interface AdvancedOptionsProps {
 }
 
 interface TaxonomyOptions {
-  useApiEnrichment: boolean
-  apiProvider: 'gbif' | 'powo' | 'none'
-  rateLimit: number
-  extractFromOccurrences: boolean
+  ranks: string[]
+  apiEnrichment?: ApiConfig
   updateExisting: boolean
 }
 
 interface PlotOptions {
-  importHierarchy: boolean
-  hierarchyDelimiter: string
+  hierarchy: HierarchyConfig
+  linkField?: string
+  occurrenceLinkField?: string
   generateIds: boolean
   idPrefix: string
   validateGeometry: boolean
@@ -38,24 +40,35 @@ interface OccurrenceOptions {
 }
 
 interface ShapeOptions {
-  simplifyGeometry: boolean
-  toleranceMeters: number
-  calculateArea: boolean
-  calculatePerimeter: boolean
+  type: string
+  properties: string[]
 }
 
 export function AdvancedOptions({ config, onUpdate }: AdvancedOptionsProps) {
   const [taxonomyOptions, setTaxonomyOptions] = useState<TaxonomyOptions>({
-    useApiEnrichment: false,
-    apiProvider: 'none',
-    rateLimit: 1,
-    extractFromOccurrences: false,
+    ranks: ['family', 'genus', 'species', 'infra'],
+    apiEnrichment: {
+      enabled: false,
+      plugin: 'api_taxonomy_enricher',
+      api_url: '',
+      auth_method: 'none',
+      query_field: 'full_name',
+      rate_limit: 2.0,
+      cache_results: true,
+      query_params: {},
+      response_mapping: {}
+    },
     updateExisting: true,
   })
 
   const [plotOptions, setPlotOptions] = useState<PlotOptions>({
-    importHierarchy: false,
-    hierarchyDelimiter: '/',
+    hierarchy: {
+      enabled: false,
+      levels: [],
+      aggregate_geometry: true
+    },
+    linkField: 'locality',
+    occurrenceLinkField: 'plot_name',
     generateIds: false,
     idPrefix: 'PLOT_',
     validateGeometry: true,
@@ -69,10 +82,8 @@ export function AdvancedOptions({ config, onUpdate }: AdvancedOptionsProps) {
   })
 
   const [shapeOptions, setShapeOptions] = useState<ShapeOptions>({
-    simplifyGeometry: false,
-    toleranceMeters: 10,
-    calculateArea: true,
-    calculatePerimeter: true,
+    type: 'default',
+    properties: [],
   })
 
   const updateOptions = (type: ImportType, options: any) => {
@@ -85,89 +96,92 @@ export function AdvancedOptions({ config, onUpdate }: AdvancedOptionsProps) {
     })
   }
 
+  // Initialize advanced options on mount
+  useEffect(() => {
+    if (config.importType && !config.advancedOptions?.[config.importType]) {
+      // Set default options based on import type
+      switch (config.importType) {
+        case 'taxonomy':
+          updateOptions('taxonomy', taxonomyOptions)
+          break
+        case 'plots':
+          updateOptions('plots', plotOptions)
+          break
+        case 'occurrences':
+          updateOptions('occurrences', occurrenceOptions)
+          break
+        case 'shapes':
+          updateOptions('shapes', shapeOptions)
+          break
+      }
+    }
+  }, [config.importType]) // Only run when import type changes
+
   const renderTaxonomyOptions = () => (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="api-enrichment">API Enrichment</Label>
-            <p className="text-sm text-muted-foreground">
-              Enrich taxonomy data using external APIs
-            </p>
-          </div>
-          <Switch
-            id="api-enrichment"
-            checked={taxonomyOptions.useApiEnrichment}
-            onCheckedChange={(checked) => {
-              const newOptions = { ...taxonomyOptions, useApiEnrichment: checked }
-              setTaxonomyOptions(newOptions)
-              updateOptions('taxonomy', newOptions)
-            }}
-          />
-        </div>
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          Taxonomy will be extracted from the occurrence data file. Make sure your file contains
+          the necessary taxonomy columns (family, genus, species, etc.)
+        </AlertDescription>
+      </Alert>
 
-        {taxonomyOptions.useApiEnrichment && (
-          <div className="ml-6 space-y-4 border-l-2 border-muted pl-6">
-            <div className="space-y-2">
-              <Label htmlFor="api-provider">API Provider</Label>
-              <Select
-                value={taxonomyOptions.apiProvider}
-                onValueChange={(value: 'gbif' | 'powo' | 'none') => {
-                  const newOptions = { ...taxonomyOptions, apiProvider: value }
+      <div className="space-y-6">
+        {/* Rank Order Editor */}
+        <TaxonomyRankEditor
+          value={taxonomyOptions.ranks}
+          onChange={(ranks) => {
+            const newOptions = { ...taxonomyOptions, ranks }
+            setTaxonomyOptions(newOptions)
+            updateOptions('taxonomy', newOptions)
+          }}
+        />
+
+        {/* API Enrichment */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="api-enrichment">API Enrichment</Label>
+              <p className="text-sm text-muted-foreground">
+                Enrich taxonomy data using external biodiversity APIs
+              </p>
+            </div>
+            <Switch
+              id="api-enrichment"
+              checked={taxonomyOptions.apiEnrichment?.enabled || false}
+              onCheckedChange={(checked) => {
+                const newOptions = {
+                  ...taxonomyOptions,
+                  apiEnrichment: {
+                    ...taxonomyOptions.apiEnrichment!,
+                    enabled: checked
+                  }
+                }
+                setTaxonomyOptions(newOptions)
+                updateOptions('taxonomy', newOptions)
+              }}
+            />
+          </div>
+
+          {taxonomyOptions.apiEnrichment?.enabled && (
+            <div className="mt-4">
+              <ApiEnrichmentConfig
+                config={taxonomyOptions.apiEnrichment}
+                onChange={(apiConfig) => {
+                  const newOptions = {
+                    ...taxonomyOptions,
+                    apiEnrichment: apiConfig
+                  }
                   setTaxonomyOptions(newOptions)
                   updateOptions('taxonomy', newOptions)
                 }}
-              >
-                <SelectTrigger id="api-provider">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gbif">GBIF - Global Biodiversity Information Facility</SelectItem>
-                  <SelectItem value="powo">POWO - Plants of the World Online</SelectItem>
-                </SelectContent>
-              </Select>
+              />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="rate-limit">Rate Limit (requests per second)</Label>
-              <div className="flex items-center space-x-4">
-                <Slider
-                  id="rate-limit"
-                  min={0.1}
-                  max={5}
-                  step={0.1}
-                  value={[taxonomyOptions.rateLimit]}
-                  onValueChange={([value]) => {
-                    const newOptions = { ...taxonomyOptions, rateLimit: value }
-                    setTaxonomyOptions(newOptions)
-                    updateOptions('taxonomy', newOptions)
-                  }}
-                  className="flex-1"
-                />
-                <span className="w-12 text-sm font-medium">{taxonomyOptions.rateLimit}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="extract-occurrences">Extract from Occurrences</Label>
-            <p className="text-sm text-muted-foreground">
-              Build taxonomy from occurrence data instead of file
-            </p>
-          </div>
-          <Switch
-            id="extract-occurrences"
-            checked={taxonomyOptions.extractFromOccurrences}
-            onCheckedChange={(checked) => {
-              const newOptions = { ...taxonomyOptions, extractFromOccurrences: checked }
-              setTaxonomyOptions(newOptions)
-              updateOptions('taxonomy', newOptions)
-            }}
-          />
+          )}
         </div>
 
+        {/* Update Existing */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="update-existing">Update Existing Taxa</Label>
@@ -191,47 +205,74 @@ export function AdvancedOptions({ config, onUpdate }: AdvancedOptionsProps) {
 
   const renderPlotOptions = () => (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="import-hierarchy">Import Plot Hierarchy</Label>
-            <p className="text-sm text-muted-foreground">
-              Create hierarchical relationships between plots
+      {/* Hierarchy Configuration */}
+      <PlotHierarchyConfig
+        hierarchy={plotOptions.hierarchy}
+        availableColumns={config.fileAnalysis?.columns || []}
+        onChange={(hierarchy) => {
+          const newOptions = { ...plotOptions, hierarchy }
+          setPlotOptions(newOptions)
+          updateOptions('plots', newOptions)
+        }}
+      />
+
+      {/* Linking Fields */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Occurrence Linking</CardTitle>
+          <CardDescription>
+            Configure how occurrences will be linked to plots
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="link-field">Plot Link Field</Label>
+            <Select
+              value={plotOptions.linkField}
+              onValueChange={(value) => {
+                const newOptions = { ...plotOptions, linkField: value }
+                setPlotOptions(newOptions)
+                updateOptions('plots', newOptions)
+              }}
+            >
+              <SelectTrigger id="link-field">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="id">ID</SelectItem>
+                <SelectItem value="plot_id">Plot ID</SelectItem>
+                <SelectItem value="locality">Locality</SelectItem>
+                {config.fieldMappings && Object.keys(config.fieldMappings).map(field => (
+                  <SelectItem key={field} value={field}>{field}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Field in plot_ref table used for linking with occurrences
             </p>
           </div>
-          <Switch
-            id="import-hierarchy"
-            checked={plotOptions.importHierarchy}
-            onCheckedChange={(checked) => {
-              const newOptions = { ...plotOptions, importHierarchy: checked }
-              setPlotOptions(newOptions)
-              updateOptions('plots', newOptions)
-            }}
-          />
-        </div>
 
-        {plotOptions.importHierarchy && (
-          <div className="ml-6 space-y-4 border-l-2 border-muted pl-6">
-            <div className="space-y-2">
-              <Label htmlFor="hierarchy-delimiter">Hierarchy Delimiter</Label>
-              <Input
-                id="hierarchy-delimiter"
-                value={plotOptions.hierarchyDelimiter}
-                onChange={(e) => {
-                  const newOptions = { ...plotOptions, hierarchyDelimiter: e.target.value }
-                  setPlotOptions(newOptions)
-                  updateOptions('plots', newOptions)
-                }}
-                placeholder="e.g., / or >"
-                className="w-32"
-              />
-              <p className="text-xs text-muted-foreground">
-                Character used to separate hierarchy levels in plot names
-              </p>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="occurrence-link-field">Occurrence Link Field</Label>
+            <Input
+              id="occurrence-link-field"
+              value={plotOptions.occurrenceLinkField}
+              onChange={(e) => {
+                const newOptions = { ...plotOptions, occurrenceLinkField: e.target.value }
+                setPlotOptions(newOptions)
+                updateOptions('plots', newOptions)
+              }}
+              placeholder="e.g., plot_name, locality_name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Corresponding field in occurrences table
+            </p>
           </div>
-        )}
+        </CardContent>
+      </Card>
 
+      {/* Other Options */}
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="generate-ids">Generate Plot IDs</Label>
@@ -374,84 +415,60 @@ export function AdvancedOptions({ config, onUpdate }: AdvancedOptionsProps) {
   const renderShapeOptions = () => (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="simplify-geometry">Simplify Geometry</Label>
-            <p className="text-sm text-muted-foreground">
-              Reduce complexity of shape geometries
-            </p>
-          </div>
-          <Switch
-            id="simplify-geometry"
-            checked={shapeOptions.simplifyGeometry}
-            onCheckedChange={(checked) => {
-              const newOptions = { ...shapeOptions, simplifyGeometry: checked }
+        <div className="space-y-2">
+          <Label htmlFor="shape-type">Shape Type</Label>
+          <p className="text-sm text-muted-foreground">
+            A unique identifier for this shape category (e.g., country, province, region)
+          </p>
+          <Input
+            id="shape-type"
+            value={shapeOptions.type}
+            onChange={(e) => {
+              const newOptions = { ...shapeOptions, type: e.target.value }
               setShapeOptions(newOptions)
               updateOptions('shapes', newOptions)
             }}
+            placeholder="e.g., country, province, commune"
           />
         </div>
 
-        {shapeOptions.simplifyGeometry && (
-          <div className="ml-6 space-y-4 border-l-2 border-muted pl-6">
-            <div className="space-y-2">
-              <Label htmlFor="tolerance">Simplification Tolerance (meters)</Label>
-              <div className="flex items-center space-x-4">
-                <Slider
-                  id="tolerance"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={[shapeOptions.toleranceMeters]}
-                  onValueChange={([value]) => {
-                    const newOptions = { ...shapeOptions, toleranceMeters: value }
-                    setShapeOptions(newOptions)
-                    updateOptions('shapes', newOptions)
-                  }}
-                  className="flex-1"
-                />
-                <span className="w-12 text-sm font-medium">{shapeOptions.toleranceMeters}m</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="calculate-area">Calculate Area</Label>
-            <p className="text-sm text-muted-foreground">
-              Automatically calculate shape areas
+        <div className="space-y-2">
+          <Label>Additional Properties</Label>
+          <p className="text-sm text-muted-foreground">
+            Select attribute fields to import from the shape file
+          </p>
+          {config.fileAnalysis?.columns && config.fieldMappings && (
+            <PropertySelector
+              availableColumns={config.fileAnalysis.columns}
+              selectedProperties={shapeOptions.properties}
+              excludeColumns={[
+                config.fieldMappings.name || 'name',
+                config.fieldMappings.id || '',
+                'geometry',
+              ].filter(Boolean)}
+              onSelectionChange={(properties) => {
+                const newOptions = { ...shapeOptions, properties }
+                setShapeOptions(newOptions)
+                updateOptions('shapes', newOptions)
+              }}
+            />
+          )}
+          {!config.fileAnalysis?.columns && (
+            <p className="text-sm text-muted-foreground italic">
+              Upload a file first to see available properties
             </p>
-          </div>
-          <Switch
-            id="calculate-area"
-            checked={shapeOptions.calculateArea}
-            onCheckedChange={(checked) => {
-              const newOptions = { ...shapeOptions, calculateArea: checked }
-              setShapeOptions(newOptions)
-              updateOptions('shapes', newOptions)
-            }}
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="calculate-perimeter">Calculate Perimeter</Label>
-            <p className="text-sm text-muted-foreground">
-              Automatically calculate shape perimeters
-            </p>
-          </div>
-          <Switch
-            id="calculate-perimeter"
-            checked={shapeOptions.calculatePerimeter}
-            onCheckedChange={(checked) => {
-              const newOptions = { ...shapeOptions, calculatePerimeter: checked }
-              setShapeOptions(newOptions)
-              updateOptions('shapes', newOptions)
-            }}
-          />
+          )}
         </div>
       </div>
+
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>Multiple Shape Types</AlertTitle>
+        <AlertDescription>
+          You can import multiple shape types by running the import wizard again after this import completes.
+          Each shape type will be added to your configuration.
+        </AlertDescription>
+      </Alert>
     </div>
   )
 
