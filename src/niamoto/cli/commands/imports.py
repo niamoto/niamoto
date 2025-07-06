@@ -40,13 +40,6 @@ def import_commands(ctx):
 
 
 @import_commands.command(name="taxonomy")
-@click.argument("csvfile", required=False)
-@click.option("--ranks", help="Comma-separated list of ranks in the hierarchy.")
-@click.option(
-    "--source",
-    type=click.Choice(["file", "occurrence"]),
-    help="Source of taxonomy data: 'file' (default) or 'occurrence'.",
-)
 @click.option(
     "--with-api/--no-api",
     is_flag=True,
@@ -55,37 +48,25 @@ def import_commands(ctx):
 )
 @error_handler(log=True, raise_error=True)
 def import_taxonomy(
-    csvfile: Optional[str],
-    ranks: Optional[str],
-    source: Optional[str] = None,
     with_api: Optional[bool] = None,
 ) -> None:
     """
-    Import taxonomy data from a CSV file or extract from occurrences.
+    Import taxonomy data from occurrences file.
 
-    If no file is provided, uses the path from import.yml.
+    Uses the configuration from import.yml.
 
     Options:
-    --source: Specify the source of taxonomy data ('file' or 'occurrence').
-    If 'occurrence', taxonomy will be extracted from occurrence data.
     --with-api: Enable API enrichment (default is from config).
     """
     # Get configuration
     config = Config()
 
-    # If using explicit arguments
-    if csvfile is not None:
-        file_path = csvfile
-        rank_list = ranks.split(",") if ranks else []
-        tax_source = source or "file"
-    else:
-        # Get from config
-        source_def = validate_source_config(
-            config.imports, "taxonomy", ["path", "ranks"]
-        )
-        file_path = source_def.get("path")
-        rank_list = source_def.get("ranks", "").split(",")
-        tax_source = source_def.get("source", "file")
+    # Get from config
+    source_def = validate_source_config(
+        config.imports, "taxonomy", ["path", "hierarchy"]
+    )
+    file_path = source_def.get("path")
+    hierarchy_config = source_def.get("hierarchy")
 
     # Validate file path first
     if not os.path.exists(file_path):
@@ -93,12 +74,12 @@ def import_taxonomy(
             file_path=file_path, message="File not found", details={"path": file_path}
         )
 
-    # Validate ranks
-    if not rank_list or not any(rank_list):
-        raise ValidationError(
-            field="taxonomy",
-            message="Missing required fields: ranks",
-            details={"missing": ["ranks"]},
+    # Validate hierarchy configuration
+    if not hierarchy_config:
+        raise ConfigurationError(
+            config_key="taxonomy.hierarchy",
+            message="Missing hierarchy configuration",
+            details={"expected": "hierarchy configuration with levels"},
         )
 
     api_config = None
@@ -126,44 +107,7 @@ def import_taxonomy(
         importer = ImporterService(config.database_path)
         reset_table(config.database_path, "taxon_ref")
 
-        if tax_source == "occurrence":
-            # Get occurrence columns mapping from config
-            occ_columns = source_def.get("occurrence_columns", {})
-
-            if not occ_columns:
-                print_error(
-                    "Missing occurrence_columns configuration for taxonomy extraction from occurrences"
-                )
-                print_info("Example configuration:")
-                print_info(
-                    """
-                    taxonomy:
-                    type: csv
-                    path: "imports/occurrences.csv"
-                    source: "occurrence"
-                    ranks: "family,genus,species,infra"
-                    occurrence_columns:
-                        taxon_id: "id_taxonref"
-                        family: "family"
-                        genus: "genus"
-                        species: "species"
-                        infra: "infra"
-                        authors: "taxonref"
-                """
-                )
-                raise ConfigurationError(
-                    config_key="taxonomy.occurrence_columns",
-                    message="Missing occurrence columns mapping configuration",
-                    details={
-                        "expected": "dictionary mapping taxonomy fields to occurrence columns"
-                    },
-                )
-
-            result = importer.import_taxonomy_from_occurrences(
-                file_path, tuple(rank_list), occ_columns, api_config
-            )
-        else:  # Default to file
-            result = importer.import_taxonomy(file_path, tuple(rank_list), api_config)
+        result = importer.import_taxonomy(file_path, hierarchy_config, api_config)
 
         print_info(result)
 
@@ -174,12 +118,12 @@ def import_taxonomy(
         raise FileError(
             file_path=file_path,
             message=f"File not found or has invalid format: {e}",
-            details={"path": file_path, "ranks": ranks},
+            details={"path": file_path},
         ) from e
     except Exception as e:
         raise DataImportError(
             message=str(e),
-            details={"file": file_path, "ranks": ranks, "source": tax_source},
+            details={"file": file_path},
         ) from e
 
 
@@ -401,11 +345,10 @@ def import_all() -> None:
 
         # Import taxonomy
         source_def = validate_source_config(
-            imports_config, "taxonomy", ["path", "ranks"]
+            imports_config, "taxonomy", ["path", "hierarchy"]
         )
         file_path = source_def.get("path")
-        rank_list = source_def.get("ranks", "").split(",")
-        tax_source = source_def.get("source", "file")
+        hierarchy_config = source_def.get("hierarchy")
 
         # Validate file path first
         if not os.path.exists(file_path):
@@ -422,21 +365,14 @@ def import_all() -> None:
 
         reset_table(config.database_path, "taxon_ref")
 
-        if tax_source == "occurrence":
-            occ_columns = source_def.get("occurrence_columns", {})
-            if not occ_columns:
-                raise ConfigurationError(
-                    config_key="taxonomy.occurrence_columns",
-                    message="Missing occurrence columns mapping configuration",
-                    details={
-                        "expected": "dictionary mapping taxonomy fields to occurrence columns"
-                    },
-                )
-            result = importer.import_taxonomy_from_occurrences(
-                file_path, tuple(rank_list), occ_columns, api_config
+        if not hierarchy_config:
+            raise ConfigurationError(
+                config_key="taxonomy.hierarchy",
+                message="Missing hierarchy configuration for taxonomy extraction",
+                details={"expected": "hierarchy configuration with levels"},
             )
-        else:
-            result = importer.import_taxonomy(file_path, tuple(rank_list), api_config)
+
+        result = importer.import_taxonomy(file_path, hierarchy_config, api_config)
 
         # Collect result for summary
         import_results.append(result)
@@ -567,7 +503,7 @@ def validate_source_config(
     Args:
         sources: The dictionary from config.imports
         source_name: e.g. "taxonomy", "plots"
-        required_fields: List of required keys for this source (e.g. ["path", "ranks"])
+        required_fields: List of required keys for this source (e.g. ["path", "hierarchy"])
 
     Returns:
         The source sub-dict from import.yml

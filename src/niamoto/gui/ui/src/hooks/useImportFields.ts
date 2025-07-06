@@ -6,11 +6,14 @@ export interface RequiredField {
   label: string
   description: string
   required: boolean
+  is_rank?: boolean  // Flag for taxonomic rank fields
 }
 
 export interface ImportFieldsInfo {
   fields: RequiredField[]
   method_params: Record<string, any>
+  supports_dynamic_ranks?: boolean  // For taxonomy
+  default_ranks?: string[]  // Default rank hierarchy
 }
 
 export function useImportFields(importType: string) {
@@ -56,10 +59,6 @@ function getFallbackFields(importType: string): RequiredField[] {
   const fallbackFields: Record<string, RequiredField[]> = {
     taxonomy: [
       { key: 'taxon_id', label: 'Taxon ID', description: 'Unique identifier for each taxon', required: true },
-      { key: 'family', label: 'Family', description: 'Family rank column', required: true },
-      { key: 'genus', label: 'Genus', description: 'Genus rank column', required: true },
-      { key: 'species', label: 'Species', description: 'Species rank column', required: true },
-      { key: 'infra', label: 'Infra', description: 'Infraspecific rank', required: false },
       { key: 'authors', label: 'Authors', description: 'Taxonomic authority', required: false },
     ],
     plots: [

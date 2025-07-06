@@ -47,51 +47,74 @@ class TestImporterService(NiamotoTestCase):
         self.assertIsNotNone(self.importer_service.shape_importer)
 
     @patch("pathlib.Path.exists")
-    @patch("niamoto.core.services.importer.ImporterService._detect_separator")
-    @patch("niamoto.core.services.importer.ImporterService._validate_csv_format")
-    @patch("niamoto.core.services.importer.TaxonomyImporter.import_from_csv")
+    @patch("niamoto.core.services.importer.TaxonomyImporter.import_taxonomy")
     def test_import_taxonomy(
         self,
-        mock_import_from_csv,
-        mock_validate_csv,
-        mock_detect_separator,
+        mock_import_taxonomy,
         mock_exists,
     ):
         # Test the import_taxonomy method
         mock_exists.return_value = True
-        mock_detect_separator.return_value = ","
-        mock_validate_csv.return_value = set()  # Pas de champs manquants
-        mock_import_from_csv.return_value = "Taxonomy import successful"
+        mock_import_taxonomy.return_value = (
+            "6 taxons extracted and imported from occurrences.csv."
+        )
+
+        hierarchy_config = {
+            "levels": [
+                {"name": "family", "column": "tax_fam"},
+                {"name": "genus", "column": "tax_gen"},
+                {"name": "species", "column": "tax_sp_level"},
+            ],
+            "taxon_id_column": "idtax_individual_f",
+        }
 
         result = self.importer_service.import_taxonomy(
-            "mock_file.csv", ("genus", "species")
+            "occurrences.csv", hierarchy_config
         )
-        self.assertEqual(result, "Taxonomy import successful")
-
-    def test_detect_separator(self):
-        # Test the _detect_separator method
-        with open("test.csv", "w") as f:
-            f.write("col1,col2,col3\n")
-            f.write("val1,val2,val3\n")
-
-        try:
-            result = self.importer_service._detect_separator("test.csv")
-            self.assertEqual(result, ",")
-        finally:
-            os.remove("test.csv")
-
-    @patch("pandas.read_csv")
-    def test_validate_csv_format(self, mock_read_csv):
-        # Test the _validate_csv_format method
-        mock_df = Mock()
-        mock_df.columns = ["id_taxon", "full_name", "authors", "genus", "species"]
-        mock_read_csv.return_value = mock_df
-
-        missing_fields = self.importer_service._validate_csv_format(
-            "mock_file.csv", ",", ("genus", "species")
+        self.assertEqual(
+            result, "6 taxons extracted and imported from occurrences.csv."
         )
-        # Aucun champ manquant car tous les champs requis sont présents
-        self.assertEqual(missing_fields, set())
+
+    @patch("pathlib.Path.exists")
+    @patch("niamoto.core.services.importer.TaxonomyImporter.import_taxonomy")
+    def test_import_taxonomy_with_api_config(
+        self,
+        mock_import_taxonomy,
+        mock_exists,
+    ):
+        # Test the import_taxonomy method with API configuration
+        mock_exists.return_value = True
+        mock_import_taxonomy.return_value = (
+            "6 taxons extracted and imported from occurrences.csv."
+        )
+
+        hierarchy_config = {
+            "levels": [
+                {"name": "family", "column": "tax_fam"},
+                {"name": "genus", "column": "tax_gen"},
+            ],
+            "taxon_id_column": "idtax_individual_f",
+        }
+
+        api_config = {
+            "enabled": True,
+            "plugin": "test_api",
+        }
+
+        result = self.importer_service.import_taxonomy(
+            "occurrences.csv", hierarchy_config, api_config
+        )
+        self.assertEqual(
+            result, "6 taxons extracted and imported from occurrences.csv."
+        )
+        # Check that the taxonomy importer was called with correct arguments
+        # The path will be converted to absolute, so we check the other args
+        call_args = mock_import_taxonomy.call_args[0]
+        self.assertTrue(
+            call_args[0].endswith("occurrences.csv")
+        )  # Path ends with filename
+        self.assertEqual(call_args[1], hierarchy_config)
+        self.assertEqual(call_args[2], api_config)
 
     @patch("pathlib.Path.exists")
     @patch("niamoto.core.services.importer.OccurrenceImporter.import_valid_occurrences")

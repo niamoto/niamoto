@@ -435,9 +435,13 @@ def validate_taxonomy_options(
 
     # Validate ranks only if they are provided
     ranks = options.get("ranks", [])
-    if ranks and len(ranks) < 2:
+    if ranks and len(ranks) < 1:
         errors.append(
-            "At least 2 taxonomic ranks must be specified when ranks are provided"
+            "At least 1 taxonomic rank must be specified when ranks are provided"
+        )
+    elif ranks and len(ranks) < 2:
+        warnings.append(
+            "Consider using at least 2 taxonomic ranks for a proper hierarchy"
         )
 
     # Validate API enrichment if present
@@ -551,6 +555,9 @@ async def process_import(
 
         # Process based on import type
         if import_type == "taxonomy":
+            # Build hierarchy configuration from field mappings and advanced options
+            hierarchy_config = {"levels": []}
+
             # Extract ranks from advanced options
             if advanced_options:
                 ranks = advanced_options.get(
@@ -561,12 +568,24 @@ async def process_import(
                 ranks = ["family", "genus", "species", "infra"]
                 api_config = None
 
-            # Use import_from_occurrences method
+            # Build levels from ranks and field mappings
+            for rank in ranks:
+                if rank in field_mappings:
+                    hierarchy_config["levels"].append(
+                        {"name": rank, "column": field_mappings[rank]}
+                    )
+
+            # Add special columns if mapped
+            if "taxon_id" in field_mappings:
+                hierarchy_config["taxon_id_column"] = field_mappings["taxon_id"]
+            if "authors" in field_mappings:
+                hierarchy_config["authors_column"] = field_mappings["authors"]
+
+            # Use new import_taxonomy method
             result = await asyncio.to_thread(
-                importer.import_taxonomy_from_occurrences,
+                importer.import_taxonomy,
                 file_path,
-                tuple(ranks),
-                field_mappings,  # Column mapping for taxonomy fields
+                hierarchy_config,
                 api_config if api_config and api_config.get("enabled") else None,
             )
 

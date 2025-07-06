@@ -7,32 +7,51 @@ from niamoto.core.services.importer import ImporterService
 
 def get_import_method_info(method_name: str) -> Dict[str, Any]:
     """Extract parameter information from an import method."""
-    importer = ImporterService("")  # Dummy path for introspection
-    method = getattr(importer, method_name, None)
+    try:
+        # Create a dummy database instance for introspection
+        from niamoto.common.database import Database
+        import tempfile
+        import os
 
-    if not method:
+        # Create a temporary database for instantiation
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            Database(tmp_path)
+            importer = ImporterService(tmp_path)
+            method = getattr(importer, method_name, None)
+
+            if not method:
+                return {}
+
+            # Get method signature
+            sig = inspect.signature(method)
+            params = {}
+
+            for param_name, param in sig.parameters.items():
+                if param_name == "self":
+                    continue
+
+                param_info = {
+                    "required": param.default == inspect.Parameter.empty,
+                    "type": str(param.annotation)
+                    if param.annotation != inspect.Parameter.empty
+                    else "Any",
+                    "default": param.default
+                    if param.default != inspect.Parameter.empty
+                    else None,
+                }
+                params[param_name] = param_info
+
+            return params
+        finally:
+            # Clean up temporary database
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    except Exception:
+        # If introspection fails, return empty
         return {}
-
-    # Get method signature
-    sig = inspect.signature(method)
-    params = {}
-
-    for param_name, param in sig.parameters.items():
-        if param_name == "self":
-            continue
-
-        param_info = {
-            "required": param.default == inspect.Parameter.empty,
-            "type": str(param.annotation)
-            if param.annotation != inspect.Parameter.empty
-            else "Any",
-            "default": param.default
-            if param.default != inspect.Parameter.empty
-            else None,
-        }
-        params[param_name] = param_info
-
-    return params
 
 
 def get_required_fields_for_import_type(
@@ -42,7 +61,7 @@ def get_required_fields_for_import_type(
 
     # Map import types to their corresponding methods
     method_mapping = {
-        "taxonomy": "import_taxonomy_from_occurrences",
+        "taxonomy": "import_taxonomy",
         "plots": "import_plots",
         "occurrences": "import_occurrences",
         "shapes": "import_shapes",
@@ -50,47 +69,28 @@ def get_required_fields_for_import_type(
 
     # Special handling for each import type based on method parameters
     if import_type == "taxonomy":
-        # For import_taxonomy_from_occurrences
+        # For import_taxonomy - only non-hierarchical fields
+        # Hierarchy levels are handled separately in TaxonomyHierarchyEditor
+        fields = [
+            {
+                "key": "taxon_id",
+                "label": "Taxon ID",
+                "description": "Unique identifier for each taxon",
+                "required": True,
+            },
+            {
+                "key": "authors",
+                "label": "Authors",
+                "description": "Taxonomic authority",
+                "required": False,
+            },
+        ]
+
         return {
-            "fields": [
-                {
-                    "key": "taxon_id",
-                    "label": "Taxon ID",
-                    "description": "Unique identifier for each taxon",
-                    "required": True,
-                },
-                {
-                    "key": "family",
-                    "label": "Family",
-                    "description": "Family rank column",
-                    "required": True,
-                },
-                {
-                    "key": "genus",
-                    "label": "Genus",
-                    "description": "Genus rank column",
-                    "required": True,
-                },
-                {
-                    "key": "species",
-                    "label": "Species",
-                    "description": "Species rank column",
-                    "required": True,
-                },
-                {
-                    "key": "infra",
-                    "label": "Infra",
-                    "description": "Infraspecific rank",
-                    "required": False,
-                },
-                {
-                    "key": "authors",
-                    "label": "Authors",
-                    "description": "Taxonomic authority",
-                    "required": False,
-                },
-            ],
+            "fields": fields,
             "method_params": get_import_method_info(method_mapping[import_type]),
+            "supports_dynamic_ranks": True,  # Flag to indicate dynamic rank support
+            "default_ranks": ["family", "genus", "species", "infra"],
         }
 
     elif import_type == "plots":
