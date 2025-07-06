@@ -24,17 +24,34 @@ def update_import_config(
     # Build the import configuration based on type
     if import_type == "taxonomy":
         taxonomy_config = {
-            "type": "csv",
             "path": f"imports/{filename}",
-            "source": "occurrence",  # We're using import_taxonomy_from_occurrences
         }
 
-        if advanced_options:
-            # Add ranks if specified
-            if ranks := advanced_options.get("ranks"):
-                taxonomy_config["ranks"] = ",".join(ranks)
+        # Build hierarchy configuration
+        hierarchy = {"levels": []}
 
-            # Add API enrichment if enabled
+        # Get ranks from advanced options or use defaults
+        ranks = ["family", "genus", "species", "infra"]
+        if advanced_options and "ranks" in advanced_options:
+            ranks = advanced_options["ranks"]
+
+        # Build levels from field mappings
+        for rank in ranks:
+            if rank in field_mappings:
+                hierarchy["levels"].append(
+                    {"name": rank, "column": field_mappings[rank]}
+                )
+
+        # Add special columns
+        if "taxon_id" in field_mappings:
+            hierarchy["taxon_id_column"] = field_mappings["taxon_id"]
+        if "authors" in field_mappings:
+            hierarchy["authors_column"] = field_mappings["authors"]
+
+        taxonomy_config["hierarchy"] = hierarchy
+
+        # Add API enrichment if enabled
+        if advanced_options:
             if api_config := advanced_options.get("apiEnrichment"):
                 if api_config.get("enabled"):
                     taxonomy_config["api_enrichment"] = {
@@ -56,9 +73,6 @@ def update_import_config(
                         taxonomy_config["api_enrichment"]["response_mapping"] = (
                             response_mapping
                         )
-
-        # Add occurrence columns mapping
-        taxonomy_config["occurrence_columns"] = field_mappings
 
         config["taxonomy"] = taxonomy_config
 

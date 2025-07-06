@@ -28,7 +28,7 @@ def test_successful_init(runner):
             with mock.patch("niamoto.cli.commands.initialize.Environment") as mock_env:
                 mock_env.return_value.initialize.return_value = None
 
-                result = runner.invoke(init_environment, [])
+                result = runner.invoke(init_environment, ["--no-gui"])
 
                 assert result.exit_code == 0
                 assert "Environment initialized successfully" in result.output
@@ -44,7 +44,7 @@ def test_config_dir_error(runner):
                 details={"error": "Permission denied"},
             )
 
-            result = runner.invoke(init_environment, [])
+            result = runner.invoke(init_environment, ["--no-gui"])
 
             assert result.exit_code == 1
             assert "Failed to get config directory" in result.output
@@ -62,7 +62,7 @@ def test_init_environment_error(runner):
                     details={"error": "Database error"},
                 )
 
-                result = runner.invoke(init_environment, [])
+                result = runner.invoke(init_environment, ["--no-gui"])
 
                 assert result.exit_code == 1
                 assert "Failed to initialize environment" in result.output
@@ -78,7 +78,9 @@ def test_reset_cancelled(runner):
             mock_config.get_niamoto_home.return_value = os.getcwd()
 
             # Simulate user input 'n' to cancel reset
-            result = runner.invoke(init_environment, ["--reset"], input="n\n")
+            result = runner.invoke(
+                init_environment, ["--reset", "--no-gui"], input="n\n"
+            )
 
             assert result.exit_code == 0
             assert "Environment reset cancelled by user" in result.output

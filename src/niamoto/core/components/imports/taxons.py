@@ -57,62 +57,10 @@ class TaxonomyImporter:
         self.plugin_loader.load_project_plugins(config.plugins_dir)
 
     @error_handler(log=True, raise_error=True)
-    def import_from_csv(
-        self,
-        file_path: str,
-        ranks: Tuple[str, ...],
-        api_config: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """
-        Import taxonomy from a CSV file.
-
-        Args:
-            file_path (str): Path to the CSV file.
-            ranks (Tuple[str, ...]): Taxonomy ranks to process.
-            api_config (Optional[Dict[str, Any]]): API configuration for enrichment.
-
-        Returns:
-            str: Success message.
-
-        Raises:
-            FileReadError: If file cannot be read.
-            ValidationError: If data is invalid.
-            ProcessError: If processing fails.
-        """
-        try:
-            # Validate file exists
-            file_path = str(Path(file_path).resolve())
-            if not Path(file_path).exists():
-                raise FileReadError(file_path, "Taxonomy file not found")
-
-            # Read and validate CSV
-            try:
-                df = pd.read_csv(file_path)
-            except Exception as e:
-                raise FileReadError(file_path, f"Failed to read CSV: {str(e)}") from e
-
-            # Prepare and process data
-            df = self._prepare_dataframe(df, ranks)
-
-            # Process the data with optional API enrichment
-            count = self._process_dataframe(df, ranks, api_config)
-
-            # Return success message with just the filename, not the full path
-            return f"{count} taxons imported from {Path(file_path).name}."
-        except Exception as e:
-            if isinstance(e, (FileReadError, DataValidationError)):
-                raise
-            raise TaxonomyImportError(
-                f"Failed to import taxonomy data: {str(e)}",
-                details={"file": file_path, "error": str(e)},
-            ) from e
-
-    @error_handler(log=True, raise_error=True)
-    def import_from_occurrences(
+    def import_taxonomy(
         self,
         occurrences_file: str,
-        ranks: Tuple[str, ...],
-        column_mapping: Dict[str, str],
+        hierarchy_config: Dict[str, Any],
         api_config: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
@@ -120,8 +68,7 @@ class TaxonomyImporter:
 
         Args:
             occurrences_file (str): Path to occurrences CSV file.
-            ranks (Tuple[str, ...]): Taxonomy ranks to import.
-            column_mapping (Dict[str, str]): Mapping between taxonomy fields and occurrence columns.
+            hierarchy_config (Dict[str, Any]): Hierarchical configuration with levels.
             api_config (Optional[Dict[str, Any]]): API configuration for enrichment.
 
         Returns:
@@ -138,16 +85,41 @@ class TaxonomyImporter:
             if not Path(occurrences_file).exists():
                 raise FileReadError(occurrences_file, "Occurrences file not found")
 
-            # Validate column mapping
-            required_columns = ["taxon_id", "family", "genus", "species"]
-            missing_columns = [
-                col for col in required_columns if col not in column_mapping
-            ]
-            if missing_columns:
+            # Validate hierarchy config
+            if not hierarchy_config:
                 raise DataValidationError(
-                    "Missing required column mappings",
-                    [{"field": col} for col in missing_columns],
+                    "Hierarchy configuration is required",
+                    [{"field": "hierarchy"}],
                 )
+
+            if "levels" not in hierarchy_config:
+                raise DataValidationError(
+                    "Missing 'levels' in hierarchy configuration",
+                    [{"field": "hierarchy.levels"}],
+                )
+
+            # Extract ranks and column mapping from hierarchy config
+            rank_list = []
+            new_column_mapping = {}
+
+            for level in hierarchy_config["levels"]:
+                if "name" not in level or "column" not in level:
+                    raise DataValidationError(
+                        "Each level must have 'name' and 'column'",
+                        [{"level": level}],
+                    )
+                rank_list.append(level["name"])
+                new_column_mapping[level["name"]] = level["column"]
+
+            # Add taxon_id and authors if specified
+            if "taxon_id_column" in hierarchy_config:
+                new_column_mapping["taxon_id"] = hierarchy_config["taxon_id_column"]
+            if "authors_column" in hierarchy_config:
+                new_column_mapping["authors"] = hierarchy_config["authors_column"]
+
+            # Override ranks and column_mapping with hierarchy config
+            ranks = tuple(rank_list)
+            column_mapping = new_column_mapping
 
             # Read the occurrences file
             try:
@@ -224,9 +196,8 @@ class TaxonomyImporter:
                 print(f"Failed to load API enrichment plugin: {str(e)}")
                 api_enricher = None
 
-        # Create dictionaries to store relationships
-        family_ids = {}  # family_name -> id
-        genus_ids = {}  # genus_name -> id
+        # Create dictionary to store relationships by rank
+        taxa_by_rank = {rank: {} for rank in ranks if ranks}
 
         # Use the ranks from configuration if provided
         rank_names = list(ranks) if ranks else []
@@ -367,29 +338,25 @@ class TaxonomyImporter:
                             session.flush()  # Flush to get the generated ID
 
                             # Store ID for establishing relationships later
-                            if rank_name == rank_names[0]:  # First rank (family)
-                                family_ids[row["full_name"]] = taxon.id
-                            elif rank_name == rank_names[1]:  # Second rank (genus)
-                                genus_ids[row["full_name"]] = taxon.id
+                            if rank_name in taxa_by_rank:
+                                taxa_by_rank[rank_name][row["full_name"]] = taxon.id
 
-                                # Link genus to its family
-                                if "parent_family_name" in row and pd.notna(
-                                    row["parent_family_name"]
-                                ):
-                                    family_name = row["parent_family_name"]
-                                    if family_name in family_ids:
-                                        taxon.parent_id = family_ids[family_name]
+                            # Link to parent using parent_info
+                            if "parent_info" in row and pd.notna(row["parent_info"]):
+                                parent_info = row["parent_info"]
+                                if parent_info and isinstance(parent_info, dict):
+                                    parent_rank = parent_info.get("rank")
+                                    parent_value = parent_info.get("value")
 
-                            elif (
-                                rank_name in rank_names[2:]
-                            ):  # Subsequent ranks (species, infra)
-                                # Link species to its genus
-                                if "parent_genus_name" in row and pd.notna(
-                                    row["parent_genus_name"]
-                                ):
-                                    genus_name = row["parent_genus_name"]
-                                    if genus_name in genus_ids:
-                                        taxon.parent_id = genus_ids[genus_name]
+                                    if (
+                                        parent_rank
+                                        and parent_value
+                                        and parent_rank in taxa_by_rank
+                                    ):
+                                        if parent_value in taxa_by_rank[parent_rank]:
+                                            taxon.parent_id = taxa_by_rank[parent_rank][
+                                                parent_value
+                                            ]
 
                             # Count imported taxa
                             imported_count += 1
@@ -449,11 +416,21 @@ class TaxonomyImporter:
         # Use directly the ranks from configuration
         rank_names = list(ranks)
 
-        # Select relevant columns for taxonomy
+        # Select relevant columns for taxonomy based on configuration
         taxon_cols = []
-        for key in ["taxon_id", "family", "genus", "species", "infra"]:
-            if key in column_mapping and column_mapping[key] in df.columns:
-                taxon_cols.append(column_mapping[key])
+
+        # Add taxon_id column if present
+        if "taxon_id" in column_mapping and column_mapping["taxon_id"] in df.columns:
+            taxon_cols.append(column_mapping["taxon_id"])
+
+        # Add all rank columns from configuration
+        for rank in rank_names:
+            if rank in column_mapping and column_mapping[rank] in df.columns:
+                taxon_cols.append(column_mapping[rank])
+
+        # Add authors column if present
+        if "authors" in column_mapping and column_mapping["authors"] in df.columns:
+            taxon_cols.append(column_mapping["authors"])
 
         # Include additional columns that might be useful
         for col in ["taxaname", "taxonref", "id_rank"]:
@@ -463,34 +440,23 @@ class TaxonomyImporter:
         # Create a DataFrame with only taxonomy related columns
         occurrences_taxa = df[taxon_cols].drop_duplicates()
 
-        # Initialize structures to track unique taxa
-        unique_families = set()
-        unique_genera = {}  # genus -> family
-        species_data = []  # list to store species level data
+        # Initialize structures to track unique taxa by rank
+        unique_taxa_by_rank = {rank: {} for rank in rank_names}
+        taxa_data = []  # list to store all taxa data
 
         # Extract unique taxonomic data
         for _, row in occurrences_taxa.iterrows():
-            # Extract taxonomy information
-            family = (
-                row[column_mapping["family"]]
-                if "family" in column_mapping and column_mapping["family"] in row
-                else None
-            )
-            genus = (
-                row[column_mapping["genus"]]
-                if "genus" in column_mapping and column_mapping["genus"] in row
-                else None
-            )
-            species = (
-                row[column_mapping["species"]]
-                if "species" in column_mapping and column_mapping["species"] in row
-                else None
-            )
-            infra = (
-                row[column_mapping["infra"]]
-                if "infra" in column_mapping and column_mapping["infra"] in row
-                else None
-            )
+            # Extract taxonomy information for each rank
+            rank_values = {}
+            for rank in rank_names:
+                if rank in column_mapping and column_mapping[rank] in row:
+                    value = row[column_mapping[rank]]
+                    if pd.notna(value):
+                        rank_values[rank] = value
+                    else:
+                        rank_values[rank] = None
+                else:
+                    rank_values[rank] = None
 
             # Convert taxon_id to integer if possible
             taxon_id = None
@@ -509,38 +475,52 @@ class TaxonomyImporter:
                         taxon_id = raw_id
 
             # Skip entries without any taxonomic information
-            if not family and not genus:
+            if not any(rank_values.values()):
                 continue
 
-            # Determine rank from data and process accordingly
-            if species and pd.notna(species):
-                # This is a species or infra-species level entry
-                if infra and pd.notna(infra):
-                    # Use the 4th rank if it exists, otherwise "infra"
-                    rank_name = rank_names[3] if len(rank_names) > 3 else "infra"
-                else:
-                    # Use the 3rd rank if it exists, otherwise "species"
-                    rank_name = rank_names[2] if len(rank_names) > 2 else "species"
+            # Determine the lowest rank present for this row
+            lowest_rank = None
+            lowest_rank_idx = -1
+            for idx, rank in enumerate(rank_names):
+                if rank_values[rank] is not None:
+                    lowest_rank = rank
+                    lowest_rank_idx = idx
 
-                # Add family to unique set
-                if family and pd.notna(family):
-                    unique_families.add(family)
+            # Skip if no rank values found
+            if lowest_rank is None:
+                continue
 
-                # Add genus to dict with its family
-                if genus and pd.notna(genus) and family and pd.notna(family):
-                    unique_genera[genus] = family
+            # Build the hierarchy for this entry
+            for rank_idx, rank in enumerate(rank_names[: lowest_rank_idx + 1]):
+                rank_value = rank_values[rank]
+                if rank_value is None:
+                    continue
 
-                # Store all relevant data for species level entries
-                species_data.append(
+                # Store parent values for linking
+                parent_rank = rank_names[rank_idx - 1] if rank_idx > 0 else None
+                parent_value = rank_values[parent_rank] if parent_rank else None
+
+                # Track unique taxa at each rank with their parent
+                if rank_value not in unique_taxa_by_rank[rank]:
+                    unique_taxa_by_rank[rank][rank_value] = {
+                        "parent_rank": parent_rank,
+                        "parent_value": parent_value,
+                        "has_explicit_id": False,
+                    }
+
+            # Store the complete data for this taxon at its lowest rank
+            if lowest_rank is not None:
+                full_name = self._build_full_name_generic(
+                    row, column_mapping, rank_values, rank_names
+                )
+
+                taxa_data.append(
                     {
                         "taxon_id": taxon_id,
-                        "family": family,
-                        "genus": genus,
-                        "species": species,
-                        "infra": infra,
-                        "rank_name": rank_name,
-                        "full_name": self._build_full_name(row, column_mapping),
+                        "rank_name": lowest_rank,
+                        "full_name": full_name,
                         "authors": self._extract_authors(row, column_mapping),
+                        "rank_values": rank_values.copy(),
                         "taxonref": (
                             row["taxonref"]
                             if "taxonref" in row and pd.notna(row["taxonref"])
@@ -548,191 +528,78 @@ class TaxonomyImporter:
                         ),
                     }
                 )
-            elif genus and pd.notna(genus):
-                # This is a genus-only entry with taxon_id
-                genus_rank = rank_names[1] if len(rank_names) > 1 else "genus"
-                if taxon_id is not None:
-                    # Store genus data with taxon_id for later processing
-                    species_data.append(
-                        {
-                            "taxon_id": taxon_id,
-                            "family": family,
-                            "genus": genus,
-                            "species": None,
-                            "infra": None,
-                            "rank_name": genus_rank,
-                            "full_name": genus,
-                            "authors": self._extract_authors(row, column_mapping),
-                            "taxonref": (
-                                row["taxonref"]
-                                if "taxonref" in row and pd.notna(row["taxonref"])
-                                else None
-                            ),
-                        }
-                    )
-                # Also add to unique genera for hierarchy building
-                if family and pd.notna(family):
-                    unique_genera[genus] = family
-            elif family and pd.notna(family):
-                # This is a family-only entry with taxon_id
-                family_rank = rank_names[0] if rank_names else "family"
-                if taxon_id is not None:
-                    # Store family data with taxon_id for later processing
-                    species_data.append(
-                        {
-                            "taxon_id": taxon_id,
-                            "family": family,
-                            "genus": None,
-                            "species": None,
-                            "infra": None,
-                            "rank_name": family_rank,
-                            "full_name": family,
-                            "authors": self._extract_authors(row, column_mapping),
-                            "taxonref": (
-                                row["taxonref"]
-                                if "taxonref" in row and pd.notna(row["taxonref"])
-                                else None
-                            ),
-                        }
-                    )
-                # Always add to unique families
-                unique_families.add(family)
+
+                # Mark this taxon as having an explicit ID if applicable
+                if taxon_id is not None and lowest_rank in unique_taxa_by_rank:
+                    if rank_values[lowest_rank] in unique_taxa_by_rank[lowest_rank]:
+                        unique_taxa_by_rank[lowest_rank][rank_values[lowest_rank]][
+                            "has_explicit_id"
+                        ] = True
 
         # Create the taxonomy entries in the correct order
         taxonomy_entries = []
 
-        # Track which families and genera have explicit taxon_ids
-        families_with_ids = {
-            data["family"]: data
-            for data in species_data
-            if data["rank_name"] == (rank_names[0] if rank_names else "family")
-            and data["taxon_id"] is not None
-        }
-        genera_with_ids = {
-            data["genus"]: data
-            for data in species_data
-            if data["rank_name"] == (rank_names[1] if len(rank_names) > 1 else "genus")
-            and data["taxon_id"] is not None
-        }
-
-        # 1. Add families (highest level)
-        family_rank = rank_names[0] if rank_names else "family"
-
-        for family in unique_families:
-            # Check if this family has an explicit taxon_id
-            if family in families_with_ids:
-                # Use the data from species_data with taxon_id
-                data = families_with_ids[family]
-                taxonomy_entries.append(
-                    {
-                        "full_name": data["full_name"],
-                        "rank_name": data["rank_name"],
-                        "authors": data["authors"],
-                        "parent_id": None,  # Families are top-level
-                        "taxon_id": data["taxon_id"],
-                        "extra_data": {
-                            "auto_generated": False,
-                            "taxon_type": family_rank,
-                            "original_id": data["taxon_id"],
-                        },
-                    }
-                )
-            else:
-                # Auto-generate family entry
-                taxonomy_entries.append(
-                    {
-                        "full_name": family,
-                        "rank_name": family_rank,
-                        "authors": "",
-                        "parent_id": None,  # Families are top-level
-                        "taxon_id": None,  # No external ID for automatically generated families
-                        "extra_data": {
-                            "auto_generated": True,
-                            "taxon_type": family_rank,
-                            "original_id": None,
-                        },
-                    }
-                )
-
-        # 2. Add genera
-        genus_rank = rank_names[1] if len(rank_names) > 1 else "genus"
-
-        for genus, family in unique_genera.items():
-            # Check if this genus has an explicit taxon_id
-            if genus in genera_with_ids:
-                # Use the data from species_data with taxon_id
-                data = genera_with_ids[genus]
-                taxonomy_entries.append(
-                    {
-                        "full_name": data["full_name"],
-                        "rank_name": data["rank_name"],
-                        "authors": data["authors"],
-                        "parent_family_name": family,
-                        "taxon_id": data["taxon_id"],
-                        "extra_data": {
-                            "auto_generated": False,
-                            "taxon_type": genus_rank,
-                            "parent_family": family,
-                            "original_id": data["taxon_id"],
-                        },
-                    }
-                )
-            else:
-                # Auto-generate genus entry
-                taxonomy_entries.append(
-                    {
-                        "full_name": genus,
-                        "rank_name": genus_rank,
-                        "authors": "",
-                        "parent_family_name": family,
-                        "taxon_id": None,
-                        "extra_data": {
-                            "auto_generated": True,
-                            "taxon_type": genus_rank,
-                            "parent_family": family,
-                            "original_id": None,
-                        },
-                    }
-                )
-
-        # 3. Add species and subspecies
-        for data in species_data:
-            # Skip if this entry was already processed as a family or genus
-            if (
-                data["rank_name"] == family_rank and data["family"] in families_with_ids
-            ) or (data["rank_name"] == genus_rank and data["genus"] in genera_with_ids):
-                continue
-
-            # Get the external ID of the taxon
-            external_id = data["taxon_id"]
-
-            entry = {
-                "full_name": data["full_name"],
-                "rank_name": data["rank_name"],
-                "authors": data["authors"],
-                "parent_genus_name": data[
-                    "genus"
-                ],  # Use this to create relationship after DB insertion
-                "taxon_id": external_id,  # Store the external ID in the new field
-                "extra_data": {
-                    "auto_generated": False,
-                    "taxon_type": data["rank_name"],
-                    "parent_family": data["family"],
-                    "parent_genus": data["genus"],
-                    "original_id": data["taxon_id"],
-                },
+        # Track which taxa have explicit taxon_ids by rank
+        taxa_with_ids = {}
+        for rank in rank_names:
+            taxa_with_ids[rank] = {
+                data["rank_values"][rank]: data
+                for data in taxa_data
+                if data["rank_name"] == rank
+                and data["taxon_id"] is not None
+                and data["rank_values"][rank] is not None
             }
 
-            # Add external ID in extra_data with the name corresponding to the key in column_mapping
-            if external_id is not None and "taxon_id" in column_mapping:
-                # Use the column name as key in extra_data
-                entry["extra_data"][column_mapping["taxon_id"]] = external_id
+        # Process each rank level in hierarchical order
+        for rank_idx, rank in enumerate(rank_names):
+            # Get all unique values at this rank
+            for taxon_name, taxon_info in unique_taxa_by_rank[rank].items():
+                # Check if this taxon has an explicit taxon_id
+                taxon_data = None
+                if rank in taxa_with_ids and taxon_name in taxa_with_ids[rank]:
+                    taxon_data = taxa_with_ids[rank][taxon_name]
 
-            # Add taxonref to extra_data if available
-            # if data["taxonref"]:
-            # entry["extra_data"]["taxonref"] = data["taxonref"]
+                # Prepare parent information
+                parent_info = None
+                if rank_idx > 0 and taxon_info["parent_value"]:
+                    parent_info = {
+                        "rank": taxon_info["parent_rank"],
+                        "value": taxon_info["parent_value"],
+                    }
 
-            taxonomy_entries.append(entry)
+                # Create the taxonomy entry
+                if taxon_data:
+                    # Use the data with explicit taxon_id
+                    taxonomy_entries.append(
+                        {
+                            "full_name": taxon_data["full_name"],
+                            "rank_name": rank,
+                            "authors": taxon_data["authors"],
+                            "taxon_id": taxon_data["taxon_id"],
+                            "extra_data": {
+                                "auto_generated": False,
+                                "taxon_type": rank,
+                                "original_id": taxon_data["taxon_id"],
+                                "parent_info": parent_info,
+                            },
+                        }
+                    )
+                else:
+                    # Auto-generate entry
+                    taxonomy_entries.append(
+                        {
+                            "full_name": taxon_name,
+                            "rank_name": rank,
+                            "authors": "",
+                            "taxon_id": None,
+                            "extra_data": {
+                                "auto_generated": True,
+                                "taxon_type": rank,
+                                "original_id": None,
+                                "parent_info": parent_info,
+                            },
+                        }
+                    )
 
         # Convert to DataFrame
         if not taxonomy_entries:
@@ -760,6 +627,59 @@ class TaxonomyImporter:
         taxonomy_df.drop(columns=["sort_key"], inplace=True)
 
         return taxonomy_df
+
+    def _build_full_name_generic(
+        self,
+        row: pd.Series,
+        column_mapping: Dict[str, str],
+        rank_values: Dict[str, Any],
+        rank_names: List[str],
+    ) -> str:
+        """
+        Build a complete taxonomy name from the data of an occurrence row for any hierarchy.
+
+        Args:
+            row (pd.Series): Occurrence row.
+            column_mapping (Dict[str, str]): Mapping between taxonomy fields and occurrence columns.
+            rank_values (Dict[str, Any]): Values for each rank.
+            rank_names (List[str]): List of rank names in hierarchical order.
+
+        Returns:
+            str: Complete taxonomy name.
+        """
+        # Find the lowest rank with a value
+        lowest_rank = None
+        lowest_rank_idx = -1
+        for idx, rank in enumerate(rank_names):
+            if rank_values.get(rank):
+                lowest_rank = rank
+                lowest_rank_idx = idx
+
+        if lowest_rank is None:
+            return "Unknown taxon"
+
+        # For the lowest two ranks, build binomial/trinomial name
+        if lowest_rank_idx >= 1:
+            # Get the second to last rank (genus equivalent)
+            parent_rank = rank_names[lowest_rank_idx - 1]
+            parent_value = rank_values.get(parent_rank, "")
+
+            # Get the lowest rank value
+            current_value = str(rank_values[lowest_rank]).strip()
+
+            if parent_value:
+                parent_value = str(parent_value).split(",", maxsplit=1)[0].strip()
+                # Remove parent name if it's already included in current value
+                if current_value.startswith(parent_value):
+                    current_value = current_value[len(parent_value) :].strip()
+                return (
+                    f"{parent_value} {current_value}" if current_value else parent_value
+                )
+            else:
+                return current_value
+        else:
+            # For top-level ranks, just return the name
+            return str(rank_values[lowest_rank]).strip()
 
     def _build_full_name(self, row: pd.Series, column_mapping: Dict[str, str]) -> str:
         """
@@ -848,262 +768,6 @@ class TaxonomyImporter:
                     return str(authors_value)
 
         return ""
-
-    @error_handler(log=True, raise_error=True)
-    def _prepare_dataframe(
-        self, df: pd.DataFrame, ranks: Tuple[str, ...]
-    ) -> pd.DataFrame:
-        """
-        Prepare dataframe for processing.
-
-        Args:
-            df: Input dataframe
-            ranks: Taxonomy ranks
-
-        Returns:
-            Prepared dataframe
-
-        Raises:
-            DataValidationError: If preparation fails
-        """
-        try:
-            # Make sure we have all required columns
-            required_fields = {"id_taxon", "full_name", "rank_name"}
-            for field in required_fields:
-                if field not in df.columns:
-                    if field == "rank_name" and "rank" in ranks:
-                        # Handle special case for rank_name
-                        df["rank_name"] = df.apply(
-                            lambda row: self._get_rank_name_from_rank_id(
-                                self._get_rank(row, ranks)
-                            ),
-                            axis=1,
-                        )
-                    else:
-                        raise DataValidationError(
-                            f"Required field '{field}' missing in taxonomy data",
-                            [{"field": field}],
-                        )
-
-            # Ensure authors column exists
-            if "authors" not in df.columns:
-                df["authors"] = None
-
-            # Identify the rank of each row if not already present
-            if "rank" not in df.columns:
-                df["rank"] = df.apply(lambda row: self._get_rank(row, ranks), axis=1)
-
-            # Get parent ID for each row if not already present
-            if "parent_id" not in df.columns:
-                df["parent_id"] = df.apply(
-                    lambda row: self._get_parent_id(row, ranks), axis=1
-                )
-
-            # Sort for processing
-            df.sort_values(by=["rank", "full_name"], inplace=True)
-
-            return df
-        except Exception as e:
-            if isinstance(e, DataValidationError):
-                raise
-            raise DataValidationError(
-                "Failed to prepare taxonomy data", [{"error": str(e)}]
-            ) from e
-
-    @staticmethod
-    def _get_rank(row: Any, ranks: Tuple[str, ...]) -> Optional[str]:
-        """
-        Get the rank of a row.
-
-        Args:
-            row (Any): The row to get the rank from.
-            ranks (Tuple[str, ...]): The ranks to get.
-
-        Returns:
-            Optional[str]: The rank of the row.
-        """
-        for rank in reversed(ranks):
-            if rank in row and pd.notna(row[rank]) and row["id_taxon"] == row[rank]:
-                return rank
-        return None
-
-    @staticmethod
-    def _get_parent_id(row: Any, ranks: Tuple[str, ...]) -> Optional[int]:
-        """
-        Get the parent id of a row.
-
-        Args:
-            row (Any): The row to get the parent id from.
-            ranks (Tuple[str, ...]): The ranks to get.
-
-        Returns:
-            Optional[int]: The parent id of the row.
-        """
-        for rank in reversed(ranks):
-            if rank in row and pd.notna(row[rank]) and row["id_taxon"] != row[rank]:
-                parent_id = row[rank]
-                if not pd.isna(parent_id):
-                    try:
-                        return int(parent_id)
-                    except (ValueError, TypeError):
-                        return None
-        return None
-
-    @staticmethod
-    def _get_rank_name_from_rank_id(rank_id: Optional[str]) -> str:
-        """
-        Convert a rank ID to a rank name.
-
-        Args:
-            rank_id: The rank ID to convert
-
-        Returns:
-            str: The rank name.
-        """
-        mapping = {
-            "id_famille": "family",
-            "id_genre": "genus",
-            "id_espèce": "species",
-            "id_sous-espèce": "infra",
-        }
-        return mapping.get(rank_id, "unknown")
-
-    @error_handler(log=True, raise_error=True)
-    def _process_dataframe(self, df: pd.DataFrame, ranks: Tuple[str, ...]) -> int:
-        """
-        Process dataframe and import data.
-
-        Args:
-            df: Dataframe to process
-            ranks: Taxonomy ranks
-
-        Returns:
-            Number of imported records
-
-        Raises:
-            TaxonomyImportError: If processing fails
-            DatabaseError: If database operations fail
-        """
-        imported_count = 0
-
-        try:
-            # Capture start time
-            import time
-
-            start_time = time.time()
-
-            with self.db.session() as session:
-                # Calculate the total number of taxons to process
-                total_taxons = sum(len(df[df["rank"] == rank]) for rank in ranks)
-
-                progress = Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                    refresh_per_second=10,  # Refresh more often
-                )
-
-                with progress:
-                    task = progress.add_task(
-                        "[green]Importing taxons", total=total_taxons
-                    )
-
-                    for _, row in df.iterrows():
-                        try:
-                            taxon = self._create_or_update_taxon(row, session, ranks)
-                            if taxon is not None:
-                                imported_count += 1
-                        except SQLAlchemyError as e:
-                            raise DatabaseError(
-                                f"Database error while processing taxon: {str(e)}",
-                            ) from e
-
-                        # Update the progress bar
-                        # Update progress with real-time duration
-                        current_duration = time.time() - start_time
-                        progress.update(
-                            task,
-                            advance=1,
-                            description=f"[green]Importing taxons • {current_duration:.1f}s[/green]",
-                        )
-
-                        # Commit and update nested set values after each rank
-                        if imported_count > 0 and imported_count % 1000 == 0:
-                            session.commit()
-                            self._update_nested_set_values(session)
-
-                    # Commit final and update nested set values
-                    session.commit()
-                    self._update_nested_set_values(session)
-
-            return imported_count
-
-        except Exception as e:
-            if isinstance(e, DatabaseError):
-                raise
-            raise TaxonomyImportError(
-                "Failed to process taxonomy data", details={"error": str(e)}
-            ) from e
-
-    @error_handler(log=True, raise_error=True)
-    def _create_or_update_taxon(
-        self, row: Any, session: Any, ranks: Tuple[str, ...]
-    ) -> Optional[TaxonRef]:
-        """
-        Create or update a taxon record.
-
-        Args:
-            row: Data row
-            session: Database session
-            ranks: Taxonomy ranks
-
-        Returns:
-            Created or updated taxon
-
-        Raises:
-            DatabaseError: If database operation fails
-        """
-        print(row)
-        taxon_id = int(row["id_taxon"])
-        try:
-            # Get or create taxon
-            taxon: Optional[TaxonRef] = (
-                session.query(TaxonRef).filter_by(id=taxon_id).one_or_none()
-            )
-
-            if taxon is None:
-                taxon = TaxonRef(id=taxon_id)
-                session.add(taxon)
-
-            # Update fields
-            taxon.full_name = row["full_name"]
-            taxon.authors = row["authors"] if pd.notna(row["authors"]) else None
-            taxon.rank_name = row["rank_name"]
-
-            # Set parent ID
-            parent_id = row["parent_id"]
-            if not pd.isna(parent_id):
-                taxon.parent_id = int(parent_id)
-
-            # Store extra data
-            standard_fields = ["id_taxon", "full_name", "authors", "rank", "parent_id"]
-            all_ignored_fields = set(standard_fields).union(ranks)
-            extra_data = {
-                key: None if pd.isna(value) else self._convert_to_correct_type(value)
-                for key, value in row.items()
-                if key not in all_ignored_fields
-            }
-            taxon.extra_data = extra_data
-
-            session.flush()
-            return taxon
-
-        except SQLAlchemyError as e:
-            session.rollback()
-            raise DatabaseError(
-                f"Failed to create/update taxon {taxon_id}", details={"error": str(e)}
-            ) from e
 
     @staticmethod
     def _convert_to_correct_type(value: Any) -> Any:

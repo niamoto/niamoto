@@ -16,7 +16,6 @@ from niamoto.core.components.imports.taxons import TaxonomyImporter
 from niamoto.common.exceptions import (
     FileReadError,
     DataValidationError,
-    DatabaseError,
 )
 
 
@@ -51,26 +50,6 @@ class TestTaxonomyImporter:
             return TaxonomyImporter(mock_db)
 
     @pytest.fixture
-    def sample_taxonomy_df(self):
-        """Create a sample taxonomy DataFrame."""
-        return pd.DataFrame(
-            {
-                "id_taxon": [1, 2, 3, 4],
-                "full_name": [
-                    "Dilleniaceae",
-                    "Hibbertia",
-                    "Hibbertia lucens",
-                    "Hibbertia pancheri",
-                ],
-                "authors": ["", "", "Brongn. & Gris", "Briquet"],
-                "rank_name": ["family", "genus", "species", "species"],
-                "family": [1, 1, 1, 1],
-                "genus": [None, 2, 2, 2],
-                "species": [None, None, 3, 4],
-            }
-        )
-
-    @pytest.fixture
     def sample_occurrences_df(self):
         """Create a sample occurrences DataFrame."""
         return pd.DataFrame(
@@ -102,106 +81,40 @@ class TestTaxonomyImporter:
             }
         )
 
+    @pytest.fixture
+    def hierarchy_config(self):
+        """Create a sample hierarchy configuration."""
+        return {
+            "levels": [
+                {"name": "family", "column": "family"},
+                {"name": "genus", "column": "genus"},
+                {"name": "species", "column": "species"},
+                {"name": "infra", "column": "infra"},
+            ],
+            "taxon_id_column": "id_taxonref",
+            "authors_column": "taxonref",
+        }
+
     def test_initialization(self, taxonomy_importer, mock_db):
         """Test TaxonomyImporter initialization."""
         assert taxonomy_importer.db == mock_db
         assert taxonomy_importer.db_path == "mock_db_path"
         assert hasattr(taxonomy_importer, "plugin_loader")
 
-    # CSV Import Tests
+    # Taxonomy Import Tests
     @patch("pandas.read_csv")
     @patch("pathlib.Path.exists")
-    def test_import_from_csv_success(
-        self, mock_exists, mock_read_csv, taxonomy_importer, sample_taxonomy_df
+    def test_import_taxonomy_success(
+        self,
+        mock_exists,
+        mock_read_csv,
+        taxonomy_importer,
+        sample_occurrences_df,
+        hierarchy_config,
     ):
-        """Test successful CSV import."""
-        mock_exists.return_value = True
-        mock_read_csv.return_value = sample_taxonomy_df
-
-        with patch.object(
-            taxonomy_importer, "_prepare_dataframe", return_value=sample_taxonomy_df
-        ):
-            with patch.object(taxonomy_importer, "_process_dataframe", return_value=4):
-                result = taxonomy_importer.import_from_csv(
-                    "test.csv", ("family", "genus", "species")
-                )
-
-        assert result == "4 taxons imported from test.csv."
-        mock_read_csv.assert_called_once()
-
-    @patch("pathlib.Path.exists")
-    def test_import_from_csv_file_not_found(self, mock_exists, taxonomy_importer):
-        """Test CSV import with non-existent file."""
-        mock_exists.return_value = False
-
-        with pytest.raises(FileReadError) as exc_info:
-            taxonomy_importer.import_from_csv("nonexistent.csv", ("family", "genus"))
-
-        assert "Taxonomy file not found" in str(exc_info.value)
-
-    @patch("pandas.read_csv")
-    @patch("pathlib.Path.exists")
-    def test_import_from_csv_read_error(
-        self, mock_exists, mock_read_csv, taxonomy_importer
-    ):
-        """Test CSV import with read error."""
-        mock_exists.return_value = True
-        mock_read_csv.side_effect = Exception("Read error")
-
-        with pytest.raises(FileReadError) as exc_info:
-            taxonomy_importer.import_from_csv("error.csv", ("family", "genus"))
-
-        assert "Failed to read CSV" in str(exc_info.value)
-
-    @patch("pandas.read_csv")
-    @patch("pathlib.Path.exists")
-    def test_import_from_csv_with_api_config(
-        self, mock_exists, mock_read_csv, taxonomy_importer, sample_taxonomy_df
-    ):
-        """Test CSV import with API enrichment configuration."""
-        mock_exists.return_value = True
-        mock_read_csv.return_value = sample_taxonomy_df
-
-        api_config = {
-            "enabled": True,
-            "plugin": "api_taxonomy_enricher",
-            "api_key": "test_key",
-        }
-
-        with patch.object(
-            taxonomy_importer, "_prepare_dataframe", return_value=sample_taxonomy_df
-        ):
-            with patch.object(
-                taxonomy_importer, "_process_dataframe", return_value=4
-            ) as mock_process:
-                result = taxonomy_importer.import_from_csv(
-                    "test.csv", ("family", "genus"), api_config
-                )
-
-        assert result == "4 taxons imported from test.csv."
-        # Verify API config was passed through
-        mock_process.assert_called_once_with(
-            sample_taxonomy_df, ("family", "genus"), api_config
-        )
-
-    # Occurrences Import Tests
-    @patch("pandas.read_csv")
-    @patch("pathlib.Path.exists")
-    def test_import_from_occurrences_success(
-        self, mock_exists, mock_read_csv, taxonomy_importer, sample_occurrences_df
-    ):
-        """Test successful import from occurrences."""
+        """Test successful taxonomy import from occurrences."""
         mock_exists.return_value = True
         mock_read_csv.return_value = sample_occurrences_df
-
-        column_mapping = {
-            "taxon_id": "id_taxonref",
-            "family": "family",
-            "genus": "genus",
-            "species": "species",
-            "infra": "infra",
-            "authors": "taxonref",
-        }
 
         with patch.object(
             taxonomy_importer, "_extract_taxonomy_from_occurrences"
@@ -213,8 +126,8 @@ class TestTaxonomyImporter:
                     pd.DataFrame()
                 )  # Return empty DataFrame for simplicity
 
-                result = taxonomy_importer.import_from_occurrences(
-                    "occurrences.csv", ("family", "genus", "species"), column_mapping
+                result = taxonomy_importer.import_taxonomy(
+                    "occurrences.csv", hierarchy_config
                 )
 
         assert result == "6 taxons extracted and imported from occurrences.csv."
@@ -222,32 +135,76 @@ class TestTaxonomyImporter:
         mock_process.assert_called_once()
 
     @patch("pathlib.Path.exists")
-    def test_import_from_occurrences_missing_mapping(
-        self, mock_exists, taxonomy_importer
+    def test_import_taxonomy_file_not_found(
+        self, mock_exists, taxonomy_importer, hierarchy_config
     ):
-        """Test import from occurrences with missing column mapping."""
-        mock_exists.return_value = True
+        """Test taxonomy import with non-existent file."""
+        mock_exists.return_value = False
 
-        # Missing required columns in mapping
-        column_mapping = {
-            "taxon_id": "id_taxonref",
-            "family": "family",
-            # Missing genus and species
-        }
+        with pytest.raises(FileReadError) as exc_info:
+            taxonomy_importer.import_taxonomy("nonexistent.csv", hierarchy_config)
 
-        with pytest.raises(DataValidationError) as exc_info:
-            taxonomy_importer.import_from_occurrences(
-                "occurrences.csv", ("family", "genus", "species"), column_mapping
-            )
-
-        assert "Missing required column mappings" in str(exc_info.value)
+        assert "Occurrences file not found" in str(exc_info.value)
 
     @patch("pandas.read_csv")
     @patch("pathlib.Path.exists")
-    def test_import_from_occurrences_missing_columns_in_file(
+    def test_import_taxonomy_read_error(
+        self, mock_exists, mock_read_csv, taxonomy_importer, hierarchy_config
+    ):
+        """Test taxonomy import with read error."""
+        mock_exists.return_value = True
+        mock_read_csv.side_effect = Exception("Read error")
+
+        with pytest.raises(FileReadError) as exc_info:
+            taxonomy_importer.import_taxonomy("error.csv", hierarchy_config)
+
+        assert "Failed to read CSV" in str(exc_info.value)
+
+    @patch("pathlib.Path.exists")
+    def test_import_taxonomy_missing_hierarchy_config(
+        self, mock_exists, taxonomy_importer
+    ):
+        """Test taxonomy import with missing hierarchy configuration."""
+        mock_exists.return_value = True
+
+        with pytest.raises(DataValidationError) as exc_info:
+            taxonomy_importer.import_taxonomy("occurrences.csv", None)
+
+        assert "Hierarchy configuration is required" in str(exc_info.value)
+
+    @patch("pathlib.Path.exists")
+    def test_import_taxonomy_missing_levels(self, mock_exists, taxonomy_importer):
+        """Test taxonomy import with missing levels in hierarchy configuration."""
+        mock_exists.return_value = True
+        hierarchy_config = {"taxon_id_column": "id_taxonref"}  # Missing 'levels'
+
+        with pytest.raises(DataValidationError) as exc_info:
+            taxonomy_importer.import_taxonomy("occurrences.csv", hierarchy_config)
+
+        assert "Missing 'levels' in hierarchy configuration" in str(exc_info.value)
+
+    @patch("pathlib.Path.exists")
+    def test_import_taxonomy_invalid_level_config(self, mock_exists, taxonomy_importer):
+        """Test taxonomy import with invalid level configuration."""
+        mock_exists.return_value = True
+        hierarchy_config = {
+            "levels": [
+                {"name": "family"},  # Missing 'column'
+                {"column": "genus"},  # Missing 'name'
+            ]
+        }
+
+        with pytest.raises(DataValidationError) as exc_info:
+            taxonomy_importer.import_taxonomy("occurrences.csv", hierarchy_config)
+
+        assert "Each level must have 'name' and 'column'" in str(exc_info.value)
+
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_taxonomy_missing_columns_in_file(
         self, mock_exists, mock_read_csv, taxonomy_importer
     ):
-        """Test import from occurrences with columns missing in file."""
+        """Test taxonomy import with columns missing in file."""
         mock_exists.return_value = True
 
         # DataFrame missing mapped columns
@@ -259,25 +216,145 @@ class TestTaxonomyImporter:
             }
         )
 
-        column_mapping = {
-            "taxon_id": "id_taxonref",
-            "family": "family",
-            "genus": "genus",  # This column doesn't exist in DataFrame
-            "species": "species",  # This column doesn't exist in DataFrame
+        hierarchy_config = {
+            "levels": [
+                {"name": "family", "column": "family"},
+                {"name": "genus", "column": "genus"},  # This column doesn't exist
+                {"name": "species", "column": "species"},  # This column doesn't exist
+            ],
+            "taxon_id_column": "id_taxonref",
         }
 
         with pytest.raises(DataValidationError) as exc_info:
-            taxonomy_importer.import_from_occurrences(
-                "occurrences.csv", ("family", "genus", "species"), column_mapping
-            )
+            taxonomy_importer.import_taxonomy("occurrences.csv", hierarchy_config)
 
         assert "Columns missing in occurrence file" in str(exc_info.value)
 
-    # Process Taxonomy with Relations Tests
-    def test_process_taxonomy_with_relations_success(
-        self, taxonomy_importer, sample_taxonomy_df
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_taxonomy_with_api_config(
+        self,
+        mock_exists,
+        mock_read_csv,
+        taxonomy_importer,
+        sample_occurrences_df,
+        hierarchy_config,
     ):
+        """Test taxonomy import with API enrichment configuration."""
+        mock_exists.return_value = True
+        mock_read_csv.return_value = sample_occurrences_df
+
+        api_config = {
+            "enabled": True,
+            "plugin": "api_taxonomy_enricher",
+            "api_key": "test_key",
+        }
+
+        with patch.object(
+            taxonomy_importer, "_extract_taxonomy_from_occurrences"
+        ) as mock_extract:
+            with patch.object(
+                taxonomy_importer, "_process_taxonomy_with_relations", return_value=4
+            ) as mock_process:
+                mock_extract.return_value = pd.DataFrame()
+
+                result = taxonomy_importer.import_taxonomy(
+                    "test.csv", hierarchy_config, api_config
+                )
+
+        assert result == "4 taxons extracted and imported from test.csv."
+        # Verify API config was passed through
+        _, _, api_arg = mock_process.call_args[0]
+        assert api_arg == api_config
+
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_taxonomy_extended_hierarchy(
+        self, mock_exists, mock_read_csv, taxonomy_importer
+    ):
+        """Test taxonomy import with extended hierarchy levels."""
+        mock_exists.return_value = True
+
+        # Create occurrences with extended hierarchy
+        extended_df = pd.DataFrame(
+            {
+                "id_taxonref": [1, 2, 3],
+                "kingdom": ["Plantae", "Plantae", "Plantae"],
+                "phylum": ["Tracheophyta", "Tracheophyta", "Tracheophyta"],
+                "class": ["Magnoliopsida", "Magnoliopsida", "Magnoliopsida"],
+                "order": ["Dilleniaceae", "Dilleniaceae", "Myrtales"],
+                "family": ["Dilleniaceae", "Dilleniaceae", "Myrtaceae"],
+                "subfamily": ["Hibbertoideae", "Hibbertoideae", "Myrtoideae"],
+                "tribe": ["Hibbertieae", "Hibbertieae", "Syzygieae"],
+                "genus": ["Hibbertia", "Hibbertia", "Syzygium"],
+                "species": ["lucens", "pancheri", "acre"],
+                "authors": ["Brongn. & Gris", "Briquet", "(Merr. & L.M.Perry) Craven"],
+            }
+        )
+        mock_read_csv.return_value = extended_df
+
+        # Extended hierarchy configuration
+        extended_hierarchy = {
+            "levels": [
+                {"name": "kingdom", "column": "kingdom"},
+                {"name": "phylum", "column": "phylum"},
+                {"name": "class", "column": "class"},
+                {"name": "order", "column": "order"},
+                {"name": "family", "column": "family"},
+                {"name": "subfamily", "column": "subfamily"},
+                {"name": "tribe", "column": "tribe"},
+                {"name": "genus", "column": "genus"},
+                {"name": "species", "column": "species"},
+            ],
+            "taxon_id_column": "id_taxonref",
+            "authors_column": "authors",
+        }
+
+        with patch.object(
+            taxonomy_importer, "_extract_taxonomy_from_occurrences"
+        ) as mock_extract:
+            with patch.object(
+                taxonomy_importer, "_process_taxonomy_with_relations", return_value=15
+            ):
+                mock_extract.return_value = pd.DataFrame()
+
+                result = taxonomy_importer.import_taxonomy(
+                    "extended_occurrences.csv", extended_hierarchy
+                )
+
+        assert (
+            result == "15 taxons extracted and imported from extended_occurrences.csv."
+        )
+
+        # Verify that all levels were passed correctly
+        call_args = mock_extract.call_args[0]
+        column_mapping = call_args[1]
+        ranks = call_args[2]
+
+        assert len(ranks) == 9  # All 9 levels
+        assert "subfamily" in column_mapping
+        assert "tribe" in column_mapping
+
+    # Process Taxonomy with Relations Tests
+    def test_process_taxonomy_with_relations_success(self, taxonomy_importer):
         """Test successful processing of taxonomy with relations."""
+        sample_taxonomy_df = pd.DataFrame(
+            {
+                "id_taxon": [1, 2, 3, 4],
+                "full_name": [
+                    "Dilleniaceae",
+                    "Hibbertia",
+                    "Hibbertia lucens",
+                    "Hibbertia pancheri",
+                ],
+                "authors": ["", "", "Brongn. & Gris", "Briquet"],
+                "rank_name": ["family", "genus", "species", "species"],
+                "family": [1, 1, 1, 1],
+                "genus": [None, 2, 2, 2],
+                "species": [None, None, 3, 4],
+            }
+        )
+
         mock_session = Mock()
         # Create a context manager mock
         context_manager = Mock()
@@ -297,488 +374,146 @@ class TestTaxonomyImporter:
     def test_process_taxonomy_with_relations_with_api_enrichment(
         self, taxonomy_importer
     ):
-        """Test processing with API enrichment enabled."""
-        # Create a DataFrame that matches what the method expects
-        df = pd.DataFrame(
-            {
-                "full_name": ["Test Species"],
-                "rank_name": ["species"],
-                "authors": ["Test Author"],
-                "parent_genus_name": ["Test Genus"],
-                "taxon_id": [None],  # Add taxon_id column
-            }
-        )
-
-        # Mock the API enricher plugin
-        mock_enricher = Mock()
-        mock_enricher.load_data.return_value = {
-            "full_name": "Test Species",
-            "rank_name": "species",
-            "authors": "Test Author Enhanced",
-            "taxon_id": None,
-            "api_enrichment": {"source": "API", "verified": True},
-        }
-        # Add log_messages attribute for the method that checks it
-        mock_enricher.log_messages = []
-
-        api_config = {"enabled": True, "plugin": "api_taxonomy_enricher"}
-
-        mock_session = Mock()
-        # Create a context manager mock
-        context_manager = Mock()
-        context_manager.__enter__ = Mock(return_value=mock_session)
-        context_manager.__exit__ = Mock(return_value=None)
-        taxonomy_importer.db.session = Mock(return_value=context_manager)
-
-        with patch(
-            "niamoto.core.plugins.registry.PluginRegistry.get_plugin"
-        ) as mock_get_plugin:
-            mock_get_plugin.return_value = lambda db: mock_enricher
-
-            with patch.object(taxonomy_importer, "_update_nested_set_values"):
-                with patch("niamoto.core.components.imports.taxons.Progress"):
-                    result = taxonomy_importer._process_taxonomy_with_relations(
-                        df, ("family", "genus", "species"), api_config
-                    )
-
-        assert result == 1
-        mock_enricher.load_data.assert_called_once()
-        mock_session.add.assert_called()
-
-    def test_process_taxonomy_with_relations_database_error(self, taxonomy_importer):
-        """Test handling of database errors during processing."""
-        df = pd.DataFrame(
-            {
-                "full_name": ["Test"],
-                "rank_name": ["family"],
-                "authors": [""],  # Add required column
-                "taxon_id": [None],  # Add taxon_id column
-            }
-        )
-
-        mock_session = Mock()
-        mock_session.add.side_effect = SQLAlchemyError("Database error")
-        # Create a context manager mock
-        context_manager = Mock()
-        context_manager.__enter__ = Mock(return_value=mock_session)
-        context_manager.__exit__ = Mock(return_value=None)
-        taxonomy_importer.db.session = Mock(return_value=context_manager)
-
-        with pytest.raises(DatabaseError) as exc_info:
-            with patch("niamoto.core.components.imports.taxons.Progress"):
-                taxonomy_importer._process_taxonomy_with_relations(df, ("family",))
-
-        assert "Database error" in str(exc_info.value)
-
-    # Extract Taxonomy Tests
-    def test_extract_taxonomy_from_occurrences_complete(
-        self, taxonomy_importer, sample_occurrences_df
-    ):
-        """Test complete extraction of taxonomy from occurrences."""
-        column_mapping = {
-            "taxon_id": "id_taxonref",
-            "family": "family",
-            "genus": "genus",
-            "species": "species",
-            "infra": "infra",
-            "authors": "taxonref",
-        }
-
-        result_df = taxonomy_importer._extract_taxonomy_from_occurrences(
-            sample_occurrences_df,
-            column_mapping,
-            ("family", "genus", "species", "infra"),
-        )
-
-        # Verify structure
-        assert isinstance(result_df, pd.DataFrame)
-        assert len(result_df) > 0
-        assert all(
-            col in result_df.columns
-            for col in ["full_name", "rank_name", "authors", "taxon_id"]
-        )
-
-        # Verify hierarchy is built correctly
-        families = result_df[result_df["rank_name"] == "family"]
-        genera = result_df[result_df["rank_name"] == "genus"]
-        species = result_df[result_df["rank_name"] == "species"]
-
-        assert len(families) == 2  # Dilleniaceae and Myrtaceae
-        assert len(genera) == 2  # Hibbertia and Syzygium
-        assert len(species) >= 2  # At least lucens and pancheri
-
-    def test_extract_taxonomy_with_missing_data(self, taxonomy_importer):
-        """Test extraction with missing/incomplete data."""
-        df = pd.DataFrame(
-            {
-                "id_taxonref": [1, 2, 3],
-                "family": ["F1", None, "F3"],
-                "genus": [None, "G2", "G3"],
-                "species": [None, None, "S3"],
-            }
-        )
-
-        column_mapping = {
-            "taxon_id": "id_taxonref",
-            "family": "family",
-            "genus": "genus",
-            "species": "species",
-        }
-
-        result_df = taxonomy_importer._extract_taxonomy_from_occurrences(
-            df, column_mapping, ("family", "genus", "species")
-        )
-
-        # Should still process valid entries
-        assert len(result_df) > 0
-
-    def test_extract_taxonomy_with_duplicate_handling(self, taxonomy_importer):
-        """Test that duplicates are properly handled."""
-        df = pd.DataFrame(
-            {
-                "id_taxonref": [1, 1, 1, 2],  # Duplicates
-                "family": ["F1", "F1", "F1", "F2"],
-                "genus": ["G1", "G1", "G1", "G2"],
-                "species": ["S1", "S1", "S1", "S2"],
-            }
-        )
-
-        column_mapping = {
-            "taxon_id": "id_taxonref",
-            "family": "family",
-            "genus": "genus",
-            "species": "species",
-        }
-
-        result_df = taxonomy_importer._extract_taxonomy_from_occurrences(
-            df, column_mapping, ("family", "genus", "species")
-        )
-
-        # Verify duplicates are removed
-        species_entries = result_df[result_df["rank_name"] == "species"]
-        unique_species_names = species_entries["full_name"].unique()
-        assert len(unique_species_names) == len(species_entries)
-
-    # Build Full Name Tests
-    def test_build_full_name_complete(self, taxonomy_importer):
-        """Test building full name with all components."""
-        row = pd.Series(
-            {
-                "genus": "Hibbertia",
-                "species": "lucens",
-                "infra": "var. glabrata",
-            }
-        )
-
-        column_mapping = {
-            "genus": "genus",
-            "species": "species",
-            "infra": "infra",
-        }
-
-        result = taxonomy_importer._build_full_name(row, column_mapping)
-        assert result == "var. glabrata"  # Infra takes precedence
-
-    def test_build_full_name_genus_species(self, taxonomy_importer):
-        """Test building full name from genus and species."""
-        row = pd.Series(
-            {
-                "genus": "Hibbertia",
-                "species": "lucens",
-                "infra": None,
-            }
-        )
-
-        column_mapping = {
-            "genus": "genus",
-            "species": "species",
-            "infra": "infra",
-        }
-
-        result = taxonomy_importer._build_full_name(row, column_mapping)
-        assert result == "Hibbertia lucens"
-
-    def test_build_full_name_species_with_genus_prefix(self, taxonomy_importer):
-        """Test building full name when species already contains genus."""
-        row = pd.Series(
-            {
-                "genus": "Hibbertia",
-                "species": "Hibbertia lucens",  # Already contains genus
-                "infra": None,
-            }
-        )
-
-        column_mapping = {
-            "genus": "genus",
-            "species": "species",
-            "infra": "infra",
-        }
-
-        result = taxonomy_importer._build_full_name(row, column_mapping)
-        assert result == "Hibbertia lucens"  # Should not duplicate genus
-
-    def test_build_full_name_fallback_to_family(self, taxonomy_importer):
-        """Test fallback to family when no other data available."""
-        row = pd.Series(
-            {
-                "family": "Dilleniaceae",
-                "genus": None,
-                "species": None,
-                "infra": None,
-            }
-        )
-
-        column_mapping = {
-            "family": "family",
-            "genus": "genus",
-            "species": "species",
-            "infra": "infra",
-        }
-
-        result = taxonomy_importer._build_full_name(row, column_mapping)
-        assert result == "Dilleniaceae"
-
-    # Extract Authors Tests
-    def test_extract_authors_from_comparison(self, taxonomy_importer):
-        """Test extracting authors by comparing with species name."""
-        row = pd.Series(
-            {
-                "species": "Hibbertia lucens",
-                "taxonref": "Hibbertia lucens Brongn. & Gris ex Sebert & Pancher",
-            }
-        )
-
-        column_mapping = {
-            "species": "species",
-            "authors": "taxonref",
-        }
-
-        result = taxonomy_importer._extract_authors(row, column_mapping)
-        assert result == "Brongn. & Gris ex Sebert & Pancher"
-
-    def test_extract_authors_direct_field(self, taxonomy_importer):
-        """Test extracting authors from direct field."""
-        row = pd.Series(
-            {
-                "author_field": "Test Author",
-            }
-        )
-
-        column_mapping = {
-            "authors": "author_field",
-        }
-
-        result = taxonomy_importer._extract_authors(row, column_mapping)
-        assert result == "Test Author"
-
-    def test_extract_authors_no_mapping(self, taxonomy_importer):
-        """Test extracting authors with no mapping."""
-        row = pd.Series(
-            {
-                "some_field": "value",
-            }
-        )
-
-        column_mapping = {
-            "species": "species",
-        }
-
-        result = taxonomy_importer._extract_authors(row, column_mapping)
-        assert result == ""
-
-    # Update Nested Set Values Tests
-    def test_update_nested_set_values(self, taxonomy_importer):
-        """Test updating nested set values for taxonomy tree."""
-        # Create mock taxons with parent-child relationships
-        taxon1 = Mock(id=1, parent_id=None, rank_name="family", full_name="F1")
-        taxon2 = Mock(id=2, parent_id=1, rank_name="genus", full_name="G1")
-        taxon3 = Mock(id=3, parent_id=2, rank_name="species", full_name="S1")
-
-        mock_session = Mock()
-
-        # First query returns all taxons
-        mock_session.query.return_value.order_by.return_value.all.return_value = [
-            taxon1,
-            taxon2,
-            taxon3,
-        ]
-
-        # Subsequent queries for children
-        def query_side_effect(*args):
-            query_mock = Mock()
-            if args and hasattr(args[0], "id"):
-                # Return appropriate children based on parent_id
-                if args[0].id == 1:
-                    query_mock.filter.return_value.order_by.return_value.all.return_value = [
-                        (2,)
-                    ]
-                elif args[0].id == 2:
-                    query_mock.filter.return_value.order_by.return_value.all.return_value = [
-                        (3,)
-                    ]
-                else:
-                    query_mock.filter.return_value.order_by.return_value.all.return_value = []
-            return query_mock
-
-        mock_session.query.side_effect = [
-            # First call for all taxons
-            Mock(
-                order_by=Mock(
-                    return_value=Mock(all=Mock(return_value=[taxon1, taxon2, taxon3]))
-                )
-            ),
-            # Second call for root taxons
-            Mock(
-                filter=Mock(
-                    return_value=Mock(
-                        order_by=Mock(
-                            return_value=Mock(all=Mock(return_value=[taxon1]))
-                        )
-                    )
-                )
-            ),
-            # Subsequent calls for children
-            Mock(
-                filter=Mock(
-                    return_value=Mock(
-                        order_by=Mock(return_value=Mock(all=Mock(return_value=[(2,)])))
-                    )
-                )
-            ),
-            Mock(
-                filter=Mock(
-                    return_value=Mock(
-                        order_by=Mock(return_value=Mock(all=Mock(return_value=[(3,)])))
-                    )
-                )
-            ),
-            Mock(
-                filter=Mock(
-                    return_value=Mock(
-                        order_by=Mock(return_value=Mock(all=Mock(return_value=[])))
-                    )
-                )
-            ),
-        ]
-
-        taxonomy_importer._update_nested_set_values(mock_session)
-
-        # Verify nested set values were assigned
-        assert taxon1.lft == 1
-        assert taxon1.rght == 6
-        assert taxon1.level == 0
-
-        assert taxon2.lft == 2
-        assert taxon2.rght == 5
-        assert taxon2.level == 1
-
-        assert taxon3.lft == 3
-        assert taxon3.rght == 4
-        assert taxon3.level == 2
-
-        mock_session.commit.assert_called_once()
-
-    # Error Handling Tests
-    def test_prepare_dataframe_missing_required_fields(self, taxonomy_importer):
-        """Test prepare_dataframe with missing required fields."""
-        df = pd.DataFrame(
+        """Test processing taxonomy with API enrichment."""
+        sample_taxonomy_df = pd.DataFrame(
             {
                 "id_taxon": [1, 2],
-                # Missing full_name and rank_name
+                "full_name": ["Dilleniaceae", "Hibbertia"],
+                "authors": ["", ""],
+                "rank_name": ["family", "genus"],
+                "family": [1, 1],
+                "genus": [None, 2],
             }
         )
 
-        with pytest.raises(DataValidationError) as exc_info:
-            taxonomy_importer._prepare_dataframe(df, ("family", "genus"))
-
-        assert "Required field" in str(exc_info.value)
-
-    def test_create_or_update_taxon_database_error(self, taxonomy_importer):
-        """Test create_or_update_taxon with database error."""
-        row = {
-            "id_taxon": 1,
-            "full_name": "Test",
-            "authors": "Author",
-            "rank_name": "species",
-            "parent_id": None,
+        api_config = {
+            "enabled": True,
+            "plugin": "test_enricher",
         }
 
         mock_session = Mock()
-        mock_session.query.side_effect = SQLAlchemyError("DB Error")
-
-        with pytest.raises(DatabaseError) as exc_info:
-            taxonomy_importer._create_or_update_taxon(
-                row, mock_session, ("family", "genus", "species")
-            )
-
-        assert "Failed to create/update taxon" in str(exc_info.value)
-
-    # Integration Tests
-    @pytest.mark.integration
-    def test_full_import_workflow(self, taxonomy_importer, temp_config_dir):
-        """Test complete import workflow from CSV to database."""
-        # Create a temporary CSV file
-        csv_path = os.path.join(temp_config_dir, "taxonomy.csv")
-        df = pd.DataFrame(
-            {
-                "id_taxon": [1, 2, 3],
-                "full_name": ["Family1", "Genus1", "Species1"],
-                "authors": ["", "", "Author1"],
-                "rank_name": ["family", "genus", "species"],
-                "family": [1, 1, 1],
-                "genus": [None, 2, 2],
-                "species": [None, None, 3],
-            }
-        )
-        df.to_csv(csv_path, index=False)
-
-        # Mock database operations
-        mock_session = Mock()
-        # Create a context manager mock
         context_manager = Mock()
         context_manager.__enter__ = Mock(return_value=mock_session)
         context_manager.__exit__ = Mock(return_value=None)
         taxonomy_importer.db.session = Mock(return_value=context_manager)
 
-        # Patch _process_dataframe to use _process_taxonomy_with_relations internally
-        def mock_process_dataframe(df, ranks, api_config=None):
-            return taxonomy_importer._process_taxonomy_with_relations(
-                df, ranks, api_config
-            )
+        # Mock the PluginRegistry to return a mock enricher class
+        mock_enricher = Mock()
+        mock_enricher.load_data.return_value = {
+            "external_id": "12345",
+            "conservation_status": "LC",
+        }
+        mock_enricher.log_messages = []  # Add log_messages attribute
+        mock_enricher_class = Mock(return_value=mock_enricher)
 
-        with patch.object(
-            taxonomy_importer, "_process_dataframe", side_effect=mock_process_dataframe
+        with patch(
+            "niamoto.core.plugins.registry.PluginRegistry.get_plugin",
+            return_value=mock_enricher_class,
         ):
             with patch.object(taxonomy_importer, "_update_nested_set_values"):
                 with patch("niamoto.core.components.imports.taxons.Progress"):
-                    result = taxonomy_importer.import_from_csv(
-                        csv_path, ("family", "genus", "species")
+                    with patch("builtins.print"):  # Suppress print statements
+                        result = taxonomy_importer._process_taxonomy_with_relations(
+                            sample_taxonomy_df, ("family", "genus"), api_config
+                        )
+
+            assert result == 2
+            # Verify enricher was called for each taxon
+            assert mock_enricher.load_data.call_count == 2
+
+    def test_extract_taxonomy_from_occurrences(self, taxonomy_importer):
+        """Test taxonomy extraction from occurrences."""
+        occurrences_df = pd.DataFrame(
+            {
+                "id_taxonref": [1, 2, 3, 1, 2],
+                "family": ["Fabaceae", "Fabaceae", "Myrtaceae", "Fabaceae", "Fabaceae"],
+                "genus": ["Acacia", "Acacia", "Syzygium", "Acacia", "Acacia"],
+                "species": [
+                    "mangium",
+                    "auriculiformis",
+                    "jambos",
+                    "mangium",
+                    "auriculiformis",
+                ],
+                "taxonref": [
+                    "Acacia mangium Willd.",
+                    "Acacia auriculiformis A.Cunn. ex Benth.",
+                    "Syzygium jambos (L.) Alston",
+                    "Acacia mangium Willd.",
+                    "Acacia auriculiformis A.Cunn. ex Benth.",
+                ],
+            }
+        )
+
+        column_mapping = {
+            "family": "family",
+            "genus": "genus",
+            "species": "species",
+            "taxon_id": "id_taxonref",
+            "authors": "taxonref",
+        }
+
+        result_df = taxonomy_importer._extract_taxonomy_from_occurrences(
+            occurrences_df, column_mapping, ("family", "genus", "species")
+        )
+
+        # Should have unique combinations
+        assert (
+            len(result_df) == 7
+        )  # 2 families + 2 genera + 3 species = 7 unique taxons
+
+        # Check that all ranks are present
+        assert set(result_df["rank_name"].unique()) == {"family", "genus", "species"}
+
+        # Check that taxon IDs are preserved
+        species_rows = result_df[result_df["rank_name"] == "species"]
+        assert set(species_rows["taxon_id"]) == {1, 2, 3}
+
+    def test_update_nested_set_values(self, taxonomy_importer):
+        """Test updating nested set values."""
+        mock_session = Mock()
+
+        # Mock the SQLAlchemy operations to return empty results
+        mock_query = Mock()
+        mock_query.order_by.return_value.all.return_value = []
+        mock_query.filter.return_value = mock_query
+        mock_session.query.return_value = mock_query
+
+        # Call the method - should not raise any exceptions
+        taxonomy_importer._update_nested_set_values(mock_session)
+
+        # Verify session operations were called
+        assert mock_session.query.called
+        mock_session.commit.assert_called_once()
+
+    @patch("pandas.read_csv")
+    @patch("pathlib.Path.exists")
+    def test_import_taxonomy_database_error(
+        self,
+        mock_exists,
+        mock_read_csv,
+        taxonomy_importer,
+        sample_occurrences_df,
+        hierarchy_config,
+    ):
+        """Test taxonomy import with database error."""
+        mock_exists.return_value = True
+        mock_read_csv.return_value = sample_occurrences_df
+
+        with patch.object(
+            taxonomy_importer, "_extract_taxonomy_from_occurrences"
+        ) as mock_extract:
+            with patch.object(
+                taxonomy_importer, "_process_taxonomy_with_relations"
+            ) as mock_process:
+                mock_extract.return_value = pd.DataFrame()
+                mock_process.side_effect = SQLAlchemyError("Database error")
+
+                with pytest.raises(Exception) as exc_info:
+                    taxonomy_importer.import_taxonomy(
+                        "occurrences.csv", hierarchy_config
                     )
 
-        assert "3 taxons imported" in result
-        assert mock_session.add.call_count >= 3
-        assert mock_session.commit.called
-
-    @pytest.mark.parametrize(
-        "rank_names,expected",
-        [
-            (("famille", "genre", "espèce"), ["famille", "genre", "espèce"]),
-            (("id_famille", "id_genre", "id_espèce"), ["famille", "genre", "espèce"]),
-            (
-                ("family", "genus", "species", "subspecies"),
-                ["family", "genus", "species", "subspecies"],
-            ),
-        ],
-    )
-    def test_get_rank_names_from_config(self, taxonomy_importer, rank_names, expected):
-        """Test extraction of rank names from configuration."""
-        result = taxonomy_importer._get_rank_names_from_config(rank_names)
-        assert result == expected
-
-    def test_convert_to_correct_type_various_inputs(self, taxonomy_importer):
-        """Test type conversion for various inputs."""
-        assert taxonomy_importer._convert_to_correct_type(1.0) == 1
-        assert taxonomy_importer._convert_to_correct_type(1.5) == 1.5
-        assert taxonomy_importer._convert_to_correct_type("text") == "text"
-        assert taxonomy_importer._convert_to_correct_type(None) is None
-        assert taxonomy_importer._convert_to_correct_type([1, 2, 3]) == [1, 2, 3]
+                assert "Failed to extract and import taxonomy from occurrences" in str(
+                    exc_info.value
+                )

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Info, AlertCircle, Database, Globe, GitBranch } from 'lucide-react'
 import type { ImportConfig, ImportType } from './ImportWizard'
-import { TaxonomyRankEditor } from './TaxonomyRankEditor'
+import { TaxonomyHierarchyEditor } from './TaxonomyHierarchyEditor'
 import { ApiEnrichmentConfig, type ApiConfig } from './ApiEnrichmentConfig'
 import { PlotHierarchyConfig, type HierarchyConfig } from './PlotHierarchyConfig'
 import { PropertySelector } from './PropertySelector'
@@ -128,13 +128,28 @@ export function AdvancedOptions({ config, onUpdate }: AdvancedOptionsProps) {
       </Alert>
 
       <div className="space-y-6">
-        {/* Rank Order Editor */}
-        <TaxonomyRankEditor
-          value={taxonomyOptions.ranks}
-          onChange={(ranks) => {
+        {/* Hierarchy Configuration */}
+        <TaxonomyHierarchyEditor
+          ranks={taxonomyOptions.ranks}
+          fileColumns={config.fileAnalysis?.columns || []}
+          fieldMappings={config.fieldMappings || {}}
+          onChange={({ ranks, mappings }) => {
+            // Update taxonomy options with new ranks
             const newOptions = { ...taxonomyOptions, ranks }
             setTaxonomyOptions(newOptions)
             updateOptions('taxonomy', newOptions)
+
+            // Update field mappings with hierarchy mappings
+            if (config.fieldMappings) {
+              const updatedMappings = { ...config.fieldMappings }
+              // Remove old rank mappings
+              taxonomyOptions.ranks.forEach(rank => {
+                delete updatedMappings[rank]
+              })
+              // Add new mappings
+              Object.assign(updatedMappings, mappings)
+              onUpdate({ fieldMappings: updatedMappings })
+            }
           }}
         />
 
