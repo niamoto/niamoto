@@ -312,16 +312,50 @@ export function ReviewImport({ config, onImport }: ReviewImportProps) {
           {hasOptions ? (
             <ScrollArea className="h-[200px] pr-4">
               <div className="space-y-2">
-                {Object.entries(options).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between py-2">
-                    <span className="text-sm font-medium">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
-                    </span>
-                  </div>
-                ))}
+                {Object.entries(options).map(([key, value]) => {
+                  // Format the display value based on the key and type
+                  let displayValue = ''
+
+                  if (key === 'ranks' && Array.isArray(value)) {
+                    displayValue = value.join(' → ')
+                  } else if (key === 'apiEnrichment' && typeof value === 'object' && value !== null) {
+                    // Special handling for API enrichment config
+                    const apiConfig = value as any
+                    if (!apiConfig.enabled) {
+                      displayValue = 'Disabled'
+                    } else {
+                      const parts = []
+                      if (apiConfig.api_url) {
+                        parts.push(`URL: ${apiConfig.api_url}`)
+                      }
+                      if (apiConfig.auth_method && apiConfig.auth_method !== 'none') {
+                        parts.push(`Auth: ${apiConfig.auth_method}`)
+                      }
+                      if (apiConfig.response_mapping && Object.keys(apiConfig.response_mapping).length > 0) {
+                        parts.push(`${Object.keys(apiConfig.response_mapping).length} field mappings`)
+                      }
+                      displayValue = parts.join(', ') || 'Configured'
+                    }
+                  } else if (typeof value === 'boolean') {
+                    displayValue = value ? 'Yes' : 'No'
+                  } else if (typeof value === 'object' && value !== null) {
+                    // For other objects, show a summary
+                    displayValue = `${Object.keys(value).length} settings`
+                  } else {
+                    displayValue = String(value)
+                  }
+
+                  return (
+                    <div key={key} className="flex items-center justify-between py-2">
+                      <span className="text-sm font-medium">
+                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {displayValue}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </ScrollArea>
           ) : (

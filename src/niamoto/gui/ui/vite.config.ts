@@ -18,4 +18,7 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1000, // Augmente la limite à 1MB au lieu de 500KB
+  },
 })

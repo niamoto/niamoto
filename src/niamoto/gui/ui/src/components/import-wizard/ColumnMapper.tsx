@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Check, AlertCircle } from 'lucide-react'
+import { Check, AlertCircle, GripVertical, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ImportType } from './ImportWizard'
+import { useImportFields, type RequiredField } from '@/hooks/useImportFields'
 
 interface ColumnMapperProps {
   importType: ImportType
@@ -9,47 +10,26 @@ interface ColumnMapperProps {
   onMappingComplete: (mappings: Record<string, string>) => void
 }
 
-interface RequiredField {
-  key: string
-  label: string
-  description: string
-  required: boolean
-}
-
-const requiredFields: Record<ImportType, RequiredField[]> = {
-  taxonomy: [
-    { key: 'taxon_id', label: 'Taxon ID', description: 'Unique identifier for each taxon', required: true },
-    { key: 'full_name', label: 'Full Name', description: 'Complete scientific name', required: true },
-    { key: 'authors', label: 'Authors', description: 'Taxonomic authority', required: true },
-    { key: 'family', label: 'Family', description: 'Family rank', required: false },
-    { key: 'genus', label: 'Genus', description: 'Genus rank', required: false },
-    { key: 'species', label: 'Species', description: 'Species rank', required: false },
-    { key: 'infra', label: 'Infra', description: 'Infraspecific rank', required: false },
-  ],
-  plots: [
-    { key: 'identifier', label: 'Plot ID', description: 'Unique identifier for each plot', required: true },
-    { key: 'locality', label: 'Locality', description: 'Plot name or locality', required: true },
-    { key: 'location', label: 'Location', description: 'Geometry or coordinates', required: true },
-    { key: 'link_field', label: 'Link Field', description: 'Field for linking with occurrences', required: false },
-  ],
-  occurrences: [
-    { key: 'taxon_id', label: 'Taxon ID', description: 'Reference to taxonomy', required: true },
-    { key: 'location', label: 'Location', description: 'Occurrence coordinates', required: true },
-    { key: 'plot_name', label: 'Plot Name', description: 'Link to plot (optional)', required: false },
-  ],
-  shapes: [
-    { key: 'name', label: 'Name', description: 'Shape name or label', required: true },
-    { key: 'id', label: 'ID', description: 'Unique identifier', required: false },
-  ],
-}
-
 export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: ColumnMapperProps) {
   const [mappings, setMappings] = useState<Record<string, string>>({})
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
 
+  // Use the hook to get fields dynamically
+  const { fields, loading: fieldsLoading, error: fieldsError } = useImportFields(importType)
+
   const sourceColumns = fileAnalysis?.columns || []
   const suggestions = fileAnalysis?.suggestions || {}
-  const fields = requiredFields[importType] || []
+
+  // Check if there was an error in file analysis
+  if (fileAnalysis?.error) {
+    return (
+      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+        <p className="text-sm text-destructive">
+          Error analyzing file: {fileAnalysis.error}
+        </p>
+      </div>
+    )
+  }
 
   useEffect(() => {
     // Auto-apply suggestions
@@ -89,6 +69,25 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
     (col: string) => !Object.values(mappings).includes(col)
   )
 
+  if (fieldsLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-2">Loading field definitions...</span>
+      </div>
+    )
+  }
+
+  if (fieldsError) {
+    return (
+      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+        <p className="text-sm text-destructive">
+          {fieldsError}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div>
       <h2 className="mb-4 text-xl font-semibold">Map Fields</h2>
@@ -109,14 +108,21 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
                   <div
                     key={column}
                     draggable
-                    onDragStart={() => setDraggedColumn(column)}
+                    onDragStart={(e) => {
+                      setDraggedColumn(column)
+                      e.dataTransfer.setData('text/plain', column)
+                      e.dataTransfer.effectAllowed = 'copy'
+                    }}
                     onDragEnd={() => setDraggedColumn(null)}
                     className={cn(
-                      "cursor-move rounded-md border bg-background px-3 py-2 text-sm transition-colors hover:bg-accent",
-                      draggedColumn === column && "opacity-50"
+                      "cursor-move rounded-md border bg-background px-3 py-2 text-sm transition-all hover:bg-accent hover:border-primary/50",
+                      draggedColumn === column && "opacity-50 scale-95"
                     )}
                   >
-                    {column}
+                    <div className="flex items-center gap-2">
+                      <GripVertical className="h-3 w-3 text-muted-foreground" />
+                      <span>{column}</span>
+                    </div>
                   </div>
                 ))
               )}
@@ -182,19 +188,33 @@ function FieldMapping({
   isDragActive,
 }: FieldMappingProps) {
   const [showDropdown, setShowDropdown] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   return (
     <div
       className={cn(
-        "rounded-lg border p-4 transition-colors",
-        isDragActive && !mappedColumn && "border-primary bg-primary/5",
+        "rounded-lg border p-4 transition-all",
+        isDragActive && !mappedColumn && "border-primary bg-primary/5 border-dashed",
+        isDragOver && !mappedColumn && "border-primary bg-primary/10 scale-[1.02] shadow-lg",
         mappedColumn && "bg-accent/50"
       )}
-      onDragOver={(e) => e.preventDefault()}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+      }}
+      onDragEnter={(e) => {
+        e.preventDefault()
+        if (!mappedColumn) setIsDragOver(true)
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault()
+        setIsDragOver(false)
+      }}
       onDrop={(e) => {
         e.preventDefault()
+        setIsDragOver(false)
         const column = e.dataTransfer.getData('text/plain')
-        if (column) onDrop(column)
+        if (column && !mappedColumn) onDrop(column)
       }}
     >
       <div className="flex items-start justify-between">
@@ -225,12 +245,18 @@ function FieldMapping({
             </div>
           ) : (
             <div className="relative mt-2">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="text-sm text-primary hover:underline"
-              >
-                Select column
-              </button>
+              {isDragActive ? (
+                <div className="rounded-md border-2 border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-center text-sm text-muted-foreground">
+                  Drop column here
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Select column
+                </button>
+              )}
 
               {showDropdown && (
                 <div className="absolute left-0 z-10 mt-1 max-h-48 w-64 overflow-auto rounded-md border bg-popover p-1 shadow-md">

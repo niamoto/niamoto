@@ -8,11 +8,37 @@ import tempfile
 import uuid
 import json
 from datetime import datetime
+from niamoto.common.config import Config
+from niamoto.common.database import Database
+from niamoto.gui.api.utils.import_fields import (
+    get_required_fields_for_import_type,
+    get_all_import_types_info,
+)
+from niamoto.gui.api.utils.config_updater import update_import_config
 
 router = APIRouter()
 
 # Import status tracking (in production, use a database)
 import_jobs: Dict[str, Dict[str, Any]] = {}
+
+
+class ImportStatus(BaseModel):
+    """Status of a particular import type."""
+
+    import_type: str
+    is_imported: bool
+    row_count: int = 0
+    dependencies_met: bool = True
+    missing_dependencies: List[str] = Field(default_factory=list)
+
+
+class ImportStatusResponse(BaseModel):
+    """Response containing status of all imports."""
+
+    taxonomy: ImportStatus
+    occurrences: ImportStatus
+    plots: ImportStatus
+    shapes: ImportStatus
 
 
 class ImportValidationRequest(BaseModel):
@@ -156,15 +182,39 @@ async def execute_import(
     # Generate job ID
     job_id = str(uuid.uuid4())
 
-    # Save uploaded file temporarily
-    temp_dir = Path(tempfile.gettempdir()) / "niamoto_imports"
-    temp_dir.mkdir(exist_ok=True)
+    # Get the project imports directory
+    project_dir = Path(Config.get_niamoto_home())
+    imports_dir = project_dir / "imports"
+    imports_dir.mkdir(exist_ok=True)
 
-    file_path = temp_dir / f"{job_id}_{file.filename}"
+    # Save uploaded file to imports directory
+    file_path = imports_dir / file.filename
     content = await file.read()
 
     with open(file_path, "wb") as f:
         f.write(content)
+
+    # Also keep a temp copy for the job
+    temp_dir = Path(tempfile.gettempdir()) / "niamoto_imports"
+    temp_dir.mkdir(exist_ok=True)
+    temp_file_path = temp_dir / f"{job_id}_{file.filename}"
+
+    with open(temp_file_path, "wb") as f:
+        f.write(content)
+
+    # Update import.yml configuration
+    import_config_path = project_dir / "config" / "import.yml"
+    try:
+        update_import_config(
+            import_config_path,
+            import_type,
+            file.filename,
+            field_mappings_dict,
+            advanced_options_dict,
+        )
+    except Exception:
+        # Log error but don't fail the import
+        pass  # Log error but don't fail the import
 
     # Create job record
     job = {
@@ -195,6 +245,7 @@ async def execute_import(
         str(file_path),
         field_mappings_dict,
         advanced_options_dict,
+        str(temp_file_path),  # Pass temp file path for cleanup
     )
 
     return ImportJobResponse(
@@ -206,7 +257,7 @@ async def execute_import(
 
 
 @router.get("/jobs/{job_id}")
-async def get_import_status(job_id: str) -> Dict[str, Any]:
+async def get_job_status(job_id: str) -> Dict[str, Any]:
     """Get the status of an import job."""
 
     if job_id not in import_jobs:
@@ -237,17 +288,140 @@ async def list_import_jobs(
     return {"total": total, "limit": limit, "offset": offset, "jobs": jobs}
 
 
+@router.get("/required-fields/{import_type}")
+async def get_required_fields_api(import_type: str) -> Dict[str, Any]:
+    """Get required fields for a specific import type dynamically from Niamoto."""
+
+    valid_types = ["taxonomy", "plots", "occurrences", "shapes"]
+    if import_type not in valid_types:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid import type: {import_type}"
+        )
+
+    return get_required_fields_for_import_type(import_type)
+
+
+@router.get("/required-fields")
+async def get_all_required_fields() -> Dict[str, Any]:
+    """Get required fields for all import types."""
+    return get_all_import_types_info()
+
+
+@router.get("/status", response_model=ImportStatusResponse)
+async def get_import_status() -> ImportStatusResponse:
+    """Check which imports have been completed and their dependencies."""
+
+    try:
+        # Get database configuration
+        config = Config()
+        db = Database(config.database_path)
+
+        # Check each table's existence and row count
+        tables_info = {}
+
+        # Define table names and their dependencies
+        table_config = {
+            "taxon_ref": {"name": "taxonomy", "dependencies": []},
+            "occurrences": {"name": "occurrences", "dependencies": ["taxon_ref"]},
+            "plot_ref": {"name": "plots", "dependencies": []},
+            "shape_ref": {"name": "shapes", "dependencies": []},
+        }
+
+        for table_name, config_info in table_config.items():
+            try:
+                # First check if table exists using sqlite_master
+                table_check = db.execute_sql(
+                    f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'",
+                    fetch=True,
+                )
+
+                if table_check:
+                    # Table exists, get row count
+                    result = db.execute_sql(
+                        f"SELECT COUNT(*) FROM {table_name}", fetch=True
+                    )
+                    tables_info[config_info["name"]] = {
+                        "exists": True,
+                        "row_count": result[0] if result else 0,
+                    }
+                else:
+                    # Table doesn't exist
+                    tables_info[config_info["name"]] = {"exists": False, "row_count": 0}
+            except Exception:
+                # Fallback in case of any other error
+                tables_info[config_info["name"]] = {"exists": False, "row_count": 0}
+
+        # Build response with dependency checking
+        response = ImportStatusResponse(
+            taxonomy=ImportStatus(
+                import_type="taxonomy",
+                is_imported=tables_info["taxonomy"]["exists"]
+                and tables_info["taxonomy"]["row_count"] > 0,
+                row_count=tables_info["taxonomy"]["row_count"],
+                dependencies_met=True,
+                missing_dependencies=[],
+            ),
+            occurrences=ImportStatus(
+                import_type="occurrences",
+                is_imported=tables_info["occurrences"]["exists"]
+                and tables_info["occurrences"]["row_count"] > 0,
+                row_count=tables_info["occurrences"]["row_count"],
+                dependencies_met=tables_info["taxonomy"]["exists"]
+                and tables_info["taxonomy"]["row_count"] > 0,
+                missing_dependencies=[]
+                if (
+                    tables_info["taxonomy"]["exists"]
+                    and tables_info["taxonomy"]["row_count"] > 0
+                )
+                else ["taxonomy"],
+            ),
+            plots=ImportStatus(
+                import_type="plots",
+                is_imported=tables_info["plots"]["exists"]
+                and tables_info["plots"]["row_count"] > 0,
+                row_count=tables_info["plots"]["row_count"],
+                dependencies_met=True,  # Plots can be imported independently
+                missing_dependencies=[],
+            ),
+            shapes=ImportStatus(
+                import_type="shapes",
+                is_imported=tables_info["shapes"]["exists"]
+                and tables_info["shapes"]["row_count"] > 0,
+                row_count=tables_info["shapes"]["row_count"],
+                dependencies_met=True,  # Shapes are independent
+                missing_dependencies=[],
+            ),
+        )
+
+        return response
+
+    except Exception:
+        # Return empty status on error
+        return ImportStatusResponse(
+            taxonomy=ImportStatus(import_type="taxonomy", is_imported=False),
+            occurrences=ImportStatus(
+                import_type="occurrences",
+                is_imported=False,
+                dependencies_met=False,
+                missing_dependencies=["taxonomy"],
+            ),
+            plots=ImportStatus(import_type="plots", is_imported=False),
+            shapes=ImportStatus(import_type="shapes", is_imported=False),
+        )
+
+
 def get_required_fields(import_type: str) -> List[str]:
-    """Get required fields for each import type."""
+    """Get required fields for each import type dynamically."""
 
-    required_fields = {
-        "taxonomy": ["taxon_id", "full_name"],
-        "plots": ["identifier", "locality"],
-        "occurrences": ["taxon_id"],
-        "shapes": ["name"],
-    }
+    # Use the dynamic field extraction
+    field_info = get_required_fields_for_import_type(import_type)
+    required_fields = []
 
-    return required_fields.get(import_type, [])
+    for field in field_info.get("fields", []):
+        if field.get("required", False):
+            required_fields.append(field["key"])
+
+    return required_fields
 
 
 def validate_taxonomy_options(
@@ -255,16 +429,37 @@ def validate_taxonomy_options(
 ):
     """Validate taxonomy-specific options."""
 
+    # If no options or empty options, that's OK - we'll use defaults
     if not options:
         return
 
-    if options.get("useApiEnrichment"):
-        api_provider = options.get("apiProvider")
-        if api_provider not in ["gbif", "powo", "none"]:
-            errors.append(f"Invalid API provider: {api_provider}")
+    # Validate ranks only if they are provided
+    ranks = options.get("ranks", [])
+    if ranks and len(ranks) < 2:
+        errors.append(
+            "At least 2 taxonomic ranks must be specified when ranks are provided"
+        )
 
-        rate_limit = options.get("rateLimit", 1)
-        if rate_limit > 5:
+    # Validate API enrichment if present
+    api_config = options.get("apiEnrichment", {})
+    if api_config.get("enabled"):
+        # Check required fields
+        if not api_config.get("api_url"):
+            errors.append("API URL is required when API enrichment is enabled")
+
+        if not api_config.get("query_field"):
+            errors.append("Query field is required for API enrichment")
+
+        # Validate auth method
+        auth_method = api_config.get("auth_method", "none")
+        if auth_method == "api_key":
+            auth_params = api_config.get("auth_params", {})
+            if not auth_params.get("key"):
+                errors.append("API key is required for API key authentication")
+
+        # Check rate limit
+        rate_limit = api_config.get("rate_limit", 2.0)
+        if rate_limit > 10:
             warnings.append("High API rate limit may cause rate limiting from provider")
 
 
@@ -276,10 +471,29 @@ def validate_plots_options(
     if not options:
         return
 
-    if options.get("importHierarchy"):
-        delimiter = options.get("hierarchyDelimiter")
-        if not delimiter:
-            errors.append("Hierarchy delimiter is required when importing hierarchy")
+    # Validate hierarchy configuration
+    hierarchy = options.get("hierarchy", {})
+    if hierarchy.get("enabled"):
+        levels = hierarchy.get("levels", [])
+        if not levels:
+            errors.append("At least one hierarchy level must be specified")
+        elif len(levels) < 2:
+            warnings.append(
+                "Hierarchy typically requires at least 2 levels (e.g., plot and locality)"
+            )
+
+    # Validate linking fields
+    link_field = options.get("linkField")
+    occurrence_link_field = options.get("occurrenceLinkField")
+
+    if link_field and not occurrence_link_field:
+        warnings.append(
+            "Consider specifying occurrence_link_field for automatic occurrence linking"
+        )
+    elif occurrence_link_field and not link_field:
+        warnings.append(
+            "link_field should be specified when using occurrence_link_field"
+        )
 
 
 def validate_occurrences_options(
@@ -317,11 +531,12 @@ async def process_import(
     file_path: str,
     field_mappings: Dict[str, str],
     advanced_options: Optional[Dict[str, Any]],
+    temp_file_path: Optional[str] = None,
 ):
-    """Process import in background (placeholder implementation)."""
-
+    """Process import in background."""
+    from niamoto.common.config import Config
+    from niamoto.core.services.importer import ImporterService
     import asyncio
-    import random
 
     job = import_jobs[job_id]
 
@@ -330,36 +545,122 @@ async def process_import(
         job["status"] = "running"
         job["started_at"] = datetime.utcnow().isoformat()
 
-        # Simulate processing with progress updates
-        total_records = random.randint(100, 1000)
-        job["total_records"] = total_records
+        # Get config and create importer
+        config = Config()
+        importer = ImporterService(config.database_path)
 
-        for i in range(0, total_records, 10):
-            # Simulate processing delay
-            await asyncio.sleep(0.1)
+        # Process based on import type
+        if import_type == "taxonomy":
+            # Extract ranks from advanced options
+            if advanced_options:
+                ranks = advanced_options.get(
+                    "ranks", ["family", "genus", "species", "infra"]
+                )
+                api_config = advanced_options.get("apiEnrichment")
+            else:
+                ranks = ["family", "genus", "species", "infra"]
+                api_config = None
 
-            # Update progress
-            job["processed_records"] = min(i + 10, total_records)
-            job["progress"] = int((job["processed_records"] / total_records) * 100)
+            # Use import_from_occurrences method
+            result = await asyncio.to_thread(
+                importer.import_taxonomy_from_occurrences,
+                file_path,
+                tuple(ranks),
+                field_mappings,  # Column mapping for taxonomy fields
+                api_config if api_config and api_config.get("enabled") else None,
+            )
 
-            # Simulate occasional warnings
-            if random.random() < 0.1:
-                job["warnings"].append(f"Warning at record {i}: Sample warning message")
+            # Parse result for record count
+            import re
+
+            match = re.search(r"(\d+) taxons", result)
+            if match:
+                job["processed_records"] = int(match.group(1))
+                job["total_records"] = int(match.group(1))
+
+        elif import_type == "occurrences":
+            # Handle occurrences import
+            result = await asyncio.to_thread(
+                importer.import_occurrences,
+                file_path,
+                field_mappings.get("taxon_id", "taxon_id"),
+                field_mappings.get("location", "location"),
+            )
+
+        elif import_type == "plots":
+            # Handle plots import
+            # Convert GUI hierarchy config to Niamoto format
+            hierarchy_config = None
+            if advanced_options:
+                gui_hierarchy = advanced_options.get("hierarchy", {})
+                if gui_hierarchy.get("enabled") and gui_hierarchy.get("levels"):
+                    hierarchy_config = {
+                        "enabled": True,
+                        "levels": gui_hierarchy["levels"],
+                        "aggregate_geometry": gui_hierarchy.get(
+                            "aggregate_geometry", True
+                        ),
+                    }
+
+            result = await asyncio.to_thread(
+                importer.import_plots,
+                file_path,
+                field_mappings.get("identifier", "id"),
+                field_mappings.get("location", "location"),
+                field_mappings.get("locality", "locality"),
+                advanced_options.get("linkField") if advanced_options else None,
+                advanced_options.get("occurrenceLinkField")
+                if advanced_options
+                else None,
+                hierarchy_config,
+            )
+
+        elif import_type == "shapes":
+            # Handle shapes import
+            shape_config = {
+                "type": advanced_options.get("type", "default")
+                if advanced_options
+                else "default",
+                "path": file_path,
+                "name_field": field_mappings.get("name", "name"),
+            }
+
+            # Add id field if mapped
+            if "id" in field_mappings:
+                shape_config["id_field"] = field_mappings["id"]
+
+            # Add properties if specified
+            if advanced_options and advanced_options.get("properties"):
+                properties = advanced_options["properties"]
+                # Ensure properties is a list
+                if isinstance(properties, str):
+                    # If it's a comma-separated string, split it
+                    properties = [p.strip() for p in properties.split(",") if p.strip()]
+                elif not isinstance(properties, list):
+                    properties = []
+                shape_config["properties"] = properties
+
+            shapes_config = [shape_config]
+            result = await asyncio.to_thread(importer.import_shapes, shapes_config)
 
         # Mark as completed
         job["status"] = "completed"
         job["completed_at"] = datetime.utcnow().isoformat()
         job["progress"] = 100
+        job["result"] = result
 
     except Exception as e:
         # Mark as failed
         job["status"] = "failed"
         job["completed_at"] = datetime.utcnow().isoformat()
         job["errors"].append(str(e))
+        job["progress"] = 0
 
     finally:
-        # Clean up temporary file
-        try:
-            Path(file_path).unlink()
-        except OSError:
-            pass
+        # Clean up temporary file only (not the file in imports directory)
+        if temp_file_path:
+            try:
+                Path(temp_file_path).unlink()
+                print(f"Cleaned up temporary file: {temp_file_path}")
+            except OSError:
+                pass

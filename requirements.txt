@@ -8,6 +8,7 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.9.0
     # via
+    #   httpx
     #   starlette
     #   watchfiles
 attrs==25.1.0
@@ -20,6 +21,8 @@ blinker==1.9.0
 certifi==2025.1.31
     # via
     #   fiona
+    #   httpcore
+    #   httpx
     #   pyogrio
     #   pyproj
     #   rasterio
@@ -54,12 +57,19 @@ geoalchemy2==0.17.0
 geopandas==1.0.1
     # via niamoto (pyproject.toml)
 h11==0.16.0
-    # via uvicorn
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
 httptools==0.6.4
     # via uvicorn
+httpx==0.28.1
+    # via niamoto (pyproject.toml)
 idna==3.10
     # via
     #   anyio
+    #   httpx
     #   requests
 itsdangerous==2.2.0
     # via flask

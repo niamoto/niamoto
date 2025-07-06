@@ -133,6 +133,9 @@ dependencies = [
     # python-multipart - Required for file uploads in FastAPI
     # Documentation: https://github.com/andrew-d/python-multipart
     "python-multipart>=0.0.6",
+    # httpx - HTTP client library for making API requests
+    # Documentation: https://www.python-httpx.org/
+    "httpx>=0.25.0",
 ]
 
 [project.urls]

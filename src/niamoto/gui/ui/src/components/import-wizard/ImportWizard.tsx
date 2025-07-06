@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronLeft } from 'lucide-react'
+import { ChevronRight, ChevronLeft, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { FileSelection } from './FileSelection'
 import { ColumnMapper } from './ColumnMapper'
 import { AdvancedOptions } from './AdvancedOptions'
 import { ReviewImport } from './ReviewImport'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { useImportStatus } from '@/hooks/useImportStatus'
 
 export type ImportType = 'taxonomy' | 'plots' | 'occurrences' | 'shapes'
 
@@ -19,6 +21,8 @@ export interface ImportConfig {
 
 interface ImportWizardProps {
   onComplete: (config: ImportConfig) => void
+  onCancel?: () => void
+  initialType?: ImportType
 }
 
 const steps = [
@@ -29,11 +33,25 @@ const steps = [
   { id: 'review', title: 'Review & Import', description: 'Preview and execute import' },
 ]
 
-export function ImportWizard({ onComplete }: ImportWizardProps) {
-  const [currentStep, setCurrentStep] = useState(0)
+export function ImportWizard({ onComplete, onCancel, initialType }: ImportWizardProps) {
+  const [currentStep, setCurrentStep] = useState(initialType ? 1 : 0) // Skip source selection if type provided
   const [config, setConfig] = useState<ImportConfig>({
-    importType: 'taxonomy'
+    importType: initialType || 'taxonomy'
   })
+  const { status } = useImportStatus()
+
+  // Check if prerequisites are met for the current import type
+  const checkPrerequisites = () => {
+    if (!status || !config.importType) return { met: true, missing: [] }
+
+    const typeStatus = status[config.importType]
+    return {
+      met: typeStatus.dependencies_met,
+      missing: typeStatus.missing_dependencies
+    }
+  }
+
+  const prerequisites = checkPrerequisites()
 
   const canProceed = () => {
     switch (steps[currentStep].id) {
@@ -117,6 +135,16 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
 
       {/* Step Content */}
       <div className="flex-1 overflow-auto p-6">
+        {!prerequisites.met && currentStep > 0 && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Missing Dependencies</AlertTitle>
+            <AlertDescription>
+              Before importing {config.importType}, you must first import: {prerequisites.missing.join(', ')}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {steps[currentStep].id === 'source' && (
           <SourceSelection
             selectedType={config.importType}
@@ -155,17 +183,27 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       {/* Navigation */}
       <div className="border-t p-6">
         <div className="flex justify-between">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 0}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 0 || (initialType && currentStep === 1)}
+            >
+              <ChevronLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            {onCancel && (
+              <Button
+                variant="ghost"
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
           <Button
             onClick={handleNext}
-            disabled={!canProceed()}
+            disabled={!canProceed() || !prerequisites.met}
           >
             {currentStep === steps.length - 1 ? 'Import' : 'Next'}
             {currentStep < steps.length - 1 && <ChevronRight className="ml-2 h-4 w-4" />}
@@ -186,8 +224,8 @@ function SourceSelection({ selectedType, onSelect }: SourceSelectionProps) {
     {
       type: 'taxonomy' as ImportType,
       title: 'Taxonomy',
-      description: 'Import taxonomic reference data for species classification',
-      details: 'CSV file with hierarchical taxonomy (family, genus, species)',
+      description: 'Extract taxonomic reference data from occurrences',
+      details: 'Uses occurrence file to build complete taxonomy hierarchy',
     },
     {
       type: 'plots' as ImportType,
