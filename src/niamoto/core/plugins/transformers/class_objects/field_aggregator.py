@@ -16,7 +16,6 @@ class FieldConfig(BaseModel):
     """Configuration for a field"""
 
     class_object: Union[str, List[str]]  # Can be string or list for ranges
-    source: str  # Source of the data
     target: str
     units: str = ""
     format: Optional[str] = None  # "range" for min/max fields
@@ -31,13 +30,11 @@ class ClassObjectFieldAggregatorConfig(PluginConfig):
             "fields": [
                 {
                     "class_object": "land_area_ha",
-                    "source": "shape_stats",
                     "target": "land_area_ha",
                     "units": "ha",
                 },
                 {
                     "class_object": ["rainfall_min", "rainfall_max"],
-                    "source": "shape_stats",
                     "target": "rainfall",
                     "units": "mm/an",
                     "format": "range",
@@ -55,6 +52,14 @@ class ClassObjectFieldAggregator(TransformerPlugin):
 
     def _get_field_value(self, field: FieldConfig, data: pd.DataFrame) -> Any:
         """Get field value from data"""
+        # Handle empty data (e.g., for hierarchical nodes like countries)
+        if data.empty:
+            # Return None values for empty data instead of raising error
+            if field.format == "range":
+                return {"min": None, "max": None}
+            else:
+                return {"value": None}
+
         # For range fields (min/max)
         if field.format == "range":
             if not isinstance(field.class_object, list) or len(field.class_object) != 2:
@@ -68,22 +73,9 @@ class ClassObjectFieldAggregator(TransformerPlugin):
                 min_data = data[data["class_object"] == field.class_object[0]]
                 max_data = data[data["class_object"] == field.class_object[1]]
 
-                if min_data.empty:
-                    raise DataTransformError(
-                        f"Field '{field.class_object[0]}' not found in data",
-                        details={
-                            "field": field.class_object[0],
-                            "available_fields": data["class_object"].unique().tolist(),
-                        },
-                    )
-                if max_data.empty:
-                    raise DataTransformError(
-                        f"Field '{field.class_object[1]}' not found in data",
-                        details={
-                            "field": field.class_object[1],
-                            "available_fields": data["class_object"].unique().tolist(),
-                        },
-                    )
+                if min_data.empty or max_data.empty:
+                    # Return None values for missing range fields
+                    return {"min": None, "max": None}
 
                 min_value = float(min_data["class_value"].iloc[0])
                 max_value = float(max_data["class_value"].iloc[0])
@@ -109,13 +101,9 @@ class ClassObjectFieldAggregator(TransformerPlugin):
             try:
                 field_data = data[data["class_object"] == field.class_object]
                 if field_data.empty:
-                    raise DataTransformError(
-                        f"Field '{field.class_object}' not found in data",
-                        details={
-                            "field": field.class_object,
-                            "available_fields": data["class_object"].unique().tolist(),
-                        },
-                    )
+                    # Return None instead of error for missing fields
+                    # This is normal for hierarchical nodes
+                    return {"value": None}
                 value = float(field_data["class_value"].iloc[0])
                 return {"value": value}
             except IndexError:
@@ -139,17 +127,13 @@ class ClassObjectFieldAggregator(TransformerPlugin):
                 "At least one field must be specified", details={"config": config}
             )
 
-        # Validate each field configuration
-        for field in fields:
-            if "source" not in field:
-                raise DataTransformError(
-                    "source must be specified for each field",
-                    details={"field": field},
-                )
+        # Field validation is now handled by Pydantic model
 
         return validated_config
 
-    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+    def transform(
+        self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Transform shape statistics data into field aggregations.
 
@@ -158,10 +142,10 @@ class ClassObjectFieldAggregator(TransformerPlugin):
             config: Configuration dictionary with:
                 - params.fields: List of field configurations with:
                     - class_object: Field name or list of fields for ranges
-                    - source: Source of the data
                     - target: Name for output
                     - units: Optional units for output
                     - format: Optional format for output (range)
+                - params.source: Optional source name (handled by TransformerService)
 
         Returns:
             Dictionary with aggregated fields
@@ -191,8 +175,18 @@ class ClassObjectFieldAggregator(TransformerPlugin):
             for field_config in params["fields"]:
                 field = FieldConfig(**field_config)
 
+                # Use the data passed by TransformerService
+                # (already selected based on params.source)
+                if isinstance(data, dict):
+                    # This should not happen with the new logic
+                    # TransformerService should pass a single DataFrame
+                    source_data = list(data.values())[0] if data else pd.DataFrame()
+                else:
+                    # Expected case: single DataFrame
+                    source_data = data
+
                 # Get field data
-                result = self._get_field_value(field, data)
+                result = self._get_field_value(field, source_data)
 
                 # Add units if specified
                 if field.units:

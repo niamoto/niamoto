@@ -120,6 +120,32 @@ Transformer plugins perform calculations, transformations, and analyses on loade
         stats: ["count", "unique"]
 ```
 
+### Working with Multiple Data Sources
+
+Transformer plugins can access multiple data sources when configured in the transformation group. This is particularly useful when combining real-time calculations with pre-calculated statistics.
+
+#### Source Selection in Plugins
+
+When multiple sources are available, plugins receive data based on the `params.source` configuration:
+
+```yaml
+# Plugin configuration with explicit source selection
+stats_info:
+  plugin: class_object_field_aggregator
+  params:
+    source: plot_stats  # Specifies which source to use
+    fields:
+      - class_object: nbe_stem
+        target: stem_count
+```
+
+#### Plugin Compatibility
+
+Most transformer plugins work seamlessly with multiple sources without modification:
+- Plugins that expect a single DataFrame will receive the specified source
+- The TransformerService handles source selection automatically
+- Backward compatibility is maintained for existing configurations
+
 ### Built-in Transformer Plugins
 
 | Plugin Name | Purpose | Parameters |

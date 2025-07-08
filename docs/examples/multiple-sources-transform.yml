@@ -1,0 +1,133 @@
+##################################################################
+# Example: Multiple Data Sources in Transformations
+##################################################################
+# This example demonstrates how to use multiple data sources
+# within a single transformation group to combine real-time
+# calculations with pre-calculated statistics.
+
+- group_by: plot
+  # Primary source: used for real-time calculations from occurrence data
+  source:
+    data: occurrences
+    grouping: plot_ref
+    relation:
+      plugin: nested_set
+      key: plot_ref_id
+      fields:
+        parent: parent_id
+        left: lft
+        right: rght
+
+  # Additional sources: pre-calculated statistics or reference data
+  additional_sources:
+    # Pre-calculated plot statistics from CSV
+    plot_stats:
+      data: plot_stats      # References plot_stats in import.yml
+      grouping: plot_ref
+      relation:
+        plugin: stats_loader
+        key: id_loc         # Links to plot via id_loc field
+
+  widgets_data:
+    # Basic plot information from database tables
+    general_info:
+      plugin: field_aggregator
+      params:
+        fields:
+          - source: plot_ref  # Database table (not a data source)
+            field: locality
+            target: name
+          - source: plot_ref
+            field: extra_data.country
+            target: country
+          - source: plot_ref
+            field: extra_data.entity_type
+            target: type
+
+    # Real-time calculations from occurrence data (primary source)
+    top_species:
+      plugin: top_ranking
+      params:
+        # No source specified - uses primary source automatically
+        field: taxon_ref_id
+        mode: hierarchical
+        hierarchy_table: taxon_ref
+        hierarchy_columns:
+          id: id
+          name: full_name
+          rank: rank_name
+          left: lft
+          right: rght
+        target_ranks: ["tax_sp_level", "tax_infra_level"]
+        count: 10
+
+    # Pre-calculated statistics from additional source
+    plot_metrics:
+      plugin: class_object_field_aggregator
+      params:
+        source: plot_stats  # Explicitly uses the plot_stats source
+        fields:
+          # Number of stems (from multiple census dates)
+          - class_object: nbe_stem
+            target: stem_count
+            units: "stems"
+
+          # Determination rates at different taxonomic levels
+          - class_object: prop_det
+            target: determination_rate_total
+            units: "%"
+          - class_object: prop_det_genus
+            target: determination_rate_genus
+            units: "%"
+          - class_object: prop_det_fam
+            target: determination_rate_family
+            units: "%"
+
+          # Indeterminate specimen counts
+          - class_object: sum_indet
+            target: indeterminate_total
+            units: "specimens"
+          - class_object: sum_indet_genus
+            target: indeterminate_genus
+            units: "specimens"
+
+    # Time series data from pre-calculated source
+    census_history:
+      plugin: class_object_series_extractor
+      params:
+        source: plot_stats
+        class_object: census_date
+        size_field:
+          input: "class_name"    # Plot identifier
+          output: "plot_name"
+          numeric: false
+          sort: true
+        value_field:
+          input: "class_value"   # Census dates
+          output: "census_dates"
+          numeric: false
+
+    # Mixed approach: real-time phenology distribution
+    phenology_distribution:
+      plugin: categorical_distribution
+      params:
+        # Uses primary source (occurrences) - no source specified
+        field: taxa_level_phenology
+        categories: ["evergreen", "deciduous"]
+        labels: ["Evergreen", "Deciduous"]
+        include_percentages: true
+
+##################################################################
+# Benefits of Multiple Sources:
+#
+# 1. Performance: Pre-calculated statistics don't need recomputation
+# 2. Flexibility: Mix real-time and batch-processed data
+# 3. Data Integration: Combine data from different systems/formats
+# 4. Backward Compatibility: Existing configs work unchanged
+#
+# Notes:
+# - Primary source is mandatory for backward compatibility
+# - Additional sources are optional
+# - Widgets default to primary source if not specified
+# - Source names must match those defined in additional_sources
+##################################################################

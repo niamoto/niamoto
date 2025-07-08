@@ -60,6 +60,12 @@ This document serves as the main index to track the status and progress of the N
   - Available functions
   - Complex examples
 
+- ✅ **Multiple Data Sources** (`guides/configuration.md#multiple-data-sources`)
+  - Configuration syntax for multiple sources
+  - Source selection in widgets
+  - Backward compatibility
+  - Example configurations
+
 #### Plugin Development
 - ✅ **Plugin Development Guide** (`guides/custom_plugin.md`)
   - Plugin types
@@ -212,6 +218,7 @@ This document serves as the main index to track the status and progress of the N
   - Minimal configuration
   - Complete configuration
   - Specific use cases
+  - ✅ Multiple sources transform (`examples/multiple-sources-transform.yml`)
 
 ### 5.2 Resources
 - ❌ **Glossary** (`resources/glossary.md`)
