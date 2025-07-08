@@ -378,6 +378,115 @@ source:
 | `relation.key`    | Key field          | Yes      | `taxon_ref_id` |
 | `relation.fields` | Additional fields  | No       | See above      |
 
+### Multiple Data Sources
+
+Niamoto supports using multiple data sources within a single transformation group. This allows you to combine calculated data (from occurrences) with pre-calculated statistics or reference data.
+
+#### Configuration Syntax
+
+```yaml
+- group_by: plot
+  source:  # Primary source (required for backward compatibility)
+    data: occurrences
+    grouping: plot_ref
+    relation:
+      plugin: nested_set
+      key: plot_ref_id
+      fields:
+        parent: parent_id
+        left: lft
+        right: rght
+
+  # Additional sources (optional)
+  additional_sources:
+    plot_stats:  # Source name
+      data: plot_stats  # Data table from import.yml
+      grouping: plot_ref
+      relation:
+        plugin: stats_loader
+        key: id_loc
+```
+
+#### How It Works
+
+1. **Primary Source**: The `source` configuration remains mandatory and defines the main data source
+2. **Additional Sources**: The `additional_sources` section allows you to define extra data sources
+3. **Source Selection**: Widgets can specify which source to use via the `params.source` parameter
+4. **Backward Compatibility**: Existing configurations continue to work without modification
+
+#### Using Multiple Sources in Widgets
+
+```yaml
+widgets_data:
+  # Using the primary source (default behavior)
+  general_info:
+    plugin: field_aggregator
+    params:
+      fields:
+        - source: plot_ref  # References database table
+          field: locality
+          target: name
+
+  # Using an additional source
+  stats_summary:
+    plugin: class_object_field_aggregator
+    params:
+      source: plot_stats  # Specifies which additional source to use
+      fields:
+        - class_object: nbe_stem
+          target: stem_count
+          units: "stems"
+```
+
+#### Source Selection Logic
+
+The TransformerService automatically handles source selection:
+
+1. If a widget specifies `params.source` and that source exists → uses that specific source
+2. If only one source is available → uses it directly
+3. If multiple sources exist but no specific source is requested → uses the primary source
+
+This ensures complete backward compatibility while enabling advanced multi-source scenarios.
+
+#### Example: Combining Calculated and Pre-calculated Data
+
+```yaml
+- group_by: plot
+  source:
+    data: occurrences  # Real-time calculations from occurrence data
+    grouping: plot_ref
+    relation:
+      plugin: nested_set
+      key: plot_ref_id
+
+  additional_sources:
+    plot_stats:  # Pre-calculated statistics from CSV
+      data: plot_stats
+      grouping: plot_ref
+      relation:
+        plugin: stats_loader
+        key: id_loc
+
+  widgets_data:
+    # Real-time calculation from occurrences
+    species_count:
+      plugin: top_ranking
+      params:
+        field: taxon_ref_id
+        mode: hierarchical
+        count: 10
+
+    # Pre-calculated metrics from CSV
+    determination_rates:
+      plugin: class_object_field_aggregator
+      params:
+        source: plot_stats
+        fields:
+          - class_object: prop_det
+            target: determination_rate
+            units: "%"
+```
+
 ### Transformation Plugins
 
 Each transformation is defined by a plugin and its parameters:
