@@ -257,8 +257,10 @@ class TestTransformerService:
 
         result = transformer_service._get_group_data(group_config, "test.csv", 1)
 
-        assert isinstance(result, pd.DataFrame)
-        assert result.equals(mock_df)
+        assert isinstance(result, dict)
+        assert "main" in result
+        assert isinstance(result["main"], pd.DataFrame)
+        assert result["main"].equals(mock_df)
         mock_read_csv.assert_called_once_with("test.csv")
 
     @patch("niamoto.core.services.transformer.PluginRegistry")
@@ -284,8 +286,10 @@ class TestTransformerService:
 
         result = transformer_service._get_group_data(group_config, None, 1)
 
-        assert isinstance(result, pd.DataFrame)
-        assert result.equals(mock_df)
+        assert isinstance(result, dict)
+        assert "main" in result
+        assert isinstance(result["main"], pd.DataFrame)
+        assert result["main"].equals(mock_df)
         from niamoto.core.plugins.base import PluginType
 
         mock_registry.get_plugin.assert_called_once_with(
