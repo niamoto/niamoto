@@ -50,7 +50,7 @@ def test_single_field(mock_db, sample_data):
             "fields": [
                 {
                     "class_object": "land_area_ha",
-                    "source": "shape_stats",
+                    # source field removed from FieldConfig
                     "target": "land_area",
                     "units": "ha",
                 }
@@ -76,7 +76,7 @@ def test_range_field(mock_db, sample_data):
             "fields": [
                 {
                     "class_object": ["rainfall_min", "rainfall_max"],
-                    "source": "shape_stats",
+                    # source field removed from FieldConfig
                     "target": "rainfall",
                     "units": "mm/an",
                     "format": "range",
@@ -92,7 +92,7 @@ def test_range_field(mock_db, sample_data):
 
 
 def test_missing_field(mock_db, sample_data):
-    """Test error when field is missing"""
+    """Test behavior when field is missing - should return None"""
     with patch(
         "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
     ) as mock_config:
@@ -104,7 +104,6 @@ def test_missing_field(mock_db, sample_data):
             "fields": [
                 {
                     "class_object": "missing_field",
-                    "source": "shape_stats",
                     "target": "missing",
                     "units": "",
                 }
@@ -112,9 +111,9 @@ def test_missing_field(mock_db, sample_data):
         },
     }
 
-    with pytest.raises(DataTransformError) as exc_info:
-        plugin.transform(sample_data, config)
-    assert "not found in data" in str(exc_info.value)
+    # Should not raise error, but return None value
+    result = plugin.transform(sample_data, config)
+    assert result["missing"]["value"] is None
 
 
 def test_invalid_range_field(mock_db, sample_data):
@@ -130,7 +129,7 @@ def test_invalid_range_field(mock_db, sample_data):
             "fields": [
                 {
                     "class_object": ["rainfall_min"],  # Should be a list of 2 fields
-                    "source": "shape_stats",
+                    # source field removed from FieldConfig
                     "target": "rainfall",
                     "units": "mm/an",
                     "format": "range",
@@ -157,13 +156,13 @@ def test_multiple_fields(mock_db, sample_data):
             "fields": [
                 {
                     "class_object": "land_area_ha",
-                    "source": "shape_stats",
+                    # source field removed from FieldConfig
                     "target": "land_area",
                     "units": "ha",
                 },
                 {
                     "class_object": ["rainfall_min", "rainfall_max"],
-                    "source": "shape_stats",
+                    # source field removed from FieldConfig
                     "target": "rainfall",
                     "units": "mm/an",
                     "format": "range",
@@ -181,7 +180,7 @@ def test_multiple_fields(mock_db, sample_data):
 
 
 def test_missing_source(mock_db, sample_data):
-    """Test error when source is missing"""
+    """Test that source is no longer required in field config"""
     with patch(
         "niamoto.core.plugins.transformers.aggregation.field_aggregator.Config"
     ) as mock_config:
@@ -195,11 +194,13 @@ def test_missing_source(mock_db, sample_data):
                     "class_object": "land_area_ha",
                     "target": "land_area",
                     "units": "ha",
+                    # source is no longer required
                 }
             ]
         },
     }
 
-    with pytest.raises(DataTransformError) as exc_info:
-        plugin.transform(sample_data, config)
-    assert "source must be specified for each field" in str(exc_info.value)
+    # Should work without error since source is no longer required
+    result = plugin.transform(sample_data, config)
+    assert result["land_area"]["value"] == 941252.41
+    assert result["land_area"]["units"] == "ha"

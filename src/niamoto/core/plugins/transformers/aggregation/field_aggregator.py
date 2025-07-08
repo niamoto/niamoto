@@ -2,7 +2,7 @@
 Plugin for aggregating fields from different sources.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Union
 from pydantic import BaseModel, field_validator, Field
 import os
 
@@ -167,7 +167,9 @@ class FieldAggregator(TransformerPlugin):
         except Exception as e:
             raise ValueError(f"Error getting field {field} from {source}") from e
 
-    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+    def transform(
+        self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Transform data according to configuration."""
         self.validate_config(config)
         validated_config = self.config_model(**config)
@@ -177,19 +179,42 @@ class FieldAggregator(TransformerPlugin):
             # Validate field config using pydantic
             field = FieldConfig.model_validate(field_config)
 
+            # Determine if we should use DataFrame or DB/import source
+            source_data = None
+
+            # Check if data is a dict of sources
+            if isinstance(data, dict):
+                # Multiple sources available
+                if field.source in data:
+                    source_data = data[field.source]
+                elif field.source == "occurrences" and "main" in data:
+                    # For backward compatibility, 'occurrences' may refer to main source
+                    source_data = data["main"]
+                # If not found in data dict, source_data remains None (will use DB/import)
+            elif isinstance(data, pd.DataFrame):
+                # Single DataFrame passed - only use it if source is "occurrences" or empty
+                if field.source == "occurrences" or not field.source:
+                    source_data = data
+                # Otherwise source_data remains None (will use DB/import)
+
             if field.transformation == "count":
-                value = len(data)
+                if source_data is not None:
+                    value = len(source_data)
+                else:
+                    value = 0
             elif field.transformation == "sum":
-                value = data[field.field].sum()
+                if source_data is not None:
+                    value = source_data[field.field].sum()
+                else:
+                    value = 0
             else:  # direct
                 try:
-                    if field.source == "occurrences":
-                        # Handle dot notation for DataFrame columns if needed in the future?
-                        # For now, assume direct field access.
-                        # Potential future enhancement: use json_normalize or similar if column contains dicts.
-                        if not data.empty:
-                            value = data[field.field].iloc[0]
+                    if source_data is not None:
+                        # We have DataFrame source data
+                        if not source_data.empty:
+                            value = source_data[field.field].iloc[0]
                         else:
+                            # Empty DataFrame - return None
                             value = None
                     else:  # DB, import, etc.
                         # Check if it's a JSON field access (contains dot notation)
