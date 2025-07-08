@@ -100,23 +100,85 @@ const PRESET_APIS: PresetAPI[] = [
         gbif_status: 'status',
         gbif_confidence: 'confidence',
         canonical_name: 'canonicalName',
-        authorship: 'authorship'
+        authorship: 'authorship',
+        family: 'family',
+        genus: 'genus',
+        species: 'species'
       }
     }
   },
   {
-    name: 'POWO (Kew)',
+    name: 'WFO (World Flora Online)',
     config: {
-      api_url: 'https://www.plantsoftheworldonline.org/api/2/search',
+      api_url: 'https://list.worldfloraonline.org/matching_rest',
       auth_method: 'none',
       query_params: {
-        limit: '1'
+        limit: '1',
+        matching_includes: 'higher_taxa'
       },
       response_mapping: {
-        powo_id: 'results[0].fqId',
-        powo_name: 'results[0].name',
-        powo_authors: 'results[0].author',
-        powo_family: 'results[0].family'
+        wfo_id: 'id',
+        wfo_name: 'full_name_plain',
+        wfo_status: 'taxonomic_status',
+        wfo_family: 'family',
+        wfo_genus: 'genus',
+        wfo_authors: 'authors'
+      }
+    }
+  },
+  {
+    name: 'IPNI',
+    config: {
+      api_url: 'https://www.ipni.org/api/1/search',
+      auth_method: 'none',
+      query_params: {
+        perPage: '1'
+      },
+      response_mapping: {
+        ipni_id: 'id',
+        ipni_authors: 'authors',
+        ipni_publication: 'publishedIn',
+        ipni_year: 'publicationYear',
+        ipni_family: 'family'
+      }
+    }
+  },
+  {
+    name: 'iNaturalist',
+    config: {
+      api_url: 'https://api.inaturalist.org/v1/taxa',
+      auth_method: 'none',
+      query_params: {
+        q: '',  // Will be filled with search term
+        is_active: 'true',
+        taxon_id: '47126',  // Plantae
+        per_page: '1'
+      },
+      response_mapping: {
+        inat_id: 'results[0].id',
+        inat_name: 'results[0].name',
+        inat_rank: 'results[0].rank',
+        inat_conservation_status: 'results[0].conservation_status.status',
+        inat_photo: 'results[0].default_photo.medium_url',
+        inat_observations_count: 'results[0].observations_count'
+      }
+    }
+  },
+  {
+    name: 'Tropicos',
+    config: {
+      api_url: 'https://services.tropicos.org/Name/Search',
+      auth_method: 'api_key',
+      query_params: {
+        format: 'json',
+        type: 'exact'
+      },
+      response_mapping: {
+        tropicos_id: '[0].NameId',
+        tropicos_name: '[0].ScientificName',
+        tropicos_author: '[0].ScientificNameWithAuthors',
+        tropicos_family: '[0].Family',
+        tropicos_nomenclatural_status: '[0].NomenclaturalStatus'
       }
     }
   }

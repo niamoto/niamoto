@@ -63,7 +63,7 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
     if (isValid()) {
       onMappingComplete(mappings)
     }
-  }, [mappings, onMappingComplete])
+  }, [mappings])
 
   const unmappedColumns = sourceColumns.filter(
     (col: string) => !Object.values(mappings).includes(col)
