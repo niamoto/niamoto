@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.config import Config
 from niamoto.core.services.importer import ImporterService
+from niamoto.common.progress import set_progress_mode
 from ..utils.console import (
     print_error,
     print_info,
@@ -58,6 +59,9 @@ def import_taxonomy(
     Options:
     --with-api: Enable API enrichment (default is from config).
     """
+    # Enable progress bars for CLI
+    set_progress_mode(use_progress_bar=True)
+
     # Get configuration
     config = Config()
 
@@ -159,6 +163,9 @@ def import_plots(
         FileError: If file is not found or invalid
         DataImportError: If import operation fails
     """
+    # Enable progress bars for CLI
+    set_progress_mode(use_progress_bar=True)
+
     config = Config()
     sources = config.imports
 
@@ -235,6 +242,9 @@ def import_occurrences(
         FileError: If file is not found or invalid
         DataImportError: If import operation fails
     """
+    # Enable progress bars for CLI
+    set_progress_mode(use_progress_bar=True)
+
     config = Config()
     sources = config.imports
 
@@ -295,6 +305,9 @@ def import_shapes() -> None:
         FileError: If any shape file is not found or invalid
         DataImportError: If import operation fails
     """
+    # Enable progress bars for CLI
+    set_progress_mode(use_progress_bar=True)
+
     config = Config()
     sources = config.imports
 
@@ -329,6 +342,9 @@ def import_all() -> None:
         DataImportError: If any import operation fails
     """
     from datetime import datetime
+
+    # Enable progress bars for CLI
+    set_progress_mode(use_progress_bar=True)
 
     start_time = datetime.now()
 

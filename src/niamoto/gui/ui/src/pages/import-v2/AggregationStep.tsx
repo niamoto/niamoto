@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { FileUpload } from '@/components/import-wizard/FileUpload'
 import { ColumnMapper } from '@/components/import-wizard/ColumnMapper'
+import { PlotHierarchyConfig } from './components/PlotHierarchyConfig'
 import { analyzeFile } from '@/lib/api/import'
 import {
   MapPin,
@@ -88,7 +89,7 @@ export function AggregationStep() {
       <div>
         <h2 className="text-2xl font-bold">Agrégations spatiales</h2>
         <p className="text-muted-foreground mt-2">
-          Optionnel : Ajoutez des regroupements spatiaux pour organiser et analyser vos données
+          Ajoutez des regroupements spatiaux pour organiser et analyser vos données
         </p>
       </div>
 
@@ -188,12 +189,27 @@ export function AggregationStep() {
               />
             ) : (
               <div className="space-y-4">
-                <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <AlertDescription>
-                    Fichier chargé : {plots.file.name}
-                  </AlertDescription>
-                </Alert>
+                <div className="flex items-center justify-between">
+                  <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20 flex-1">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <AlertDescription>
+                      Fichier chargé : {plots.file.name}
+                    </AlertDescription>
+                  </Alert>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-2"
+                    onClick={() => updatePlots({
+                      file: null,
+                      fileAnalysis: null,
+                      fieldMappings: {},
+                      hierarchy: undefined
+                    })}
+                  >
+                    Changer de fichier
+                  </Button>
+                </div>
 
                 {plots.fileAnalysis && (
                   <ColumnMapper
@@ -252,6 +268,15 @@ export function AggregationStep() {
         </Card>
       )}
 
+      {/* Configuration de la hiérarchie des plots */}
+      {(aggregationType === 'plots' || aggregationType === 'both') && plots?.file && plots.fileAnalysis && (
+        <PlotHierarchyConfig
+          hierarchy={plots.hierarchy || { enabled: false, levels: [], aggregate_geometry: false }}
+          availableColumns={plots.fileAnalysis.columns || []}
+          onChange={(hierarchy) => updatePlots({ hierarchy })}
+        />
+      )}
+
       {/* Shapes configuration */}
       {(aggregationType === 'shapes' || aggregationType === 'both') && (
         <div className="space-y-4">
@@ -303,12 +328,27 @@ export function AggregationStep() {
                   />
                 ) : (
                   <div className="space-y-4">
-                    <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <AlertDescription>
-                        Fichier chargé : {shape.file.name}
-                      </AlertDescription>
-                    </Alert>
+                    <div className="flex items-center justify-between">
+                      <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20 flex-1">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <AlertDescription>
+                          Fichier chargé : {shape.file.name}
+                        </AlertDescription>
+                      </Alert>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-2"
+                        onClick={() => updateShapes(index, {
+                          file: null,
+                          fileAnalysis: null,
+                          fieldMappings: {},
+                          type: ''
+                        })}
+                      >
+                        Changer de fichier
+                      </Button>
+                    </div>
 
                     <div>
                       <Label htmlFor={`shape-type-${index}`} className="text-sm">

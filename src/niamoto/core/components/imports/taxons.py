@@ -7,12 +7,6 @@ from pathlib import Path
 from typing import Tuple, Optional, Any, Dict, List
 
 import pandas as pd
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-)
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -27,6 +21,7 @@ from niamoto.common.exceptions import (
 )
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.common.config import Config
+from niamoto.common.progress import get_progress_tracker
 
 
 class TaxonomyImporter:
@@ -203,10 +198,7 @@ class TaxonomyImporter:
         rank_names = list(ranks) if ranks else []
 
         try:
-            # Capture start time for completion message
-            import time
-
-            start_time = time.time()
+            # Import taxonomy data
 
             with self.db.session() as session:
                 # First pass: insert all taxa into database to get auto-generated IDs
@@ -217,17 +209,10 @@ class TaxonomyImporter:
                         "[green]Enriching taxonomy data[/green]"
                     )
 
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("{task.description}"),
-                    BarColumn(),
-                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                    refresh_per_second=10,
-                ) as progress:
-                    task_insert = progress.add_task(
-                        current_enrichment_message, total=len(df)
-                    )
-
+                progress_tracker = get_progress_tracker()
+                with progress_tracker.track(
+                    current_enrichment_message, total=len(df)
+                ) as update:
                     # Process in hierarchical order based on ranks from configuration
                     # If ranks are not provided, use those present in the DataFrame
                     if not rank_names:
@@ -280,20 +265,11 @@ class TaxonomyImporter:
                                                 current_enrichment_message = (
                                                     last_message
                                                 )
-                                                progress.update(
-                                                    task_insert,
-                                                    description=current_enrichment_message,
-                                                )
                                 except Exception as e:
                                     error_msg = f"API enrichment failed for {row_dict.get('full_name')}: {str(e)}"
-                                    # Update the task description with the error message
-                                    # Preserve the bold red formatting for the error
+                                    # Log the error
                                     current_enrichment_message = (
                                         f"[bold red]{error_msg}[/]"
-                                    )
-                                    progress.update(
-                                        task_insert,
-                                        description=current_enrichment_message,
                                     )
 
                             # Convert taxon_id to integer if it's a number
@@ -362,12 +338,7 @@ class TaxonomyImporter:
                             imported_count += 1
 
                             # Update progress with real-time duration
-                            current_duration = time.time() - start_time
-                            if api_enricher:
-                                desc = f"[green]Enriching taxonomy data • {current_duration:.1f}s[/green]"
-                            else:
-                                desc = f"[green]Importing taxonomy • {current_duration:.1f}s[/green]"
-                            progress.update(task_insert, advance=1, description=desc)
+                            update(1)
 
                             # Periodic commit
                             if imported_count % 10 == 0:
@@ -376,12 +347,7 @@ class TaxonomyImporter:
                     # Final commit for all records
                     session.commit()
 
-                    # Update task description to show completion
-                    duration = time.time() - start_time
-                    progress.update(
-                        task_insert,
-                        description=f"[green][✓] taxonomy import completed • {duration:.1f}s[/green]",
-                    )
+                    # Task completed
 
                 # Second pass: update nested set values
                 self._update_nested_set_values(session)

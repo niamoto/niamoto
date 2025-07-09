@@ -130,6 +130,15 @@ export function SummaryStep() {
                   <span className="text-xs font-mono">{plots.linkField} ↔ {plots.occurrenceLinkField}</span>
                 </div>
               )}
+              {plots.hierarchy?.enabled && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Hiérarchie</span>
+                  <span className="text-xs">
+                    {plots.hierarchy.levels.length} niveaux
+                    {plots.hierarchy.aggregate_geometry && ' (géométries agrégées)'}
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

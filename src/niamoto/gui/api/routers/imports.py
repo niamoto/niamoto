@@ -540,7 +540,11 @@ async def process_import(
     """Process import in background."""
     from niamoto.common.config import Config
     from niamoto.core.services.importer import ImporterService
+    from niamoto.common.progress import set_progress_mode
     import asyncio
+
+    # Disable progress bars in API mode to avoid Rich display conflicts
+    set_progress_mode(use_progress_bar=False)
 
     job = import_jobs[job_id]
 

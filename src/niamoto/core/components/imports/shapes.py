@@ -9,12 +9,6 @@ import zipfile
 
 import fiona
 from pyproj import Transformer, CRS
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-)
 from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
 from shapely.geometry.base import BaseGeometry
 from sqlalchemy.exc import SQLAlchemyError
@@ -29,6 +23,7 @@ from niamoto.common.exceptions import (
     DatabaseError,
     ConfigurationError,
 )
+from niamoto.common.progress import get_progress_tracker
 
 
 class ShapeImporter:
@@ -89,23 +84,12 @@ class ShapeImporter:
                     # En cas d'erreur, on ignore pour le comptage
                     pass
 
-            # Capture start time
-            import time
+            # Import shapes
 
-            start_time = time.time()
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                refresh_per_second=10,
-            ) as progress:
-                task = progress.add_task(
-                    description="[green]Importing shapes...",
-                    total=total_features,
-                )
-
+            progress_tracker = get_progress_tracker()
+            with progress_tracker.track(
+                "Importing shapes...", total=total_features
+            ) as update:
                 for shape_info in shapes_config:
                     file_path = Path(shape_info["path"])
                     # Vérifier explicitement que le fichier existe
@@ -215,13 +199,8 @@ class ShapeImporter:
                                     import_stats["errors"].append(str(e))
                                     import_stats["skipped"] += 1
 
-                                # Update progress with real-time duration (always, regardless of success/skip/error)
-                                current_duration = time.time() - start_time
-                                progress.update(
-                                    task,
-                                    advance=1,
-                                    description=f"[green]Importing shapes • {current_duration:.1f}s[/green]",
-                                )
+                                # Update progress
+                                update(1)
                     except Exception as e:
                         # Pour toute erreur lors de l'ouverture ou du traitement du fichier,
                         # lever une DataValidationError indiquant un format invalide.
@@ -234,12 +213,7 @@ class ShapeImporter:
                         if temp_dir_ctx:
                             temp_dir_ctx.__exit__(None, None, None)
 
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] shapes import completed • {duration:.1f}s[/green]",
-                )
+                # Task completed
 
                 try:
                     self.db.session.commit()

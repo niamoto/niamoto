@@ -53,7 +53,7 @@ function ImportV2Content() {
       {/* Header with old import link */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Import de données - Nouvelle interface</h1>
+          <h1 className="text-3xl font-bold">Import de données</h1>
           <p className="text-muted-foreground mt-2">
             Interface guidée pour importer vos données écologiques
           </p>

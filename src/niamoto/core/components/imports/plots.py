@@ -21,12 +21,7 @@ from niamoto.common.exceptions import (
     DataValidationError,
     DatabaseError,
 )
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-)
+from niamoto.common.progress import get_progress_tracker
 
 
 class PlotImporter:
@@ -447,40 +442,20 @@ class PlotImporter:
             DatabaseError: If database operations fail
         """
         imported_count = 0
-        # Capture start time
-        import time
-
-        start_time = time.time()
-
+        # Import plots
+        progress_tracker = get_progress_tracker()
         with self.db.session() as session:
-            progress = Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            )
-            with progress:
-                task = progress.add_task(
-                    "[green]Importing plots...", total=len(plots_data)
-                )
+            with progress_tracker.track(
+                "Importing plots...", total=len(plots_data)
+            ) as update:
                 for _, row in plots_data.iterrows():
                     # Use locality_field if provided
                     if self._import_plot(session, row, identifier, locality_field):
                         imported_count += 1
-                    # Update progress with real-time duration
-                    current_duration = time.time() - start_time
-                    progress.update(
-                        task,
-                        advance=1,
-                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
-                    )
+                    # Update progress
+                    update(1)
 
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] plots import completed • {duration:.1f}s[/green]",
-                )
+                # Task completed
 
                 try:
                     session.commit()
@@ -744,22 +719,11 @@ class PlotImporter:
 
             total_linked = 0
 
-            # Capture start time
-            import time
-
-            start_time = time.time()
-
             # Process matches in batches
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            ) as progress:
-                task = progress.add_task(
-                    "[green]Linking occurrences to plots...", total=len(match_list)
-                )
-
+            progress_tracker = get_progress_tracker()
+            with progress_tracker.track(
+                "Linking occurrences to plots...", total=len(match_list)
+            ) as update:
                 batch_size = 100
                 for i in range(0, len(match_list), batch_size):
                     batch = match_list[i : i + batch_size]
@@ -780,28 +744,13 @@ class PlotImporter:
                             )
                             total_linked += affected_rows
 
-                            # Update progress with real-time duration
-                            current_duration = time.time() - start_time
-                            progress.update(
-                                task,
-                                advance=1,
-                                description=f"[green]Linking occurrences to plots • {current_duration:.1f}s[/green]",
-                            )
+                            # Update progress
+                            update(1)
                         except Exception:
-                            # Update progress with real-time duration even on error
-                            current_duration = time.time() - start_time
-                            progress.update(
-                                task,
-                                advance=1,
-                                description=f"[green]Linking occurrences to plots • {current_duration:.1f}s[/green]",
-                            )
+                            # Update progress even on error
+                            update(1)
 
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] occurrence linking completed • {duration:.1f}s[/green]",
-                )
+                # Task completed
 
             return total_linked
 
@@ -1095,10 +1044,7 @@ class PlotImporter:
         country_ids = {}  # country_name -> id
         locality_ids = {}  # (locality_name, country_name) -> id
 
-        # Capture start time
-        import time
-
-        start_time = time.time()
+        # Import hierarchical data
 
         with self.db.session() as session:
             # First pass: create higher level entities (countries and localities)
@@ -1111,20 +1057,14 @@ class PlotImporter:
                 else plots_data[[levels[1]]].drop_duplicates()
             )
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            ) as progress:
-                # Calculate total operations for unified progress bar
-                total_operations = (
-                    len(unique_countries) + len(unique_localities) + len(plots_data)
-                )
-                task = progress.add_task(
-                    "[green]Importing plots...", total=total_operations
-                )
-
+            progress_tracker = get_progress_tracker()
+            # Calculate total operations for unified progress bar
+            total_operations = (
+                len(unique_countries) + len(unique_localities) + len(plots_data)
+            )
+            with progress_tracker.track(
+                "Importing plots...", total=total_operations
+            ) as update:
                 # Import countries
                 if len(unique_countries) > 0:
                     for country in unique_countries:
@@ -1138,13 +1078,8 @@ class PlotImporter:
                             reserved_ids=reserved_ids,
                         )
                         country_ids[country] = country_id
-                        # Update progress with real-time duration
-                        current_duration = time.time() - start_time
-                        progress.update(
-                            task,
-                            advance=1,
-                            description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
-                        )
+                        # Update progress
+                        update(1)
 
                 # Import localities
                 for _, loc_row in unique_localities.iterrows():
@@ -1164,13 +1099,8 @@ class PlotImporter:
                         reserved_ids=reserved_ids,
                     )
                     locality_ids[(locality_name, country_name)] = locality_id
-                    # Update progress with real-time duration
-                    current_duration = time.time() - start_time
-                    progress.update(
-                        task,
-                        advance=1,
-                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
-                    )
+                    # Update progress
+                    update(1)
 
                 # Import plots
                 for _, row in plots_data.iterrows():
@@ -1185,20 +1115,10 @@ class PlotImporter:
                         session, row, identifier, locality_field, parent_id
                     ):
                         imported_count += 1
-                    # Update progress with real-time duration
-                    current_duration = time.time() - start_time
-                    progress.update(
-                        task,
-                        advance=1,
-                        description=f"[green]Importing plots • {current_duration:.1f}s[/green]",
-                    )
+                    # Update progress
+                    update(1)
 
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] plots import completed • {duration:.1f}s[/green]",
-                )
+                # Task completed
 
                 try:
                     session.commit()
