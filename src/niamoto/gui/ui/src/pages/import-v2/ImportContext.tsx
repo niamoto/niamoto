@@ -34,6 +34,11 @@ export interface PlotImportData {
   fieldMappings: Record<string, string>
   linkField?: string
   occurrenceLinkField?: string
+  hierarchy?: {
+    enabled: boolean
+    levels: string[]
+    aggregate_geometry: boolean
+  }
 }
 
 export interface ShapeImportData {

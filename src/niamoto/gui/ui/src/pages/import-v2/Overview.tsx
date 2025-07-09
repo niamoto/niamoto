@@ -72,7 +72,6 @@ export function Overview() {
               </div>
               <div className="font-medium">Agrégations</div>
               <div className="text-sm text-muted-foreground">Plots & Shapes</div>
-              <Badge variant="outline" className="text-xs">Optionnel</Badge>
             </div>
           </div>
 
@@ -113,7 +112,7 @@ export function Overview() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              Options d'agrégation (facultatif)
+              Options d'agrégation
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -168,7 +167,7 @@ export function Overview() {
                 </div>
               </div>
               <div className="flex-1">
-                <h4 className="font-medium">Agrégations spatiales (optionnel)</h4>
+                <h4 className="font-medium">Agrégations spatiales</h4>
                 <p className="text-sm text-muted-foreground">
                   Ajoutez des plots ou des shapes pour regrouper vos données
                   et générer des statistiques par zone.

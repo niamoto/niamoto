@@ -6,13 +6,6 @@ from pathlib import Path
 from typing import List, Tuple
 import pandas as pd
 import sqlalchemy
-from rich.console import Console
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-)
 from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.common.database import Database
@@ -24,6 +17,7 @@ from niamoto.common.exceptions import (
     DatabaseError,
     CSVError,
 )
+from niamoto.common.progress import get_progress_tracker
 
 
 class OccurrenceImporter:
@@ -120,34 +114,31 @@ class OccurrenceImporter:
             create_table_sql = f"CREATE TABLE occurrences ({columns_sql});"
             self.db.execute_sql(create_table_sql)
 
-            # Import the data with a spinner
-            with Console().status(
-                "[italic green]Importing occurrences...", spinner="dots"
-            ):
-                column_names = ", ".join(
-                    [
-                        col_name
-                        for col_name, col_type in column_schema
-                        if col_name != taxon_id_column
-                    ]
-                )
-                if not id_column_exists:
-                    import_csv_sql = f"""
-                        INSERT INTO occurrences (id, {column_names}, taxon_ref_id)
-                        SELECT row_number() OVER () AS id, {column_names}, taxon_ref.id AS taxon_ref_id
-                        FROM read_csv_auto('{csvfile}') AS csv
-                        LEFT JOIN taxon_ref ON csv.{taxon_id_column} = taxon_ref.id
-                        ON CONFLICT (id) DO NOTHING;
-                        """
-                else:
-                    import_csv_sql = f"""
-                        INSERT INTO occurrences ({column_names}, taxon_ref_id)
-                        SELECT {column_names}, taxon_ref.id AS taxon_ref_id
-                        FROM read_csv_auto('{csvfile}') AS csv
-                        LEFT JOIN taxon_ref ON csv.{taxon_id_column} = taxon_ref.id
-                        ON CONFLICT (id) DO NOTHING;
-                        """
-                self.db.execute_sql(import_csv_sql)
+            # Import the data
+            column_names = ", ".join(
+                [
+                    col_name
+                    for col_name, col_type in column_schema
+                    if col_name != taxon_id_column
+                ]
+            )
+            if not id_column_exists:
+                import_csv_sql = f"""
+                    INSERT INTO occurrences (id, {column_names}, taxon_ref_id)
+                    SELECT row_number() OVER () AS id, {column_names}, taxon_ref.id AS taxon_ref_id
+                    FROM read_csv_auto('{csvfile}') AS csv
+                    LEFT JOIN taxon_ref ON csv.{taxon_id_column} = taxon_ref.id
+                    ON CONFLICT (id) DO NOTHING;
+                    """
+            else:
+                import_csv_sql = f"""
+                    INSERT INTO occurrences ({column_names}, taxon_ref_id)
+                    SELECT {column_names}, taxon_ref.id AS taxon_ref_id
+                    FROM read_csv_auto('{csvfile}') AS csv
+                    LEFT JOIN taxon_ref ON csv.{taxon_id_column} = taxon_ref.id
+                    ON CONFLICT (id) DO NOTHING;
+                    """
+            self.db.execute_sql(import_csv_sql)
 
             # Count the number of imported occurrences
             count_sql = "SELECT COUNT(*) FROM occurrences;"
@@ -319,42 +310,21 @@ class OccurrenceImporter:
             num_chunks = len(df) // chunk_size + (len(df) % chunk_size > 0)
 
             # Capture start time
-            import time
 
-            start_time = time.time()
-
-            progress = Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            )
-
-            with progress:
-                task = progress.add_task(
-                    "[green]Importing occurrences...", total=num_chunks
-                )
-
+            progress_tracker = get_progress_tracker()
+            with progress_tracker.track(
+                "Importing occurrences...", total=num_chunks
+            ) as update:
                 for i in range(0, len(df), chunk_size):
                     chunk = df.iloc[i : i + chunk_size]
                     with self.db.engine.connect() as conn:
                         chunk.to_sql(
                             "occurrences", conn, if_exists="append", index=False
                         )
-                    # Update progress with real-time duration
-                    current_duration = time.time() - start_time
-                    progress.update(
-                        task,
-                        advance=1,
-                        description=f"[green]Importing occurrences • {current_duration:.1f}s[/green]",
-                    )
+                    # Update progress
+                    update(1)
 
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] occurrences import completed • {duration:.1f}s[/green]",
-                )
+                # Task completed
 
             # Get final count before validation
             result = self.db.execute_sql(
@@ -484,21 +454,11 @@ class OccurrenceImporter:
         # Only show progress if there are occurrences to process
         if not occurrences_df.empty:
             # Capture start time
-            import time
 
-            start_time = time.time()
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            ) as progress:
-                task = progress.add_task(
-                    "[green]Linking occurrences to taxonomy...",
-                    total=len(occurrences_df),
-                )
-
+            progress_tracker = get_progress_tracker()
+            with progress_tracker.track(
+                "Linking occurrences to taxonomy...", total=len(occurrences_df)
+            ) as update:
                 for _, row in occurrences_df.iterrows():
                     occ_id = row["id"]
                     external_taxon_id = (
@@ -523,20 +483,8 @@ class OccurrenceImporter:
                         )
                         linked_count += 1
 
-                    # Update progress with real-time duration
-                    current_duration = time.time() - start_time
-                    progress.update(
-                        task,
-                        advance=1,
-                        description=f"[green]Linking occurrences to taxonomy • {current_duration:.1f}s[/green]",
-                    )
-
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] taxonomy linking completed • {duration:.1f}s[/green]",
-                )
+                    # Update progress
+                    update(1)
 
         # Apply updates in batches
         self._apply_batch_updates(updates)
@@ -564,30 +512,21 @@ class OccurrenceImporter:
         # Only show progress if there are multiple batches or significant updates
         if len(updates) > batch_size:
             # Capture start time
-            import time
 
-            start_time = time.time()
-
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            ) as progress:
-                task = progress.add_task(
-                    "[green]Saving taxonomy links...", total=num_batches
-                )
-
+            progress_tracker = get_progress_tracker()
+            with progress_tracker.track(
+                "Saving taxonomy links...", total=num_batches
+            ) as update:
                 for i in range(0, len(updates), batch_size):
                     batch = updates[i : i + batch_size]
 
                     # Build CASE statement
                     case_stmt = " ".join(
-                        f"WHEN {update['occ_id']} THEN {update['taxon_id']}"
-                        for update in batch
+                        f"WHEN {update_item['occ_id']} THEN {update_item['taxon_id']}"
+                        for update_item in batch
                     )
 
-                    ids = ", ".join(str(update["occ_id"]) for update in batch)
+                    ids = ", ".join(str(update_item["occ_id"]) for update_item in batch)
 
                     query = f"""
                     UPDATE occurrences
@@ -596,21 +535,7 @@ class OccurrenceImporter:
                     """
 
                     self.db.execute_sql(query)
-
-                    # Update progress with real-time duration
-                    current_duration = time.time() - start_time
-                    progress.update(
-                        task,
-                        advance=1,
-                        description=f"[green]Saving taxonomy links • {current_duration:.1f}s[/green]",
-                    )
-
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] taxonomy links saved • {duration:.1f}s[/green]",
-                )
+                    update(1)
         else:
             # For smaller updates, process without progress bar
             for i in range(0, len(updates), batch_size):
