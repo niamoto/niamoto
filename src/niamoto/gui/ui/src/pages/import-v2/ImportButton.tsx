@@ -91,8 +91,8 @@ export function ImportButton() {
           file_name: plots.file.name,
           field_mappings: plots.fieldMappings,
           advanced_options: {
-            link_field: plots.linkField,
-            occurrence_link_field: plots.occurrenceLinkField,
+            linkField: plots.linkField,
+            occurrenceLinkField: plots.occurrenceLinkField,
             hierarchy: plots.hierarchy
           }
         }, plots.file)
