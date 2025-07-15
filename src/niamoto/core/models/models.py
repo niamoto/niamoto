@@ -77,6 +77,7 @@ class PlotRef(Base):
 
     Parameters:
         id (Integer): The primary key. :no-index:
+        plot_id (Integer): The external identifier of the plot. :noindex:
         locality (String): The locality of the plot. :noindex:
         geometry (String): The geometry of the plot. :noindex:
         lft (Integer): The left value for nested set model. :noindex:

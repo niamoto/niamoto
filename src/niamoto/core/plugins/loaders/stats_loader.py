@@ -54,7 +54,7 @@ class StatsLoader(LoaderPlugin):
         return self.config_model(**config)
 
     def _load_from_csv(
-        self, source_config: Dict[str, Any], group_id: int
+        self, source_config: Dict[str, Any], group_id: int, config: Dict[str, Any]
     ) -> pd.DataFrame:
         """Load data from a CSV file."""
         base_dir = os.path.dirname(self.config.config_dir)
@@ -80,9 +80,45 @@ class StatsLoader(LoaderPlugin):
         except (pd.errors.EmptyDataError, pd.errors.ParserError):
             data = pd.read_csv(csv_path, sep=";", decimal=".", encoding="utf-8")
 
-        # Filter by group_id
+        # Get the actual shape_id value from the reference table
+        key_field = config.get("key", "id")
+        if key_field != "id":
+            # Need to look up the actual value from the reference table
+            query = text(f"""
+                SELECT {key_field} FROM {config["grouping"]} WHERE id = :group_id
+            """)
+
+            with self.db.engine.connect() as conn:
+                result = conn.execute(query, {"group_id": group_id}).fetchone()
+                if not result:
+                    return pd.DataFrame()
+
+                actual_id = result[0]
+        else:
+            # If using 'id' directly, use group_id as is
+            actual_id = group_id
+
+        # Filter by the actual ID value
         id_field = source_config.get("identifier", "id")
-        return data[data[id_field] == group_id]
+
+        # Convert both to same type for comparison
+        # If actual_id is a string that represents a number, convert to int
+        if isinstance(actual_id, str) and actual_id.isdigit():
+            actual_id = int(actual_id)
+
+        # Ensure proper type matching
+        try:
+            # If the CSV column is numeric, convert actual_id to the same type
+            if pd.api.types.is_numeric_dtype(data[id_field]):
+                actual_id = pd.to_numeric(actual_id)
+            else:
+                # If CSV column is string, convert actual_id to string
+                actual_id = str(actual_id)
+        except (ValueError, TypeError):
+            pass
+
+        filtered_data = data[data[id_field] == actual_id]
+        return filtered_data
 
     def _load_from_database(
         self, config: Dict[str, Any], group_id: int
@@ -128,9 +164,8 @@ class StatsLoader(LoaderPlugin):
                     details={"source": source},
                 )
 
-            # Choose loading method based on source configuration
-            # If a path is specified, load from CSV file
-            if "path" in source_config:
+            # Choose loading method based on source type
+            if source_config.get("type") == "csv":
                 return self._load_from_csv(source_config, group_id)
             else:
                 # Otherwise, assume data is in database
