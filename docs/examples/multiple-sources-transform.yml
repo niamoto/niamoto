@@ -22,11 +22,11 @@
   additional_sources:
     # Pre-calculated plot statistics from CSV
     plot_stats:
-      data: plot_stats      # References plot_stats in import.yml
+      data: "imports/plot_stats.csv"  # Direct CSV path (no need for import.yml)
       grouping: plot_ref
       relation:
         plugin: stats_loader
-        key: id_loc         # Links to plot via id_loc field
+        key: id_loc         # CSV column containing plot identifier
 
   widgets_data:
     # Basic plot information from database tables

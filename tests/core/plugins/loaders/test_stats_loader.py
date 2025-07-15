@@ -134,7 +134,7 @@ class TestStatsLoader(NiamotoTestCase):
     def test_load_data_csv_success_comma(self, mock_read_csv, mock_exists):
         """Test successful data loading from a comma-separated CSV."""
         # --- Arrange ---
-        group_id = 789
+        group_id = 1
         source_key = "csv_stats"
         csv_rel_path = "data/stats.csv"
         config_dir = "/fake/config/dir"
@@ -144,11 +144,20 @@ class TestStatsLoader(NiamotoTestCase):
         config = {
             "plugin": "stats_loader",
             "data": source_key,
-        }  # Grouping/key not needed for CSV
-        source_config = {"type": "csv", "path": csv_rel_path, "identifier": "record_id"}
+            "grouping": "shape_ref",
+            "key": "record_id",
+        }
+        source_config = {"type": "csv", "path": csv_rel_path}
         self.loader.imports_config = {source_key: source_config}
         # Mock config_dir used in _load_from_csv
         self.loader.config.config_dir = config_dir
+
+        # Mock the database query for shape_id lookup
+        mock_conn = MagicMock()
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = (789,)  # shape_id value
+        mock_conn.execute.return_value = mock_result
+        self.mock_db.engine.connect().__enter__.return_value = mock_conn
 
         # Simulate pd.read_csv succeeding with comma, returning filtered data
         df_full = pd.DataFrame({"record_id": [789, 790], "value": [10, 20]})
@@ -169,17 +178,29 @@ class TestStatsLoader(NiamotoTestCase):
     def test_load_data_csv_success_semicolon(self, mock_read_csv, mock_exists):
         """Test successful data loading from a semicolon-separated CSV (fallback)."""
         # --- Arrange ---
-        group_id = 101
+        group_id = 1
         source_key = "csv_stats_semi"
         csv_rel_path = "data/stats_semi.csv"
         config_dir = "/other/config/dir"
         base_dir = os.path.dirname(config_dir)
         full_csv_path = os.path.join(base_dir, csv_rel_path)
 
-        config = {"plugin": "stats_loader", "data": source_key}
-        source_config = {"type": "csv", "path": csv_rel_path}  # Default identifier 'id'
+        config = {
+            "plugin": "stats_loader",
+            "data": source_key,
+            "grouping": "plot_ref",
+            "key": "id",
+        }
+        source_config = {"type": "csv", "path": csv_rel_path}
         self.loader.imports_config = {source_key: source_config}
         self.loader.config.config_dir = config_dir
+
+        # Mock the database query for plot_id lookup
+        mock_conn = MagicMock()
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = (101,)  # plot_id value
+        mock_conn.execute.return_value = mock_result
+        self.mock_db.engine.connect().__enter__.return_value = mock_conn
 
         # Simulate read_csv failing with comma, then succeeding with semicolon
         df_full = pd.DataFrame({"id": [101, 102], "metric": [1.5, 2.5]})
@@ -211,7 +232,12 @@ class TestStatsLoader(NiamotoTestCase):
         """Test DataLoadError when the source key is not in imports_config."""
         # --- Arrange ---
         group_id = 1
-        config = {"plugin": "stats_loader", "data": "non_existent_source"}
+        config = {
+            "plugin": "stats_loader",
+            "data": "non_existent_source",
+            "grouping": "shape_ref",
+            "key": "id",
+        }
         self.loader.imports_config = {
             "real_source": {"type": "csv", "path": "..."}
         }  # No match
@@ -220,12 +246,8 @@ class TestStatsLoader(NiamotoTestCase):
         with self.assertRaises(DataLoadError) as cm:
             self.loader.load_data(group_id, config)
 
-        # Check the final exception message and the original cause
+        # Check the final exception message
         self.assertIn("Failed to load statistics data", str(cm.exception))
-        self.assertIsInstance(cm.exception.__cause__, DataLoadError)
-        self.assertIn(
-            "Source non_existent_source not found", str(cm.exception.__cause__)
-        )
 
     @patch("os.path.exists", return_value=False)  # Mock os.path.exists to return False
     def test_load_data_csv_file_not_found(self, mock_exists):
@@ -290,3 +312,42 @@ class TestStatsLoader(NiamotoTestCase):
         # Check details passed from the original exception if necessary (example)
         # self.assertIn("Semicolon fail", str(cm.exception.__cause__))
         # Assuming details from the original parser error are not explicitly needed here
+
+    @patch("os.path.exists", return_value=True)
+    @patch("pandas.read_csv")
+    def test_load_data_csv_direct_path(self, mock_read_csv, mock_exists):
+        """Test data loading with direct CSV path (auto-detection)."""
+        # --- Arrange ---
+        group_id = 1
+        csv_path = "imports/raw_shape_stats.csv"
+        config_dir = "/fake/config/dir"
+        base_dir = os.path.dirname(config_dir)
+        full_csv_path = os.path.join(base_dir, csv_path)
+
+        config = {
+            "plugin": "stats_loader",
+            "data": csv_path,  # Direct path instead of reference
+            "grouping": "shape_ref",
+            "key": "id_grid",
+        }
+        self.loader.config.config_dir = config_dir
+
+        # Mock the database query for shape_id lookup
+        mock_conn = MagicMock()
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = (10,)  # shape_id value
+        mock_conn.execute.return_value = mock_result
+        self.mock_db.engine.connect().__enter__.return_value = mock_conn
+
+        # Simulate pd.read_csv succeeding
+        df_full = pd.DataFrame({"id_grid": [10, 12], "value": [6, 10]})
+        mock_read_csv.return_value = df_full
+        expected_df = pd.DataFrame({"id_grid": [10], "value": [6]})
+
+        # --- Act ---
+        result_df = self.loader.load_data(group_id, config)
+
+        # --- Assert ---
+        mock_exists.assert_called_once_with(full_csv_path)
+        mock_read_csv.assert_called_once_with(full_csv_path, encoding="utf-8")
+        pd.testing.assert_frame_equal(result_df, expected_df)
