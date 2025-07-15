@@ -394,13 +394,22 @@ class ShapeProcessor(TransformerPlugin):
             source = params.get("source", "shape_ref")
             field = params.get("field", "location")
 
-            query = f"SELECT {field} FROM {source} WHERE id = {data['id'].iloc[0]}"
+            # Get the group_id from config
+            group_id = config.get("group_id")
+            if not group_id:
+                # Fallback to data['id'] for backward compatibility
+                if "id" in data.columns and not data.empty:
+                    group_id = data["id"].iloc[0]
+                else:
+                    raise ValueError(
+                        "No group_id provided in config and no 'id' column in data"
+                    )
+
+            query = f"SELECT {field} FROM {source} WHERE id = {group_id}"
 
             result = self.db.execute_select(query)
             if not result:
-                raise ValueError(
-                    f"No data found in {source} for id {data['id'].iloc[0]}"
-                )
+                raise ValueError(f"No data found in {source} for id {group_id}")
 
             wkb_data = result.fetchone()[0]
 
