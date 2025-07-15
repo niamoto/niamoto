@@ -20,12 +20,17 @@
         - [Example with Hierarchical Navigation Widget](#example-with-hierarchical-navigation-widget)
         - [Best Practices](#best-practices)
     - [Occurrences Configuration](#occurrences-configuration)
-    - [Shape Statistics Configuration](#shape-statistics-configuration)
     - [Shapes Configuration](#shapes-configuration)
     - [Layers Configuration](#layers-configuration)
   - [transform.yml](#transformyml)
     - [Group Configuration](#group-configuration)
     - [Source Configuration](#source-configuration)
+    - [Multiple Data Sources](#multiple-data-sources)
+      - [Configuration Syntax](#configuration-syntax)
+      - [How It Works](#how-it-works)
+      - [Using Multiple Sources in Widgets](#using-multiple-sources-in-widgets)
+      - [Source Selection Logic](#source-selection-logic)
+      - [Example: Combining Calculated and Pre-calculated Data](#example-combining-calculated-and-pre-calculated-data)
     - [Transformation Plugins](#transformation-plugins)
     - [Plugin Reference](#plugin-reference)
       - [Example Configurations](#example-configurations)
@@ -271,21 +276,6 @@ occurrences:
 | `identifier`     | Field with taxon identifier | Yes      | `"id_taxonref"`             |
 | `location_field` | Field with geometry data    | Yes      | `"geo_pt"`                  |
 
-### Shape Statistics Configuration
-
-```yaml
-shape_stats:
-  type: csv
-  path: "imports/row_shape_stats.csv"
-  identifier: "id"
-```
-
-| Option       | Description                 | Required | Example                         |
-| ------------ | --------------------------- | -------- | ------------------------------- |
-| `type`       | Data source type            | Yes      | `csv`                           |
-| `path`       | Path to source file         | Yes      | `"imports/row_shape_stats.csv"` |
-| `identifier` | Field with shape identifier | Yes      | `"id"`                          |
-
 ### Shapes Configuration
 
 List of vector shapes to import.
@@ -400,11 +390,11 @@ Niamoto supports using multiple data sources within a single transformation grou
   # Additional sources (optional)
   additional_sources:
     plot_stats:  # Source name
-      data: plot_stats  # Data table from import.yml
+      data: plot_stats  # Can be a table name OR direct CSV path
       grouping: plot_ref
       relation:
         plugin: stats_loader
-        key: id_loc
+        key: id_loc  # Column name in the data source
 ```
 
 #### How It Works
@@ -461,11 +451,11 @@ This ensures complete backward compatibility while enabling advanced multi-sourc
 
   additional_sources:
     plot_stats:  # Pre-calculated statistics from CSV
-      data: plot_stats
+      data: "imports/plot_stats.csv"  # Direct CSV path
       grouping: plot_ref
       relation:
         plugin: stats_loader
-        key: id_loc
+        key: id_loc  # CSV column containing plot identifier
 
   widgets_data:
     # Real-time calculation from occurrences

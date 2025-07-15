@@ -308,17 +308,6 @@ occurrences:
 #     path: imports/layers/forest.shp
 #     description: Forest coverage
 
-# STATISTICS IMPORTS (Optional)
-# Import pre-calculated statistics
-# plot_stats:
-#   type: csv
-#   path: imports/plot_stats.csv
-#   identifier: plot_id                  # Column linking to plots
-#
-# shape_stats:
-#   type: csv
-#   path: imports/shape_stats.csv
-#   identifier: shape_id                 # Column linking to shapes
 """
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)

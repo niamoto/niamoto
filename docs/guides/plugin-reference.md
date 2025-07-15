@@ -52,6 +52,29 @@ plots:
 | `join_table` | Load data with joins | `left_key`, `right_key` |
 | `nested_set` | Load hierarchical data | `key`, `fields.left`, `fields.right` |
 | `spatial` | Load spatial data | `geometry_field`, `crs` |
+| `stats_loader` | Load statistics from CSV or database | `key` (column name in data source) |
+
+#### Stats Loader Plugin
+
+The `stats_loader` plugin loads pre-calculated statistics from CSV files or database tables. It automatically detects the source type based on the `data` parameter.
+
+**Configuration:**
+```yaml
+source:
+  data: "imports/raw_shape_stats.csv"  # Direct CSV path
+  # OR
+  # data: shape_stats  # Database table name
+  grouping: shape_ref
+  relation:
+    plugin: stats_loader
+    key: "id_grid"  # Column in CSV/table that matches shape_id
+```
+
+**Features:**
+- Auto-detects CSV files (by extension or path separators)
+- Automatically converts between string and numeric types for matching
+- Supports both comma and semicolon-separated CSV files
+- No need to define statistics sources in `import.yml`
 
 ### Example: Custom Loader Plugin
 

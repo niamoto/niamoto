@@ -80,26 +80,26 @@ class StatsLoader(LoaderPlugin):
         except (pd.errors.EmptyDataError, pd.errors.ParserError):
             data = pd.read_csv(csv_path, sep=";", decimal=".", encoding="utf-8")
 
-        # Get the actual shape_id value from the reference table
-        key_field = config.get("key", "id")
-        if key_field != "id":
-            # Need to look up the actual value from the reference table
-            query = text(f"""
-                SELECT {key_field} FROM {config["grouping"]} WHERE id = :group_id
-            """)
+        # Get the actual value from the reference table
+        # We always need to look up the shape_id (or equivalent) from the reference table
+        grouping_table = config.get("grouping", "")
+        group_name = grouping_table.replace("_ref", "")  # e.g., "shape_ref" -> "shape"
+        lookup_field = f"{group_name}_id"  # e.g., "shape_id"
 
-            with self.db.engine.connect() as conn:
-                result = conn.execute(query, {"group_id": group_id}).fetchone()
-                if not result:
-                    return pd.DataFrame()
+        query = text(f"""
+            SELECT {lookup_field} FROM {config["grouping"]} WHERE id = :group_id
+        """)
 
-                actual_id = result[0]
-        else:
-            # If using 'id' directly, use group_id as is
-            actual_id = group_id
+        with self.db.engine.connect() as conn:
+            result = conn.execute(query, {"group_id": group_id}).fetchone()
+            if not result:
+                return pd.DataFrame()
+
+            actual_id = result[0]
 
         # Filter by the actual ID value
-        id_field = source_config.get("identifier", "id")
+        # Use 'key' from config as the CSV column name
+        id_field = config.get("key", "id")
 
         # Convert both to same type for comparison
         # If actual_id is a string that represents a number, convert to int
@@ -141,9 +141,9 @@ class StatsLoader(LoaderPlugin):
         Args:
             group_id: ID of the group to load data for
             config: Configuration dictionary containing:
-                - data: Source key in imports.yml (e.g. "shape_stats")
+                - data: Path to CSV file, table name, or dict with type/path
                 - grouping: Table name for grouping
-                - key: ID field name for filtering
+                - key: ID field name in CSV/data source
 
         Returns:
             DataFrame containing the loaded data
@@ -154,14 +154,33 @@ class StatsLoader(LoaderPlugin):
         try:
             self.validate_config(config)
 
-            # Get source configuration from imports.yml
+            # Get source configuration
             source = config.get("data")
-            source_config = self.imports_config.get(source)
 
-            if not source_config:
+            # Determine source type and configuration
+            if isinstance(source, dict):
+                # Explicit configuration with type/path
+                source_config = source
+            elif isinstance(source, str):
+                # Auto-detect type based on string content
+                if source.endswith((".csv", ".CSV")):
+                    # It's a CSV file path
+                    source_config = {"type": "csv", "path": source}
+                elif "/" in source or "\\" in source:
+                    # Looks like a file path, assume CSV
+                    source_config = {"type": "csv", "path": source}
+                else:
+                    # Check if it's a reference to imports.yml
+                    imports_config = self.imports_config.get(source)
+                    if imports_config:
+                        source_config = imports_config
+                    else:
+                        # Assume it's a database table name
+                        source_config = {"type": "database", "table": source}
+            else:
                 raise DataLoadError(
-                    f"Source {source} not found in imports config",
-                    details={"source": source},
+                    "Invalid data source configuration",
+                    details={"source": source, "type": type(source).__name__},
                 )
 
             # Choose loading method based on source type
