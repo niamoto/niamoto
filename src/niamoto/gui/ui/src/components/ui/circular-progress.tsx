@@ -1,22 +1,33 @@
 import { cn } from '@/lib/utils'
+import { FacetedSpinner } from './faceted-spinner'
 
 interface CircularProgressProps {
-  value: number
+  value?: number
   size?: number
   strokeWidth?: number
   className?: string
   showValue?: boolean
   color?: string
+  indeterminate?: boolean
 }
 
 export function CircularProgress({
-  value,
+  value = 0,
   size = 40,
   strokeWidth = 3,
   className,
   showValue = true,
-  color = 'text-primary'
+  color = 'text-primary',
+  indeterminate = false
 }: CircularProgressProps) {
+  // If indeterminate, show the faceted spinner
+  if (indeterminate) {
+    return <FacetedSpinner
+      size='sm'
+      color="#82a33d"
+      className={className}
+    />
+  }
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
   const offset = circumference - (value / 100) * circumference
