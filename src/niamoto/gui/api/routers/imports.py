@@ -676,8 +676,25 @@ async def process_import(
         # Mark as failed
         job["status"] = "failed"
         job["completed_at"] = datetime.utcnow().isoformat()
-        job["errors"].append(str(e))
+
+        # Capture detailed error information
+        from niamoto.common.exceptions import DataValidationError
+
+        if isinstance(e, DataValidationError):
+            error_info = {
+                "message": str(e),
+                "details": e.details if hasattr(e, "details") else [],
+            }
+            job["errors"].append(json.dumps(error_info))
+        else:
+            job["errors"].append(str(e))
         job["progress"] = 0
+
+        # Also log the error with details for debugging
+        import traceback
+
+        print(f"Import failed: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
 
     finally:
         # Clean up temporary file only (not the file in imports directory)

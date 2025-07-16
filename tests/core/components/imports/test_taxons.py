@@ -363,7 +363,14 @@ class TestTaxonomyImporter:
         taxonomy_importer.db.session = Mock(return_value=context_manager)
 
         with patch.object(taxonomy_importer, "_update_nested_set_values"):
-            with patch("niamoto.core.components.imports.taxons.Progress"):
+            with patch("niamoto.common.progress.get_progress_tracker") as mock_tracker:
+                mock_progress = Mock()
+                mock_context = Mock()
+                mock_context.__enter__ = Mock(return_value=Mock())
+                mock_context.__exit__ = Mock(return_value=None)
+                mock_progress.track = Mock(return_value=mock_context)
+                mock_tracker.return_value = mock_progress
+
                 result = taxonomy_importer._process_taxonomy_with_relations(
                     sample_taxonomy_df, ("family", "genus", "species")
                 )
@@ -411,7 +418,16 @@ class TestTaxonomyImporter:
             return_value=mock_enricher_class,
         ):
             with patch.object(taxonomy_importer, "_update_nested_set_values"):
-                with patch("niamoto.core.components.imports.taxons.Progress"):
+                with patch(
+                    "niamoto.common.progress.get_progress_tracker"
+                ) as mock_tracker:
+                    mock_progress = Mock()
+                    mock_context = Mock()
+                    mock_context.__enter__ = Mock(return_value=Mock())
+                    mock_context.__exit__ = Mock(return_value=None)
+                    mock_progress.track = Mock(return_value=mock_context)
+                    mock_tracker.return_value = mock_progress
+
                     with patch("builtins.print"):  # Suppress print statements
                         result = taxonomy_importer._process_taxonomy_with_relations(
                             sample_taxonomy_df, ("family", "genus"), api_config
