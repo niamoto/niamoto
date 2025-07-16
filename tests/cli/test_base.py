@@ -96,7 +96,7 @@ class TestRichCLI:
         """Create a RichCLI instance for testing"""
         cli = RichCLI()
 
-        @cli.command()
+        @cli.command(name="test-command")
         def test_command():
             """Test command description"""
             pass

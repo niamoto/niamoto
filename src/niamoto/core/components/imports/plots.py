@@ -528,15 +528,24 @@ class PlotImporter:
             # Fallback to using the identifier if locality field doesn't exist
             locality = row[identifier]
 
-        if locality is None or pd.isna(locality):
-            raise DataValidationError(
-                "Invalid locality", [{"error": "Locality cannot be null or empty"}]
-            )
+        if locality is None or pd.isna(locality) or str(locality).strip() == "":
+            # Use plot_name as fallback for empty locality
+            if (
+                "plot_name" in row
+                and row["plot_name"]
+                and not pd.isna(row["plot_name"])
+            ):
+                locality = row["plot_name"]
+            else:
+                # Use a default value if no plot_name available
+                locality = f"Plot_{plot_id}"
         locality = str(locality).strip()
-        if not locality or locality.lower() == "none":
+
+        # Reject "None" string as it's likely a placeholder
+        if locality.lower() == "none":
             raise DataValidationError(
                 "Invalid locality",
-                [{"error": "Locality cannot be null, empty or 'None'"}],
+                [{"error": "Locality cannot be 'None'"}],
             )
 
         # Validate geometry
@@ -545,10 +554,30 @@ class PlotImporter:
                 from shapely.validation import explain_validity
 
                 error_msg = explain_validity(geometry)
-                raise DataValidationError("Invalid geometry", [{"error": error_msg}])
+                raise DataValidationError(
+                    "Invalid geometry",
+                    [
+                        {
+                            "plot_id": plot_id,
+                            "locality": locality,
+                            "error": error_msg,
+                            "geometry_type": type(geometry).__name__,
+                        }
+                    ],
+                )
         except Exception as e:
             # Handle GEOSException or other validation errors
-            raise DataValidationError("Invalid geometry", [{"error": str(e)}])
+            raise DataValidationError(
+                "Invalid geometry",
+                [
+                    {
+                        "plot_id": plot_id,
+                        "locality": locality,
+                        "error": str(e),
+                        "exception_type": type(e).__name__,
+                    }
+                ],
+            )
 
         # Convert geometry to WKT
         try:
@@ -1004,24 +1033,23 @@ class PlotImporter:
         """
         Process and import plot data with hierarchical structure.
 
+        This generic version supports any hierarchy defined by the user.
+
         Args:
             plots_data: GeoDataFrame containing plot data
             identifier: Plot identifier column
-            locality_field: Field containing locality name
-            hierarchy_config: Configuration for hierarchy
+            locality_field: Field containing locality name (for plot level)
+            hierarchy_config: Configuration for hierarchy with 'levels' list
 
         Returns:
             Number of imported plots
-
-        Raises:
-            DataValidationError: If data is invalid
-            DatabaseError: If database operations fail
         """
         imported_count = 0
-        levels = hierarchy_config.get(
-            "levels", ["plot_name", "locality_name", "country"]
-        )
+        levels = hierarchy_config.get("levels", [])
         aggregate_geometry = hierarchy_config.get("aggregate_geometry", True)
+
+        if not levels:
+            raise DataValidationError("No hierarchy levels defined", [])
 
         # Validate required columns
         missing_cols = set(levels) - set(plots_data.columns)
@@ -1031,7 +1059,7 @@ class PlotImporter:
                 [{"field": col, "error": "Column missing"} for col in missing_cols],
             )
 
-        # Pre-scan to collect all plot IDs that will be used
+        # Pre-scan to collect all plot IDs
         reserved_ids = set()
         for _, row in plots_data.iterrows():
             try:
@@ -1040,89 +1068,173 @@ class PlotImporter:
             except (ValueError, KeyError):
                 pass
 
-        # Create dictionaries to store relationships
-        country_ids = {}  # country_name -> id
-        locality_ids = {}  # (locality_name, country_name) -> id
-
-        # Import hierarchical data
+        # Storage for entity IDs at each level
+        # level_entities[level_index] stores the mapping of entity tuples to IDs
+        level_entities = [{} for _ in range(len(levels))]
 
         with self.db.session() as session:
-            # First pass: create higher level entities (countries and localities)
-            unique_countries = (
-                plots_data[levels[2]].dropna().unique() if len(levels) > 2 else []
-            )
-            unique_localities = (
-                plots_data[[levels[1], levels[2]]].drop_duplicates()
-                if len(levels) > 2
-                else plots_data[[levels[1]]].drop_duplicates()
-            )
-
             progress_tracker = get_progress_tracker()
-            # Calculate total operations for unified progress bar
-            total_operations = (
-                len(unique_countries) + len(unique_localities) + len(plots_data)
-            )
+
+            # Calculate total operations (excluding empty values)
+            total_operations = 0
+            for level_idx in range(len(levels)):
+                if level_idx == 0:
+                    # Top level - just unique values
+                    unique_values = plots_data[levels[0]].dropna().unique()
+                    # Count only non-empty values
+                    total_operations += sum(
+                        1 for v in unique_values if str(v).strip() != ""
+                    )
+                elif level_idx < len(levels) - 1:  # Non-plot levels
+                    # Get unique combinations of this level with all parent levels
+                    cols_to_check = levels[: level_idx + 1]
+                    unique_combos = plots_data[cols_to_check].drop_duplicates()
+                    # Count only rows where the current level value is not empty
+                    total_operations += sum(
+                        1
+                        for _, row in unique_combos.iterrows()
+                        if not pd.isna(row[levels[level_idx]])
+                        and str(row[levels[level_idx]]).strip() != ""
+                    )
+
+            total_operations += len(plots_data)  # For the actual plots
             with progress_tracker.track(
-                "Importing plots...", total=total_operations
+                "Importing plots hierarchically...", total=total_operations
             ) as update:
-                # Import countries
-                if len(unique_countries) > 0:
-                    for country in unique_countries:
-                        country_id = self._import_hierarchy_level(
-                            session,
-                            country,
-                            "country",
-                            plots_data,
-                            levels[2],
-                            aggregate_geometry,
-                            reserved_ids=reserved_ids,
-                        )
-                        country_ids[country] = country_id
-                        # Update progress
+                # Process each level from top to bottom
+                for level_idx in range(len(levels) - 1):  # Exclude the plot level
+                    level_name = levels[level_idx]
+
+                    # Determine the level type name
+                    level_type = f"level_{level_idx}"  # Generic naming
+
+                    if level_idx == 0:
+                        # Top level - no parents
+                        unique_values = plots_data[level_name].dropna().unique()
+
+                        for value in unique_values:
+                            if pd.isna(value) or str(value).strip() == "":
+                                # Skip silently without updating progress
+                                continue
+
+                            try:
+                                entity_id = self._import_hierarchy_level(
+                                    session,
+                                    str(value),
+                                    level_type,
+                                    plots_data,
+                                    level_name,
+                                    aggregate_geometry,
+                                    reserved_ids=reserved_ids,
+                                )
+                                level_entities[level_idx][value] = entity_id
+                            except DataValidationError as e:
+                                print(
+                                    f"Warning: Failed to import {level_name} '{value}': {e}"
+                                )
+
+                            update(1)
+                    else:
+                        # Nested levels - have parents
+                        parent_levels = levels[:level_idx]
+                        cols_to_check = levels[: level_idx + 1]
+                        unique_combos = plots_data[cols_to_check].drop_duplicates()
+
+                        for _, combo in unique_combos.iterrows():
+                            value = combo[level_name]
+
+                            if pd.isna(value) or str(value).strip() == "":
+                                # Skip silently without updating progress
+                                continue
+
+                            # Build parent key and find parent ID
+                            parent_values = [combo[pl] for pl in parent_levels]
+                            parent_key = (
+                                tuple(parent_values)
+                                if len(parent_values) > 1
+                                else parent_values[0]
+                            )
+
+                            # Find parent ID from the immediate parent level
+                            parent_id = None
+                            if level_idx > 0:
+                                parent_level_idx = level_idx - 1
+                                parent_id = level_entities[parent_level_idx].get(
+                                    parent_key
+                                    if parent_level_idx > 0
+                                    else parent_values[0]
+                                )
+
+                            # Build filter for this entity's data
+                            filter_by = {pl: combo[pl] for pl in parent_levels}
+
+                            try:
+                                entity_id = self._import_hierarchy_level(
+                                    session,
+                                    str(value),
+                                    level_type,
+                                    plots_data,
+                                    level_name,
+                                    aggregate_geometry,
+                                    parent_id=parent_id,
+                                    filter_by=filter_by,
+                                    reserved_ids=reserved_ids,
+                                )
+                                # Store with full path as key
+                                entity_key = tuple(combo[pl] for pl in cols_to_check)
+                                level_entities[level_idx][entity_key] = entity_id
+                            except DataValidationError as e:
+                                print(
+                                    f"Warning: Failed to import {level_name} '{value}': {e}"
+                                )
+
+                            update(1)
+
+                # Now import the actual plots
+                plot_level_idx = len(levels) - 1
+                plot_level_name = levels[plot_level_idx]
+
+                for idx, row in plots_data.iterrows():
+                    try:
+                        # Find parent ID for this plot
+                        parent_id = None
+                        if plot_level_idx > 0:
+                            # Build parent key from all levels except plot level
+                            parent_values = [
+                                row[levels[i]] for i in range(plot_level_idx)
+                            ]
+                            parent_key = (
+                                tuple(parent_values)
+                                if len(parent_values) > 1
+                                else parent_values[0]
+                            )
+                            parent_id = level_entities[plot_level_idx - 1].get(
+                                parent_key
+                            )
+
+                        # Use the plot level name for locality if no specific locality_field
+                        if not locality_field:
+                            locality_field = plot_level_name
+
+                        if self._import_plot_hierarchical(
+                            session, row, identifier, locality_field, parent_id
+                        ):
+                            imported_count += 1
+
                         update(1)
 
-                # Import localities
-                for _, loc_row in unique_localities.iterrows():
-                    locality_name = loc_row[levels[1]]
-                    country_name = loc_row[levels[2]] if len(levels) > 2 else None
-                    parent_id = country_ids.get(country_name) if country_name else None
+                    except DataValidationError as e:
+                        # Add row information to the error
+                        error_details = e.details[0] if e.details else {}
+                        error_details["row_index"] = idx
+                        error_details["row_data"] = {
+                            level: row.get(level, "N/A") for level in levels
+                        }
+                        raise DataValidationError(e.message, [error_details])
 
-                    locality_id = self._import_hierarchy_level(
-                        session,
-                        locality_name,
-                        "locality",
-                        plots_data,
-                        levels[1],
-                        aggregate_geometry,
-                        parent_id=parent_id,
-                        filter_by={levels[2]: country_name} if country_name else None,
-                        reserved_ids=reserved_ids,
-                    )
-                    locality_ids[(locality_name, country_name)] = locality_id
-                    # Update progress
-                    update(1)
-
-                # Import plots
-                for _, row in plots_data.iterrows():
-                    locality_name = row[levels[1]] if len(levels) > 1 else None
-                    country_name = row[levels[2]] if len(levels) > 2 else None
-
-                    parent_id = None
-                    if locality_name:
-                        parent_id = locality_ids.get((locality_name, country_name))
-
-                    if self._import_plot_hierarchical(
-                        session, row, identifier, locality_field, parent_id
-                    ):
-                        imported_count += 1
-                    # Update progress
-                    update(1)
-
-                # Task completed
-
+                # Commit and update nested set values
                 try:
                     session.commit()
-                    # Update nested set values
                     self._update_nested_set_values(session)
                     session.commit()
                 except Exception as e:
@@ -1151,12 +1263,12 @@ class PlotImporter:
         reserved_ids: Optional[set] = None,
     ) -> int:
         """
-        Import a hierarchy level (country or locality).
+        Import a hierarchy level entity.
 
         Args:
             session: Database session
             name: Name of the entity
-            level_type: Type of entity ('country' or 'locality')
+            level_type: Type of entity (e.g., 'level_0', 'level_1', etc.)
             data: Full data GeoDataFrame
             name_column: Column containing the name
             aggregate_geometry: Whether to aggregate geometry from children
@@ -1167,6 +1279,21 @@ class PlotImporter:
         Returns:
             ID of the imported entity
         """
+        # Handle NaN/None values
+        if pd.isna(name) or name is None or str(name).strip() == "":
+            # Skip entities with no name
+            raise DataValidationError(
+                f"Invalid {level_type} name",
+                [
+                    {
+                        "error": f"{level_type} name cannot be null or empty",
+                        "value": name,
+                    }
+                ],
+            )
+
+        name = str(name).strip()
+
         # Check if entity already exists
         existing = (
             session.query(PlotRef)
@@ -1189,13 +1316,45 @@ class PlotImporter:
             geometries = entity_data.geometry.dropna()
             if len(geometries) > 0:
                 try:
-                    # Union all geometries
-                    unified_geom = unary_union(geometries.tolist())
-                    from shapely.wkt import dumps
+                    # Filter out invalid geometries before aggregation
+                    valid_geometries = []
+                    for geom in geometries.tolist():
+                        if geom and hasattr(geom, "is_valid") and geom.is_valid:
+                            valid_geometries.append(geom)
+                        else:
+                            if geom:
+                                try:
+                                    from shapely.validation import explain_validity
 
-                    geometry = dumps(unified_geom)
+                                    reason = (
+                                        explain_validity(geom)
+                                        if hasattr(geom, "is_valid")
+                                        else "Not a valid geometry object"
+                                    )
+                                    print(
+                                        f"Warning: Skipping invalid geometry for {name}: {reason}"
+                                    )
+                                except Exception:
+                                    print(
+                                        f"Warning: Skipping invalid geometry for {name}: Unable to determine reason"
+                                    )
+
+                    if valid_geometries:
+                        # Union all valid geometries
+                        unified_geom = unary_union(valid_geometries)
+                        from shapely.wkt import dumps
+
+                        geometry = dumps(unified_geom)
+                    else:
+                        print(f"Warning: No valid geometries to aggregate for {name}")
                 except Exception as e:
                     print(f"Warning: Failed to aggregate geometry for {name}: {e}")
+                    # Try to provide more details about the error
+                    if "Invalid geometry" in str(e):
+                        raise DataValidationError(
+                            "Invalid geometry during aggregation",
+                            [{"entity": name, "level": level_type, "error": str(e)}],
+                        )
 
         # Create entity with auto-generated ID that avoids reserved IDs
         if reserved_ids is None:
@@ -1276,11 +1435,25 @@ class PlotImporter:
 
         # Get locality
         locality = row[locality_field] if locality_field in row else str(plot_id)
-        if not locality or pd.isna(locality):
-            raise DataValidationError(
-                "Invalid locality", [{"error": "Locality cannot be null or empty"}]
-            )
+        if not locality or pd.isna(locality) or str(locality).strip() == "":
+            # Use plot_name as fallback for empty locality
+            if (
+                "plot_name" in row
+                and row["plot_name"]
+                and not pd.isna(row["plot_name"])
+            ):
+                locality = row["plot_name"]
+            else:
+                # Use a default value if no plot_name available
+                locality = f"Plot_{plot_id}"
         locality = str(locality).strip()
+
+        # Reject "None" string as it's likely a placeholder
+        if locality.lower() == "none":
+            raise DataValidationError(
+                "Invalid locality",
+                [{"error": "Locality cannot be 'None'"}],
+            )
 
         # Validate geometry
         try:
@@ -1288,9 +1461,31 @@ class PlotImporter:
                 from shapely.validation import explain_validity
 
                 error_msg = explain_validity(geometry)
-                raise DataValidationError("Invalid geometry", [{"error": error_msg}])
+                raise DataValidationError(
+                    "Invalid geometry",
+                    [
+                        {
+                            "plot_id": plot_id,
+                            "plot_name": row.get("plot_name", "N/A"),
+                            "locality": locality,
+                            "error": error_msg,
+                            "geometry_type": type(geometry).__name__,
+                        }
+                    ],
+                )
         except Exception as e:
-            raise DataValidationError("Invalid geometry", [{"error": str(e)}])
+            raise DataValidationError(
+                "Invalid geometry",
+                [
+                    {
+                        "plot_id": plot_id,
+                        "plot_name": row.get("plot_name", "N/A"),
+                        "locality": locality,
+                        "error": str(e),
+                        "exception_type": type(e).__name__,
+                    }
+                ],
+            )
 
         # Convert geometry to WKT
         from shapely.wkt import dumps

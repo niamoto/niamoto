@@ -3,7 +3,7 @@ import { useImportV2 } from './ImportContext'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { executeImport } from '@/lib/api/import'
+import { executeImportAndWait } from '@/lib/api/import'
 import { Loader2, ArrowRight, Check, AlertCircle } from 'lucide-react'
 
 interface ImportProgress {
@@ -52,7 +52,7 @@ export function ImportButton() {
           ...occurrences.taxonomyHierarchy.mappings
         }
 
-        await executeImport({
+        await executeImportAndWait({
           import_type: 'taxonomy',
           file_name: occurrences.file.name,
           field_mappings: taxonomyFieldMappings,
@@ -70,7 +70,7 @@ export function ImportButton() {
           message: 'Import des occurrences...'
         }))
 
-        await executeImport({
+        await executeImportAndWait({
           import_type: 'occurrences',
           file_name: occurrences.file.name,
           field_mappings: occurrences.fieldMappings
@@ -86,7 +86,7 @@ export function ImportButton() {
           message: 'Import des plots...'
         }))
 
-        await executeImport({
+        await executeImportAndWait({
           import_type: 'plots',
           file_name: plots.file.name,
           field_mappings: plots.fieldMappings,
@@ -113,7 +113,7 @@ export function ImportButton() {
             }))
 
             try {
-              await executeImport({
+              await executeImportAndWait({
                 import_type: 'shapes',
                 file_name: shape.file.name,
                 field_mappings: shape.fieldMappings,

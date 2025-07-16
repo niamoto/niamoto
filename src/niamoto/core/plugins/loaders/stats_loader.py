@@ -185,9 +185,8 @@ class StatsLoader(LoaderPlugin):
 
             # Choose loading method based on source type
             if source_config.get("type") == "csv":
-                return self._load_from_csv(source_config, group_id)
+                return self._load_from_csv(source_config, group_id, config)
             else:
-                # Otherwise, assume data is in database
                 return self._load_from_database(config, group_id)
 
         except Exception as e:

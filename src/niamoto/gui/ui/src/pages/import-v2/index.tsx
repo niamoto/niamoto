@@ -7,7 +7,6 @@ import { ImportButton } from './ImportButton'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
 const steps = [
@@ -58,11 +57,6 @@ function ImportV2Content() {
             Interface guidée pour importer vos données écologiques
           </p>
         </div>
-        <Link to="/import">
-          <Button variant="outline" size="sm">
-            Utiliser l'ancienne interface
-          </Button>
-        </Link>
       </div>
 
       {/* Progress indicator */}
