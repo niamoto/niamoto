@@ -1,4 +1,5 @@
 import { ImportProvider, useImport } from './ImportContext'
+import { ImportProgressProvider } from './ImportProgressContext'
 import { Overview } from './Overview'
 import { OccurrencesStep } from './OccurrencesStep'
 import { AggregationStep } from './AggregationStep'
@@ -128,7 +129,9 @@ function ImportContent() {
 export function ImportPage() {
   return (
     <ImportProvider>
-      <ImportContent />
+      <ImportProgressProvider>
+        <ImportContent />
+      </ImportProgressProvider>
     </ImportProvider>
   )
 }
