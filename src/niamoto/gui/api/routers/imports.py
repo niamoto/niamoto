@@ -662,6 +662,14 @@ async def process_import(
                 field_mappings.get("location", "location"),
             )
 
+            # Parse result for record count
+            import re
+
+            match = re.search(r"(\d+) occurrences imported", result)
+            if match:
+                job["processed_records"] = int(match.group(1))
+                job["total_records"] = int(match.group(1))
+
         elif import_type == "plots":
             # Handle plots import
             # Convert GUI hierarchy config to Niamoto format
@@ -690,6 +698,14 @@ async def process_import(
                 hierarchy_config,
             )
 
+            # Parse result for record count
+            import re
+
+            match = re.search(r"(\d+) plots imported", result)
+            if match:
+                job["processed_records"] = int(match.group(1))
+                job["total_records"] = int(match.group(1))
+
         elif import_type == "shapes":
             # Handle shapes import
             shape_config = {
@@ -717,6 +733,18 @@ async def process_import(
 
             shapes_config = [shape_config]
             result = await asyncio.to_thread(importer.import_shapes, shapes_config)
+
+            # Parse result for record count
+            import re
+
+            match = re.search(r"(\d+) processed", result)
+            if not match:
+                match = re.search(r"(\d+) features imported", result)
+            if not match:
+                match = re.search(r"Imported (\d+) shapes", result)
+            if match:
+                job["processed_records"] = int(match.group(1))
+                job["total_records"] = int(match.group(1))
 
         # Mark as completed
         job["status"] = "completed"
