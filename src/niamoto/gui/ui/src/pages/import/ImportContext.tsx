@@ -49,7 +49,7 @@ export interface ShapeImportData {
   properties: string[]
 }
 
-export interface ImportV2State {
+export interface ImportState {
   currentStep: number
   occurrences: OccurrenceImportData
   plots?: PlotImportData
@@ -57,22 +57,22 @@ export interface ImportV2State {
   aggregationType: 'none' | 'plots' | 'shapes' | 'both'
 }
 
-interface ImportV2ContextType {
-  state: ImportV2State
+interface ImportContextType {
+  state: ImportState
   updateOccurrences: (data: Partial<OccurrenceImportData>) => void
   updatePlots: (data: Partial<PlotImportData>) => void
   updateShapes: (index: number, data: Partial<ShapeImportData>) => void
   addShape: () => void
   removeShape: (index: number) => void
-  setAggregationType: (type: ImportV2State['aggregationType']) => void
+  setAggregationType: (type: ImportState['aggregationType']) => void
   setCurrentStep: (step: number) => void
   canProceed: () => boolean
 }
 
-const ImportV2Context = createContext<ImportV2ContextType | undefined>(undefined)
+const ImportContext = createContext<ImportContextType | undefined>(undefined)
 
-export function ImportV2Provider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<ImportV2State>({
+export function ImportProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<ImportState>({
     currentStep: 0,
     occurrences: {
       file: null,
@@ -147,7 +147,7 @@ export function ImportV2Provider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const setAggregationType = (type: ImportV2State['aggregationType']) => {
+  const setAggregationType = (type: ImportState['aggregationType']) => {
     setState(prev => ({ ...prev, aggregationType: type }))
   }
 
@@ -191,7 +191,7 @@ export function ImportV2Provider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ImportV2Context.Provider value={{
+    <ImportContext.Provider value={{
       state,
       updateOccurrences,
       updatePlots,
@@ -203,14 +203,14 @@ export function ImportV2Provider({ children }: { children: ReactNode }) {
       canProceed
     }}>
       {children}
-    </ImportV2Context.Provider>
+    </ImportContext.Provider>
   )
 }
 
-export function useImportV2() {
-  const context = useContext(ImportV2Context)
+export function useImport() {
+  const context = useContext(ImportContext)
   if (!context) {
-    throw new Error('useImportV2 must be used within ImportV2Provider')
+    throw new Error('useImport must be used within ImportProvider')
   }
   return context
 }
