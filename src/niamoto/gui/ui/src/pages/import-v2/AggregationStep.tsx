@@ -214,7 +214,10 @@ export function AggregationStep() {
                 {plots.fileAnalysis && (
                   <ColumnMapper
                     importType="plots"
-                    fileAnalysis={plots.fileAnalysis}
+                    fileAnalysis={{
+                      ...plots.fileAnalysis,
+                      occurrenceColumns: state.occurrences.fileAnalysis?.columns || []
+                    }}
                     onMappingComplete={(mappings) => {
                       // Only update if mappings have actually changed
                       const currentMappings = plots.fieldMappings || {}
@@ -224,43 +227,6 @@ export function AggregationStep() {
                       }
                     }}
                   />
-                )}
-
-                {/* Link configuration */}
-                {plots.fieldMappings?.identifier && (
-                  <div className="space-y-2 pt-4 border-t">
-                    <h4 className="font-medium text-sm">Configuration des liens</h4>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <Label htmlFor="linkField" className="text-sm">
-                          Champ de liaison dans plots
-                        </Label>
-                        <select
-                          id="linkField"
-                          className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          value={plots?.linkField || 'locality'}
-                          onChange={(e) => updatePlots({ linkField: e.target.value })}
-                        >
-                          <option value="id">ID</option>
-                          <option value="plot_id">Plot ID</option>
-                          <option value="locality">Locality</option>
-                        </select>
-                      </div>
-                      <div>
-                        <Label htmlFor="occurrenceLinkField" className="text-sm">
-                          Champ correspondant dans occurrences
-                        </Label>
-                        <input
-                          id="occurrenceLinkField"
-                          type="text"
-                          className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          placeholder="ex: plot_name"
-                          value={plots?.occurrenceLinkField || ''}
-                          onChange={(e) => updatePlots({ occurrenceLinkField: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </div>
                 )}
               </div>
             )}
@@ -348,20 +314,6 @@ export function AggregationStep() {
                       >
                         Changer de fichier
                       </Button>
-                    </div>
-
-                    <div>
-                      <Label htmlFor={`shape-type-${index}`} className="text-sm">
-                        Type de shape
-                      </Label>
-                      <input
-                        id={`shape-type-${index}`}
-                        type="text"
-                        className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        placeholder="ex: commune, province, région"
-                        value={shape.type}
-                        onChange={(e) => updateShapes(index, { type: e.target.value })}
-                      />
                     </div>
 
                     {shape.fileAnalysis && (

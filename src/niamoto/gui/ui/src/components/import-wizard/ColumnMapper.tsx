@@ -134,18 +134,59 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
         <div>
           <h3 className="mb-3 font-medium">Target Fields</h3>
           <div className="space-y-3">
-            {fields.map((field) => (
-              <FieldMapping
-                key={field.key}
-                field={field}
-                mappedColumn={mappings[field.key]}
-                suggestions={suggestions[field.key] || []}
-                availableColumns={unmappedColumns}
-                onDrop={(column) => handleDrop(field.key, column)}
-                onRemove={() => removeMapping(field.key)}
-                isDragActive={draggedColumn !== null}
-              />
-            ))}
+            {fields.map((field) => {
+              // Special handling for occurrence_link_field
+              if (field.key === 'occurrence_link_field' && importType === 'plots') {
+                return (
+                  <OccurrenceLinkField
+                    key={field.key}
+                    field={field}
+                    value={mappings[field.key] || ''}
+                    onChange={(value) => handleDrop(field.key, value)}
+                    availableColumns={fileAnalysis?.occurrenceColumns || []}
+                  />
+                )
+              }
+
+              // Special handling for link_field - show standard plot_ref fields
+              if (field.key === 'link_field' && importType === 'plots') {
+                return (
+                  <PlotLinkField
+                    key={field.key}
+                    field={field}
+                    mappedColumn={mappings[field.key]}
+                    availableColumns={['id', 'plot_id', 'locality']} // Standard plot_ref fields (plot_name is in extra_data, not a direct field)
+                    onSelect={(column) => handleDrop(field.key, column)}
+                    onRemove={() => removeMapping(field.key)}
+                  />
+                )
+              }
+
+              // Special handling for type field in shapes - free text input
+              if (field.key === 'type' && importType === 'shapes') {
+                return (
+                  <ShapeTypeField
+                    key={field.key}
+                    field={field}
+                    value={mappings[field.key] || ''}
+                    onChange={(value) => handleDrop(field.key, value)}
+                  />
+                )
+              }
+
+              return (
+                <FieldMapping
+                  key={field.key}
+                  field={field}
+                  mappedColumn={mappings[field.key]}
+                  suggestions={suggestions[field.key] || []}
+                  availableColumns={unmappedColumns}
+                  onDrop={(column) => handleDrop(field.key, column)}
+                  onRemove={() => removeMapping(field.key)}
+                  isDragActive={draggedColumn !== null}
+                />
+              )
+            })}
           </div>
         </div>
       </div>
@@ -282,6 +323,165 @@ function FieldMapping({
               )}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Special component for Plot Link Field
+interface PlotLinkFieldProps {
+  field: RequiredField
+  mappedColumn?: string
+  availableColumns: string[]
+  onSelect: (column: string) => void
+  onRemove: () => void
+}
+
+function PlotLinkField({ field, mappedColumn, availableColumns, onSelect, onRemove }: PlotLinkFieldProps) {
+  return (
+    <div className="rounded-lg border p-4 bg-accent/20">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center space-x-2">
+            <h4 className="font-medium">
+              {field.label} (Champ de liaison dans plots)
+              {field.required && <span className="text-destructive">*</span>}
+            </h4>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Sélectionnez le champ de la table plot_ref qui sera utilisé pour lier avec les occurrences (id, plot_id ou locality)
+          </p>
+
+          {mappedColumn ? (
+            <div className="mt-2 flex items-center space-x-2">
+              <div className="flex items-center space-x-2 rounded-md bg-primary/10 px-3 py-1 text-sm">
+                <Check className="h-3 w-3 text-primary" />
+                <span>{mappedColumn}</span>
+              </div>
+              <button
+                onClick={onRemove}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Changer
+              </button>
+            </div>
+          ) : (
+            <div className="relative mt-2">
+              <select
+                value={mappedColumn || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    onSelect(e.target.value)
+                  }
+                }}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Sélectionner un champ...</option>
+                {availableColumns.map((col) => (
+                  <option key={col} value={col}>{col}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Special component for Occurrence Link Field
+interface OccurrenceLinkFieldProps {
+  field: RequiredField
+  value: string
+  onChange: (value: string) => void
+  availableColumns: string[]
+}
+
+function OccurrenceLinkField({ field, value, onChange, availableColumns }: OccurrenceLinkFieldProps) {
+  return (
+    <div className="rounded-lg border p-4 bg-accent/20">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center space-x-2">
+            <h4 className="font-medium">
+              {field.label} (Champ correspondant dans occurrences)
+              {field.required && <span className="text-destructive">*</span>}
+            </h4>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Entrez le nom du champ qui sera utilisé dans le fichier occurrences pour faire le lien avec les plots
+          </p>
+
+          <div className="mt-2">
+            {availableColumns.length > 0 ? (
+              <>
+                <select
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Sélectionner un champ...</option>
+                  {availableColumns.map((col) => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Champs détectés depuis le fichier d'occurrences importé
+                </p>
+              </>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder="ex: plot_name"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Ce champ devra exister dans votre fichier d'occurrences lors de son import
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Special component for Shape Type Field
+interface ShapeTypeFieldProps {
+  field: RequiredField
+  value: string
+  onChange: (value: string) => void
+}
+
+function ShapeTypeField({ field, value, onChange }: ShapeTypeFieldProps) {
+  return (
+    <div className="rounded-lg border p-4 bg-accent/20">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center space-x-2">
+            <h4 className="font-medium">
+              {field.label}
+              {field.required && <span className="text-destructive">*</span>}
+            </h4>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {field.description}
+          </p>
+
+          <div className="mt-2">
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="ex: commune, province, région"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
         </div>
       </div>
     </div>

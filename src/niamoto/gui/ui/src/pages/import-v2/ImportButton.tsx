@@ -91,8 +91,8 @@ export function ImportButton() {
           file_name: plots.file.name,
           field_mappings: plots.fieldMappings,
           advanced_options: {
-            linkField: plots.linkField,
-            occurrenceLinkField: plots.occurrenceLinkField,
+            linkField: plots.fieldMappings?.link_field || plots.linkField,
+            occurrenceLinkField: plots.fieldMappings?.occurrence_link_field || plots.occurrenceLinkField,
             hierarchy: plots.hierarchy
           }
         }, plots.file)
@@ -109,7 +109,7 @@ export function ImportButton() {
               ...prev,
               currentStep: 'shapes',
               progress: shapeProgress,
-              message: `Import des shapes ${shape.type} (${index + 1}/${shapes.length})...`
+              message: `Import des shapes ${shape.fieldMappings?.type || shape.type || ''} (${index + 1}/${shapes.length})...`
             }))
 
             try {
@@ -118,11 +118,11 @@ export function ImportButton() {
                 file_name: shape.file.name,
                 field_mappings: shape.fieldMappings,
                 advanced_options: {
-                  shape_type: shape.type
+                  shape_type: shape.fieldMappings?.type || shape.type
                 }
               }, shape.file)
             } catch (error) {
-              errors.push(`Erreur shape ${shape.type}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+              errors.push(`Erreur shape ${shape.fieldMappings?.type || shape.type || ''}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
             }
 
             shapeProgress += progressIncrement
