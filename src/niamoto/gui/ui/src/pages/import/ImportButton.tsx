@@ -40,6 +40,11 @@ export function ImportButton() {
         }
 
         try {
+          // Get data size for progress estimation
+          const taxonomyDataSize = occurrences.fileAnalysis?.rowCount ||
+                                   occurrences.fileAnalysis?.row_count ||
+                                   occurrences.fileAnalysis?.total_rows || 1000
+
           const taxonomyResult = await executeImportAndWait(
             {
               import_type: 'taxonomy',
@@ -53,7 +58,8 @@ export function ImportButton() {
             occurrences.file,
             1000,
             300000,
-            (progress) => updateStepProgress('taxonomy', { progress })
+            (progress) => updateStepProgress('taxonomy', { progress }),
+            taxonomyDataSize
           )
 
           updateStepProgress('taxonomy', {
@@ -77,6 +83,10 @@ export function ImportButton() {
         })
 
         try {
+          const occurrencesDataSize = occurrences.fileAnalysis?.rowCount ||
+                                      occurrences.fileAnalysis?.row_count ||
+                                      occurrences.fileAnalysis?.total_rows || 1000
+
           const occurrencesResult = await executeImportAndWait(
             {
               import_type: 'occurrences',
@@ -86,7 +96,8 @@ export function ImportButton() {
             occurrences.file,
             1000,
             300000,
-            (progress) => updateStepProgress('occurrences', { progress })
+            (progress) => updateStepProgress('occurrences', { progress }),
+            occurrencesDataSize
           )
 
           updateStepProgress('occurrences', {
@@ -112,6 +123,10 @@ export function ImportButton() {
         })
 
         try {
+          const plotsDataSize = plots.fileAnalysis?.rowCount ||
+                                plots.fileAnalysis?.row_count ||
+                                plots.fileAnalysis?.total_rows || 1000
+
           const plotsResult = await executeImportAndWait(
             {
               import_type: 'plots',
@@ -126,7 +141,8 @@ export function ImportButton() {
             plots.file,
             1000,
             300000,
-            (progress) => updateStepProgress('plots', { progress })
+            (progress) => updateStepProgress('plots', { progress }),
+            plotsDataSize
           )
 
           updateStepProgress('plots', {
@@ -154,6 +170,8 @@ export function ImportButton() {
             })
 
             try {
+              const shapeDataSize = shape.fileAnalysis?.feature_count || 100
+
               const shapeResult = await executeImportAndWait(
                 {
                   import_type: 'shapes',
@@ -166,7 +184,8 @@ export function ImportButton() {
                 shape.file,
                 1000,
                 300000,
-                (progress) => updateShapeProgress(index, { progress })
+                (progress) => updateShapeProgress(index, { progress }),
+                shapeDataSize
               )
 
               updateShapeProgress(index, {

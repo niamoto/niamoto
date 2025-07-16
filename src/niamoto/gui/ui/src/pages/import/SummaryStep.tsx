@@ -147,19 +147,19 @@ export function SummaryStep() {
             } : undefined}
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Nombre</span>
-              <Badge variant="secondary">{shapes.length}</Badge>
+              <span className="text-sm text-muted-foreground">Éléments total</span>
+              <Badge variant="secondary">
+                {shapes.reduce((total, shape) => total + (shape.fileAnalysis?.feature_count || 0), 0)}
+              </Badge>
             </div>
             {shapes.map((shape, i) => shape.file && (
               <div key={i} className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">{shape.type || `Shape ${i + 1}`}</span>
+                <span className="text-muted-foreground">{shape.fieldMappings?.type || shape.type || `Shape ${i + 1}`}</span>
                 <div className="flex items-center gap-2">
                   <span className="font-medium truncate max-w-[150px]">{shape.file.name}</span>
-                  {progress.shapes?.[i]?.status === 'completed' && progress.shapes[i].count && (
-                    <Badge variant="outline" className="text-[10px] bg-green-100 text-green-700 border-green-300">
-                      {progress.shapes[i].count}
-                    </Badge>
-                  )}
+                  <span className="text-muted-foreground">
+                    ({shape.fileAnalysis?.feature_count || 0} éléments)
+                  </span>
                 </div>
               </div>
             ))}

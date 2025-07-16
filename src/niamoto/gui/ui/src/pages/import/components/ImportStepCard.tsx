@@ -60,10 +60,9 @@ export function ImportStepCard({
         {status?.status === 'running' && (
           <div className="absolute top-2 right-2">
             <CircularProgress
-              value={status.progress}
+              indeterminate={true}
               size={36}
-              strokeWidth={3}
-              color="text-primary"
+              className="text-primary"
             />
           </div>
         )}
