@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone'
 import { Upload, FileText, AlertCircle, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import type { ImportType } from './ImportWizard'
+import type { ImportType } from './types'
 
 interface FileSelectionProps {
   importType: ImportType

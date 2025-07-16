@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useImportV2 } from './ImportContext'
+import { useImport } from './ImportContext'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
@@ -15,7 +15,7 @@ interface ImportProgress {
 }
 
 export function ImportButton() {
-  const { state } = useImportV2()
+  const { state } = useImport()
   const [importProgress, setImportProgress] = useState<ImportProgress>({
     status: 'idle',
     currentStep: '',

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useImportV2 } from './ImportContext'
+import { useImport } from './ImportContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 
 export function OccurrencesStep() {
-  const { state, updateOccurrences } = useImportV2()
+  const { state, updateOccurrences } = useImport()
   const { occurrences } = state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [activeTab, setActiveTab] = useState('upload')

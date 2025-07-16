@@ -131,13 +131,13 @@ def get_required_fields_for_import_type(
                 {
                     "key": "link_field",
                     "label": "Champ de liaison dans plot_ref",
-                    "description": "Champ de la table plot_ref qui sera utilisé pour lier avec les occurrences (id, plot_id ou locality)",
+                    "description": "Sélectionnez le champ de la table plot_ref qui sera utilisé pour lier avec les occurrences (id, plot_id ou locality)",
                     "required": False,
                 },
                 {
                     "key": "occurrence_link_field",
                     "label": "Champ correspondant dans occurrences",
-                    "description": "Nom du champ qui sera utilisé dans le fichier occurrences pour faire le lien",
+                    "description": "Sélectionnez le champ qui sera utilisé dans le fichier occurrences pour faire le lien",
                     "required": False,
                 },
             ]

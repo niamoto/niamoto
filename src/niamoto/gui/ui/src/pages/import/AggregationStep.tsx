@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useImportV2 } from './ImportContext'
+import { useImport } from './ImportContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 
 export function AggregationStep() {
-  const { state, setAggregationType, updatePlots, updateShapes, addShape, removeShape } = useImportV2()
+  const { state, setAggregationType, updatePlots, updateShapes, addShape, removeShape } = useImport()
   const { aggregationType, plots, shapes } = state
   const [isAnalyzing, setIsAnalyzing] = useState<Record<string, boolean>>({})
 

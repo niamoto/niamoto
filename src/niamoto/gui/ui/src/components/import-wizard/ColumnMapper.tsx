@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Check, AlertCircle, GripVertical, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { ImportType } from './ImportWizard'
+import type { ImportType } from './types'
 import { useImportFields, type RequiredField } from '@/hooks/useImportFields'
 
 interface ColumnMapperProps {
@@ -345,12 +345,12 @@ function PlotLinkField({ field, mappedColumn, availableColumns, onSelect, onRemo
         <div className="flex-1">
           <div className="flex items-center space-x-2">
             <h4 className="font-medium">
-              {field.label} (Champ de liaison dans plots)
+              {field.label}
               {field.required && <span className="text-destructive">*</span>}
             </h4>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Sélectionnez le champ de la table plot_ref qui sera utilisé pour lier avec les occurrences (id, plot_id ou locality)
+            {field.description}
           </p>
 
           {mappedColumn ? (
@@ -405,12 +405,12 @@ function OccurrenceLinkField({ field, value, onChange, availableColumns }: Occur
         <div className="flex-1">
           <div className="flex items-center space-x-2">
             <h4 className="font-medium">
-              {field.label} (Champ correspondant dans occurrences)
+              {field.label}
               {field.required && <span className="text-destructive">*</span>}
             </h4>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Entrez le nom du champ qui sera utilisé dans le fichier occurrences pour faire le lien avec les plots
+            {field.description}
           </p>
 
           <div className="mt-2">

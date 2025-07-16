@@ -1,4 +1,4 @@
-import { ImportV2Provider, useImportV2 } from './ImportContext'
+import { ImportProvider, useImport } from './ImportContext'
 import { Overview } from './Overview'
 import { OccurrencesStep } from './OccurrencesStep'
 import { AggregationStep } from './AggregationStep'
@@ -16,8 +16,8 @@ const steps = [
   { title: 'Résumé', description: 'Confirmation' }
 ]
 
-function ImportV2Content() {
-  const { state, setCurrentStep, canProceed } = useImportV2()
+function ImportContent() {
+  const { state, setCurrentStep, canProceed } = useImport()
   const { currentStep } = state
 
   const handleNext = () => {
@@ -125,10 +125,10 @@ function ImportV2Content() {
   )
 }
 
-export function ImportV2Page() {
+export function ImportPage() {
   return (
-    <ImportV2Provider>
-      <ImportV2Content />
-    </ImportV2Provider>
+    <ImportProvider>
+      <ImportContent />
+    </ImportProvider>
   )
 }

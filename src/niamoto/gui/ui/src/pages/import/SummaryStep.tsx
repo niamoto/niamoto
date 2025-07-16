@@ -1,4 +1,4 @@
-import { useImportV2 } from './ImportContext'
+import { useImport } from './ImportContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 
 export function SummaryStep() {
-  const { state } = useImportV2()
+  const { state } = useImport()
   const { occurrences, plots, shapes, aggregationType } = state
 
   const getTaxonEstimate = () => {
