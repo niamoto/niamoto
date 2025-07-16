@@ -307,6 +307,58 @@ async def get_all_required_fields() -> Dict[str, Any]:
     return get_all_import_types_info()
 
 
+@router.get("/table-fields/{table_name}")
+async def get_table_fields(table_name: str) -> Dict[str, Any]:
+    """Get fields from a specific table in the database."""
+
+    valid_tables = ["occurrences", "plot_ref", "taxon_ref", "shape_ref"]
+    if table_name not in valid_tables:
+        raise HTTPException(status_code=400, detail=f"Invalid table name: {table_name}")
+
+    try:
+        config = Config()
+        db = Database(config.database_path)
+
+        # Check if table exists
+        table_check = db.execute_sql(
+            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'",
+            fetch=True,
+        )
+
+        if not table_check:
+            return {"exists": False, "fields": []}
+
+        # Get table schema
+        schema_query = f"PRAGMA table_info({table_name})"
+        schema = db.execute_sql(schema_query, fetch=True)
+
+        fields = []
+        for row in schema:
+            # row format: (cid, name, type, notnull, dflt_value, pk)
+            if hasattr(row, "_asdict"):
+                field_info = row._asdict()
+                field_name = field_info.get("name")
+                field_type = field_info.get("type")
+            else:
+                field_name = row[1] if len(row) > 1 else None
+                field_type = row[2] if len(row) > 2 else None
+
+            if field_name:
+                fields.append(
+                    {
+                        "name": field_name,
+                        "type": field_type,
+                    }
+                )
+
+        return {"exists": True, "fields": fields}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error reading table schema: {str(e)}"
+        )
+
+
 @router.get("/status", response_model=ImportStatusResponse)
 async def get_import_status() -> ImportStatusResponse:
     """Check which imports have been completed and their dependencies."""

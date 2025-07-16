@@ -231,60 +231,6 @@ export function AdvancedOptions({ config, onUpdate }: AdvancedOptionsProps) {
         }}
       />
 
-      {/* Linking Fields */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Occurrence Linking</CardTitle>
-          <CardDescription>
-            Configure how occurrences will be linked to plots
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="link-field">Plot Link Field</Label>
-            <Select
-              value={plotOptions.linkField}
-              onValueChange={(value) => {
-                const newOptions = { ...plotOptions, linkField: value }
-                setPlotOptions(newOptions)
-                updateOptions('plots', newOptions)
-              }}
-            >
-              <SelectTrigger id="link-field">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="id">ID</SelectItem>
-                <SelectItem value="plot_id">Plot ID</SelectItem>
-                <SelectItem value="locality">Locality</SelectItem>
-                {config.fieldMappings && Object.keys(config.fieldMappings).map(field => (
-                  <SelectItem key={field} value={field}>{field}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Field in plot_ref table used for linking with occurrences
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="occurrence-link-field">Occurrence Link Field</Label>
-            <Input
-              id="occurrence-link-field"
-              value={plotOptions.occurrenceLinkField}
-              onChange={(e) => {
-                const newOptions = { ...plotOptions, occurrenceLinkField: e.target.value }
-                setPlotOptions(newOptions)
-                updateOptions('plots', newOptions)
-              }}
-              placeholder="e.g., plot_name, locality_name"
-            />
-            <p className="text-xs text-muted-foreground">
-              Corresponding field in occurrences table
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Other Options */}
       <div className="space-y-4">

@@ -123,36 +123,21 @@ def get_required_fields_for_import_type(
         )
 
         # Optional PlotRef model fields
-        fields.extend(
-            [
-                {
-                    "key": "plot_id",
-                    "label": "Plot ID",
-                    "description": "Numeric plot ID (if different from identifier)",
-                    "required": False,
-                },
-                {
-                    "key": "plot_type",
-                    "label": "Plot Type",
-                    "description": "Type of plot (plot/locality/country)",
-                    "required": False,
-                },
-            ]
-        )
+        # Note: plot_id and plot_type are now handled internally
 
         # Linking fields for occurrence relationships
         fields.extend(
             [
                 {
                     "key": "link_field",
-                    "label": "Plot Link Field",
-                    "description": "Field in plot_ref for linking with occurrences",
+                    "label": "Champ de liaison dans plot_ref",
+                    "description": "Champ de la table plot_ref qui sera utilisé pour lier avec les occurrences (id, plot_id ou locality)",
                     "required": False,
                 },
                 {
                     "key": "occurrence_link_field",
-                    "label": "Occurrence Link Field",
-                    "description": "Corresponding field in occurrences table",
+                    "label": "Champ correspondant dans occurrences",
+                    "description": "Nom du champ qui sera utilisé dans le fichier occurrences pour faire le lien",
                     "required": False,
                 },
             ]
@@ -211,8 +196,8 @@ def get_required_fields_for_import_type(
                 },
                 {
                     "key": "type",
-                    "label": "Type",
-                    "description": "Shape type",
+                    "label": "Type de shape",
+                    "description": "Type de shape (ex: commune, province, région)",
                     "required": False,
                 },
             ],
