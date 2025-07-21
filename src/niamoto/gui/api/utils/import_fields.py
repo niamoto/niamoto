@@ -195,6 +195,12 @@ def get_required_fields_for_import_type(
                     "required": True,
                 },
                 {
+                    "key": "id",
+                    "label": "Shape ID",
+                    "description": "Identifiant unique du shape (sera préfixé par le type pour éviter les conflits)",
+                    "required": False,
+                },
+                {
                     "key": "type",
                     "label": "Type de shape",
                     "description": "Type de shape (ex: commune, province, région)",

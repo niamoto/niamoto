@@ -5,6 +5,27 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 
+def clean_unused_config(config_path: Path) -> None:
+    """Remove plots and shapes configuration if they are empty."""
+    if not config_path.exists():
+        return
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f) or {}
+
+    # Remove plots if empty or None
+    if "plots" in config and not config["plots"]:
+        del config["plots"]
+
+    # Remove shapes if empty list
+    if "shapes" in config and (not config["shapes"] or len(config["shapes"]) == 0):
+        del config["shapes"]
+
+    # Write back the cleaned config
+    with open(config_path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+
 def update_import_config(
     config_path: Path,
     import_type: str,
@@ -77,13 +98,18 @@ def update_import_config(
         config["taxonomy"] = taxonomy_config
 
     elif import_type == "plots":
-        plots_config = {
-            "type": "csv",
-            "path": f"imports/{filename}",
-            "identifier": field_mappings.get("identifier", "id"),
-            "locality_field": field_mappings.get("locality", "locality"),
-            "location_field": field_mappings.get("location", "geometry"),
-        }
+        # If no filename provided, remove plots configuration
+        if not filename or filename == "null":
+            if "plots" in config:
+                del config["plots"]
+        else:
+            plots_config = {
+                "type": "csv",
+                "path": f"imports/{filename}",
+                "identifier": field_mappings.get("identifier", "id"),
+                "locality_field": field_mappings.get("locality", "locality"),
+                "location_field": field_mappings.get("location", "geometry"),
+            }
 
         if advanced_options:
             # Add link fields if specified
@@ -101,7 +127,7 @@ def update_import_config(
                         "aggregate_geometry": hierarchy.get("aggregate_geometry", True),
                     }
 
-        config["plots"] = plots_config
+            config["plots"] = plots_config
 
     elif import_type == "occurrences":
         config["occurrences"] = {
@@ -117,16 +143,21 @@ def update_import_config(
 
     elif import_type == "shapes":
         # For shapes, we need to handle it as a list
+        # Get the type from field_mappings first, then advanced_options.shape_type as fallback
+        shape_type = field_mappings.get("type")
+        if not shape_type and advanced_options:
+            shape_type = advanced_options.get("shape_type", "default")
+        if not shape_type:
+            shape_type = "default"
+
         shape_config = {
-            "type": advanced_options.get("type", "default")
-            if advanced_options
-            else "default",
+            "type": shape_type,
             "path": f"imports/{filename}",
             "name_field": field_mappings.get("name", "name"),
         }
 
         # Add id field if mapped
-        if "id" in field_mappings:
+        if "id" in field_mappings and field_mappings["id"]:
             shape_config["id_field"] = field_mappings["id"]
 
         # Add properties if specified
@@ -146,8 +177,28 @@ def update_import_config(
         if "shapes" not in config:
             config["shapes"] = []
 
-        # Add or update shape configuration
-        config["shapes"].append(shape_config)
+        # If advanced_options contains a flag indicating this is the first shape
+        # in a batch, clear all existing shapes
+        if advanced_options and advanced_options.get("is_first_shape", False):
+            config["shapes"] = []
+
+        # Check if this shape already exists (same path and type)
+        # to avoid duplicates within the current import session
+        existing_index = None
+        for i, existing_shape in enumerate(config["shapes"]):
+            if (
+                existing_shape.get("path") == shape_config["path"]
+                and existing_shape.get("type") == shape_config["type"]
+            ):
+                existing_index = i
+                break
+
+        if existing_index is not None:
+            # Update existing shape
+            config["shapes"][existing_index] = shape_config
+        else:
+            # Add new shape
+            config["shapes"].append(shape_config)
 
     # Write updated config back to file
     with open(config_path, "w") as f:

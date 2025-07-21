@@ -13,12 +13,12 @@ export function ImportButton() {
   const [errors, setErrors] = useState<string[]>([])
 
   const handleImport = async () => {
-    const { occurrences, plots, shapes, aggregationType } = state
+    const { occurrences, plots, shapes } = state
     const localErrors: string[] = []
 
     // Initialize progress tracking
-    const hasPlots = (aggregationType === 'plots' || aggregationType === 'both') && !!plots?.file
-    const shapesCount = (aggregationType === 'shapes' || aggregationType === 'both') ? (shapes?.length || 0) : 0
+    const hasPlots = !!plots?.file
+    const shapesCount = shapes?.length || 0
     initializeProgress(hasPlots, shapesCount)
 
     setOverallStatus('running')
@@ -178,7 +178,8 @@ export function ImportButton() {
                   file_name: shape.file.name,
                   field_mappings: shape.fieldMappings,
                   advanced_options: {
-                    shape_type: shape.fieldMappings?.type || shape.type
+                    shape_type: shape.fieldMappings?.type || shape.type,
+                    is_first_shape: index === 0  // Flag to clear shapes on first import
                   }
                 },
                 shape.file,
