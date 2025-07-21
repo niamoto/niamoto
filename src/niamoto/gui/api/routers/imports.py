@@ -14,7 +14,10 @@ from niamoto.gui.api.utils.import_fields import (
     get_required_fields_for_import_type,
     get_all_import_types_info,
 )
-from niamoto.gui.api.utils.config_updater import update_import_config
+from niamoto.gui.api.utils.config_updater import (
+    update_import_config,
+    clean_unused_config,
+)
 
 router = APIRouter()
 
@@ -205,6 +208,10 @@ async def execute_import(
     # Update import.yml configuration
     import_config_path = project_dir / "config" / "import.yml"
     try:
+        # Clean unused config when starting a new import session (occurrences is always first)
+        if import_type == "occurrences":
+            clean_unused_config(import_config_path)
+
         update_import_config(
             import_config_path,
             import_type,
@@ -708,10 +715,13 @@ async def process_import(
 
         elif import_type == "shapes":
             # Handle shapes import
+            # Get shape type from advanced_options.shape_type (sent by GUI)
+            shape_type = "default"
+            if advanced_options:
+                shape_type = advanced_options.get("shape_type", "default")
+
             shape_config = {
-                "type": advanced_options.get("type", "default")
-                if advanced_options
-                else "default",
+                "type": shape_type,
                 "path": file_path,
                 "name_field": field_mappings.get("name", "name"),
             }

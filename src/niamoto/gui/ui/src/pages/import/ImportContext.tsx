@@ -54,7 +54,6 @@ export interface ImportState {
   occurrences: OccurrenceImportData
   plots?: PlotImportData
   shapes?: ShapeImportData[]
-  aggregationType: 'none' | 'plots' | 'shapes' | 'both'
 }
 
 interface ImportContextType {
@@ -64,7 +63,6 @@ interface ImportContextType {
   updateShapes: (index: number, data: Partial<ShapeImportData>) => void
   addShape: () => void
   removeShape: (index: number) => void
-  setAggregationType: (type: ImportState['aggregationType']) => void
   setCurrentStep: (step: number) => void
   canProceed: () => boolean
 }
@@ -92,8 +90,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         cache_results: true,
         response_mapping: {}
       }
-    },
-    aggregationType: 'none'
+    }
   })
 
   const updateOccurrences = (data: Partial<OccurrenceImportData>) => {
@@ -134,7 +131,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         file: null,
         fileAnalysis: null,
         fieldMappings: {},
-        type: 'default',
+        type: '',  // Empty string instead of 'default'
         properties: []
       }]
     }))
@@ -147,16 +144,13 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const setAggregationType = (type: ImportState['aggregationType']) => {
-    setState(prev => ({ ...prev, aggregationType: type }))
-  }
 
   const setCurrentStep = (step: number) => {
     setState(prev => ({ ...prev, currentStep: step }))
   }
 
   const canProceed = () => {
-    const { currentStep, occurrences, plots, shapes, aggregationType } = state
+    const { currentStep, occurrences } = state
 
     switch (currentStep) {
       case 0: // Overview - always can proceed
@@ -171,15 +165,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
           Object.keys(occurrences.taxonomyHierarchy.mappings).length >= 2
         )
 
-      case 2: // Aggregation
-        if (aggregationType === 'none') return true
-        if (aggregationType === 'plots' || aggregationType === 'both') {
-          if (!plots?.file || !plots?.fieldMappings.identifier) return false
-        }
-        if (aggregationType === 'shapes' || aggregationType === 'both') {
-          if (!shapes?.length) return false
-          return shapes.every(s => s.file && s.fieldMappings.name)
-        }
+      case 2: // Aggregation - always optional
         return true
 
       case 3: // Summary
@@ -198,7 +184,6 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       updateShapes,
       addShape,
       removeShape,
-      setAggregationType,
       setCurrentStep,
       canProceed
     }}>

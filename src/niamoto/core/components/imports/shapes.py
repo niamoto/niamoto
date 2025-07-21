@@ -401,9 +401,19 @@ class ShapeImporter:
         """Get feature ID from properties."""
         id_field = shape_info.get("id_field")
         if not id_field:
-            return ""
+            return None
         shape_id = feature["properties"].get(id_field)
-        return str(shape_id).strip() if shape_id else ""
+        if shape_id and str(shape_id).strip():
+            # Préfixer l'ID avec le type pour éviter les conflits
+            shape_type = shape_info.get("type", "shape")
+            # Sanitize le type : minuscules, remplacer espaces et caractères spéciaux par underscore
+            import re
+
+            sanitized_type = re.sub(r"[^a-z0-9]+", "_", shape_type.lower()).strip("_")
+            if not sanitized_type:
+                sanitized_type = "shape"
+            return f"{sanitized_type}_{str(shape_id).strip()}"
+        return None
 
     @staticmethod
     def _get_feature_name(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:

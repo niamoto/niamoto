@@ -16,7 +16,7 @@ import {
 
 export function SummaryStep() {
   const { state } = useImport()
-  const { occurrences, plots, shapes, aggregationType } = state
+  const { occurrences, plots, shapes } = state
   const { progress } = useImportProgress()
 
   const getTaxonEstimate = () => {
@@ -96,7 +96,7 @@ export function SummaryStep() {
         </ImportStepCard>
 
         {/* Plots card */}
-        {(aggregationType === 'plots' || aggregationType === 'both') && plots?.file && (
+        {plots?.file && (
           <ImportStepCard
             title="Plots"
             icon={<MapPin className="w-5 h-5" />}
@@ -134,7 +134,7 @@ export function SummaryStep() {
         )}
 
         {/* Shapes card - Show overall progress if multiple shapes */}
-        {(aggregationType === 'shapes' || aggregationType === 'both') && shapes && shapes.length > 0 && (
+        {shapes && shapes.length > 0 && (
           <ImportStepCard
             title="Shapes"
             icon={<Map className="w-5 h-5" />}
@@ -192,7 +192,7 @@ export function SummaryStep() {
               </div>
             </div>
 
-            {(aggregationType === 'plots' || aggregationType === 'both') && (
+            {plots?.file && (
               <div className="flex items-start gap-3">
                 <div className="mt-0.5">
                   <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
@@ -208,11 +208,11 @@ export function SummaryStep() {
               </div>
             )}
 
-            {(aggregationType === 'shapes' || aggregationType === 'both') && (
+            {shapes && shapes.length > 0 && (
               <div className="flex items-start gap-3">
                 <div className="mt-0.5">
                   <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
-                    {aggregationType === 'both' ? 3 : 2}
+                    {plots?.file ? 3 : 2}
                   </div>
                 </div>
                 <div className="flex-1">
