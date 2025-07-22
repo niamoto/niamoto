@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useImport } from './ImportContext'
 import { useImportProgress } from './ImportProgressContext'
 import { Button } from '@/components/ui/button'
@@ -7,6 +8,7 @@ import { executeImportAndWait } from '@/lib/api/import'
 import { Loader2, ArrowRight, Check, AlertCircle } from 'lucide-react'
 
 export function ImportButton() {
+  const { t } = useTranslation(['import', 'common'])
   const { state } = useImport()
   const { updateStepProgress, updateShapeProgress, initializeProgress } = useImportProgress()
   const [overallStatus, setOverallStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle')
@@ -31,7 +33,7 @@ export function ImportButton() {
         updateStepProgress('taxonomy', {
           status: 'running',
           progress: 0,
-          message: 'Extraction de la taxonomie...'
+          message: t('importButton.extractingTaxonomy')
         })
 
         const taxonomyFieldMappings = {
@@ -70,7 +72,7 @@ export function ImportButton() {
         } catch (error) {
           updateStepProgress('taxonomy', {
             status: 'failed',
-            error: error instanceof Error ? error.message : 'Erreur inconnue'
+            error: error instanceof Error ? error.message : t('common:messages.unknownError')
           })
           throw error
         }
@@ -79,7 +81,7 @@ export function ImportButton() {
         updateStepProgress('occurrences', {
           status: 'running',
           progress: 0,
-          message: 'Import des occurrences...'
+          message: t('importButton.importingOccurrences')
         })
 
         try {
@@ -108,7 +110,7 @@ export function ImportButton() {
         } catch (error) {
           updateStepProgress('occurrences', {
             status: 'failed',
-            error: error instanceof Error ? error.message : 'Erreur inconnue'
+            error: error instanceof Error ? error.message : t('common:messages.unknownError')
           })
           throw error
         }
@@ -119,7 +121,7 @@ export function ImportButton() {
         updateStepProgress('plots', {
           status: 'running',
           progress: 0,
-          message: 'Import des plots...'
+          message: t('importButton.importingPlots')
         })
 
         try {
@@ -153,9 +155,9 @@ export function ImportButton() {
         } catch (error) {
           updateStepProgress('plots', {
             status: 'failed',
-            error: error instanceof Error ? error.message : 'Erreur inconnue'
+            error: error instanceof Error ? error.message : t('common:messages.unknownError')
           })
-          localErrors.push(`Erreur plots: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+          localErrors.push(t('importButton.plotError', { error: error instanceof Error ? error.message : t('common:messages.unknownError') }))
         }
       }
 
@@ -166,7 +168,7 @@ export function ImportButton() {
             updateShapeProgress(index, {
               status: 'running',
               progress: 0,
-              message: `Import de ${shape.type || `shape ${index + 1}`}...`
+              message: t('importButton.importingShape', { name: shape.type || `shape ${index + 1}` })
             })
 
             try {
@@ -197,9 +199,12 @@ export function ImportButton() {
             } catch (error) {
               updateShapeProgress(index, {
                 status: 'failed',
-                error: error instanceof Error ? error.message : 'Erreur inconnue'
+                error: error instanceof Error ? error.message : t('common:messages.unknownError')
               })
-              localErrors.push(`Erreur shape ${shape.type || index + 1}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+              localErrors.push(t('importButton.shapeError', {
+                index: shape.type || (index + 1),
+                error: error instanceof Error ? error.message : t('common:messages.unknownError')
+              }))
             }
           }
         }
@@ -214,7 +219,7 @@ export function ImportButton() {
       }
     } catch (error) {
       setOverallStatus('failed')
-      setErrors([error instanceof Error ? error.message : 'Une erreur est survenue'])
+      setErrors([error instanceof Error ? error.message : t('importButton.errorOccurred')])
     }
   }
 
@@ -223,7 +228,7 @@ export function ImportButton() {
       <div className="space-y-4">
         <Button disabled className="w-full">
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          Import en cours...
+          {t('importButton.importing')}
         </Button>
       </div>
     )
@@ -237,7 +242,7 @@ export function ImportButton() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               <div className="space-y-1">
-                <p>Certains imports ont échoué :</p>
+                <p>{t('importButton.someImportsFailed')}</p>
                 <ul className="list-disc list-inside text-sm">
                   {errors.map((error, i) => (
                     <li key={i}>{error}</li>
@@ -250,11 +255,11 @@ export function ImportButton() {
         <div className="flex items-center gap-2 text-green-600">
           <Check className="w-5 h-5" />
           <span className="font-medium">
-            {errors.length > 0 ? 'Import terminé avec des avertissements' : 'Import terminé avec succès !'}
+            {errors.length > 0 ? t('importButton.completedWithWarnings') : t('importButton.completedSuccessfully')}
           </span>
         </div>
         <Button variant="outline" onClick={() => window.location.href = '/transform'} className="w-full">
-          Aller aux transformations
+          {t('importButton.goToTransforms')}
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </div>
@@ -271,7 +276,7 @@ export function ImportButton() {
           </AlertDescription>
         </Alert>
         <Button onClick={handleImport} variant="destructive" className="w-full">
-          Réessayer l'import
+          {t('importButton.retry')}
         </Button>
       </div>
     )
@@ -280,7 +285,7 @@ export function ImportButton() {
   return (
     <Button onClick={handleImport} className="w-full">
       <Check className="w-4 h-4 mr-2" />
-      Lancer l'import
+      {t('importButton.start')}
     </Button>
   )
 }

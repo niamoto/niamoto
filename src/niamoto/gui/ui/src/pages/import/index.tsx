@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { ImportProvider, useImport } from './ImportContext'
 import { ImportProgressProvider } from './ImportProgressContext'
 import { Overview } from './Overview'
@@ -10,16 +11,17 @@ import { Progress } from '@/components/ui/progress'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const steps = [
-  { title: 'Vue d\'ensemble', description: 'Comprendre le processus' },
-  { title: 'Occurrences', description: 'Données d\'observation' },
-  { title: 'Agrégations', description: 'Regroupements spatiaux' },
-  { title: 'Résumé', description: 'Confirmation' }
-]
-
 function ImportContent() {
+  const { t } = useTranslation(['import', 'common'])
   const { state, setCurrentStep, canProceed } = useImport()
   const { currentStep } = state
+
+  const steps = [
+    { title: t('navigation.overview.title'), description: t('navigation.overview.subtitle') },
+    { title: t('navigation.occurrences.title'), description: t('navigation.occurrences.subtitle') },
+    { title: t('navigation.aggregations.title'), description: t('navigation.aggregations.subtitle') },
+    { title: t('navigation.summary.title'), description: t('navigation.summary.subtitle') }
+  ]
 
   const handleNext = () => {
     if (currentStep < steps.length - 1 && canProceed()) {
@@ -53,9 +55,9 @@ function ImportContent() {
       {/* Header with old import link */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Import de données</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground mt-2">
-            Interface guidée pour importer vos données écologiques
+            {t('subtitle')}
           </p>
         </div>
       </div>
@@ -105,7 +107,7 @@ function ImportContent() {
           disabled={currentStep === 0}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Précédent
+          {t('common:actions.previous')}
         </Button>
 
         <div className="flex gap-2">
@@ -114,7 +116,7 @@ function ImportContent() {
               onClick={handleNext}
               disabled={!canProceed()}
             >
-              Suivant
+              {t('common:actions.next')}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (

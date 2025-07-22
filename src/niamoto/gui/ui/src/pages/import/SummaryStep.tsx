@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useImport } from './ImportContext'
 import { useImportProgress } from './ImportProgressContext'
 import { ImportStepCard } from './components/ImportStepCard'
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react'
 
 export function SummaryStep() {
+  const { t } = useTranslation(['import', 'common'])
   const { state } = useImport()
   const { occurrences, plots, shapes } = state
   const { progress } = useImportProgress()
@@ -23,9 +25,9 @@ export function SummaryStep() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Résumé de votre import</h2>
+        <h2 className="text-2xl font-bold">{t('summary.title')}</h2>
         <p className="text-muted-foreground mt-2">
-          Vérifiez les informations avant de lancer l'import
+          {t('summary.description')}
         </p>
       </div>
 
@@ -33,16 +35,16 @@ export function SummaryStep() {
       <div className="grid gap-4 md:grid-cols-2">
         {/* Occurrences card */}
         <ImportStepCard
-          title="Occurrences"
+          title={t('summary.sections.occurrences.title')}
           icon={<FileSpreadsheet className="w-5 h-5" />}
           status={progress.occurrences}
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Fichier</span>
+            <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.file')}</span>
             <span className="text-sm font-medium">{occurrences.file?.name}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Lignes</span>
+            <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.rows')}</span>
             <Badge variant="secondary">
               {occurrences.fileAnalysis?.rowCount ||
                occurrences.fileAnalysis?.row_count ||
@@ -51,24 +53,24 @@ export function SummaryStep() {
             </Badge>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Champs mappés</span>
+            <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.mappedFields')}</span>
             <Badge variant="secondary">{Object.keys(occurrences.fieldMappings).length}</Badge>
           </div>
         </ImportStepCard>
 
         {/* Taxonomy card */}
         <ImportStepCard
-          title="Taxonomie"
+          title={t('summary.sections.taxonomy.title')}
           icon={<TreePine className="w-5 h-5 text-green-600" />}
           status={progress.taxonomy}
           variant="success"
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Niveaux</span>
+            <span className="text-sm text-muted-foreground">{t('summary.sections.taxonomy.levels')}</span>
             <Badge variant="secondary">{occurrences.taxonomyHierarchy.ranks.length}</Badge>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Hiérarchie</span>
+            <span className="text-sm text-muted-foreground">{t('summary.sections.taxonomy.hierarchy')}</span>
             <span className="text-xs font-mono">
               {occurrences.taxonomyHierarchy.ranks.slice(0, 3).join(' → ')}
               {occurrences.taxonomyHierarchy.ranks.length > 3 && '...'}
@@ -76,10 +78,10 @@ export function SummaryStep() {
           </div>
           {occurrences.apiEnrichment?.enabled && (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Enrichissement API</span>
+              <span className="text-sm text-muted-foreground">{t('summary.sections.taxonomy.apiEnrichment')}</span>
               <div className="flex items-center gap-1">
                 <Globe className="w-3 h-3 text-blue-600" />
-                <span className="text-xs">Activé</span>
+                <span className="text-xs">{t('summary.sections.taxonomy.enabled')}</span>
               </div>
             </div>
           )}
@@ -88,16 +90,16 @@ export function SummaryStep() {
         {/* Plots card */}
         {plots?.file && (
           <ImportStepCard
-            title="Plots"
+            title={t('summary.sections.plots.title')}
             icon={<MapPin className="w-5 h-5" />}
             status={progress.plots}
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Fichier</span>
+              <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.file')}</span>
               <span className="text-sm font-medium">{plots.file.name}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Lignes</span>
+              <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.rows')}</span>
               <Badge variant="secondary">
                 {plots.fileAnalysis?.rowCount ||
                  plots.fileAnalysis?.row_count ||
@@ -107,16 +109,16 @@ export function SummaryStep() {
             </div>
             {plots.linkField && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Liaison</span>
+                <span className="text-sm text-muted-foreground">{t('summary.sections.plots.link')}</span>
                 <span className="text-xs font-mono">{plots.linkField} ↔ {plots.occurrenceLinkField}</span>
               </div>
             )}
             {plots.hierarchy?.enabled && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Hiérarchie</span>
+                <span className="text-sm text-muted-foreground">{t('summary.sections.taxonomy.hierarchy')}</span>
                 <span className="text-xs">
-                  {plots.hierarchy.levels.length} niveaux
-                  {plots.hierarchy.aggregate_geometry && ' (géométries agrégées)'}
+                  {t('common:units.levels', { count: plots.hierarchy.levels.length })}
+                  {plots.hierarchy.aggregate_geometry && t('aggregations.plots.hierarchy.aggregated')}
                 </span>
               </div>
             )}
@@ -126,7 +128,7 @@ export function SummaryStep() {
         {/* Shapes card - Show overall progress if multiple shapes */}
         {shapes && shapes.length > 0 && (
           <ImportStepCard
-            title="Shapes"
+            title={t('summary.sections.shapes.title')}
             icon={<Map className="w-5 h-5" />}
             status={progress.shapes && progress.shapes.length > 0 ? {
               status: progress.shapes.every(s => s.status === 'completed') ? 'completed' :
@@ -137,7 +139,7 @@ export function SummaryStep() {
             } : undefined}
           >
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Éléments total</span>
+              <span className="text-sm text-muted-foreground">{t('summary.sections.shapes.totalElements')}</span>
               <Badge variant="secondary">
                 {shapes.reduce((total, shape) => total + (shape.fileAnalysis?.feature_count || 0), 0)}
               </Badge>
@@ -148,7 +150,7 @@ export function SummaryStep() {
                 <div className="flex items-center gap-2">
                   <span className="font-medium truncate max-w-[150px]">{shape.file.name}</span>
                   <span className="text-muted-foreground">
-                    ({shape.fileAnalysis?.feature_count || 0} éléments)
+                    {t('summary.sections.shapes.elements', { count: shape.fileAnalysis?.feature_count || 0 })}
                   </span>
                 </div>
               </div>
@@ -162,7 +164,7 @@ export function SummaryStep() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="w-5 h-5" />
-            Processus d'import
+            {t('summary.process.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -174,10 +176,10 @@ export function SummaryStep() {
                 </div>
               </div>
               <div className="flex-1">
-                <div className="font-medium text-sm">Import des occurrences</div>
+                <div className="font-medium text-sm">{t('summary.process.occurrences.title')}</div>
                 <div className="text-sm text-muted-foreground">
-                  Chargement des données d'observation et extraction automatique de la taxonomie
-                  {occurrences.apiEnrichment?.enabled && ' avec enrichissement API'}
+                  {t('summary.process.occurrences.description')}
+                  {occurrences.apiEnrichment?.enabled && ` ${t('summary.process.occurrences.withApi')}`}
                 </div>
               </div>
             </div>
@@ -190,9 +192,9 @@ export function SummaryStep() {
                   </div>
                 </div>
                 <div className="flex-1">
-                  <div className="font-medium text-sm">Import des plots</div>
+                  <div className="font-medium text-sm">{t('summary.process.plots.title')}</div>
                   <div className="text-sm text-muted-foreground">
-                    Création des regroupements spatiaux et liaison avec les occurrences
+                    {t('summary.process.plots.description')}
                   </div>
                 </div>
               </div>
@@ -206,9 +208,9 @@ export function SummaryStep() {
                   </div>
                 </div>
                 <div className="flex-1">
-                  <div className="font-medium text-sm">Import des shapes</div>
+                  <div className="font-medium text-sm">{t('summary.process.shapes.title')}</div>
                   <div className="text-sm text-muted-foreground">
-                    Chargement des zones géographiques pour l'analyse spatiale
+                    {t('summary.process.shapes.description')}
                   </div>
                 </div>
               </div>
@@ -222,8 +224,7 @@ export function SummaryStep() {
       <Alert>
         <Info className="w-4 h-4" />
         <AlertDescription>
-          Une fois l'import lancé, le processus peut prendre quelques minutes selon
-          la taille de vos données. Ne fermez pas cette fenêtre pendant l'import.
+          {t('summary.warning')}
         </AlertDescription>
       </Alert>
     </div>

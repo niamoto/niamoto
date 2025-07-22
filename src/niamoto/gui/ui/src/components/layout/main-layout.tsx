@@ -1,4 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   Sidebar,
   SidebarHeader,
@@ -9,22 +10,24 @@ import {
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
 import { Upload, Settings, Download, BarChart3 } from 'lucide-react'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 const navigation = [
-  { name: 'Import', href: '/import', icon: Upload },
-  { name: 'Transform', href: '/transform', icon: Settings },
-  { name: 'Export', href: '/export', icon: Download },
-  { name: 'Visualize', href: '/visualize', icon: BarChart3 },
+  { name: 'import' as const, href: '/import', icon: Upload },
+  { name: 'transform' as const, href: '/transform', icon: Settings },
+  { name: 'export' as const, href: '/export', icon: Download },
+  { name: 'visualize' as const, href: '/visualize', icon: BarChart3 },
 ]
 
 export function MainLayout() {
   const location = useLocation()
+  const { t } = useTranslation()
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar>
         <SidebarHeader>
-          <h1 className="text-lg font-bold text-primary">Niamoto</h1>
+          <h1 className="text-lg font-bold text-primary">{t('app.title')}</h1>
         </SidebarHeader>
         <SidebarContent>
           <SidebarNav>
@@ -38,15 +41,18 @@ export function MainLayout() {
               >
                 <SidebarNavItem active={location.pathname === item.href}>
                   <item.icon className="mr-3 h-4 w-4" />
-                  {item.name}
+                  {t(`navigation.${item.name}` as const)}
                 </SidebarNavItem>
               </NavLink>
             ))}
           </SidebarNav>
         </SidebarContent>
         <SidebarFooter>
+          <div className="mb-3">
+            <LanguageSwitcher />
+          </div>
           <div className="text-xs text-muted-foreground">
-            Ecological Data Pipeline
+            {t('app.description')}
           </div>
         </SidebarFooter>
       </Sidebar>

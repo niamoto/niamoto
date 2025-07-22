@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, AlertCircle, GripVertical, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ImportType } from './types'
@@ -10,7 +11,9 @@ interface ColumnMapperProps {
   onMappingComplete: (mappings: Record<string, string>) => void
 }
 
+
 export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: ColumnMapperProps) {
+  const { t } = useTranslation(['import', 'common'])
   const [mappings, setMappings] = useState<Record<string, string>>({})
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
 
@@ -25,7 +28,7 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
         <p className="text-sm text-destructive">
-          Error analyzing file: {fileAnalysis.error}
+          {t('fieldMapping.errorAnalyzing', { error: fileAnalysis.error })}
         </p>
       </div>
     )
@@ -73,7 +76,7 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2">Loading field definitions...</span>
+        <span className="ml-2">{t('fieldMapping.loadingDefinitions')}</span>
       </div>
     )
   }
@@ -90,19 +93,19 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Map Fields</h2>
+      <h2 className="mb-4 text-xl font-semibold">{t('fieldMapping.title')}</h2>
       <p className="mb-6 text-sm text-muted-foreground">
-        Drag columns from your file to the required fields, or click to select.
+        {t('fieldMapping.dragInstruction')}
       </p>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Source Columns */}
         <div>
-          <h3 className="mb-3 font-medium">Source Columns</h3>
+          <h3 className="mb-3 font-medium">{t('fieldMapping.sourceColumns')}</h3>
           <div className="rounded-lg border bg-card p-4">
             <div className="space-y-2">
               {unmappedColumns.length === 0 ? (
-                <p className="text-sm text-muted-foreground">All columns mapped</p>
+                <p className="text-sm text-muted-foreground">{t('common:messages.allMapped')}</p>
               ) : (
                 unmappedColumns.map((column: string) => (
                   <div
@@ -132,7 +135,7 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
 
         {/* Target Fields */}
         <div>
-          <h3 className="mb-3 font-medium">Target Fields</h3>
+          <h3 className="mb-3 font-medium">{t('fieldMapping.targetFields')}</h3>
           <div className="space-y-3">
             {fields.map((field) => {
               // Special handling for occurrence_link_field
@@ -197,9 +200,9 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
           <div className="flex items-start space-x-2">
             <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
             <div>
-              <p className="text-sm font-medium">Missing Required Fields</p>
+              <p className="text-sm font-medium">{t('common:validation.missingRequired')}</p>
               <p className="text-sm text-muted-foreground">
-                Please map all required fields before proceeding.
+                {t('common:validation.mapAllRequired')}
               </p>
             </div>
           </div>
@@ -228,6 +231,7 @@ function FieldMapping({
   onRemove,
   isDragActive,
 }: FieldMappingProps) {
+  const { t } = useTranslation(['import', 'common'])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -266,7 +270,7 @@ function FieldMapping({
               {field.required && <span className="text-destructive">*</span>}
             </h4>
             {suggestions.length > 0 && !mappedColumn && (
-              <span className="text-xs text-primary">Auto-suggested</span>
+              <span className="text-xs text-primary">{t('common:messages.suggested')}</span>
             )}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{field.description}</p>
@@ -281,21 +285,21 @@ function FieldMapping({
                 onClick={onRemove}
                 className="text-xs text-muted-foreground hover:text-foreground"
               >
-                Remove
+                {t('common:actions.remove')}
               </button>
             </div>
           ) : (
             <div className="relative mt-2">
               {isDragActive ? (
                 <div className="rounded-md border-2 border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-center text-sm text-muted-foreground">
-                  Drop column here
+                  {t('fieldMapping.dropHere')}
                 </div>
               ) : (
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
                   className="text-sm text-primary hover:underline"
                 >
-                  Select column
+                  {t('fieldMapping.selectColumn')}
                 </button>
               )}
 
@@ -315,7 +319,7 @@ function FieldMapping({
                     >
                       {col}
                       {suggestions.includes(col) && (
-                        <span className="ml-2 text-xs text-muted-foreground">(suggested)</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{t('common:messages.suggested')}</span>
                       )}
                     </button>
                   ))}
@@ -339,6 +343,7 @@ interface PlotLinkFieldProps {
 }
 
 function PlotLinkField({ field, mappedColumn, availableColumns, onSelect, onRemove }: PlotLinkFieldProps) {
+  const { t } = useTranslation(['import', 'common'])
   return (
     <div className="rounded-lg border p-4 bg-accent/20">
       <div className="flex items-start justify-between">
@@ -363,7 +368,7 @@ function PlotLinkField({ field, mappedColumn, availableColumns, onSelect, onRemo
                 onClick={onRemove}
                 className="text-xs text-muted-foreground hover:text-foreground"
               >
-                Changer
+                {t('common:actions.change')}
               </button>
             </div>
           ) : (
@@ -377,7 +382,7 @@ function PlotLinkField({ field, mappedColumn, availableColumns, onSelect, onRemo
                 }}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="">Sélectionner un champ...</option>
+                <option value="">{t('common:messages.selectField')}</option>
                 {availableColumns.map((col) => (
                   <option key={col} value={col}>{col}</option>
                 ))}
@@ -399,6 +404,7 @@ interface OccurrenceLinkFieldProps {
 }
 
 function OccurrenceLinkField({ field, value, onChange, availableColumns }: OccurrenceLinkFieldProps) {
+  const { t } = useTranslation(['import', 'common'])
   return (
     <div className="rounded-lg border p-4 bg-accent/20">
       <div className="flex items-start justify-between">
@@ -421,13 +427,13 @@ function OccurrenceLinkField({ field, value, onChange, availableColumns }: Occur
                   onChange={(e) => onChange(e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="">Sélectionner un champ...</option>
+                  <option value="">{t('common:messages.selectField')}</option>
                   {availableColumns.map((col) => (
                     <option key={col} value={col}>{col}</option>
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Champs détectés depuis le fichier d'occurrences importé
+                  {t('fieldMapping.fieldsFromOccurrences')}
                 </p>
               </>
             ) : (
@@ -436,11 +442,11 @@ function OccurrenceLinkField({ field, value, onChange, availableColumns }: Occur
                   type="text"
                   value={value}
                   onChange={(e) => onChange(e.target.value)}
-                  placeholder="ex: plot_name"
+                  placeholder={t('common:messages.example', { example: 'plot_name' })}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Ce champ devra exister dans votre fichier d'occurrences lors de son import
+                  {t('fieldMapping.mustExistInOccurrences')}
                 </p>
               </>
             )}
@@ -459,6 +465,7 @@ interface ShapeTypeFieldProps {
 }
 
 function ShapeTypeField({ field, value, onChange }: ShapeTypeFieldProps) {
+  const { t } = useTranslation(['import', 'common'])
   return (
     <div className="rounded-lg border p-4 bg-accent/20">
       <div className="flex items-start justify-between">
@@ -478,7 +485,7 @@ function ShapeTypeField({ field, value, onChange }: ShapeTypeFieldProps) {
               type="text"
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              placeholder="ex: commune, province, région"
+              placeholder={t('common:messages.example', { example: 'commune, province, région' })}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>

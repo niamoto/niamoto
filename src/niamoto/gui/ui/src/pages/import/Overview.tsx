@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -15,28 +16,28 @@ import {
 import niamotoLogo from '@/assets/niamoto_logo.png'
 
 export function Overview() {
+  const { t } = useTranslation(['import', 'common'])
   return (
     <div className="space-y-8">
       {/* Welcome message */}
       <div className="text-center space-y-4">
         <img
           src={niamotoLogo}
-          alt="Niamoto Logo"
+          alt={t('common:app.logo')}
           className="w-32 h-32 mx-auto object-contain"
         />
-        <h2 className="text-2xl font-bold">Bienvenue dans l'import de données Niamoto</h2>
+        <h2 className="text-2xl font-bold">{t('overview.welcome')}</h2>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Niamoto organise vos données écologiques autour des observations (occurrences).
-          Cette interface guidée vous accompagnera pas à pas dans le processus d'import.
+          {t('overview.description')}
         </p>
       </div>
 
       {/* How it works */}
       <Card>
         <CardHeader>
-          <CardTitle>Comment fonctionne Niamoto ?</CardTitle>
+          <CardTitle>{t('overview.howItWorks.title')}</CardTitle>
           <CardDescription>
-            Comprendre le flux de données pour mieux organiser vos imports
+            {t('overview.howItWorks.subtitle')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -45,8 +46,8 @@ export function Overview() {
               <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto">
                 <FileSpreadsheet className="w-10 h-10 text-primary" />
               </div>
-              <div className="font-medium">Occurrences</div>
-              <div className="text-sm text-muted-foreground">Observations brutes</div>
+              <div className="font-medium">{t('overview.howItWorks.occurrences')}</div>
+              <div className="text-sm text-muted-foreground">{t('overview.howItWorks.occurrencesDesc')}</div>
             </div>
 
             <div className="hidden md:flex justify-center">
@@ -57,9 +58,9 @@ export function Overview() {
               <div className="bg-green-100 dark:bg-green-900/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto">
                 <TreePine className="w-10 h-10 text-green-600" />
               </div>
-              <div className="font-medium">Taxonomie</div>
-              <div className="text-sm text-muted-foreground">Extraction automatique</div>
-              <Badge variant="secondary" className="text-xs">Automatique</Badge>
+              <div className="font-medium">{t('overview.howItWorks.taxonomy')}</div>
+              <div className="text-sm text-muted-foreground">{t('overview.howItWorks.taxonomyDesc')}</div>
+              <Badge variant="secondary" className="text-xs">{t('overview.howItWorks.automatic')}</Badge>
             </div>
 
             <div className="hidden md:flex justify-center">
@@ -70,16 +71,15 @@ export function Overview() {
               <div className="bg-blue-100 dark:bg-blue-900/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto">
                 <MapPin className="w-10 h-10 text-blue-600" />
               </div>
-              <div className="font-medium">Agrégations</div>
-              <div className="text-sm text-muted-foreground">Plots & Shapes</div>
+              <div className="font-medium">{t('overview.howItWorks.aggregations')}</div>
+              <div className="text-sm text-muted-foreground">{t('overview.howItWorks.aggregationsDesc')}</div>
             </div>
           </div>
 
           <Alert className="mt-6">
             <Database className="w-4 h-4" />
             <AlertDescription>
-              <strong>Point clé :</strong> La taxonomie est extraite automatiquement de vos occurrences.
-              Vous n'avez pas besoin de l'importer séparément !
+              <strong>{t('overview.keyPoint.title')}</strong> {t('overview.keyPoint.description')}
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -91,18 +91,16 @@ export function Overview() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="w-5 h-5 text-green-600" />
-              Ce dont vous avez besoin
+              {t('overview.requirements.title')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <h4 className="font-medium mb-2">Fichier d'occurrences (CSV) avec :</h4>
+              <h4 className="font-medium mb-2">{t('overview.requirements.occurrencesFile')}</h4>
               <ul className="space-y-1 text-sm text-muted-foreground ml-4">
-                <li>• Identifiant taxonomique unique</li>
-                <li>• Localisation (coordonnées WKT ou lat/lon)</li>
-                <li>• Colonnes taxonomiques (famille, genre, espèce...)</li>
-                <li>• Autorité taxonomique (optionnel)</li>
-                <li>• Lien vers plot/parcelle (optionnel)</li>
+                {t('overview.requirements.items', { returnObjects: true }).map((item: string, index: number) => (
+                  <li key={index}>• {item}</li>
+                ))}
               </ul>
             </div>
           </CardContent>
@@ -112,26 +110,26 @@ export function Overview() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              Options d'agrégation
+              {t('overview.aggregationOptions.title')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <h4 className="font-medium mb-2 flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
-                Plots
+                {t('overview.aggregationOptions.plots.title')}
               </h4>
               <p className="text-sm text-muted-foreground ml-5">
-                Regroupements spatiaux : parcelles, localités, sites d'étude
+                {t('overview.aggregationOptions.plots.description')}
               </p>
             </div>
             <div>
               <h4 className="font-medium mb-2 flex items-center gap-2">
                 <Map className="w-4 h-4" />
-                Shapes
+                {t('overview.aggregationOptions.shapes.title')}
               </h4>
               <p className="text-sm text-muted-foreground ml-5">
-                Zones géographiques : communes, provinces, régions
+                {t('overview.aggregationOptions.shapes.description')}
               </p>
             </div>
           </CardContent>
@@ -141,7 +139,7 @@ export function Overview() {
       {/* Process summary */}
       <Card className="border-primary/50">
         <CardHeader>
-          <CardTitle>Processus d'import en 3 étapes</CardTitle>
+          <CardTitle>{t('overview.process.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -152,10 +150,9 @@ export function Overview() {
                 </div>
               </div>
               <div className="flex-1">
-                <h4 className="font-medium">Import des occurrences</h4>
+                <h4 className="font-medium">{t('overview.process.step1.title')}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Chargez votre fichier CSV et configurez le mapping des colonnes.
-                  La taxonomie sera extraite automatiquement.
+                  {t('overview.process.step1.description')}
                 </p>
               </div>
             </div>
@@ -167,10 +164,9 @@ export function Overview() {
                 </div>
               </div>
               <div className="flex-1">
-                <h4 className="font-medium">Agrégations spatiales</h4>
+                <h4 className="font-medium">{t('overview.process.step2.title')}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Ajoutez des plots ou des shapes pour regrouper vos données
-                  et générer des statistiques par zone.
+                  {t('overview.process.step2.description')}
                 </p>
               </div>
             </div>
@@ -182,10 +178,9 @@ export function Overview() {
                 </div>
               </div>
               <div className="flex-1">
-                <h4 className="font-medium">Vérification et import</h4>
+                <h4 className="font-medium">{t('overview.process.step3.title')}</h4>
                 <p className="text-sm text-muted-foreground">
-                  Vérifiez le résumé de vos données et lancez l'import.
-                  Les statistiques seront générées automatiquement.
+                  {t('overview.process.step3.description')}
                 </p>
               </div>
             </div>
