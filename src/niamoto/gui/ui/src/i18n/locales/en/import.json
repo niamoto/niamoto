@@ -290,7 +290,7 @@
     "enableHierarchical": "Enable Hierarchical Import",
     "enableDescription": "Create a nested structure of plots within localities and countries",
     "hierarchyLevels": "Hierarchy Levels",
-    "levelsDescription": "Define levels from lowest to highest (e.g., plot → locality → country)",
+    "levelsDescription": "Define levels from highest to lowest (e.g., country → locality → plot)",
     "level": "Level {{number}}",
     "selectColumnForLevel": "Select a column for hierarchy level",
     "addLevel": "Add Level",

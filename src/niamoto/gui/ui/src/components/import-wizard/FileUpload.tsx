@@ -51,9 +51,9 @@ export function FileUpload({
       <div
         {...getRootProps()}
         className={cn(
-          "relative rounded-lg border-2 border-dashed p-8 text-center transition-colors",
-          isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25",
-          isAnalyzing && "pointer-events-none opacity-50",
+          "relative rounded-lg border-2 border-dashed p-8 text-center transition-colors cursor-pointer",
+          isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-muted-foreground/50",
+          isAnalyzing && "pointer-events-none opacity-50 cursor-not-allowed",
           selectedFile && !isAnalyzing && "border-green-500 bg-green-50/50 dark:bg-green-900/10"
         )}
       >

@@ -290,7 +290,7 @@
     "enableHierarchical": "Activer l'import hiérarchique",
     "enableDescription": "Créer une structure imbriquée de plots dans des localités et des pays",
     "hierarchyLevels": "Niveaux de hiérarchie",
-    "levelsDescription": "Définir les niveaux du plus bas au plus haut (ex: plot → localité → pays)",
+    "levelsDescription": "Définir les niveaux du plus haut au plus bas (ex: pays → localité → plot)",
     "level": "Niveau {{number}}",
     "selectColumnForLevel": "Sélectionnez une colonne pour le niveau de hiérarchie",
     "addLevel": "Ajouter un niveau",
