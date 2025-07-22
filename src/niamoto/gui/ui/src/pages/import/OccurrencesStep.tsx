@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useImport } from './ImportContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react'
 
 export function OccurrencesStep() {
+  const { t } = useTranslation(['import', 'common'])
   const { state, updateOccurrences } = useImport()
   const { occurrences } = state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -93,29 +95,29 @@ export function OccurrencesStep() {
       <div>
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <FileSpreadsheet className="w-6 h-6" />
-          Données d'observation
+          {t('occurrences.title')}
         </h2>
         <p className="text-muted-foreground mt-2">
-          Importez votre fichier d'occurrences. La taxonomie sera extraite automatiquement.
+          {t('occurrences.description')}
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="upload" className="gap-2">
-            1. Fichier
+            {t('occurrences.steps.file')}
             {occurrences.file && <CheckCircle className="w-4 h-4" />}
           </TabsTrigger>
           <TabsTrigger value="mapping" disabled={!occurrences.file} className="gap-2">
-            2. Champs requis
+            {t('occurrences.steps.requiredFields')}
             {hasRequiredFields && <CheckCircle className="w-4 h-4" />}
           </TabsTrigger>
           <TabsTrigger value="taxonomy" disabled={!hasRequiredFields} className="gap-2">
-            3. Taxonomie
+            {t('occurrences.steps.taxonomy')}
             {hasTaxonomyMapping && <CheckCircle className="w-4 h-4" />}
           </TabsTrigger>
           <TabsTrigger value="enrichment" disabled={!hasTaxonomyMapping} className="gap-2">
-            4. Enrichissement
+            {t('occurrences.steps.enrichment')}
             {apiConfig.enabled && <CheckCircle className="w-4 h-4" />}
           </TabsTrigger>
         </TabsList>
@@ -123,9 +125,9 @@ export function OccurrencesStep() {
         <TabsContent value="upload" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Chargement du fichier</CardTitle>
+              <CardTitle>{t('occurrences.file.title')}</CardTitle>
               <CardDescription>
-                Sélectionnez votre fichier CSV contenant les données d'observation
+                {t('occurrences.file.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -140,19 +142,19 @@ export function OccurrencesStep() {
                 <div className="mt-6 space-y-4">
                   <Alert>
                     <CheckCircle className="w-4 h-4" />
-                    <AlertTitle>Analyse terminée</AlertTitle>
+                    <AlertTitle>{t('common:file.analysisComplete')}</AlertTitle>
                     <AlertDescription>
                       <div className="mt-2 space-y-1">
-                        <div>• {occurrences.fileAnalysis.rowCount || occurrences.fileAnalysis.row_count || occurrences.fileAnalysis.total_rows || 'N/A'} lignes détectées</div>
-                        <div>• {occurrences.fileAnalysis.columns?.length} colonnes trouvées</div>
-                        <div>• Encodage : {occurrences.fileAnalysis.encoding || 'UTF-8'}</div>
+                        <div>• {t('occurrences.file.detected', { rows: occurrences.fileAnalysis.rowCount || occurrences.fileAnalysis.row_count || occurrences.fileAnalysis.total_rows || 'N/A' })}</div>
+                        <div>• {t('occurrences.file.foundColumns', { count: occurrences.fileAnalysis.columns?.length })}</div>
+                        <div>• {t('common:file.encoding')} : {occurrences.fileAnalysis.encoding || 'UTF-8'}</div>
                       </div>
                     </AlertDescription>
                   </Alert>
 
                   {occurrences.fileAnalysis.preview && (
                     <div>
-                      <h4 className="font-medium mb-2">Aperçu des données</h4>
+                      <h4 className="font-medium mb-2">{t('common:file.preview')}</h4>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-border">
                           <thead>
@@ -197,7 +199,7 @@ export function OccurrencesStep() {
                 onClick={() => setActiveTab('mapping')}
                 className="gap-2"
               >
-                Suivant : Champs requis
+                {t('occurrences.file.nextStep')}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -208,15 +210,15 @@ export function OccurrencesStep() {
           <Alert>
             <Info className="w-4 h-4" />
             <AlertDescription>
-              Mappez uniquement les champs essentiels. La configuration de la hiérarchie taxonomique se fera à l'étape suivante.
+              {t('occurrences.requiredFields.note')}
             </AlertDescription>
           </Alert>
 
           <Card>
             <CardHeader>
-              <CardTitle>Champs requis</CardTitle>
+              <CardTitle>{t('occurrences.requiredFields.title')}</CardTitle>
               <CardDescription>
-                Ces champs sont nécessaires pour identifier et localiser vos observations
+                {t('occurrences.requiredFields.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -237,7 +239,7 @@ export function OccurrencesStep() {
                 onClick={() => setActiveTab('taxonomy')}
                 className="gap-2"
               >
-                Suivant : Taxonomie
+                {t('occurrences.requiredFields.nextStep')}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -247,10 +249,9 @@ export function OccurrencesStep() {
         <TabsContent value="taxonomy" className="space-y-4">
           <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
             <TreePine className="w-4 h-4 text-green-600" />
-            <AlertTitle>Extraction automatique de la taxonomie</AlertTitle>
+            <AlertTitle>{t('occurrences.taxonomy.title')}</AlertTitle>
             <AlertDescription>
-              Configurez la hiérarchie taxonomique. Niamoto extraira automatiquement
-              les taxons uniques de vos données selon cette configuration.
+              {t('occurrences.taxonomy.description')}
             </AlertDescription>
           </Alert>
 
@@ -264,21 +265,23 @@ export function OccurrencesStep() {
           {occurrences.fileAnalysis && hasTaxonomyMapping && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Aperçu de l'extraction</CardTitle>
+                <CardTitle className="text-base">{t('occurrences.taxonomy.preview')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>
-                      Hiérarchie configurée : {Object.keys(occurrences.taxonomyHierarchy.mappings).length} niveau(x)
+                      {t('occurrences.taxonomy.configuredHierarchy', { count: Object.keys(occurrences.taxonomyHierarchy.mappings).length })}
                     </p>
                     <p className="text-xs">
-                      Niveaux mappés : {Object.entries(occurrences.taxonomyHierarchy.mappings)
-                        .map(([level, col]) => `${level} (${col})`)
-                        .join(', ')}
+                      {t('occurrences.taxonomy.mappedLevels', {
+                        levels: Object.entries(occurrences.taxonomyHierarchy.mappings)
+                          .map(([level, col]) => `${level} (${col})`)
+                          .join(', ')
+                      })}
                     </p>
                     <p className="mt-2">
-                      La taxonomie complète sera extraite lors de l'import en respectant cette hiérarchie.
+                      {t('occurrences.taxonomy.extractionNote')}
                     </p>
                   </div>
                 </div>
@@ -293,7 +296,7 @@ export function OccurrencesStep() {
                 onClick={() => setActiveTab('enrichment')}
                 className="gap-2"
               >
-                Suivant : Enrichissement (optionnel)
+                {t('occurrences.taxonomy.nextStep')}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -303,10 +306,9 @@ export function OccurrencesStep() {
         <TabsContent value="enrichment" className="space-y-4">
           <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
             <Globe className="w-4 h-4 text-blue-600" />
-            <AlertTitle>Enrichissement via API externe</AlertTitle>
+            <AlertTitle>{t('occurrences.enrichment.title')}</AlertTitle>
             <AlertDescription>
-              Optionnel : Enrichissez votre taxonomie avec des données provenant d'APIs externes
-              (statut de conservation, endémisme, images, etc.)
+              {t('occurrences.enrichment.description')}
             </AlertDescription>
           </Alert>
 
@@ -319,8 +321,7 @@ export function OccurrencesStep() {
           <Alert>
             <Info className="w-4 h-4" />
             <AlertDescription>
-              L'enrichissement API est optionnel. Vous pouvez passer à l'étape suivante
-              (Agrégations spatiales) en utilisant le bouton "Suivant" en bas de la page principale.
+              {t('occurrences.enrichment.note')}
             </AlertDescription>
           </Alert>
         </TabsContent>
@@ -330,7 +331,7 @@ export function OccurrencesStep() {
       <Card className={hasRequiredFields && hasTaxonomyMapping ? 'border-green-500' : ''}>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            État de configuration
+            {t('occurrences.status.configurationStatus', { defaultValue: 'État de configuration' })}
             {hasRequiredFields && hasTaxonomyMapping && (
               <CheckCircle className="w-5 h-5 text-green-600" />
             )}
@@ -344,7 +345,7 @@ export function OccurrencesStep() {
               ) : (
                 <AlertCircle className="w-4 h-4 text-muted-foreground" />
               )}
-              <span className="text-sm">Identifiant taxonomique mappé</span>
+              <span className="text-sm">{t('occurrences.status.taxIdMapped')}</span>
             </div>
             <div className="flex items-center gap-2">
               {occurrences.fieldMappings.location ? (
@@ -352,7 +353,7 @@ export function OccurrencesStep() {
               ) : (
                 <AlertCircle className="w-4 h-4 text-muted-foreground" />
               )}
-              <span className="text-sm">Localisation mappée</span>
+              <span className="text-sm">{t('occurrences.status.locationMapped')}</span>
             </div>
             <div className="flex items-center gap-2">
               {hasTaxonomyMapping ? (
@@ -361,19 +362,19 @@ export function OccurrencesStep() {
                 <AlertCircle className="w-4 h-4 text-muted-foreground" />
               )}
               <span className="text-sm">
-                Hiérarchie taxonomique configurée ({Object.keys(occurrences.taxonomyHierarchy.mappings).length} niveaux)
+                {t('occurrences.status.hierarchyConfigured', { count: Object.keys(occurrences.taxonomyHierarchy.mappings).length })}
               </span>
             </div>
             {occurrences.fieldMappings.plot_name && (
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-600" />
-                <span className="text-sm">Lien vers plots détecté</span>
+                <span className="text-sm">{t('occurrences.status.plotLinkDetected')}</span>
               </div>
             )}
             {apiConfig.enabled && (
               <div className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-blue-600" />
-                <span className="text-sm">Enrichissement API activé</span>
+                <span className="text-sm">{t('occurrences.status.apiEnrichmentEnabled')}</span>
               </div>
             )}
           </div>

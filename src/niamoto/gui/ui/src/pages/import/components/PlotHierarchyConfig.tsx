@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,7 @@ export interface HierarchyConfig {
 }
 
 export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: PlotHierarchyConfigProps) {
+  const { t } = useTranslation(['import', 'common'])
   const [newLevel, setNewLevel] = useState('')
 
   const addLevel = () => {
@@ -66,19 +68,19 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <GitBranch className="h-5 w-5" />
-          Configuration de la hiérarchie des plots
+          {t('plotHierarchy.title')}
         </CardTitle>
         <CardDescription>
-          Configurez les relations hiérarchiques entre plots, localités et régions
+          {t('plotHierarchy.description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Enable/Disable Hierarchy */}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
-            <Label htmlFor="enable-hierarchy">Activer l'import hiérarchique</Label>
+            <Label htmlFor="enable-hierarchy">{t('plotHierarchy.enableHierarchical')}</Label>
             <p className="text-sm text-muted-foreground">
-              Créer une structure imbriquée de plots dans des localités et des régions
+              {t('plotHierarchy.enableDescription')}
             </p>
           </div>
           <Switch
@@ -93,9 +95,9 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
             {/* Hierarchy Levels */}
             <div className="space-y-4">
               <div>
-                <Label>Niveaux de hiérarchie</Label>
+                <Label>{t('plotHierarchy.hierarchyLevels')}</Label>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Définissez les niveaux du plus haut au plus bas (ex: région → localité → plot)
+                  {t('plotHierarchy.levelsDescription')}
                 </p>
               </div>
 
@@ -103,7 +105,7 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
                 {hierarchy.levels.map((level, index) => (
                   <div key={level} className="flex items-center gap-2">
                     <Badge variant="secondary" className="min-w-[100px] justify-center">
-                      Niveau {index + 1}
+                      {t('plotHierarchy.level', { number: index + 1 })}
                     </Badge>
                     <div className="flex-1 flex items-center gap-2 rounded-md border bg-background px-3 py-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -142,7 +144,7 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
               <div className="flex gap-2">
                 <Select value={newLevel} onValueChange={setNewLevel}>
                   <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Sélectionner une colonne pour le niveau" />
+                    <SelectValue placeholder={t('plotHierarchy.selectColumnForLevel')} />
                   </SelectTrigger>
                   <SelectContent>
                     {availableColumns
@@ -160,7 +162,7 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
                   size="sm"
                 >
                   <Plus className="h-4 w-4 mr-1" />
-                  Ajouter
+                  {t('common:actions.add')}
                 </Button>
               </div>
             </div>
@@ -168,9 +170,9 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
             {/* Aggregate Geometry */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="aggregate-geometry">Agréger les géométries</Label>
+                <Label htmlFor="aggregate-geometry">{t('plotHierarchy.aggregateGeometry')}</Label>
                 <p className="text-sm text-muted-foreground">
-                  Combiner les géométries des plots enfants pour les niveaux parents
+                  {t('plotHierarchy.aggregateDescription')}
                 </p>
               </div>
               <Switch
@@ -187,7 +189,7 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  <p className="mb-2">Exemple de structure hiérarchique :</p>
+                  <p className="mb-2">{t('plotHierarchy.exampleStructure')}</p>
                   <div className="ml-4 text-sm font-mono">
                     {hierarchy.levels.map((level, index) => (
                       <div key={level} style={{ marginLeft: `${index * 20}px` }}>
@@ -197,7 +199,7 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
                   </div>
                   {hierarchy.aggregate_geometry && (
                     <p className="mt-2 text-xs">
-                      Les géométries parentes seront automatiquement calculées à partir de leurs enfants.
+                      {t('plotHierarchy.parentGeometriesNote')}
                     </p>
                   )}
                 </AlertDescription>

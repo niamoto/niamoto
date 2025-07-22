@@ -1,9 +1,13 @@
+import { useTranslation } from 'react-i18next';
+
 export function VisualizePage() {
+  const { t } = useTranslation('visualize');
+
   return (
     <div className="p-6">
-      <h2 className="mb-4 text-2xl font-bold">Visualize</h2>
+      <h2 className="mb-4 text-2xl font-bold">{t('title')}</h2>
       <p className="text-muted-foreground">
-        Preview generated visualizations and dashboards
+        {t('description')}
       </p>
     </div>
   )

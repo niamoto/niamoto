@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,6 +31,7 @@ export function TaxonomyHierarchyEditor({
   fieldMappings = {},
   onChange
 }: TaxonomyHierarchyEditorProps) {
+  const { t } = useTranslation(['import', 'common'])
   const [levels, setLevels] = useState<TaxonomyLevel[]>(() =>
     ranks.map(rank => ({
       name: rank,
@@ -66,12 +68,12 @@ export function TaxonomyHierarchyEditor({
     const rankName = newRankName.trim().toLowerCase()
 
     if (!rankName) {
-      setError('Please enter a rank name')
+      setError(t('taxonomyHierarchy.rankNameRequired'))
       return
     }
 
     if (levels.some(level => level.name === rankName)) {
-      setError('This rank already exists')
+      setError(t('taxonomyHierarchy.rankAlreadyExists'))
       return
     }
 
@@ -103,17 +105,16 @@ export function TaxonomyHierarchyEditor({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Taxonomy Hierarchy Configuration</CardTitle>
+        <CardTitle>{t('taxonomyHierarchy.title')}</CardTitle>
         <CardDescription>
-          Define the hierarchical levels and map them to columns in your file
+          {t('taxonomyHierarchy.description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Define taxonomy levels from most general (e.g., family) to most specific (e.g., subspecies).
-            At least the first two levels must be mapped to columns.
+            {t('taxonomyHierarchy.instruction')}
           </AlertDescription>
         </Alert>
 
@@ -158,7 +159,7 @@ export function TaxonomyHierarchyEditor({
                               {isMapped && (
                                 <Badge variant="outline" className="text-xs">
                                   <Check className="h-3 w-3 mr-1" />
-                                  Mapped
+                                  {t('taxonomyHierarchy.mapped')}
                                 </Badge>
                               )}
                             </div>
@@ -169,15 +170,15 @@ export function TaxonomyHierarchyEditor({
                                 onValueChange={(value) => updateLevelColumn(index, value === "none" ? "" : value)}
                               >
                                 <SelectTrigger className="h-8 text-sm">
-                                  <SelectValue placeholder="Select column..." />
+                                  <SelectValue placeholder={t('common:messages.selectColumn')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">
-                                    <span className="text-muted-foreground">No mapping</span>
+                                    <span className="text-muted-foreground">{t('common:messages.noMapping')}</span>
                                   </SelectItem>
                                   {level.column && !availableColumns.includes(level.column) && (
                                     <SelectItem value={level.column}>
-                                      {level.column} (current)
+                                      {level.column} {t('common:messages.current')}
                                     </SelectItem>
                                   )}
                                   {availableColumns.map(col => (
@@ -210,7 +211,7 @@ export function TaxonomyHierarchyEditor({
         </DragDropContext>
 
         <div className="space-y-2 pt-4 border-t">
-          <Label htmlFor="new-rank">Add Custom Level</Label>
+          <Label htmlFor="new-rank">{t('taxonomyHierarchy.addCustomLevel')}</Label>
           <div className="flex gap-2">
             <Input
               id="new-rank"
@@ -225,12 +226,12 @@ export function TaxonomyHierarchyEditor({
                   addLevel()
                 }
               }}
-              placeholder="e.g., subfamily, tribe, subspecies"
+              placeholder={t('taxonomyHierarchy.addLevelPlaceholder')}
               className="flex-1"
             />
             <Button onClick={addLevel} size="sm">
               <Plus className="h-4 w-4 mr-1" />
-              Add
+              {t('common:actions.add')}
             </Button>
           </div>
           {error && (
@@ -242,13 +243,13 @@ export function TaxonomyHierarchyEditor({
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Please map at least the first two levels to columns in your file.
+              {t('taxonomyHierarchy.mapAtLeastTwoLevels')}
             </AlertDescription>
           </Alert>
         )}
 
         <div className="text-sm text-muted-foreground">
-          <p>Hierarchy order: <code className="text-xs bg-muted px-2 py-1 rounded ml-1">
+          <p>{t('taxonomyHierarchy.hierarchyOrder')} <code className="text-xs bg-muted px-2 py-1 rounded ml-1">
             {levels.map(l => l.name).join(' → ')}
           </code></p>
         </div>

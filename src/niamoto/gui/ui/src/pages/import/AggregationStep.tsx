@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useImport } from './ImportContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 
 export function AggregationStep() {
+  const { t } = useTranslation(['import', 'common'])
   const { state, updatePlots, updateShapes, addShape, removeShape } = useImport()
   const { occurrences, plots, shapes } = state
   const [isAnalyzing, setIsAnalyzing] = useState<Record<string, boolean>>({})
@@ -91,17 +93,16 @@ export function AggregationStep() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold">Agrégations spatiales (optionnel)</h2>
+        <h2 className="text-2xl font-semibold">{t('aggregations.title')}</h2>
         <p className="text-muted-foreground mt-2">
-          Ajoutez des regroupements spatiaux pour organiser et analyser vos données
+          {t('aggregations.description')}
         </p>
       </div>
 
       <Alert>
         <Info className="w-4 h-4" />
         <AlertDescription>
-          Les agrégations permettent de regrouper vos données par zones géographiques
-          et de générer des statistiques par regroupement.
+          {t('aggregations.info')}
         </AlertDescription>
       </Alert>
 
@@ -110,7 +111,7 @@ export function AggregationStep() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MapPin className="w-5 h-5" />
-            Configuration des plots
+            {t('aggregations.plots.title')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -126,7 +127,7 @@ export function AggregationStep() {
                 <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20 flex-1">
                   <CheckCircle className="w-4 h-4 text-green-600" />
                   <AlertDescription>
-                    Fichier chargé : {plots.file.name}
+                    {t('common:file.loaded', { fileName: plots.file.name })}
                   </AlertDescription>
                 </Alert>
                 <Button
@@ -141,7 +142,7 @@ export function AggregationStep() {
                     occurrenceLinkField: 'plot_name'
                   })}
                 >
-                  Changer de fichier
+                  {t('aggregations.plots.changeFile')}
                 </Button>
               </div>
 
@@ -177,22 +178,22 @@ export function AggregationStep() {
           <div>
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Map className="w-5 h-5" />
-              Zones géographiques (shapes)
+              {t('aggregations.shapes.title')}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Importez des fichiers shapes pour regrouper par zones géographiques
+              {t('aggregations.shapes.description')}
             </p>
           </div>
           <Button onClick={addShape} size="sm" variant="outline">
             <Plus className="w-4 h-4 mr-2" />
-            Ajouter un shape
+            {t('aggregations.shapes.addShape')}
           </Button>
         </div>
 
         {(!shapes || shapes.length === 0) && (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
-              Aucun shape configuré. Cliquez sur "Ajouter un shape" pour commencer.
+              {t('aggregations.shapes.noShapes')}
             </CardContent>
           </Card>
         )}
@@ -202,7 +203,7 @@ export function AggregationStep() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">
-                  Shape {index + 1}
+                  {t('aggregations.shapes.shapeNumber', { number: index + 1 })}
                 </CardTitle>
                 <Button
                   variant="ghost"
@@ -240,7 +241,7 @@ export function AggregationStep() {
                         type: ''
                       })}
                     >
-                      Changer de fichier
+                      {t('aggregations.plots.changeFile')}
                     </Button>
                   </div>
 
@@ -268,11 +269,11 @@ export function AggregationStep() {
                     <Alert>
                       <AlertDescription className="space-y-1">
                         <div className="flex justify-between">
-                          <span>Nombre de features :</span>
+                          <span>{t('aggregations.shapes.featureCount')}</span>
                           <span className="font-medium">{shape.fileAnalysis.summary.feature_count}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Système de coordonnées :</span>
+                          <span>{t('aggregations.shapes.crs')}</span>
                           <span className="font-medium">{shape.fileAnalysis.summary.crs}</span>
                         </div>
                       </AlertDescription>

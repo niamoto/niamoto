@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDropzone } from 'react-dropzone'
 import { Upload, FileText, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ export function FileUpload({
   maxSizeMB = 100,
   error
 }: FileUploadProps) {
+  const { t } = useTranslation('common')
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0]
@@ -60,7 +62,7 @@ export function FileUpload({
         {isAnalyzing ? (
           <div className="space-y-4">
             <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Analyse du fichier en cours...</p>
+            <p className="text-sm text-muted-foreground">{t('file.analyzing')}</p>
           </div>
         ) : selectedFile ? (
           <div className="space-y-4">
@@ -68,11 +70,11 @@ export function FileUpload({
             <div>
               <p className="font-medium">{selectedFile.name}</p>
               <p className="text-sm text-muted-foreground">
-                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                {(selectedFile.size / 1024 / 1024).toFixed(2)} {t('units.mb')}
               </p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Déposez un nouveau fichier pour remplacer
+              {t('file.dropzoneReplace')}
             </p>
           </div>
         ) : (
@@ -80,14 +82,14 @@ export function FileUpload({
             <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
             <div>
               <p className="font-medium">
-                {isDragActive ? "Déposez le fichier ici" : "Glissez-déposez votre fichier ici"}
+                {isDragActive ? t('file.dropHere') : t('file.dropzone')}
               </p>
               <p className="text-sm text-muted-foreground">
-                ou cliquez pour parcourir
+                {t('file.dropzoneOr')}
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Formats acceptés : {acceptedFormats.join(', ')} (max {maxSizeMB}MB)
+              {t('file.acceptedFormats', { formats: acceptedFormats.join(', ') })} {t('file.maxSize', { size: maxSizeMB })}
             </p>
           </div>
         )}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -185,6 +186,7 @@ const PRESET_APIS: PresetAPI[] = [
 ]
 
 export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigProps) {
+  const { t } = useTranslation(['import', 'common'])
   const [testResult, setTestResult] = useState<{
     success: boolean
     message: string
@@ -211,7 +213,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
     if (!config.api_url) {
       setTestResult({
         success: false,
-        message: 'Please enter an API URL'
+        message: t('apiEnrichment.connection.urlRequired')
       })
       return
     }
@@ -252,19 +254,19 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
         const fields = extractFieldsFromResponse(response.data.data)
         setTestResult({
           success: true,
-          message: 'API connection successful!',
+          message: t('common:messages.testSuccessful'),
           fields
         })
       } else {
         setTestResult({
           success: false,
-          message: response.data.error || 'API test failed'
+          message: response.data.error || t('apiEnrichment.connection.testFailed')
         })
       }
     } catch (error) {
       setTestResult({
         success: false,
-        message: `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `${t('common:messages.connectionFailed')} ${error instanceof Error ? error.message : t('common:messages.unknownError')}`
       })
     } finally {
       setIsTesting(false)
@@ -356,9 +358,9 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
     <div className="space-y-6">
       <Tabs defaultValue="connection" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="connection">Connection</TabsTrigger>
-          <TabsTrigger value="authentication">Authentication</TabsTrigger>
-          <TabsTrigger value="mapping">Field Mapping</TabsTrigger>
+          <TabsTrigger value="connection">{t('apiEnrichment.sections.connection')}</TabsTrigger>
+          <TabsTrigger value="authentication">{t('apiEnrichment.sections.authentication')}</TabsTrigger>
+          <TabsTrigger value="mapping">{t('apiEnrichment.sections.fieldMapping')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="connection" className="space-y-4">
@@ -366,16 +368,16 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Globe className="h-5 w-5" />
-                API Connection
+                {t('apiEnrichment.connection.title')}
               </CardTitle>
               <CardDescription>
-                Configure the API endpoint and test the connection
+                {t('apiEnrichment.connection.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Preset APIs */}
               <div className="space-y-2">
-                <Label>Quick Setup</Label>
+                <Label>{t('apiEnrichment.connection.quickSetup')}</Label>
                 <div className="flex gap-2">
                   {PRESET_APIS.map(preset => (
                     <Button
@@ -394,7 +396,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
 
               {/* API URL */}
               <div className="space-y-2">
-                <Label htmlFor="api-url">API URL</Label>
+                <Label htmlFor="api-url">{t('apiEnrichment.connection.apiUrl')}</Label>
                 <Input
                   id="api-url"
                   type="url"
@@ -406,21 +408,21 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
 
               {/* Query Field */}
               <div className="space-y-2">
-                <Label htmlFor="query-field">Query Field Name</Label>
+                <Label htmlFor="query-field">{t('apiEnrichment.connection.queryFieldName')}</Label>
                 <Input
                   id="query-field"
                   value={config.query_field}
                   onChange={(e) => onChange({ ...config, query_field: e.target.value })}
-                  placeholder="e.g., name, q, query"
+                  placeholder={t('apiEnrichment.connection.queryFieldPlaceholder')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  The parameter name used to send the taxon name to the API
+                  {t('apiEnrichment.connection.queryFieldDescription')}
                 </p>
               </div>
 
               {/* Query Parameters */}
               <div className="space-y-2">
-                <Label>Additional Query Parameters</Label>
+                <Label>{t('apiEnrichment.connection.additionalParams')}</Label>
                 <div className="space-y-2 rounded-lg border p-3">
                   {Object.entries(config.query_params || {}).map(([key, value]) => (
                     <div key={key} className="flex items-center gap-2">
@@ -439,13 +441,13 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
 
                   <div className="flex gap-2 mt-2">
                     <Input
-                      placeholder="Parameter name"
+                      placeholder={t('apiEnrichment.connection.paramName')}
                       value={newQueryParam.key}
                       onChange={(e) => setNewQueryParam({ ...newQueryParam, key: e.target.value })}
                       className="flex-1"
                     />
                     <Input
-                      placeholder="Value"
+                      placeholder={t('apiEnrichment.connection.value')}
                       value={newQueryParam.value}
                       onChange={(e) => setNewQueryParam({ ...newQueryParam, value: e.target.value })}
                       className="flex-1"
@@ -467,12 +469,12 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                   {isTesting ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Testing...
+                      {t('common:status.testing')}
                     </>
                   ) : (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2" />
-                      Test Connection
+                      {t('common:actions.testConnection')}
                     </>
                   )}
                 </Button>
@@ -497,16 +499,16 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Key className="h-5 w-5" />
-                Authentication
+                {t('apiEnrichment.authentication.title')}
               </CardTitle>
               <CardDescription>
-                Configure how to authenticate with the API
+                {t('apiEnrichment.authentication.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Auth Method */}
               <div className="space-y-2">
-                <Label htmlFor="auth-method">Authentication Method</Label>
+                <Label htmlFor="auth-method">{t('apiEnrichment.authentication.method')}</Label>
                 <Select
                   value={config.auth_method}
                   onValueChange={(value: 'none' | 'api_key' | 'bearer' | 'basic') =>
@@ -517,10 +519,10 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Authentication</SelectItem>
-                    <SelectItem value="api_key">API Key</SelectItem>
-                    <SelectItem value="bearer">Bearer Token</SelectItem>
-                    <SelectItem value="basic">Basic Auth</SelectItem>
+                    <SelectItem value="none">{t('apiEnrichment.authentication.none')}</SelectItem>
+                    <SelectItem value="api_key">{t('apiEnrichment.authentication.apiKey')}</SelectItem>
+                    <SelectItem value="bearer">{t('apiEnrichment.authentication.bearerToken')}</SelectItem>
+                    <SelectItem value="basic">{t('apiEnrichment.authentication.basicAuth')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -529,7 +531,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               {config.auth_method === 'api_key' && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="api-key">API Key</Label>
+                    <Label htmlFor="api-key">{t('apiEnrichment.authentication.apiKey')}</Label>
                     <Input
                       id="api-key"
                       type="password"
@@ -538,12 +540,12 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                         ...config,
                         auth_params: { ...config.auth_params, key: e.target.value }
                       })}
-                      placeholder="Your API key"
+                      placeholder={t('apiEnrichment.authentication.apiKeyPlaceholder')}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="key-location">Key Location</Label>
+                    <Label htmlFor="key-location">{t('apiEnrichment.authentication.keyLocation')}</Label>
                     <Select
                       value={config.auth_params?.location || 'header'}
                       onValueChange={(value: 'header' | 'query') =>
@@ -557,14 +559,14 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="header">HTTP Header</SelectItem>
-                        <SelectItem value="query">Query Parameter</SelectItem>
+                        <SelectItem value="header">{t('apiEnrichment.authentication.httpHeader')}</SelectItem>
+                        <SelectItem value="query">{t('apiEnrichment.authentication.queryParameter')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="key-name">Parameter/Header Name</Label>
+                    <Label htmlFor="key-name">{t('apiEnrichment.authentication.paramHeaderName')}</Label>
                     <Input
                       id="key-name"
                       value={config.auth_params?.name || 'apiKey'}
@@ -572,7 +574,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                         ...config,
                         auth_params: { ...config.auth_params, name: e.target.value }
                       })}
-                      placeholder="e.g., apiKey, X-API-Key"
+                      placeholder={t('apiEnrichment.authentication.paramHeaderPlaceholder')}
                     />
                   </div>
                 </>
@@ -581,7 +583,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               {/* Bearer Token */}
               {config.auth_method === 'bearer' && (
                 <div className="space-y-2">
-                  <Label htmlFor="bearer-token">Bearer Token</Label>
+                  <Label htmlFor="bearer-token">{t('apiEnrichment.authentication.bearerToken')}</Label>
                   <Input
                     id="bearer-token"
                     type="password"
@@ -590,7 +592,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                       ...config,
                       auth_params: { ...config.auth_params, key: e.target.value }
                     })}
-                    placeholder="Your bearer token"
+                    placeholder={t('apiEnrichment.authentication.bearerTokenPlaceholder')}
                   />
                 </div>
               )}
@@ -599,7 +601,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               {config.auth_method === 'basic' && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
+                    <Label htmlFor="username">{t('apiEnrichment.authentication.username')}</Label>
                     <Input
                       id="username"
                       value={config.auth_params?.username || ''}
@@ -611,7 +613,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t('apiEnrichment.authentication.password')}</Label>
                     <Input
                       id="password"
                       type="password"
@@ -631,9 +633,9 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
         <TabsContent value="mapping" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Response Field Mapping</CardTitle>
+              <CardTitle>{t('apiEnrichment.fieldMapping.title')}</CardTitle>
               <CardDescription>
-                Map API response fields to Niamoto database fields
+                {t('apiEnrichment.fieldMapping.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -641,14 +643,14 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                 <Alert>
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    Available fields detected from API test. Click to add to mapping.
+                    {t('apiEnrichment.fieldMapping.availableFields')}
                   </AlertDescription>
                 </Alert>
               )}
 
               {/* Current Mappings */}
               <div className="space-y-2">
-                <Label>Current Mappings</Label>
+                <Label>{t('apiEnrichment.fieldMapping.currentMappings')}</Label>
                 <ScrollArea className="h-[200px] rounded-lg border p-3">
                   <div className="space-y-2">
                     {Object.entries(config.response_mapping || {}).map(([target, source]) => (
@@ -671,16 +673,16 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
 
               {/* Add New Mapping */}
               <div className="space-y-2">
-                <Label>Add New Mapping</Label>
+                <Label>{t('apiEnrichment.fieldMapping.addNewMapping')}</Label>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Niamoto field (e.g., endemic)"
+                    placeholder={t('apiEnrichment.fieldMapping.niamotoFieldPlaceholder')}
                     value={newMapping.target}
                     onChange={(e) => setNewMapping({ ...newMapping, target: e.target.value })}
                     className="flex-1"
                   />
                   <Input
-                    placeholder="API path (e.g., endemique)"
+                    placeholder={t('apiEnrichment.fieldMapping.apiPathPlaceholder')}
                     value={newMapping.source}
                     onChange={(e) => setNewMapping({ ...newMapping, source: e.target.value })}
                     className="flex-1"
@@ -694,7 +696,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               {/* Detected Fields */}
               {testResult?.fields && testResult.fields.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Available API Fields</Label>
+                  <Label>{t('apiEnrichment.fieldMapping.availableApiFields')}</Label>
                   <ScrollArea className="h-[200px] rounded-lg border p-3">
                     <div className="space-y-2">
                       {testResult.fields.map((field) => (
@@ -725,7 +727,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  <p className="mb-2">Common Niamoto fields you might want to map:</p>
+                  <p className="mb-2">{t('apiEnrichment.fieldMapping.commonFields')}</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {['endemic', 'protected', 'redlist_cat', 'image_url', 'external_id', 'external_url'].map(field => (
                       <Badge
