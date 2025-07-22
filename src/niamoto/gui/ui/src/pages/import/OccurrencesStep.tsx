@@ -3,7 +3,6 @@ import { useImport } from './ImportContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FileUpload } from '@/components/import-wizard/FileUpload'
 import { ColumnMapper } from '@/components/import-wizard/ColumnMapper'
@@ -269,30 +268,6 @@ export function OccurrencesStep() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      {(() => {
-                        // Estimer le nombre de taxons uniques basé sur le nombre de lignes
-                        const totalRows = occurrences.fileAnalysis.rowCount ||
-                                       occurrences.fileAnalysis.row_count ||
-                                       occurrences.fileAnalysis.preview?.length || 0
-
-                        // Si on a des données mais pas de rowCount, faire une estimation
-                        const hasData = occurrences.fileAnalysis.preview && occurrences.fileAnalysis.preview.length > 0
-
-                        if (!hasData && totalRows === 0) return 'Données en cours d\'analyse...'
-
-                        // Estimation approximative : généralement 10-30% des lignes sont des taxons uniques
-                        const estimatedRows = totalRows > 0 ? totalRows : (hasData ? 'plusieurs centaines de' : 0)
-                        const estimatedUnique = typeof estimatedRows === 'number' ? Math.round(estimatedRows * 0.2) : 100
-
-                        if (typeof estimatedRows !== 'number') return `Probablement ${estimatedRows} taxons`
-                        if (estimatedUnique < 10) return '< 10 taxons estimés'
-                        if (estimatedUnique > 1000) return `~${Math.round(estimatedUnique / 100) * 100} taxons estimés`
-                        return `~${Math.round(estimatedUnique / 10) * 10} taxons estimés`
-                      })()}
-                    </Badge>
-                  </div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>
                       Hiérarchie configurée : {Object.keys(occurrences.taxonomyHierarchy.mappings).length} niveau(x)
