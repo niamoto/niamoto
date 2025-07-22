@@ -19,12 +19,6 @@ export function SummaryStep() {
   const { occurrences, plots, shapes } = state
   const { progress } = useImportProgress()
 
-  const getTaxonEstimate = () => {
-    if (occurrences.fileAnalysis?.uniqueTaxonCount) {
-      return `~${occurrences.fileAnalysis.uniqueTaxonCount} taxons uniques`
-    }
-    return 'Nombre de taxons à déterminer'
-  }
 
   return (
     <div className="space-y-6">
@@ -69,10 +63,6 @@ export function SummaryStep() {
           status={progress.taxonomy}
           variant="success"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Estimation</span>
-            <span className="text-sm font-medium">{getTaxonEstimate()}</span>
-          </div>
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Niveaux</span>
             <Badge variant="secondary">{occurrences.taxonomyHierarchy.ranks.length}</Badge>
