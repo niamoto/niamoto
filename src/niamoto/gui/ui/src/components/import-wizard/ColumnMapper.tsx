@@ -118,9 +118,10 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
                     }}
                     onDragEnd={() => setDraggedColumn(null)}
                     className={cn(
-                      "cursor-move rounded-md border bg-background px-3 py-2 text-sm transition-all hover:bg-accent hover:border-primary/50",
+                      "rounded-md border bg-background px-3 py-2 text-sm transition-all hover:bg-accent hover:border-primary/50",
                       draggedColumn === column && "opacity-50 scale-95"
                     )}
+                    style={{ cursor: 'move' }}
                   >
                     <div className="flex items-center gap-2">
                       <GripVertical className="h-3 w-3 text-muted-foreground" />
@@ -239,8 +240,8 @@ function FieldMapping({
     <div
       className={cn(
         "rounded-lg border p-4 transition-all",
-        isDragActive && !mappedColumn && "border-primary bg-primary/5 border-dashed",
-        isDragOver && !mappedColumn && "border-primary bg-primary/10 scale-[1.02] shadow-lg",
+        isDragActive && !mappedColumn && "border-primary bg-primary/5 border-dashed cursor-copy",
+        isDragOver && !mappedColumn && "border-primary bg-primary/10 scale-[1.02] shadow-lg cursor-copy",
         mappedColumn && "bg-accent/50"
       )}
       onDragOver={(e) => {
