@@ -95,7 +95,7 @@ export function PlotHierarchyConfig({ hierarchy, availableColumns, onChange }: P
               <div>
                 <Label>Niveaux de hiérarchie</Label>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Définissez les niveaux du plus bas au plus haut (ex: plot → localité → région)
+                  Définissez les niveaux du plus haut au plus bas (ex: région → localité → plot)
                 </p>
               </div>
 
