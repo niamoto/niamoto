@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Project naming support**: `niamoto init [project-name]` now accepts an optional project name
+  - Creates a new directory with the project name if provided
+  - Prompts for confirmation when initializing in the current directory
+  - Prevents initialization in existing project directories
+- **Enhanced project metadata**: `config.yml` now includes a `project` section with:
+  - `name`: Project name (customizable during init)
+  - `version`: Project version (default: 1.0.0)
+  - `created_at`: Timestamp of project creation
+  - `niamoto_version`: Version of Niamoto used to create the project
+- **Dynamic browser title**: GUI now displays "Niamoto - [Project Name]" in the browser tab
+  - New API endpoint `/api/config/project` to retrieve project information
+  - React hook `useProjectInfo` for accessing project metadata
+- **Version tracking**: Added `__version__.py` module for consistent version management
+
+### Changed
+- **GUI favicon and title**:
+  - Replaced default Vite favicon with Niamoto branding
+  - Changed browser title from "Vite + React + TS" to "Niamoto"
+  - Added comprehensive favicon support (ico, svg, apple-touch-icon, webmanifest)
+
+### Fixed
+- Corrected webmanifest paths from `/assets/` to `/favicon/`
+
+## [v0.6.2] - 2025-07-15
+
+### Features
+
+- Enhance ShapeProcessor to support group_id configuration
+- Update documentation and configuration for multiple data sources
+- Enhance StatsLoader to support dynamic key field lookup
+
+### Updates
+
+- Update uv.lock to include upload times for package distributions and bump revision to 2
+
+## [v0.6.1] - 2025-07-09
+
+### Features
+
+- Add support for multiple data sources in transformations
+- Enhance export command output and improve plot importer functionality
+- Enhance console output utilities
+
+### Refactoring
+
+- Standardize success and error indicators in console output
+- Clean up imports and enhance progress tracking
+
+### Chores
+
+- Update shape import configuration and enhance testing
+
+## [v0.6.0] - 2025-06-13
+
+### Features
+
+- Implement JSON API exporter and enhance data access utilities
+
+## [v0.5.7] - 2025-06-12
+
+### Features
+
+- Update version to 0.5.6, enhance installation and quickstart documentation, and refine configuration handling in tests. Added templates directory to documentation and improved export configuration assertions in tests.
+
+### Refactoring
+
+- Simplify value formatting logic in RadialGaugeWidget
+
+## [v0.5.6] - 2025-06-10
+
+### Features
+
+- Enhance configuration file handling and directory setup
+
+## [v0.5.5] - 2025-06-10
+
+### Features
+
+- Add screenshots to README and enhance data availability checks in widgets
+
+### Bug Fixes
+
+- Update bar plot widget to handle cases with no meaningful y-axis data
+
+### Updates
+
+- Update CHANGELOG.md
+
+### Chores
+
+- Update pyproject.toml for wheel packaging and modify README for asset links
+
 ## [v0.5.4] - 2025-06-10
 
 ### Features
