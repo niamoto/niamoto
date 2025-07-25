@@ -17,6 +17,8 @@ def create_app() -> FastAPI:
         title="Niamoto GUI API",
         description="API for Niamoto visual configuration interface",
         version="1.0.0",
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
     )
 
     # Add CORS middleware

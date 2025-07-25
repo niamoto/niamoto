@@ -1,11 +1,22 @@
 """Configuration API endpoints."""
 
-from typing import Dict, Any
+import os
+from typing import Dict, Any, Optional
 import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+
 router = APIRouter()
+
+
+class ProjectInfo(BaseModel):
+    """Project information model."""
+
+    name: str
+    version: Optional[str] = "1.0.0"
+    niamoto_version: Optional[str] = None
+    created_at: Optional[str] = None
 
 
 class ImportConfig(BaseModel):
@@ -196,3 +207,36 @@ async def get_template(template_id: str) -> PipelineConfig:
         raise HTTPException(status_code=404, detail="Template not found")
 
     return templates[template_id]
+
+
+@router.get("/project")
+async def get_project_info() -> ProjectInfo:
+    """Get project information from config.yml."""
+    try:
+        # Get config directory
+        niamoto_home = os.environ.get("NIAMOTO_HOME", os.getcwd())
+        config_path = os.path.join(niamoto_home, "config", "config.yml")
+
+        if not os.path.exists(config_path):
+            raise HTTPException(status_code=404, detail="Configuration file not found")
+
+        # Read config file
+        with open(config_path, "r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f) or {}
+
+        # Extract project information
+        project_data = config_data.get("project", {})
+
+        return ProjectInfo(
+            name=project_data.get("name", "Niamoto Project"),
+            version=project_data.get("version", "1.0.0"),
+            niamoto_version=project_data.get("niamoto_version"),
+            created_at=project_data.get("created_at"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read project info: {str(e)}"
+        )
