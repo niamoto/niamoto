@@ -348,25 +348,27 @@ Each transformation group begins with:
 ### Source Configuration
 
 ```yaml
-source:
-  data: occurrences       # Source data table
-  grouping: taxon_ref     # Table for grouping
-  relation:
-    plugin: nested_set    # Relation plugin
-    key: taxon_ref_id     # Key field
-    fields:               # Optional fields
-      parent: parent_id
-      left: lft
-      right: rght
+sources:
+  - name: occurrences      # Source name for referencing
+    data: occurrences      # Source data table
+    grouping: taxon_ref    # Table for grouping
+    relation:
+      plugin: nested_set   # Relation plugin
+      key: taxon_ref_id    # Key field
+      fields:              # Optional fields
+        parent: parent_id
+        left: lft
+        right: rght
 ```
 
-| Option            | Description        | Required | Example        |
-| ----------------- | ------------------ | -------- | -------------- |
-| `data`            | Source data table  | Yes      | `occurrences`  |
-| `grouping`        | Table for grouping | Yes      | `taxon_ref`    |
-| `relation.plugin` | Relation plugin    | Yes      | `nested_set`   |
-| `relation.key`    | Key field          | Yes      | `taxon_ref_id` |
-| `relation.fields` | Additional fields  | No       | See above      |
+| Option            | Description               | Required | Example        |
+| ----------------- | ------------------------- | -------- | -------------- |
+| `name`            | Source identifier         | Yes      | `occurrences`  |
+| `data`            | Source data table or file | Yes      | `occurrences`  |
+| `grouping`        | Table for grouping        | Yes      | `taxon_ref`    |
+| `relation.plugin` | Relation plugin           | Yes      | `nested_set`   |
+| `relation.key`    | Key field                 | Yes      | `taxon_ref_id` |
+| `relation.fields` | Additional fields         | No       | See above      |
 
 ### Multiple Data Sources
 
@@ -376,21 +378,20 @@ Niamoto supports using multiple data sources within a single transformation grou
 
 ```yaml
 - group_by: plot
-  source:  # Primary source (required for backward compatibility)
-    data: occurrences
-    grouping: plot_ref
-    relation:
-      plugin: nested_set
-      key: plot_ref_id
-      fields:
-        parent: parent_id
-        left: lft
-        right: rght
+  sources:  # List of data sources
+    - name: occurrences
+      data: occurrences
+      grouping: plot_ref
+      relation:
+        plugin: nested_set
+        key: plot_ref_id
+        fields:
+          parent: parent_id
+          left: lft
+          right: rght
 
-  # Additional sources (optional)
-  additional_sources:
-    plot_stats:  # Source name
-      data: plot_stats  # Can be a table name OR direct CSV path
+    - name: plot_stats  # Additional source
+      data: imports/plot_stats.csv  # Can be a table name OR CSV path
       grouping: plot_ref
       relation:
         plugin: stats_loader
@@ -399,10 +400,10 @@ Niamoto supports using multiple data sources within a single transformation grou
 
 #### How It Works
 
-1. **Primary Source**: The `source` configuration remains mandatory and defines the main data source
-2. **Additional Sources**: The `additional_sources` section allows you to define extra data sources
+1. **Source List**: All sources are defined in a `sources` list with unique names
+2. **Source Names**: Each source must have a unique `name` identifier
 3. **Source Selection**: Widgets can specify which source to use via the `params.source` parameter
-4. **Backward Compatibility**: Existing configurations continue to work without modification
+4. **Reference Table**: The grouping table (e.g., `plot_ref`) is automatically available to widgets
 
 #### Using Multiple Sources in Widgets
 
@@ -442,15 +443,15 @@ This ensures complete backward compatibility while enabling advanced multi-sourc
 
 ```yaml
 - group_by: plot
-  source:
-    data: occurrences  # Real-time calculations from occurrence data
-    grouping: plot_ref
-    relation:
-      plugin: nested_set
-      key: plot_ref_id
+  sources:
+    - name: occurrences
+      data: occurrences  # Real-time calculations from occurrence data
+      grouping: plot_ref
+      relation:
+        plugin: nested_set
+        key: plot_ref_id
 
-  additional_sources:
-    plot_stats:  # Pre-calculated statistics from CSV
+    - name: plot_stats  # Pre-calculated statistics from CSV
       data: "imports/plot_stats.csv"  # Direct CSV path
       grouping: plot_ref
       relation:

@@ -3,16 +3,17 @@
 # 1) CONFIG POUR LES TAXONS
 ##################################################################
 - group_by: taxon
-  source:
-    data: occurrences
-    grouping: taxon_ref
-    relation:
-      plugin: nested_set
-      key: taxon_ref_id
-      fields:
-        parent: parent_id
-        left: lft
-        right: rght
+  sources:
+    - name: occurrences
+      data: occurrences
+      grouping: taxon_ref
+      relation:
+        plugin: nested_set
+        key: taxon_ref_id
+        fields:
+          parent: parent_id
+          left: lft
+          right: rght
 
   widgets_data:
     general_info:
@@ -363,13 +364,14 @@
 # 2) CONFIG POUR LES PLOTS
 ##################################################################
 - group_by: plot
-  source:
-    data: plot_stats
-    grouping: plot_ref
-    relation:
-      plugin: "stats_loader"
-      key: "plot_id"
-      ref_field: "plot_id"
+  sources:
+    - name: plot_stats
+      data: plot_stats
+      grouping: plot_ref
+      relation:
+        plugin: "stats_loader"
+        key: "plot_id"
+        ref_field: "plot_id"
 
   widgets_data:
     general_info:
@@ -599,12 +601,13 @@
 # 3) CONFIG POUR LES SHAPES
 ##################################################################
 - group_by: shape
-  source:
-    data: shape_stats
-    grouping: shape_ref
-    relation:
-      plugin: "stats_loader"
-      key: "id"
+  sources:
+    - name: shape_stats
+      data: shape_stats
+      grouping: shape_ref
+      relation:
+        plugin: "stats_loader"
+        key: "id"
 
   widgets_data:
     shape_info:
