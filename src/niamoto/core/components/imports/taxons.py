@@ -317,22 +317,30 @@ class TaxonomyImporter:
                             if rank_name in taxa_by_rank:
                                 taxa_by_rank[rank_name][row["full_name"]] = taxon.id
 
-                            # Link to parent using parent_info
-                            if "parent_info" in row and pd.notna(row["parent_info"]):
-                                parent_info = row["parent_info"]
-                                if parent_info and isinstance(parent_info, dict):
-                                    parent_rank = parent_info.get("rank")
-                                    parent_value = parent_info.get("value")
+                            # Link to parent using parent_info from extra_data
+                            if "extra_data" in row and pd.notna(row["extra_data"]):
+                                extra_data = row["extra_data"]
+                                if (
+                                    isinstance(extra_data, dict)
+                                    and "parent_info" in extra_data
+                                ):
+                                    parent_info = extra_data["parent_info"]
+                                    if parent_info and isinstance(parent_info, dict):
+                                        parent_rank = parent_info.get("rank")
+                                        parent_value = parent_info.get("value")
 
-                                    if (
-                                        parent_rank
-                                        and parent_value
-                                        and parent_rank in taxa_by_rank
-                                    ):
-                                        if parent_value in taxa_by_rank[parent_rank]:
-                                            taxon.parent_id = taxa_by_rank[parent_rank][
+                                        if (
+                                            parent_rank
+                                            and parent_value
+                                            and parent_rank in taxa_by_rank
+                                        ):
+                                            if (
                                                 parent_value
-                                            ]
+                                                in taxa_by_rank[parent_rank]
+                                            ):
+                                                taxon.parent_id = taxa_by_rank[
+                                                    parent_rank
+                                                ][parent_value]
 
                             # Count imported taxa
                             imported_count += 1

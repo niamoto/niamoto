@@ -306,11 +306,11 @@ class TestShapeImporter(NiamotoTestCase):
         """Test _get_feature_id method."""
         feature = {"properties": {"id": "test_id"}}
 
-        shape_info = {"id_field": "id"}
+        shape_info = {"id_field": "id", "type": "Test Shape"}
 
         result = ShapeImporter._get_feature_id(feature, shape_info)
 
-        self.assertEqual(result, "test_id")
+        self.assertEqual(result, "test_shape_test_id")
 
     def test_get_feature_name(self):
         """Test _get_feature_name method."""
