@@ -39,11 +39,17 @@ class TestTransformerService:
         mock.get_transforms_config.return_value = [
             {
                 "group_by": "plots",
-                "source": {
-                    "data": "occurrences",
-                    "grouping": "plot_ref",
-                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
-                },
+                "sources": [
+                    {
+                        "name": "occurrences",
+                        "data": "occurrences",
+                        "grouping": "plot_ref",
+                        "relation": {
+                            "plugin": "direct_reference",
+                            "key": "plot_ref_id",
+                        },
+                    }
+                ],
                 "widgets_data": {
                     "species_count": {
                         "plugin": "count_transformer",
@@ -59,11 +65,14 @@ class TestTransformerService:
             },
             {
                 "group_by": "taxa",
-                "source": {
-                    "data": "observations",
-                    "grouping": "taxon_ref",
-                    "relation": {"plugin": "taxon_loader", "key": "taxon_id"},
-                },
+                "sources": [
+                    {
+                        "name": "observations",
+                        "data": "observations",
+                        "grouping": "taxon_ref",
+                        "relation": {"plugin": "taxon_loader", "key": "taxon_id"},
+                    }
+                ],
                 "widgets_data": {
                     "distribution": {
                         "plugin": "distribution_transformer",
@@ -172,41 +181,60 @@ class TestTransformerService:
     def test_validate_configuration_valid(self, transformer_service):
         """Test validate_configuration with valid config."""
         config = {
-            "source": {
-                "data": "occurrences",
-                "grouping": "plot_ref",
-                "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
-            }
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                }
+            ]
         }
 
         # Should not raise any exception
         transformer_service.validate_configuration(config)
 
+    def test_validate_configuration_missing_sources(self, transformer_service):
+        """Test validate_configuration with missing sources."""
+        config = {}
+
+        with pytest.raises(ConfigurationError) as exc_info:
+            transformer_service.validate_configuration(config)
+
+        assert "Missing or empty sources configuration" in str(exc_info.value)
+        assert exc_info.value.config_key == "sources"
+
     def test_validate_configuration_missing_source_fields(self, transformer_service):
         """Test validate_configuration with missing source fields."""
         config = {
-            "source": {
-                "data": "occurrences",
-                # Missing "grouping" and "relation"
-            }
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    # Missing "grouping" and "relation"
+                }
+            ]
         }
 
         with pytest.raises(ConfigurationError) as exc_info:
             transformer_service.validate_configuration(config)
 
-        assert "Missing required source configuration fields" in str(exc_info.value)
-        assert exc_info.value.config_key == "source"
+        assert "Missing required fields in source" in str(exc_info.value)
+        assert exc_info.value.config_key == "sources[0]"
 
     def test_validate_configuration_missing_relation_fields(self, transformer_service):
         """Test validate_configuration with missing relation fields."""
         config = {
-            "source": {
-                "data": "occurrences",
-                "grouping": "plot_ref",
-                "relation": {
-                    # Missing "plugin" and "key"
-                },
-            }
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {
+                        # Missing "plugin" and "key"
+                    },
+                }
+            ]
         }
 
         with pytest.raises(ConfigurationError) as exc_info:
@@ -214,12 +242,45 @@ class TestTransformerService:
 
         assert "Missing required relation fields" in str(exc_info.value)
 
+    def test_validate_configuration_duplicate_source_names(self, transformer_service):
+        """Test validate_configuration with duplicate source names."""
+        config = {
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                },
+                {
+                    "name": "occurrences",  # Duplicate name
+                    "data": "other_table",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                },
+            ]
+        }
+
+        with pytest.raises(ConfigurationError) as exc_info:
+            transformer_service.validate_configuration(config)
+
+        assert "Duplicate source name" in str(exc_info.value)
+
     def test_get_group_ids_success(self, transformer_service, mock_db):
         """Test _get_group_ids successful execution."""
         # Mock database response
         mock_db.execute_sql.return_value = [(1,), (2,), (3,)]
 
-        group_config = {"source": {"grouping": "plot_ref"}}
+        group_config = {
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                }
+            ]
+        }
 
         result = transformer_service._get_group_ids(group_config)
 
@@ -233,7 +294,16 @@ class TestTransformerService:
         """Test _get_group_ids with database error."""
         mock_db.execute_sql.side_effect = Exception("Database error")
 
-        group_config = {"source": {"grouping": "plot_ref"}}
+        group_config = {
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                }
+            ]
+        }
 
         with pytest.raises(DataTransformError) as exc_info:
             transformer_service._get_group_ids(group_config)
@@ -248,23 +318,28 @@ class TestTransformerService:
         mock_read_csv.return_value = mock_df
 
         group_config = {
-            "source": {
-                "data": "occurrences",
-                "grouping": "plot_ref",
-                "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
-            }
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                }
+            ]
         }
 
         result = transformer_service._get_group_data(group_config, "test.csv", 1)
 
         assert isinstance(result, dict)
-        assert "main" in result
-        assert isinstance(result["main"], pd.DataFrame)
-        assert result["main"].equals(mock_df)
+        assert "csv_data" in result
+        assert isinstance(result["csv_data"], pd.DataFrame)
+        assert result["csv_data"].equals(mock_df)
         mock_read_csv.assert_called_once_with("test.csv")
 
     @patch("niamoto.core.services.transformer.PluginRegistry")
-    def test_get_group_data_from_database(self, mock_registry, transformer_service):
+    def test_get_group_data_from_database(
+        self, mock_registry, transformer_service, mock_db
+    ):
         """Test _get_group_data from database using loader plugin."""
         # Mock loader plugin
         mock_loader_class = Mock()
@@ -276,26 +351,83 @@ class TestTransformerService:
         mock_df = pd.DataFrame({"id": [1, 2, 3], "species": ["A", "B", "C"]})
         mock_loader.load_data.return_value = mock_df
 
+        # Mock database response for reference table
+        mock_result = Mock()
+        mock_result.returns_rows = True
+        mock_result.cursor.description = [("id",), ("name",)]
+        mock_result.fetchall.return_value = [(1, "test")]
+        mock_db.execute_sql.return_value = mock_result
+
         group_config = {
-            "source": {
-                "data": "occurrences",
-                "grouping": "plot_ref",
-                "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
-            }
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                }
+            ]
         }
 
         result = transformer_service._get_group_data(group_config, None, 1)
 
         assert isinstance(result, dict)
-        assert "main" in result
-        assert isinstance(result["main"], pd.DataFrame)
-        assert result["main"].equals(mock_df)
+        assert "occurrences" in result
+        assert isinstance(result["occurrences"], pd.DataFrame)
+        assert result["occurrences"].equals(mock_df)
         from niamoto.core.plugins.base import PluginType
 
         mock_registry.get_plugin.assert_called_once_with(
             "direct_reference", PluginType.LOADER
         )
         mock_loader.load_data.assert_called_once()
+
+    @patch("niamoto.core.services.transformer.PluginRegistry")
+    def test_get_group_data_multiple_sources(
+        self, mock_registry, transformer_service, mock_db
+    ):
+        """Test _get_group_data with multiple sources."""
+        # Mock loader plugins
+        mock_loader_class1 = Mock()
+        mock_loader1 = Mock()
+        mock_loader_class1.return_value = mock_loader1
+
+        mock_loader_class2 = Mock()
+        mock_loader2 = Mock()
+        mock_loader_class2.return_value = mock_loader2
+
+        mock_registry.get_plugin.side_effect = [mock_loader_class1, mock_loader_class2]
+
+        # Mock loader responses
+        mock_df1 = pd.DataFrame({"id": [1, 2], "species": ["A", "B"]})
+        mock_df2 = pd.DataFrame({"id": [1, 2], "stat_value": [10, 20]})
+        mock_loader1.load_data.return_value = mock_df1
+        mock_loader2.load_data.return_value = mock_df2
+
+        group_config = {
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
+                },
+                {
+                    "name": "stats",
+                    "data": "plot_stats.csv",
+                    "grouping": "plot_ref",
+                    "relation": {"plugin": "stats_loader", "key": "plot_id"},
+                },
+            ]
+        }
+
+        result = transformer_service._get_group_data(group_config, None, 1)
+
+        assert isinstance(result, dict)
+        assert "occurrences" in result
+        assert "stats" in result
+        assert result["occurrences"].equals(mock_df1)
+        assert result["stats"].equals(mock_df2)
 
     def test_create_group_table_with_recreate(self, transformer_service, mock_db):
         """Test _create_group_table with table recreation."""
@@ -594,11 +726,14 @@ class TestTransformerService:
         transformer_service.transforms_config = [
             {
                 "group_by": group_name,
-                "source": {
-                    "data": "test",
-                    "grouping": "test",
-                    "relation": {"plugin": "test", "key": "id"},
-                },
+                "sources": [
+                    {
+                        "name": "test",
+                        "data": "test",
+                        "grouping": "test",
+                        "relation": {"plugin": "test", "key": "id"},
+                    }
+                ],
             }
         ]
 
@@ -628,11 +763,17 @@ class TestTransformerServiceIntegration:
         mock.get_transforms_config.return_value = [
             {
                 "group_by": "plots",
-                "source": {
-                    "data": "occurrences",
-                    "grouping": "plot_ref",
-                    "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
-                },
+                "sources": [
+                    {
+                        "name": "occurrences",
+                        "data": "occurrences",
+                        "grouping": "plot_ref",
+                        "relation": {
+                            "plugin": "direct_reference",
+                            "key": "plot_ref_id",
+                        },
+                    }
+                ],
                 "widgets_data": {
                     "species_richness": {
                         "plugin": "count_transformer",
@@ -652,9 +793,17 @@ class TestTransformerServiceIntegration:
 
     def test_full_transformation_workflow(self, mock_db, real_config):
         """Test complete transformation workflow."""
+        # Mock result for reference table queries
+        mock_ref_result = Mock()
+        mock_ref_result.returns_rows = True
+        mock_ref_result.cursor.description = [("id",), ("name",)]
+        mock_ref_result.fetchall.return_value = [(1, "plot1"), (2, "plot2")]
+
         # Mock database responses
         mock_db.execute_sql.side_effect = [
             [(1,), (2,)],  # Group IDs
+            mock_ref_result,  # Reference table for group 1
+            mock_ref_result,  # Reference table for group 2
             None,  # DROP TABLE
             None,  # CREATE TABLE
             None,  # INSERT for group 1 widget 1
