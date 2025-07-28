@@ -41,6 +41,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `id` comes from the specified `id_field` in the shapefile
   - Examples: `grid_1`, `countries_120000`, `countries_580000`
   - This format ensures unique IDs across different shape types and enables proper matching with statistics files
+- **Hierarchical shape support**: Shapes now support hierarchical structures similar to plots
+  - Added fields to `ShapeRef` model: `parent_id`, `lft`, `rght`, `level`, `shape_type`
+  - Automatic creation of parent entries for each shape type (e.g., "countries", "grid" as parents)
+  - Parent shapes aggregate geometries from all their children using GeometryCollection
+  - Enables navigation hierarchy: click on a shape type to see all shapes of that type on one map
+  - Shape types can now have their own detail pages with aggregated maps
+- **Shape processor enhancement**: Modified to preserve individual geometries in collections
+  - GeometryCollections now render each shape individually instead of merging them
+  - Maintains visual separation between shapes while grouping them logically
+  - Better visualization for hierarchical shape data
+- **Shape extra_data standardization**: Added `entity_type` field to shape imports
+  - Shapes now include `entity_type` in extra_data like plots and taxons
+  - Parent type entries have `entity_type: "type"` and `auto_generated: true`
+  - Individual shapes have `entity_type: "shape"` and `auto_generated: false`
+  - Enables consistent entity type identification across all reference models
 
 ### Changed
 - **GUI favicon and title**:
