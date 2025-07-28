@@ -333,10 +333,15 @@ class GeospatialExtractor(TransformerPlugin):
                 if not isinstance(geometry_data.iloc[0], BaseGeometry):
                     geometry_data = geometry_data.apply(self._convert_to_geometry)
 
-                geometry_data = geometry_data.dropna()  # Remove any failed conversions
+                # Create a mask for valid geometries
+                valid_mask = ~geometry_data.isna()
 
-                if not geometry_data.empty:
-                    gdf = gpd.GeoDataFrame(data, geometry=geometry_data)
+                # Filter data to keep only rows with valid geometries
+                valid_data = data[valid_mask]
+                valid_geometry = geometry_data.dropna()
+
+                if not valid_geometry.empty:
+                    gdf = gpd.GeoDataFrame(valid_data, geometry=valid_geometry)
 
                     # Convert to GeoJSON
                     if format == "geojson":
