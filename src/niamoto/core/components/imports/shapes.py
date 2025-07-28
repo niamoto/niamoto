@@ -404,6 +404,11 @@ class ShapeImporter:
             return None
         shape_id = feature["properties"].get(id_field)
         if shape_id and str(shape_id).strip():
+            # Convert to int if it's a whole number to avoid .0
+            if isinstance(shape_id, (int, float)):
+                # If it's a float that represents a whole number, convert to int
+                if isinstance(shape_id, float) and shape_id.is_integer():
+                    shape_id = int(shape_id)
             # Préfixer l'ID avec le type pour éviter les conflits
             shape_type = shape_info.get("type", "shape")
             # Sanitize le type : minuscules, remplacer espaces et caractères spéciaux par underscore
