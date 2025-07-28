@@ -279,7 +279,10 @@ class InteractiveMapWidget(WidgetPlugin):
             params.center_lat if params.center_lat is not None else -21.0
         )  # Default to New Caledonia
         center_lon = params.center_lon if params.center_lon is not None else 165.0
-        zoom_level = params.zoom if params.zoom is not None else 9.0
+        # Use zoom from params only if auto_zoom is not enabled
+        zoom_level = (
+            params.zoom if (params.zoom is not None and not params.auto_zoom) else 9.0
+        )
 
         # Generate a unique ID for this map
         map_id = (
@@ -497,17 +500,16 @@ class InteractiveMapWidget(WidgetPlugin):
                         lon: (bbox[0] + bbox[2]) / 2
                     }}
                 }};
-                // Calculate zoom based on bbox
+                // Calculate zoom based on bbox using proper formula
                 const latDiff = bbox[3] - bbox[1];
                 const lonDiff = bbox[2] - bbox[0];
-                // Simple zoom calculation - adjust as needed
-                if (latDiff < 0.5 && lonDiff < 0.5) {{
-                    zoom = 10;
-                }} else if (latDiff < 1 && lonDiff < 1) {{
-                    zoom = 9;
-                }} else {{
-                    zoom = 8;
-                }}
+                const maxDiff = Math.max(latDiff, lonDiff);
+
+                // Calculate zoom level based on the extent
+                // Formula: zoom = log2(360 / maxDiff) - buffer
+                // The buffer ensures the entire shape fits with padding
+                const baseZoom = Math.log2(360 / maxDiff);
+                zoom = Math.max(1, Math.min(18, baseZoom - 1.2)); // Subtract 1.2 for padding
             }} else if (niamotoTopoData.forest_cover_coords && niamotoTopoData.forest_cover_coords.bbox) {{
                 const bbox = niamotoTopoData.forest_cover_coords.bbox;
                 bounds = {{
