@@ -43,6 +43,8 @@ class ShapeImporter:
         """
         self.db = db
         self.db_path = db.db_path
+        # Track type parents during import
+        self._type_parents = {}
 
     @error_handler(log=True, raise_error=True)
     def import_from_config(self, shapes_config: List[Dict[str, Any]]) -> str:
@@ -84,8 +86,15 @@ class ShapeImporter:
                     # En cas d'erreur, on ignore pour le comptage
                     pass
 
-            # Import shapes
+            # First, create type parents for each unique type
+            unique_types = set()
+            for shape_info in shapes_config:
+                unique_types.add(shape_info["type"])
 
+            for shape_type in unique_types:
+                self._get_or_create_type_parent(shape_type)
+
+            # Import shapes
             progress_tracker = get_progress_tracker()
             with progress_tracker.track(
                 "Importing shapes...", total=total_features
@@ -215,6 +224,12 @@ class ShapeImporter:
 
                 # Task completed
 
+                # Rebuild nested set values
+                self._rebuild_nested_set()
+
+                # Update type geometries with aggregated children geometries
+                self._update_type_geometries()
+
                 try:
                     self.db.session.commit()
                 except SQLAlchemyError as e:
@@ -270,6 +285,142 @@ class ShapeImporter:
                     "Empty type field",
                     details={"config": shape_info},
                 )
+
+    def _get_or_create_type_parent(self, shape_type: str) -> ShapeRef:
+        """
+        Get or create a parent entry for a shape type.
+
+        Args:
+            shape_type: The type of shapes (e.g., 'grid', 'countries')
+
+        Returns:
+            The parent ShapeRef object
+        """
+        # Check if we already have this type parent in cache
+        if shape_type in self._type_parents:
+            return self._type_parents[shape_type]
+
+        # Check if it exists in database
+        type_parent = (
+            self.db.session.query(ShapeRef)
+            .filter_by(name=shape_type, shape_type="type")
+            .first()
+        )
+
+        if not type_parent:
+            # Create new type parent with empty geometry (will be updated later)
+            from shapely.geometry import GeometryCollection
+
+            empty_geom = GeometryCollection()
+
+            type_parent = ShapeRef(
+                shape_id=None,
+                name=shape_type,
+                type=shape_type,
+                location=empty_geom.wkb.hex(),
+                shape_type="type",
+                level=0,
+                parent_id=None,
+                extra_data={
+                    "entity_type": "type",
+                    "auto_generated": True,
+                },
+            )
+            self.db.session.add(type_parent)
+            self.db.session.flush()  # Get the ID
+
+        # Cache it
+        self._type_parents[shape_type] = type_parent
+        return type_parent
+
+    def _rebuild_nested_set(self) -> None:
+        """
+        Rebuild the nested set values (lft/rght) for all shapes.
+        Similar to how it's done for plots.
+        """
+        # Get all type parents (level 0)
+        type_parents = (
+            self.db.session.query(ShapeRef)
+            .filter_by(shape_type="type", parent_id=None)
+            .order_by(ShapeRef.name)
+            .all()
+        )
+
+        counter = 1
+        for type_parent in type_parents:
+            counter = self._rebuild_nested_set_recursive(type_parent, counter, 0)
+
+    def _rebuild_nested_set_recursive(
+        self, node: ShapeRef, counter: int, level: int
+    ) -> int:
+        """
+        Recursively rebuild nested set values.
+
+        Args:
+            node: Current node
+            counter: Current counter value
+            level: Current level
+
+        Returns:
+            Updated counter value
+        """
+        node.lft = counter
+        node.level = level
+        counter += 1
+
+        # Process children
+        children = (
+            self.db.session.query(ShapeRef)
+            .filter_by(parent_id=node.id)
+            .order_by(ShapeRef.name)
+            .all()
+        )
+
+        for child in children:
+            counter = self._rebuild_nested_set_recursive(child, counter, level + 1)
+
+        node.rght = counter
+        counter += 1
+
+        return counter
+
+    def _update_type_geometries(self) -> None:
+        """
+        Update type parent geometries with aggregated children geometries.
+        """
+        from shapely.wkb import loads as load_wkb
+
+        # Get all type parents
+        type_parents = (
+            self.db.session.query(ShapeRef).filter_by(shape_type="type").all()
+        )
+
+        for type_parent in type_parents:
+            # Get all children geometries
+            children = (
+                self.db.session.query(ShapeRef)
+                .filter_by(parent_id=type_parent.id, shape_type="shape")
+                .all()
+            )
+
+            if children:
+                # Collect all geometries
+                geometries = []
+                for child in children:
+                    try:
+                        geom = load_wkb(bytes.fromhex(child.location))
+                        geometries.append(geom)
+                    except Exception:
+                        # Skip invalid geometries
+                        pass
+
+                if geometries:
+                    # Create a GeometryCollection to preserve individual shapes
+                    from shapely.geometry import GeometryCollection
+
+                    collection = GeometryCollection(geometries)
+                    # Update parent geometry
+                    type_parent.location = collection.wkb.hex()
 
     @error_handler(log=True, raise_error=True)
     def _process_shape_file(
@@ -431,7 +582,10 @@ class ShapeImporter:
         feature: Dict[str, Any], shape_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Extract additional properties from feature based on configuration."""
-        extra_data = {}
+        extra_data = {
+            "entity_type": "shape",  # Add entity_type like plots and taxons
+            "auto_generated": False,
+        }
         properties_config = shape_info.get("properties", [])
 
         for prop_name in properties_config:
@@ -461,10 +615,16 @@ class ShapeImporter:
                 .scalar()
             )
 
+            # Get the type parent
+            type_parent = self._get_or_create_type_parent(shape_info["type"])
+
             if existing_shape:
                 existing_shape.shape_id = shape_id
                 existing_shape.location = geometry.wkb.hex()
                 existing_shape.extra_data = extra_data
+                existing_shape.parent_id = type_parent.id
+                existing_shape.shape_type = "shape"
+                existing_shape.level = 1
                 return False
             else:
                 new_shape = ShapeRef(
@@ -473,6 +633,9 @@ class ShapeImporter:
                     type=shape_info["type"],
                     location=geometry.wkb.hex(),
                     extra_data=extra_data,
+                    parent_id=type_parent.id,
+                    shape_type="shape",
+                    level=1,
                 )
                 self.db.session.add(new_shape)
                 return True

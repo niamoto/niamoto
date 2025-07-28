@@ -311,6 +311,22 @@ shapes:
       - creation_date
 ```
 
+### Hierarchical Shape Structure
+
+Since version 0.6.0, shapes support hierarchical structures similar to plots. Each shape type automatically gets a parent entry that aggregates all shapes of that type:
+
+- Parent entries are created with `shape_type='type'` (e.g., "provinces", "grid")
+- Individual shapes have `shape_type='shape'`
+- Parent shapes aggregate geometries from all their children
+- Hierarchical navigation allows clicking on a shape type to see all shapes on one map
+
+This enables:
+- Organized navigation by shape type
+- Type-level pages showing all shapes of that type
+- Preserved individual shape boundaries (not merged)
+
+The hierarchy is managed automatically during import using a nested set model (`lft`, `rght`, `level` fields).
+
 ### Shapefile Import Considerations
 
 When importing shapefiles, ensure all required files are present:

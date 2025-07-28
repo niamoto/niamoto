@@ -1067,6 +1067,12 @@ class HtmlPageExporter(ExporterPlugin):
                     required_fields.add(params["group_by_field"])
                 if "group_by_label_field" in params:
                     required_fields.add(params["group_by_label_field"])
+                # Add any custom fields that might be needed
+                if "shape_type_field" in params:
+                    required_fields.add(params["shape_type_field"])
+                # Also add shape_type if we're dealing with shapes
+                if params.get("referential_data") == "shape_ref":
+                    required_fields.add("shape_type")
 
         # If no hierarchical widgets found, use default minimal set
         if not required_fields:

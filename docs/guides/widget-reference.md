@@ -522,6 +522,30 @@ Interactive tree navigation for taxonomies and hierarchical data structures.
 - Search and filter functionality
 - External data source support
 - Responsive design
+- Automatic handling of hierarchical shapes (v0.6.0+)
+
+**Hierarchical Shapes Support** (since v0.6.0):
+
+When used with shapes (`referential_data: "shape_ref"`), the widget automatically handles the hierarchical structure:
+- Shape types (e.g., "grid", "countries") appear as clickable parent groups
+- Individual shapes appear as children under their type
+- Parent entries link to aggregated view pages showing all children on a single map
+- Preserves individual shape boundaries (not merged)
+
+Example configuration for hierarchical shapes:
+```yaml
+- plugin: hierarchical_nav_widget
+  params:
+    referential_data: "shape_ref"
+    id_field: "id"
+    name_field: "name"
+    parent_id_field: "parent_id"
+    lft_field: "lft"
+    rght_field: "rght"
+    level_field: "level"
+    base_url: "{{ depth }}shape/"
+    show_search: true
+```
 
 ## Configuration Examples
 

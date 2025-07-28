@@ -120,8 +120,8 @@ class RadialGaugeWidget(WidgetPlugin):
                     # Return empty string to not display the widget when no data
                     return ""
             elif params.value_field not in data:
-                logger.error(f"Value field '{params.value_field}' not found in dict.")
-                return f"<p class='error'>Configuration Error: Value field '{params.value_field}' missing.</p>"
+                # Return empty string to not display the widget when no data
+                return ""
             else:
                 value = data[params.value_field]
         elif isinstance(data, (int, float)):
