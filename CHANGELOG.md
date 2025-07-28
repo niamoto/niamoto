@@ -21,15 +21,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New API endpoint `/api/config/project` to retrieve project information
   - React hook `useProjectInfo` for accessing project metadata
 - **Version tracking**: Added `__version__.py` module for consistent version management
+- **Hierarchical data extraction for geospatial_extractor plugin**:
+  - New `extract_children` parameter to extract leaf entities from hierarchical structures
+  - New `hierarchy_config` parameter for generic hierarchical extraction:
+    - `type_field`: Field identifying entity type (e.g., "plot_type")
+    - `leaf_type`: Value identifying leaf entities (e.g., "plot")
+    - `left_field`/`right_field`: Fields for nested set model (default: "lft"/"rght")
+  - Enables extraction of individual plots from hierarchical levels (country, method, etc.)
+  - Maintains backward compatibility with existing configurations
+- **Interactive map improvements**:
+  - Added support for MultiPoint geometries in map visualizations
+  - Fixed hover display to show individual entity names instead of parent node names
+  - Improved automatic zoom calculation with better margins:
+    - Added 5% margin around data bounds to prevent edge clipping
+    - Increased zoom buffer from 0.5 to 1.0 for better visibility
+  - Fixed map centering to use actual data bounds instead of hardcoded coordinates
 
 ### Changed
 - **GUI favicon and title**:
   - Replaced default Vite favicon with Niamoto branding
   - Changed browser title from "Vite + React + TS" to "Niamoto"
   - Added comprehensive favicon support (ico, svg, apple-touch-icon, webmanifest)
+- **Transform configuration structure** (BREAKING CHANGE):
+  - Replaced `source` + `additional_sources` with a unified `sources` list
+  - Each source now requires a unique `name` identifier
+  - Widgets reference sources by name via `params.source`
+  - Updated all configuration examples and documentation
+  - Example migration:
+    ```yaml
+    # Old structure
+    source:
+      data: occurrences
+      grouping: plot_ref
+    additional_sources:
+      plot_stats:
+        data: imports/plot_stats.csv
+
+    # New structure
+    sources:
+      - name: occurrences
+        data: occurrences
+        grouping: plot_ref
+      - name: plot_stats
+        data: imports/plot_stats.csv
+    ```
 
 ### Fixed
 - Corrected webmanifest paths from `/assets/` to `/favicon/`
+- **Field aggregator plugin**: Fixed extraction of JSON fields (e.g., `extra_data.field_name`) when data is passed as DataFrame
+  - Plugin can now properly parse JSON columns and extract nested values
+  - Resolves issue where `extra_data` fields returned null values
+- **Geospatial extractor**: Added support for MultiPoint geometries
+  - Plugin now correctly handles MultiPoint geometries for hierarchical plot levels
+  - Returns proper GeoJSON with MultiPoint features instead of empty results
+- **Interactive map widget**: Enhanced to support MultiPoint geometries
+  - Widget now handles MultiPoint features by calculating centroids for display
+  - Fixed issue where hierarchical plot levels with MultiPoint geometries were not displayed on maps
+  - Automatically adapts when configuration expects polygons but data contains Point/MultiPoint geometries
 
 ## [v0.6.2] - 2025-07-15
 
