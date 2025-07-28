@@ -289,12 +289,19 @@ shapes:
   # Additional shapes...
 ```
 
-| Option        | Description          | Required | Example                          |
-| ------------- | -------------------- | -------- | -------------------------------- |
-| `type`        | Type identifier      | Yes      | `"provinces"`                    |
-| `path`        | Path to source file  | Yes      | `"imports/shapes/provinces"`     |
-| `name_field`  | Field with name      | Yes      | `"nom"`                          |
-| `id_field`    | Field with shape id  | No       | `"1"`                            |
+| Option        | Description                                      | Required | Example                          |
+| ------------- | ------------------------------------------------ | -------- | -------------------------------- |
+| `type`        | Type identifier (used as prefix in shape_id)    | Yes      | `"provinces"`                    |
+| `path`        | Path to source file                              | Yes      | `"imports/shapes/provinces"`     |
+| `name_field`  | Field with name                                  | Yes      | `"nom"`                          |
+| `id_field`    | Field with unique identifier                     | Yes      | `"id"`                           |
+
+**Shape ID Format**: Shape IDs are automatically generated using the format `{type}_{id}` where:
+- `{type}` is the sanitized type identifier (lowercase, special characters replaced with underscores)
+- `{id}` is the value from the specified `id_field` in your shapefile
+- Examples: `provinces_1`, `grid_125`, `countries_120000`
+
+This format ensures unique IDs across different shape types and enables proper matching with statistics files.
 
 ### Layers Configuration
 

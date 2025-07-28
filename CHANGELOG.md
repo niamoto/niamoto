@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Added 5% margin around data bounds to prevent edge clipping
     - Increased zoom buffer from 0.5 to 1.0 for better visibility
   - Fixed map centering to use actual data bounds instead of hardcoded coordinates
+- **Shape ID generation**: Shape IDs are now generated using the format `{type}_{id}`
+  - The `type` comes from the shape configuration in `import.yml` (e.g., "grid", "countries")
+  - The `id` comes from the specified `id_field` in the shapefile
+  - Examples: `grid_1`, `countries_120000`, `countries_580000`
+  - This format ensures unique IDs across different shape types and enables proper matching with statistics files
 
 ### Changed
 - **GUI favicon and title**:
