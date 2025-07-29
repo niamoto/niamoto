@@ -55,7 +55,7 @@ class InteractiveMapParams(BaseModel):
     )
     map_style: str = Field(
         default="carto-positron",
-        description="Map base style (e.g., 'open-street-map', 'carto-positron', 'stamen-terrain').",
+        description="Map base style. Options without token: 'open-street-map', 'carto-positron', 'carto-darkmatter', 'carto-voyager', 'white-bg'. With Mapbox token: 'basic', 'streets', 'outdoors', 'light', 'dark', 'satellite', 'satellite-streets'.",
     )
     zoom: float = Field(default=9.0, description="Initial zoom level of the map")
     auto_zoom: bool = Field(
@@ -100,6 +100,10 @@ class InteractiveMapParams(BaseModel):
         default=False,
         description="Whether to optimize GeoJSON to TopoJSON format for reduced file size. Note: data already in TopoJSON format (from shape_processor) will not be re-optimized.",
     )
+    mapbox_access_token: Optional[str] = Field(
+        None,
+        description="Mapbox access token for satellite and other premium map styles. Get one free at https://account.mapbox.com/",
+    )
 
 
 @register("interactive_map", PluginType.WIDGET)
@@ -115,6 +119,18 @@ class InteractiveMapWidget(WidgetPlugin):
         # Add topojson-client; it is ~7 kB minified and cached.
         deps.add("/assets/js/vendor/topojson/3.1.0_topojson.js")
         return deps
+
+    def _get_map_style(self, style: str) -> str:
+        """Convert custom style names to Plotly-compatible styles.
+
+        Args:
+            style: The requested map style
+
+        Returns:
+            Plotly-compatible style string
+        """
+        # Simply return the style as-is, Plotly will handle it
+        return style
 
     def _parse_geojson_points(self, geojson_data: dict) -> Optional[pd.DataFrame]:
         """Parses a GeoJSON FeatureCollection of Points or MultiPoints into a DataFrame."""
@@ -933,9 +949,11 @@ class InteractiveMapWidget(WidgetPlugin):
                     opacity=params.opacity,
                     zoom=calculated_zoom,
                     center={"lat": center_lat, "lon": center_lon},
-                    map_style=params.map_style
-                    if params.map_style
-                    else params.mapbox_style,
+                    map_style=self._get_map_style(
+                        params.map_style
+                        if params.map_style
+                        else params.mapbox_style or "carto-positron"
+                    ),
                     title=None,
                 )
             elif effective_map_type == "choropleth_map":
@@ -971,9 +989,11 @@ class InteractiveMapWidget(WidgetPlugin):
                         opacity=params.opacity,
                         zoom=params.zoom,
                         center={"lat": center_lat, "lon": center_lon},
-                        map_style=params.map_style
-                        if params.map_style
-                        else params.mapbox_style,
+                        map_style=self._get_map_style(
+                            params.map_style
+                            if params.map_style
+                            else params.mapbox_style or "carto-positron"
+                        ),
                         title=None,
                     )
                     logger.debug(
@@ -1043,18 +1063,20 @@ class InteractiveMapWidget(WidgetPlugin):
                         % str(e)
                     )
             if fig:
-                fig.update_layout(
-                    margin={"r": 0, "t": 0, "l": 0, "b": 0},
-                    annotations=[],  # Remove any annotations including attribution
-                )
-                # Disable attribution for map layers
-                if hasattr(fig, "update_mapboxes"):
-                    fig.update_mapboxes(
-                        accesstoken=None,
-                        style=params.map_style
-                        if params.map_style
-                        else "carto-positron",
-                    )
+                # Update layout with map style
+                layout_update = {
+                    "margin": {"r": 0, "t": 0, "l": 0, "b": 0},
+                    "annotations": [],  # Remove any annotations including attribution
+                    "map_style": self._get_map_style(
+                        params.map_style if params.map_style else "carto-positron"
+                    ),
+                }
+
+                # Add Mapbox token if provided
+                if params.mapbox_access_token:
+                    layout_update["map_accesstoken"] = params.mapbox_access_token
+
+                fig.update_layout(**layout_update)
                 # Use centralized render function
                 custom_config = get_plotly_config()
                 custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
@@ -1516,17 +1538,23 @@ class InteractiveMapWidget(WidgetPlugin):
                     center_lon,
                 )
 
-            fig.update_layout(
-                map_style="carto-positron",
-                map_zoom=zoom_level,
-                map_center={"lat": center_lat, "lon": center_lon},
-                margin={"r": 0, "t": 0, "l": 0, "b": 0},
-                height=500,
-                annotations=[],  # Remove any annotations including attribution
-            )
-            # Disable attribution for map layers
-            if hasattr(fig, "update_mapboxes"):
-                fig.update_mapboxes(accesstoken=None, style="carto-positron")
+            # Build layout update parameters
+            layout_update = {
+                "map_style": self._get_map_style(
+                    params.map_style if params.map_style else "carto-positron"
+                ),
+                "map_zoom": zoom_level,
+                "map_center": {"lat": center_lat, "lon": center_lon},
+                "margin": {"r": 0, "t": 0, "l": 0, "b": 0},
+                "height": 500,
+                "annotations": [],  # Remove any annotations including attribution
+            }
+
+            # Add Mapbox token if provided
+            if params.mapbox_access_token:
+                layout_update["map_accesstoken"] = params.mapbox_access_token
+
+            fig.update_layout(**layout_update)
             logger.debug("Layout updated successfully")
         except Exception as e:
             logger.error("Error updating figure layout: %s", str(e), exc_info=True)

@@ -100,7 +100,7 @@ Create interactive maps with point data, choropleth layers, and multi-layer supp
     color_field: "value"              # Coloring field
     size_field: "count"               # Point size field
     hover_data: ["species", "date"]   # Hover information
-    map_style: "open-street-map"      # Base map style
+    map_style: "open-street-map"      # Base map style (see below)
     auto_zoom: true                   # Automatic zoom to data
     use_topojson: true                # Use TopoJSON optimization
     layers:                           # Multi-layer configuration
@@ -111,6 +111,24 @@ Create interactive maps with point data, choropleth layers, and multi-layer supp
         geojson_source: "forests"
         fill_color: "green"
 ```
+
+**Available Map Styles**:
+
+*Without Mapbox token (free):*
+- `"open-street-map"` - OpenStreetMap standard style
+- `"carto-positron"` - Light, minimal basemap (default)
+- `"carto-darkmatter"` - Dark, minimal basemap
+- `"carto-voyager"` - Colorful, detailed map with labels
+- `"white-bg"` - White background map
+
+*With Mapbox token:*
+- `"basic"` - Simple, clean base map
+- `"streets"` - Street-focused map
+- `"outdoors"` - Outdoor/terrain focused map
+- `"light"` - Light-themed map
+- `"dark"` - Dark-themed map
+- `"satellite"` - Satellite imagery
+- `"satellite-streets"` - Satellite imagery with street overlay
 
 **Data Formats**:
 
@@ -624,6 +642,49 @@ widgets:
         geojson_source: "protected_areas"
         fill_color: "green"
         fill_opacity: 0.3
+```
+
+### Alternative Map Styles Example
+
+```yaml
+# Colorful detailed map
+- plugin: interactive_map
+  data_source: occurrence_points
+  params:
+    title: "Species Distribution"
+    map_type: "scatter_map"
+    latitude_field: "lat"
+    longitude_field: "lon"
+    color_field: "species"
+    size_field: "abundance"
+    map_style: "carto-voyager"  # Colorful, detailed map
+    opacity: 0.9
+    auto_zoom: true
+
+# Dark theme map
+- plugin: interactive_map
+  data_source: night_observations
+  params:
+    title: "Night Observations"
+    map_style: "carto-darkmatter"  # Dark background
+    # ... other parameters
+```
+
+### Using Satellite Imagery (Requires Mapbox Token)
+
+To use satellite imagery, you need a free Mapbox account:
+1. Sign up at https://account.mapbox.com/auth/signup/
+2. Get your access token from https://account.mapbox.com/
+3. Add the token to your widget configuration:
+
+```yaml
+- plugin: interactive_map
+  data_source: forest_plots
+  params:
+    title: "Forest Plots on Satellite"
+    map_style: "satellite"
+    mapbox_access_token: "pk.eyJ1I..."  # Your Mapbox token
+    # ... other parameters
 ```
 
 ## Styling and Customization
