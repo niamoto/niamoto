@@ -21,11 +21,9 @@ from ...common.utils import error_handler
 @click.option(
     "--reset", is_flag=True, help="Reset the environment if it already exists."
 )
-@click.option(
-    "--no-gui", is_flag=True, help="Do not launch the GUI after initialization."
-)
+@click.option("--gui", is_flag=True, help="Launch the GUI after initialization.")
 @error_handler(log=True, raise_error=True)
-def init_environment(project_name: str, reset: bool, no_gui: bool) -> None:
+def init_environment(project_name: str, reset: bool, gui: bool) -> None:
     """
     Initialize or reset the Niamoto environment, and display its status.
 
@@ -84,8 +82,8 @@ def init_environment(project_name: str, reset: bool, no_gui: bool) -> None:
             print_info("\nTo start working with your project, run:")
             print_info(f"  cd {project_name}")
 
-        # Launch GUI unless --no-gui is specified
-        if not no_gui:
+        # Launch GUI if --gui is specified or if project_name is provided
+        if gui or project_name:
             print_info("\nLaunching configuration interface...")
             launch_gui()
         else:
