@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **GUI (Graphical User Interface)**: Complete visual configuration interface for Niamoto
+  - Modern web interface built with React 19, TypeScript, Vite, and Tailwind CSS v4
+  - Multi-step import wizard with real-time validation and progress tracking
+  - Drag-and-drop file upload supporting CSV, Excel, JSON, GeoJSON, and Shapefile formats
+  - Interactive column mapping and data transformation configuration
+  - Hierarchical taxonomy editor with visual drag-and-drop functionality
+  - Internationalization support (French/English) with language switcher
+  - FastAPI backend serving both REST API endpoints and static React build
+  - Comprehensive API endpoints for configuration management, file operations, and imports
+  - Faceted spinner loading indicator and enhanced UI components
+- **GUI CLI integration**: Enhanced `niamoto init` command behavior
+  - GUI launches automatically when creating a new project: `niamoto init my-project`
+  - GUI no longer launches by default for simple `niamoto init`
+  - New `--gui` flag to explicitly launch GUI: `niamoto init --gui`
+  - `niamoto gui` command to launch the configuration interface at any time
+- **Simplified CLI help**: Reorganized command help for better user experience
+  - New "Quick Start" section with 3 essential steps
+  - "Common Workflows" section with practical usage scenarios
+  - Cleaner command grouping: Setup, Pipeline, Analysis, Deployment
+  - GUI prominently featured in the workflow
 - **Project naming support**: `niamoto init [project-name]` now accepts an optional project name
   - Creates a new directory with the project name if provided
   - Prompts for confirmation when initializing in the current directory

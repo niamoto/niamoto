@@ -1,3 +1,9 @@
+# Niamoto Transform Configuration
+# This file defines data transformations and statistical analyses
+# Each transformation group creates widgets for visualization
+
+# Transformations are defined as a list of groups
+# Each group processes data for a specific entity type (taxon, plot, shape)
 
 ##################################################################
 # 1) CONFIG POUR LES TAXONS
@@ -14,6 +20,12 @@
           parent: parent_id
           left: lft
           right: rght
+    - name: taxa_stats
+      data: imports/raw_taxa_stats.csv
+      grouping: taxon_ref
+      relation:
+        plugin: stats_loader
+        key: idtax_f
 
   widgets_data:
     general_info:
@@ -40,34 +52,8 @@
             target: occurrences_count
             transformation: count
           - source: taxon_ref
-            field: extra_data.endemic
-            target: endemic
-            format: boolean
-          - source: taxon_ref
-            field: extra_data.id_florical
-            target: id_florical
-            format: boolean
-          - source: taxon_ref
-            field: extra_data.redlist_cat
-            target: redlist_cat
-            format: boolean
-          - source: taxon_ref
-            field: extra_data.endemia_url
-            target: endemia_url
-            format: url
-          - source: taxon_ref
-            field: extra_data.image_small_thumb
-            target: image_url
-            format: url
-          - source: taxon_ref
-            field: extra_data.images
-            target: images
-      # ex:
-      # {
-      #   "name": "Araucaria columnaris",
-      #   "rank": "espèce",
-      #   "occurrences_count": 325
-      # }
+            field: extra_data.original_id
+            target: original_id
 
     distribution_map:
       plugin: geospatial_extractor
@@ -76,8 +62,7 @@
         field: geo_pt
         format: geojson
         group_by_coordinates: true
-        #properties: ["taxonref", "dbh", "height"]
-      # ex:
+        extract_children: false  # For taxons, we want direct occurrences, not hierarchical extraction
       # {
       #   "type": "FeatureCollection",
       #   "features": [
@@ -96,7 +81,6 @@
       params:
         source: occurrences
         field: taxon_ref_id
-        count: 10
         mode: hierarchical
         hierarchy_table: taxon_ref
         hierarchy_columns:
@@ -104,154 +88,158 @@
           name: full_name
           rank: rank_name
           parent_id: parent_id
+          left: lft
+          right: rght
         target_ranks: ["species", "infra"]
-      # ex:
-      # {
-      #   "tops": ["Taxon1", "Taxon2", "Taxon3"],
-      #   "counts": [10, 5, 2]
-      # }
-
-    distribution_substrat:
-      plugin: binary_counter
-      params:
-        source: occurrences
-        field: in_um
-        true_label: "um"
-        false_label: "num"
-        include_percentages: true
-      # ex:
-      # {
-      #   "um": 230,
-      #   "num": 95
-      # }
-
-    phenology:
-      plugin: "transform_chain"
-      params:
-        steps:
-          # Distribution de la phénologie
-          - plugin: "time_series_analysis"
-            params:
-              source: occurrences
-              fields:
-                fleur: flower
-                fruit: fruit
-              time_field: month_obs
-              labels: ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"]
-            output_key: "phenology_raw"
-
-          # Détection des pics de floraison/fructification
-          - plugin: "custom_calculator"
-            params:
-              operation: "peak_detection"
-              time_series: "@phenology_raw.month_data"
-              threshold: 30
-            output_key: "phenology_peaks"
-
-          # Calcul des périodes actives
-          - plugin: "custom_calculator"
-            params:
-              operation: "active_periods"
-              time_series: "@phenology_raw.month_data"
-              labels: "@phenology_raw.labels"
-            output_key: "phenology_periods"
-
-          # Fusion des résultats
-          - plugin: "custom_calculator"
-            params:
-              operation: "custom_formula"
-              formula: "{'raw': phenology_raw, 'peaks': phenology_peaks, 'periods': phenology_periods}"
-              variables:
-                phenology_raw: "@phenology_raw"
-                phenology_peaks: "@phenology_peaks"
-                phenology_periods: "@phenology_periods"
-            output_key: "phenology_data"
-
-    phenology_distribution:
-      plugin: time_series_analysis
-      params:
-        source: occurrences
-        fields:
-          fleur: flower
-          fruit: fruit
-        time_field: month_obs
-        labels: ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"]
-      # ex:
-      # {
-      #   "month_data": {
-      #     "fleur": [10, 20, 35, 45, 30, 20, 15, 10, 5, 15, 25, 30],
-      #     "fruit": [5, 15, 25, 35, 45, 40, 30, 20, 15, 10, 5, 10]
-      #   },
-      #   "labels": ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"]
-      # }
-
-    dbh_distribution:
-      plugin: binned_distribution
-      params:
-        source: occurrences
-        field: dbh
-        bins: [10, 20, 30, 40, 50, 75, 100, 200, 300, 400, 500]
-        include_percentages: true
-      # ex:
-      # {
-      #   "bins": [10, 20, 30, 40, 50, 75, 100, 200, 300, 400, 500],
-      #   "counts": [45, 78, 92, 64, 38, 25, 12, 8, 3, 1],
-      #   "percentages": [16.13, 27.96, 32.97, 22.94, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      # }
-
-    dbh_max:
-      plugin: statistical_summary
-      params:
-        source: occurrences
-        field: dbh
-        stats: ["max"]
-        units: "cm"
-        max_value: 500
-      # ex:
-      # {
-      #   "min": 320,
-      #   "mean": 400,
-      #   "max": 500,
-      #   "max_value": 500
-      #   "units": "cm"
-      # }
-
-    height_max:
-      plugin: statistical_summary
-      params:
-        source: occurrences
-        field: height
-        stats: ["max"]
-        units: "m"
-        max_value: 40
-      # ex:
-      # {
-      #   "max": 30,
-      #   "max_value": 40
-      #   "units": "m"
-      # }
-
-    elevation_distribution:
-      plugin: binned_distribution
-      params:
-        source: occurrences
-        field: elevation
-        bins: [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1700]
-        include_percentages: true
-      # ex:
-      # {
-      #   "bins": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1700],
-      #   "counts": [45, 78, 92, 64, 38, 25, 12, 8, 3, 1, 0, 0]
-      # }
+        count: 10
 
     wood_density:
       plugin: statistical_summary
       params:
         source: occurrences
-        field: wood_density
+        field: taxa_level_wood_density_mean
         stats: ["mean"]
         units: "g/cm3"
         max_value: 1.2
+
+    dbh_distribution:
+      plugin: binned_distribution
+      params:
+        source: occurrences
+        field: stem_diameter
+        bins: [10, 20, 30, 40, 50, 75, 100, 200, 300, 400, 500]
+        include_percentages: true
+
+    elev_distribution:
+      plugin: binned_distribution
+      params:
+        source: occurrences
+        field: elev
+        bins: [0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 4000]
+        include_percentages: true
+
+    pheno_distribution:
+      plugin: categorical_distribution
+      params:
+        source: occurrences
+        field: taxa_level_phenology
+        categories: ["evergreen", "deciduous", "Undocumented"]
+        labels: ["evergreen", "deciduous", "Undocumented"]
+        include_percentages: true
+
+    source_datasets:
+      plugin: class_object_series_extractor
+      params:
+        source: taxa_stats
+        class_object: "nbe_source_dataset"
+        size_field:
+          input: "class_name"
+          output: "sources"
+          numeric: false
+          sort: false
+        value_field:
+          input: "class_value"
+          output: "counts"
+          numeric: true
+
+
+- group_by: plot
+  sources:
+    - name: occurrences
+      data: occurrences
+      grouping: plot_ref
+      relation:
+        plugin: nested_set
+        key: plot_ref_id
+        fields:
+          parent: parent_id
+          left: lft
+          right: rght
+    - name: plot_stats
+      data: imports/raw_plot_stats.csv
+      grouping: plot_ref
+      relation:
+        plugin: stats_loader
+        key: plot_id
+
+  widgets_data:
+    general_info:
+      plugin: field_aggregator
+      params:
+        fields:
+          - source: plot_ref
+            field: locality
+            target: name
+          - source: plot_ref
+            field: extra_data.entity_type
+            target: type
+          - source: plot_ref
+            field: extra_data.locality_name
+            target: locality
+          - source: plot_ref
+            field: extra_data.country
+            target: country
+          - source: plot_ref
+            field: extra_data.nbe_stem
+            target: nbe_stem
+            format: number
+          - source: plot_ref
+            field: extra_data.method
+            target: method
+
+    map_panel:
+      plugin: geospatial_extractor
+      params:
+        source: plot_ref
+        field: geometry
+        format: geojson
+        extract_children: true  # Extract direct children instead of aggregated geometry
+        properties: ["locality", "plot_id", "plot_type", "level"]  # Properties to include for each child
+        hierarchy_config:
+          type_field: "plot_type"  # Field identifying entity type
+          leaf_type: "plot"  # Value identifying leaves (individual plots)
+          left_field: "lft"  # Left value field for nested set
+          right_field: "rght"  # Right value field for nested set
+
+    top_families:
+      plugin: top_ranking
+      params:
+        source: occurrences
+        field: plot_ref_id
+        mode: join
+        hierarchy_table: taxon_ref
+        join_table: occurrences
+        join_columns:
+          source_id: plot_ref_id
+          hierarchy_id: taxon_ref_id
+        hierarchy_columns:
+          id: id
+          name: full_name
+          rank: rank_name
+          left: lft
+          right: rght
+        target_ranks: ["family"]
+        count: 10
+
+    top_species:
+      plugin: top_ranking
+      params:
+        source: occurrences
+        field: plot_ref_id
+        mode: join
+        hierarchy_table: taxon_ref
+        join_table: occurrences
+        join_columns:
+          source_id: plot_ref_id
+          hierarchy_id: taxon_ref_id
+        hierarchy_columns:
+          id: id
+          name: full_name
+          rank: rank_name
+          left: lft
+          right: rght
+        target_ranks: ["species", "infra"]
+        count: 10
       # ex:
       # {
       #   "min": 0.35,
