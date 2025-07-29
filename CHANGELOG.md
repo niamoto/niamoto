@@ -56,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Parent type entries have `entity_type: "type"` and `auto_generated: true`
   - Individual shapes have `entity_type: "shape"` and `auto_generated: false`
   - Enables consistent entity type identification across all reference models
+- **Interactive map improvements**: Updated map styles and added Mapbox token support
+  - Corrected available map styles to match current Plotly.js capabilities
+  - Added `mapbox_access_token` parameter for premium map styles (satellite, outdoors, etc.)
+  - Free styles: 'open-street-map', 'carto-positron', 'carto-darkmatter', 'carto-voyager', 'white-bg'
+  - Premium styles (require token): 'satellite', 'satellite-streets', 'outdoors', 'streets', 'light', 'dark'
+  - Updated documentation with correct style options and Mapbox token usage
 
 ### Changed
 - **GUI favicon and title**:
