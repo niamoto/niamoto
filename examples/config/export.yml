@@ -1,8 +1,5 @@
-# export.yml
-
-# ============================================================
-# Configuration des Exports Niamoto
-# ============================================================
+# Niamoto Export Configuration
+# This file defines how to export data and generate visualizations
 
 exports:
 
@@ -23,29 +20,24 @@ exports:
 
       # --- Configuration Globale du Site (disponible dans tous les templates via {{ site.* }}) ---
       site:
-        title: "Niamoto" # Titre affiché (ex: <title>, header)
-        logo_header: "files/niamoto_logo.png"            # Optionnel: Logo pour l'en-tête
-        logo_footer: "files/niamoto_logo.png"    # Optionnel: Autre logo pour pied de page
-        lang: "fr"                                            # Langue pour la balise <html>
-        primary_color: "#228b22"                             # Couleur primaire du site
+        title: "My Niamoto Project" # Titre affiché
+        logo_header: "files/niamoto_logo.png"     # Logo pour l'en-tête
+        logo_footer: "files/niamoto_logo.png"     # Logo pour pied de page
+        lang: "fr"                                # Langue pour la balise <html>
+        primary_color: "#2d5016"                             # Couleur primaire du site
         nav_color: "#228b22"                                 # Couleur de la barre de navigation
         github_url: "https://github.com/niamoto/niamoto"     # URL du projet GitHub
-        # Ajoutez d'autres métadonnées globales si nécessaire (auteur, description...)
 
       #--- Configuration de la Navigation Principale (disponible via {{ navigation }}) ---
       navigation:
-        - text: "Accueil"           # Lien vers /exports/web/index.html
+        - text: "Home"
           url: "/index.html"
-        - text: "Méthodologie"
-          url: "/methodology.html"
-        - text: "Arbres"
-          url: "/trees.html"
-        - text: "Peuplements"
-          url: "/plots.html"
-        - text: "Forêt"
-          url: "/forests.html"
-        - text: "Ressources"
-          url: "/resources.html"
+        - text: "Taxa"
+          url: "/taxon/index.html"             # Lien vers l'index des taxons
+        - text: "Plots"
+          url: "/plot/index.html"              # Lien vers l'index des parcelles
+        - text: "Geographical area"
+          url: "/shape/index.html"             # Lien vers l'index des zones
 
       copy_assets_from:                         # Dossiers d'assets à copier
         - "templates/assets/"             # Assets spécifiques du projet (CSS, JS, images...)

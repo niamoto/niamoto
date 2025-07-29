@@ -1,16 +1,17 @@
-#Taxonomie extraite des occurrences
+# Taxonomy extracted from occurrences
 taxonomy:
-  type: csv
-  path: "imports/niamoto_occurrences_202503041446.csv"  # Chemin vers le fichier d'occurrences
-  source: "occurrence"  # Indique d'extraire la taxonomie des occurrences
-  ranks: "family,genus,species,infra"
-  occurrence_columns:
-    taxon_id: "id_taxonref"
-    family: "family"
-    genus: "genus"
-    species: "species"
-    infra: "infra"
-    authors: "taxonref"  # On peut extraire les auteurs du taxonref
+  path: imports/occurrences.csv  # Path to occurrences file
+  hierarchy:
+    levels:
+    - name: family
+      column: tax_fam
+    - name: genus
+      column: tax_gen
+    - name: species
+      column: tax_sp_level
+    - name: infra
+      column: tax_infra_level
+    taxon_id_column: idtax_f  # Column containing taxon ID
   api_enrichment:
     enabled: true
     plugin: "api_taxonomy_enricher"
@@ -53,19 +54,26 @@ taxonomy:
 
 plots:
   type: csv
-  path: "imports/plots.csv"
-  identifier: "id_plot" # Champ de l'identifiant du plot dans le csv
-  locality_field: "plot" # Champ du nom de la localité qui renseignera le champ locality dans plot_ref
-  location_field: "geo_pt" # Champ de la géométrie de la localité
-  link_field: "locality"  # Champ à utiliser dans plot_ref pour le lien, correspond ici à name_field
-  occurrence_link_field: "plot_name"  # Champ à utiliser dans occurrences pour le lien
+  path: imports/plots.csv
+  identifier: id_plot  # Plot identifier field in CSV
+  locality_field: plot_name  # Locality name field that will populate locality in plot_ref
+  location_field: geo_pt  # Geometry field
+  link_field: plot_id  # Field to use in plot_ref for linking
+  occurrence_link_field: plot_id  # Field to use in occurrences for linking
+  hierarchy:
+    enabled: true
+    levels:
+    - method
+    - country
+    - plot_name
+    aggregate_geometry: true  # Aggregate geometries for parent levels
 
 
 occurrences:
   type: csv
-  path: "imports/niamoto_occurrences_202503041446.csv"
-  identifier: "id_taxonref"
-  location_field: "geo_pt"
+  path: imports/occurrences.csv
+  identifier: id_occurrence
+  location_field: geo_pt
 
 plot_stats:
   type: csv
@@ -79,33 +87,30 @@ shape_stats:
 
 # Multiple shapes (administrative areas, substrates, etc.)
 shapes:
-  - type: "Provinces"
-    path: "imports/shapes/provinces"
-    name_field: "nom"
+  - type: grid
+    path: imports/shapes/grid.zip
+    name_field: name
+    id_field: id_grid  # Field containing unique shape ID
 
-  - type: "Communes"
-    path: "imports/shapes/communes"
-    name_field: "nom"
+  - type: provinces
+    path: imports/shapes/provinces.zip
+    name_field: nom
+    id_field: code_province
 
-  - type: "Aires protégées"
-    path: "imports/shapes/protected_areas"
-    name_field: "libelle"
+  - type: communes
+    path: imports/shapes/communes.zip
+    name_field: nom
+    id_field: code_commune
 
-  - type: "Substrats"
-    path: "imports/shapes/substrate.gpkg"
-    name_field: "label"
+  - type: protected_areas
+    path: imports/shapes/protected_areas.zip
+    name_field: libelle
+    id_field: id_area
 
-  - type: "Zone de vie"
-    path: "imports/shapes/holdridge_zones.gpkg"
-    name_field: "zone"
-
-  - type: "Captage"
-    path: "imports/shapes/ppe"
-    name_field: "nom_ppe"
-
-  - type: "Emprises Minières"
-    path: "imports/shapes/mines.gpkg"
-    name_field: "region"
+  - type: substrates
+    path: imports/shapes/substrate.gpkg
+    name_field: label
+    id_field: substrate_id
 
 # Layers: vectors, rasters...
 layers:
