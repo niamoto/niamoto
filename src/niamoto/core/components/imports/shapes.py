@@ -163,7 +163,7 @@ class ShapeImporter:
                             transformer = self._setup_transformer(src.crs_wkt)
 
                             # Traiter chaque feature du fichier
-                            for feature in src:
+                            for idx, feature in enumerate(src):
                                 try:
                                     if not self._is_valid_feature(feature):
                                         import_stats["skipped"] += 1
@@ -180,7 +180,7 @@ class ShapeImporter:
                                             geom, transformer
                                         )
                                         shape_id = self._get_feature_id(
-                                            feature, shape_info
+                                            feature, shape_info, idx
                                         )
                                         name = self._get_feature_name(
                                             feature, shape_info
@@ -508,7 +508,7 @@ class ShapeImporter:
         Raises:
             DatabaseError: If database operations fail
         """
-        for feature in src:
+        for idx, feature in enumerate(src):
             import_stats["processed"] += 1
 
             try:
@@ -518,7 +518,7 @@ class ShapeImporter:
 
                 geom = shape(feature["geometry"])
                 geom_wgs84 = self.transform_geometry(geom, transformer)
-                shape_id = self._get_feature_id(feature, shape_info)
+                shape_id = self._get_feature_id(feature, shape_info, idx)
                 name = self._get_feature_name(feature, shape_info)
                 extra_data = self._extract_properties(feature, shape_info)
 
@@ -548,27 +548,34 @@ class ShapeImporter:
         return not geom.is_empty
 
     @staticmethod
-    def _get_feature_id(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:
-        """Get feature ID from properties."""
-        id_field = shape_info.get("id_field")
-        if not id_field:
-            return None
-        shape_id = feature["properties"].get(id_field)
-        if shape_id and str(shape_id).strip():
-            # Convert to int if it's a whole number to avoid .0
-            if isinstance(shape_id, (int, float)):
-                # If it's a float that represents a whole number, convert to int
-                if isinstance(shape_id, float) and shape_id.is_integer():
-                    shape_id = int(shape_id)
-            # Préfixer l'ID avec le type pour éviter les conflits
-            shape_type = shape_info.get("type", "shape")
-            # Sanitize le type : minuscules, remplacer espaces et caractères spéciaux par underscore
-            import re
+    def _get_feature_id(
+        feature: Dict[str, Any], shape_info: Dict[str, Any], feature_index: int = None
+    ) -> str:
+        """Get feature ID from properties or generate one."""
+        # Préfixer l'ID avec le type pour éviter les conflits
+        shape_type = shape_info.get("type", "shape")
+        # Sanitize le type : minuscules, remplacer espaces et caractères spéciaux par underscore
+        import re
 
-            sanitized_type = re.sub(r"[^a-z0-9]+", "_", shape_type.lower()).strip("_")
-            if not sanitized_type:
-                sanitized_type = "shape"
-            return f"{sanitized_type}_{str(shape_id).strip()}"
+        sanitized_type = re.sub(r"[^a-z0-9]+", "_", shape_type.lower()).strip("_")
+        if not sanitized_type:
+            sanitized_type = "shape"
+
+        id_field = shape_info.get("id_field")
+        if id_field:
+            shape_id = feature["properties"].get(id_field)
+            if shape_id and str(shape_id).strip():
+                # Convert to int if it's a whole number to avoid .0
+                if isinstance(shape_id, (int, float)):
+                    # If it's a float that represents a whole number, convert to int
+                    if isinstance(shape_id, float) and shape_id.is_integer():
+                        shape_id = int(shape_id)
+                return f"{sanitized_type}_{str(shape_id).strip()}"
+
+        # Si pas d'id_field ou si la valeur est vide, utiliser l'index de la feature
+        if feature_index is not None:
+            return f"{sanitized_type}_{feature_index + 1}"  # +1 pour commencer à 1 au lieu de 0
+
         return None
 
     @staticmethod

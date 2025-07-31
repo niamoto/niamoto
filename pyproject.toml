@@ -265,4 +265,6 @@ filterwarnings = [
     "ignore::pandas.errors.SettingWithCopyWarning",
     # Expected warning when we try to auto-detect datetime formats
     "ignore:Could not infer format:UserWarning",
+    # Pyogrio still imports the deprecated shapely.geos module
+    "ignore:The 'shapely.geos' module is deprecated:DeprecationWarning:pyogrio",
 ]

@@ -349,7 +349,15 @@ class TestShapeImporter(NiamotoTestCase):
 
         result = ShapeImporter._extract_properties(feature, shape_info)
 
-        self.assertEqual(result, {"area": 100.5, "population": 1000})
+        self.assertEqual(
+            result,
+            {
+                "entity_type": "shape",
+                "auto_generated": False,
+                "area": 100.5,
+                "population": 1000,
+            },
+        )
 
     def test_extract_properties_empty_config(self):
         """Test _extract_properties method with empty properties config."""
@@ -359,7 +367,7 @@ class TestShapeImporter(NiamotoTestCase):
 
         result = ShapeImporter._extract_properties(feature, shape_info)
 
-        self.assertEqual(result, {})
+        self.assertEqual(result, {"entity_type": "shape", "auto_generated": False})
 
     def test_format_result_message(self):
         """Test _format_result_message method."""

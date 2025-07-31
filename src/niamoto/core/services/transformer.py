@@ -236,10 +236,11 @@ class TransformerService:
                     except Exception as e:
                         # Log the error but continue processing other widgets
                         error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
-                        # Only display in progress manager, not in logger to avoid duplication
-                        progress_manager.add_warning(error_msg)
-                        if self.transform_metrics:
-                            self.transform_metrics.add_warning(error_msg)
+                        # Only display in progress manager if it's not an expected empty data case
+                        if "No data found" not in str(e):
+                            progress_manager.add_warning(error_msg)
+                            if self.transform_metrics:
+                                self.transform_metrics.add_warning(error_msg)
 
                     # Update progress
                     progress_manager.update_task(task_name, advance=1)
@@ -349,7 +350,9 @@ class TransformerService:
                     except Exception as e:
                         # Log the error but continue processing other widgets
                         error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
-                        logger.warning(error_msg)
+                        # Only log if it's not an expected empty data case
+                        if "No data found" not in str(e):
+                            logger.warning(error_msg)
                         # Only show in console if it's not an expected empty data case
                         if not (
                             isinstance(e, DataTransformError)
@@ -669,6 +672,10 @@ class TransformerService:
                                 return int(obj)
                             elif isinstance(obj, np.floating):
                                 return float(obj)
+                            elif isinstance(obj, np.bool_):
+                                return bool(obj)
+                            elif isinstance(obj, bool):
+                                return obj
                             elif isinstance(obj, np.ndarray):
                                 return [convert_numpy(x) for x in obj.tolist()]
                             elif isinstance(obj, list):

@@ -81,13 +81,20 @@ class StatsLoader(LoaderPlugin):
             data = pd.read_csv(csv_path, sep=";", decimal=".", encoding="utf-8")
 
         # Get the actual value from the reference table
-        # We always need to look up the shape_id (or equivalent) from the reference table
+        # We always need to look up the value from the reference table
         grouping_table = config.get("grouping", "")
         group_name = grouping_table.replace("_ref", "")  # e.g., "shape_ref" -> "shape"
-        lookup_field = f"{group_name}_id"  # e.g., "shape_id"
+
+        # Allow custom reference field (default to {group}_id)
+        ref_field = config.get("ref_field")
+        if not ref_field:
+            ref_field = f"{group_name}_id"  # e.g., "shape_id"
+
+        # Allow custom match field in CSV (default to key)
+        match_field = config.get("match_field", config.get("key", "id"))
 
         query = text(f"""
-            SELECT {lookup_field} FROM {config["grouping"]} WHERE id = :group_id
+            SELECT {ref_field} FROM {config["grouping"]} WHERE id = :group_id
         """)
 
         with self.db.engine.connect() as conn:
@@ -97,10 +104,8 @@ class StatsLoader(LoaderPlugin):
 
             actual_id = result[0]
 
-        # Filter by the actual ID value
-        # Use 'key' from config as the CSV column name
-        id_field = config.get("key", "id")
-
+        # Filter by the actual value
+        # Use match_field to filter the CSV data
         # Convert both to same type for comparison
         # If actual_id is a string that represents a number, convert to int
         if isinstance(actual_id, str) and actual_id.isdigit():
@@ -109,7 +114,7 @@ class StatsLoader(LoaderPlugin):
         # Ensure proper type matching
         try:
             # If the CSV column is numeric, convert actual_id to the same type
-            if pd.api.types.is_numeric_dtype(data[id_field]):
+            if pd.api.types.is_numeric_dtype(data[match_field]):
                 actual_id = pd.to_numeric(actual_id)
             else:
                 # If CSV column is string, convert actual_id to string
@@ -117,7 +122,7 @@ class StatsLoader(LoaderPlugin):
         except (ValueError, TypeError):
             pass
 
-        filtered_data = data[data[id_field] == actual_id]
+        filtered_data = data[data[match_field] == actual_id]
         return filtered_data
 
     def _load_from_database(
