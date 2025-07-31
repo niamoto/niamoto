@@ -32,8 +32,9 @@ interface ApiEnrichmentConfigProps {
 export interface ApiConfig {
   enabled: boolean
   plugin: string
-  api_url: string
-  auth_method: 'none' | 'api_key' | 'bearer' | 'basic'
+  api_url?: string
+  api_key?: string  // For Tropicos direct config
+  auth_method?: 'none' | 'api_key' | 'bearer' | 'basic'
   auth_params?: {
     key?: string
     location?: 'header' | 'query'
@@ -46,6 +47,11 @@ export interface ApiConfig {
   rate_limit: number
   cache_results: boolean
   response_mapping?: Record<string, string>
+  // Tropicos specific options
+  include_images?: boolean
+  include_synonyms?: boolean
+  include_distributions?: boolean
+  include_references?: boolean
 }
 
 interface ApiField {
@@ -179,9 +185,52 @@ const PRESET_APIS: PresetAPI[] = [
         tropicos_name: '[0].ScientificName',
         tropicos_author: '[0].ScientificNameWithAuthors',
         tropicos_family: '[0].Family',
-        tropicos_nomenclatural_status: '[0].NomenclaturalStatus'
+        tropicos_nomenclatural_status: '[0].NomenclaturalStatus',
+        tropicos_symbol: '[0].Symbol',
+        tropicos_rank: '[0].RankAbbreviation',
+        tropicos_accepted_id: '[0].AcceptedNameId',
+        tropicos_accepted_name: '[0].AcceptedName'
       }
     }
+  },
+  {
+    name: 'Tropicos Extended (Images & Details)',
+    config: {
+      api_url: 'http://services.tropicos.org/Name/Search',
+      auth_method: 'api_key',
+      query_params: {
+        format: 'json',
+        type: 'exact'
+      },
+      response_mapping: {
+        // Basic info
+        tropicos_id: '[0].NameId',
+        tropicos_name: '[0].ScientificName',
+        tropicos_author: '[0].ScientificNameWithAuthors',
+        tropicos_family: '[0].Family',
+        tropicos_nomenclatural_status: '[0].NomenclaturalStatus',
+        tropicos_symbol: '[0].Symbol',
+        tropicos_rank: '[0].RankAbbreviation',
+        tropicos_accepted_id: '[0].AcceptedNameId',
+        tropicos_accepted_name: '[0].AcceptedName',
+        // Note: Pour récupérer les images, il faut faire un appel séparé à:
+        // http://services.tropicos.org/Name/{NameId}/Images?apikey={key}&format=json
+        // Les images seront dans: [0].ImageKindText, [0].ImageURL, [0].LowResolutionURL
+        // Pour la distribution: http://services.tropicos.org/Name/{NameId}/Distributions
+        // Pour les synonymes: http://services.tropicos.org/Name/{NameId}/Synonyms
+        external_id: '[0].NameId',
+        external_url: '[0].Source'
+      }
+    }
+  }
+]
+
+const SPECIAL_PLUGINS = [
+  {
+    name: 'Tropicos Complete (with Images)',
+    plugin: 'tropicos_enricher',
+    requiresApiKey: true,
+    description: 'Fetches comprehensive data from Tropicos including images, synonyms, distributions, and references'
   }
 ]
 
@@ -378,7 +427,7 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               {/* Preset APIs */}
               <div className="space-y-2">
                 <Label>{t('apiEnrichment.connection.quickSetup')}</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {PRESET_APIS.map(preset => (
                     <Button
                       key={preset.name}
@@ -392,19 +441,126 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                 </div>
               </div>
 
+              {/* Special Plugins */}
+              <div className="space-y-2">
+                <Label>{t('apiEnrichment.connection.specialPlugins', 'Special Plugins')}</Label>
+                <div className="space-y-2">
+                  {SPECIAL_PLUGINS.map(plugin => (
+                    <Card key={plugin.name} className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium">{plugin.name}</h4>
+                          <p className="text-sm text-muted-foreground">{plugin.description}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            onChange({
+                              ...config,
+                              plugin: plugin.plugin,
+                              enabled: true,
+                              query_field: 'full_name',
+                              rate_limit: 1,
+                              cache_results: true,
+                              include_images: true,
+                              include_synonyms: true,
+                              include_distributions: true,
+                              include_references: true
+                            })
+                          }}
+                        >
+                          Use
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
               <Separator />
 
-              {/* API URL */}
-              <div className="space-y-2">
-                <Label htmlFor="api-url">{t('apiEnrichment.connection.apiUrl')}</Label>
-                <Input
-                  id="api-url"
-                  type="url"
-                  value={config.api_url}
-                  onChange={(e) => onChange({ ...config, api_url: e.target.value })}
-                  placeholder="https://api.example.com/v1/taxons"
-                />
-              </div>
+              {/* Special configuration for Tropicos plugin */}
+              {config.plugin === 'tropicos_enricher' ? (
+                <div className="space-y-4">
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      Tropicos Complete plugin will fetch images, synonyms, distributions, and references in a single operation.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tropicos-api-key">Tropicos API Key *</Label>
+                    <Input
+                      id="tropicos-api-key"
+                      type="password"
+                      value={config.api_key || ''}
+                      onChange={(e) => onChange({ ...config, api_key: e.target.value })}
+                      placeholder="Enter your Tropicos API key"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Get your API key from <a href="http://services.tropicos.org/help?requestkey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Tropicos Services</a>
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label>Data to fetch</Label>
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={config.include_images !== false}
+                          onChange={(e) => onChange({ ...config, include_images: e.target.checked })}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Images (specimen photos)</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={config.include_synonyms !== false}
+                          onChange={(e) => onChange({ ...config, include_synonyms: e.target.checked })}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Synonyms</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={config.include_distributions !== false}
+                          onChange={(e) => onChange({ ...config, include_distributions: e.target.checked })}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Geographic distributions</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={config.include_references !== false}
+                          onChange={(e) => onChange({ ...config, include_references: e.target.checked })}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Bibliographic references</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* API URL */}
+                  <div className="space-y-2">
+                    <Label htmlFor="api-url">{t('apiEnrichment.connection.apiUrl')}</Label>
+                    <Input
+                      id="api-url"
+                      type="url"
+                      value={config.api_url || ''}
+                      onChange={(e) => onChange({ ...config, api_url: e.target.value })}
+                      placeholder="https://api.example.com/v1/taxons"
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Query Field */}
               <div className="space-y-2">
@@ -506,6 +662,16 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Special case for Tropicos plugin */}
+              {config.plugin === 'tropicos_enricher' ? (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Authentication for Tropicos is configured in the Connection tab.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
               {/* Auth Method */}
               <div className="space-y-2">
                 <Label htmlFor="auth-method">{t('apiEnrichment.authentication.method')}</Label>
@@ -626,6 +792,8 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                   </div>
                 </>
               )}
+              </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -639,6 +807,44 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Special case for Tropicos plugin */}
+              {config.plugin === 'tropicos_enricher' ? (
+                <div className="space-y-4">
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      The Tropicos Complete plugin automatically maps the following fields:
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-2 rounded-lg border p-4">
+                    <h4 className="font-medium">Automatic field mappings:</h4>
+                    <div className="space-y-1 text-sm">
+                      <div>• <code>tropicos_id</code> - Tropicos Name ID</div>
+                      <div>• <code>tropicos_name</code> - Scientific name</div>
+                      <div>• <code>tropicos_author</code> - Name with authors</div>
+                      <div>• <code>tropicos_family</code> - Family name</div>
+                      <div>• <code>tropicos_nomenclatural_status</code> - Nomenclatural status</div>
+                      <div>• <code>image_url</code> - Main specimen image URL</div>
+                      <div>• <code>image_thumbnail</code> - Thumbnail image URL</div>
+                      <div>• <code>images</code> - Array of all images with metadata</div>
+                      <div>• <code>synonyms</code> - List of synonyms</div>
+                      <div>• <code>distribution_countries</code> - List of countries</div>
+                      <div>• <code>references</code> - Bibliographic references</div>
+                      <div>• <code>external_id</code> - Tropicos ID for external reference</div>
+                      <div>• <code>external_url</code> - Link to Tropicos page</div>
+                    </div>
+                  </div>
+
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      All enriched data will be available in the <code>api_enrichment</code> field of each taxon.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              ) : (
+                <>
               {testResult?.fields && testResult.fields.length > 0 && (
                 <Alert>
                   <Info className="h-4 w-4" />
@@ -742,6 +948,8 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
                   </div>
                 </AlertDescription>
               </Alert>
+              </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
