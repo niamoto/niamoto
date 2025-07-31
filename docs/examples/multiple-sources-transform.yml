@@ -19,8 +19,7 @@
           parent: parent_id
           left: lft
           right: rght
-
-    # Additional source: pre-calculated plot statistics from CSV
+          
     - name: plot_stats
       data: "imports/plot_stats.csv"  # Direct CSV path
       grouping: plot_ref
