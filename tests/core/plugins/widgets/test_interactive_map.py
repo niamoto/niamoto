@@ -265,7 +265,8 @@ class TestInteractiveMapWidget(NiamotoTestCase):
         """Test zoom calculation for small area."""
         zoom = self.widget._calculate_zoom_from_bounds(-21.1, -20.9, 164.9, 165.1)
 
-        self.assertGreater(zoom, 10.0)
+        # With the new buffer of 1.0, small areas will have slightly lower zoom
+        self.assertGreater(zoom, 9.0)
         self.assertLessEqual(zoom, 18.0)
 
     def test_calculate_zoom_from_bounds_large_area(self):

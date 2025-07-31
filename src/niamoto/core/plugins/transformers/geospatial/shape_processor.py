@@ -209,32 +209,48 @@ class ShapeProcessor(TransformerPlugin):
             if not geometry.is_valid:
                 geometry = make_valid(geometry)
 
+            features = []
+
             if isinstance(geometry, GeometryCollection):
-                all_geoms = list(geometry.geoms)
-                polygons = [
-                    geom
-                    for geom in all_geoms
-                    if isinstance(geom, (Polygon, MultiPolygon))
-                ]
-                if polygons:
-                    geometry = unary_union(polygons)
-                else:
-                    geometry = all_geoms[0] if all_geoms else None
-                    if geometry is None:
-                        raise ValueError("Empty geometry collection")
+                # Process each geometry in the collection separately to preserve individual shapes
+                for geom in geometry.geoms:
+                    if isinstance(geom, (Polygon, MultiPolygon)):
+                        if not geom.is_valid:
+                            geom = make_valid(geom)
+                        features.append(
+                            {
+                                "type": "Feature",
+                                "properties": {},
+                                "geometry": mapping(geom),
+                            }
+                        )
+
+                if not features:
+                    raise ValueError("No valid polygons in GeometryCollection")
 
             elif isinstance(geometry, MultiPolygon):
                 valid_polygons = [poly for poly in geometry.geoms if poly.is_valid]
                 if valid_polygons:
                     geometry = MultiPolygon(valid_polygons)
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "properties": {},
+                            "geometry": mapping(geometry),
+                        }
+                    )
                 else:
                     raise ValueError("No valid polygons in MultiPolygon")
 
+            else:
+                # Single polygon or other geometry type
+                features.append(
+                    {"type": "Feature", "properties": {}, "geometry": mapping(geometry)}
+                )
+
             geojson = {
                 "type": "FeatureCollection",
-                "features": [
-                    {"type": "Feature", "properties": {}, "geometry": mapping(geometry)}
-                ],
+                "features": features,
             }
 
             topology = tp.Topology(geojson, prequantize=True)

@@ -796,12 +796,13 @@ class HtmlPageExporter(ExporterPlugin):
                                         )
 
                                         if raw_widget_data is None:
-                                            logger.warning(
+                                            # Debug level instead of warning - missing data is often expected
+                                            logger.debug(
                                                 f"Data source '{data_source_key}' not found for widget '{widget_config.plugin}' "
                                                 f"in {group_by_key} ID {item_id}. Skipping widget."
                                             )
                                             rendered_widgets[widget_key] = (
-                                                f"<!-- Widget Error: Data source '{data_source_key}' not found -->"
+                                                f"<!-- Widget skipped: Data source '{data_source_key}' not found -->"
                                             )
                                             continue
 
@@ -1067,6 +1068,12 @@ class HtmlPageExporter(ExporterPlugin):
                     required_fields.add(params["group_by_field"])
                 if "group_by_label_field" in params:
                     required_fields.add(params["group_by_label_field"])
+                # Add any custom fields that might be needed
+                if "shape_type_field" in params:
+                    required_fields.add(params["shape_type_field"])
+                # Also add shape_type if we're dealing with shapes
+                if params.get("referential_data") == "shape_ref":
+                    required_fields.add("shape_type")
 
         # If no hierarchical widgets found, use default minimal set
         if not required_fields:

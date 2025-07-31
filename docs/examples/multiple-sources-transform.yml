@@ -6,23 +6,22 @@
 # calculations with pre-calculated statistics.
 
 - group_by: plot
-  # Primary source: used for real-time calculations from occurrence data
-  source:
-    data: occurrences
-    grouping: plot_ref
-    relation:
-      plugin: nested_set
-      key: plot_ref_id
-      fields:
-        parent: parent_id
-        left: lft
-        right: rght
-
-  # Additional sources: pre-calculated statistics or reference data
-  additional_sources:
-    # Pre-calculated plot statistics from CSV
-    plot_stats:
-      data: "imports/plot_stats.csv"  # Direct CSV path (no need for import.yml)
+  # All data sources are defined in the sources list
+  sources:
+    # Primary source: real-time calculations from occurrence data
+    - name: occurrences
+      data: occurrences
+      grouping: plot_ref
+      relation:
+        plugin: nested_set
+        key: plot_ref_id
+        fields:
+          parent: parent_id
+          left: lft
+          right: rght
+          
+    - name: plot_stats
+      data: "imports/plot_stats.csv"  # Direct CSV path
       grouping: plot_ref
       relation:
         plugin: stats_loader
@@ -44,11 +43,11 @@
             field: extra_data.entity_type
             target: type
 
-    # Real-time calculations from occurrence data (primary source)
+    # Real-time calculations from occurrence data
     top_species:
       plugin: top_ranking
       params:
-        # No source specified - uses primary source automatically
+        source: occurrences  # Explicitly specify the source
         field: taxon_ref_id
         mode: hierarchical
         hierarchy_table: taxon_ref
@@ -111,7 +110,7 @@
     phenology_distribution:
       plugin: categorical_distribution
       params:
-        # Uses primary source (occurrences) - no source specified
+        source: occurrences  # Explicitly specify the source
         field: taxa_level_phenology
         categories: ["evergreen", "deciduous"]
         labels: ["Evergreen", "Deciduous"]
@@ -123,11 +122,11 @@
 # 1. Performance: Pre-calculated statistics don't need recomputation
 # 2. Flexibility: Mix real-time and batch-processed data
 # 3. Data Integration: Combine data from different systems/formats
-# 4. Backward Compatibility: Existing configs work unchanged
+# 4. Clear Structure: All sources are defined in one place
 #
 # Notes:
-# - Primary source is mandatory for backward compatibility
-# - Additional sources are optional
-# - Widgets default to primary source if not specified
-# - Source names must match those defined in additional_sources
+# - All sources must have unique names
+# - Widgets should specify which source to use via params.source
+# - The grouping table (e.g., plot_ref) is automatically available
+# - Source names are used to reference data in widgets
 ##################################################################

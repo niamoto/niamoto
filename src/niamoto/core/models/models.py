@@ -122,15 +122,20 @@ class PlotRef(Base):
 
 class ShapeRef(Base):
     """
-    A class used to represent a shape reference.
+    A class used to represent a shape reference with hierarchical support.
 
     Attributes:
         id (int): The primary key. :noindex:
         shape_id (str): The external identifier of the shape. :noindex:
         name (str): The name of the shape. :noindex:
-        type (str): The type of the shape. :noindex:
+        type (str): The type of the shape (e.g., 'grid', 'countries'). :noindex:
         location (str): The geometry of the shape (MultiPolygon) as WKT. :noindex:
         extra_data (dict): Additional properties stored in JSON format. :noindex:
+        lft (int): The left value for nested set model. :noindex:
+        rght (int): The right value for nested set model. :noindex:
+        level (int): The level value for nested set model. :noindex:
+        parent_id (int): The parent shape id. :noindex:
+        shape_type (str): The type in hierarchy ('type' or 'shape'). :noindex:
     """
 
     __tablename__ = "shape_ref"
@@ -142,13 +147,28 @@ class ShapeRef(Base):
     location = Column(String, nullable=False)
     extra_data = Column(JSON, nullable=True)
 
+    # Hierarchical fields (same as PlotRef)
+    lft = Column(Integer, nullable=True)
+    rght = Column(Integer, nullable=True)
+    level = Column(Integer, nullable=True)
+    shape_type = Column(String(50), nullable=True)  # 'type' or 'shape'
+
+    if TYPE_CHECKING:
+        parent_id: Optional[int]
+        children: List["ShapeRef"]
+    else:
+        parent_id = Column(Integer, ForeignKey("shape_ref.id"), nullable=True)
+        children = relationship("ShapeRef", backref="parent", remote_side=[id])
+
     __table_args__ = (
         Index("ix_shape_ref_id", "id"),
         Index("ix_shape_ref_shape_id", "shape_id"),
         Index("ix_shape_ref_name", "name"),
         Index("ix_shape_ref_type", "type"),
+        Index("ix_shape_ref_shape_type", "shape_type"),
+        Index("ix_shape_ref_parent_id", "parent_id"),
         Index("ix_shape_ref_name_type", "name", "type", unique=True),
     )
 
     def __repr__(self) -> str:
-        return f"<ShapeRef(id={self.id}, shape_id='{self.shape_id}', name='{self.name}', type='{self.type}', location='{self.location[:30]}...')>"
+        return f"<ShapeRef(id={self.id}, shape_id='{self.shape_id}', name='{self.name}', type='{self.type}', shape_type='{self.shape_type}', level={self.level})>"

@@ -2,11 +2,8 @@
 Service for importing data into Niamoto.
 """
 
-import csv
 from pathlib import Path
-from typing import Tuple, List, Dict, Any, Set, Optional
-
-import pandas as pd
+from typing import List, Dict, Any, Optional
 
 from niamoto.core.components.imports.occurrences import OccurrenceImporter
 from niamoto.core.components.imports.plots import PlotImporter
@@ -16,7 +13,6 @@ from niamoto.common.database import Database
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     FileReadError,
-    CSVError,
     DataImportError,
     ValidationError,
 )
@@ -43,72 +39,8 @@ class ImporterService:
     @error_handler(log=True, raise_error=True)
     def import_taxonomy(
         self,
-        file_path: str,
-        ranks: Tuple[str, ...],
-        api_config: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """
-        Import taxonomy data from a CSV file.
-
-        Args:
-            file_path: Path to the CSV file
-            ranks: Taxonomy ranks to import
-            api_config: API configuration for enrichment
-        Returns:
-            Success message
-
-        Raises:
-            ValidationError: If parameters are invalid
-            FileReadError: If file cannot be read
-            CSVError: If CSV format is invalid
-            DataImportError: If import operation fails
-        """
-        # Validate input parameters
-        if not file_path:
-            raise ValidationError("file_path", "File path cannot be empty")
-        if not ranks:
-            raise ValidationError("ranks", "Ranks cannot be empty")
-
-        # Validate file exists
-        file_path = str(Path(file_path).resolve())
-        if not Path(file_path).exists():
-            raise FileReadError(
-                file_path, "File not found", details={"path": file_path}
-            )
-
-        # Detect separator and validate format
-        try:
-            separator = self._detect_separator(file_path)
-            missing_fields = self._validate_csv_format(file_path, separator, ranks)
-            if missing_fields:
-                raise CSVError(
-                    file_path,
-                    "Invalid CSV format",
-                    details={"missing_fields": missing_fields},
-                )
-        except Exception as e:
-            raise CSVError(
-                file_path, "Failed to validate CSV file", details={"error": str(e)}
-            ) from e
-
-        # Import the data
-        try:
-            result = self.taxonomy_importer.import_from_csv(
-                file_path, ranks, api_config
-            )
-            return result
-        except Exception as e:
-            raise DataImportError(
-                f"Failed to import taxonomy data: {str(e)}",
-                details={"file": file_path, "error": str(e)},
-            ) from e
-
-    @error_handler(log=True, raise_error=True)
-    def import_taxonomy_from_occurrences(
-        self,
         occurrences_file: str,
-        ranks: Tuple[str, ...],
-        column_mapping: Dict[str, str],
+        hierarchy_config: Dict[str, Any],
         api_config: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
@@ -116,8 +48,8 @@ class ImporterService:
 
         Args:
             occurrences_file: Path to occurrences CSV file
-            ranks: Taxonomy ranks to import
-            column_mapping: Mapping between taxonomy fields and occurrence columns
+            hierarchy_config: Hierarchical configuration with levels
+            api_config: API configuration for enrichment
 
         Returns:
             Success message
@@ -125,22 +57,14 @@ class ImporterService:
         Raises:
             ValidationError: If parameters are invalid
             FileReadError: If file cannot be read
-            CSVError: If CSV format is invalid
             DataImportError: If import operation fails
         """
         # Validate input parameters
         if not occurrences_file:
             raise ValidationError("occurrences_file", "File path cannot be empty")
-        if not ranks:
-            raise ValidationError("ranks", "Ranks cannot be empty")
-
-        required_columns = ["taxon_id", "family", "genus", "species"]
-        missing_columns = [col for col in required_columns if col not in column_mapping]
-        if missing_columns:
+        if not hierarchy_config:
             raise ValidationError(
-                "column_mapping",
-                f"Missing required column mappings: {', '.join(missing_columns)}",
-                details={"missing": missing_columns},
+                "hierarchy_config", "Hierarchy configuration cannot be empty"
             )
 
         # Validate file exists
@@ -152,8 +76,8 @@ class ImporterService:
 
         # Import the data
         try:
-            result = self.taxonomy_importer.import_from_occurrences(
-                occurrences_file, ranks, column_mapping, api_config
+            result = self.taxonomy_importer.import_taxonomy(
+                occurrences_file, hierarchy_config, api_config
             )
             return result
         except Exception as e:
@@ -286,57 +210,4 @@ class ImporterService:
         except Exception as e:
             raise DataImportError(
                 "Failed to import shapes", details={"error": str(e)}
-            ) from e
-
-    def _detect_separator(self, file_path: str) -> str:
-        """
-        Detect CSV separator.
-
-        Args:
-            file_path: Path to CSV file
-
-        Returns:
-            Detected separator
-
-        Raises:
-            CSVError: If separator cannot be detected
-        """
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                first_line = file.readline()
-                dialect = csv.Sniffer().sniff(first_line)
-                return str(dialect.delimiter)
-        except Exception as e:
-            raise CSVError(
-                file_path, "Failed to detect CSV separator", details={"error": str(e)}
-            ) from e
-
-    def _validate_csv_format(
-        self, file_path: str, separator: str, ranks: Tuple[str, ...]
-    ) -> Set[str]:
-        """
-        Validate CSV format.
-
-        Args:
-            file_path: Path to CSV file
-            separator: CSV separator
-            ranks: Required ranks
-
-        Returns:
-            Set of missing fields if any
-
-        Raises:
-            CSVError: If CSV format is invalid
-        """
-        required_fields = {"id_taxon", "full_name", "authors"} | set(ranks)
-
-        try:
-            df = pd.read_csv(
-                file_path, sep=separator, on_bad_lines="warn", encoding="utf-8"
-            )
-            csv_fields = set(df.columns)
-            return required_fields - csv_fields
-        except pd.errors.ParserError as e:
-            raise CSVError(
-                file_path, "Failed to parse CSV", details={"error": str(e)}
             ) from e

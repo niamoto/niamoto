@@ -15,10 +15,16 @@ class Environment:
     """A class used to manage the environment for the Niamoto project."""
 
     @error_handler(log=True, raise_error=True)
-    def __init__(self, config_dir: str):
-        """Initialize Environment with config directory."""
+    def __init__(self, config_dir: str, project_name: str = None):
+        """Initialize Environment with config directory.
+
+        Args:
+            config_dir: Path to the configuration directory
+            project_name: Optional name for the project
+        """
         try:
             self.config = Config(config_dir, create_default=True)
+            self.project_name = project_name
         except Exception as e:
             raise EnvironmentSetupError(
                 message="Failed to initialize environment configuration",
@@ -79,6 +85,41 @@ class Environment:
                 # Also create assets subdirectory
                 assets_path = os.path.join(templates_path, "assets")
                 os.makedirs(assets_path, exist_ok=True)
+
+            # Update project name in config if provided
+            if self.project_name:
+                config_file_path = os.path.join(self.config.config_dir, "config.yml")
+                import yaml
+
+                # Read existing config
+                with open(config_file_path, "r", encoding="utf-8") as f:
+                    config_data = yaml.safe_load(f) or {}
+
+                # Update project name
+                if "project" not in config_data:
+                    config_data["project"] = {}
+                config_data["project"]["name"] = self.project_name
+
+                # Also ensure we have the current date and version
+                from datetime import datetime
+
+                try:
+                    from niamoto.__version__ import __version__
+                except ImportError:
+                    __version__ = "unknown"
+
+                config_data["project"]["created_at"] = datetime.now().isoformat()
+                config_data["project"]["niamoto_version"] = __version__
+
+                # Write back to file
+                with open(config_file_path, "w", encoding="utf-8") as f:
+                    yaml.dump(
+                        config_data,
+                        f,
+                        default_flow_style=False,
+                        allow_unicode=True,
+                        sort_keys=False,
+                    )
 
             # Initialize database
             try:

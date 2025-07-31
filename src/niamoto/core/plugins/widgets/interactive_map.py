@@ -55,7 +55,7 @@ class InteractiveMapParams(BaseModel):
     )
     map_style: str = Field(
         default="carto-positron",
-        description="Map base style (e.g., 'open-street-map', 'carto-positron', 'stamen-terrain').",
+        description="Map base style. Options without token: 'open-street-map', 'carto-positron', 'carto-darkmatter', 'carto-voyager', 'white-bg'. With Mapbox token: 'basic', 'streets', 'outdoors', 'light', 'dark', 'satellite', 'satellite-streets'.",
     )
     zoom: float = Field(default=9.0, description="Initial zoom level of the map")
     auto_zoom: bool = Field(
@@ -100,6 +100,10 @@ class InteractiveMapParams(BaseModel):
         default=False,
         description="Whether to optimize GeoJSON to TopoJSON format for reduced file size. Note: data already in TopoJSON format (from shape_processor) will not be re-optimized.",
     )
+    mapbox_access_token: Optional[str] = Field(
+        None,
+        description="Mapbox access token for satellite and other premium map styles. Get one free at https://account.mapbox.com/",
+    )
 
 
 @register("interactive_map", PluginType.WIDGET)
@@ -116,8 +120,20 @@ class InteractiveMapWidget(WidgetPlugin):
         deps.add("/assets/js/vendor/topojson/3.1.0_topojson.js")
         return deps
 
+    def _get_map_style(self, style: str) -> str:
+        """Convert custom style names to Plotly-compatible styles.
+
+        Args:
+            style: The requested map style
+
+        Returns:
+            Plotly-compatible style string
+        """
+        # Simply return the style as-is, Plotly will handle it
+        return style
+
     def _parse_geojson_points(self, geojson_data: dict) -> Optional[pd.DataFrame]:
-        """Parses a GeoJSON FeatureCollection of Points into a DataFrame."""
+        """Parses a GeoJSON FeatureCollection of Points or MultiPoints into a DataFrame."""
         if (
             not isinstance(geojson_data, dict)
             or geojson_data.get("type") != "FeatureCollection"
@@ -134,26 +150,51 @@ class InteractiveMapWidget(WidgetPlugin):
 
         records = []
         for feature in features:
-            if (
-                feature.get("type") == "Feature"
-                and feature.get("geometry", {}).get("type") == "Point"
-            ):
-                coords = feature["geometry"].get("coordinates")
+            if feature.get("type") == "Feature":
+                geometry = feature.get("geometry", {})
+                geometry_type = geometry.get("type")
                 props = feature.get("properties", {})
-                if coords and len(coords) == 2:
-                    record = {
-                        "longitude": coords[0],
-                        "latitude": coords[1],
-                    }
-                    record.update(props)  # Add properties like 'count'
-                    records.append(record)
+
+                if geometry_type == "Point":
+                    coords = geometry.get("coordinates")
+                    if coords and len(coords) == 2:
+                        record = {
+                            "longitude": coords[0],
+                            "latitude": coords[1],
+                        }
+                        record.update(props)  # Add properties like 'count'
+                        records.append(record)
+                    else:
+                        logger.warning(f"Skipping invalid Point feature: {feature}")
+
+                elif geometry_type == "MultiPoint":
+                    # For MultiPoint, create multiple records, one for each point
+                    coords_list = geometry.get("coordinates", [])
+                    if coords_list:
+                        # Create a record for each point in the MultiPoint
+                        for i, coords in enumerate(coords_list):
+                            if len(coords) >= 2:
+                                record = {
+                                    "longitude": coords[0],
+                                    "latitude": coords[1],
+                                }
+                                # Add all properties from the feature
+                                record.update(props)
+                                # Add a point index to differentiate points from same MultiPoint
+                                record["point_index"] = i
+                                record["total_points"] = len(coords_list)
+                                records.append(record)
+                    else:
+                        logger.warning(
+                            f"Skipping invalid MultiPoint feature: {feature}"
+                        )
                 else:
-                    logger.warning(f"Skipping invalid Point feature: {feature}")
-            else:
-                logger.warning(f"Skipping non-Point feature: {feature}")
+                    logger.warning(
+                        f"Skipping non-Point/non-MultiPoint feature with type '{geometry_type}': {feature}"
+                    )
 
         if not records:
-            logger.warning("No valid Point features found in GeoJSON.")
+            logger.warning("No valid Point or MultiPoint features found in GeoJSON.")
             return pd.DataFrame()
 
         return pd.DataFrame(records)
@@ -254,7 +295,10 @@ class InteractiveMapWidget(WidgetPlugin):
             params.center_lat if params.center_lat is not None else -21.0
         )  # Default to New Caledonia
         center_lon = params.center_lon if params.center_lon is not None else 165.0
-        zoom_level = params.zoom if params.zoom is not None else 9.0
+        # Use zoom from params only if auto_zoom is not enabled
+        zoom_level = (
+            params.zoom if (params.zoom is not None and not params.auto_zoom) else 9.0
+        )
 
         # Generate a unique ID for this map
         map_id = (
@@ -472,17 +516,16 @@ class InteractiveMapWidget(WidgetPlugin):
                         lon: (bbox[0] + bbox[2]) / 2
                     }}
                 }};
-                // Calculate zoom based on bbox
+                // Calculate zoom based on bbox using proper formula
                 const latDiff = bbox[3] - bbox[1];
                 const lonDiff = bbox[2] - bbox[0];
-                // Simple zoom calculation - adjust as needed
-                if (latDiff < 0.5 && lonDiff < 0.5) {{
-                    zoom = 10;
-                }} else if (latDiff < 1 && lonDiff < 1) {{
-                    zoom = 9;
-                }} else {{
-                    zoom = 8;
-                }}
+                const maxDiff = Math.max(latDiff, lonDiff);
+
+                // Calculate zoom level based on the extent
+                // Formula: zoom = log2(360 / maxDiff) - buffer
+                // The buffer ensures the entire shape fits with padding
+                const baseZoom = Math.log2(360 / maxDiff);
+                zoom = Math.max(1, Math.min(18, baseZoom - 1.2)); // Subtract 1.2 for padding
             }} else if (niamotoTopoData.forest_cover_coords && niamotoTopoData.forest_cover_coords.bbox) {{
                 const bbox = niamotoTopoData.forest_cover_coords.bbox;
                 bounds = {{
@@ -613,9 +656,14 @@ class InteractiveMapWidget(WidgetPlugin):
         """
         import math
 
-        # Calculate the extent
-        lat_diff = max_lat - min_lat
-        lon_diff = max_lon - min_lon
+        # Calculate the extent with a small margin for marker size
+        # Add 5% margin to each side to account for marker radius
+        margin_factor = 0.05
+        lat_margin = (max_lat - min_lat) * margin_factor
+        lon_margin = (max_lon - min_lon) * margin_factor
+
+        lat_diff = (max_lat - min_lat) + 2 * lat_margin
+        lon_diff = (max_lon - min_lon) + 2 * lon_margin
 
         # Handle edge cases
         if lat_diff == 0 and lon_diff == 0:
@@ -638,8 +686,9 @@ class InteractiveMapWidget(WidgetPlugin):
         )
 
         # Take the minimum zoom to ensure all points are visible
-        # Subtract a small buffer to ensure padding around points
-        zoom = min(zoom_lat, zoom_lon) - 0.5
+        # Subtract a larger buffer to ensure adequate padding around points
+        # This prevents points from being too close to the edge
+        zoom = min(zoom_lat, zoom_lon) - 1.0
 
         # Clamp zoom between reasonable bounds
         return max(1.0, min(18.0, zoom))
@@ -651,16 +700,21 @@ class InteractiveMapWidget(WidgetPlugin):
         if data is None:
             return "<div class='alert alert-warning'>No valid map data available.</div>"
 
-        # If multi-layer map configuration is provided AND we have shape_coords in data (shape group)
-        if params.layers and isinstance(data, dict) and "shape_coords" in data:
-            try:
-                result = self._render_multi_layer_map(data, params)
-                return result
-            except Exception as e:
-                return (
-                    "<div class='alert alert-danger'>Failed to render multi-layer map: %s</div>"
-                    % str(e)
-                )
+        # If multi-layer map configuration is provided AND we have dict data with specific keys
+        if params.layers and isinstance(data, dict):
+            # Check if this is shape data (has shape_coords) or plot data with layers config
+            if "shape_coords" in data or (
+                len(params.layers) > 0
+                and any(layer.get("source") == "geometry" for layer in params.layers)
+            ):
+                try:
+                    result = self._render_multi_layer_map(data, params)
+                    return result
+                except Exception as e:
+                    return (
+                        "<div class='alert alert-danger'>Failed to render multi-layer map: %s</div>"
+                        % str(e)
+                    )
 
         # For other groups (taxon, plot, etc.), use the original rendering approach
 
@@ -895,9 +949,11 @@ class InteractiveMapWidget(WidgetPlugin):
                     opacity=params.opacity,
                     zoom=calculated_zoom,
                     center={"lat": center_lat, "lon": center_lon},
-                    map_style=params.map_style
-                    if params.map_style
-                    else params.mapbox_style,
+                    map_style=self._get_map_style(
+                        params.map_style
+                        if params.map_style
+                        else params.mapbox_style or "carto-positron"
+                    ),
                     title=None,
                 )
             elif effective_map_type == "choropleth_map":
@@ -933,9 +989,11 @@ class InteractiveMapWidget(WidgetPlugin):
                         opacity=params.opacity,
                         zoom=params.zoom,
                         center={"lat": center_lat, "lon": center_lon},
-                        map_style=params.map_style
-                        if params.map_style
-                        else params.mapbox_style,
+                        map_style=self._get_map_style(
+                            params.map_style
+                            if params.map_style
+                            else params.mapbox_style or "carto-positron"
+                        ),
                         title=None,
                     )
                     logger.debug(
@@ -1005,18 +1063,20 @@ class InteractiveMapWidget(WidgetPlugin):
                         % str(e)
                     )
             if fig:
-                fig.update_layout(
-                    margin={"r": 0, "t": 0, "l": 0, "b": 0},
-                    annotations=[],  # Remove any annotations including attribution
-                )
-                # Disable attribution for map layers
-                if hasattr(fig, "update_mapboxes"):
-                    fig.update_mapboxes(
-                        accesstoken=None,
-                        style=params.map_style
-                        if params.map_style
-                        else "carto-positron",
-                    )
+                # Update layout with map style
+                layout_update = {
+                    "margin": {"r": 0, "t": 0, "l": 0, "b": 0},
+                    "annotations": [],  # Remove any annotations including attribution
+                    "map_style": self._get_map_style(
+                        params.map_style if params.map_style else "carto-positron"
+                    ),
+                }
+
+                # Add Mapbox token if provided
+                if params.mapbox_access_token:
+                    layout_update["map_accesstoken"] = params.mapbox_access_token
+
+                fig.update_layout(**layout_update)
                 # Use centralized render function
                 custom_config = get_plotly_config()
                 custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
@@ -1052,9 +1112,13 @@ class InteractiveMapWidget(WidgetPlugin):
         shape_style = {}
         forest_style = {}
 
+        # Store point data for later processing
+        point_layers = []
+
         # Process each layer based on its type and source data.
         for layer_config in params.layers:
             source_key = layer_config.get("source", "")
+            layer_type = layer_config.get("type", "")
             layer_style = layer_config.get("style", {})
 
             # Skip if no source key
@@ -1063,6 +1127,31 @@ class InteractiveMapWidget(WidgetPlugin):
 
             # Extract source data
             source_data = data.get(source_key) if isinstance(data, dict) else None
+
+            # Handle "geometry" source which might contain Point/MultiPoint data
+            if source_key == "geometry" and layer_type == "polygon":
+                # Special case: if source_key is "geometry" but doesn't exist in data,
+                # check if the data itself is a GeoJSON (for map_panel case)
+                if (
+                    source_data is None
+                    and isinstance(data, dict)
+                    and data.get("type") == "FeatureCollection"
+                ):
+                    # The data itself is the GeoJSON
+                    source_data = data
+
+                # Store for later processing after fig is created
+                if source_data:
+                    point_layers.append(
+                        {
+                            "data": source_data,
+                            "config": layer_config,
+                            "style": layer_style,
+                        }
+                    )
+                continue
+
+            # Skip if no source data found
             if source_data is None:
                 continue
 
@@ -1262,6 +1351,10 @@ class InteractiveMapWidget(WidgetPlugin):
                     "Error adding shape boundary traces: %s", str(e), exc_info=True
                 )
 
+        # Initialize bounds tracking for centering and zoom
+        all_lons = []
+        all_lats = []
+
         # Add a single legend entry for the shape boundary
         if shape_geojson:
             fig.add_trace(
@@ -1275,14 +1368,53 @@ class InteractiveMapWidget(WidgetPlugin):
                 )
             )
 
+        # Process point layers (geometry data that should be polygons but are points)
+        for point_layer in point_layers:
+            try:
+                source_data = point_layer["data"]
+                layer_config = point_layer["config"]
+                layer_style = point_layer["style"]
+
+                if (
+                    isinstance(source_data, dict)
+                    and source_data.get("type") == "FeatureCollection"
+                ):
+                    # Parse the GeoJSON and render as points
+                    df_points = self._parse_geojson_points(source_data)
+                    if df_points is not None and not df_points.empty:
+                        # Create scatter trace for points
+                        fig.add_trace(
+                            go.Scattermap(
+                                lon=df_points["longitude"],
+                                lat=df_points["latitude"],
+                                mode="markers",
+                                marker=dict(
+                                    size=10,
+                                    color=layer_style.get("color", "#ff0000"),
+                                    opacity=layer_style.get("fillOpacity", 0.8),
+                                ),
+                                name=layer_config.get("id", "Plots"),
+                                text=df_points["locality"]
+                                if "locality" in df_points.columns
+                                else df_points.index.astype(str),
+                                hovertemplate="<b>%{text}</b><br><extra></extra>",
+                                showlegend=True,
+                            )
+                        )
+
+                        # Add points to bounds calculation
+                        all_lons.extend(df_points["longitude"].tolist())
+                        all_lats.extend(df_points["latitude"].tolist())
+
+            except Exception as e:
+                logger.error(f"Error processing point layer: {e}", exc_info=True)
+
         # Calculate bounds for centering and zoom
-        center_lat = -21.0  # Default to New Caledonia
-        center_lon = 165.0
+        center_lat = None
+        center_lon = None
 
         try:
             # Calculate center and zoom based on the bounds from GeoJSON
-            all_lons = []
-            all_lats = []
 
             logger.debug(
                 "Calculating bounds - shape_geojson present: %s",
@@ -1395,17 +1527,34 @@ class InteractiveMapWidget(WidgetPlugin):
             logger.debug("Number of traces: %s", len(fig.data))
             logger.debug("Layout before update: %s", fig.layout)
 
-            fig.update_layout(
-                map_style="carto-positron",
-                map_zoom=zoom_level,
-                map_center={"lat": center_lat, "lon": center_lon},
-                margin={"r": 0, "t": 0, "l": 0, "b": 0},
-                height=500,
-                annotations=[],  # Remove any annotations including attribution
-            )
-            # Disable attribution for map layers
-            if hasattr(fig, "update_mapboxes"):
-                fig.update_mapboxes(accesstoken=None, style="carto-positron")
+            # Use default center only if no coordinates were found
+            if center_lat is None or center_lon is None:
+                # Default to a reasonable center (0, 0) if no data
+                center_lat = 0
+                center_lon = 0
+                logger.debug(
+                    "No center calculated from data, using default: lat=%s, lon=%s",
+                    center_lat,
+                    center_lon,
+                )
+
+            # Build layout update parameters
+            layout_update = {
+                "map_style": self._get_map_style(
+                    params.map_style if params.map_style else "carto-positron"
+                ),
+                "map_zoom": zoom_level,
+                "map_center": {"lat": center_lat, "lon": center_lon},
+                "margin": {"r": 0, "t": 0, "l": 0, "b": 0},
+                "height": 500,
+                "annotations": [],  # Remove any annotations including attribution
+            }
+
+            # Add Mapbox token if provided
+            if params.mapbox_access_token:
+                layout_update["map_accesstoken"] = params.mapbox_access_token
+
+            fig.update_layout(**layout_update)
             logger.debug("Layout updated successfully")
         except Exception as e:
             logger.error("Error updating figure layout: %s", str(e), exc_info=True)

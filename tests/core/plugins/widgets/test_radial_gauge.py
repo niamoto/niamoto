@@ -190,9 +190,8 @@ class TestRadialGaugeWidget(NiamotoTestCase):
 
         result = self.widget.render(data, params)
 
-        self.assertIn("<p class='error'>", result)
-        self.assertIn("Configuration Error", result)
-        self.assertIn("Value field 'temperature' missing", result)
+        # Should return empty string when field is missing
+        self.assertEqual(result, "")
 
     def test_render_dict_missing_nested_field(self):
         """Test rendering with missing nested field in dictionary."""
@@ -204,9 +203,8 @@ class TestRadialGaugeWidget(NiamotoTestCase):
 
         result = self.widget.render(data, params)
 
-        self.assertIn("<p class='error'>", result)
-        self.assertIn("Configuration Error", result)
-        self.assertIn("Nested value field 'sensors.indoor.temperature' missing", result)
+        # Should return empty string when nested field is missing
+        self.assertEqual(result, "")
 
     def test_render_numeric_value_int(self):
         """Test rendering with integer value."""
@@ -258,8 +256,8 @@ class TestRadialGaugeWidget(NiamotoTestCase):
 
         result = self.widget.render(data, params)
 
-        self.assertIn("<p class='error'>", result)
-        self.assertIn("Value field 'missing_field' missing", result)
+        # Should return empty string when field is missing
+        self.assertEqual(result, "")
 
     def test_render_non_numeric_value(self):
         """Test rendering with non-numeric value."""

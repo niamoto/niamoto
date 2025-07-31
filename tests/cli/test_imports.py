@@ -27,15 +27,15 @@ def runner():
 class TestImportTaxonomy:
     """Tests for the import_taxonomy command."""
 
-    def test_import_with_file_and_ranks(self, runner):
-        """Test importing taxonomy with explicit file and ranks."""
+    def test_import_with_api_flag(self, runner):
+        """Test importing taxonomy with API enrichment flag."""
         with runner.isolated_filesystem():
             # Create a temporary CSV file with realistic test data
-            with open("taxonomy.csv", "w") as f:
-                f.write("family,genus,species,author\n")
-                f.write("Fabaceae,Acacia,Acacia mangium,Willd.\n")
-                f.write("Fabaceae,Acacia,Acacia auriculiformis,A.Cunn. ex Benth.\n")
-                f.write("Myrtaceae,Syzygium,Syzygium jambos,(L.) Alston\n")
+            with open("occurrences.csv", "w") as f:
+                f.write("tax_fam,tax_gen,tax_sp_level,idtax_individual_f\n")
+                f.write("Fabaceae,Acacia,Acacia mangium,1\n")
+                f.write("Fabaceae,Acacia,Acacia auriculiformis,2\n")
+                f.write("Myrtaceae,Syzygium,Syzygium jambos,3\n")
 
             with (
                 mock.patch("niamoto.cli.commands.imports.Config") as mock_config,
@@ -50,33 +50,45 @@ class TestImportTaxonomy:
                 # Ensure the config has the proper structure for taxonomy import
                 config.imports = {
                     "taxonomy": {
-                        "path": "taxonomy.csv",
-                        "ranks": "family,genus,species",
-                        # No API enrichment settings, so api_config will be None
+                        "path": "occurrences.csv",
+                        "hierarchy": {
+                            "levels": [
+                                {"name": "family", "column": "tax_fam"},
+                                {"name": "genus", "column": "tax_gen"},
+                                {"name": "species", "column": "tax_sp_level"},
+                            ],
+                            "taxon_id_column": "idtax_individual_f",
+                        },
+                        "api_enrichment": {"enabled": False, "plugin": "test_api"},
                     }
                 }
                 mock_importer.return_value.import_taxonomy.return_value = (
-                    "Successfully imported 3 taxa"
+                    "1236 taxons extracted and imported from occurrences.csv."
                 )
 
-                result = runner.invoke(
-                    import_taxonomy, ["taxonomy.csv", "--ranks", "family,genus,species"]
-                )
+                result = runner.invoke(import_taxonomy, ["--with-api"])
 
                 assert result.exit_code == 0
-                assert "Successfully imported 3 taxa" in result.output
-                mock_reset.assert_called_once_with("/path/to/db.sqlite", "taxon_ref")
-                mock_importer.return_value.import_taxonomy.assert_called_once_with(
-                    "taxonomy.csv", ("family", "genus", "species"), None
+                assert (
+                    "1236 taxons extracted and imported from occurrences.csv."
+                    in result.output
                 )
+                assert "Taxonomy data enriched with API information." in result.output
+                mock_reset.assert_called_once_with("/path/to/db.sqlite", "taxon_ref")
+
+                # Check that import_taxonomy was called with api_config enabled
+                call_args = mock_importer.return_value.import_taxonomy.call_args
+                assert call_args[0][0] == "occurrences.csv"
+                assert call_args[0][1] == config.imports["taxonomy"]["hierarchy"]
+                assert call_args[0][2]["enabled"]
 
     def test_import_from_config(self, runner):
         """Test importing taxonomy using configuration."""
         with runner.isolated_filesystem():
-            # Create a temporary CSV file
-            with open("taxonomy.csv", "w") as f:
-                f.write("family,genus,species,author\n")
-                f.write("Fabaceae,Acacia,Acacia mangium,Willd.\n")
+            # Create a temporary occurrences CSV file
+            with open("occurrences.csv", "w") as f:
+                f.write("tax_fam,tax_gen,tax_sp_level,idtax_individual_f\n")
+                f.write("Fabaceae,Acacia,Acacia mangium,1\n")
 
             with (
                 mock.patch("niamoto.cli.commands.imports.Config") as mock_config,
@@ -90,9 +102,15 @@ class TestImportTaxonomy:
                 config.database_path = "/path/to/db.sqlite"
                 config.imports = {
                     "taxonomy": {
-                        "path": "taxonomy.csv",
-                        "ranks": "family,genus,species",
-                        # No API enrichment settings, so api_config will be None
+                        "path": "occurrences.csv",
+                        "hierarchy": {
+                            "levels": [
+                                {"name": "family", "column": "tax_fam"},
+                                {"name": "genus", "column": "tax_gen"},
+                                {"name": "species", "column": "tax_sp_level"},
+                            ],
+                            "taxon_id_column": "idtax_individual_f",
+                        },
                     }
                 }
                 mock_importer.return_value.import_taxonomy.return_value = (
@@ -104,49 +122,62 @@ class TestImportTaxonomy:
                 assert result.exit_code == 0
                 assert "Successfully imported 1 taxon" in result.output
                 mock_reset.assert_called_once_with("/path/to/db.sqlite", "taxon_ref")
-                mock_importer.return_value.import_taxonomy.assert_called_once_with(
-                    "taxonomy.csv", ("family", "genus", "species"), None
-                )
+
+                # Check that import_taxonomy was called with correct arguments
+                call_args = mock_importer.return_value.import_taxonomy.call_args
+                assert call_args[0][0] == "occurrences.csv"
+                assert call_args[0][1] == config.imports["taxonomy"]["hierarchy"]
+                assert call_args[0][2] is None  # api_config
 
     def test_file_not_found(self, runner):
-        """Test error when file doesn't exist."""
+        """Test error when occurrences file doesn't exist."""
         with runner.isolated_filesystem():
             with mock.patch("niamoto.cli.commands.imports.Config") as mock_config:
                 config = mock_config.return_value
                 config.database_path = "/path/to/db.sqlite"
+                config.imports = {
+                    "taxonomy": {
+                        "path": "nonexistent.csv",
+                        "hierarchy": {
+                            "levels": [
+                                {"name": "family", "column": "tax_fam"},
+                                {"name": "genus", "column": "tax_gen"},
+                                {"name": "species", "column": "tax_sp_level"},
+                            ],
+                            "taxon_id_column": "idtax_individual_f",
+                        },
+                    }
+                }
 
-                result = runner.invoke(
-                    import_taxonomy,
-                    ["nonexistent.csv", "--ranks", "family,genus,species"],
-                )
+                result = runner.invoke(import_taxonomy, [])
 
                 assert result.exit_code == 1
                 assert "File not found" in result.output
 
-    def test_missing_ranks(self, runner):
-        """Test error when ranks are missing."""
+    def test_missing_hierarchy_config(self, runner):
+        """Test error when hierarchy configuration is missing."""
         with runner.isolated_filesystem():
             # Create a temporary CSV file
-            with open("taxonomy.csv", "w") as f:
-                f.write("family,genus,species,author\n")
-                f.write("Fabaceae,Acacia,Acacia mangium,Willd.\n")
+            with open("occurrences.csv", "w") as f:
+                f.write("tax_fam,tax_gen,tax_sp_level,idtax_individual_f\n")
+                f.write("Fabaceae,Acacia,Acacia mangium,1\n")
 
             with mock.patch("niamoto.cli.commands.imports.Config") as mock_config:
                 config = mock_config.return_value
                 config.database_path = "/path/to/db.sqlite"
-                config.imports = {"taxonomy": {"path": "taxonomy.csv"}}
+                config.imports = {"taxonomy": {"path": "occurrences.csv"}}
 
-                result = runner.invoke(import_taxonomy, ["taxonomy.csv"])
+                result = runner.invoke(import_taxonomy, [])
 
                 assert result.exit_code == 1
-                assert "Missing required fields: ranks" in result.output
+                assert "Missing required fields: hierarchy" in result.output
 
 
 class TestImportAll:
     """Tests for the import_all command."""
 
-    def test_import_all_missing_occurrence_columns(self, runner):
-        """Test error when taxonomy source is occurrence but occurrence_columns is missing."""
+    def test_import_all_missing_hierarchy_config(self, runner):
+        """Test error when taxonomy hierarchy configuration is missing."""
         with runner.isolated_filesystem():
             with mock.patch("niamoto.cli.commands.imports.Config") as mock_config:
                 # Configure mocks
@@ -154,15 +185,13 @@ class TestImportAll:
                 config.database_path = "/path/to/db.sqlite"
                 config.imports = {
                     "taxonomy": {
-                        "source": "occurrence",
-                        "path": "dummy_taxonomy.csv",  # Add dummy path
-                        "ranks": "dummy_rank",  # Add dummy ranks
-                        # Missing 'occurrence_columns'
+                        "path": "dummy_occurrences.csv",
+                        # Missing 'hierarchy' configuration
                     },
                     # Add minimal valid config for other potential imports if needed
                     # to avoid unrelated validation errors
-                    "occurrence": {"path": "dummy_occurrence.csv"},
-                    "plot": {"path": "dummy_plot.csv"},
+                    "occurrences": {"path": "dummy_occurrence.csv"},
+                    "plots": {"path": "dummy_plot.csv"},
                     "shapes": {"path": "dummy_shape.geojson"},
                 }
                 # Mock ImporterService and reset_table, although they might not be called
@@ -180,22 +209,18 @@ class TestImportAll:
                     # We could potentially also check result.exception here if needed,
                     # but checking the output and exit code is often sufficient for CLI tests.
 
-    def test_import_all_taxonomy_from_file(self, runner):
-        """Test import_all successfully imports taxonomy from file by default."""
+    def test_import_all_taxonomy_from_occurrences(self, runner):
+        """Test import_all successfully imports taxonomy from occurrences."""
         with runner.isolated_filesystem() as temp_dir:
             temp_path = Path(temp_dir)
-            taxonomy_file = temp_path / "taxonomy.csv"
             occurrences_file = temp_path / "occurrences.csv"
             plots_file = temp_path / "plots.csv"
             shapes_file = temp_path / "shapes.geojson"
 
             # Create dummy files mentioned in config
-            with open(taxonomy_file, "w") as f:
-                f.write("col1,col2\n")
-                f.write("val1,val2\n")
             with open(occurrences_file, "w") as f:
-                f.write("id,loc\n")
-                f.write("1,A\n")
+                f.write("tax_fam,tax_gen,tax_sp_level,idtax_individual_f,loc\n")
+                f.write("Fabaceae,Acacia,Acacia mangium,1,A\n")
             with open(plots_file, "w") as f:
                 f.write("id,geom\n")
                 f.write("1,POINT(1 1)\n")
@@ -218,13 +243,21 @@ class TestImportAll:
                 )  # Use temp dir for db too
                 mock_config_instance.imports = {
                     "taxonomy": {
-                        "path": str(taxonomy_file),  # Use absolute path
-                        "ranks": "family,genus",
-                        # 'source' is implicitly 'file'
+                        "path": str(
+                            occurrences_file
+                        ),  # Taxonomy extracts from occurrences
+                        "hierarchy": {
+                            "levels": [
+                                {"name": "family", "column": "tax_fam"},
+                                {"name": "genus", "column": "tax_gen"},
+                                {"name": "species", "column": "tax_sp_level"},
+                            ],
+                            "taxon_id_column": "idtax_individual_f",
+                        },
                     },
                     "occurrences": {
-                        "path": str(occurrences_file),  # Use absolute path
-                        "identifier": "id",
+                        "path": str(occurrences_file),
+                        "identifier": "idtax_individual_f",
                         "location_field": "loc",
                         "locality_field": "locality",  # Add dummy locality field
                     },
@@ -273,8 +306,8 @@ class TestImportAll:
 
                 # Verify import_taxonomy was called correctly
                 importer_instance.import_taxonomy.assert_called_once_with(
-                    str(taxonomy_file),
-                    ("family", "genus"),
+                    str(occurrences_file),
+                    mock_config_instance.imports["taxonomy"]["hierarchy"],
                     None,  # api_config is None
                 )
                 # Verify other import methods were called
@@ -889,9 +922,18 @@ class TestUtilityFunctions:
     def test_validate_source_config_valid(self):
         """Test validate_source_config with valid configuration."""
         sources = {
-            "taxonomy": {"path": "taxonomy.csv", "ranks": "family,genus,species"}
+            "taxonomy": {
+                "path": "occurrences.csv",
+                "hierarchy": {
+                    "levels": [
+                        {"name": "family", "column": "tax_fam"},
+                        {"name": "genus", "column": "tax_gen"},
+                    ],
+                    "taxon_id_column": "idtax_individual_f",
+                },
+            }
         }
-        required_fields = ["path", "ranks"]
+        required_fields = ["path", "hierarchy"]
 
         # Mock the error_handler decorator to call the function directly
         with mock.patch(
@@ -903,7 +945,7 @@ class TestUtilityFunctions:
     def test_validate_source_config_missing_source(self):
         """Test validate_source_config with missing source."""
         sources = {}
-        required_fields = ["path", "ranks"]
+        required_fields = ["path", "hierarchy"]
 
         # Mock the error_handler decorator to call the function directly
         with mock.patch(
@@ -918,11 +960,11 @@ class TestUtilityFunctions:
         """Test validate_source_config with missing required fields."""
         sources = {
             "taxonomy": {
-                "path": "taxonomy.csv",
-                # Missing ranks field
+                "path": "occurrences.csv",
+                # Missing hierarchy field
             }
         }
-        required_fields = ["path", "ranks"]
+        required_fields = ["path", "hierarchy"]
 
         # Mock the error_handler decorator to call the function directly
         with mock.patch(
@@ -932,7 +974,7 @@ class TestUtilityFunctions:
                 validate_source_config(sources, "taxonomy", required_fields)
 
             assert "Missing required fields" in str(excinfo.value)
-            assert "ranks" in str(excinfo.value)
+            assert "hierarchy" in str(excinfo.value)
 
     def test_get_source_path_valid(self):
         """Test get_source_path with valid configuration."""

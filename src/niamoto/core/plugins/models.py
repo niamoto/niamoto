@@ -176,6 +176,9 @@ class IndexGeneratorDisplayField(BaseModel):
     css_class: Optional[str] = None  # CSS classes for styling
     css_style: Optional[str] = None  # Inline CSS styles
 
+    # Image-specific fields (for type="json_array" and display="image_preview")
+    image_fields: Optional[Dict[str, str]] = None  # Mapping of image field names
+
 
 class IndexGeneratorFilterConfig(BaseModel):
     """Configuration for filtering items in index generator."""

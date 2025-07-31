@@ -204,7 +204,7 @@ class TransformerService:
                         # Smart source selection
                         # 1. If plugin requests a specific source in params, use it
                         # 2. If only one source exists, pass it directly
-                        # 3. Otherwise, pass the main source for compatibility
+                        # 3. Otherwise, pass all sources to the plugin
                         source_requested = widget_config.get("params", {}).get("source")
 
                         if source_requested and source_requested in group_data:
@@ -214,9 +214,9 @@ class TransformerService:
                             # Only one source available, pass it directly
                             data_to_pass = list(group_data.values())[0]
                         else:
-                            # Multiple sources available, pass main source by default
-                            # This ensures backward compatibility with existing plugins
-                            data_to_pass = group_data.get("main", group_data)
+                            # Multiple sources available, pass all sources
+                            # Plugins can access them via config['available_sources']
+                            data_to_pass = group_data
 
                         widget_results = transformer.transform(data_to_pass, config)
 
@@ -236,10 +236,11 @@ class TransformerService:
                     except Exception as e:
                         # Log the error but continue processing other widgets
                         error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
-                        # Only display in progress manager, not in logger to avoid duplication
-                        progress_manager.add_warning(error_msg)
-                        if self.transform_metrics:
-                            self.transform_metrics.add_warning(error_msg)
+                        # Only display in progress manager if it's not an expected empty data case
+                        if "No data found" not in str(e):
+                            progress_manager.add_warning(error_msg)
+                            if self.transform_metrics:
+                                self.transform_metrics.add_warning(error_msg)
 
                     # Update progress
                     progress_manager.update_task(task_name, advance=1)
@@ -314,10 +315,10 @@ class TransformerService:
                             ),  # Inform plugin about available sources
                         }
 
-                        # Smart source selection for backward compatibility
+                        # Smart source selection
                         # 1. If plugin requests a specific source in params, use it
                         # 2. If only one source exists, pass it directly
-                        # 3. Otherwise, pass the main source for compatibility
+                        # 3. Otherwise, pass all sources to the plugin
                         source_requested = widget_config.get("params", {}).get("source")
 
                         if source_requested and source_requested in group_data:
@@ -327,9 +328,9 @@ class TransformerService:
                             # Only one source available, pass it directly
                             data_to_pass = list(group_data.values())[0]
                         else:
-                            # Multiple sources available, pass main source by default
-                            # This ensures backward compatibility with existing plugins
-                            data_to_pass = group_data.get("main", group_data)
+                            # Multiple sources available, pass all sources
+                            # Plugins can access them via config['available_sources']
+                            data_to_pass = group_data
 
                         widget_results = transformer.transform(data_to_pass, config)
 
@@ -349,7 +350,9 @@ class TransformerService:
                     except Exception as e:
                         # Log the error but continue processing other widgets
                         error_msg = f"Error processing widget '{widget_name}' for {group_by_name} {group_id}: {str(e)}"
-                        logger.warning(error_msg)
+                        # Only log if it's not an expected empty data case
+                        if "No data found" not in str(e):
+                            logger.warning(error_msg)
                         # Only show in console if it's not an expected empty data case
                         if not (
                             isinstance(e, DataTransformError)
@@ -442,56 +445,68 @@ class TransformerService:
         Raises:
             ValidationError: If configuration is invalid
         """
-        self._validate_source_config(config)
+        self._validate_sources_config(config)
 
-    def _validate_source_config(self, config: Dict[str, Any]) -> None:
-        """Validate source configuration including additional sources."""
-        # Validate main source
-        source = config.get("source", {})
-        required_fields = ["data", "grouping", "relation"]
-        missing = [field for field in required_fields if field not in source]
-        if missing:
+    def _validate_sources_config(self, config: Dict[str, Any]) -> None:
+        """Validate sources configuration list."""
+        # Validate sources list exists
+        sources = config.get("sources", [])
+        if not sources:
             raise ConfigurationError(
-                "source",
-                "Missing required source configuration fields",
-                details={"missing": missing},
+                "sources",
+                "Missing or empty sources configuration",
+                details={"help": "At least one source must be defined"},
             )
 
-        relation = source["relation"]
-        if (
-            "plugin" not in relation and "type" not in relation
-        ) or "key" not in relation:
+        if not isinstance(sources, list):
             raise ConfigurationError(
-                "relation",
-                "Missing required relation fields",
-                details={"required": ["plugin or type", "key"]},
+                "sources",
+                "Sources must be a list",
+                details={"type": type(sources).__name__},
             )
 
-        # Validate additional sources if present
-        additional_sources = config.get("additional_sources", {})
-        for source_name, source_config in additional_sources.items():
-            required_fields = ["data", "grouping", "relation"]
+        # Validate each source
+        source_names = set()
+        for idx, source_config in enumerate(sources):
+            # Check for required fields
+            required_fields = ["name", "data", "grouping", "relation"]
             missing = [field for field in required_fields if field not in source_config]
             if missing:
                 raise ConfigurationError(
-                    f"additional_sources.{source_name}",
-                    f"Missing required fields in additional source '{source_name}'",
+                    f"sources[{idx}]",
+                    f"Missing required fields in source at index {idx}",
                     details={"missing": missing},
                 )
 
+            # Check for duplicate source names
+            source_name = source_config["name"]
+            if source_name in source_names:
+                raise ConfigurationError(
+                    f"sources[{idx}].name",
+                    f"Duplicate source name '{source_name}'",
+                    details={"name": source_name},
+                )
+            source_names.add(source_name)
+
+            # Validate relation
             relation = source_config["relation"]
             if (
                 "plugin" not in relation and "type" not in relation
             ) or "key" not in relation:
                 raise ConfigurationError(
-                    f"additional_sources.{source_name}.relation",
-                    f"Missing required relation fields in additional source '{source_name}'",
+                    f"sources[{idx}].relation",
+                    f"Missing required relation fields in source '{source_name}'",
                     details={"required": ["plugin or type", "key"]},
                 )
 
     def _get_group_ids(self, group_config: Dict[str, Any]) -> List[int]:
         """Get all group IDs to process."""
-        grouping_table = group_config["source"]["grouping"]
+        # Get grouping table from first source (they should all have the same grouping)
+        sources = group_config.get("sources", [])
+        if not sources:
+            raise DataTransformError("No sources configured")
+
+        grouping_table = sources[0]["grouping"]
 
         query = f"""
             SELECT DISTINCT id
@@ -514,40 +529,19 @@ class TransformerService:
 
         Returns:
             Dict[str, pd.DataFrame]: Dictionary mapping source names to their data.
-                - 'main': Data from the primary source
-                - Additional keys from additional_sources if configured
+                Each source name corresponds to a configured source.
+                The grouping table (e.g., 'taxon_ref', 'plot_ref') is always included.
         """
         if csv_file:
-            # For CSV file, return as main source only
-            return {"main": pd.read_csv(csv_file)}
+            # For CSV file, return with generic name
+            return {"csv_data": pd.read_csv(csv_file)}
 
         data_sources = {}
+        sources = group_config.get("sources", [])
 
-        # Load main source data
-        relation_config = group_config["source"]["relation"]
-        plugin_name = relation_config.get("plugin")
-
-        try:
-            plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.LOADER)
-            loader = plugin_class(self.db)
-        except Exception as e:
-            raise DataTransformError(
-                "Failed to get loader for main source", details={"error": str(e)}
-            ) from e
-
-        # Load main data using the loader
-        data_sources["main"] = loader.load_data(
-            group_id,
-            {
-                "data": group_config["source"]["data"],
-                "grouping": group_config["source"]["grouping"],
-                **group_config["source"]["relation"],
-            },
-        )
-
-        # Load additional sources if configured
-        additional_sources = group_config.get("additional_sources", {})
-        for source_name, source_config in additional_sources.items():
+        # Process each source
+        for source_config in sources:
+            source_name = source_config["name"]
             relation_config = source_config["relation"]
             plugin_name = relation_config.get("plugin")
 
@@ -560,7 +554,7 @@ class TransformerService:
                     details={"error": str(e)},
                 ) from e
 
-            # Load data for this additional source
+            # Load data for this source
             data_sources[source_name] = loader.load_data(
                 group_id,
                 {
@@ -569,6 +563,31 @@ class TransformerService:
                     **source_config["relation"],
                 },
             )
+
+        # Always include the grouping table (reference table) for backward compatibility
+        # This allows plugins to access taxon_ref, plot_ref, etc. directly
+        if sources:
+            grouping_table = sources[0]["grouping"]
+            if grouping_table not in data_sources:
+                # Load the reference table data directly
+                query = f"SELECT * FROM {grouping_table} WHERE id = {group_id}"
+                try:
+                    result = self.db.execute_sql(query)
+                    # Convert to DataFrame
+                    if result.returns_rows:
+                        columns = [col[0] for col in result.cursor.description]
+                        rows = result.fetchall()
+                        if rows:
+                            data_sources[grouping_table] = pd.DataFrame(
+                                rows, columns=columns
+                            )
+                        else:
+                            data_sources[grouping_table] = pd.DataFrame()
+                except Exception as e:
+                    # Log warning but don't fail - the reference table might not be needed
+                    logger.warning(
+                        f"Could not load reference table {grouping_table}: {e}"
+                    )
 
         return data_sources
 
@@ -653,6 +672,10 @@ class TransformerService:
                                 return int(obj)
                             elif isinstance(obj, np.floating):
                                 return float(obj)
+                            elif isinstance(obj, np.bool_):
+                                return bool(obj)
+                            elif isinstance(obj, bool):
+                                return obj
                             elif isinstance(obj, np.ndarray):
                                 return [convert_numpy(x) for x in obj.tolist()]
                             elif isinstance(obj, list):

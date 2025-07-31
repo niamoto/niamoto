@@ -1,0 +1,310 @@
+{
+  "title": "Data Import",
+  "subtitle": "Guided interface to import your ecological data",
+  "navigation": {
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Understand the process"
+    },
+    "occurrences": {
+      "title": "Occurrences",
+      "subtitle": "Observation data"
+    },
+    "aggregations": {
+      "title": "Aggregations",
+      "subtitle": "Spatial groupings"
+    },
+    "summary": {
+      "title": "Summary",
+      "subtitle": "Confirmation"
+    }
+  },
+  "overview": {
+    "welcome": "Welcome to Niamoto Data Import",
+    "description": "Niamoto organizes your ecological data around observations (occurrences). This guided interface will walk you through the import process step by step.",
+    "howItWorks": {
+      "title": "How does Niamoto work?",
+      "subtitle": "Understanding the data flow to better organize your imports",
+      "occurrences": "Occurrences",
+      "occurrencesDesc": "Raw observations",
+      "taxonomy": "Taxonomy",
+      "taxonomyDesc": "Automatic extraction",
+      "automatic": "Automatic",
+      "aggregations": "Aggregations",
+      "aggregationsDesc": "Plots & Shapes"
+    },
+    "keyPoint": {
+      "title": "Key point:",
+      "description": "Taxonomy is automatically extracted from your occurrences. You don't need to import it separately!"
+    },
+    "requirements": {
+      "title": "What you need",
+      "occurrencesFile": "Occurrences file (CSV) with:",
+      "items": [
+        "Unique taxonomic identifier",
+        "Location (WKT coordinates or lat/lon)",
+        "Taxonomic columns (family, genus, species...)",
+        "Taxonomic authority (optional)",
+        "Link to plot/parcel (optional)"
+      ]
+    },
+    "aggregationOptions": {
+      "title": "Aggregation options",
+      "plots": {
+        "title": "Plots",
+        "description": "Spatial groupings: parcels, localities, study sites"
+      },
+      "shapes": {
+        "title": "Shapes",
+        "description": "Geographic zones: municipalities, provinces, regions"
+      }
+    },
+    "process": {
+      "title": "3-step import process",
+      "step1": {
+        "title": "Import occurrences",
+        "description": "Load your CSV file and configure column mapping. Taxonomy will be extracted automatically."
+      },
+      "step2": {
+        "title": "Spatial aggregations",
+        "description": "Add plots or shapes to group your data and generate statistics by area."
+      },
+      "step3": {
+        "title": "Verification and import",
+        "description": "Review your data summary and start the import. Statistics will be generated automatically."
+      }
+    }
+  },
+  "occurrences": {
+    "title": "Observation data",
+    "description": "Import your occurrences file. Taxonomy will be extracted automatically.",
+    "extractingTaxonomy": "Extracting taxonomy...",
+    "steps": {
+      "file": "1. File",
+      "requiredFields": "2. Required fields",
+      "taxonomy": "3. Taxonomy",
+      "enrichment": "4. Enrichment"
+    },
+    "file": {
+      "title": "File loading",
+      "description": "Select your CSV file containing observation data",
+      "detected": "{{rows}} rows detected",
+      "foundColumns": "{{count}} columns found",
+      "nextStep": "Next: Required fields"
+    },
+    "requiredFields": {
+      "title": "Required fields",
+      "description": "These fields are necessary to identify and locate your observations",
+      "note": "Map only essential fields. Taxonomic hierarchy configuration will be done in the next step.",
+      "nextStep": "Next: Taxonomy"
+    },
+    "taxonomy": {
+      "title": "Automatic taxonomy extraction",
+      "description": "Configure the taxonomic hierarchy. Niamoto will automatically extract unique taxa from your data according to this configuration.",
+      "preview": "Extraction preview",
+      "configuredHierarchy": "Configured hierarchy: {{count}} level(s)",
+      "mappedLevels": "Mapped levels: {{levels}}",
+      "extractionNote": "Complete taxonomy will be extracted during import following this hierarchy.",
+      "nextStep": "Next: Enrichment (optional)"
+    },
+    "enrichment": {
+      "title": "External API enrichment",
+      "description": "Optional: Enrich your taxonomy with data from external APIs (conservation status, endemism, images, etc.)",
+      "note": "API enrichment is optional. You can proceed to the next step (Spatial aggregations) using the \"Next\" button at the bottom of the main page."
+    },
+    "status": {
+      "taxIdMapped": "Taxonomic identifier mapped",
+      "locationMapped": "Location mapped",
+      "hierarchyConfigured": "Taxonomic hierarchy configured ({{count}} levels)",
+      "plotLinkDetected": "Plot link detected",
+      "apiEnrichmentEnabled": "API enrichment enabled"
+    }
+  },
+  "aggregations": {
+    "title": "Spatial aggregations (optional)",
+    "description": "Add spatial groupings to organize and analyze your data",
+    "info": "Aggregations allow you to group your data by geographic areas and generate statistics by grouping.",
+    "plots": {
+      "title": "Plot configuration",
+      "changeFile": "Change file",
+      "hierarchy": {
+        "aggregated": "(aggregated geometries)"
+      }
+    },
+    "shapes": {
+      "title": "Geographic zones (shapes)",
+      "description": "Import shape files to group by geographic areas",
+      "addShape": "Add shape",
+      "noShapes": "No shapes configured. Click \"Add shape\" to start.",
+      "shapeNumber": "Shape {{number}}",
+      "featureCount": "Feature count:",
+      "crs": "Coordinate system:"
+    }
+  },
+  "summary": {
+    "title": "Import summary",
+    "description": "Review information before starting the import",
+    "sections": {
+      "occurrences": {
+        "title": "Occurrences",
+        "file": "File",
+        "rows": "Rows",
+        "mappedFields": "Mapped fields"
+      },
+      "taxonomy": {
+        "title": "Taxonomy",
+        "levels": "Levels",
+        "hierarchy": "Hierarchy",
+        "apiEnrichment": "API enrichment",
+        "enabled": "Enabled"
+      },
+      "plots": {
+        "title": "Plots",
+        "link": "Link"
+      },
+      "shapes": {
+        "title": "Shapes",
+        "totalElements": "Total elements",
+        "elements": "({{count}} elements)"
+      }
+    },
+    "process": {
+      "title": "Import process",
+      "occurrences": {
+        "title": "Import occurrences",
+        "description": "Loading observation data and automatic taxonomy extraction",
+        "withApi": "with API enrichment"
+      },
+      "plots": {
+        "title": "Import plots",
+        "description": "Creating spatial groupings and linking with occurrences"
+      },
+      "shapes": {
+        "title": "Import shapes",
+        "description": "Loading geographic zones for spatial analysis"
+      }
+    },
+    "warning": "Once the import is started, the process may take a few minutes depending on your data size. Do not close this window during import."
+  },
+  "importButton": {
+    "start": "Start import",
+    "retry": "Retry import",
+    "goToTransforms": "Go to transformations",
+    "importing": "Import in progress...",
+    "extractingTaxonomy": "Extracting taxonomy...",
+    "importingOccurrences": "Importing occurrences...",
+    "importingPlots": "Importing plots...",
+    "importingShape": "Importing {{name}}...",
+    "someImportsFailed": "Some imports failed:",
+    "plotError": "Plot error: {{error}}",
+    "shapeError": "Shape {{index}} error: {{error}}",
+    "completedWithWarnings": "Import completed with warnings",
+    "completedSuccessfully": "Import completed successfully!",
+    "errorOccurred": "An error occurred"
+  },
+  "fieldMapping": {
+    "title": "Map Fields",
+    "dragInstruction": "Drag columns from your file to the required fields, or click to select.",
+    "sourceColumns": "Source Columns",
+    "targetFields": "Target Fields",
+    "dropHere": "Drop column here",
+    "selectColumn": "Select column",
+    "fieldsFromOccurrences": "Fields detected from the imported occurrences file",
+    "mustExistInOccurrences": "This field must exist in your occurrences file when importing",
+    "loadingDefinitions": "Loading field definitions...",
+    "errorAnalyzing": "Error analyzing file: {{error}}"
+  },
+  "taxonomyHierarchy": {
+    "title": "Taxonomy Hierarchy Configuration",
+    "description": "Define the hierarchical levels and map them to columns in your file",
+    "instruction": "Define taxonomy levels from most general (e.g., family) to most specific (e.g., subspecies). At least the first two levels must be mapped to columns.",
+    "mapped": "Mapped",
+    "addCustomLevel": "Add Custom Level",
+    "addLevelPlaceholder": "e.g., subfamily, tribe, subspecies",
+    "rankNameRequired": "Please enter a rank name",
+    "rankAlreadyExists": "This rank already exists",
+    "mapAtLeastTwoLevels": "Please map at least the first two levels to columns in your file.",
+    "hierarchyOrder": "Hierarchy order:"
+  },
+  "apiEnrichment": {
+    "providers": {
+      "endemia": "Endemia NC",
+      "gbif": "GBIF",
+      "wfo": "WFO (World Flora Online)",
+      "ipni": "IPNI",
+      "inaturalist": "iNaturalist",
+      "tropicos": "Tropicos"
+    },
+    "sections": {
+      "connection": "Connection",
+      "authentication": "Authentication",
+      "fieldMapping": "Field Mapping"
+    },
+    "connection": {
+      "title": "API Connection",
+      "description": "Configure the API endpoint and test the connection",
+      "quickSetup": "Quick Setup",
+      "apiUrl": "API URL",
+      "urlRequired": "Please enter an API URL",
+      "queryFieldName": "Query Field Name",
+      "queryFieldPlaceholder": "e.g., name, q, query",
+      "queryFieldDescription": "The parameter name used to send the taxon name to the API",
+      "additionalParams": "Additional Query Parameters",
+      "paramName": "Parameter name",
+      "value": "Value",
+      "testFailed": "API test failed"
+    },
+    "authentication": {
+      "title": "Authentication",
+      "description": "Configure how to authenticate with the API",
+      "method": "Authentication Method",
+      "none": "No Authentication",
+      "apiKey": "API Key",
+      "bearerToken": "Bearer Token",
+      "basicAuth": "Basic Auth",
+      "apiKeyPlaceholder": "Your API key",
+      "keyLocation": "Key Location",
+      "httpHeader": "HTTP Header",
+      "queryParameter": "Query Parameter",
+      "paramHeaderName": "Parameter/Header Name",
+      "paramHeaderPlaceholder": "e.g., apiKey, X-API-Key",
+      "bearerTokenPlaceholder": "Your bearer token",
+      "username": "Username",
+      "password": "Password"
+    },
+    "fieldMapping": {
+      "title": "Response Field Mapping",
+      "description": "Map API response fields to Niamoto database fields",
+      "availableFields": "Available fields detected from API test. Click to add to mapping.",
+      "currentMappings": "Current Mappings",
+      "addNewMapping": "Add New Mapping",
+      "niamotoFieldPlaceholder": "Niamoto field (e.g., endemic)",
+      "apiPathPlaceholder": "API path (e.g., endemique)",
+      "availableApiFields": "Available API Fields",
+      "commonFields": "Common Niamoto fields you might want to map:"
+    }
+  },
+  "plotHierarchy": {
+    "title": "Plot Hierarchy Configuration",
+    "description": "Configure hierarchical relationships between plots, localities, and countries",
+    "enableHierarchical": "Enable Hierarchical Import",
+    "enableDescription": "Create a nested structure of plots within localities and countries",
+    "hierarchyLevels": "Hierarchy Levels",
+    "levelsDescription": "Define levels from highest to lowest (e.g., country → locality → plot)",
+    "level": "Level {{number}}",
+    "selectColumnForLevel": "Select a column for hierarchy level",
+    "addLevel": "Add Level",
+    "aggregateGeometry": "Aggregate Geometry",
+    "aggregateDescription": "Combine geometries of child plots for parent levels",
+    "exampleStructure": "Example hierarchy structure:",
+    "parentGeometriesNote": "Parent geometries will be automatically calculated from their children."
+  },
+  "propertySelector": {
+    "noAdditional": "No additional properties available",
+    "selectProperties": "Select properties to import ({{count}} selected)",
+    "selectedProperties": "Selected properties:"
+  },
+  "importStepCard": {
+    "autoExtracted": "Auto-extracted"
+  }
+}

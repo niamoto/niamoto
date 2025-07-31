@@ -5,15 +5,10 @@ This module contains the ShapeImporter class used to import shape data from vari
 from pathlib import Path
 from typing import List, Dict, Any
 import tempfile
+import zipfile
 
 import fiona
 from pyproj import Transformer, CRS
-from rich.progress import (
-    Progress,
-    SpinnerColumn,
-    BarColumn,
-    TextColumn,
-)
 from shapely.geometry import shape, Point, LineString, Polygon, MultiPolygon
 from shapely.geometry.base import BaseGeometry
 from sqlalchemy.exc import SQLAlchemyError
@@ -28,6 +23,7 @@ from niamoto.common.exceptions import (
     DatabaseError,
     ConfigurationError,
 )
+from niamoto.common.progress import get_progress_tracker
 
 
 class ShapeImporter:
@@ -47,6 +43,8 @@ class ShapeImporter:
         """
         self.db = db
         self.db_path = db.db_path
+        # Track type parents during import
+        self._type_parents = {}
 
     @error_handler(log=True, raise_error=True)
     def import_from_config(self, shapes_config: List[Dict[str, Any]]) -> str:
@@ -88,32 +86,69 @@ class ShapeImporter:
                     # En cas d'erreur, on ignore pour le comptage
                     pass
 
-            # Capture start time
-            import time
+            # First, create type parents for each unique type
+            unique_types = set()
+            for shape_info in shapes_config:
+                unique_types.add(shape_info["type"])
 
-            start_time = time.time()
+            for shape_type in unique_types:
+                self._get_or_create_type_parent(shape_type)
 
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                refresh_per_second=10,
-            ) as progress:
-                task = progress.add_task(
-                    description="[green]Importing shapes...",
-                    total=total_features,
-                )
-
+            # Import shapes
+            progress_tracker = get_progress_tracker()
+            with progress_tracker.track(
+                "Importing shapes...", total=total_features
+            ) as update:
                 for shape_info in shapes_config:
                     file_path = Path(shape_info["path"])
                     # Vérifier explicitement que le fichier existe
                     if not file_path.exists():
                         raise FileReadError(str(file_path), "Shape file not found")
 
+                    # Create a context manager for ZIP files
+                    temp_dir_ctx = None
+                    shape_path = None
+
                     try:
-                        # Tenter d'ouvrir le fichier avec Fiona
-                        with fiona.open(shape_info["path"], "r") as src:
+                        # Handle ZIP files containing shapefiles
+                        if file_path.suffix.lower() == ".zip":
+                            temp_dir_ctx = tempfile.TemporaryDirectory()
+                            temp_path = Path(temp_dir_ctx.__enter__())
+
+                            # Extract ZIP contents
+                            with zipfile.ZipFile(file_path, "r") as zip_ref:
+                                zip_ref.extractall(temp_path)
+
+                            # Find .shp file (excluding macOS hidden files)
+                            shp_files = [
+                                f
+                                for f in temp_path.glob("**/*.shp")
+                                if not any(
+                                    part.startswith("__MACOSX") or part.startswith("._")
+                                    for part in f.parts
+                                )
+                            ]
+
+                            if not shp_files:
+                                raise DataValidationError(
+                                    "Invalid shape file format",
+                                    [
+                                        {
+                                            "error": "No shapefile found in ZIP",
+                                            "file": str(file_path),
+                                        }
+                                    ],
+                                )
+
+                            # Use the first shapefile found (prefer shallowest)
+                            shp_files.sort(key=lambda p: len(p.parts))
+                            shape_path = str(shp_files[0])
+                        else:
+                            # Use the file directly if not a ZIP
+                            shape_path = str(file_path)
+
+                        # Open and process the shapefile
+                        with fiona.open(shape_path, "r") as src:
                             # Vérifier que le fichier possède un CRS
                             if not src.crs_wkt:
                                 raise DataValidationError(
@@ -128,7 +163,7 @@ class ShapeImporter:
                             transformer = self._setup_transformer(src.crs_wkt)
 
                             # Traiter chaque feature du fichier
-                            for feature in src:
+                            for idx, feature in enumerate(src):
                                 try:
                                     if not self._is_valid_feature(feature):
                                         import_stats["skipped"] += 1
@@ -145,7 +180,7 @@ class ShapeImporter:
                                             geom, transformer
                                         )
                                         shape_id = self._get_feature_id(
-                                            feature, shape_info
+                                            feature, shape_info, idx
                                         )
                                         name = self._get_feature_name(
                                             feature, shape_info
@@ -173,13 +208,8 @@ class ShapeImporter:
                                     import_stats["errors"].append(str(e))
                                     import_stats["skipped"] += 1
 
-                                # Update progress with real-time duration (always, regardless of success/skip/error)
-                                current_duration = time.time() - start_time
-                                progress.update(
-                                    task,
-                                    advance=1,
-                                    description=f"[green]Importing shapes • {current_duration:.1f}s[/green]",
-                                )
+                                # Update progress
+                                update(1)
                     except Exception as e:
                         # Pour toute erreur lors de l'ouverture ou du traitement du fichier,
                         # lever une DataValidationError indiquant un format invalide.
@@ -187,13 +217,18 @@ class ShapeImporter:
                             "Invalid shape file format",
                             [{"error": str(e), "file": str(shape_info["path"])}],
                         )
+                    finally:
+                        # Clean up temporary directory if created
+                        if temp_dir_ctx:
+                            temp_dir_ctx.__exit__(None, None, None)
 
-                # Update task description to show completion
-                duration = time.time() - start_time
-                progress.update(
-                    task,
-                    description=f"[green][✓] shapes import completed • {duration:.1f}s[/green]",
-                )
+                # Task completed
+
+                # Rebuild nested set values
+                self._rebuild_nested_set()
+
+                # Update type geometries with aggregated children geometries
+                self._update_type_geometries()
 
                 try:
                     self.db.session.commit()
@@ -250,6 +285,142 @@ class ShapeImporter:
                     "Empty type field",
                     details={"config": shape_info},
                 )
+
+    def _get_or_create_type_parent(self, shape_type: str) -> ShapeRef:
+        """
+        Get or create a parent entry for a shape type.
+
+        Args:
+            shape_type: The type of shapes (e.g., 'grid', 'countries')
+
+        Returns:
+            The parent ShapeRef object
+        """
+        # Check if we already have this type parent in cache
+        if shape_type in self._type_parents:
+            return self._type_parents[shape_type]
+
+        # Check if it exists in database
+        type_parent = (
+            self.db.session.query(ShapeRef)
+            .filter_by(name=shape_type, shape_type="type")
+            .first()
+        )
+
+        if not type_parent:
+            # Create new type parent with empty geometry (will be updated later)
+            from shapely.geometry import GeometryCollection
+
+            empty_geom = GeometryCollection()
+
+            type_parent = ShapeRef(
+                shape_id=None,
+                name=shape_type,
+                type=shape_type,
+                location=empty_geom.wkb.hex(),
+                shape_type="type",
+                level=0,
+                parent_id=None,
+                extra_data={
+                    "entity_type": "type",
+                    "auto_generated": True,
+                },
+            )
+            self.db.session.add(type_parent)
+            self.db.session.flush()  # Get the ID
+
+        # Cache it
+        self._type_parents[shape_type] = type_parent
+        return type_parent
+
+    def _rebuild_nested_set(self) -> None:
+        """
+        Rebuild the nested set values (lft/rght) for all shapes.
+        Similar to how it's done for plots.
+        """
+        # Get all type parents (level 0)
+        type_parents = (
+            self.db.session.query(ShapeRef)
+            .filter_by(shape_type="type", parent_id=None)
+            .order_by(ShapeRef.name)
+            .all()
+        )
+
+        counter = 1
+        for type_parent in type_parents:
+            counter = self._rebuild_nested_set_recursive(type_parent, counter, 0)
+
+    def _rebuild_nested_set_recursive(
+        self, node: ShapeRef, counter: int, level: int
+    ) -> int:
+        """
+        Recursively rebuild nested set values.
+
+        Args:
+            node: Current node
+            counter: Current counter value
+            level: Current level
+
+        Returns:
+            Updated counter value
+        """
+        node.lft = counter
+        node.level = level
+        counter += 1
+
+        # Process children
+        children = (
+            self.db.session.query(ShapeRef)
+            .filter_by(parent_id=node.id)
+            .order_by(ShapeRef.name)
+            .all()
+        )
+
+        for child in children:
+            counter = self._rebuild_nested_set_recursive(child, counter, level + 1)
+
+        node.rght = counter
+        counter += 1
+
+        return counter
+
+    def _update_type_geometries(self) -> None:
+        """
+        Update type parent geometries with aggregated children geometries.
+        """
+        from shapely.wkb import loads as load_wkb
+
+        # Get all type parents
+        type_parents = (
+            self.db.session.query(ShapeRef).filter_by(shape_type="type").all()
+        )
+
+        for type_parent in type_parents:
+            # Get all children geometries
+            children = (
+                self.db.session.query(ShapeRef)
+                .filter_by(parent_id=type_parent.id, shape_type="shape")
+                .all()
+            )
+
+            if children:
+                # Collect all geometries
+                geometries = []
+                for child in children:
+                    try:
+                        geom = load_wkb(bytes.fromhex(child.location))
+                        geometries.append(geom)
+                    except Exception:
+                        # Skip invalid geometries
+                        pass
+
+                if geometries:
+                    # Create a GeometryCollection to preserve individual shapes
+                    from shapely.geometry import GeometryCollection
+
+                    collection = GeometryCollection(geometries)
+                    # Update parent geometry
+                    type_parent.location = collection.wkb.hex()
 
     @error_handler(log=True, raise_error=True)
     def _process_shape_file(
@@ -337,7 +508,7 @@ class ShapeImporter:
         Raises:
             DatabaseError: If database operations fail
         """
-        for feature in src:
+        for idx, feature in enumerate(src):
             import_stats["processed"] += 1
 
             try:
@@ -347,7 +518,7 @@ class ShapeImporter:
 
                 geom = shape(feature["geometry"])
                 geom_wgs84 = self.transform_geometry(geom, transformer)
-                shape_id = self._get_feature_id(feature, shape_info)
+                shape_id = self._get_feature_id(feature, shape_info, idx)
                 name = self._get_feature_name(feature, shape_info)
                 extra_data = self._extract_properties(feature, shape_info)
 
@@ -377,13 +548,35 @@ class ShapeImporter:
         return not geom.is_empty
 
     @staticmethod
-    def _get_feature_id(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:
-        """Get feature ID from properties."""
+    def _get_feature_id(
+        feature: Dict[str, Any], shape_info: Dict[str, Any], feature_index: int = None
+    ) -> str:
+        """Get feature ID from properties or generate one."""
+        # Préfixer l'ID avec le type pour éviter les conflits
+        shape_type = shape_info.get("type", "shape")
+        # Sanitize le type : minuscules, remplacer espaces et caractères spéciaux par underscore
+        import re
+
+        sanitized_type = re.sub(r"[^a-z0-9]+", "_", shape_type.lower()).strip("_")
+        if not sanitized_type:
+            sanitized_type = "shape"
+
         id_field = shape_info.get("id_field")
-        if not id_field:
-            return ""
-        shape_id = feature["properties"].get(id_field)
-        return str(shape_id).strip() if shape_id else ""
+        if id_field:
+            shape_id = feature["properties"].get(id_field)
+            if shape_id and str(shape_id).strip():
+                # Convert to int if it's a whole number to avoid .0
+                if isinstance(shape_id, (int, float)):
+                    # If it's a float that represents a whole number, convert to int
+                    if isinstance(shape_id, float) and shape_id.is_integer():
+                        shape_id = int(shape_id)
+                return f"{sanitized_type}_{str(shape_id).strip()}"
+
+        # Si pas d'id_field ou si la valeur est vide, utiliser l'index de la feature
+        if feature_index is not None:
+            return f"{sanitized_type}_{feature_index + 1}"  # +1 pour commencer à 1 au lieu de 0
+
+        return None
 
     @staticmethod
     def _get_feature_name(feature: Dict[str, Any], shape_info: Dict[str, Any]) -> str:
@@ -396,7 +589,10 @@ class ShapeImporter:
         feature: Dict[str, Any], shape_info: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Extract additional properties from feature based on configuration."""
-        extra_data = {}
+        extra_data = {
+            "entity_type": "shape",  # Add entity_type like plots and taxons
+            "auto_generated": False,
+        }
         properties_config = shape_info.get("properties", [])
 
         for prop_name in properties_config:
@@ -426,10 +622,16 @@ class ShapeImporter:
                 .scalar()
             )
 
+            # Get the type parent
+            type_parent = self._get_or_create_type_parent(shape_info["type"])
+
             if existing_shape:
                 existing_shape.shape_id = shape_id
                 existing_shape.location = geometry.wkb.hex()
                 existing_shape.extra_data = extra_data
+                existing_shape.parent_id = type_parent.id
+                existing_shape.shape_type = "shape"
+                existing_shape.level = 1
                 return False
             else:
                 new_shape = ShapeRef(
@@ -438,6 +640,9 @@ class ShapeImporter:
                     type=shape_info["type"],
                     location=geometry.wkb.hex(),
                     extra_data=extra_data,
+                    parent_id=type_parent.id,
+                    shape_type="shape",
+                    level=1,
                 )
                 self.db.session.add(new_shape)
                 return True

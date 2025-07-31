@@ -117,13 +117,11 @@ class RadialGaugeWidget(WidgetPlugin):
             if "." in params.value_field:
                 value = self._get_nested_data(data, params.value_field)
                 if value is None:
-                    logger.error(
-                        f"Nested value field '{params.value_field}' not found in dict."
-                    )
-                    return f"<p class='error'>Configuration Error: Nested value field '{params.value_field}' missing.</p>"
+                    # Return empty string to not display the widget when no data
+                    return ""
             elif params.value_field not in data:
-                logger.error(f"Value field '{params.value_field}' not found in dict.")
-                return f"<p class='error'>Configuration Error: Value field '{params.value_field}' missing.</p>"
+                # Return empty string to not display the widget when no data
+                return ""
             else:
                 value = data[params.value_field]
         elif isinstance(data, (int, float)):
@@ -135,7 +133,8 @@ class RadialGaugeWidget(WidgetPlugin):
             return "<p class='info'>Invalid data type for gauge.</p>"
 
         if value is None:
-            return "<p class='info'>No value available.</p>"
+            # Return empty string to not display the widget when no data
+            return ""
 
         try:
             numeric_value = pd.to_numeric(value, errors="coerce")
