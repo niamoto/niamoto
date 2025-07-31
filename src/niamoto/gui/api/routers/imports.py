@@ -18,6 +18,8 @@ from niamoto.gui.api.utils.config_updater import (
     update_import_config,
     clean_unused_config,
 )
+from niamoto.core.plugins.registry import PluginRegistry
+from niamoto.core.plugins.base import PluginType
 
 router = APIRouter()
 
@@ -794,3 +796,57 @@ async def process_import(
                 print(f"Cleaned up temporary file: {temp_file_path}")
             except OSError:
                 pass
+
+
+@router.get("/plugins/{plugin_name}/config-schema")
+async def get_plugin_config_schema(plugin_name: str):
+    """Get the configuration schema for a specific plugin."""
+    try:
+        # Load core plugins
+        from niamoto.core.plugins.plugin_loader import PluginLoader
+
+        loader = PluginLoader()
+        loader.load_core_plugins()
+
+        # Get the plugin class
+        plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.LOADER)
+
+        # Get the config model
+        if hasattr(plugin_class, "config_model"):
+            config_model = plugin_class.config_model
+            # Convert Pydantic model to JSON schema
+            schema = config_model.model_json_schema()
+
+            # Extract required fields
+            required_fields = schema.get("required", [])
+            properties = schema.get("properties", {})
+
+            # Build simplified schema with field info
+            fields = {}
+            for field_name, field_info in properties.items():
+                fields[field_name] = {
+                    "type": field_info.get("type", "string"),
+                    "description": field_info.get("description", ""),
+                    "required": field_name in required_fields,
+                    "default": field_info.get("default"),
+                }
+
+                # Handle special cases
+                if field_name == "plugin" and "const" in field_info:
+                    fields[field_name]["value"] = field_info["const"]
+
+            return {
+                "plugin_name": plugin_name,
+                "fields": fields,
+                "title": schema.get("title", plugin_name),
+                "description": schema.get("description", ""),
+            }
+        else:
+            raise HTTPException(
+                status_code=404, detail=f"Plugin {plugin_name} has no config model"
+            )
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Plugin {plugin_name} not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

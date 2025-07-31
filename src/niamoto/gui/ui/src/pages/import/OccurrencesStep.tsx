@@ -36,7 +36,11 @@ export function OccurrencesStep() {
       query_field: 'name',
       rate_limit: 10,
       cache_results: true,
-      response_mapping: {}
+      response_mapping: {},
+      include_images: true,
+      include_synonyms: true,
+      include_distributions: true,
+      include_references: true
     }
   )
 
@@ -81,7 +85,24 @@ export function OccurrencesStep() {
 
   const handleApiConfigChange = (config: ApiConfig) => {
     setApiConfig(config)
-    updateOccurrences({ apiEnrichment: config })
+    // For tropicos_enricher, ensure we have the correct structure
+    if (config.plugin === 'tropicos_enricher') {
+      const tropicosConfig = {
+        enabled: config.enabled,
+        plugin: 'tropicos_enricher',
+        api_key: config.api_key,
+        query_field: config.query_field || 'full_name',
+        rate_limit: config.rate_limit || 1.0,
+        cache_results: config.cache_results !== false,
+        include_images: config.include_images !== false,
+        include_synonyms: config.include_synonyms !== false,
+        include_distributions: config.include_distributions !== false,
+        include_references: config.include_references !== false
+      }
+      updateOccurrences({ apiEnrichment: tropicosConfig as any })
+    } else {
+      updateOccurrences({ apiEnrichment: config as any })
+    }
   }
 
   // Check if minimum requirements are met

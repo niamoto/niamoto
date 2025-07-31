@@ -872,15 +872,38 @@
             return imageData;
         }
 
+        // Utiliser les champs configurés ou les valeurs par défaut
+        const thumbField = imageField?.image_fields?.thumbnail || 'small_thumb';
+        const urlField = imageField?.image_fields?.url || 'url';
+
         // Si c'est un tableau d'images
         if (Array.isArray(imageData) && imageData.length > 0) {
-            const firstImage = imageData[0];
-            return firstImage.small_thumb || firstImage.url || firstImage;
+            // Parcourir les images pour trouver la première valide
+            for (const img of imageData) {
+                if (typeof img === 'string' && img) return img;
+
+                if (img && typeof img === 'object') {
+                    // Vérifier si l'objet a au moins une valeur non null
+                    const hasValidData = Object.values(img).some(val => val !== null && val !== undefined && val !== '');
+                    if (!hasValidData) continue;
+
+                    // Chercher une URL valide
+                    const url = img[thumbField] || img[urlField] || img.small_thumb || img.url;
+                    if (url && url !== '') return url;
+                }
+            }
+            // Si aucune image valide n'est trouvée
+            return null;
         }
 
         // Si c'est un objet avec une URL
-        if (typeof imageData === 'object' && imageData.url) {
-            return imageData.small_thumb || imageData.url;
+        if (typeof imageData === 'object' && !Array.isArray(imageData)) {
+            // Vérifier si l'objet a toutes les valeurs à null
+            const hasValidData = Object.values(imageData).some(val => val !== null && val !== undefined);
+            if (!hasValidData) return null;
+
+            const url = imageData[thumbField] || imageData[urlField] || imageData.small_thumb || imageData.url;
+            return (url && url !== '') ? url : null;
         }
 
         return null;
@@ -907,12 +930,29 @@
         }
         // Si c'est un tableau d'images
         else if (Array.isArray(imageData)) {
-            allImages = imageData.map(img => img.small_thumb || img.url || img);
+            // Utiliser les champs configurés ou les valeurs par défaut
+            const thumbField = imageField?.image_fields?.thumbnail || 'small_thumb';
+            const urlField = imageField?.image_fields?.url || 'url';
+
+            allImages = imageData
+                .map(img => {
+                    if (typeof img === 'string') return img;
+                    // Vérifier si l'objet a toutes les valeurs à null
+                    if (img && typeof img === 'object') {
+                        const hasValidData = Object.values(img).some(val => val !== null && val !== undefined);
+                        if (!hasValidData) return null;
+                    }
+                    // Essayer d'abord le champ configuré, puis les fallbacks
+                    return img[thumbField] || img[urlField] || img.small_thumb || img.url || null;
+                })
+                .filter(url => url !== null && url !== undefined && url !== ''); // Filtrer les valeurs nulles
             displayImages = allImages.slice(0, 10);
         }
         // Si c'est un objet avec une URL
         else if (typeof imageData === 'object' && imageData.url) {
-            allImages = [imageData.small_thumb || imageData.url];
+            const thumbField = imageField?.image_fields?.thumbnail || 'small_thumb';
+            const urlField = imageField?.image_fields?.url || 'url';
+            allImages = [imageData[thumbField] || imageData[urlField] || imageData.small_thumb || imageData.url];
             displayImages = allImages;
         }
 
@@ -924,8 +964,14 @@
         const galleryId = `gallery-${itemId}`;
 
         // Préparer les URLs pour la modal (big_thumb)
+        const fullField = imageField?.image_fields?.full || 'big_thumb';
+        const urlField = imageField?.image_fields?.url || 'url';
+
         const modalImages = Array.isArray(imageData) ?
-            imageData.map(img => img.big_thumb || img.url || img) :
+            imageData.map(img => {
+                if (typeof img === 'string') return img;
+                return img[fullField] || img[urlField] || img.big_thumb || img.url || img;
+            }) :
             allImages;
 
         // Créer une grille d'images pour la zone droite

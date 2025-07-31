@@ -75,25 +75,25 @@ def update_import_config(
         if advanced_options:
             if api_config := advanced_options.get("apiEnrichment"):
                 if api_config.get("enabled"):
-                    taxonomy_config["api_enrichment"] = {
+                    plugin_name = api_config.get("plugin", "api_taxonomy_enricher")
+
+                    # Start with common fields
+                    enrichment_config = {
                         "enabled": True,
-                        "plugin": api_config.get("plugin", "api_taxonomy_enricher"),
-                        "api_url": api_config.get("api_url"),
-                        "auth_method": api_config.get("auth_method", "none"),
-                        "query_field": api_config.get("query_field", "full_name"),
-                        "rate_limit": api_config.get("rate_limit", 2.0),
-                        "cache_results": api_config.get("cache_results", True),
+                        "plugin": plugin_name,
                     }
 
-                    # Add auth params if present
-                    if auth_params := api_config.get("auth_params"):
-                        taxonomy_config["api_enrichment"]["auth_params"] = auth_params
+                    # Add all fields from the API config, filtering out null values
+                    for key, value in api_config.items():
+                        if key not in ["enabled", "plugin"] and value is not None:
+                            enrichment_config[key] = value
 
-                    # Add response mapping if present
-                    if response_mapping := api_config.get("response_mapping"):
-                        taxonomy_config["api_enrichment"]["response_mapping"] = (
-                            response_mapping
-                        )
+                    # Ensure critical fields have defaults
+                    enrichment_config.setdefault("query_field", "full_name")
+                    enrichment_config.setdefault("rate_limit", 1.0)
+                    enrichment_config.setdefault("cache_results", True)
+
+                    taxonomy_config["api_enrichment"] = enrichment_config
 
         config["taxonomy"] = taxonomy_config
 
