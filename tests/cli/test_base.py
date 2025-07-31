@@ -119,8 +119,8 @@ class TestRichCLI:
         output = result.output
         assert "Niamoto CLI, version" in output
         assert "Usage:" in output
-        assert "Main Commands" in output
-        assert "Get Started:" in output
+        assert "Quick Start" in output
+        assert "Common Workflows" in output
 
 
 def test_display_next_steps(capsys):
@@ -129,12 +129,11 @@ def test_display_next_steps(capsys):
     captured = capsys.readouterr()
 
     # Verify key sections are present
-    assert "Get Started:" in captured.out
-    assert "Initialize or check your environment" in captured.out
-    assert "Import data" in captured.out
-    assert "Transform data" in captured.out
-    assert "Export content" in captured.out
-    assert "Deploy content" in captured.out
+    assert "Quick Start" in captured.out
+    assert "niamoto init" in captured.out
+    assert "niamoto import" in captured.out
+    assert "niamoto transform" in captured.out
+    assert "niamoto export" in captured.out
 
 
 def test_display_next_steps_includes_stats_commands(capsys):
@@ -146,16 +145,12 @@ def test_display_next_steps_includes_stats_commands(capsys):
     output = captured.out.replace("\n", " ").replace("  ", " ")
 
     # Verify the stats exploration section is present
-    assert "Have fun exploring your data and generating insights!" in captured.out
+    assert "niamoto stats" in captured.out
 
-    # Verify specific stats commands are present (checking for key parts)
+    # Verify stats command is present in the new format
     assert "niamoto stats" in output
-    assert "--detailed" in output
-    assert "--group taxon" in output
-    assert "--suggestions" in output
-    assert "--export stats.json" in output
-    assert "Display general statistics about your data" in output
-    assert "Get exploration suggestions based on your data" in output
+    assert "Check your data" in output
+    assert "Overview of your database" in output
 
 
 @patch("click.confirm")

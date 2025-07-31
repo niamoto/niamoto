@@ -2,7 +2,7 @@
 Plugin for getting a direct attribute from a source.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Union
 from pydantic import Field, field_validator
 import os
 import pandas as pd
@@ -117,7 +117,9 @@ class DirectAttribute(TransformerPlugin):
         except Exception as e:
             raise ValueError(f"Error getting field {field} from {source}") from e
 
-    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+    def transform(
+        self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Transform data according to configuration."""
         try:
             # Préserver group_id avant validation
@@ -130,7 +132,31 @@ class DirectAttribute(TransformerPlugin):
             # Get field value
             source = validated_config["params"]["source"]
             field = validated_config["params"]["field"]
-            value = self._get_field_value(source, field, group_id)
+
+            # Check if data is already the source we need (TransformerService smart selection)
+            value = None
+            if isinstance(data, pd.DataFrame):
+                # Data is already a DataFrame - TransformerService passed the requested source directly
+                if not data.empty:
+                    if field in data.columns:
+                        value = data[field].iloc[0]
+                    else:
+                        value = None
+                else:
+                    value = None
+            elif isinstance(data, dict) and source in data:
+                # Use DataFrame from the sources dict
+                source_df = data[source]
+                if isinstance(source_df, pd.DataFrame) and not source_df.empty:
+                    # Get value from first row
+                    if field in source_df.columns:
+                        value = source_df[field].iloc[0]
+                    else:
+                        # Field not found in DataFrame columns
+                        value = None
+            else:
+                # Fall back to loading from DB or import
+                value = self._get_field_value(source, field, group_id)
 
             # Handle numeric values while preserving format
             original_format = value

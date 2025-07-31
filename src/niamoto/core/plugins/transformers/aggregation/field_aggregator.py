@@ -266,6 +266,13 @@ class FieldAggregator(TransformerPlugin):
             if field.labels and str(value) in field.labels:
                 value = field.labels[str(value)]
 
+            # Convert boolean to JSON-serializable format
+            if isinstance(value, bool):
+                value = value  # Keep as boolean, but ensure it's properly handled by JSON encoder
+            elif value is not None and str(value).lower() in ["true", "false"]:
+                # Convert string representations of booleans
+                value = str(value).lower() == "true"
+
             # Add units if any
             if field.units:
                 result[field.target] = {

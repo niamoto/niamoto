@@ -796,12 +796,13 @@ class HtmlPageExporter(ExporterPlugin):
                                         )
 
                                         if raw_widget_data is None:
-                                            logger.warning(
+                                            # Debug level instead of warning - missing data is often expected
+                                            logger.debug(
                                                 f"Data source '{data_source_key}' not found for widget '{widget_config.plugin}' "
                                                 f"in {group_by_key} ID {item_id}. Skipping widget."
                                             )
                                             rendered_widgets[widget_key] = (
-                                                f"<!-- Widget Error: Data source '{data_source_key}' not found -->"
+                                                f"<!-- Widget skipped: Data source '{data_source_key}' not found -->"
                                             )
                                             continue
 
