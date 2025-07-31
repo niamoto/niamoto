@@ -396,7 +396,7 @@ Niamoto supports using multiple data sources within a single transformation grou
           parent: parent_id
           left: lft
           right: rght
-
+          
     - name: plot_stats  # Additional source
       data: imports/plot_stats.csv  # Can be a table name OR CSV path
       grouping: plot_ref
