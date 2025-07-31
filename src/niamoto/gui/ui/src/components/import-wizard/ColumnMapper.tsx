@@ -110,7 +110,7 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
                 unmappedColumns.map((column: string) => (
                   <div
                     key={column}
-                    draggable
+                    draggable={true}
                     onDragStart={(e) => {
                       setDraggedColumn(column)
                       e.dataTransfer.setData('text/plain', column)
@@ -118,10 +118,9 @@ export function ColumnMapper({ importType, fileAnalysis, onMappingComplete }: Co
                     }}
                     onDragEnd={() => setDraggedColumn(null)}
                     className={cn(
-                      "rounded-md border bg-background px-3 py-2 text-sm transition-all hover:bg-accent hover:border-primary/50",
+                      "rounded-md border bg-background px-3 py-2 text-sm transition-all hover:bg-accent hover:border-primary/50 cursor-move select-none",
                       draggedColumn === column && "opacity-50 scale-95"
                     )}
-                    style={{ cursor: 'move' }}
                   >
                     <div className="flex items-center gap-2">
                       <GripVertical className="h-3 w-3 text-muted-foreground" />
@@ -246,21 +245,35 @@ function FieldMapping({
       )}
       onDragOver={(e) => {
         e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy'
+        e.stopPropagation()
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'copy'
+        }
       }}
       onDragEnter={(e) => {
         e.preventDefault()
+        e.stopPropagation()
         if (!mappedColumn) setIsDragOver(true)
       }}
       onDragLeave={(e) => {
         e.preventDefault()
-        setIsDragOver(false)
+        e.stopPropagation()
+        // Only set to false if we're actually leaving the drop zone
+        const rect = e.currentTarget.getBoundingClientRect()
+        const x = e.clientX
+        const y = e.clientY
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+          setIsDragOver(false)
+        }
       }}
       onDrop={(e) => {
         e.preventDefault()
+        e.stopPropagation()
         setIsDragOver(false)
         const column = e.dataTransfer.getData('text/plain')
-        if (column && !mappedColumn) onDrop(column)
+        if (column && !mappedColumn) {
+          onDrop(column)
+        }
       }}
     >
       <div className="flex items-start justify-between">

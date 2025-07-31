@@ -168,7 +168,7 @@ const PRESET_APIS: PresetAPI[] = [
   {
     name: 'Tropicos',
     config: {
-      api_url: 'https://services.tropicos.org/Name/Search',
+      api_url: 'http://services.tropicos.org/Name/Search',
       auth_method: 'api_key',
       query_params: {
         format: 'json',
