@@ -5,6 +5,8 @@ Handles database initialization, configuration files and environment setup.
 
 import os
 import click
+import subprocess
+import sys
 
 from ..utils.console import print_success, print_error, print_warning, print_info
 from .base import display_next_steps
@@ -15,13 +17,18 @@ from ...common.utils import error_handler
 
 
 @click.command(name="init")
+@click.argument("project_name", required=False)
 @click.option(
     "--reset", is_flag=True, help="Reset the environment if it already exists."
 )
+@click.option("--gui", is_flag=True, help="Launch the GUI after initialization.")
 @error_handler(log=True, raise_error=True)
-def init_environment(reset: bool) -> None:
+def init_environment(project_name: str, reset: bool, gui: bool) -> None:
     """
     Initialize or reset the Niamoto environment, and display its status.
+
+    Args:
+        project_name: Optional name for the project. If provided, creates a new directory.
 
     Handles:
       - config.yml (database, logs, outputs)
@@ -30,6 +37,31 @@ def init_environment(reset: bool) -> None:
       - export.yml
     """
     try:
+        # Handle project directory creation
+        if project_name:
+            # Check if directory already exists
+            if os.path.exists(project_name):
+                raise CommandError(
+                    command="init",
+                    message=f"Directory '{project_name}' already exists",
+                    details={"directory": project_name},
+                )
+
+            # Create project directory
+            os.makedirs(project_name)
+            os.chdir(project_name)
+            print_success(f"Created project directory: {project_name}")
+        else:
+            # Check if current directory has a Niamoto instance
+            config_dir_check = os.path.join(os.getcwd(), "config")
+            if os.path.exists(config_dir_check) and not reset:
+                if not click.confirm(
+                    f"Initialize a Niamoto instance in the current directory '{os.path.basename(os.getcwd())}'?",
+                    default=True,
+                ):
+                    print_warning("Initialization cancelled.")
+                    return
+
         config_dir = get_config_dir()
         environment_exists = os.path.exists(config_dir)
 
@@ -39,10 +71,23 @@ def init_environment(reset: bool) -> None:
                 return
             reset_environment(config_dir)
         elif not environment_exists:
-            initialize_environment(config_dir)
+            # Pass project name to initialization
+            project_display_name = project_name or os.path.basename(os.getcwd())
+            initialize_environment(config_dir, project_display_name)
 
         display_environment_status(config_dir)
-        display_next_steps()
+
+        # If we created a new directory, show how to navigate to it
+        if project_name:
+            print_info("\nTo start working with your project, run:")
+            print_info(f"  cd {project_name}")
+
+        # Launch GUI if --gui is specified or if project_name is provided
+        if gui or project_name:
+            print_info("\nLaunching configuration interface...")
+            launch_gui()
+        else:
+            display_next_steps()
 
     except Exception as e:
         raise CommandError(
@@ -85,16 +130,17 @@ def get_config_dir() -> str:
 
 
 @error_handler(log=True, raise_error=True)
-def initialize_environment(config_dir: str) -> None:
+def initialize_environment(config_dir: str, project_name: str) -> None:
     """
     Initialize the Niamoto environment.
 
     Args:
         config_dir (str): Path to the configuration directory.
+        project_name (str): Name of the project.
     """
     try:
         os.makedirs(config_dir, exist_ok=True)
-        environment = Environment(config_dir)
+        environment = Environment(config_dir, project_name=project_name)
         environment.initialize()
         print_success("Environment initialized successfully.")
     except Exception as e:
@@ -200,3 +246,24 @@ def check_path(path: str, base_path: str, label: str, is_file: bool = False) -> 
         print_success(f"{label} found")
     else:
         print_warning(f"{label} not found")
+
+
+def launch_gui() -> None:
+    """
+    Launch the Niamoto GUI interface after initialization.
+    """
+    try:
+        # Try to find the niamoto executable
+        import shutil
+
+        niamoto_cmd = shutil.which("niamoto")
+
+        if niamoto_cmd:
+            # Use the niamoto command directly
+            subprocess.run([niamoto_cmd, "gui"], check=False)
+        else:
+            # Fallback: try using Python module
+            subprocess.run([sys.executable, "-m", "niamoto", "gui"], check=False)
+    except Exception as e:
+        print_warning(f"Could not launch GUI automatically: {str(e)}")
+        print_info("You can launch it manually with: niamoto gui")

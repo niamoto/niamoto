@@ -271,10 +271,9 @@ Import administrative boundaries and environmental zones.
 
 ```yaml
 shapes:
-  - name: "provinces"
-    type: geopackage
+  - type: "provinces"
     path: "imports/shapes/provinces.gpkg"
-    id_field: "id_province"
+    id_field: "id_province"  # Required: field containing unique identifier
     name_field: "province_name"
     properties:
       - area_km2
@@ -282,36 +281,51 @@ shapes:
       - capital_city
 ```
 
+**Important**: The `id_field` is required and the final shape_id will be generated as `{type}_{id}` (e.g., `provinces_123` if id_province contains "123").
+
 ### Multiple Shapes
 
 ```yaml
 shapes:
-  - name: "provinces"
-    type: geopackage
+  - type: "provinces"
     path: "imports/shapes/provinces.gpkg"
-    id_field: "id"
+    id_field: "id"       # Required: generates shape_id as "provinces_1", "provinces_2", etc.
     name_field: "nom"
 
-  - name: "forest_types"
-    type: shapefile
+  - type: "forest_types"
     path: "imports/shapes/forest_classification.shp"
-    id_field: "forest_id"
+    id_field: "forest_id"  # Required: generates "forest_types_A1", "forest_types_B2", etc.
     name_field: "forest_name"
     properties:
       - forest_type
       - canopy_cover
       - dominant_species
 
-  - name: "protected_areas"
-    type: geojson
+  - type: "protected_areas"
     path: "imports/shapes/protected_areas.geojson"
-    id_field: "pa_id"
+    id_field: "pa_id"     # Required: generates "protected_areas_PA001", etc.
     name_field: "pa_name"
     properties:
       - protection_level
       - area_hectares
       - creation_date
 ```
+
+### Hierarchical Shape Structure
+
+Since version 0.6.0, shapes support hierarchical structures similar to plots. Each shape type automatically gets a parent entry that aggregates all shapes of that type:
+
+- Parent entries are created with `shape_type='type'` (e.g., "provinces", "grid")
+- Individual shapes have `shape_type='shape'`
+- Parent shapes aggregate geometries from all their children
+- Hierarchical navigation allows clicking on a shape type to see all shapes on one map
+
+This enables:
+- Organized navigation by shape type
+- Type-level pages showing all shapes of that type
+- Preserved individual shape boundaries (not merged)
+
+The hierarchy is managed automatically during import using a nested set model (`lft`, `rght`, `level` fields).
 
 ### Shapefile Import Considerations
 

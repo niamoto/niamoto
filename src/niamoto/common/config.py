@@ -179,7 +179,20 @@ class Config:
         """
         Default content for config.yml (database, logs, outputs).
         """
+        from datetime import datetime
+
+        try:
+            from niamoto.__version__ import __version__
+        except ImportError:
+            __version__ = "unknown"
+
         return {
+            "project": {
+                "name": "Niamoto Project",  # Default name, will be overridden
+                "version": "1.0.0",
+                "created_at": datetime.now().isoformat(),
+                "niamoto_version": __version__,
+            },
             "database": {"path": "db/niamoto.db"},
             "logs": {"path": "logs"},
             "exports": {

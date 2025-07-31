@@ -197,6 +197,10 @@ class WidgetPlugin(Plugin, ABC):
             "class_name", ""
         )  # Example of accessing specific param
 
+        # Don't render container if content is empty
+        if not content or content.strip() == "":
+            return ""
+
         # Use the provided widget_id for the container div
         title_html = ""
         if title:

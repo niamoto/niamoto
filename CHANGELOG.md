@@ -5,6 +5,195 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.7.0] - 2025-07-31
+
+### Added
+- **GUI (Graphical User Interface)**: Complete visual configuration interface for Niamoto
+  - Modern web interface built with React 19, TypeScript, Vite, and Tailwind CSS v4
+  - Multi-step import wizard with real-time validation and progress tracking
+  - Drag-and-drop file upload supporting CSV, Excel, JSON, GeoJSON, and Shapefile formats
+  - Interactive column mapping and data transformation configuration
+  - Hierarchical taxonomy editor with visual drag-and-drop functionality
+  - Internationalization support (French/English) with language switcher
+  - FastAPI backend serving both REST API endpoints and static React build
+  - Comprehensive API endpoints for configuration management, file operations, and imports
+  - Faceted spinner loading indicator and enhanced UI components
+- **GUI CLI integration**: Enhanced `niamoto init` command behavior
+  - GUI launches automatically when creating a new project: `niamoto init my-project`
+  - GUI no longer launches by default for simple `niamoto init`
+  - New `--gui` flag to explicitly launch GUI: `niamoto init --gui`
+  - `niamoto gui` command to launch the configuration interface at any time
+- **Simplified CLI help**: Reorganized command help for better user experience
+  - New "Quick Start" section with 3 essential steps
+  - "Common Workflows" section with practical usage scenarios
+  - Cleaner command grouping: Setup, Pipeline, Analysis, Deployment
+  - GUI prominently featured in the workflow
+- **Project naming support**: `niamoto init [project-name]` now accepts an optional project name
+  - Creates a new directory with the project name if provided
+  - Prompts for confirmation when initializing in the current directory
+  - Prevents initialization in existing project directories
+- **Enhanced project metadata**: `config.yml` now includes a `project` section with:
+  - `name`: Project name (customizable during init)
+  - `version`: Project version (default: 1.0.0)
+  - `created_at`: Timestamp of project creation
+  - `niamoto_version`: Version of Niamoto used to create the project
+- **Dynamic browser title**: GUI now displays "Niamoto - [Project Name]" in the browser tab
+  - New API endpoint `/api/config/project` to retrieve project information
+  - React hook `useProjectInfo` for accessing project metadata
+- **Version tracking**: Added `__version__.py` module for consistent version management
+- **Hierarchical data extraction for geospatial_extractor plugin**:
+  - New `extract_children` parameter to extract leaf entities from hierarchical structures
+  - New `hierarchy_config` parameter for generic hierarchical extraction:
+    - `type_field`: Field identifying entity type (e.g., "plot_type")
+    - `leaf_type`: Value identifying leaf entities (e.g., "plot")
+    - `left_field`/`right_field`: Fields for nested set model (default: "lft"/"rght")
+  - Enables extraction of individual plots from hierarchical levels (country, method, etc.)
+  - Maintains backward compatibility with existing configurations
+- **Interactive map improvements**:
+  - Added support for MultiPoint geometries in map visualizations
+  - Fixed hover display to show individual entity names instead of parent node names
+  - Improved automatic zoom calculation with better margins:
+    - Added 5% margin around data bounds to prevent edge clipping
+    - Increased zoom buffer from 0.5 to 1.0 for better visibility
+  - Fixed map centering to use actual data bounds instead of hardcoded coordinates
+- **Shape ID generation**: Shape IDs are now generated using the format `{type}_{id}`
+  - The `type` comes from the shape configuration in `import.yml` (e.g., "grid", "countries")
+  - The `id` comes from the specified `id_field` in the shapefile
+  - Examples: `grid_1`, `countries_120000`, `countries_580000`
+  - This format ensures unique IDs across different shape types and enables proper matching with statistics files
+- **Hierarchical shape support**: Shapes now support hierarchical structures similar to plots
+  - Added fields to `ShapeRef` model: `parent_id`, `lft`, `rght`, `level`, `shape_type`
+  - Automatic creation of parent entries for each shape type (e.g., "countries", "grid" as parents)
+  - Parent shapes aggregate geometries from all their children using GeometryCollection
+  - Enables navigation hierarchy: click on a shape type to see all shapes of that type on one map
+  - Shape types can now have their own detail pages with aggregated maps
+- **Shape processor enhancement**: Modified to preserve individual geometries in collections
+  - GeometryCollections now render each shape individually instead of merging them
+  - Maintains visual separation between shapes while grouping them logically
+  - Better visualization for hierarchical shape data
+- **Shape extra_data standardization**: Added `entity_type` field to shape imports
+  - Shapes now include `entity_type` in extra_data like plots and taxons
+  - Parent type entries have `entity_type: "type"` and `auto_generated: true`
+  - Individual shapes have `entity_type: "shape"` and `auto_generated: false`
+  - Enables consistent entity type identification across all reference models
+- **Interactive map improvements**: Updated map styles and added Mapbox token support
+  - Corrected available map styles to match current Plotly.js capabilities
+  - Added `mapbox_access_token` parameter for premium map styles (satellite, outdoors, etc.)
+  - Free styles: 'open-street-map', 'carto-positron', 'carto-darkmatter', 'carto-voyager', 'white-bg'
+  - Premium styles (require token): 'satellite', 'satellite-streets', 'outdoors', 'streets', 'light', 'dark'
+  - Updated documentation with correct style options and Mapbox token usage
+
+### Changed
+- **GUI favicon and title**:
+  - Replaced default Vite favicon with Niamoto branding
+  - Changed browser title from "Vite + React + TS" to "Niamoto"
+  - Added comprehensive favicon support (ico, svg, apple-touch-icon, webmanifest)
+- **Transform configuration structure** (BREAKING CHANGE):
+  - Replaced `source` + `additional_sources` with a unified `sources` list
+  - Each source now requires a unique `name` identifier
+  - Widgets reference sources by name via `params.source`
+  - Updated all configuration examples and documentation
+  - Example migration:
+    ```yaml
+    # Old structure
+    source:
+      data: occurrences
+      grouping: plot_ref
+    additional_sources:
+      plot_stats:
+        data: imports/plot_stats.csv
+
+    # New structure
+    sources:
+      - name: occurrences
+        data: occurrences
+        grouping: plot_ref
+      - name: plot_stats
+        data: imports/plot_stats.csv
+    ```
+
+### Fixed
+- Corrected webmanifest paths from `/assets/` to `/favicon/`
+- **Field aggregator plugin**: Fixed extraction of JSON fields (e.g., `extra_data.field_name`) when data is passed as DataFrame
+  - Plugin can now properly parse JSON columns and extract nested values
+  - Resolves issue where `extra_data` fields returned null values
+- **Geospatial extractor**: Added support for MultiPoint geometries
+  - Plugin now correctly handles MultiPoint geometries for hierarchical plot levels
+  - Returns proper GeoJSON with MultiPoint features instead of empty results
+- **Interactive map widget**: Enhanced to support MultiPoint geometries
+  - Widget now handles MultiPoint features by calculating centroids for display
+  - Fixed issue where hierarchical plot levels with MultiPoint geometries were not displayed on maps
+  - Automatically adapts when configuration expects polygons but data contains Point/MultiPoint geometries
+
+## [v0.6.2] - 2025-07-15
+
+### Features
+
+- Enhance ShapeProcessor to support group_id configuration
+- Update documentation and configuration for multiple data sources
+- Enhance StatsLoader to support dynamic key field lookup
+
+### Updates
+
+- Update uv.lock to include upload times for package distributions and bump revision to 2
+
+## [v0.6.1] - 2025-07-09
+
+### Features
+
+- Add support for multiple data sources in transformations
+- Enhance export command output and improve plot importer functionality
+- Enhance console output utilities
+
+### Refactoring
+
+- Standardize success and error indicators in console output
+- Clean up imports and enhance progress tracking
+
+### Chores
+
+- Update shape import configuration and enhance testing
+
+## [v0.6.0] - 2025-06-13
+
+### Features
+
+- Implement JSON API exporter and enhance data access utilities
+
+## [v0.5.7] - 2025-06-12
+
+### Features
+
+- Update version to 0.5.6, enhance installation and quickstart documentation, and refine configuration handling in tests. Added templates directory to documentation and improved export configuration assertions in tests.
+
+### Refactoring
+
+- Simplify value formatting logic in RadialGaugeWidget
+
+## [v0.5.6] - 2025-06-10
+
+### Features
+
+- Enhance configuration file handling and directory setup
+
+## [v0.5.5] - 2025-06-10
+
+### Features
+
+- Add screenshots to README and enhance data availability checks in widgets
+
+### Bug Fixes
+
+- Update bar plot widget to handle cases with no meaningful y-axis data
+
+### Updates
+
+- Update CHANGELOG.md
+
+### Chores
+
+- Update pyproject.toml for wheel packaging and modify README for asset links
+
 ## [v0.5.4] - 2025-06-10
 
 ### Features

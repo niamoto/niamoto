@@ -134,7 +134,7 @@ class RichCLI(click.Group):
         )
 
         # Afficher les commandes principales
-        self._format_command_group(ctx, "Main Commands", self.list_commands(ctx))
+        self._format_command_group(ctx, "Commands", self.list_commands(ctx))
 
         # Afficher les Next Steps
         display_next_steps()
@@ -183,91 +183,96 @@ def display_next_steps() -> None:
     Display the "Next Steps" section at the end of the help message.
     """
     console = Console()
-    console.print("\n[bold yellow]Get Started:[/bold yellow]\n")
 
-    steps = [
+    # Quick Start section
+    console.print("\n[bold yellow]🚀 Quick Start:[/bold yellow]\n")
+
+    quick_start_steps = [
         {
-            "title": "Initialize or check your environment",
+            "title": "Initialize a new project",
             "commands": [
-                "niamoto init # Initialize the environment (or check the current status)",
-                "niamoto init --reset # Reinitialize the database and remove generated files in outputs directory",
+                "niamoto init my-project    # Create new project with GUI",
+                "niamoto init              # Initialize in current directory",
+                "niamoto init --gui        # Initialize with GUI configuration",
             ],
         },
         {
-            "title": "Explore available plugins",
+            "title": "Configure and import your data",
             "commands": [
-                "niamoto plugins # List all available Niamoto plugins",
-                "niamoto plugins --type transformer # List transformer plugins only",
-                "niamoto plugins --type loader     # List loader plugins only",
-                "niamoto plugins --type exporter   # List exporter plugins only",
-                "niamoto plugins --type widget     # List widget plugins only",
+                "niamoto gui               # Visual configuration interface",
+                "niamoto import            # Import all configured sources",
             ],
         },
         {
-            "title": "Import data",
+            "title": "Run the pipeline",
             "commands": [
-                "niamoto import taxonomy <file>     # Import taxonomy data",
-                "niamoto import plots <file>        # Import plot data",
-                "niamoto import occurrences <file>  # Import occurrence data",
-                "niamoto import # Import all sources",
-            ],
-        },
-        {
-            "title": "Transform data",
-            "commands": [
-                "niamoto transform --group <name> # Transform data by configured group",
-                "niamoto transform # Transform for all configured groups",
-                "# Groups are defined in your transform.yml configuration file",
-            ],
-        },
-        {
-            "title": "Export content",
-            "commands": [
-                "niamoto export web_pages --group <name> # Export static pages by configured group",
-                "niamoto export # Export for all configured groups",
-                "# Groups are defined in your export.yml configuration file",
-            ],
-        },
-        {
-            "title": "Run the complete pipeline",
-            "commands": [
-                "niamoto run # Run the complete Niamoto data pipeline: import, transform, and export",
-                "niamoto run --skip-import     # Run transform and export only",
-                "niamoto run --skip-transform  # Run import and export only",
-                "niamoto run --skip-export     # Run import and transform only",
-            ],
-        },
-        {
-            "title": "Deploy content",
-            "commands": [
-                "niamoto deploy github --repo <url>     # Deploy to GitHub Pages",
-                "niamoto deploy netlify --site-id <id>  # Deploy to Netlify",
-            ],
-        },
-        {
-            "title": "Have fun exploring your data and generating insights!",
-            "commands": [
-                "niamoto stats # Display general statistics about your data",
-                "niamoto stats --detailed # Show detailed statistics with top items",
-                "niamoto stats --group taxon # Show statistics for a specific group",
-                "niamoto stats --suggestions # Get exploration suggestions based on your data",
-                "niamoto stats --export stats.json # Export statistics to JSON or CSV",
-                "# Explore the generated website in outputs/website/",
+                "niamoto run               # Import → Transform → Export",
             ],
         },
     ]
 
-    for i, step in enumerate(steps, 1):
+    for i, step in enumerate(quick_start_steps, 1):
         console.print(f"[bold cyan]{i}. {step['title']}[/bold cyan]")
         for cmd in step["commands"]:
-            if cmd.startswith("#"):
-                console.print(f"[dim]{cmd}[/dim]")
-            else:
-                console.print(f"[green]   $ {cmd}[/green]")
+            console.print(f"[green]   $ {cmd}[/green]")
 
-    console.print("\n[bold yellow]Need help?[/bold yellow]")
-    console.print("  * Run 'niamoto --help' for available commands")
-    console.print("  * Visit https://niamoto.readthedocs.io/ for documentation")
+    # Common Workflows section
+    console.print("\n[bold yellow]📋 Common Workflows:[/bold yellow]\n")
+
+    workflows = [
+        {
+            "icon": "📊",
+            "title": "Check your data",
+            "command": "niamoto stats             # Overview of your database",
+        },
+        {
+            "icon": "🔄",
+            "title": "Update your site",
+            "command": "niamoto transform && niamoto export  # Recalculate and regenerate",
+        },
+        {
+            "icon": "🚀",
+            "title": "Deploy your site",
+            "command": "niamoto deploy github --repo <url>   # Deploy to GitHub Pages",
+        },
+    ]
+
+    for workflow in workflows:
+        console.print(f"[cyan]{workflow['icon']} {workflow['title']}[/cyan]")
+        console.print(f"[green]   $ {workflow['command']}[/green]")
+
+    # All Commands reference
+    console.print("\n[bold yellow]📖 All Commands:[/bold yellow]\n")
+
+    command_groups = [
+        {
+            "name": "Setup",
+            "commands": "init, gui",
+        },
+        {
+            "name": "Pipeline",
+            "commands": "import, transform, export, run",
+        },
+        {
+            "name": "Analysis",
+            "commands": "stats, plugins",
+        },
+        {
+            "name": "Deployment",
+            "commands": "deploy",
+        },
+    ]
+
+    for group in command_groups:
+        console.print(f"  [cyan]• {group['name']}:[/cyan] {group['commands']}")
+
+    console.print("\n[dim]Run 'niamoto <command> --help' for detailed usage[/dim]")
+
+    # Learn More section
+    console.print("\n[bold yellow]💡 Learn More:[/bold yellow]")
+    console.print("  📖 Documentation: [link]https://niamoto.readthedocs.io/[/link]")
+    console.print("  ❓ Help: niamoto <command> --help")
+    console.print("  🐛 Issues: [link]https://github.com/niamoto/niamoto/issues[/link]")
 
 
 @error_handler(log=True, raise_error=True)

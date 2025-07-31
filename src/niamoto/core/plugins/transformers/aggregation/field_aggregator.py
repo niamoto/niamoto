@@ -212,7 +212,37 @@ class FieldAggregator(TransformerPlugin):
                     if source_data is not None:
                         # We have DataFrame source data
                         if not source_data.empty:
-                            value = source_data[field.field].iloc[0]
+                            # Check if it's a JSON field access (contains dot notation)
+                            if "." in field.field:
+                                # Extract JSON field from DataFrame
+                                json_field, json_key = field.field.split(".", 1)
+                                if json_field in source_data.columns:
+                                    json_data = source_data[json_field].iloc[0]
+                                    if json_data:
+                                        import json as json_module
+
+                                        try:
+                                            parsed = (
+                                                json_module.loads(json_data)
+                                                if isinstance(json_data, str)
+                                                else json_data
+                                            )
+                                            if isinstance(parsed, dict):
+                                                value = parsed.get(json_key)
+                                            else:
+                                                value = None
+                                        except (
+                                            json_module.JSONDecodeError,
+                                            AttributeError,
+                                        ):
+                                            value = None
+                                    else:
+                                        value = None
+                                else:
+                                    value = None
+                            else:
+                                # Regular field access
+                                value = source_data[field.field].iloc[0]
                         else:
                             # Empty DataFrame - return None
                             value = None
@@ -235,6 +265,13 @@ class FieldAggregator(TransformerPlugin):
             # Apply labels if any
             if field.labels and str(value) in field.labels:
                 value = field.labels[str(value)]
+
+            # Convert boolean to JSON-serializable format
+            if isinstance(value, bool):
+                value = value  # Keep as boolean, but ensure it's properly handled by JSON encoder
+            elif value is not None and str(value).lower() in ["true", "false"]:
+                # Convert string representations of booleans
+                value = str(value).lower() == "true"
 
             # Add units if any
             if field.units:

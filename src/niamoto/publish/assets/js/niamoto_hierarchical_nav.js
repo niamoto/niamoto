@@ -132,22 +132,45 @@ class NiamotoHierarchicalNav {
 
     buildGroupedTree() {
         const groups = new Map();
+        const typeParents = new Map();
+
+        // First, identify type parent entries (shape_type === 'type')
+        for (const item of this.items) {
+            if (item.shape_type === 'type') {
+                typeParents.set(item.type, item);
+            }
+        }
 
         for (const item of this.items) {
+            // Skip type parent entries in the main iteration
+            if (item.shape_type === 'type') continue;
+
             const groupKey = item[this.params.groupByField];
             if (!groupKey) continue;
 
             if (!groups.has(groupKey)) {
-                const groupLabel = this.params.groupByLabelField
-                    ? item[this.params.groupByLabelField]
-                    : groupKey;
+                const typeParent = typeParents.get(groupKey);
 
-                groups.set(groupKey, {
-                    [this.params.idField]: `group_${groupKey}`,
-                    [this.params.nameField]: groupLabel,
-                    isGroup: true,
-                    children: []
-                });
+                if (typeParent) {
+                    // Use the actual type parent from the database
+                    groups.set(groupKey, {
+                        ...typeParent,
+                        isGroup: true,
+                        children: []
+                    });
+                } else {
+                    // Fallback to the original behavior
+                    const groupLabel = this.params.groupByLabelField
+                        ? item[this.params.groupByLabelField]
+                        : groupKey;
+
+                    groups.set(groupKey, {
+                        [this.params.idField]: `group_${groupKey}`,
+                        [this.params.nameField]: groupLabel,
+                        isGroup: true,
+                        children: []
+                    });
+                }
             }
 
             groups.get(groupKey).children.push({
@@ -224,18 +247,40 @@ class NiamotoHierarchicalNav {
             `;
 
             if (isGroup) {
-                nodeHtml += `<span class="${linkClasses} ml-2">${this.escapeHtml(name)}</span>`;
+                // For groups, check if we have a valid URL (for shape types with aggregated geometries)
+                if (url !== '#') {
+                    nodeHtml += `<a href="${url}" class="${linkClasses} ml-2 no-underline">${this.escapeHtml(name)}</a>`;
+                } else {
+                    nodeHtml += `<span class="${linkClasses} ml-2">${this.escapeHtml(name)}</span>`;
+                }
             } else {
                 nodeHtml += `<a href="${url}" class="${linkClasses} ml-2 no-underline">${this.escapeHtml(name)}</a>`;
             }
 
             nodeHtml += `
                     </div>
-                    ${hasChildren ? `
-                        <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
-                            ${this.renderNodes(node.children, level + 1)}
-                        </div>
-                    ` : ''}
+            `;
+
+            // Add children count for groups
+            if (isGroup && hasChildren) {
+                const childCount = node.children.length;
+                nodeHtml += `
+                    <div class="text-xs text-gray-500 ml-10 mb-1" style="padding-left: ${indent}">
+                        ${childCount} élément${childCount > 1 ? 's' : ''}
+                    </div>
+                `;
+            }
+
+            // Add children container
+            if (hasChildren) {
+                nodeHtml += `
+                    <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
+                        ${this.renderNodes(node.children, level + 1)}
+                    </div>
+                `;
+            }
+
+            nodeHtml += `
                 </div>
             `;
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niamoto"
-version = "0.6.2"
+version = "0.7.0"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -121,6 +121,21 @@ dependencies = [
     # Note: Scattermap was introduced in 5.24.0
     "plotly>=5.24.0", # Minimum version for Scattermap support
     "psutil>=7.0.0",
+    # ---------------------
+    # GUI libraries
+    # ---------------------
+    # FastAPI - Modern, fast web framework for building APIs
+    # Documentation: https://fastapi.tiangolo.com/
+    "fastapi>=0.115.0",
+    # Uvicorn - Lightning-fast ASGI server
+    # Documentation: https://www.uvicorn.org/
+    "uvicorn[standard]>=0.34.0",
+    # python-multipart - Required for file uploads in FastAPI
+    # Documentation: https://github.com/andrew-d/python-multipart
+    "python-multipart>=0.0.6",
+    # httpx - HTTP client library for making API requests
+    # Documentation: https://www.python-httpx.org/
+    "httpx>=0.25.0",
 ]
 
 [project.urls]
@@ -250,4 +265,6 @@ filterwarnings = [
     "ignore::pandas.errors.SettingWithCopyWarning",
     # Expected warning when we try to auto-detect datetime formats
     "ignore:Could not infer format:UserWarning",
+    # Pyogrio still imports the deprecated shapely.geos module
+    "ignore:The 'shapely.geos' module is deprecated:DeprecationWarning:pyogrio",
 ]

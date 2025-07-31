@@ -493,8 +493,11 @@ class TestPlotImporter(NiamotoTestCase):
         self.assertIn("Invalid plot identifier value", str(context.exception))
 
     def test_import_plot_invalid_locality(self):
-        """Test import plot with invalid locality."""
+        """Test import plot with empty locality - should use fallback."""
         mock_session = MagicMock()
+        mock_session.query.return_value.filter_by.return_value.first.return_value = None
+        mock_session.add = MagicMock()
+        mock_session.flush = MagicMock()
 
         geometry = Point(165.5, -21.5)
         row = pd.Series(
@@ -505,10 +508,14 @@ class TestPlotImporter(NiamotoTestCase):
             }
         )
 
-        with self.assertRaises(DataValidationError) as context:
-            self.importer._import_plot(mock_session, row, "id", "locality")
+        # Should not raise an error, but use fallback value "Plot_1"
+        result = self.importer._import_plot(mock_session, row, "id", "locality")
+        self.assertTrue(result)
 
-        self.assertIn("Invalid locality", str(context.exception))
+        # Check that a plot was added with the fallback locality
+        mock_session.add.assert_called_once()
+        added_plot = mock_session.add.call_args[0][0]
+        self.assertEqual(added_plot.locality, "Plot_1")
 
     def test_import_plot_none_locality(self):
         """Test import plot with 'None' string locality."""

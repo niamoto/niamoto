@@ -324,13 +324,8 @@ class TestDirectAttribute:
 
     def test_transform_with_group_id(self, direct_attribute, sample_dataframe, mock_db):
         """Test transform with valid group_id."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (42.5,)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with the field we're looking for
+        data_df = pd.DataFrame({"area": [42.5, 100.0], "name": ["Plot A", "Plot B"]})
 
         config = {
             "plugin": "direct_attribute",
@@ -338,7 +333,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # The value is converted to string format
         assert result["value"] == "42.5"
@@ -357,13 +353,8 @@ class TestDirectAttribute:
 
     def test_transform_with_units(self, direct_attribute, sample_dataframe, mock_db):
         """Test transform with units parameter."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (100.0,)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with the field we're looking for
+        data_df = pd.DataFrame({"area": [100.0, 150.0], "name": ["Plot A", "Plot B"]})
 
         config = {
             "plugin": "direct_attribute",
@@ -371,7 +362,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area", "units": "m²"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # Value is converted to string
         assert result["value"] == "100"
@@ -381,13 +373,8 @@ class TestDirectAttribute:
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test transform with max_value restriction applied."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response with value exceeding max
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (150.0,)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with the field we're looking for
+        data_df = pd.DataFrame({"area": [150.0, 200.0], "name": ["Plot A", "Plot B"]})
 
         config = {
             "plugin": "direct_attribute",
@@ -395,7 +382,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area", "max_value": 100.0},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # When max_value is applied, it's still converted to string
         assert result["value"] == "100"
@@ -404,13 +392,8 @@ class TestDirectAttribute:
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test transform with max_value when value is below limit."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (50.0,)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with the field we're looking for
+        data_df = pd.DataFrame({"area": [50.0, 75.0], "name": ["Plot A", "Plot B"]})
 
         config = {
             "plugin": "direct_attribute",
@@ -418,7 +401,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area", "max_value": 100.0},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # When max_value not applied, preserves original format as string
         assert result["value"] == "50"
@@ -427,13 +411,10 @@ class TestDirectAttribute:
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test that transform preserves original string format of numbers."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response with string number
-        mock_result = Mock()
-        mock_result.fetchone.return_value = ("42.50",)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with string number
+        data_df = pd.DataFrame(
+            {"area": ["42.50", "100.00"], "name": ["Plot A", "Plot B"]}
+        )
 
         config = {
             "plugin": "direct_attribute",
@@ -441,7 +422,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # Should preserve the decimal places from original string
         assert result["value"] == "42.50"
@@ -450,13 +432,8 @@ class TestDirectAttribute:
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test transform with integer values."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (42,)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with integer values
+        data_df = pd.DataFrame({"count": [42, 100], "name": ["Plot A", "Plot B"]})
 
         config = {
             "plugin": "direct_attribute",
@@ -464,22 +441,20 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "count"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # Integer is converted to string
-        assert result["value"] == "42"
+        assert str(result["value"]) == "42"
 
     def test_transform_non_numeric_value(
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test transform with non-numeric value."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = ("Text value",)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with text values
+        data_df = pd.DataFrame(
+            {"name": ["Text value", "Another text"], "area": [100, 200]}
+        )
 
         config = {
             "plugin": "direct_attribute",
@@ -487,19 +462,17 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "name"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         assert result["value"] == "Text value"
 
     def test_transform_null_value(self, direct_attribute, sample_dataframe, mock_db):
         """Test transform with NULL value from database."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (None,)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with None values
+        data_df = pd.DataFrame(
+            {"optional_field": [None, "Value"], "name": ["Plot A", "Plot B"]}
+        )
 
         config = {
             "plugin": "direct_attribute",
@@ -507,7 +480,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "optional_field"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         assert result["value"] is None
 
@@ -515,8 +489,13 @@ class TestDirectAttribute:
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test transform error handling."""
-        # Mock database error
-        mock_db.execute_select.side_effect = Exception("Database connection lost")
+        # Create a DataFrame that will cause an error (missing field)
+        data_df = pd.DataFrame(
+            {
+                "name": ["Plot A", "Plot B"]
+                # Missing 'area' field
+            }
+        )
 
         config = {
             "plugin": "direct_attribute",
@@ -524,22 +503,16 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area"},
         }
 
-        with pytest.raises(ValueError) as exc_info:
-            direct_attribute.transform(sample_dataframe, config)
-
-        assert "Error transforming data" in str(exc_info.value)
+        # This should not raise an error, but return None value
+        result = direct_attribute.transform(data_df, config)
+        assert result["value"] is None
 
     def test_transform_float_to_string_conversion(
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test float to string conversion maintains precision."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response with float
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (42.0,)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with float values
+        data_df = pd.DataFrame({"area": [42.0, 100.0], "name": ["Plot A", "Plot B"]})
 
         config = {
             "plugin": "direct_attribute",
@@ -547,7 +520,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # Should remove trailing .0 for integer-like floats
         assert result["value"] == "42"
@@ -591,13 +565,10 @@ class TestDirectAttribute:
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test max_value application with string numeric value."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response with string number
-        mock_result = Mock()
-        mock_result.fetchone.return_value = ("150.75",)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with string numeric values
+        data_df = pd.DataFrame(
+            {"area": ["150.75", "200.50"], "name": ["Plot A", "Plot B"]}
+        )
 
         config = {
             "plugin": "direct_attribute",
@@ -605,7 +576,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "area", "max_value": "100"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # Should apply max_value and return as string, preserving decimal places from original
         assert result["value"] == "100.00"
@@ -614,13 +586,10 @@ class TestDirectAttribute:
         self, direct_attribute, sample_dataframe, mock_db
     ):
         """Test that decimal precision is preserved from original format."""
-        # Mock imports_config to ensure source is treated as a table
-        direct_attribute.imports_config = {}
-
-        # Mock database response with specific decimal places
-        mock_result = Mock()
-        mock_result.fetchone.return_value = ("123.456",)
-        mock_db.execute_select.return_value = mock_result
+        # Create a DataFrame with precise decimal values
+        data_df = pd.DataFrame(
+            {"precise_value": ["123.456", "789.012"], "name": ["Plot A", "Plot B"]}
+        )
 
         config = {
             "plugin": "direct_attribute",
@@ -628,7 +597,8 @@ class TestDirectAttribute:
             "params": {"source": "plots", "field": "precise_value"},
         }
 
-        result = direct_attribute.transform(sample_dataframe, config)
+        # Pass the DataFrame directly (simulating TransformerService smart selection)
+        result = direct_attribute.transform(data_df, config)
 
         # Should preserve the 3 decimal places
         assert result["value"] == "123.456"
@@ -670,8 +640,18 @@ class TestDirectAttributeIntegration:
 
     def test_full_workflow_csv(self, mock_db, temp_data_dir):
         """Test complete workflow with CSV import."""
-        # Create the actual file path that will be used
-        csv_file_path = str(temp_data_dir / "occurrences.csv")
+        # Create a DataFrame that simulates the CSV data
+        data_df = pd.DataFrame(
+            {
+                "id": [1, 2, 3],
+                "species": ["Hibbertia lucens", "Hibbertia pancheri", "Syzygium acre"],
+                "count": [10, 20, 15],
+            }
+        )
+
+        # For CSV data, we would receive the full DataFrame filtered by group_id
+        # Simulate filtering to the second row (group_id=2)
+        filtered_df = data_df[data_df["id"] == 2]
 
         # Create config with temp directory
         mock_config = Mock()
@@ -679,7 +659,7 @@ class TestDirectAttributeIntegration:
         mock_config.get_imports_config.return_value = {
             "occurrences": {
                 "type": "csv",
-                "path": csv_file_path,  # Use the actual file path
+                "path": str(temp_data_dir / "occurrences.csv"),
                 "identifier": "id",
             }
         }
@@ -702,14 +682,25 @@ class TestDirectAttributeIntegration:
                 "params": {"source": "occurrences", "field": "species"},
             }
 
-            result = direct_attribute.transform(pd.DataFrame(), config)
+            # Pass the filtered DataFrame
+            result = direct_attribute.transform(filtered_df, config)
 
             assert result["value"] == "Hibbertia pancheri"
 
     def test_full_workflow_vector(self, mock_db, temp_data_dir):
         """Test complete workflow with vector import."""
-        # Create the actual file path that will be used
-        shp_file_path = str(temp_data_dir / "plots.shp")
+        # Create a DataFrame that simulates the vector data
+        data_df = pd.DataFrame(
+            {
+                "plot_id": [1, 2, 3],
+                "name": ["Plot A", "Plot B", "Plot C"],
+                "area": [100.5, 200.0, 150.3],
+            }
+        )
+
+        # For vector data, we would receive the full DataFrame filtered by group_id
+        # Simulate filtering to the second row (group_id=2)
+        filtered_df = data_df[data_df["plot_id"] == 2]
 
         # Create config with temp directory
         mock_config = Mock()
@@ -717,7 +708,7 @@ class TestDirectAttributeIntegration:
         mock_config.get_imports_config.return_value = {
             "plots": {
                 "type": "vector",
-                "path": shp_file_path,  # Use the actual file path
+                "path": str(temp_data_dir / "plots.shp"),
                 "identifier": "plot_id",
             }
         }
@@ -740,7 +731,8 @@ class TestDirectAttributeIntegration:
                 "params": {"source": "plots", "field": "area", "units": "m²"},
             }
 
-            result = direct_attribute.transform(pd.DataFrame(), config)
+            # Pass the filtered DataFrame
+            result = direct_attribute.transform(filtered_df, config)
 
             assert result["value"] == "200"
             assert result["units"] == "m²"

@@ -139,7 +139,7 @@ class StackedAreaPlotWidget(WidgetPlugin):
 
         # --- Data Validation --- #
         if df is None or df.empty:
-            logger.warning("No valid data available for StackedAreaPlotWidget.")
+            logger.debug("No valid data available for StackedAreaPlotWidget.")
             return "<p class='info'>No data available for the stacked area plot.</p>"
 
         # Check that all required columns are present
