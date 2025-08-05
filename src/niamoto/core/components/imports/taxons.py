@@ -632,14 +632,36 @@ class TaxonomyImporter:
         if lowest_rank is None:
             return "Unknown taxon"
 
-        # For the lowest two ranks, build binomial/trinomial name
-        if lowest_rank_idx >= 1:
-            # Get the second to last rank (genus equivalent)
+        # Get the lowest rank value
+        current_value = str(rank_values[lowest_rank]).strip()
+
+        # Only build binomial/trinomial names for species-level ranks and below
+        # Common species-level ranks: species, subspecies, variety, form, infra
+        species_level_ranks = [
+            "species",
+            "subspecies",
+            "variety",
+            "form",
+            "infra",
+            "subsp",
+            "var",
+            "f",
+        ]
+
+        # Check if this is a species-level rank (or a custom rank that comes after genus)
+        is_species_level = False
+        if lowest_rank.lower() in species_level_ranks:
+            is_species_level = True
+        elif (
+            lowest_rank_idx >= 2
+        ):  # If it's at least the third rank (after family, genus)
+            # For custom hierarchies, assume ranks after the second are species-level
+            is_species_level = True
+
+        if is_species_level and lowest_rank_idx >= 1:
+            # Get the genus (parent rank)
             parent_rank = rank_names[lowest_rank_idx - 1]
             parent_value = rank_values.get(parent_rank, "")
-
-            # Get the lowest rank value
-            current_value = str(rank_values[lowest_rank]).strip()
 
             if parent_value:
                 parent_value = str(parent_value).split(",", maxsplit=1)[0].strip()
@@ -652,8 +674,8 @@ class TaxonomyImporter:
             else:
                 return current_value
         else:
-            # For top-level ranks, just return the name
-            return str(rank_values[lowest_rank]).strip()
+            # For family, genus, and other high-level ranks, just return the name
+            return current_value
 
     def _build_full_name(self, row: pd.Series, column_mapping: Dict[str, str]) -> str:
         """
