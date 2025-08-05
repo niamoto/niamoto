@@ -1294,10 +1294,10 @@ class PlotImporter:
 
         name = str(name).strip()
 
-        # Check if entity already exists
+        # Check if entity already exists with the same parent
         existing = (
             session.query(PlotRef)
-            .filter_by(locality=name, plot_type=level_type)
+            .filter_by(locality=name, plot_type=level_type, parent_id=parent_id)
             .first()
         )
         if existing:

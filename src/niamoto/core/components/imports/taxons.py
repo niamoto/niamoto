@@ -96,6 +96,7 @@ class TaxonomyImporter:
             # Extract ranks and column mapping from hierarchy config
             rank_list = []
             new_column_mapping = {}
+            binomial_ranks = set()  # Track which ranks should use binomial naming
 
             for level in hierarchy_config["levels"]:
                 if "name" not in level or "column" not in level:
@@ -105,6 +106,10 @@ class TaxonomyImporter:
                     )
                 rank_list.append(level["name"])
                 new_column_mapping[level["name"]] = level["column"]
+
+                # Check if this rank should use binomial naming
+                if level.get("binomial", False):
+                    binomial_ranks.add(level["name"])
 
             # Add taxon_id and authors if specified
             if "taxon_id_column" in hierarchy_config:
@@ -136,7 +141,7 @@ class TaxonomyImporter:
 
             # Extract taxonomy data
             taxonomy_df = self._extract_taxonomy_from_occurrences(
-                df, column_mapping, ranks
+                df, column_mapping, ranks, binomial_ranks
             )
 
             # Process the taxonomy data and build the hierarchy
@@ -373,7 +378,11 @@ class TaxonomyImporter:
         return imported_count
 
     def _extract_taxonomy_from_occurrences(
-        self, df: pd.DataFrame, column_mapping: Dict[str, str], ranks: Tuple[str, ...]
+        self,
+        df: pd.DataFrame,
+        column_mapping: Dict[str, str],
+        ranks: Tuple[str, ...],
+        binomial_ranks: set = None,
     ) -> pd.DataFrame:
         """
         Extract unique taxonomy entries from occurrences and build complete taxonomy hierarchy,
@@ -383,6 +392,7 @@ class TaxonomyImporter:
             df (pd.DataFrame): DataFrame containing occurrences.
             column_mapping (Dict[str, str]): Mapping between taxonomy fields and occurrence columns.
             ranks (Tuple[str, ...]): Taxonomy ranks to extract.
+            binomial_ranks (set): Set of rank names that should use binomial naming.
 
         Returns:
             pd.DataFrame: DataFrame containing extracted taxonomy data with complete hierarchy.
@@ -485,7 +495,7 @@ class TaxonomyImporter:
             # Store the complete data for this taxon at its lowest rank
             if lowest_rank is not None:
                 full_name = self._build_full_name_generic(
-                    row, column_mapping, rank_values, rank_names
+                    row, column_mapping, rank_values, rank_names, binomial_ranks
                 )
 
                 taxa_data.append(
@@ -608,6 +618,7 @@ class TaxonomyImporter:
         column_mapping: Dict[str, str],
         rank_values: Dict[str, Any],
         rank_names: List[str],
+        binomial_ranks: set = None,
     ) -> str:
         """
         Build a complete taxonomy name from the data of an occurrence row for any hierarchy.
@@ -617,6 +628,7 @@ class TaxonomyImporter:
             column_mapping (Dict[str, str]): Mapping between taxonomy fields and occurrence columns.
             rank_values (Dict[str, Any]): Values for each rank.
             rank_names (List[str]): List of rank names in hierarchical order.
+            binomial_ranks (set): Set of rank names that should use binomial naming.
 
         Returns:
             str: Complete taxonomy name.
@@ -632,14 +644,23 @@ class TaxonomyImporter:
         if lowest_rank is None:
             return "Unknown taxon"
 
-        # For the lowest two ranks, build binomial/trinomial name
-        if lowest_rank_idx >= 1:
-            # Get the second to last rank (genus equivalent)
+        # Get the lowest rank value
+        current_value = str(rank_values[lowest_rank]).strip()
+
+        # Determine if binomial naming should be used
+        # First check explicit configuration, then use auto-detection
+        if binomial_ranks and lowest_rank in binomial_ranks:
+            is_species_level = True
+        else:
+            # Fall back to auto-detection if not explicitly configured
+            is_species_level = self._is_species_level_rank(
+                lowest_rank, lowest_rank_idx, rank_names
+            )
+
+        if is_species_level and lowest_rank_idx >= 1:
+            # Get the genus (parent rank)
             parent_rank = rank_names[lowest_rank_idx - 1]
             parent_value = rank_values.get(parent_rank, "")
-
-            # Get the lowest rank value
-            current_value = str(rank_values[lowest_rank]).strip()
 
             if parent_value:
                 parent_value = str(parent_value).split(",", maxsplit=1)[0].strip()
@@ -652,8 +673,61 @@ class TaxonomyImporter:
             else:
                 return current_value
         else:
-            # For top-level ranks, just return the name
-            return str(rank_values[lowest_rank]).strip()
+            # For family, genus, and other high-level ranks, just return the name
+            return current_value
+
+    def _is_species_level_rank(
+        self, rank_name: str, rank_idx: int, rank_names: List[str]
+    ) -> bool:
+        """
+        Determine if a rank should use binomial naming based on its name and position.
+
+        Args:
+            rank_name: The name of the rank
+            rank_idx: The index of the rank in the hierarchy
+            rank_names: The list of all rank names in hierarchical order
+
+        Returns:
+            bool: True if binomial naming should be used, False otherwise
+        """
+        # Common patterns for species-level ranks
+        species_keywords = [
+            "species",
+            "sp",
+            "subspecies",
+            "subsp",
+            "ssp",
+            "variety",
+            "var",
+            "form",
+            "forma",
+            "f",
+            "infra",
+            "infraspecific",
+        ]
+
+        # Check if the rank name contains species-level keywords
+        rank_lower = rank_name.lower()
+        for keyword in species_keywords:
+            if keyword in rank_lower or rank_lower == keyword:
+                return True
+
+        # For custom hierarchies, use positional logic:
+        # If we have at least 3 levels and this is the 3rd or later,
+        # AND the previous rank could be a genus (doesn't contain species keywords)
+        if rank_idx >= 2 and len(rank_names) >= 3:
+            # Check if the parent rank is likely a genus (not a species-level rank itself)
+            parent_rank = rank_names[rank_idx - 1]
+            parent_is_genus_like = not any(
+                keyword in parent_rank.lower() for keyword in species_keywords
+            )
+
+            # If parent looks like genus and current doesn't explicitly say otherwise,
+            # treat as species-level
+            if parent_is_genus_like:
+                return True
+
+        return False
 
     def _build_full_name(self, row: pd.Series, column_mapping: Dict[str, str]) -> str:
         """
