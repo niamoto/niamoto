@@ -6,6 +6,17 @@
 VERSION=$(grep -o 'version = "[^"]*"' pyproject.toml | cut -d'"' -f2)
 echo "Publishing Niamoto version $VERSION"
 
+# Build GUI if it doesn't exist or if --build-gui flag is passed
+GUI_DIST_DIR="src/niamoto/gui/ui/dist"
+if [ ! -d "$GUI_DIST_DIR" ] || [ "$1" == "--build-gui" ]; then
+    echo "Building GUI..."
+    if [ -f "scripts/build_gui.sh" ]; then
+        bash scripts/build_gui.sh
+    else
+        echo "Warning: GUI build script not found. GUI may not be included in package."
+    fi
+fi
+
 # Clean and build distribution files
 rm -rf dist/
 uv build
