@@ -18,6 +18,11 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+# But keep the GUI dist directory structure for CI/CD
+!src/niamoto/gui/ui/dist/
+# And only keep the .gitkeep file in it
+src/niamoto/gui/ui/dist/*
+!src/niamoto/gui/ui/dist/.gitkeep
 downloads/
 eggs/
 .eggs/

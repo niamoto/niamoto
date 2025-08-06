@@ -6,7 +6,7 @@ import os
 import requests
 import time
 import logging
-from typing import Dict, Any, Literal
+from typing import Dict, Any, Literal, List
 from pydantic import Field, model_validator
 
 from niamoto.core.plugins.models import PluginConfig
@@ -26,6 +26,9 @@ class ApiTaxonomyEnricherConfig(PluginConfig):
     query_field: str = Field(
         "full_name", description="Field in taxon data to use for query"
     )
+    query_param_name: str = Field(
+        "q", description="Name of the query parameter to use in the API request"
+    )
     response_mapping: Dict[str, str] = Field(
         ..., description="Mapping between API response fields and extra_data fields"
     )
@@ -38,6 +41,12 @@ class ApiTaxonomyEnricherConfig(PluginConfig):
     )
     auth_params: Dict[str, str] = Field(
         default_factory=dict, description="Parameters for authentication"
+    )
+
+    # Chained requests configuration
+    chained_endpoints: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Additional API endpoints to query using data from initial response",
     )
 
     @model_validator(mode="after")
@@ -98,6 +107,16 @@ class ApiTaxonomyEnricherConfig(PluginConfig):
 
         return self
 
+    @model_validator(mode="after")
+    def check_chained_endpoints(self):
+        """Validate chained endpoints configuration"""
+        for idx, endpoint in enumerate(self.chained_endpoints):
+            if "url_template" not in endpoint:
+                raise ValueError(f"chained_endpoints[{idx}] must have 'url_template'")
+            if "mapping" not in endpoint:
+                raise ValueError(f"chained_endpoints[{idx}] must have 'mapping'")
+        return self
+
 
 @register("api_taxonomy_enricher", PluginType.LOADER)
 class ApiTaxonomyEnricher(LoaderPlugin):
@@ -135,12 +154,8 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         query_value = taxon_data.get(query_field)
 
         if not query_value:
-            logger.warning(
-                f"No query value found for field {query_field} in taxon data"
-            )
-            self.log_messages.append(
-                f"[yellow]No value found for field {query_field} in taxon data[/yellow]"
-            )
+            logger.debug(f"No query value found for field {query_field} in taxon data")
+            # Don't add visible log message - this is expected for some taxa
             return taxon_data
 
         # Check cache if enabled
@@ -150,15 +165,17 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             self.log_messages.append(
                 f"[blue]Using cached data for {query_value}[/blue]"
             )
-            api_data = self._cache[cache_key]
-            return self._enrich_taxon_data(
-                taxon_data, api_data, validated_config.response_mapping
-            )
+            # Cache now contains the enriched data directly
+            cached_enriched_data = self._cache[cache_key]
+            result = taxon_data.copy()
+            result["api_enrichment"] = cached_enriched_data
+            return result
 
         # Prepare API request
         url = validated_config.api_url
         params = validated_config.query_params.copy()
-        params["q"] = query_value
+        # Use configured query parameter name
+        params[validated_config.query_param_name] = query_value
 
         # Prepare headers
         headers = {}
@@ -209,20 +226,49 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
             # Process the response
             api_data = self._process_api_response(data)
+            logger.debug(f"Processed API data: {api_data}")
+
+            # Create enriched data dictionary to collect all mappings
+            enriched_data = {}
+
+            # First apply initial response mapping
+            if api_data and validated_config.response_mapping:
+                for (
+                    target_field,
+                    source_field,
+                ) in validated_config.response_mapping.items():
+                    value = self._extract_nested_value(api_data, source_field)
+                    if value is not None:
+                        enriched_data[target_field] = value
+
+                # Process chained endpoints if configured
+                if validated_config.chained_endpoints:
+                    # Use enriched_data for placeholders (it has the mapped fields like tropicos_id)
+                    enriched_data = self._process_chained_requests(
+                        enriched_data,  # Use mapped data for placeholders
+                        validated_config.chained_endpoints,
+                        validated_config,
+                        headers,
+                        cookies,
+                        auth,
+                    )
+                    logger.debug(
+                        f"Enriched data after chaining: {list(enriched_data.keys())}"
+                    )
 
             # Cache results if enabled
-            if validated_config.cache_results and api_data:
-                self._cache[cache_key] = api_data
+            if validated_config.cache_results and enriched_data:
+                self._cache[cache_key] = enriched_data
 
             # Log success message
             self.log_messages.append(
                 f"[green][✓] Data successfully retrieved for {query_value}[/green]"
             )
 
-            # Enrich taxon data
-            return self._enrich_taxon_data(
-                taxon_data, api_data, validated_config.response_mapping
-            )
+            # Return taxon data with enrichment
+            result = taxon_data.copy()
+            result["api_enrichment"] = enriched_data
+            return result
 
         except requests.RequestException as e:
             error_msg = f"API request failed for {query_value}: {str(e)}"
@@ -501,3 +547,246 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 return ""
 
         return value
+
+    def _process_chained_requests(
+        self,
+        initial_data: Dict[str, Any],
+        chain_config: List[Dict[str, Any]],
+        validated_config: ApiTaxonomyEnricherConfig,
+        headers: Dict[str, str],
+        cookies: Dict[str, str],
+        auth: Any,
+    ) -> Dict[str, Any]:
+        """
+        Process additional API endpoints using data from initial response.
+
+        Args:
+            initial_data: Data from the initial API response
+            chain_config: List of chained endpoint configurations
+            validated_config: Validated configuration object
+            headers: Headers to use for requests
+            cookies: Cookies to use for requests
+            auth: Authentication object
+
+        Returns:
+            Enriched data combining initial and chained responses
+        """
+        # Don't copy initial_data - we want to build on it
+        enriched_data = initial_data
+
+        for endpoint_config in chain_config:
+            try:
+                # Build URL from template
+                url_template = endpoint_config["url_template"]
+                url = self._build_url_from_template(
+                    url_template, enriched_data, validated_config
+                )
+
+                if not url:
+                    # Silently skip if URL cannot be built (e.g., missing tropicos_id)
+                    # This is expected when the initial API query returns no results
+                    logger.debug(f"Could not build URL from template: {url_template}")
+                    continue
+
+                # Get query parameters if specified
+                params = endpoint_config.get("params", {})
+
+                # Add authentication parameters if needed
+                if (
+                    validated_config.auth_method == "api_key"
+                    and validated_config.auth_params.get("location") == "query"
+                ):
+                    param_name = validated_config.auth_params.get("name", "api_key")
+                    params[param_name] = self._get_secure_value(
+                        validated_config.auth_params.get("key", "")
+                    )
+
+                # Make the request
+                logger.debug(f"Chained request to: {url}")
+
+                if cookies:
+                    session = requests.Session()
+                    session.cookies.update(cookies)
+                    response = session.get(
+                        url, params=params, headers=headers, auth=auth
+                    )
+                else:
+                    response = requests.get(
+                        url, params=params, headers=headers, auth=auth
+                    )
+
+                response.raise_for_status()
+                chain_data = response.json()
+
+                # Process the response according to mapping
+                mapping = endpoint_config.get("mapping", {})
+                logger.debug(
+                    f"Chain data type: {type(chain_data)}, has data: {bool(chain_data)}"
+                )
+                self._apply_chain_mapping(enriched_data, chain_data, mapping)
+                logger.debug(
+                    f"After mapping: {list(enriched_data.keys())[-5:] if len(enriched_data) > 5 else list(enriched_data.keys())}"
+                )
+
+                # Respect rate limit
+                if validated_config.rate_limit > 0:
+                    time.sleep(1.0 / validated_config.rate_limit)
+
+            except Exception as e:
+                # Log only at debug level - failures are expected for missing data
+                logger.debug(
+                    f"Failed to process chained endpoint {url_template}: {str(e)}"
+                )
+                import traceback
+
+                logger.debug(traceback.format_exc())
+                continue
+
+        return enriched_data
+
+    def _build_url_from_template(
+        self, template: str, data: Dict[str, Any], config: ApiTaxonomyEnricherConfig
+    ) -> str:
+        """
+        Build URL from template by replacing placeholders with actual values.
+
+        Args:
+            template: URL template with placeholders like {field_name}
+            data: Data dictionary to extract values from
+            config: Configuration object for auth params
+
+        Returns:
+            Built URL or empty string if failed
+        """
+        url = template
+
+        # Replace placeholders with values from data
+        import re
+
+        placeholders = re.findall(r"\{([^}]+)\}", template)
+
+        for placeholder in placeholders:
+            value = None
+
+            # Special handling for auth parameters
+            if placeholder == "apikey" and config.auth_method == "api_key":
+                value = self._get_secure_value(config.auth_params.get("key", ""))
+            else:
+                # Extract value from data using dot notation
+                value = self._extract_nested_value(data, placeholder)
+
+            if value is not None:
+                url = url.replace(f"{{{placeholder}}}", str(value))
+            else:
+                # Silently return empty string - this is expected when data is not found
+                logger.debug(f"Could not find value for placeholder: {placeholder}")
+                return ""
+
+        return url
+
+    def _extract_nested_value(self, data: Dict[str, Any], path: str) -> Any:
+        """
+        Extract value from nested dictionary using dot notation.
+
+        Args:
+            data: Dictionary to extract from
+            path: Dot-separated path like "0.NameId" or "results.0.id"
+
+        Returns:
+            Extracted value or None
+        """
+        parts = path.split(".")
+        value = data
+
+        for part in parts:
+            if value is None:
+                return None
+
+            if isinstance(value, dict):
+                value = value.get(part)
+            elif isinstance(value, list) and part.isdigit():
+                index = int(part)
+                if 0 <= index < len(value):
+                    value = value[index]
+                else:
+                    return None
+            else:
+                return None
+
+        return value
+
+    def _apply_chain_mapping(
+        self, target_data: Dict[str, Any], source_data: Any, mapping: Dict[str, str]
+    ) -> None:
+        """
+        Apply mapping rules to extract data from chained response.
+
+        Args:
+            target_data: Dictionary to add extracted data to
+            source_data: Source data from API response
+            mapping: Mapping configuration
+        """
+        for target_field, source_spec in mapping.items():
+            if not source_spec:
+                continue
+
+            value = None
+
+            # Special mapping operators
+            if source_spec == "$all" or source_spec == "$array":
+                # Store entire response
+                value = source_data
+
+            elif source_spec == "$count":
+                # Count items if list
+                if isinstance(source_data, list):
+                    value = len(source_data)
+                else:
+                    value = 0
+
+            elif source_spec.startswith("$first:"):
+                # Get field from first item in list
+                field = source_spec[7:]
+                if isinstance(source_data, list) and source_data:
+                    value = self._extract_nested_value(source_data[0], field)
+
+            elif source_spec.startswith("$unique:"):
+                # Get unique values of a field from list
+                field = source_spec[8:]
+                if isinstance(source_data, list):
+                    values = []
+                    for item in source_data:
+                        if isinstance(item, dict) and field in item:
+                            val = item[field]
+                            if val and val not in values:
+                                values.append(val)
+                    value = values
+
+            elif source_spec.startswith("$max:"):
+                # Limit array size
+                parts = source_spec[5:].split(":")
+                if len(parts) == 2 and parts[0].isdigit():
+                    max_items = int(parts[0])
+                    field = parts[1] if len(parts) > 1 else None
+
+                    if field:
+                        # Extract field from items and limit
+                        if isinstance(source_data, list):
+                            value = []
+                            for item in source_data[:max_items]:
+                                if isinstance(item, dict):
+                                    val = self._extract_nested_value(item, field)
+                                    if val:
+                                        value.append(val)
+                    else:
+                        # Just limit the array
+                        if isinstance(source_data, list):
+                            value = source_data[:max_items]
+
+            else:
+                # Normal field extraction
+                value = self._extract_nested_value(source_data, source_spec)
+
+            # Add to target data if value was found
+            if value is not None:
+                target_data[target_field] = value
