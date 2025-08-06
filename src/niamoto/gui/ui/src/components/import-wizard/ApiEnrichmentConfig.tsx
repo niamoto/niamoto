@@ -438,15 +438,15 @@ export function ApiEnrichmentConfig({ config, onChange }: ApiEnrichmentConfigPro
 
               {/* Query Parameter Name */}
               <div className="space-y-2">
-                <Label htmlFor="query-param-name">Query Parameter Name</Label>
+                <Label htmlFor="query-param-name">{t('apiEnrichment.connection.queryParamName')}</Label>
                 <Input
                   id="query-param-name"
                   value={config.query_param_name || 'q'}
                   onChange={(e) => onChange({ ...config, query_param_name: e.target.value })}
-                  placeholder="q"
+                  placeholder={t('apiEnrichment.connection.queryParamPlaceholder')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  The name of the URL parameter for the search query (e.g., 'q', 'name', 'search')
+                  {t('apiEnrichment.connection.queryParamDescription')}
                 </p>
               </div>
 
