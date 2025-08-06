@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niamoto"
-version = "0.7.1"
+version = "0.7.2"
 description = ""
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -251,6 +251,9 @@ packages = ["src/niamoto"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
+# GUI dist files are included if they exist (built separately)
+# The .gitkeep file ensures the directory exists for CI/CD
+"src/niamoto/gui/ui/dist" = "niamoto/gui/ui/dist"
 
 [tool.pytest.ini_options]
 markers = [

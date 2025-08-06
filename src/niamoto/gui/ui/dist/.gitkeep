@@ -1,0 +1,2 @@
+# This directory will contain the built GUI files
+# Run npm run build in the parent directory to generate the production files
