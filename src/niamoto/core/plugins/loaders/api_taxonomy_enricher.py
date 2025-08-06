@@ -165,10 +165,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             self.log_messages.append(
                 f"[blue]Using cached data for {query_value}[/blue]"
             )
-            api_data = self._cache[cache_key]
-            return self._enrich_taxon_data(
-                taxon_data, api_data, validated_config.response_mapping
-            )
+            # Cache now contains the enriched data directly
+            cached_enriched_data = self._cache[cache_key]
+            result = taxon_data.copy()
+            result["api_enrichment"] = cached_enriched_data
+            return result
 
         # Prepare API request
         url = validated_config.api_url
