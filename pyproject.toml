@@ -251,6 +251,8 @@ packages = ["src/niamoto"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "assets" = "assets"
+# Include the built GUI files
+"src/niamoto/gui/ui/dist" = "niamoto/gui/ui/dist"
 
 [tool.pytest.ini_options]
 markers = [
