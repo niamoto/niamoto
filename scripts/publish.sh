@@ -24,9 +24,16 @@ fi
 # Clean previous builds
 rm -rf dist/
 
+# Temporarily enable GUI inclusion in pyproject.toml for wheel build
+echo "Configuring build for GUI inclusion..."
+sed -i.bak 's/# "src\/niamoto\/gui\/ui\/dist"/"src\/niamoto\/gui\/ui\/dist"/' pyproject.toml
+
 # Build wheel directly (includes GUI files)
 echo "Building wheel with GUI..."
 uv build --wheel
+
+# Restore pyproject.toml
+mv pyproject.toml.bak pyproject.toml
 
 # Now temporarily remove GUI files for sdist
 echo "Building source distribution without GUI..."
