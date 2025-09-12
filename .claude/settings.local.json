@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git diff:*)",
+      "Bash(grep:*)",
+      "Bash(sqlite3:*)",
+      "Bash(uv run tox:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run:*)",
+      "Bash(ls:*)",
+      "Bash(rg:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run dev:*)",
+      "Bash(git shortlog:*)",
+      "Bash(find:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": []
+  }
+}

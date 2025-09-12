@@ -207,4 +207,3 @@ class StatsLoader(LoaderPlugin):
                 # Pass details if they exist and are a dict, otherwise empty dict
                 details=original_details if isinstance(original_details, dict) else {},
             ) from e
-
