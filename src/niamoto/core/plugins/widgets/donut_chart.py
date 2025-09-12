@@ -323,10 +323,9 @@ class DonutChartWidget(WidgetPlugin):
                 if data is None:
                     logger.warning("No data provided.")
                 else:
-                    logger.error(
+                    logger.warning(
                         f"Unsupported data type for DonutChartWidget: {type(data)}"
                     )
-                    return f"<p class='error'>Unsupported data type: {type(data)}</p>"
 
             # --- Final Plot Generation (if not subplot) --- #
             if df_plot is not None and not df_plot.empty:

@@ -256,9 +256,6 @@ class BarPlotWidget(WidgetPlugin):
                 logger.error(
                     "Unsupported input type for BarPlotWidget: {}".format(type(data))
                 )
-                return "<p class='error'>Unsupported data type: {}. Expected dictionary or DataFrame.</p>".format(
-                    type(data)
-                )
 
         # --- Data Validation (operates on processed_data) --- #
         if (

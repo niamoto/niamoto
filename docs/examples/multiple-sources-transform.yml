@@ -19,7 +19,7 @@
           parent: parent_id
           left: lft
           right: rght
-          
+
     - name: plot_stats
       data: "imports/plot_stats.csv"  # Direct CSV path
       grouping: plot_ref
