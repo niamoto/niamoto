@@ -1,8 +1,4 @@
 # Niamoto
-data/*
-tests/test_data/config/*
-tests/test_data/data/db/*
-tests/test_data/data/sources/raster/*
 test-instance/
 
 # Byte-compiled / optimized / DLL files
@@ -88,7 +84,7 @@ ipython_config.py
 #   having no cross-platform support, pipenv may install dependencies that don't work, or not
 #   install all needed dependencies.
 #Pipfile.lock
-
+Pipfile
 
 # Environments
 .env
@@ -111,13 +107,6 @@ dmypy.json
 
 # IntelliJ settings
 .idea/
-
-# AI settings
-/.windsurfrules
-CLAUDE.md
-.claude
-.timetracker
-Pipfile
 
 # Tailwind CSS standalone binaries
 tailwindcss-macos-arm64
