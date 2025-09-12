@@ -615,6 +615,10 @@ class TransformerService:
 
             self.db.execute_sql(create_table_sql)
 
+            # Create indexes on the dynamically created transform table
+            # Index the primary key and any common columns
+            self.db.create_indexes_for_table(group_by)
+
         except Exception as e:
             raise DataTransformError(
                 f"Failed to create table for group {group_by}",

@@ -19,6 +19,7 @@ from .plugins import plugins
 from .run import run_pipeline
 from .stats import stats_command
 from .gui import gui
+from .optimize import optimize_command
 
 
 def create_cli() -> click.Group:
@@ -52,5 +53,6 @@ def create_cli() -> click.Group:
     cli.add_command(run_pipeline)
     cli.add_command(stats_command)
     cli.add_command(gui)
+    cli.add_command(optimize_command, name="optimize")
 
     return cli
