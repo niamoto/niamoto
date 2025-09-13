@@ -687,6 +687,9 @@ class HtmlPageExporter(ExporterPlugin):
                         total=len(index_data),
                     )
 
+                    # Cache widget plugin classes to avoid repeated lookups
+                    widget_cache = {}
+
                     for item_summary in index_data:
                         item_id = item_summary.get(id_column)
                         if item_id is None:
@@ -722,14 +725,25 @@ class HtmlPageExporter(ExporterPlugin):
                                         == "hierarchical_nav_widget"
                                     )
 
-                                    widget_plugin_class = plugin_registry.get_plugin(
-                                        widget_config.plugin, PluginType.WIDGET
-                                    )
-                                    if not widget_plugin_class:
-                                        raise ConfigurationError(
-                                            config_key="widgets.plugin",
-                                            message=f"Widget plugin '{widget_config.plugin}' not found.",
+                                    # Use cached widget class if available
+                                    if widget_config.plugin not in widget_cache:
+                                        widget_plugin_class = (
+                                            plugin_registry.get_plugin(
+                                                widget_config.plugin, PluginType.WIDGET
+                                            )
                                         )
+                                        if not widget_plugin_class:
+                                            raise ConfigurationError(
+                                                config_key="widgets.plugin",
+                                                message=f"Widget plugin '{widget_config.plugin}' not found.",
+                                            )
+                                        widget_cache[widget_config.plugin] = (
+                                            widget_plugin_class
+                                        )
+                                    else:
+                                        widget_plugin_class = widget_cache[
+                                            widget_config.plugin
+                                        ]
 
                                     widget_instance: WidgetPlugin = widget_plugin_class(
                                         db=repository

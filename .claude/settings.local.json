@@ -13,7 +13,10 @@
       "Bash(npm run dev:*)",
       "Bash(git shortlog:*)",
       "Bash(find:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest add scroll-area:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }
