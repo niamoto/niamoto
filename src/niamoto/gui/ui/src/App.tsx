@@ -15,6 +15,7 @@ const LivePreview = lazy(() => import('@/pages/live-preview').then(m => ({ defau
 const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.Settings })))
 const Plugins = lazy(() => import('@/pages/plugins').then(m => ({ default: m.Plugins })))
 const Documentation = lazy(() => import('@/pages/documentation').then(m => ({ default: m.Documentation })))
+const PipelineEditor = lazy(() => import('@/pages/PipelineEditor'))
 
 function App() {
   const { data: projectInfo } = useProjectInfo()
@@ -61,6 +62,11 @@ function App() {
             <Route path="tools/docs" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <Documentation />
+              </Suspense>
+            } />
+            <Route path="pipeline" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <PipelineEditor />
               </Suspense>
             } />
           </Route>
