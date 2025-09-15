@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   FileSpreadsheet,
   TreePine,
@@ -10,13 +11,23 @@ import {
   ArrowRight,
   Database,
   BarChart3,
-  CheckCircle
+  CheckCircle,
+  AlertCircle,
+  Info,
+  Edit,
+  Eye,
+  Settings
 } from 'lucide-react'
+import { usePipelineStatus } from '@/hooks/usePipelineStatus'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useImport } from './ImportContext'
 
 import niamotoLogo from '@/assets/niamoto_logo.png'
 
 export function Overview() {
   const { t } = useTranslation(['import', 'common'])
+  const { status, loading, error } = usePipelineStatus()
+  const { isEditMode, setEditMode, hasExistingConfig, configLoading } = useImport()
   return (
     <div className="space-y-8">
       {/* Welcome message */}
@@ -31,6 +42,150 @@ export function Overview() {
           {t('overview.description')}
         </p>
       </div>
+
+      {/* Configuration Mode Toggle */}
+      {hasExistingConfig && !configLoading && (
+        <Card className="border-2 border-primary/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                <CardTitle>Configuration Mode</CardTitle>
+              </div>
+              <Button
+                variant={isEditMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setEditMode(!isEditMode)}
+                className="gap-2"
+              >
+                {isEditMode ? (
+                  <>
+                    <Edit className="w-4 h-4" />
+                    Edit Mode
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4" />
+                    View Mode
+                  </>
+                )}
+              </Button>
+            </div>
+            <CardDescription>
+              {isEditMode
+                ? "You can modify the import configuration. Changes will be saved to import.yml."
+                : "Viewing existing configuration. Switch to edit mode to make changes."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* Current Pipeline Status */}
+      {loading || configLoading ? (
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          </CardContent>
+        </Card>
+      ) : error ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error loading pipeline status</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : status ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="w-5 h-5" />
+              Current Pipeline Status
+            </CardTitle>
+            <CardDescription>
+              Project: <strong>{status.project_name || 'Unnamed Project'}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              {/* Import Status */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Import</span>
+                  {status.import_status.executed ? (
+                    <Badge variant="default" className="bg-green-600">Executed</Badge>
+                  ) : status.import_status.configured ? (
+                    <Badge variant="secondary">Configured</Badge>
+                  ) : (
+                    <Badge variant="outline">Not configured</Badge>
+                  )}
+                </div>
+                {status.import_status.executed && (
+                  <div className="text-xs text-muted-foreground">
+                    {status.import_status.records_imported.toLocaleString()} records imported
+                  </div>
+                )}
+                {status.import_status.data_sources.length > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    {status.import_status.data_sources.length} data sources
+                  </div>
+                )}
+              </div>
+
+              {/* Transform Status */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Transform</span>
+                  {status.transform.executed ? (
+                    <Badge variant="default" className="bg-green-600">Executed</Badge>
+                  ) : status.transform.configured ? (
+                    <Badge variant="secondary">Configured</Badge>
+                  ) : (
+                    <Badge variant="outline">Not configured</Badge>
+                  )}
+                </div>
+                {status.transform.groups.length > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    {status.transform.groups.length} groups defined
+                  </div>
+                )}
+              </div>
+
+              {/* Export Status */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Export</span>
+                  {status.export.executed ? (
+                    <Badge variant="default" className="bg-green-600">Executed</Badge>
+                  ) : status.export.configured ? (
+                    <Badge variant="secondary">Configured</Badge>
+                  ) : (
+                    <Badge variant="outline">Not configured</Badge>
+                  )}
+                </div>
+                {status.export.static_site_exists && (
+                  <div className="text-xs text-muted-foreground">
+                    Static site configured
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {status.database_exists && (
+              <Alert className="mt-4">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Database exists at: <code className="text-xs">{status.database_path}</code>
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* How it works */}
       <Card>

@@ -23,7 +23,7 @@ import {
 
 export function OccurrencesStep() {
   const { t } = useTranslation(['import', 'common'])
-  const { state, updateOccurrences } = useImport()
+  const { state, updateOccurrences, isEditMode } = useImport()
   const { occurrences } = state
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [activeTab, setActiveTab] = useState('upload')
@@ -42,6 +42,7 @@ export function OccurrencesStep() {
   )
 
   const handleFileSelect = async (file: File) => {
+    if (!isEditMode) return // Prevent file changes in read mode
     updateOccurrences({ file, fileAnalysis: null, fieldMappings: {} })
     setIsAnalyzing(true)
 
@@ -70,10 +71,12 @@ export function OccurrencesStep() {
   }
 
   const handleMappingComplete = (mappings: Record<string, string>) => {
+    if (!isEditMode) return // Prevent changes in read mode
     updateOccurrences({ fieldMappings: mappings })
   }
 
   const handleTaxonomyChange = ({ ranks, mappings }: { ranks: string[], mappings: Record<string, string> }) => {
+    if (!isEditMode) return // Prevent changes in read mode
     updateOccurrences({
       taxonomyHierarchy: { ranks, mappings },
       fieldMappings: { ...occurrences.fieldMappings, ...mappings }
