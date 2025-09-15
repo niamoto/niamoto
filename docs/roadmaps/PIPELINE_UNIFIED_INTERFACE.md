@@ -468,60 +468,60 @@ const LayoutProvider: React.FC = ({ children }) => {
 
 ## 🚀 ROADMAP D'IMPLÉMENTATION
 
-### Phase 0 : Préparation (3 jours)
-- [ ] Analyse approfondie des fichiers de configuration
-- [ ] Documentation des structures de données
-- [ ] Setup environnement de développement
-- [ ] Tests de ReactFlow avec données mockées
+### ✅ Phase 0 : Préparation (COMPLÉTÉ)
+- [x] Analyse approfondie des fichiers de configuration
+- [x] Documentation des structures de données
+- [x] Setup environnement de développement
+- [x] Tests de ReactFlow avec données mockées
 
-### Phase 1 : Infrastructure de Base (1 semaine)
+### ✅ Phase 1 : Infrastructure de Base (COMPLÉTÉ)
 
 #### Semaine 1 - Fondations
 **Lundi-Mardi**
-- [ ] Créer structure de dossiers complète
-- [ ] Installer dépendances (reactflow, zustand)
-- [ ] Créer `PipelineFlow.tsx` avec ReactFlow basique
-- [ ] Implémenter `BaseNode.tsx` et états
+- [x] Créer structure de dossiers complète
+- [x] Installer dépendances (reactflow, zustand)
+- [x] Créer `PipelineFlow.tsx` avec ReactFlow basique
+- [x] Implémenter `BaseNode.tsx` et états
 
 **Mercredi-Jeudi**
-- [ ] Créer système de layout flexible (`LayoutProvider`)
-- [ ] Implémenter `SidePanelLayout` et `ModalLayout`
-- [ ] Créer `FormContainer` adaptable
+- [ ] ⚠️ Créer système de layout flexible (`LayoutProvider`)
+- [ ] ⚠️ Implémenter `SidePanelLayout` et `ModalLayout`
+- [x] Créer `FormContainer` adaptable (via ConfigPanel)
 - [ ] Tests de changement de layout
 
 **Vendredi**
-- [ ] Créer `NodeCatalog` de base
-- [ ] Implémenter drag & drop depuis catalogue
-- [ ] Créer `PipelineValidator` basique
-- [ ] Tests d'intégration
+- [x] Créer `NodeCatalog` de base
+- [x] Implémenter drag & drop depuis catalogue
+- [x] Créer validation basique dans store
+- [x] Tests d'intégration (build réussi)
 
-### Phase 2 : Nodes d'Import (1 semaine)
+### ⚠️ Phase 2 : Nodes d'Import (PARTIELLEMENT COMPLÉTÉ)
 
 #### Semaine 2 - Import Forms
 **Lundi**
-- [ ] Créer `ImportNode.tsx` générique
-- [ ] Migrer `TaxonomyForm` depuis code existant
-- [ ] Créer `TaxonomyNode` avec icône
+- [x] Créer `ImportNode.tsx` générique
+- [x] Migrer `TaxonomyForm` depuis code existant
+- [ ] ⚠️ Créer `TaxonomyNode` avec icône (utilise ImportNode générique)
 
 **Mardi**
-- [ ] Migrer `OccurrencesForm`
-- [ ] Créer `OccurrencesNode`
-- [ ] Tester connexion API `/api/imports`
+- [x] Migrer `OccurrencesForm`
+- [ ] ⚠️ Créer `OccurrencesNode` (utilise ImportNode générique)
+- [ ] ❌ Tester connexion API `/api/imports`
 
 **Mercredi**
-- [ ] Migrer `PlotForm`
-- [ ] Créer `PlotNode`
-- [ ] Implémenter validation des champs
+- [x] Migrer `PlotForm`
+- [ ] ⚠️ Créer `PlotNode` (utilise ImportNode générique)
+- [x] Implémenter validation des champs
 
 **Jeudi**
-- [ ] Créer `ShapeForm` pour shapes multiples
-- [ ] Créer `ShapeNode`
-- [ ] Gérer upload de fichiers shapefile
+- [x] Créer `ShapeForm` pour shapes multiples
+- [ ] ⚠️ Créer `ShapeNode` (utilise ImportNode générique)
+- [x] Gérer upload de fichiers shapefile
 
 **Vendredi**
-- [ ] Créer `LayerForm` pour rasters/vectors
-- [ ] Créer `LayerNode`
-- [ ] Tests complets des imports
+- [x] Créer `LayerForm` pour rasters/vectors
+- [ ] ⚠️ Créer `LayerNode` (utilise ImportNode générique)
+- [ ] ❌ Tests complets des imports avec API
 
 ### Phase 3 : Nodes de Transform (1 semaine)
 
@@ -662,6 +662,153 @@ const LayoutProvider: React.FC = ({ children }) => {
 - **Vitest** pour tests unitaires
 - **React Testing Library** pour composants
 - **Playwright** pour E2E
+
+---
+
+## 🔴 ÉLÉMENTS CRITIQUES À IMPLÉMENTER
+
+### 1. **Connexion API (PRIORITÉ HAUTE)**
+```typescript
+// À implémenter dans les forms d'import
+- [ ] Connexion réelle avec `/api/imports/detect-fields`
+- [ ] Upload de fichiers vers l'API
+- [ ] Validation côté serveur
+- [ ] Gestion des erreurs API
+- [ ] Progress tracking pour uploads volumineux
+```
+
+### 2. **Système de Validation Avancé**
+```typescript
+// components/pipeline/validation/
+- [ ] CompatibilityChecker.tsx - Vérifier compatibilité entre nodes
+- [ ] DataFormatMatcher.tsx - Valider formats de données
+- [ ] PipelineValidator.tsx - Validation globale du pipeline
+```
+
+### 3. **Sérialisation YAML (CRITIQUE)**
+```typescript
+// utils/pipelineSerializer.ts
+- [ ] ReactFlow → YAML conversion
+- [ ] YAML → ReactFlow parsing
+- [ ] Validation du YAML généré
+- [ ] Tests bidirectionnels
+```
+
+### 4. **Transform Forms (Phase 3)**
+```typescript
+// forms/transform/
+- [ ] PluginConfigForm.tsx - Configuration des plugins
+- [ ] SourceRelationForm.tsx - Relations entre sources
+- [ ] WidgetConfigForm.tsx - Configuration widgets
+- [ ] Intégration avec plugins existants
+```
+
+### 5. **Export Forms (Phase 4)**
+```typescript
+// forms/export/
+- [ ] HtmlPageForm.tsx - Configuration pages HTML
+- [ ] TemplateForm.tsx - Sélection templates
+- [ ] DataExportForm.tsx - Options export données
+```
+
+### 6. **Système d'Exécution (Phase 5-6)**
+```typescript
+// execution/
+- [ ] PipelineRunner.tsx - Orchestrateur
+- [ ] NodeExecutor.tsx - Exécuteur par node
+- [ ] ProgressMonitor.tsx - Monitoring temps réel
+- [ ] WebSocket integration
+```
+
+### 7. **Layout Flexible**
+```typescript
+// layouts/
+- [ ] LayoutProvider.tsx - Context pour layouts
+- [ ] ModalLayout.tsx - Mode modal
+- [ ] BottomPanelLayout.tsx - Panel inférieur
+- [ ] Layout switching mechanism
+```
+
+### 8. **Améliorations UX**
+```typescript
+- [ ] Tooltips sur tous les éléments
+- [ ] Animations de transition
+- [ ] Undo/Redo system
+- [ ] Keyboard shortcuts
+- [ ] Auto-save drafts
+- [ ] Error recovery
+```
+
+---
+
+## 📊 ÉTAT D'AVANCEMENT DÉTAILLÉ
+
+### ✅ Complété (35%)
+- Infrastructure ReactFlow
+- Store Zustand
+- Types TypeScript
+- BaseNode et nodes génériques
+- Tous les formulaires d'import
+- Drag & drop fonctionnel
+- Configuration panel
+- Validation basique
+
+### ⚠️ Partiellement Complété (15%)
+- Import nodes (générique au lieu de spécifique)
+- Layout system (panel seulement)
+- Validation (basique seulement)
+
+### ❌ Non Implémenté (50%)
+- API Integration
+- Transform forms
+- Export forms
+- YAML serialization
+- Pipeline execution
+- WebSocket monitoring
+- Advanced validation
+- Layout flexibility
+
+---
+
+## 🎯 PLAN D'ACTION IMMÉDIAT
+
+### Sprint 1 (2-3 jours) - API & Validation
+1. **Jour 1**: Connecter forms avec API
+   - Implémenter `/api/imports/detect-fields`
+   - Tester upload fichiers
+   - Gérer erreurs
+
+2. **Jour 2**: Validation avancée
+   - Créer CompatibilityChecker
+   - Implémenter règles de compatibilité
+   - Tests unitaires
+
+3. **Jour 3**: Tests d'intégration
+   - Tester flow complet d'import
+   - Corriger bugs
+   - Documentation
+
+### Sprint 2 (3-4 jours) - Transform & Export
+1. **Jours 1-2**: Transform forms
+   - Adapter PluginConfigPanel existant
+   - Créer forms modulaires
+   - Intégrer avec store
+
+2. **Jours 3-4**: Export forms
+   - Créer forms d'export
+   - Intégrer templates
+   - Preview système
+
+### Sprint 3 (4-5 jours) - Sérialisation & Exécution
+1. **Jours 1-2**: YAML Serialization
+   - Implémenter conversion bidirectionnelle
+   - Tests complets
+   - Validation
+
+2. **Jours 3-5**: Pipeline Execution
+   - WebSocket client
+   - Progress monitoring
+   - Error handling
 
 ---
 

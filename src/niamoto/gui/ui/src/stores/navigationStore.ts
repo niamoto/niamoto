@@ -46,6 +46,7 @@ export const navigationSections: NavigationSection[] = [
     label: 'Pipeline',
     defaultOpen: true,
     items: [
+      { id: 'pipeline-editor', label: 'Pipeline Editor', path: '/pipeline', badge: 'New' },
       { id: 'import', label: 'Import Data', path: '/import' },
       { id: 'transform', label: 'Transform', path: '/transform' },
       { id: 'export', label: 'Export Site', path: '/export' }
