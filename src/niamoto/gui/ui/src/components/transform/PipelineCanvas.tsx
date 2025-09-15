@@ -60,9 +60,9 @@ function PluginNode({ data, selected }: NodeProps) {
 
   return (
     <Card className={cn(
-      'min-w-[180px] transition-all',
+      'min-w-[200px] transition-all',
       selected && 'ring-2 ring-primary shadow-lg',
-      isConfigured && 'border-green-500'
+      isConfigured && 'border-green-500 bg-green-50/50 dark:bg-green-950/20'
     )}>
       <div className="p-3">
         <div className="flex items-center gap-2 mb-2">
@@ -83,9 +83,20 @@ function PluginNode({ data, selected }: NodeProps) {
                 {plugin.type}
               </Badge>
             )}
-            {isConfigured && data.config.widgetName && (
-              <div className="text-xs text-muted-foreground mt-1">
-                → {data.config.widgetName}
+            {isConfigured && data.config.widgetName ? (
+              <div className="mt-2 rounded bg-green-100 dark:bg-green-900/30 px-2 py-1">
+                <div className="text-xs font-medium text-green-700 dark:text-green-300">
+                  📊 Widget Output
+                </div>
+                <div className="text-sm font-semibold text-green-800 dark:text-green-200">
+                  {data.config.widgetName}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 rounded bg-muted px-2 py-1">
+                <div className="text-xs text-muted-foreground">
+                  ⚙️ Configure to create widget
+                </div>
               </div>
             )}
           </div>
@@ -159,36 +170,10 @@ function SourceNode({ data, selected }: NodeProps) {
   )
 }
 
-// Output Node Component
-function OutputNode({ data, selected }: NodeProps) {
-  return (
-    <Card className={cn(
-      'min-w-[150px] bg-green-50 dark:bg-green-950/20 border-green-200',
-      selected && 'ring-2 ring-green-500 shadow-lg'
-    )}>
-      <div className="p-3">
-        <div className="font-medium text-sm text-green-700 dark:text-green-300">
-          {data.label}
-        </div>
-        <Badge variant="secondary" className="text-xs mt-1">
-          Output
-        </Badge>
-
-        {/* Input handle */}
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="!w-3 !h-3 !bg-green-500 !border-2 !border-background"
-        />
-      </div>
-    </Card>
-  )
-}
 
 const nodeTypes = {
   plugin: PluginNode,
   source: SourceNode,
-  output: OutputNode,
 }
 
 interface PipelineCanvasProps {
@@ -196,7 +181,7 @@ interface PipelineCanvasProps {
   onPipelineChange?: (nodes: Node[], edges: Edge[]) => void
 }
 
-export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProps) {
+function PipelineCanvasContent({ sources, onPipelineChange }: PipelineCanvasProps) {
   const { t } = useTranslation()
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<PipelineNodeData>([]);
@@ -204,7 +189,7 @@ export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProp
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [showConfigPanel, setShowConfigPanel] = useState(false)
 
-  // Initialize source nodes
+  // Initialize source nodes only (no default output node)
   useEffect(() => {
     const sourceNodes: PipelineNode[] = sources.map((source, index) => ({
       id: `source-${source.id}`,
@@ -218,21 +203,7 @@ export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProp
       },
     }))
 
-    // Add default output node for widget data
-    const outputNodes: PipelineNode[] = [
-      {
-        id: 'output-widgets',
-        type: 'output',
-        position: { x: 800, y: 175 },
-        data: {
-          label: 'Widgets Data',
-          type: 'output' as const,
-          inputs: ['data'],
-        },
-      },
-    ]
-
-    setNodes([...sourceNodes, ...outputNodes])
+    setNodes(sourceNodes)
   }, [sources, setNodes])
 
   const onConnect = useCallback(
@@ -244,20 +215,44 @@ export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProp
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
+    event.dataTransfer.dropEffect = 'copy'
   }, [])
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault()
 
-      if (!reactFlowInstance) return
+      if (!reactFlowInstance) {
+        return
+      }
 
-      const pluginData = event.dataTransfer.getData('application/reactflow')
+      // Try both formats
+      let pluginData = event.dataTransfer.getData('application/json')
+      if (!pluginData) {
+        pluginData = event.dataTransfer.getData('text/plain')
+      }
 
-      if (!pluginData) return
+      if (!pluginData) {
+        return
+      }
 
-      const plugin = JSON.parse(pluginData) as Plugin
+      const pluginBase = JSON.parse(pluginData)
+      // Re-add the icon based on category
+      const categoryIcons: Record<string, any> = {
+        file: Filter,
+        geo: Map,
+        aggregation: Layers,
+        statistics: Calculator,
+        hierarchy: TreePine,
+        data: Database,
+        visualization: BarChart,
+      }
+
+      const plugin: Plugin = {
+        ...pluginBase,
+        icon: categoryIcons[pluginBase.category] || Database
+      }
+
       // Use screenToFlowPosition instead of deprecated project
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
@@ -272,8 +267,8 @@ export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProp
           plugin,
           label: plugin.name,
           type: 'plugin' as const,
-          inputs: plugin.inputs,
-          outputs: plugin.outputs,
+          inputs: plugin.inputs || [],
+          outputs: plugin.outputs || [],
         },
       }
 
@@ -284,7 +279,7 @@ export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProp
 
   const onNodesDelete = useCallback(
     (deleted: Node[]) => {
-      // Don't allow deletion of source or output nodes
+      // Don't allow deletion of source nodes
       const filteredDeleted = deleted.filter(
         (node) => node.type === 'plugin'
       )
@@ -303,13 +298,31 @@ export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProp
   }
 
   const runPipeline = () => {
-    console.log('Running pipeline with nodes:', nodes, 'edges:', edges)
-    // TODO: Implement pipeline execution
+    // Collect all configured plugins as widgets
+    const widgets = nodes
+      .filter(node => node.type === 'plugin' && node.data.config?.widgetName)
+      .map(node => ({
+        name: node.data.config.widgetName,
+        plugin: node.data.plugin?.id,
+        params: node.data.config || {}
+      }))
+
+    console.log('Running pipeline with widgets:', widgets)
+    // TODO: Implement pipeline execution with widgets
   }
 
   const savePipeline = () => {
+    // Collect all configured plugins as widgets for saving
+    const widgets = nodes
+      .filter(node => node.type === 'plugin' && node.data.config?.widgetName)
+      .map(node => ({
+        name: node.data.config.widgetName,
+        plugin: node.data.plugin?.id,
+        params: node.data.config || {}
+      }))
+
     onPipelineChange?.(nodes, edges)
-    console.log('Saving pipeline:', { nodes, edges })
+    console.log('Saving pipeline with widgets:', widgets)
   }
 
   const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: Node) => {
@@ -401,40 +414,49 @@ export function PipelineCanvas({ sources, onPipelineChange }: PipelineCanvasProp
         />
       )}
 
-      <ReactFlowProvider>
-        <div className="h-full">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onInit={setReactFlowInstance}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onNodesDelete={onNodesDelete}
-            onNodeDoubleClick={onNodeDoubleClick}
-            nodeTypes={nodeTypes}
-            fitView
-            deleteKeyCode="Delete"
-          >
-            <Background color="#aaa" gap={16} />
-            <Controls />
-            <MiniMap
-              nodeStrokeColor={(node) => {
-                if (node.type === 'source') return '#3b82f6'
-                if (node.type === 'output') return '#10b981'
-                return '#6b7280'
-              }}
-              nodeColor={(node) => {
-                if (node.type === 'source') return '#dbeafe'
-                if (node.type === 'output') return '#d1fae5'
-                return '#f3f4f6'
-              }}
-            />
-          </ReactFlow>
-        </div>
-      </ReactFlowProvider>
+      <div
+        className="h-full"
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+      >
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onInit={setReactFlowInstance}
+          onNodesDelete={onNodesDelete}
+          onNodeDoubleClick={onNodeDoubleClick}
+          nodeTypes={nodeTypes}
+          fitView
+          deleteKeyCode="Delete"
+        >
+          <Background color="#aaa" gap={16} />
+          <Controls />
+          <MiniMap
+            nodeStrokeColor={(node) => {
+              if (node.type === 'source') return '#3b82f6'
+              if (node.type === 'plugin' && node.data.config?.widgetName) return '#10b981'
+              return '#6b7280'
+            }}
+            nodeColor={(node) => {
+              if (node.type === 'source') return '#dbeafe'
+              if (node.type === 'plugin' && node.data.config?.widgetName) return '#d1fae5'
+              return '#f3f4f6'
+            }}
+          />
+        </ReactFlow>
+      </div>
     </div>
+  )
+}
+
+// Export wrapper component with provider
+export function PipelineCanvas(props: PipelineCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <PipelineCanvasContent {...props} />
+    </ReactFlowProvider>
   )
 }

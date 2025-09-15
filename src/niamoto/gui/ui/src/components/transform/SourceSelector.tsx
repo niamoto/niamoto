@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Database, FileSpreadsheet, FileText, Link2, X, Upload, ChevronDown } from 'lucide-react'
+import { Plus, Database, FileSpreadsheet, FileText, Link2, X, Upload, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 import type { Source } from './GroupManager'
+import { useDatabaseTables } from '@/hooks/useDatabaseTables'
+import { usePlugins } from '@/hooks/usePlugins'
 
 interface SourceSelectorProps {
   sources: Source[]
@@ -35,44 +37,65 @@ interface SourceSelectorProps {
   groupName?: string
 }
 
-interface AvailableTable {
-  name: string
-  rowCount: number
-  columns: string[]
-  hasGeometry?: boolean
+// Standard fields for nested_set hierarchy
+const NESTED_SET_DEFAULT_FIELDS = {
+  parent: 'parent_id',
+  left: 'lft',
+  right: 'rght'
 }
 
-const availableTables: AvailableTable[] = [
-  { name: 'occurrences', rowCount: 15234, columns: ['id', 'taxon_ref', 'date', 'location'], hasGeometry: true },
-  { name: 'taxon', rowCount: 2456, columns: ['id', 'name', 'rank', 'parent_id'] },
-  { name: 'plots', rowCount: 567, columns: ['id', 'name', 'area', 'elevation'], hasGeometry: true },
-  { name: 'measurements', rowCount: 8901, columns: ['id', 'plot_id', 'dbh', 'height', 'date'] },
-  { name: 'shapes', rowCount: 89, columns: ['id', 'name', 'type', 'geometry'], hasGeometry: true },
-]
 
-const relationPlugins = [
-  { id: 'nested_set', name: 'Nested Set', description: 'Hierarchical tree structure' },
-  { id: 'stats_loader', name: 'Statistics Loader', description: 'Load and aggregate statistics' },
-  { id: 'direct_attribute', name: 'Direct Attribute', description: 'Direct field mapping' },
-]
-
-export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps) {
+export function SourceSelector({ sources, onSourcesChange, groupName }: SourceSelectorProps) {
   const { t } = useTranslation()
+  const { tables, loading: tablesLoading } = useDatabaseTables()
+  const { plugins } = usePlugins('loader')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [sourceType, setSourceType] = useState<'table' | 'csv' | 'excel'>('table')
   const [selectedTable, setSelectedTable] = useState('')
-  const [groupingField, setGroupingField] = useState('')
+  const [groupingTable, setGroupingTable] = useState('')
+  const [linkField, setLinkField] = useState('')
   const [relationPlugin, setRelationPlugin] = useState('')
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [expandedSources, setExpandedSources] = useState<string[]>([])
 
+  // Get reference tables (tables ending with _ref)
+  const referenceTables = tables.filter(t => t.name.endsWith('_ref'))
+
+  // Get the default grouping table based on group name
+  const defaultGroupingTable = groupName ? `${groupName}_ref` : ''
+
+  // Filter relation plugins from all loader plugins
+  const relationPlugins = plugins.filter(p =>
+    p.type === 'loader' &&
+    ['nested_set', 'stats_loader', 'direct_attribute'].includes(p.id)
+  ).map(p => ({
+    id: p.id,
+    name: p.name,
+    description: p.description
+  }))
+
   const handleAddSource = () => {
+    // Build relation config
+    let relationConfig: any = undefined
+    if (relationPlugin && relationPlugin !== 'none') {
+      relationConfig = {
+        plugin: relationPlugin,
+        key: linkField || undefined,
+      }
+
+      // Add default fields for nested_set plugin
+      if (relationPlugin === 'nested_set') {
+        relationConfig.fields = NESTED_SET_DEFAULT_FIELDS
+      }
+    }
+
     const newSource: Source = {
       id: String(Date.now()),
-      name: sourceType === 'table' ? selectedTable : uploadedFile?.name || '',
+      name: sourceType === 'table' ? (selectedTable || 'source') : uploadedFile?.name || 'file',
+      data: selectedTable, // The actual data table
       type: sourceType,
-      groupingField: groupingField || undefined,
-      relation: relationPlugin && relationPlugin !== 'none' ? { plugin: relationPlugin } : undefined,
+      grouping: groupingTable || defaultGroupingTable, // The reference table
+      relation: relationConfig,
     }
     onSourcesChange([...sources, newSource])
     setIsDialogOpen(false)
@@ -85,7 +108,8 @@ export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps
 
   const resetForm = () => {
     setSelectedTable('')
-    setGroupingField('')
+    setGroupingTable(defaultGroupingTable)
+    setLinkField('')
     setRelationPlugin('')
     setUploadedFile(null)
     setSourceType('table')
@@ -156,10 +180,16 @@ export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps
                               {source.type}
                             </Badge>
                           </div>
-                          {source.groupingField && (
+                          {source.data && (
                             <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                              <span>Grouped by:</span>
-                              <code className="rounded bg-muted px-1">{source.groupingField}</code>
+                              <span>Table:</span>
+                              <code className="rounded bg-muted px-1">{source.data}</code>
+                            </div>
+                          )}
+                          {source.grouping && (
+                            <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                              <span>Reference:</span>
+                              <code className="rounded bg-muted px-1">{source.grouping}</code>
                             </div>
                           )}
                         </div>
@@ -200,7 +230,7 @@ export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps
                         <div className="text-sm">
                           <span className="text-muted-foreground">Table info:</span>
                           <div className="mt-1 text-xs text-muted-foreground">
-                            {availableTables.find(t => t.name === source.name)?.rowCount.toLocaleString()} rows
+                            {tables.find(t => t.name === source.name)?.row_count.toLocaleString() || 'N/A'} rows
                           </div>
                         </div>
                       )}
@@ -225,7 +255,12 @@ export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps
       </div>
 
       {/* Add Source Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open)
+        if (open && !groupingTable) {
+          setGroupingTable(defaultGroupingTable)
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{t('transform.sources.add_title', 'Add Data Source')}</DialogTitle>
@@ -275,17 +310,46 @@ export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps
                       <SelectValue placeholder="Choose a table..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableTables.map((table) => (
+                      {tablesLoading ? (
+                        <div className="flex items-center justify-center py-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="ml-2 text-sm">{t('common.loading', 'Loading...')}</span>
+                        </div>
+                      ) : (
+                        tables.map((table) => (
+                          <SelectItem key={table.name} value={table.name}>
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center gap-2">
+                                <span>{table.name}</span>
+                                {table.hasGeometry && (
+                                  <Badge variant="secondary" className="text-xs">Spatial</Badge>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground ml-4">
+                                {table.row_count.toLocaleString()} rows
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Reference Table (Grouping) */}
+                <div className="space-y-2">
+                  <Label>{t('transform.sources.reference_table_label', 'Reference Table')}</Label>
+                  <Select value={groupingTable || defaultGroupingTable} onValueChange={setGroupingTable}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select reference table..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {referenceTables.map((table) => (
                         <SelectItem key={table.name} value={table.name}>
                           <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center gap-2">
-                              <span>{table.name}</span>
-                              {table.hasGeometry && (
-                                <Badge variant="secondary" className="text-xs">Spatial</Badge>
-                              )}
-                            </div>
+                            <span>{table.name}</span>
                             <span className="text-xs text-muted-foreground ml-4">
-                              {table.rowCount.toLocaleString()} rows
+                              {table.row_count.toLocaleString()} items
                             </span>
                           </div>
                         </SelectItem>
@@ -293,27 +357,6 @@ export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Grouping Field */}
-                {selectedTable && (
-                  <div className="space-y-2">
-                    <Label>{t('transform.sources.grouping_label', 'Grouping Field')}</Label>
-                    <Select value={groupingField} onValueChange={setGroupingField}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select field to group by..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTables
-                          .find(t => t.name === selectedTable)
-                          ?.columns.map((col) => (
-                            <SelectItem key={col} value={col}>
-                              {col}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </>
             )}
 
@@ -361,6 +404,28 @@ export function SourceSelector({ sources, onSourcesChange }: SourceSelectorProps
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Link Field (for joining) - appears after Relation Plugin */}
+            {selectedTable && relationPlugin && relationPlugin !== 'none' && (
+              <div className="space-y-2">
+                <Label>{t('transform.sources.link_field_label', 'Link Field')}</Label>
+                <Select value={linkField} onValueChange={setLinkField}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select the field that links to reference table..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tables
+                      .find(t => t.name === selectedTable)
+                      ?.columns.filter(col => col.includes('_id') || col.includes('_ref'))
+                      .map((col) => (
+                        <SelectItem key={col} value={col}>
+                          {col}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
