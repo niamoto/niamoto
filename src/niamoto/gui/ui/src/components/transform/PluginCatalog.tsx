@@ -1,155 +1,94 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Database, BarChart, Map, Table as TableIcon, Calculator, TreePine, Layers, Filter } from 'lucide-react'
+import {
+  Search, Database, BarChart, Map,
+  Calculator, TreePine, Layers, FileText,
+  Globe, Package, Loader2
+} from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
+import { usePlugins, usePluginCategories, type Plugin as APIPlugin, type PluginType } from '@/hooks/usePlugins'
 
-export interface Plugin {
-  id: string
-  name: string
-  description: string
-  type: 'loader' | 'transformer' | 'aggregator' | 'calculator'
-  category: string
+// Map API plugin to internal format with icon
+export interface Plugin extends APIPlugin {
   icon: React.ComponentType<{ className?: string }>
   inputs: string[]
   outputs: string[]
-  config?: any
 }
 
-const availablePlugins: Plugin[] = [
-  // Loaders
-  {
-    id: 'nested_set',
-    name: 'Nested Set',
-    description: 'Load hierarchical tree structure data',
-    type: 'loader',
-    category: 'Structure',
-    icon: TreePine,
-    inputs: ['table'],
-    outputs: ['hierarchy'],
-  },
-  {
-    id: 'stats_loader',
-    name: 'Statistics Loader',
-    description: 'Load and prepare statistical data',
-    type: 'loader',
-    category: 'Statistics',
-    icon: BarChart,
-    inputs: ['csv', 'table'],
-    outputs: ['stats'],
-  },
-  {
-    id: 'direct_attribute',
-    name: 'Direct Attribute',
-    description: 'Direct field mapping from source',
-    type: 'loader',
-    category: 'Mapping',
-    icon: Database,
-    inputs: ['any'],
-    outputs: ['attributes'],
-  },
+// Icon mapping for plugin categories
+const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  file: FileText,
+  geo: Map,
+  aggregation: Layers,
+  statistics: Calculator,
+  hierarchy: TreePine,
+  web: Globe,
+  data: Database,
+  visualization: BarChart,
+}
 
-  // Transformers
-  {
-    id: 'field_aggregator',
-    name: 'Field Aggregator',
-    description: 'Aggregate fields by grouping',
-    type: 'aggregator',
-    category: 'Aggregation',
-    icon: Layers,
-    inputs: ['table', 'grouping_field'],
-    outputs: ['aggregated_data'],
-  },
-  {
-    id: 'sum_aggregator',
-    name: 'Sum Aggregator',
-    description: 'Sum numeric fields by group',
-    type: 'aggregator',
-    category: 'Aggregation',
-    icon: Calculator,
-    inputs: ['numeric_field', 'grouping'],
-    outputs: ['sum'],
-  },
-  {
-    id: 'count_aggregator',
-    name: 'Count Aggregator',
-    description: 'Count occurrences by group',
-    type: 'aggregator',
-    category: 'Aggregation',
-    icon: TableIcon,
-    inputs: ['table', 'grouping'],
-    outputs: ['count'],
-  },
-
-  // Calculators
-  {
-    id: 'top_ranking',
-    name: 'Top Ranking',
-    description: 'Calculate top N items',
-    type: 'calculator',
-    category: 'Analysis',
-    icon: BarChart,
-    inputs: ['data', 'rank_field'],
-    outputs: ['top_items'],
-  },
-  {
-    id: 'geo_extractor',
-    name: 'Geo Extractor',
-    description: 'Extract geographic data',
-    type: 'calculator',
-    category: 'Geographic',
-    icon: Map,
-    inputs: ['geometry_field'],
-    outputs: ['geo_data'],
-  },
-  {
-    id: 'filter_plugin',
-    name: 'Filter',
-    description: 'Filter data based on conditions',
-    type: 'transformer',
-    category: 'Processing',
-    icon: Filter,
-    inputs: ['data', 'conditions'],
-    outputs: ['filtered_data'],
-  },
-]
+// Default icon for unknown categories
+const defaultIcon = Package
 
 interface PluginCatalogProps {
-  onPluginDragStart?: (plugin: Plugin) => void
-  onPluginSelect?: (plugin: Plugin) => void
   compact?: boolean
+  onPluginSelect?: (plugin: Plugin) => void
+  onPluginDragStart?: (plugin: Plugin) => void
 }
 
-export function PluginCatalog({ onPluginDragStart, onPluginSelect, compact = false }: PluginCatalogProps) {
+export function PluginCatalog({
+  compact = false,
+  onPluginSelect,
+  onPluginDragStart
+}: PluginCatalogProps) {
   const { t } = useTranslation()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [search, setSearch] = useState('')
+  const [selectedType, setSelectedType] = useState<PluginType | 'all'>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
-  const categories = ['all', 'Structure', 'Statistics', 'Mapping', 'Aggregation', 'Analysis', 'Geographic', 'Processing']
+  // Fetch plugins from API - only loaders and transformers for Transform page
+  const { plugins: apiPlugins, loading, error } = usePlugins(
+    selectedType === 'all' ? undefined : selectedType
+  )
 
-  const filteredPlugins = availablePlugins.filter(plugin => {
-    const matchesSearch = plugin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          plugin.description.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === 'all' || plugin.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  // Fetch categories
+  const { categories } = usePluginCategories()
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'loader': return 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-      case 'transformer': return 'bg-green-500/10 text-green-500 border-green-500/20'
-      case 'aggregator': return 'bg-purple-500/10 text-purple-500 border-purple-500/20'
-      case 'calculator': return 'bg-orange-500/10 text-orange-500 border-orange-500/20'
-      default: return 'bg-gray-500/10 text-gray-500 border-gray-500/20'
-    }
-  }
+  // Transform API plugins to internal format with icons
+  // Filter to only show loaders and transformers for Transform page
+  const plugins: Plugin[] = useMemo(() => {
+    return apiPlugins
+      .filter(p => p.type === 'loader' || p.type === 'transformer')
+      .map(apiPlugin => ({
+        ...apiPlugin,
+        icon: categoryIcons[apiPlugin.category || ''] || defaultIcon,
+        inputs: apiPlugin.compatible_inputs || [],
+        outputs: apiPlugin.output_format ? [apiPlugin.output_format] : [],
+      }))
+  }, [apiPlugins])
+
+  // Filter plugins based on search and category
+  const filteredPlugins = useMemo(() => {
+    return plugins.filter(plugin => {
+      const matchesSearch = !search ||
+        plugin.name.toLowerCase().includes(search.toLowerCase()) ||
+        plugin.description.toLowerCase().includes(search.toLowerCase())
+
+      const matchesCategory = selectedCategory === 'all' ||
+        plugin.category === selectedCategory
+
+      return matchesSearch && matchesCategory
+    })
+  }, [plugins, search, selectedCategory])
 
   const handleDragStart = (e: React.DragEvent, plugin: Plugin) => {
-    // Don't serialize the icon component, just pass the plugin data
+    // Remove icon from plugin data before serializing
     const pluginData = {
       id: plugin.id,
       name: plugin.name,
@@ -158,148 +97,143 @@ export function PluginCatalog({ onPluginDragStart, onPluginSelect, compact = fal
       category: plugin.category,
       inputs: plugin.inputs,
       outputs: plugin.outputs,
-      config: plugin.config,
+      parameters_schema: plugin.parameters_schema,
+      compatible_inputs: plugin.compatible_inputs,
+      output_format: plugin.output_format,
     }
-    e.dataTransfer.setData('application/reactflow', JSON.stringify(pluginData))
-    e.dataTransfer.effectAllowed = 'move'
+    // Try both formats for compatibility
+    e.dataTransfer.setData('text/plain', JSON.stringify(pluginData))
+    e.dataTransfer.setData('application/json', JSON.stringify(pluginData))
+    e.dataTransfer.effectAllowed = 'copy'
     onPluginDragStart?.(plugin)
   }
 
-  if (compact) {
+  if (loading) {
     return (
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t('transform.plugins.title', 'Plugin Catalog')}</CardTitle>
-        </CardHeader>
-        <CardContent className="p-3">
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-2">
-              {filteredPlugins.map(plugin => {
-                const Icon = plugin.icon
-                return (
-                  <div
-                    key={plugin.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, plugin)}
-                    onClick={() => onPluginSelect?.(plugin)}
-                    className="flex items-center gap-2 p-2 rounded-lg border cursor-move hover:bg-accent transition-colors"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="text-sm font-medium">{plugin.name}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert>
+        <AlertDescription>
+          {t('transform.plugins.error', 'Failed to load plugins')}: {error}
+        </AlertDescription>
+      </Alert>
     )
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h3 className="text-lg font-semibold">
-          {t('transform.plugins.title', 'Plugin Catalog')}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {t('transform.plugins.description', 'Drag plugins to the canvas to build your transformation pipeline')}
-        </p>
-      </div>
+    <div className={cn("space-y-4", compact && "h-full flex flex-col")}>
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={t('transform.plugins.search', 'Search plugins...')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder={t('transform.plugins.search', 'Search plugins...')}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-
-      {/* Categories */}
-      <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
-        <TabsList className="grid grid-cols-4 h-auto">
-          {categories.slice(0, 4).map(cat => (
-            <TabsTrigger key={cat} value={cat} className="text-xs">
-              {t(`transform.plugins.category.${cat.toLowerCase()}`, cat)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {categories.length > 4 && (
-          <TabsList className="grid grid-cols-4 h-auto mt-1">
-            {categories.slice(4).map(cat => (
-              <TabsTrigger key={cat} value={cat} className="text-xs">
-                {t(`transform.plugins.category.${cat.toLowerCase()}`, cat)}
+        {!compact && (
+          <Tabs value={selectedType} onValueChange={(v) => setSelectedType(v as PluginType | 'all')}>
+            <TabsList className="w-full">
+              <TabsTrigger value="all" className="flex-1">
+                {t('transform.plugins.all', 'All')}
               </TabsTrigger>
-            ))}
-          </TabsList>
+              <TabsTrigger value="loader" className="flex-1">
+                {t('transform.plugins.loaders', 'Loaders')}
+              </TabsTrigger>
+              <TabsTrigger value="transformer" className="flex-1">
+                {t('transform.plugins.transformers', 'Transformers')}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         )}
-      </Tabs>
 
-      {/* Plugin Grid */}
-      <ScrollArea className="h-[500px]">
-        <div className="grid gap-3 md:grid-cols-2">
-          {filteredPlugins.map(plugin => {
-            const Icon = plugin.icon
-            return (
-              <Card
-                key={plugin.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, plugin)}
-                onClick={() => onPluginSelect?.(plugin)}
-                className="cursor-move hover:shadow-md transition-all"
+        {categories.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            <Badge
+              variant={selectedCategory === 'all' ? 'default' : 'outline'}
+              className="cursor-pointer"
+              onClick={() => setSelectedCategory('all')}
+            >
+              {t('transform.plugins.allCategories', 'All')}
+            </Badge>
+            {categories.map(category => (
+              <Badge
+                key={category}
+                variant={selectedCategory === category ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setSelectedCategory(category)}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-lg bg-primary/10 p-2">
-                        <Icon className="h-4 w-4 text-primary" />
+                {category}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ScrollArea className={cn("", compact ? "flex-1" : "h-[500px]")}>
+        <div className="space-y-2 pr-4">
+          {filteredPlugins.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {t('transform.plugins.noResults', 'No plugins found')}
+            </div>
+          ) : (
+            filteredPlugins.map((plugin) => {
+              const Icon = plugin.icon
+              return (
+                <Card
+                  key={plugin.id}
+                  className={cn(
+                    "cursor-move hover:shadow-md transition-shadow",
+                    compact && "p-2"
+                  )}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, plugin)}
+                  onClick={() => onPluginSelect?.(plugin)}
+                >
+                  <CardHeader className={cn("pb-2", compact && "p-2")}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className={cn("text-sm", compact && "text-xs")}>
+                          {plugin.name}
+                        </CardTitle>
                       </div>
-                      <div>
-                        <CardTitle className="text-sm">{plugin.name}</CardTitle>
-                        <Badge
-                          variant="outline"
-                          className={cn('mt-1 text-xs', getTypeColor(plugin.type))}
-                        >
-                          {plugin.type}
-                        </Badge>
-                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {plugin.type}
+                      </Badge>
                     </div>
-                  </div>
-                  <CardDescription className="mt-2 text-xs">
-                    {plugin.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <span>In:</span>
-                      <div className="flex gap-1">
-                        {plugin.inputs.map(input => (
-                          <Badge key={input} variant="secondary" className="text-[10px] px-1">
-                            {input}
+                  </CardHeader>
+                  <CardContent className={cn("pt-0", compact && "p-2 pt-0")}>
+                    <CardDescription className={cn("text-xs", compact && "line-clamp-2")}>
+                      {plugin.description}
+                    </CardDescription>
+                    {!compact && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {plugin.inputs.map((input) => (
+                          <Badge key={input} variant="outline" className="text-xs">
+                            ← {input}
+                          </Badge>
+                        ))}
+                        {plugin.outputs.map((output) => (
+                          <Badge key={output} variant="outline" className="text-xs">
+                            → {output}
                           </Badge>
                         ))}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span>Out:</span>
-                      <div className="flex gap-1">
-                        {plugin.outputs.map(output => (
-                          <Badge key={output} variant="secondary" className="text-[10px] px-1">
-                            {output}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })
+          )}
         </div>
       </ScrollArea>
     </div>

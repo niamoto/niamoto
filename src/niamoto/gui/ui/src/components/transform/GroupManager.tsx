@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Edit2, Trash2, Database, ChevronRight, Users, Map, TreePine } from 'lucide-react'
+import { Plus, Edit2, Trash2, Database, ChevronRight, Users, Map, TreePine, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -23,28 +23,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { useTransformConfig } from '@/hooks/useTransformConfig'
+import type { UIGroup, UISource } from '@/types/transform'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
-export interface Group {
-  id: string
-  name: string
-  displayName: string
-  description?: string
-  sources: Source[]
-  transformations: number
-  lastModified: string
-  icon?: 'taxon' | 'plot' | 'shape' | 'custom'
+// Re-export types for backward compatibility
+export type Group = UIGroup & {
+  transformations?: number
+  lastModified?: string
 }
 
-export interface Source {
-  id: string
-  name: string
-  type: 'table' | 'csv' | 'excel'
-  groupingField?: string
-  relation?: {
-    plugin: string
-    config?: any
-  }
-}
+export type Source = UISource
 
 interface GroupManagerProps {
   onGroupSelect?: (group: Group) => void
@@ -60,34 +49,27 @@ const iconMap = {
 
 export function GroupManager({ onGroupSelect, selectedGroupId }: GroupManagerProps) {
   const { t } = useTranslation()
-  const [groups, setGroups] = useState<Group[]>([
-    {
-      id: '1',
-      name: 'taxon',
-      displayName: 'Espèces',
-      description: 'Groupement par taxonomie',
-      icon: 'taxon',
-      sources: [
-        { id: '1', name: 'occurrences', type: 'table', groupingField: 'taxon_ref' },
-        { id: '2', name: 'taxon_stats.csv', type: 'csv', relation: { plugin: 'nested_set' } },
-      ],
-      transformations: 12,
-      lastModified: '2024-12-13T10:30:00',
-    },
-    {
-      id: '2',
-      name: 'plot',
-      displayName: 'Parcelles',
-      description: 'Groupement par parcelles d’étude',
-      icon: 'plot',
-      sources: [
-        { id: '3', name: 'plots', type: 'table', groupingField: 'plot_id' },
-        { id: '4', name: 'measurements', type: 'table', relation: { plugin: 'stats_loader' } },
-      ],
-      transformations: 8,
-      lastModified: '2024-12-12T14:20:00',
-    },
-  ])
+  const {
+    groups: configGroups,
+    loading,
+    error,
+    validationErrors,
+    addGroup: addConfigGroup,
+    updateGroup: updateConfigGroup,
+    deleteGroup: deleteConfigGroup
+  } = useTransformConfig()
+
+  const [groups, setGroups] = useState<Group[]>([])
+
+  // Sync configuration groups with local state
+  useEffect(() => {
+    const enhancedGroups: Group[] = configGroups.map(group => ({
+      ...group,
+      transformations: group.widgets.length,
+      lastModified: new Date().toISOString()
+    }))
+    setGroups(enhancedGroups)
+  }, [configGroups])
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
@@ -122,26 +104,26 @@ export function GroupManager({ onGroupSelect, selectedGroupId }: GroupManagerPro
 
   const handleSaveGroup = () => {
     if (editingGroup) {
-      setGroups(groups.map(g =>
-        g.id === editingGroup.id
-          ? { ...g, ...formData }
-          : g
-      ))
+      // Update existing group in config
+      updateConfigGroup(editingGroup.id, {
+        name: formData.name,
+        displayName: formData.displayName,
+        description: formData.description,
+        icon: formData.icon
+      })
     } else {
-      const newGroup: Group = {
-        id: String(Date.now()),
-        ...formData,
-        sources: [],
-        transformations: 0,
-        lastModified: new Date().toISOString(),
-      }
-      setGroups([...groups, newGroup])
+      // Add new group to config
+      addConfigGroup(
+        formData.name,
+        formData.displayName,
+        formData.description
+      )
     }
     setIsDialogOpen(false)
   }
 
   const handleDeleteGroup = (groupId: string) => {
-    setGroups(groups.filter(g => g.id !== groupId))
+    deleteConfigGroup(groupId)
   }
 
   const formatDate = (dateString: string) => {
@@ -156,8 +138,42 @@ export function GroupManager({ onGroupSelect, selectedGroupId }: GroupManagerPro
     return t('transform.groups.days_ago', '{{count}} days ago', { count: diffDays })
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span className="ml-2">{t('common.loading', 'Loading...')}</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          {t('transform.groups.error', 'Failed to load configuration')}: {error}
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      {/* Validation Errors */}
+      {validationErrors.length > 0 && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="font-medium">{t('transform.groups.validation_errors', 'Configuration issues:')}</div>
+            <ul className="list-disc list-inside mt-2">
+              {validationErrors.map((err, idx) => (
+                <li key={idx} className="text-sm">{err}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -348,7 +364,7 @@ export function GroupManager({ onGroupSelect, selectedGroupId }: GroupManagerPro
                       {t('transform.groups.transformations', '{{count}} transformations', { count: group.transformations })}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {formatDate(group.lastModified)}
+                      {group.lastModified ? formatDate(group.lastModified) : ''}
                     </span>
                   </div>
                 </div>

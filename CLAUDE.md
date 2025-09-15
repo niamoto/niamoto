@@ -101,3 +101,4 @@ class MyPlugin(TransformerPlugin):
 - Always validate plugin configurations with Pydantic
 - Don't hardcode paths - use config system
 - Remember to register new plugins with @register decorator
+- Quand on travail sur l'interface graphique, tu doit faire un build chaque fois qu'une tâche est terminée, puis exécuter "niamoto gui" dans @/Users/julienbarbe/Dev/Niamoto/Niamoto/test-instance/niamoto-gui

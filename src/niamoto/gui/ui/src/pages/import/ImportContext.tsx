@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { configService } from '@/services/configService'
 
 export interface OccurrenceImportData {
   file: File | null
@@ -65,6 +66,11 @@ interface ImportContextType {
   removeShape: (index: number) => void
   setCurrentStep: (step: number) => void
   canProceed: () => boolean
+  isEditMode: boolean
+  setEditMode: (mode: boolean) => void
+  configLoading: boolean
+  configError: string | null
+  hasExistingConfig: boolean
 }
 
 const ImportContext = createContext<ImportContextType | undefined>(undefined)
@@ -92,6 +98,50 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
     }
   })
+
+  const [isEditMode, setEditMode] = useState(false)
+  const [configLoading, setConfigLoading] = useState(true)
+  const [configError, setConfigError] = useState<string | null>(null)
+  const [hasExistingConfig, setHasExistingConfig] = useState(false)
+
+  // Load existing configuration on mount
+  useEffect(() => {
+    const loadExistingConfig = async () => {
+      try {
+        setConfigLoading(true)
+        const config = await configService.getImportConfig()
+
+        if (config && Object.keys(config).length > 0) {
+          // Parse config to state format
+          const parsedState = configService.parseImportConfigToState(config)
+
+          // Update state with existing configuration
+          setState(prev => ({
+            ...prev,
+            occurrences: parsedState.occurrences || prev.occurrences,
+            plots: parsedState.plots,
+            shapes: parsedState.shapes
+          }))
+
+          setHasExistingConfig(true)
+          // Start in read mode if config exists
+          setEditMode(false)
+        } else {
+          // No existing config, start in edit mode
+          setEditMode(true)
+        }
+      } catch (error) {
+        console.error('Failed to load existing configuration:', error)
+        setConfigError(error instanceof Error ? error.message : 'Failed to load configuration')
+        // On error, start in edit mode
+        setEditMode(true)
+      } finally {
+        setConfigLoading(false)
+      }
+    }
+
+    loadExistingConfig()
+  }, [])
 
   const updateOccurrences = (data: Partial<OccurrenceImportData>) => {
     setState(prev => ({
@@ -185,7 +235,12 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       addShape,
       removeShape,
       setCurrentStep,
-      canProceed
+      canProceed,
+      isEditMode,
+      setEditMode,
+      configLoading,
+      configError,
+      hasExistingConfig
     }}>
       {children}
     </ImportContext.Provider>
