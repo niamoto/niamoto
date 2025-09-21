@@ -48,7 +48,7 @@ class TestDatabaseAggregatorPlugin:
 
         validated_config = DatabaseAggregatorConfig(**config)
         assert validated_config.plugin == "database_aggregator"
-        assert "simple_query" in validated_config.params["queries"]
+        assert "simple_query" in validated_config.params.queries
 
     def test_config_validation_invalid_format(self):
         """Test config validation with invalid format."""

@@ -2,9 +2,9 @@
 Plugin for processing complex shapes with additional layers.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List, Literal, Union
 import os
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 import pandas as pd
 import geopandas as gpd
 from shapely.wkb import loads
@@ -12,7 +12,7 @@ from shapely.geometry import mapping
 import topojson as tp
 import yaml
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.database import Database
 
@@ -24,34 +24,91 @@ from shapely.geometry import Polygon, MultiPolygon, GeometryCollection
 from shapely.ops import unary_union
 
 
-class LayerConfig(BaseModel):
+class LayerConfig(BasePluginParams):
     """Configuration for an additional layer"""
 
-    path: str
-    field: str = "geometry"
-    clip: bool = True
-    simplify: bool = True
+    name: str = Field(
+        ...,
+        description="Name/identifier of the layer",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    clip: bool = Field(
+        default=True,
+        description="Whether to clip the layer to the main geometry",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+
+    simplify: bool = Field(
+        default=True,
+        description="Whether to simplify the layer geometry",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+
+
+class ShapeProcessorParams(BasePluginParams):
+    """Typed parameters for shape processor plugin.
+
+    This plugin processes complex shapes with additional layers,
+    simplifies geometries, and converts to optimized formats.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Process shapes with additional layers and convert to TopoJSON",
+            "examples": [
+                {
+                    "source": "shape_ref",
+                    "field": "location",
+                    "format": "topojson",
+                    "simplify": True,
+                    "layers": [
+                        {"name": "forest_cover", "clip": True, "simplify": True}
+                    ],
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="shape_ref",
+        description="Source table containing shape data",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    field: str = Field(
+        default="location",
+        description="Field containing the geometry data",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    format: str = Field(
+        default="topojson",
+        description="Output format for processed geometries",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["topojson", "geojson"],
+        },
+    )
+
+    simplify: bool = Field(
+        default=True,
+        description="Whether to simplify geometries using UTM projection",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+
+    layers: List[Union[str, LayerConfig]] = Field(
+        default_factory=list,
+        description="List of additional layers to process",
+        json_schema_extra={"ui:widget": "array"},
+    )
 
 
 class ShapeProcessorConfig(PluginConfig):
     """Configuration for shape processor plugin"""
 
-    plugin: str = "shape_processor"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "source": "shape_ref",
-            "field": "location",
-            "format": "topojson",
-            "simplify": True,
-            "layers": {
-                "forest_cover": {
-                    "path": "imports/forest_cover.gpkg",
-                    "clip": True,
-                    "simplify": True,
-                }
-            },
-        }
-    )
+    plugin: Literal["shape_processor"] = "shape_processor"
+    params: ShapeProcessorParams
 
 
 @register("shape_processor", PluginType.TRANSFORMER)
@@ -83,7 +140,9 @@ class ShapeProcessor(TransformerPlugin):
             else:
                 self.imports_config = {}
 
-            self.config = ShapeProcessorConfig(plugin="shape_processor", params={})
+            self.config = ShapeProcessorConfig(
+                plugin="shape_processor", params=ShapeProcessorParams()
+            )
 
             if config:
                 self.config = self.validate_config(config)
@@ -91,39 +150,10 @@ class ShapeProcessor(TransformerPlugin):
         except Exception as e:
             raise ValueError(f"Error initializing shape processor: {str(e)}")
 
-    def validate_config(self, config: Dict[str, Any]) -> Any:
-        """Validate the configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> ShapeProcessorConfig:
+        """Validate configuration and return typed config."""
         try:
-            if not isinstance(config, dict):
-                raise ValueError("Configuration must be a dictionary")
-
-            if "params" not in config:
-                raise ValueError("Configuration must contain 'params' key")
-
-            params = config["params"]
-            if not isinstance(params, dict):
-                raise ValueError("params must be a dictionary")
-
-            if "layers" in params:
-                layers = params["layers"]
-                if not isinstance(layers, list):
-                    raise ValueError("layers must be a list")
-
-                for layer_config in layers:
-                    if isinstance(layer_config, str):
-                        continue
-                    elif isinstance(layer_config, dict):
-                        if "name" not in layer_config:
-                            raise ValueError(
-                                f"Layer configuration must contain 'name' key: {layer_config}"
-                            )
-                    else:
-                        raise ValueError(
-                            f"Invalid layer configuration format: {layer_config}"
-                        )
-
-            return config
-
+            return self.config_model(**config)
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -132,8 +162,8 @@ class ShapeProcessor(TransformerPlugin):
         try:
             geometry = loads(bytes.fromhex(wkb_str))
 
-            if hasattr(self.config, "params") and isinstance(self.config.params, dict):
-                simplify = self.config.params.get("simplify", True)
+            if hasattr(self.config, "params"):
+                simplify = self.config.params.simplify
             else:
                 simplify = True
 
@@ -165,8 +195,8 @@ class ShapeProcessor(TransformerPlugin):
         """Get simplified coordinates for a geometry and convert to TopoJSON."""
         try:
             geometry = loads(bytes.fromhex(geometry_location))
-            if hasattr(self.config, "params") and isinstance(self.config.params, dict):
-                simplify = self.config.params.get("simplify", True)
+            if hasattr(self.config, "params"):
+                simplify = self.config.params.simplify
             else:
                 simplify = True
 
@@ -406,9 +436,9 @@ class ShapeProcessor(TransformerPlugin):
 
             self.config = validated_config
 
-            params = validated_config["params"]
-            source = params.get("source", "shape_ref")
-            field = params.get("field", "location")
+            params = validated_config.params
+            source = params.source
+            field = params.field
 
             # Get the group_id from config
             group_id = config.get("group_id")
@@ -432,19 +462,17 @@ class ShapeProcessor(TransformerPlugin):
             shape_gdf = self.load_shape_geometry(str(wkb_data))
 
             layers_result = {}
-            layers = params.get("layers", [])
+            layers = params.layers
 
             for layer_config in layers:
                 if isinstance(layer_config, str):
                     layer_name = layer_config
                     layer_params = {"clip": True, "simplify": True}
                 else:
-                    layer_name = layer_config.get("name")
-                    if not layer_name:
-                        continue
+                    layer_name = layer_config.name
                     layer_params = {
-                        "clip": layer_config.get("clip", True),
-                        "simplify": layer_config.get("simplify", True),
+                        "clip": layer_config.clip,
+                        "simplify": layer_config.simplify,
                     }
 
                 layer_gdf = self.load_layer_as_gdf(

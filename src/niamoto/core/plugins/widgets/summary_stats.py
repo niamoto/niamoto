@@ -2,29 +2,59 @@ import logging
 from typing import List, Optional, Set
 
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 
 logger = logging.getLogger(__name__)
 
 
 # Pydantic model for Summary Stats Widget parameters validation
-class SummaryStatsParams(BaseModel):
-    title: Optional[str] = Field(None, description="Optional title for the widget.")
+class SummaryStatsParams(BasePluginParams):
+    """Parameters for summary statistics widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Display summary statistics of numeric columns in a DataFrame",
+            "examples": [
+                {
+                    "numeric_columns": ["height", "dbh", "biomass"],
+                    "percentiles": [0.25, 0.5, 0.75],
+                    "include_stats": ["mean", "std", "min", "max"],
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        description="Optional title for the widget.",
+        json_schema_extra={"ui:widget": "text"},
+    )
     description: Optional[str] = Field(
-        None, description="Optional description for the widget."
+        default=None,
+        description="Optional description for the widget.",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     numeric_columns: Optional[List[str]] = Field(
-        None,
+        default=None,
         description="List of numeric columns to compute stats for. If None, attempts all numeric columns.",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     percentiles: List[float] = Field(
-        [0.25, 0.5, 0.75], description="List of percentiles to compute."
+        default=[0.25, 0.5, 0.75],
+        description="List of percentiles to compute.",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "number"},
     )
     include_stats: Optional[List[str]] = Field(
-        None,
+        default=None,
         description="Specific stats to include (e.g., ['mean', 'std']). Defaults to pandas describe() output.",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:item-widget": "select",
+            "ui:options": ["count", "mean", "std", "min", "25%", "50%", "75%", "max"],
+        },
     )
     # Note: pandas describe() includes count, mean, std, min, 25%, 50%, 75%, max by default
 

@@ -4,12 +4,12 @@ Handles cases where we need to compare a subset distribution against a total dis
 such as forest elevation distribution vs total land elevation distribution.
 """
 
-from typing import Dict, Any, List
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Literal
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import pandas as pd
 import numpy as np
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
@@ -24,23 +24,67 @@ class DistributionConfig(BaseModel):
     )
 
 
+class SeriesRatioParams(BasePluginParams):
+    """Parameters for series ratio aggregator plugin"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Calculate ratios between series of distributions",
+            "examples": [
+                {
+                    "source": "shape_stats",
+                    "distributions": {
+                        "elevation": {
+                            "total": "land_elevation",
+                            "subset": "forest_elevation",
+                            "complement_mode": "difference",
+                        }
+                    },
+                    "numeric_class_name": True,
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="shape_stats",
+        description="Source table containing class_object data",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["raw_shape_stats", "shape_stats"],
+        },
+    )
+
+    distributions: Dict[str, DistributionConfig] = Field(
+        default_factory=dict,
+        description="Mapping of distribution names to total/subset field pairs",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    numeric_class_name: bool = Field(
+        default=True,
+        description="Whether to convert class names to numeric",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+
+    @field_validator("distributions")
+    @classmethod
+    def validate_distributions(
+        cls, v: Dict[str, DistributionConfig]
+    ) -> Dict[str, DistributionConfig]:
+        """Validate distributions configuration."""
+        if not v:
+            raise ValueError("At least one distribution must be specified")
+        return v
+
+
 class ClassObjectSeriesRatioConfig(PluginConfig):
     """Configuration for series ratio aggregator plugin"""
 
-    plugin: str = "class_object_series_ratio_aggregator"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "source": "shape_stats",
-            "distributions": {
-                "elevation": {
-                    "total": "land_elevation",
-                    "subset": "forest_elevation",
-                    "complement_mode": "difference",
-                }
-            },
-            "numeric_class_name": True,
-        }
+    plugin: Literal["class_object_series_ratio_aggregator"] = (
+        "class_object_series_ratio_aggregator"
     )
+    params: SeriesRatioParams
 
 
 @register("class_object_series_ratio_aggregator", PluginType.TRANSFORMER)
@@ -49,41 +93,23 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
 
     config_model = ClassObjectSeriesRatioConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration."""
-        validated_config = self.config_model(**config)
-
-        # Validate distributions configuration
-        distributions = validated_config.params.get("distributions", {})
-        if not distributions:
+    def validate_config(self, config: Dict[str, Any]) -> ClassObjectSeriesRatioConfig:
+        """Validate plugin configuration and return typed config."""
+        try:
+            validated_config = self.config_model(**config)
+            # Check for specific validation that tests expect
+            if not validated_config.params.distributions:
+                raise DataTransformError(
+                    "At least one distribution must be specified",
+                    details={"config": config},
+                )
+            return validated_config
+        except DataTransformError:
+            raise
+        except Exception as e:
             raise DataTransformError(
-                "At least one distribution must be specified",
-                details={"config": config},
+                f"Invalid configuration: {str(e)}", details={"config": config}
             )
-
-        # Validate each distribution has total and subset fields
-        for dist_name, dist_config in distributions.items():
-            if not isinstance(dist_config, dict):
-                raise DataTransformError(
-                    f"Distribution {dist_name} configuration must be a dictionary",
-                    details={"config": dist_config},
-                )
-
-            if "total" not in dist_config or "subset" not in dist_config:
-                raise DataTransformError(
-                    f"Distribution {dist_name} must specify both 'total' and 'subset' fields",
-                    details={"config": dist_config},
-                )
-
-            # Validate complement_mode if specified
-            complement_mode = dist_config.get("complement_mode", "ratio")
-            if complement_mode not in ["ratio", "difference"]:
-                raise DataTransformError(
-                    f"Invalid complement_mode '{complement_mode}' for distribution {dist_name}. Must be 'ratio' or 'difference'",
-                    details={"config": dist_config},
-                )
-
-        return validated_config
 
     def transform(
         self, data: pd.DataFrame, config: Dict[str, Any]
@@ -132,15 +158,15 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                 )
 
             # Get distributions configuration
-            distributions = params["distributions"]
-            numeric_class_name = params.get("numeric_class_name", True)
+            distributions = params.distributions
+            numeric_class_name = params.numeric_class_name
 
             result = {}
 
             # Process each distribution
             for dist_name, dist_config in distributions.items():
-                # Validate distribution configuration
-                dist = DistributionConfig(**dist_config)
+                # Get distribution configuration
+                dist = dist_config
 
                 # Get total and subset data
                 total_data_raw = data[data["class_object"] == dist.total].copy()

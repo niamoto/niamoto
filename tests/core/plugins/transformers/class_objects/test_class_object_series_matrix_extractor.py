@@ -184,7 +184,7 @@ def test_transform_success(extractor, valid_config, sample_data):
 def test_transform_axis_not_numeric_or_sorted(extractor, sample_data):
     """Test transformation when axis is not numeric or sorted in config."""
     config = {
-        "plugin": "p",
+        "plugin": "class_object_series_matrix_extractor",
         "params": {
             "source": "test",
             "axis": {"field": "elevation", "numeric": False, "sort": False},

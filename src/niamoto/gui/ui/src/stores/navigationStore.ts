@@ -46,10 +46,10 @@ export const navigationSections: NavigationSection[] = [
     label: 'Pipeline',
     defaultOpen: true,
     items: [
-      { id: 'pipeline-editor', label: 'Pipeline Editor', path: '/pipeline', badge: 'New' },
-      { id: 'import', label: 'Import Data', path: '/import' },
-      { id: 'transform', label: 'Transform', path: '/transform' },
-      { id: 'export', label: 'Export Site', path: '/export' }
+      { id: 'pipeline-editor', label: 'Pipeline Editor', path: '/setup/pipeline', badge: 'New' },
+      { id: 'import', label: 'Import Data', path: '/setup/import' },
+      { id: 'transform', label: 'Transform', path: '/setup/transform' },
+      { id: 'export', label: 'Export Site', path: '/setup/export' }
     ]
   },
   {
@@ -66,9 +66,17 @@ export const navigationSections: NavigationSection[] = [
     label: 'Tools',
     defaultOpen: false,
     items: [
-      { id: 'settings', label: 'Settings', path: '/settings' },
-      { id: 'plugins', label: 'Plugins', path: '/tools/plugins', badge: 'Soon' },
+      { id: 'settings', label: 'Settings', path: '/tools/settings' },
+      { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
       { id: 'docs', label: 'Documentation', path: '/tools/docs', badge: 'Soon' }
+    ]
+  },
+  {
+    id: 'demos',
+    label: 'Interface Demos',
+    defaultOpen: false,
+    items: [
+      { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric', badge: '⭐' }
     ]
   }
 ]

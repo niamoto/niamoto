@@ -2,7 +2,7 @@
 Plugin for loading statistics from various sources.
 """
 
-from typing import Dict, Any, Literal
+from typing import Dict, Any, Literal, Optional
 import pandas as pd
 from sqlalchemy import text
 import os
@@ -10,21 +10,47 @@ import logging
 
 from niamoto.common.config import Config
 from niamoto.common.exceptions import DataLoadError
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
+
+
+class StatsLoaderParams(BasePluginParams):
+    """Parameters for statistics loader plugin."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Load statistics from various sources (CSV, database, shapefiles)",
+            "examples": [
+                {"key": "shape_id", "ref_field": "shape_id", "match_field": "id"}
+            ],
+        }
+    )
+
+    key: str = Field(
+        default="id",
+        description="ID field name in data source",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    ref_field: Optional[str] = Field(
+        default=None,
+        description="Custom reference field (default: {group}_id)",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    match_field: Optional[str] = Field(
+        default=None,
+        description="Field to match in CSV (default: same as key)",
+        json_schema_extra={"ui:widget": "text"},
+    )
 
 
 class StatsLoaderConfig(PluginConfig):
     """Configuration for statistics loader plugin."""
 
-    model_config = ConfigDict(
-        title="Statistics Loader Configuration",
-        description="Configuration for loading statistics from various sources",
-    )
-
-    plugin: Literal["stats_loader"]
-    key: str = "id"
+    plugin: Literal["stats_loader"] = "stats_loader"
+    params: StatsLoaderParams
 
 
 @register("stats_loader", PluginType.LOADER)
@@ -51,6 +77,17 @@ class StatsLoader(LoaderPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> StatsLoaderConfig:
         """Validate plugin configuration."""
+        # Extract params if they exist in the config
+        if "params" not in config:
+            # For backward compatibility, build params from top-level fields
+            params = {}
+            if "key" in config:
+                params["key"] = config["key"]
+            if "ref_field" in config:
+                params["ref_field"] = config["ref_field"]
+            if "match_field" in config:
+                params["match_field"] = config["match_field"]
+            config = {"plugin": "stats_loader", "params": params}
         return self.config_model(**config)
 
     def _load_from_csv(
@@ -85,13 +122,17 @@ class StatsLoader(LoaderPlugin):
         grouping_table = config.get("grouping", "")
         group_name = grouping_table.replace("_ref", "")  # e.g., "shape_ref" -> "shape"
 
+        # Get params from validated config
+        validated_config = self.validate_config(config)
+        params = validated_config.params
+
         # Allow custom reference field (default to {group}_id)
-        ref_field = config.get("ref_field")
+        ref_field = params.ref_field
         if not ref_field:
             ref_field = f"{group_name}_id"  # e.g., "shape_id"
 
         # Allow custom match field in CSV (default to key)
-        match_field = config.get("match_field", config.get("key", "id"))
+        match_field = params.match_field or params.key
 
         query = text(f"""
             SELECT {ref_field} FROM {config["grouping"]} WHERE id = :group_id
@@ -132,7 +173,7 @@ class StatsLoader(LoaderPlugin):
         query = text(f"""
             SELECT m.*
             FROM {config["data"]} m
-            JOIN {config["grouping"]} ref ON m.{config["key"]} = ref.id
+            JOIN {config["grouping"]} ref ON m.{config.get("key", "id")} = ref.id
             WHERE ref.id = :group_id
         """)
 

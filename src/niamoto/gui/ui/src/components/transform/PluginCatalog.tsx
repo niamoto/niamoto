@@ -61,10 +61,9 @@ export function PluginCatalog({
   const { categories } = usePluginCategories()
 
   // Transform API plugins to internal format with icons
-  // Filter to only show loaders and transformers for Transform page
+  // Show all plugin types now, as they can all be used in the transform pipeline
   const plugins: Plugin[] = useMemo(() => {
     return apiPlugins
-      .filter(p => p.type === 'loader' || p.type === 'transformer')
       .map(apiPlugin => ({
         ...apiPlugin,
         icon: categoryIcons[apiPlugin.category || ''] || defaultIcon,
@@ -150,6 +149,12 @@ export function PluginCatalog({
               </TabsTrigger>
               <TabsTrigger value="transformer" className="flex-1">
                 {t('transform.plugins.transformers', 'Transformers')}
+              </TabsTrigger>
+              <TabsTrigger value="widget" className="flex-1">
+                {t('transform.plugins.widgets', 'Widgets')}
+              </TabsTrigger>
+              <TabsTrigger value="exporter" className="flex-1">
+                {t('transform.plugins.exporters', 'Exporters')}
               </TabsTrigger>
             </TabsList>
           </Tabs>

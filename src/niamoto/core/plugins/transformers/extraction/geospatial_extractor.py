@@ -2,7 +2,7 @@
 Plugin for extracting and formatting geospatial data.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Literal, Union
 import os
 
 import pandas as pd
@@ -11,90 +11,124 @@ from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 from shapely.wkb import loads as load_wkb
 from shapely.wkt import loads as load_wkt
+from pydantic import BaseModel, Field, ConfigDict
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
-from pydantic import field_validator
+
+
+class HierarchyConfig(BaseModel):
+    """Configuration for hierarchical data extraction."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Configuration for extracting hierarchical data using nested sets",
+            "examples": [
+                {
+                    "type_field": "plot_type",
+                    "leaf_type": "plot",
+                    "left_field": "lft",
+                    "right_field": "rght",
+                }
+            ],
+        }
+    )
+
+    type_field: Optional[str] = Field(
+        None, description="Field that contains the entity type (e.g., 'plot_type')"
+    )
+    leaf_type: Optional[str] = Field(
+        None, description="Value that identifies leaf entities (e.g., 'plot')"
+    )
+    left_field: str = Field(
+        default="lft", description="Field for nested set left value"
+    )
+    right_field: str = Field(
+        default="rght", description="Field for nested set right value"
+    )
+
+
+class GeospatialExtractorParams(BasePluginParams):
+    """Parameters for geospatial data extraction.
+
+    This plugin extracts and formats geospatial data from various sources,
+    supporting multiple geometry formats and hierarchical data structures.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract and format geospatial data into GeoJSON",
+            "examples": [
+                {
+                    "source": "plots",
+                    "field": "geometry",
+                    "format": "geojson",
+                    "properties": ["name", "type", "area"],
+                },
+                {
+                    "source": "occurrences",
+                    "field": "location",
+                    "format": "geojson",
+                    "group_by_coordinates": True,
+                    "properties": ["species_name", "count"],
+                },
+                {
+                    "source": "hierarchical_plots",
+                    "field": "geometry",
+                    "extract_children": True,
+                    "hierarchy_config": {
+                        "type_field": "plot_type",
+                        "leaf_type": "subplot",
+                        "left_field": "lft",
+                        "right_field": "rght",
+                    },
+                },
+            ],
+        }
+    )
+
+    source: str = Field(
+        ...,
+        description="Data source name (table or import)",
+        json_schema_extra={"ui:widget": "select"},
+    )
+    field: str = Field(
+        ...,
+        description="Field name containing geometry data",
+        json_schema_extra={"ui:widget": "field-select", "ui:depends": "source"},
+    )
+    format: Literal["geojson"] = Field(
+        default="geojson", description="Output format for geospatial data"
+    )
+    properties: List[str] = Field(
+        default_factory=list,
+        description="List of properties to include in the output features",
+        json_schema_extra={"ui:widget": "multi-field-select", "ui:depends": "source"},
+    )
+    group_by_coordinates: bool = Field(
+        default=False,
+        description="Group points with the same coordinates and add count property",
+    )
+    extract_children: bool = Field(
+        default=False,
+        description="Extract child entities instead of the main entity (for hierarchical data)",
+    )
+    children_properties: List[str] = Field(
+        default_factory=list,
+        description="Properties to include from children when extract_children is True",
+    )
+    hierarchy_config: HierarchyConfig = Field(
+        default_factory=lambda: HierarchyConfig(),
+        description="Configuration for hierarchical data extraction using nested sets",
+    )
 
 
 class GeospatialExtractorConfig(PluginConfig):
-    """Configuration for geospatial extractor plugin"""
+    """Complete configuration for geospatial extractor plugin."""
 
-    plugin: str = "geospatial_extractor"
-    params: Dict[str, Any] = {
-        "source": "",
-        "field": "",
-        "format": "geojson",  # default format
-        "properties": [],  # optional, empty by default
-        "group_by_coordinates": False,  # optional, group points with same coordinates
-        "extract_children": False,  # optional, extract child entities instead of aggregated geometry
-        "children_properties": [],  # optional, properties to include from children
-        "hierarchy_config": {  # optional, configuration for hierarchical extraction
-            "type_field": None,  # field that contains the entity type (e.g., "plot_type")
-            "leaf_type": None,  # value that identifies leaf entities (e.g., "plot")
-            "left_field": "lft",  # field for nested set left value
-            "right_field": "rght",  # field for nested set right value
-        },
-    }
-
-    @field_validator("params")
-    @classmethod
-    def validate_params(cls, v):
-        """Validate configuration parameters."""
-        # Ensure we have a dictionary
-        if not isinstance(v, dict):
-            v = {}
-
-        # Validate required fields
-        if not v.get("source"):
-            raise ValueError("Source is required")
-        if not v.get("field"):
-            raise ValueError("Field is required")
-
-        # Set default format if not provided
-        if "format" not in v:
-            v["format"] = "geojson"
-        elif v["format"] not in {"geojson"}:
-            raise ValueError("Format must be 'geojson'")
-
-        # Set empty properties list if not provided
-        if "properties" not in v:
-            v["properties"] = []
-
-        # Set default for group_by_coordinates if not provided
-        if "group_by_coordinates" not in v:
-            v["group_by_coordinates"] = False
-
-        # Set default for extract_children if not provided
-        if "extract_children" not in v:
-            v["extract_children"] = False
-
-        # Set default for children_properties if not provided
-        if "children_properties" not in v:
-            v["children_properties"] = []
-
-        # Set default for hierarchy_config if not provided
-        if "hierarchy_config" not in v:
-            v["hierarchy_config"] = {
-                "type_field": None,
-                "leaf_type": None,
-                "left_field": "lft",
-                "right_field": "rght",
-            }
-        else:
-            # Ensure all keys exist with defaults
-            hierarchy_config = v["hierarchy_config"]
-            if "type_field" not in hierarchy_config:
-                hierarchy_config["type_field"] = None
-            if "leaf_type" not in hierarchy_config:
-                hierarchy_config["leaf_type"] = None
-            if "left_field" not in hierarchy_config:
-                hierarchy_config["left_field"] = "lft"
-            if "right_field" not in hierarchy_config:
-                hierarchy_config["right_field"] = "rght"
-
-        return v
+    plugin: Literal["geospatial_extractor"] = "geospatial_extractor"
+    params: GeospatialExtractorParams
 
 
 @register("geospatial_extractor", PluginType.TRANSFORMER)
@@ -108,16 +142,10 @@ class GeospatialExtractor(TransformerPlugin):
         self.config = Config()
         self.imports_config = self.config.get_imports_config
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> GeospatialExtractorConfig:
+        """Validate configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
-            # Additional validation if needed
-            valid_formats = {"geojson"}
-            if validated_config.params.get("format") not in valid_formats:
-                raise ValueError(
-                    f"Invalid format: {validated_config.params.get('format')}. Valid options are: {valid_formats}"
-                )
+            return self.config_model(**config)
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -284,29 +312,20 @@ class GeospatialExtractor(TransformerPlugin):
             traceback.print_exc()
             raise ValueError(f"Error getting children from {source}: {str(e)}")
 
-    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+    def transform(
+        self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Transform data according to configuration."""
         try:
-            # Make sure we have a params dictionary
-            if "params" not in config:
-                config["params"] = {}
-
-            # Get required parameters from config
-            params = config["params"]
-            if "source" in config:
-                params["source"] = config["source"]
-            if "field" in config:
-                params["field"] = config["field"]
-
-            validated_config = self.config_model(**config)
+            validated_config = self.validate_config(config)
             params = validated_config.params
-            source = params["source"]
-            field = params["field"]
-            format = params["format"]
-            properties = params["properties"]
-            group_by_coordinates = params.get("group_by_coordinates", False)
-            extract_children = params.get("extract_children", False)
-            hierarchy_config = params.get("hierarchy_config", {})
+            source = params.source
+            field = params.field
+            format_type = params.format
+            properties = params.properties
+            group_by_coordinates = params.group_by_coordinates
+            extract_children = params.extract_children
+            hierarchy_config = params.hierarchy_config
 
             # Get source data if different from occurrences
             # Exception: if source is "plots" but we already have aggregated data from nested_set,
@@ -317,7 +336,7 @@ class GeospatialExtractor(TransformerPlugin):
                 # If extract_children is True, get children instead of the entity itself
                 if extract_children:
                     data = self._get_children_from_source(
-                        source, group_id, hierarchy_config
+                        source, group_id, hierarchy_config.model_dump()
                     )
                 else:
                     data = self._get_data_from_source(source, group_id)
@@ -344,7 +363,7 @@ class GeospatialExtractor(TransformerPlugin):
                     gdf = gpd.GeoDataFrame(valid_data, geometry=valid_geometry)
 
                     # Convert to GeoJSON
-                    if format == "geojson":
+                    if format_type == "geojson":
                         if group_by_coordinates:
                             # Dictionary to store unique coordinates and their features
                             unique_features = {}

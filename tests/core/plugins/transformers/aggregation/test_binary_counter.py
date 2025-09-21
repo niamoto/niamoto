@@ -42,7 +42,7 @@ class TestBinaryCounterValidation:
                 "false_label": "Absent",
             },
         }
-        with pytest.raises(ValueError, match="Missing required field: field"):
+        with pytest.raises(ValueError, match="Field required"):
             binary_counter_plugin.validate_config(config)
 
     def test_validate_config_same_labels(self, binary_counter_plugin):
@@ -72,7 +72,7 @@ class TestBinaryCounterValidation:
                 "false_label": "Absent",
             },
         }
-        with pytest.raises(ValueError, match="true_label must be a string"):
+        with pytest.raises(ValueError, match="Input should be a valid string"):
             binary_counter_plugin.validate_config(config)
 
     # Add more validation tests as needed...

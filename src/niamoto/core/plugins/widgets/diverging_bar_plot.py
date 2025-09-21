@@ -3,9 +3,10 @@ from typing import Any, List, Optional, Set
 
 import pandas as pd
 import plotly.graph_objects as go
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -16,30 +17,93 @@ logger = logging.getLogger(__name__)
 
 
 # Pydantic model for Diverging Bar Plot parameters validation
-class DivergingBarPlotParams(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
+class DivergingBarPlotParams(BasePluginParams):
+    """Parameters for diverging bar plot widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create diverging bar charts with positive/negative color coding",
+            "examples": [
+                {
+                    "x_axis": "category",
+                    "y_axis": "value",
+                    "threshold": 0.0,
+                    "color_positive": "#2ca02c",
+                    "color_negative": "#d62728",
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None, description="Chart title", json_schema_extra={"ui:widget": "text"}
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Chart description",
+        json_schema_extra={"ui:widget": "textarea"},
+    )
     x_axis: str = Field(
-        ..., description="Field name for the category axis (Y in horizontal bar plot)."
+        ...,
+        description="Field name for the category axis (Y in horizontal bar plot)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     y_axis: str = Field(
-        ..., description="Field name for the value axis (X in horizontal bar plot)."
+        ...,
+        description="Field name for the value axis (X in horizontal bar plot)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     color_positive: str = Field(
-        default="#2ca02c", description="Hex color for positive bars."
-    )  # Default green
-    color_negative: str = Field(
-        default="#d62728", description="Hex color for negative bars."
-    )  # Default red
-    threshold: float = Field(
-        default=0.0, description="Value threshold to determine positive/negative."
+        default="#2ca02c",
+        description="Hex color for positive bars",
+        json_schema_extra={"ui:widget": "color"},
     )
-    orientation: Optional[str] = "h"  # 'h' for horizontal (default), 'v' for vertical
-    hover_name: Optional[str] = None  # Field name for hover text (often same as x_axis)
-    hover_data: Optional[List[str]] = None  # Additional fields for hover tooltip
-    xaxis_title: Optional[str] = None
-    yaxis_title: Optional[str] = None
-    sort_values: Optional[bool] = True  # Whether to sort bars by value
+    color_negative: str = Field(
+        default="#d62728",
+        description="Hex color for negative bars",
+        json_schema_extra={"ui:widget": "color"},
+    )
+    threshold: float = Field(
+        default=0.0,
+        description="Value threshold to determine positive/negative",
+        json_schema_extra={"ui:widget": "number", "ui:step": 0.1},
+    )
+    orientation: Optional[str] = Field(
+        default="h",
+        description="Bar orientation",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "h", "label": "Horizontal"},
+                {"value": "v", "label": "Vertical"},
+            ],
+        },
+    )
+    hover_name: Optional[str] = Field(
+        default=None,
+        description="Field name for hover text",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    hover_data: Optional[List[str]] = Field(
+        default=None,
+        description="Additional fields for hover tooltip",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
+    )
+    xaxis_title: Optional[str] = Field(
+        default=None,
+        description="X-axis title",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    yaxis_title: Optional[str] = Field(
+        default=None,
+        description="Y-axis title",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    sort_values: Optional[bool] = Field(
+        default=True,
+        description="Whether to sort bars by value",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
 
 
 @register("diverging_bar_plot", PluginType.WIDGET)

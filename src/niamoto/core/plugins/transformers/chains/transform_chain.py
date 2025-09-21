@@ -2,37 +2,94 @@
 Plugin for chaining multiple transformations.
 """
 
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Literal
+from pydantic import Field, ConfigDict, model_validator
 import pandas as pd
 import geopandas as gpd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.common.exceptions import DataTransformError
 
 
-class TransformStepConfig(BaseModel):
+class TransformStepConfig(BasePluginParams):
     """Configuration for a single step in a transform chain"""
 
-    plugin: str = Field(..., description="Transformer plugin to use")
-    params: Dict[str, Any] = Field(
-        default_factory=dict, description="Parameters for the transformer"
+    model_config = ConfigDict(
+        json_schema_extra={"description": "Configuration for a transform chain step"}
     )
-    output_key: str = Field(..., description="Key under which to store the output")
+
+    plugin: str = Field(
+        ...,
+        description="Transformer plugin to use",
+        json_schema_extra={"ui:widget": "select"},
+    )
+
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters for the transformer",
+        json_schema_extra={"ui:widget": "object"},
+    )
+
+    output_key: str = Field(
+        ...,
+        description="Key under which to store the output",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+
+class TransformChainParams(BasePluginParams):
+    """Typed parameters for transform chain plugin.
+
+    This plugin chains multiple transformations together,
+    passing data between steps and supporting reference resolution.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Chain multiple transformations together",
+            "examples": [
+                {
+                    "steps": [
+                        {
+                            "plugin": "statistical_summary",
+                            "params": {
+                                "source": "occurrences",
+                                "stats": ["count", "mean"],
+                            },
+                            "output_key": "stats",
+                        },
+                        {
+                            "plugin": "binned_distribution",
+                            "params": {"source": "occurrences", "field": "height"},
+                            "output_key": "height_dist",
+                        },
+                    ]
+                }
+            ],
+        }
+    )
+
+    steps: List[TransformStepConfig] = Field(
+        ...,
+        description="List of transformation steps to execute in order",
+        json_schema_extra={"ui:widget": "array"},
+    )
+
+    @model_validator(mode="after")
+    def validate_steps_not_empty(self):
+        """Validate that steps list is not empty."""
+        if not self.steps:
+            raise ValueError("steps list cannot be empty")
+        return self
 
 
 class TransformChainConfig(PluginConfig):
     """Configuration for transform chain plugin"""
 
-    plugin: str = "transform_chain"
-    steps: Optional[List[TransformStepConfig]] = Field(
-        None, description="Steps in the transform chain (legacy format)"
-    )
-    params: Optional[Dict[str, Any]] = Field(
-        None, description="Parameters including steps"
-    )
+    plugin: Literal["transform_chain"] = "transform_chain"
+    params: TransformChainParams
 
 
 @register("transform_chain", PluginType.TRANSFORMER)
@@ -41,32 +98,13 @@ class TransformChain(TransformerPlugin):
 
     config_model = TransformChainConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> TransformChainConfig:
+        """Validate configuration and return typed config."""
         try:
             validated_config = self.config_model(**config)
 
-            # Get steps from either top-level or params.steps
-            steps = []
-            if validated_config.steps:
-                # Legacy format with steps at top level
-                steps = validated_config.steps
-            elif validated_config.params and "steps" in validated_config.params:
-                # New format with steps in params
-                params_steps = validated_config.params["steps"]
-                # Convert each step dict to TransformStepConfig
-                for step_dict in params_steps:
-                    steps.append(TransformStepConfig(**step_dict))
-
-            if not steps:
-                raise DataTransformError(
-                    "No steps found in transform chain configuration",
-                    details={"config": config},
-                )
-
-            # Validate each step
-            for step in steps:
-                # Check if the referenced plugin exists
+            # Validate each step plugin exists
+            for step in validated_config.params.steps:
                 if not PluginRegistry.has_plugin(step.plugin, PluginType.TRANSFORMER):
                     raise DataTransformError(
                         f"Plugin {step.plugin} not found",
@@ -77,10 +115,10 @@ class TransformChain(TransformerPlugin):
                         },
                     )
 
-            # Add steps to validated_config for easier access
-            validated_config.steps = steps
             return validated_config
         except Exception as e:
+            if isinstance(e, DataTransformError):
+                raise e
             raise DataTransformError(f"Invalid transform chain configuration: {str(e)}")
 
     def _resolve_references(
@@ -211,7 +249,7 @@ class TransformChain(TransformerPlugin):
             last_geodataframe = None
 
             # Execute each step
-            for step_config in validated_config.steps:
+            for step_config in validated_config.params.steps:
                 # Get plugin class
                 plugin_class = PluginRegistry.get_plugin(
                     step_config.plugin, PluginType.TRANSFORMER

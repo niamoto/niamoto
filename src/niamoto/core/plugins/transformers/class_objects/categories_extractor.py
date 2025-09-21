@@ -3,28 +3,65 @@ Plugin for extracting categorical values from shape statistics.
 Extracts values for ordered categories from a single field.
 """
 
-from typing import Dict, Any, List
-from pydantic import BaseModel, ValidationError
+from typing import Dict, Any, List, Literal
+from pydantic import Field, ConfigDict, ValidationError
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
-class CategoriesExtractorParams(BaseModel):
+class CategoriesExtractorParams(BasePluginParams):
     """Specific parameters for the Categories Extractor plugin."""
 
-    class_object: str
-    categories_order: List[str]  # Enforce list of strings
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract values for ordered categories from shape statistics",
+            "examples": [
+                {
+                    "class_object": "land_use",
+                    "categories_order": [
+                        "NUM",
+                        "UM",
+                        "Sec",
+                        "Humide",
+                        "Très Humide",
+                        "Réserve",
+                    ],
+                }
+            ],
+        }
+    )
+
+    class_object: str = Field(
+        ...,
+        description="Field name to match in class_object column",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    categories_order: List[str] = Field(
+        ...,
+        min_length=1,
+        description="List of categories in desired order",
+        json_schema_extra={"ui:widget": "tags"},
+    )
 
 
 class ClassObjectCategoriesConfig(PluginConfig):
     """Configuration for categories extractor plugin"""
 
-    plugin: str = "class_object_categories_extractor"
-    source: str = "shape_stats"
-    # Use the specific params model instead of Dict[str, Any]
+    plugin: Literal["class_object_categories_extractor"] = (
+        "class_object_categories_extractor"
+    )
+    source: str = Field(
+        default="shape_stats",
+        description="Source table containing shape statistics",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["shape_stats", "raw_shape_stats"],
+        },
+    )
     params: CategoriesExtractorParams
 
 

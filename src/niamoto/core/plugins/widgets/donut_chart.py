@@ -4,9 +4,10 @@ from typing import Any, Dict, List, Optional, Set
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -26,33 +27,120 @@ class SubplotConfig(BaseModel):
     colors: Optional[List[str]] = None  # Specific colors for this subplot
 
 
-class DonutChartParams(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    labels_field: Optional[str] = None  # Now optional
-    values_field: Optional[str] = None  # Now optional
-    label_mapping: Optional[Dict[str, str]] = None  # Still useful for flat dict case
-    color_discrete_sequence: Optional[List[str]] = (
-        None  # Default colors if not in subplot
+class DonutChartParams(BasePluginParams):
+    """Parameters for donut chart widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create interactive donut charts with multi-subplot support",
+            "examples": [
+                {
+                    "labels_field": "category",
+                    "values_field": "value",
+                    "title": "Donut Chart",
+                    "hole_size": 0.3,
+                }
+            ],
+        }
     )
-    hole_size: float = Field(0.3, ge=0, lt=1)  # Renamed
-    text_info: Optional[str] = (
-        "percent+label"  # e.g., 'percent', 'label', 'value', 'percent+label'
+
+    title: Optional[str] = Field(
+        default=None, description="Chart title", json_schema_extra={"ui:widget": "text"}
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Chart description",
+        json_schema_extra={"ui:widget": "textarea"},
+    )
+    labels_field: Optional[str] = Field(
+        default=None,
+        description="Field name for the labels (categories)",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    values_field: Optional[str] = Field(
+        default=None,
+        description="Field name for the values",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    label_mapping: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Mapping for category labels {'old_label': 'new_label'}",
+        json_schema_extra={"ui:widget": "json"},
+    )
+    color_discrete_sequence: Optional[List[str]] = Field(
+        default=None,
+        description="List of colors to use for the donut segments",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "color"},
+    )
+    hole_size: float = Field(
+        default=0.3,
+        ge=0,
+        lt=1,
+        description="Size of the center hole (0.0 = pie chart, 0.9 = thin ring)",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:min": 0.0,
+            "ui:max": 0.9,
+            "ui:step": 0.1,
+        },
+    )
+    text_info: Optional[str] = Field(
+        default="percent+label",
+        description="Information to display on segments",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "percent", "label": "Percentage only"},
+                {"value": "label", "label": "Label only"},
+                {"value": "value", "label": "Value only"},
+                {"value": "percent+label", "label": "Percentage + Label"},
+                {"value": "percent+value", "label": "Percentage + Value"},
+                {"value": "label+value", "label": "Label + Value"},
+            ],
+        },
     )
     legend_orientation: Optional[str] = Field(
-        None, pattern=r"^(h|v)$"
-    )  # Horizontal or Vertical
-
-    # New fields for multi-donut subplot feature
-    subplots: Optional[List[SubplotConfig]] = None
-    common_labels: Optional[List[str]] = (
-        None  # Labels shared across subplots if not specified per subplot
+        default=None,
+        pattern=r"^(h|v)$",
+        description="Legend orientation",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": None, "label": "Default"},
+                {"value": "h", "label": "Horizontal"},
+                {"value": "v", "label": "Vertical"},
+            ],
+        },
     )
 
-    # Hovertemplate fields (keep as is)
-    hover_name: Optional[str] = None
-    hover_data: Optional[List[str]] = None
-    hovertemplate: Optional[str] = None
+    # New fields for multi-donut subplot feature
+    subplots: Optional[List[SubplotConfig]] = Field(
+        default=None,
+        description="Configuration for multiple subplot donuts",
+        json_schema_extra={"ui:widget": "json"},
+    )
+    common_labels: Optional[List[str]] = Field(
+        default=None,
+        description="Labels shared across subplots if not specified per subplot",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "text"},
+    )
+
+    # Hovertemplate fields
+    hover_name: Optional[str] = Field(
+        default=None,
+        description="Field for primary hover label",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    hover_data: Optional[List[str]] = Field(
+        default=None,
+        description="Additional fields for hover tooltip",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
+    )
+    hovertemplate: Optional[str] = Field(
+        default=None,
+        description="Custom hover template (Plotly format)",
+        json_schema_extra={"ui:widget": "text"},
+    )
 
 
 @register("donut_chart", PluginType.WIDGET)

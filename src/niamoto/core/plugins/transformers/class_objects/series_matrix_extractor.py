@@ -3,13 +3,13 @@ Plugin for extracting and transforming multiple series from class objects into a
 Each series can be scaled and optionally complemented (100 - value).
 """
 
-from typing import Dict, Any, List
-from pydantic import BaseModel, Field, ValidationError
+from typing import Dict, Any, List, Literal
+from pydantic import BaseModel, Field, ConfigDict
 import pandas as pd
 import numpy as np
 import logging
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
@@ -33,18 +33,58 @@ class AxisConfig(BaseModel):
     sort: bool = Field(True, description="Sort axis values")
 
 
-class SeriesMatrixParams(BaseModel):
-    """Specific model for the 'params' structure"""
+class SeriesMatrixParams(BasePluginParams):
+    """Parameters for series matrix extractor plugin"""
 
-    source: str | None = None
-    axis: AxisConfig
-    series: List[SeriesConfig] = Field(..., min_length=1)
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract and transform multiple series from class objects into a matrix format",
+            "examples": [
+                {
+                    "source": "shape_stats",
+                    "axis": {"field": "class_name", "numeric": True, "sort": True},
+                    "series": [
+                        {
+                            "name": "forest_cover",
+                            "class_object": "forest_elevation",
+                            "scale": 1.0,
+                            "complement": False,
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="shape_stats",
+        description="Source table containing class_object data",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["raw_shape_stats", "shape_stats"],
+        },
+    )
+
+    axis: AxisConfig = Field(
+        ...,
+        description="Configuration for the axis",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    series: List[SeriesConfig] = Field(
+        ...,
+        min_length=1,
+        description="List of series configurations",
+        json_schema_extra={"ui:widget": "json"},
+    )
 
 
 class ClassObjectSeriesMatrixConfig(PluginConfig):
     """Configuration for series matrix extractor plugin"""
 
-    plugin: str = "class_object_series_matrix_extractor"
+    plugin: Literal["class_object_series_matrix_extractor"] = (
+        "class_object_series_matrix_extractor"
+    )
     params: SeriesMatrixParams
 
 
@@ -55,15 +95,12 @@ class ClassObjectSeriesMatrixExtractor(TransformerPlugin):
     config_model = ClassObjectSeriesMatrixConfig
 
     def validate_config(self, config: Dict[str, Any]) -> ClassObjectSeriesMatrixConfig:
-        """Validate plugin configuration"""
+        """Validate plugin configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
-            return validated_config
-        except ValidationError as e:
-            plugin_name = config.get("plugin", "class_object_series_matrix_extractor")
+            return self.config_model(**config)
+        except Exception as e:
             raise DataTransformError(
-                f"Invalid configuration for {plugin_name}: {e}",
-                details={"pydantic_error": e.errors(), "config": config},
+                f"Invalid configuration: {str(e)}", details={"config": config}
             )
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:

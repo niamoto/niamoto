@@ -64,7 +64,7 @@ class TestGeospatialExtractorValidation:
                 "format": "geojson",
             },
         }
-        with pytest.raises(ValueError, match="Source is required"):
+        with pytest.raises(ValueError, match="Field required"):
             geospatial_extractor_plugin.validate_config(config)
 
     def test_validate_config_missing_field(self, geospatial_extractor_plugin):
@@ -77,7 +77,7 @@ class TestGeospatialExtractorValidation:
                 "format": "geojson",
             },
         }
-        with pytest.raises(ValueError, match="Field is required"):
+        with pytest.raises(ValueError, match="Field required"):
             geospatial_extractor_plugin.validate_config(config)
 
     def test_validate_config_invalid_format(self, geospatial_extractor_plugin):
@@ -90,7 +90,7 @@ class TestGeospatialExtractorValidation:
                 "format": "invalid_format",  # Invalid format
             },
         }
-        with pytest.raises(ValueError, match="Format must be 'geojson'"):
+        with pytest.raises(ValueError, match="Input should be 'geojson'"):
             geospatial_extractor_plugin.validate_config(config)
 
     def test_validate_config_default_values(self, geospatial_extractor_plugin):
@@ -107,9 +107,9 @@ class TestGeospatialExtractorValidation:
         validated_config = geospatial_extractor_plugin.config_model(**config)
 
         # Check default values
-        assert validated_config.params["format"] == "geojson"
-        assert validated_config.params["properties"] == []
-        assert not validated_config.params["group_by_coordinates"]
+        assert validated_config.params.format == "geojson"
+        assert validated_config.params.properties == []
+        assert not validated_config.params.group_by_coordinates
 
 
 class TestGeospatialExtractorConversion:

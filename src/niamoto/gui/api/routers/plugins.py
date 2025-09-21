@@ -141,27 +141,61 @@ def get_plugin_info_from_class(name: str, plugin_class: type) -> PluginInfo:
     # Get plugin type
     plugin_type = getattr(plugin_class, "type", PluginType.TRANSFORMER)
 
-    # Try to extract parameters from config_model if it exists
+    # Try to extract parameters from param_schema (new standard) or config_model
     parameters_schema = []
-    if hasattr(plugin_class, "config_model"):
+    json_schema = None
+
+    # First try param_schema (new standard for all our refactored plugins)
+    if hasattr(plugin_class, "param_schema") and plugin_class.param_schema:
         try:
-            config_model = plugin_class.config_model
-            if hasattr(config_model, "__fields__"):
-                for field_name, field_info in config_model.__fields__.items():
-                    param = ParameterSchema(
-                        name=field_name,
-                        type="string",  # Simplified type mapping
-                        required=field_info.required,
-                        default=field_info.default
-                        if field_info.default is not None
-                        else None,
-                        description=field_info.field_info.description
-                        if hasattr(field_info, "field_info")
-                        else None,
-                    )
-                    parameters_schema.append(param)
+            json_schema = plugin_class.param_schema.model_json_schema()
         except Exception:
             pass
+    # Fallback to config_model for backward compatibility
+    elif hasattr(plugin_class, "config_model") and plugin_class.config_model:
+        try:
+            json_schema = plugin_class.config_model.model_json_schema()
+        except Exception:
+            pass
+
+    # Extract parameters from JSON schema
+    if json_schema:
+        properties = json_schema.get("properties", {})
+        required_fields = json_schema.get("required", [])
+
+        for field_name, field_info in properties.items():
+            # Get the UI widget type from json_schema_extra if available
+            ui_widget = None
+            if isinstance(field_info, dict):
+                extra = field_info.get("json_schema_extra", {})
+                if isinstance(extra, dict):
+                    ui_widget = extra.get("ui:widget")
+
+            # Map JSON schema type to our simplified type
+            json_type = field_info.get("type", "string")
+            if ui_widget:
+                # Use UI widget as a hint for the type
+                param_type = ui_widget
+            elif json_type == "integer":
+                param_type = "number"
+            elif json_type == "array":
+                param_type = "array"
+            elif json_type == "object":
+                param_type = "object"
+            else:
+                param_type = json_type
+
+            param = ParameterSchema(
+                name=field_name,
+                type=param_type,
+                required=field_name in required_fields,
+                default=field_info.get("default"),
+                description=field_info.get("description"),
+                enum=field_info.get("enum"),
+                min=field_info.get("minimum"),
+                max=field_info.get("maximum"),
+            )
+            parameters_schema.append(param)
 
     # Determine compatible inputs/outputs based on plugin type
     compatible_inputs = []
@@ -354,4 +388,65 @@ async def check_compatibility(check: CompatibilityCheck):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error checking compatibility: {str(e)}"
+        )
+
+
+@router.get("/{plugin_id}/schema")
+async def get_plugin_json_schema(plugin_id: str):
+    """
+    Get the full JSON schema for a plugin's parameters.
+
+    This endpoint returns the complete Pydantic-generated JSON schema
+    including all UI hints from json_schema_extra.
+
+    Args:
+        plugin_id: ID of the plugin
+
+    Returns:
+        Complete JSON schema for the plugin parameters
+    """
+    try:
+        # Ensure all plugins are loaded
+        load_all_plugins()
+
+        # Try to find the plugin in any type
+        for plugin_type in PluginType:
+            if PluginRegistry.has_plugin(plugin_id, plugin_type):
+                plugin_class = PluginRegistry.get_plugin(plugin_id, plugin_type)
+
+                # Try param_schema first (new standard)
+                if hasattr(plugin_class, "param_schema") and plugin_class.param_schema:
+                    # For param_schema, we want the raw schema of the params model
+                    # This gives us just the fields, not the wrapper
+                    return {
+                        "plugin_id": plugin_id,
+                        "plugin_type": plugin_type.value,
+                        "has_params": True,
+                        "schema": plugin_class.param_schema.model_json_schema(),
+                    }
+                # Fallback to config_model
+                elif (
+                    hasattr(plugin_class, "config_model") and plugin_class.config_model
+                ):
+                    return {
+                        "plugin_id": plugin_id,
+                        "plugin_type": plugin_type.value,
+                        "has_params": True,
+                        "schema": plugin_class.config_model.model_json_schema(),
+                    }
+                else:
+                    return {
+                        "plugin_id": plugin_id,
+                        "plugin_type": plugin_type.value,
+                        "has_params": False,
+                        "message": "This plugin does not have configurable parameters",
+                    }
+
+        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving plugin schema: {str(e)}"
         )

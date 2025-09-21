@@ -27,8 +27,8 @@ class TestDirectAttributeConfig:
             plugin="direct_attribute", params={"source": "plots", "field": "area"}
         )
         assert config.plugin == "direct_attribute"
-        assert config.params["source"] == "plots"
-        assert config.params["field"] == "area"
+        assert config.params.source == "plots"
+        assert config.params.field == "area"
 
     def test_config_with_units(self):
         """Test configuration with units parameter."""
@@ -36,7 +36,7 @@ class TestDirectAttributeConfig:
             plugin="direct_attribute",
             params={"source": "plots", "field": "area", "units": "m²"},
         )
-        assert config.params["units"] == "m²"
+        assert config.params.units == "m²"
 
     def test_config_with_max_value(self):
         """Test configuration with max_value parameter."""
@@ -44,19 +44,19 @@ class TestDirectAttributeConfig:
             plugin="direct_attribute",
             params={"source": "plots", "field": "area", "max_value": 1000},
         )
-        assert config.params["max_value"] == 1000
+        assert config.params.max_value == 1000
 
     def test_missing_source(self):
         """Test configuration with missing source."""
         with pytest.raises(ValueError) as exc_info:
             DirectAttributeConfig(plugin="direct_attribute", params={"field": "area"})
-        assert "Missing required field: source" in str(exc_info.value)
+        assert "Field required" in str(exc_info.value)
 
     def test_missing_field(self):
         """Test configuration with missing field."""
         with pytest.raises(ValueError) as exc_info:
             DirectAttributeConfig(plugin="direct_attribute", params={"source": "plots"})
-        assert "Missing required field: field" in str(exc_info.value)
+        assert "Field required" in str(exc_info.value)
 
     def test_invalid_params_type(self):
         """Test configuration with invalid params type."""
@@ -70,7 +70,7 @@ class TestDirectAttributeConfig:
             DirectAttributeConfig(
                 plugin="direct_attribute", params={"source": 123, "field": "area"}
             )
-        assert "source must be a string" in str(exc_info.value)
+        assert "Input should be a valid string" in str(exc_info.value)
 
     def test_invalid_field_type(self):
         """Test configuration with invalid field type."""
@@ -78,7 +78,7 @@ class TestDirectAttributeConfig:
             DirectAttributeConfig(
                 plugin="direct_attribute", params={"source": "plots", "field": 123}
             )
-        assert "field must be a string" in str(exc_info.value)
+        assert "Input should be a valid string" in str(exc_info.value)
 
 
 class TestDirectAttribute:
@@ -136,9 +136,9 @@ class TestDirectAttribute:
         }
 
         validated = direct_attribute.validate_config(config)
-        assert validated["plugin"] == "direct_attribute"
-        assert validated["params"]["source"] == "plots"
-        assert validated["params"]["field"] == "area"
+        assert validated.plugin == "direct_attribute"
+        assert validated.params.source == "plots"
+        assert validated.params.field == "area"
 
     def test_validate_config_invalid(self, direct_attribute):
         """Test configuration validation with invalid config."""

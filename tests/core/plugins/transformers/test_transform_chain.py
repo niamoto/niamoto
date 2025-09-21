@@ -60,21 +60,23 @@ class TestTransformChain:
         """Test configuration validation with legacy format (steps at top level)."""
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "count_transformer",
-                    "params": {"field": "id", "distinct": True},
-                    "output_key": "count_result",
-                }
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "count_transformer",
+                        "params": {"field": "id", "distinct": True},
+                        "output_key": "count_result",
+                    }
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
             validated = transform_chain.validate_config(config)
             assert validated is not None
-            assert len(validated.steps) == 1
-            assert validated.steps[0].plugin == "count_transformer"
-            assert validated.steps[0].output_key == "count_result"
+            assert len(validated.params.steps) == 1
+            assert validated.params.steps[0].plugin == "count_transformer"
+            assert validated.params.steps[0].output_key == "count_result"
 
     def test_validate_config_with_new_format(self, transform_chain):
         """Test configuration validation with new format (steps in params)."""
@@ -99,26 +101,32 @@ class TestTransformChain:
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
             validated = transform_chain.validate_config(config)
             assert validated is not None
-            assert len(validated.steps) == 2
-            assert validated.steps[0].plugin == "count_transformer"
-            assert validated.steps[1].plugin == "statistics_transformer"
+            assert len(validated.params.steps) == 2
+            assert validated.params.steps[0].plugin == "count_transformer"
+            assert validated.params.steps[1].plugin == "statistics_transformer"
 
     def test_validate_config_no_steps(self, transform_chain):
         """Test configuration validation with no steps."""
-        config = {"plugin": "transform_chain"}
+        config = {"plugin": "transform_chain", "params": {"steps": []}}
 
         with pytest.raises(DataTransformError) as exc_info:
             transform_chain.validate_config(config)
 
-        assert "No steps found" in str(exc_info.value)
+        assert "steps list cannot be empty" in str(exc_info.value)
 
     def test_validate_config_invalid_plugin(self, transform_chain):
         """Test configuration validation with invalid plugin reference."""
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {"plugin": "non_existent_plugin", "params": {}, "output_key": "result"}
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "non_existent_plugin",
+                        "params": {},
+                        "output_key": "result",
+                    }
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=False):
@@ -192,18 +200,20 @@ class TestTransformChain:
 
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "count_transformer",
-                    "params": {"field": "id", "distinct": True},
-                    "output_key": "count_result",
-                },
-                {
-                    "plugin": "statistics_transformer",
-                    "params": {"field": "value"},
-                    "output_key": "stats_result",
-                },
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "count_transformer",
+                        "params": {"field": "id", "distinct": True},
+                        "output_key": "count_result",
+                    },
+                    {
+                        "plugin": "statistics_transformer",
+                        "params": {"field": "value"},
+                        "output_key": "stats_result",
+                    },
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -290,18 +300,20 @@ class TestTransformChain:
 
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "vector_overlay",
-                    "params": {"layer": "regions"},
-                    "output_key": "overlay_result",
-                },
-                {
-                    "plugin": "raster_stats",
-                    "params": {"raster": "elevation.tif"},
-                    "output_key": "raster_result",
-                },
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "vector_overlay",
+                        "params": {"layer": "regions"},
+                        "output_key": "overlay_result",
+                    },
+                    {
+                        "plugin": "raster_stats",
+                        "params": {"raster": "elevation.tif"},
+                        "output_key": "raster_result",
+                    },
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -331,13 +343,15 @@ class TestTransformChain:
 
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "error_transformer",
-                    "params": {"invalid": "param"},
-                    "output_key": "error_result",
-                }
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "error_transformer",
+                        "params": {"invalid": "param"},
+                        "output_key": "error_result",
+                    }
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -367,13 +381,15 @@ class TestTransformChain:
         config = {
             "plugin": "transform_chain",
             "group_id": 123,
-            "steps": [
-                {
-                    "plugin": "test_transformer",
-                    "params": {"param": "value"},
-                    "output_key": "test_result",
-                }
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "test_transformer",
+                        "params": {"param": "value"},
+                        "output_key": "test_result",
+                    }
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -393,13 +409,15 @@ class TestTransformChain:
 
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "test_transformer",
-                    "params": {},
-                    "output_key": "test_result",
-                }
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "test_transformer",
+                        "params": {},
+                        "output_key": "test_result",
+                    }
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -455,9 +473,15 @@ class TestTransformChain:
 
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {"plugin": "geo_transformer", "params": {}, "output_key": "geo_result"}
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "geo_transformer",
+                        "params": {},
+                        "output_key": "geo_result",
+                    }
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -487,18 +511,20 @@ class TestTransformChain:
 
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "vector_overlay",
-                    "params": {"layer": "test"},
-                    "output_key": "overlay",
-                },
-                {
-                    "plugin": "raster_stats",
-                    "params": {"raster": "test.tif"},
-                    "output_key": "stats",
-                },
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "vector_overlay",
+                        "params": {"layer": "test"},
+                        "output_key": "overlay",
+                    },
+                    {
+                        "plugin": "raster_stats",
+                        "params": {"raster": "test.tif"},
+                        "output_key": "stats",
+                    },
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -528,13 +554,15 @@ class TestTransformChain:
         # So even if we don't provide params, it should default to an empty dict
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "test_transformer",
-                    # Omitting params entirely - should default to {}
-                    "output_key": "test",
-                }
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "test_transformer",
+                        # Omitting params entirely - should default to {}
+                        "output_key": "test",
+                    }
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -568,13 +596,15 @@ class TestTransformChain:
         """Test configuration validation with invalid step format."""
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "test_transformer",
-                    # Missing required 'output_key'
-                    "params": {},
-                }
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "test_transformer",
+                        # Missing required 'output_key'
+                        "params": {},
+                    }
+                ],
+            },
         }
 
         with pytest.raises(DataTransformError) as exc_info:
@@ -597,14 +627,16 @@ class TestTransformChain:
 
         config = {
             "plugin": "transform_chain",
-            "steps": [
-                {
-                    "plugin": "transform1",
-                    "params": {"multiply": 10},
-                    "output_key": "step1",
-                },
-                {"plugin": "transform2", "params": {}, "output_key": "step2"},
-            ],
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "transform1",
+                        "params": {"multiply": 10},
+                        "output_key": "step1",
+                    },
+                    {"plugin": "transform2", "params": {}, "output_key": "step2"},
+                ],
+            },
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
