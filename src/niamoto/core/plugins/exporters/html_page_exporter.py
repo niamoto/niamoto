@@ -44,6 +44,9 @@ logger = logging.getLogger(__name__)
 class HtmlPageExporter(ExporterPlugin):
     """Generates a static HTML website based on the export configuration."""
 
+    # Define the parameter schema for this exporter
+    param_schema = HtmlExporterParams
+
     def __init__(self, db: Database):
         """Initialize the exporter with database connection."""
         super().__init__(db)

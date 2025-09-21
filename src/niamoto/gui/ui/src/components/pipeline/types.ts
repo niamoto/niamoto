@@ -90,13 +90,14 @@ export interface ImportConfig {
 // Catalog Item for drag & drop
 export interface CatalogItem {
   type: NodeType
-  subType?: string
+  subType?: ImportSubType
   label: string
   description?: string
   icon?: React.ComponentType<{ className?: string }>
   defaultConfig?: any
   pluginId?: string
-  format?: string
+  format?: ExportNodeData['format']
+  category?: string
 }
 
 // Layout Configuration

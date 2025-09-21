@@ -4,15 +4,22 @@ Transform chain validator for ensuring compatibility between steps.
 
 from typing import Dict, Any, List
 import re
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.common.exceptions import DataTransformError
 
 
-class StepIOSchema(BaseModel):
+class StepIOSchema(BasePluginParams):
     """Schema for a plugin's inputs and outputs"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Schema definition for transform chain step inputs and outputs"
+        }
+    )
 
     # Input requirements
     required_inputs: List[str] = Field(
@@ -32,6 +39,34 @@ class StepIOSchema(BaseModel):
     output_types: Dict[str, List[str]] = Field(
         default_factory=dict, description="Types of output fields"
     )
+
+
+class ChainStepConfig(BasePluginParams):
+    """Configuration for a single step in a transform chain"""
+
+    model_config = ConfigDict(
+        json_schema_extra={"description": "Configuration for a transform chain step"}
+    )
+
+    plugin: str = Field(..., description="Name of the transformer plugin to use")
+
+    params: Dict[str, Any] = Field(
+        default_factory=dict, description="Parameters for the transformer plugin"
+    )
+
+    output_key: str = Field(..., description="Key to store the step output under")
+
+
+class ChainValidationConfig(BasePluginParams):
+    """Configuration for chain validation"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Configuration for validating transform chains"
+        }
+    )
+
+    steps: List[ChainStepConfig] = Field(..., description="List of steps to validate")
 
 
 class TransformChainValidator:
@@ -102,10 +137,22 @@ class TransformChainValidator:
         warnings = []
         available_outputs = {}
 
+        # Validate step configurations first
+        validated_steps = []
         for i, step in enumerate(steps):
-            plugin_name = step.get("plugin")
-            params = step.get("params", {})
-            output_key = step.get("output_key")
+            try:
+                validated_step = ChainStepConfig(**step)
+                validated_steps.append(validated_step)
+            except Exception as e:
+                raise DataTransformError(
+                    f"Invalid step {i + 1} configuration: {str(e)}",
+                    details={"step": step},
+                )
+
+        for i, step in enumerate(validated_steps):
+            plugin_name = step.plugin
+            params = step.params
+            output_key = step.output_key
 
             # Check plugin exists
             if not plugin_name:

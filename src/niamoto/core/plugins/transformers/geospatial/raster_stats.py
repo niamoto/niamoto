@@ -4,8 +4,8 @@ Permits to calculate various statistics (min, max, mean, etc.) from raster data
 for a given geographic zone defined by a shape.
 """
 
-from typing import Dict, Any, List
-from pydantic import Field, field_validator
+from typing import Dict, Any, List, Optional, Literal
+from pydantic import Field, ConfigDict
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -14,85 +14,103 @@ import logging
 import rasterio
 from rasterio.mask import mask
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
-class RasterStatsConfig(PluginConfig):
-    """Configuration for the raster statistics plugin"""
+class RasterStatsParams(BasePluginParams):
+    """Typed parameters for raster statistics plugin.
 
-    plugin: str = "raster_stats"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "raster_path": "",  # Path to the raster
-            "shape_field": "geometry",  # Field containing the geometry
-            "stats": [
-                "min",
-                "max",
-                "mean",
-                "median",
-                "sum",
-                "count",
-                "std",
-                "histogram",
+    This plugin extracts various statistics from raster data
+    for a given geographic zone.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract statistics from raster data for geographic zones",
+            "examples": [
+                {
+                    "raster_path": "/path/to/raster.tif",
+                    "stats": ["min", "max", "mean", "median"],
+                    "band": 1,
+                    "area_unit": "ha",
+                }
             ],
-            "bins": 10,  # Number of classes for the histogram
-            "nodata": None,  # No data value for the raster
-            "band": 1,  # Band to use (starts at 1)
-            "scale_factor": 1.0,  # Scale factor to apply to the values
-            "offset": 0.0,  # Offset to apply to the values
-            "units": "",  # Units for the values
-            "area_unit": "ha",  # Unit for the areas (ha ou km2)
         }
     )
 
-    @field_validator("params")
-    def validate_params(cls, v):
-        """Validate the plugin parameters."""
-        if "raster_path" not in v or not v["raster_path"]:
-            raise ValueError("The path to the raster is required")
+    raster_path: str = Field(
+        ...,
+        description="Path to the raster file",
+        json_schema_extra={"ui:widget": "file"},
+    )
 
-        # Validate the statistics
-        valid_stats = [
-            "min",
-            "max",
-            "mean",
-            "median",
-            "sum",
-            "count",
-            "std",
-            "histogram",
-            "percentile_5",
-            "percentile_95",
-            "majority",
-            "minority",
-            "unique",
-            "range",
-            "variance",
-            "area",
-        ]
+    shape_field: str = Field(
+        default="geometry",
+        description="Field containing the geometry",
+        json_schema_extra={"ui:widget": "text"},
+    )
 
-        if "stats" in v:
-            for stat in v["stats"]:
-                if stat not in valid_stats:
-                    raise ValueError(
-                        f"Unsupported statistic: {stat}. Valid ones: {valid_stats}"
-                    )
+    stats: List[
+        Literal["min", "max", "mean", "median", "sum", "count", "std", "histogram"]
+    ] = Field(
+        default=["min", "max", "mean", "median", "sum", "count", "std", "histogram"],
+        description="Statistics to calculate",
+        json_schema_extra={"ui:widget": "multi-select"},
+    )
 
-        # Validate the band
-        if "band" in v and (not isinstance(v["band"], int) or v["band"] < 1):
-            raise ValueError("The band must be a positive integer (starts at 1)")
+    bins: int = Field(
+        default=10,
+        ge=2,
+        le=100,
+        description="Number of histogram bins",
+        json_schema_extra={"ui:widget": "number"},
+    )
 
-        # Validate the number of classes
-        if "bins" in v and (not isinstance(v["bins"], int) or v["bins"] < 2):
-            raise ValueError("The number of classes (bins) must be an integer >= 2")
+    nodata: Optional[float] = Field(
+        default=None,
+        description="No-data value for the raster",
+        json_schema_extra={"ui:widget": "number"},
+    )
 
-        # Validate the unit
-        if "area_unit" in v and v["area_unit"] not in ["ha", "km2"]:
-            raise ValueError("The unit for the areas must be 'ha' or 'km2'")
+    band: int = Field(
+        default=1,
+        ge=1,
+        description="Band to use (1-based index)",
+        json_schema_extra={"ui:widget": "number"},
+    )
 
-        return v
+    scale_factor: float = Field(
+        default=1.0,
+        description="Scale factor to apply to values",
+        json_schema_extra={"ui:widget": "number"},
+    )
+
+    offset: float = Field(
+        default=0.0,
+        description="Offset to apply to values",
+        json_schema_extra={"ui:widget": "number"},
+    )
+
+    units: str = Field(
+        default="",
+        description="Units for the values",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    area_unit: Literal["ha", "km2", "m2"] = Field(
+        default="ha",
+        description="Unit for area calculations",
+        json_schema_extra={"ui:widget": "select"},
+    )
+
+
+class RasterStatsConfig(PluginConfig):
+    """Configuration for raster statistics plugin"""
+
+    plugin: Literal["raster_stats"] = "raster_stats"
+    params: RasterStatsParams
 
 
 @register("raster_stats", PluginType.TRANSFORMER)

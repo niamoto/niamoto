@@ -1,18 +1,55 @@
 from typing import Dict, Any, Literal
-from pydantic import field_validator
+from pydantic import Field, field_validator, ConfigDict
 from sqlalchemy import text
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 
 
-class NestedSetConfig(PluginConfig):
-    """Configuration for nested set loader"""
+class NestedSetParams(BasePluginParams):
+    """Parameters for nested set loader"""
 
-    plugin: Literal["nested_set"]
-    key: str
-    fields: Dict[str, str]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Load hierarchical data using nested set model",
+            "examples": [
+                {
+                    "key": "taxon_id",
+                    "fields": {"left": "lft", "right": "rght", "parent": "parent_id"},
+                }
+            ],
+        }
+    )
+
+    key: str = Field(
+        ...,
+        description="Foreign key field linking data to the hierarchy",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    fields: Dict[str, str] = Field(
+        ...,
+        description="Field mapping for nested set structure",
+        json_schema_extra={
+            "ui:widget": "object",
+            "ui:options": {
+                "properties": {
+                    "left": {"type": "string", "title": "Left field", "default": "lft"},
+                    "right": {
+                        "type": "string",
+                        "title": "Right field",
+                        "default": "rght",
+                    },
+                    "parent": {
+                        "type": "string",
+                        "title": "Parent field",
+                        "default": "parent_id",
+                    },
+                }
+            },
+        },
+    )
 
     @field_validator("fields")
     @classmethod
@@ -33,6 +70,13 @@ class NestedSetConfig(PluginConfig):
         return field_mapping
 
 
+class NestedSetConfig(PluginConfig):
+    """Configuration for nested set loader"""
+
+    plugin: Literal["nested_set"] = "nested_set"
+    params: NestedSetParams
+
+
 @register("nested_set", PluginType.LOADER)
 class NestedSetLoader(LoaderPlugin):
     """Loader for nested set hierarchies"""
@@ -41,11 +85,20 @@ class NestedSetLoader(LoaderPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> NestedSetConfig:
         """Validate plugin configuration."""
+        # Extract params if they exist in the config
+        if "params" not in config:
+            # For backward compatibility, build params from top-level fields
+            params = {}
+            if "key" in config:
+                params["key"] = config["key"]
+            if "fields" in config:
+                params["fields"] = config["fields"]
+            config = {"plugin": "nested_set", "params": params}
         return self.config_model(**config)
 
     def load_data(self, group_id: int, config: Dict[str, Any]) -> pd.DataFrame:
         validated_config = self.validate_config(config)
-        fields = validated_config.fields
+        fields = validated_config.params.fields
 
         # Get the left and right values for the target node
         node_query = text(f"""
@@ -63,7 +116,7 @@ class NestedSetLoader(LoaderPlugin):
             query = text(f"""
                 SELECT m.*
                 FROM {config["data"]} m
-                JOIN {config["grouping"]} ref ON m.{validated_config.key} = ref.id
+                JOIN {config["grouping"]} ref ON m.{validated_config.params.key} = ref.id
                 WHERE ref.{fields["left"]} >= :left
                 AND ref.{fields["right"]} <= :right
             """)

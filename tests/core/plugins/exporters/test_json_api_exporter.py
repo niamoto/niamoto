@@ -3,6 +3,7 @@
 """Tests for the JSON API Exporter plugin."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch, MagicMock, mock_open
 from unittest import mock
 from datetime import datetime
@@ -27,6 +28,7 @@ from niamoto.core.plugins.exporters.json_api_exporter import (
 )
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
+from niamoto.core.plugins.models import DwcTransformerParams
 from niamoto.common.exceptions import ProcessError
 
 
@@ -639,6 +641,7 @@ class TestJsonApiExporterTransformers:
             mock_transformer_class = Mock()
             mock_transformer = Mock()
             mock_transformer.transform.return_value = {"transformed": True}
+            mock_transformer.config_model = None
             mock_transformer_class.return_value = mock_transformer
             mock_get.return_value = mock_transformer_class
 
@@ -683,9 +686,45 @@ class TestJsonApiExporterTransformers:
 
             # Verify config validation was called
             mock_config_model.model_validate.assert_called_once_with(
-                {"param1": "value1"}
+                {
+                    "plugin": "config_transformer",
+                    "params": {"param1": "value1"},
+                }
             )
             assert result == {"result": "success"}
+
+    def test_transformer_with_typed_params_model(self, exporter):
+        """Transformer params provided as Pydantic model should be wrapped correctly."""
+        with patch(
+            "niamoto.core.plugins.registry.PluginRegistry.get_plugin"
+        ) as mock_get:
+            mock_transformer_class = Mock()
+            mock_transformer = Mock()
+            mock_config_model = Mock()
+            mock_config_model.model_validate.return_value = {"validated": True}
+
+            mock_transformer.config_model = mock_config_model
+            mock_transformer.transform.return_value = {"result": "ok"}
+            mock_transformer_class.return_value = mock_transformer
+            mock_get.return_value = mock_transformer_class
+
+            params_model = DwcTransformerParams(
+                occurrence_list_source="occurrences",
+                mapping={"scientificName": "@taxon.full_name"},
+            )
+
+            group_config = SimpleNamespace(
+                group_by="taxon",
+                transformer_plugin="dwc_transformer",
+                transformer_params=params_model,
+            )
+
+            result = exporter._apply_transformer({"id": 1}, group_config)
+
+            mock_config_model.model_validate.assert_called_once_with(
+                {"plugin": "dwc_transformer", "params": params_model}
+            )
+            assert result == {"result": "ok"}
 
     def test_transformer_not_found(self, exporter):
         """Test error handling when transformer is not found."""

@@ -3,25 +3,128 @@ Plugin for custom formatting of data for visualization.
 Facilitates the adaptation of transformer outputs to widget requirements.
 """
 
-from typing import Dict, Any, List
-from pydantic import Field
+from typing import Dict, Any, List, Optional, Literal
+from pydantic import Field, ConfigDict
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
-class CustomFormatterConfig(PluginConfig):
-    """Configuration for the custom formatter plugin"""
+class CustomFormatterParams(BasePluginParams):
+    """Typed parameters for custom formatter plugin.
 
-    plugin: str = "custom_formatter"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "template": "",  # Name of the template to use
-            # Other template-specific parameters
+    This plugin formats data according to predefined templates
+    for various widget types and visualization requirements.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Format data for specific widget templates",
+            "examples": [
+                {"template": "gauge", "value": 75.5, "max": 100, "units": "%"},
+                {
+                    "template": "simple_bar",
+                    "labels": ["A", "B", "C"],
+                    "values": [10, 20, 15],
+                },
+            ],
         }
     )
+
+    template: Literal[
+        "forest_cover",
+        "gauge",
+        "stacked_area",
+        "forest_types",
+        "fragmentation_distribution",
+        "holdridge",
+        "elevation_distribution",
+        "land_use",
+        "simple_bar",
+        "simple_line",
+        "pie_chart",
+        "table",
+    ] = Field(
+        ...,
+        description="Template name for data formatting",
+        json_schema_extra={"ui:widget": "select"},
+    )
+
+    # Template-specific parameters (all optional since they depend on template)
+    value: Optional[float] = Field(
+        default=None,
+        description="Value for gauge template",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:condition": "template === 'gauge'",
+        },
+    )
+
+    max: Optional[float] = Field(
+        default=100,
+        description="Maximum value for gauge",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:condition": "template === 'gauge'",
+        },
+    )
+
+    units: Optional[str] = Field(
+        default="",
+        description="Units for gauge display",
+        json_schema_extra={"ui:widget": "text", "ui:condition": "template === 'gauge'"},
+    )
+
+    labels: Optional[List[str]] = Field(
+        default=None,
+        description="Labels for bar/line/pie charts",
+        json_schema_extra={
+            "ui:widget": "tags",
+            "ui:condition": "template === 'simple_bar' || template === 'simple_line' || template === 'pie_chart'",
+        },
+    )
+
+    values: Optional[List[float]] = Field(
+        default=None,
+        description="Values for bar/line/pie charts",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "template === 'simple_bar' || template === 'simple_line' || template === 'pie_chart'",
+        },
+    )
+
+    categories: Optional[List[str]] = Field(
+        default=None,
+        description="Categories for forest types and land use",
+        json_schema_extra={
+            "ui:widget": "tags",
+            "ui:condition": "template === 'forest_types' || template === 'land_use'",
+        },
+    )
+
+    headers: Optional[List[str]] = Field(
+        default=None,
+        description="Column headers for table template",
+        json_schema_extra={"ui:widget": "tags", "ui:condition": "template === 'table'"},
+    )
+
+    rows: Optional[List[List[Any]]] = Field(
+        default=None,
+        description="Table rows data",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "template === 'table'",
+        },
+    )
+
+
+class CustomFormatterConfig(PluginConfig):
+    """Configuration for custom formatter plugin"""
+
+    plugin: Literal["custom_formatter"] = "custom_formatter"
+    params: CustomFormatterParams
 
 
 @register("custom_formatter", PluginType.TRANSFORMER)
@@ -35,36 +138,12 @@ class CustomFormatter(TransformerPlugin):
 
     config_model = CustomFormatterConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validates the plugin configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> CustomFormatterConfig:
+        """Validate configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
-            params = validated_config.params
-
-            # Check that the template is specified
-            if "template" not in params or not params["template"]:
-                raise DataTransformError(
-                    "The 'template' parameter is required", details={"config": config}
-                )
-
-            # Check that the template is supported
-            template = params["template"]
-            if template not in self.get_supported_templates():
-                raise DataTransformError(
-                    f"Unsupported template: {template}",
-                    details={
-                        "template": template,
-                        "supported_templates": self.get_supported_templates(),
-                    },
-                )
-
-            return validated_config
+            return self.config_model(**config)
         except Exception as e:
-            if isinstance(e, DataTransformError):
-                raise e
-            raise DataTransformError(
-                f"Invalid configuration: {str(e)}", details={"config": config}
-            )
+            raise ValueError(f"Invalid configuration: {str(e)}")
 
     def get_supported_templates(self) -> List[str]:
         """Returns the list of supported templates."""
@@ -102,12 +181,10 @@ class CustomFormatter(TransformerPlugin):
             params = validated_config.params
 
             # Get the template
-            template = params["template"]
+            template = params.template
 
-            # Copy the parameters without the template
-            data_params = params.copy()
-            if "template" in data_params:
-                del data_params["template"]
+            # Convert params to dict for template methods (temporary)
+            data_params = params.model_dump(exclude={"template"}, exclude_none=True)
 
             # Apply the appropriate template
             if template == "forest_cover":

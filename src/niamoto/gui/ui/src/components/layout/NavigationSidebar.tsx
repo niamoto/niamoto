@@ -14,7 +14,9 @@ import {
   ChevronRight,
   ChevronDown,
   Menu,
-  Layers
+  Layers,
+  Package,
+  FlaskConical
 } from 'lucide-react'
 import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
 import { Button } from '@/components/ui/button'
@@ -28,14 +30,16 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   explorer: Search,
   preview: Eye,
   settings: Wrench,
-  plugins: Layers,
-  docs: FileText
+  plugins: Package,
+  docs: FileText,
+  'pipeline-editor': Layers
 }
 
 const sectionIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   pipeline: Layers,
   data: Database,
-  tools: Wrench
+  tools: Wrench,
+  demos: FlaskConical
 }
 
 interface NavigationSidebarProps {

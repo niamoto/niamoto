@@ -328,8 +328,8 @@ class TestDonutChartWidget(NiamotoTestCase):
 
         result = self.widget.render(data, params)
 
-        self.assertIn("<p class='error'>", result)
-        self.assertIn("Unsupported data type", result)
+        self.assertIn("<p class='info'>", result)
+        self.assertIn("No data available for the donut chart", result)
 
     def test_render_dataframe_empty_after_processing(self):
         """Test DataFrame that becomes empty after numeric conversion."""

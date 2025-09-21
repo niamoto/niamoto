@@ -3,21 +3,49 @@ Plugin for loading data using direct references between tables.
 """
 
 from typing import Dict, Any, Literal, Optional
+from pydantic import Field, ConfigDict
 
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError
+
+
+class DirectReferenceParams(BasePluginParams):
+    """Parameters for direct reference loader"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Load data using direct references between tables",
+            "examples": [
+                {"data": "occurrences", "grouping": "plot_ref", "key": "plot_ref_id"}
+            ],
+        }
+    )
+
+    data: Optional[str] = Field(
+        default=None,
+        description="Main table name",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    grouping: Optional[str] = Field(
+        default=None,
+        description="Reference table name",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    key: str = Field(
+        ...,
+        description="Foreign key field in main table",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
 
 
 class DirectReferenceConfig(PluginConfig):
     """Configuration for direct reference loader"""
 
-    plugin: Literal["direct_reference"]
-    data: Optional[str] = None  # Main table
-    grouping: Optional[str] = None  # Reference table
-    key: str  # Foreign key field in main table
+    plugin: Literal["direct_reference"] = "direct_reference"
+    params: DirectReferenceParams
 
 
 @register("direct_reference", PluginType.LOADER)
@@ -28,6 +56,11 @@ class DirectReferenceLoader(LoaderPlugin):
 
     def validate_config(self, config: Dict[str, Any]) -> DirectReferenceConfig:
         """Validate plugin configuration."""
+        # Extract params if they exist in the config
+        if "params" not in config:
+            # For backward compatibility, build params from top-level fields
+            params = {k: v for k, v in config.items() if k != "plugin"}
+            config = {"plugin": "direct_reference", "params": params}
         return self.config_model(**config)
 
     def _extract_value(self, result):
@@ -81,16 +114,19 @@ class DirectReferenceLoader(LoaderPlugin):
 
         Example config:
         {
-            'data': 'occurrences',  # Main table
-            'grouping': 'plot_ref',  # Reference table
-            'plugin': 'direct_reference',
-            'key': 'plot_ref_id'  # Foreign key in main table
+            'params': {
+                'data': 'occurrences',  # Main table
+                'grouping': 'plot_ref',  # Reference table
+                'key': 'plot_ref_id'  # Foreign key in main table
+            }
         }
         """
         validated_config = self.validate_config(config)
-        main_table = validated_config.data
-        ref_table = validated_config.grouping
-        key_field = validated_config.key
+        params = validated_config.params
+
+        main_table = params.data
+        ref_table = params.grouping
+        key_field = params.key
 
         if not main_table:
             raise ValueError(f"No main table specified in config: {config}")
@@ -114,7 +150,7 @@ class DirectReferenceLoader(LoaderPlugin):
             query = f"""
                 SELECT m.*
                 FROM {main_table} m
-                WHERE m.{validated_config.key} = :id
+                WHERE m.{key_field} = :id
             """
             return pd.read_sql(query, self.db.engine, params={"id": group_id})
 

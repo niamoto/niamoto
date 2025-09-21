@@ -11,9 +11,10 @@ import json
 import logging
 from typing import Any, Optional, List
 
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 
 logger = logging.getLogger(__name__)
 
@@ -21,61 +22,100 @@ logger = logging.getLogger(__name__)
 # --- Pydantic Models for Validation ---
 
 
-class HierarchicalNavWidgetParams(BaseModel):
+class HierarchicalNavWidgetParams(BasePluginParams):
     """Parameters for configuring the HierarchicalNavWidget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Interactive tree navigation widget for hierarchical data",
+            "examples": [
+                {
+                    "referential_data": "taxon_ref",
+                    "id_field": "id",
+                    "name_field": "full_name",
+                    "lft_field": "lft",
+                    "rght_field": "rght",
+                    "level_field": "level",
+                    "base_url": "{{ depth }}taxon/",
+                    "show_search": True,
+                }
+            ],
+        }
+    )
 
     # Data source configuration
     referential_data: str = Field(
         ...,
         description="Identifier for the reference data source (e.g., 'taxon_ref', 'shape_ref')",
+        json_schema_extra={"ui:widget": "text"},
     )
 
     # Field mapping
     id_field: str = Field(
-        ..., description="Name of the field containing unique item identifiers"
+        ...,
+        description="Name of the field containing unique item identifiers",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     name_field: str = Field(
-        ..., description="Name of the field containing item display names"
+        ...,
+        description="Name of the field containing item display names",
+        json_schema_extra={"ui:widget": "field-select"},
     )
 
     # Hierarchy structure fields (multiple options)
     parent_id_field: Optional[str] = Field(
         None,
         description="Name of the field containing parent item ID (for parent-child model)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     lft_field: Optional[str] = Field(
-        None, description="Name of the 'left' field for nested set model"
+        None,
+        description="Name of the 'left' field for nested set model",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     rght_field: Optional[str] = Field(
-        None, description="Name of the 'right' field for nested set model"
+        None,
+        description="Name of the 'right' field for nested set model",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     level_field: Optional[str] = Field(
-        None, description="Name of the field indicating depth level in nested set model"
+        None,
+        description="Name of the field indicating depth level in nested set model",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     group_by_field: Optional[str] = Field(
         None,
         description="Name of the field to use for flat grouping (creates two-level hierarchy)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     group_by_label_field: Optional[str] = Field(
         None,
         description="Name of the field containing group display labels (if different from group_by_field)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
 
     # Navigation configuration
     base_url: str = Field(
-        ..., description="Base URL pattern for item links (e.g., '{{ depth }}taxon/')"
+        ...,
+        description="Base URL pattern for item links (e.g., '{{ depth }}taxon/')",
+        json_schema_extra={"ui:widget": "text"},
     )
     show_search: bool = Field(
-        True, description="Whether to display a search/filter input above the tree"
+        True,
+        description="Whether to display a search/filter input above the tree",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
 
     # Runtime parameters (injected by exporter)
     current_item_id: Optional[Any] = Field(
         None,
         description="ID of the currently displayed item (injected by HtmlPageExporter)",
+        json_schema_extra={"ui:widget": "hidden"},
     )
     title: Optional[str] = Field(
-        None, description="Widget title (retrieved from widget config)"
+        None,
+        description="Widget title (retrieved from widget config)",
+        json_schema_extra={"ui:widget": "text"},
     )
 
 

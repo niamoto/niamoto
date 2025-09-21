@@ -13,6 +13,7 @@ import {
   ShapeForm,
   LayerForm
 } from '../forms/import'
+import { PluginConfigForm } from '../forms/PluginConfigForm'
 
 export function ConfigPanel() {
   const { t } = useTranslation()
@@ -161,25 +162,21 @@ export function ConfigPanel() {
                   )}
 
                   {selectedNode.data.nodeType === 'transform' && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Transform plugin: {(selectedNode.data as any).pluginId}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {t('pipeline.config.transformPlaceholder', 'Transform configuration forms will be implemented in Phase 3')}
-                      </p>
-                    </div>
+                    <PluginConfigForm
+                      pluginId={(selectedNode.data as any).pluginId}
+                      pluginType="transform"
+                      config={nodeConfig}
+                      onConfigChange={handleConfigChange}
+                    />
                   )}
 
                   {selectedNode.data.nodeType === 'export' && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Export format: {(selectedNode.data as any).format}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {t('pipeline.config.exportPlaceholder', 'Export configuration forms will be implemented in Phase 4')}
-                      </p>
-                    </div>
+                    <PluginConfigForm
+                      pluginId={(selectedNode.data as any).pluginId}
+                      pluginType="export"
+                      config={nodeConfig}
+                      onConfigChange={handleConfigChange}
+                    />
                   )}
                 </div>
               </div>

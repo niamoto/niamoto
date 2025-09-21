@@ -3,9 +3,10 @@ from typing import Dict, List, Optional, Set
 
 import pandas as pd
 import plotly.express as px
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -16,42 +17,111 @@ logger = logging.getLogger(__name__)
 
 
 # Pydantic model for Scatter Plot parameters validation
-class ScatterPlotParams(BaseModel):
-    title: Optional[str] = Field(None, description="Optional title for the plot.")
-    x_axis: str = Field(..., description="Field name for the X-axis.")
-    y_axis: str = Field(..., description="Field name for the Y-axis.")
+class ScatterPlotParams(BasePluginParams):
+    """Parameters for scatter plot widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create interactive scatter plots with customizable styling and trendlines",
+            "examples": [
+                {
+                    "x_axis": "height",
+                    "y_axis": "weight",
+                    "color_field": "species",
+                    "title": "Height vs Weight by Species",
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        description="Optional title for the plot",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    x_axis: str = Field(
+        ...,
+        description="Field name for the X-axis",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    y_axis: str = Field(
+        ...,
+        description="Field name for the Y-axis",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
     color_field: Optional[str] = Field(
-        None, description="Field to use for coloring points."
+        default=None,
+        description="Field to use for coloring points",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     size_field: Optional[str] = Field(
-        None, description="Field to use for sizing points."
+        default=None,
+        description="Field to use for sizing points",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     symbol_field: Optional[str] = Field(
-        None, description="Field to use for different point symbols."
+        default=None,
+        description="Field to use for different point symbols",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     hover_name: Optional[str] = Field(
-        None, description="Field to display as the main label on hover."
+        default=None,
+        description="Field to display as the main label on hover",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     hover_data: Optional[List[str]] = Field(
-        None, description="List of additional fields to display on hover."
+        default=None,
+        description="List of additional fields to display on hover",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     trendline: Optional[str] = Field(
-        None, description="Type of trendline to add (e.g., 'ols', 'lowess')."
+        default=None,
+        description="Type of trendline to add",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": None, "label": "None"},
+                {"value": "ols", "label": "Ordinary Least Squares"},
+                {"value": "lowess", "label": "LOWESS (locally weighted)"},
+            ],
+        },
     )
     facet_col: Optional[str] = Field(
-        None, description="Field to create faceted columns."
+        default=None,
+        description="Field to create faceted columns",
+        json_schema_extra={"ui:widget": "field-select"},
     )
-    facet_row: Optional[str] = Field(None, description="Field to create faceted rows.")
-    log_x: bool = Field(False, description="Use a logarithmic scale for the X-axis.")
-    log_y: bool = Field(False, description="Use a logarithmic scale for the Y-axis.")
+    facet_row: Optional[str] = Field(
+        default=None,
+        description="Field to create faceted rows",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    log_x: bool = Field(
+        default=False,
+        description="Use a logarithmic scale for the X-axis",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    log_y: bool = Field(
+        default=False,
+        description="Use a logarithmic scale for the Y-axis",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
     labels: Optional[Dict[str, str]] = Field(
-        None, description="Dictionary to override axis/legend labels."
+        default=None,
+        description="Dictionary to override axis/legend labels",
+        json_schema_extra={"ui:widget": "json"},
     )
     # Add other relevant plotly express scatter arguments as needed
     color_discrete_map: Optional[Dict[str, str]] = Field(
-        None, description="Explicit color mapping for discrete colors."
+        default=None,
+        description="Explicit color mapping for discrete colors",
+        json_schema_extra={"ui:widget": "json"},
     )
-    size_max: Optional[int] = Field(None, description="Maximum size of the markers.")
+    size_max: Optional[int] = Field(
+        default=None,
+        description="Maximum size of the markers",
+        json_schema_extra={"ui:widget": "number", "ui:min": 1, "ui:max": 100},
+    )
 
 
 @register("scatter_plot", PluginType.WIDGET)

@@ -119,23 +119,46 @@ class StaticPageConfig(BaseModel):
 class HtmlExporterParams(BasePluginParams):
     """Parameters specific to the 'html_page_exporter'."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Generate static HTML website with templates and widgets",
+            "examples": [
+                {
+                    "template_dir": "templates",
+                    "output_dir": "site",
+                    "base_template": "_base.html",
+                    "include_default_assets": True,
+                }
+            ],
+        }
+    )
+
     template_dir: str = Field(
-        ..., description="Path to the project's Jinja2 template directory"
+        ...,
+        description="Path to the project's Jinja2 template directory",
+        json_schema_extra={"ui:widget": "directory-select"},
     )
     output_dir: str = Field(
-        ..., description="Directory where the static site will be generated"
+        ...,
+        description="Directory where the static site will be generated",
+        json_schema_extra={"ui:widget": "directory-select"},
     )
     base_template: str = Field(
-        "_base.html", description="Default base template for pages"
+        default="_base.html",
+        description="Default base template for pages",
+        json_schema_extra={"ui:widget": "text"},
     )
     copy_assets_from: List[str] = Field(
-        default_factory=list, description="List of user asset directories/files to copy"
+        default_factory=list,
+        description="List of user asset directories/files to copy",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "file-select"},
     )
     site: SiteConfig = Field(default_factory=SiteConfig)
     navigation: List[NavigationItem] = Field(default_factory=list)
     include_default_assets: bool = Field(
         default=True,
         description="Whether to automatically include Niamoto's default CSS/JS assets",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
 
 
@@ -333,8 +356,33 @@ class DwcMappingValue(BaseModel):
 class DwcTransformerParams(BasePluginParams):
     """Parameters specific to the 'niamoto_to_dwc_occurrence' transformer."""
 
-    occurrence_list_source: str
-    mapping: Dict[str, Union[str, DwcMappingValue]]  # Key is DwC term
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Transform Niamoto data to Darwin Core Occurrence format",
+            "examples": [
+                {
+                    "occurrence_list_source": "occurrences",
+                    "mapping": {
+                        "occurrenceID": {"source": "occurrence_id"},
+                        "scientificName": {"source": "taxon_name"},
+                        "decimalLatitude": {"source": "latitude"},
+                        "decimalLongitude": {"source": "longitude"},
+                    },
+                }
+            ],
+        }
+    )
+
+    occurrence_list_source: str = Field(
+        ...,
+        description="Field containing the list of occurrences",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    mapping: Dict[str, Union[str, DwcMappingValue]] = Field(
+        ...,
+        description="Mapping of DwC terms to data fields or generators",
+        json_schema_extra={"ui:widget": "json"},
+    )
 
 
 class GroupConfigDwc(BaseModel):

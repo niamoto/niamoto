@@ -17,6 +17,9 @@ const Plugins = lazy(() => import('@/pages/plugins').then(m => ({ default: m.Plu
 const Documentation = lazy(() => import('@/pages/documentation').then(m => ({ default: m.Documentation })))
 const PipelineEditor = lazy(() => import('@/pages/PipelineEditor'))
 
+// Demo pages for transform/export interface options
+const EntityCentricDemo = lazy(() => import('@/pages/demos/entity-centric').then(m => ({ default: m.EntityCentricDemo })))
+
 function App() {
   const { data: projectInfo } = useProjectInfo()
 
@@ -34,11 +37,16 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/import" replace />} />
-            <Route path="import" element={<ImportPage />} />
-            <Route path="transform" element={<TransformPage />} />
-            <Route path="export" element={<ExportPage />} />
-            <Route path="visualize" element={<VisualizePage />} />
+            <Route index element={<Navigate to="setup/pipeline" replace />} />
+            <Route path="setup/pipeline" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <PipelineEditor />
+              </Suspense>
+            } />
+            <Route path="setup/import" element={<ImportPage />} />
+            <Route path="setup/transform" element={<TransformPage />} />
+            <Route path="setup/export" element={<ExportPage />} />
+            <Route path="setup/visualize" element={<VisualizePage />} />
             <Route path="data/explorer" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <DataExplorer />
@@ -49,7 +57,7 @@ function App() {
                 <LivePreview />
               </Suspense>
             } />
-            <Route path="settings" element={
+            <Route path="tools/settings" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <Settings />
               </Suspense>
@@ -64,9 +72,12 @@ function App() {
                 <Documentation />
               </Suspense>
             } />
-            <Route path="pipeline" element={
+
+
+            {/* Demo pages for transform/export interface options */}
+            <Route path="demos/entity-centric" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <PipelineEditor />
+                <EntityCentricDemo />
               </Suspense>
             } />
           </Route>

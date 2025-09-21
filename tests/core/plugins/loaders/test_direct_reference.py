@@ -29,26 +29,30 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         # --- Arrange ---
         config = {
             "plugin": "direct_reference",
-            "data": "main_table",
-            "grouping": "ref_table",
-            "key": "ref_key",
+            "params": {
+                "data": "main_table",
+                "grouping": "ref_table",
+                "key": "ref_key",
+            },
         }
 
         # --- Act ---
         validated_config = self.loader.validate_config(config)
 
         # --- Assert ---
-        self.assertEqual(validated_config.data, "main_table")
-        self.assertEqual(validated_config.grouping, "ref_table")
-        self.assertEqual(validated_config.key, "ref_key")
+        self.assertEqual(validated_config.params.data, "main_table")
+        self.assertEqual(validated_config.params.grouping, "ref_table")
+        self.assertEqual(validated_config.params.key, "ref_key")
 
     def test_validate_config_missing_key(self):
         """Test validation failure when 'key' key is missing."""
         # --- Arrange ---
         config = {
             "plugin": "direct_reference",
-            "data": "main_table",
-            "grouping": "ref_table",
+            "params": {
+                "data": "main_table",
+                "grouping": "ref_table",
+            },
         }
 
         # --- Act & Assert ---
@@ -69,9 +73,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         test_group_id = 101
         test_config = {
             "plugin": "direct_reference",
-            "data": "main_data_table",
-            "grouping": "ref_group_table",
-            "key": "ref_id",
+            "params": {
+                "data": "main_data_table",
+                "grouping": "ref_group_table",
+                "key": "ref_id",
+            },
         }
         expected_df = pd.DataFrame({"col1": [1, 2], "ref_id": [101, 101]})
 
@@ -117,9 +123,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         test_group_id = 101
         test_config = {
             "plugin": "direct_reference",
-            # "data": "main_data_table", # Missing
-            "grouping": "ref_group_table",
-            "key": "ref_id",
+            "params": {
+                # "data": "main_data_table", # Missing
+                "grouping": "ref_group_table",
+                "key": "ref_id",
+            },
         }
 
         with self.assertRaisesRegex(ValueError, "No main table specified"):
@@ -134,9 +142,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         test_group_id = 101
         test_config = {
             "plugin": "direct_reference",
-            "data": "main_data_table",
-            # "grouping": "ref_group_table", # Missing
-            "key": "ref_id",
+            "params": {
+                "data": "main_data_table",
+                # "grouping": "ref_group_table", # Missing
+                "key": "ref_id",
+            },
         }
 
         with self.assertRaisesRegex(ValueError, "No reference table specified"):
@@ -157,9 +167,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         main_table_name = "non_existent_main_table"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": "ref_group_table",
-            "key": "ref_id",
+            "params": {
+                "data": main_table_name,
+                "grouping": "ref_group_table",
+                "key": "ref_id",
+            },
         }
 
         # Mock _check_table_exists to return False for the main table
@@ -189,9 +201,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         ref_table_name = "non_existent_ref_table"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": ref_table_name,
-            "key": "ref_id",
+            "params": {
+                "data": main_table_name,
+                "grouping": ref_table_name,
+                "key": "ref_id",
+            },
         }
 
         # Mock _check_table_exists: True for main, False for ref
@@ -224,9 +238,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         key_field_name = "non_existent_key"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": ref_table_name,
-            "key": key_field_name,
+            "params": {
+                "data": main_table_name,
+                "grouping": ref_table_name,
+                "key": key_field_name,
+            },
         }
 
         # Mock table checks (both exist)
@@ -264,9 +280,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         key_field_name = "ref_id"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": ref_table_name,
-            "key": key_field_name,
+            "params": {
+                "data": main_table_name,
+                "grouping": ref_table_name,
+                "key": key_field_name,
+            },
         }
 
         # Mocks for successful checks
