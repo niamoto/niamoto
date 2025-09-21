@@ -93,7 +93,7 @@ class TestFieldAggregator:
         # This should pass without error
         config_model = FieldAggregatorConfig(**valid_config)
         assert isinstance(config_model, FieldAggregatorConfig)
-        assert len(config_model.params["fields"]) == 2
+        assert len(config_model.params.fields) == 2
 
     def test_config_validation_missing_field_in_item(self):
         """Test config validation fails if a required field (e.g., source) is missing within a field item."""
@@ -134,7 +134,7 @@ class TestFieldAggregator:
                 ]
             },
         }
-        with pytest.raises(ValidationError, match="Invalid transformation"):
+        with pytest.raises(ValidationError, match="Input should be"):
             FieldConfig.model_validate(invalid_config["params"]["fields"][0])
 
     # --- Placeholder Tests for Transformation Logic ---

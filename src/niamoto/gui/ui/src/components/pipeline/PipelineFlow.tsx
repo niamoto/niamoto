@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useState } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -7,6 +7,7 @@ import ReactFlow, {
   ConnectionMode,
   Panel,
 } from 'reactflow'
+import type { ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 import { usePipelineStore } from './store'
@@ -17,7 +18,47 @@ import { NodeCatalog } from './sidebar/NodeCatalog'
 import { ConfigPanel } from './layouts/ConfigPanel'
 import { PipelineToolbar } from './layouts/PipelineToolbar'
 
-import type { PipelineNode } from './types'
+import type { CatalogItem, PipelineNode, PipelineNodeData } from './types'
+
+function buildNodeData(item: CatalogItem): PipelineNodeData {
+  switch (item.type) {
+    case 'import': {
+      if (!item.subType) {
+        throw new Error('Import catalog items must define a subType')
+      }
+
+      return {
+        nodeType: 'import',
+        subType: item.subType,
+        status: 'idle',
+        label: item.label,
+        ...(item.defaultConfig ? { config: item.defaultConfig } : {}),
+      }
+    }
+    case 'transform':
+      return {
+        nodeType: 'transform',
+        pluginId: item.pluginId ?? 'unknown-plugin',
+        pluginType: 'transformer',
+        status: 'idle',
+        label: item.label,
+        ...(item.defaultConfig ? { config: item.defaultConfig } : {}),
+      }
+    case 'export': {
+      const format = item.format ?? 'json'
+
+      return {
+        nodeType: 'export',
+        format,
+        status: 'idle',
+        label: item.label,
+        ...(item.defaultConfig ? { config: item.defaultConfig } : {}),
+      }
+    }
+    default:
+      throw new Error(`Unsupported catalog item type: ${item.type}`)
+  }
+}
 
 // Define custom node types
 const nodeTypes = {
@@ -27,6 +68,8 @@ const nodeTypes = {
 }
 
 function PipelineFlowContent() {
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
+
   const {
     nodes,
     edges,
@@ -54,14 +97,27 @@ function PipelineFlowContent() {
       const data = event.dataTransfer.getData('application/json')
       if (!data) return
 
-      const catalogItem = JSON.parse(data)
+      const catalogItem = JSON.parse(data) as CatalogItem
 
-      // Get the canvas position
-      const target = event.target as HTMLElement
-      const rect = target.getBoundingClientRect()
+      // Check if reactFlowInstance is available
+      if (!reactFlowInstance) {
+        console.warn('ReactFlow instance not ready')
+        return
+      }
+
+      // Use screenToFlowPosition to get the correct position
+      const flowPosition = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
+
+      // Center the node on the cursor position
+      // Typical node dimensions (adjust based on your actual node sizes)
+      const nodeWidth = 210
+      const nodeHeight = 77
       const position = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
+        x: flowPosition.x - nodeWidth / 2,
+        y: flowPosition.y - nodeHeight / 2,
       }
 
       // Create new node based on catalog item
@@ -69,19 +125,12 @@ function PipelineFlowContent() {
         id: `${catalogItem.type}-${Date.now()}`,
         type: catalogItem.type,
         position,
-        data: {
-          nodeType: catalogItem.type,
-          subType: catalogItem.subType,
-          pluginId: catalogItem.pluginId,
-          format: catalogItem.format,
-          label: catalogItem.label,
-          status: 'idle',
-        } as any,
+        data: buildNodeData(catalogItem),
       }
 
       addNode(newNode)
     },
-    [addNode]
+    [addNode, reactFlowInstance]
   )
 
   // Validate pipeline whenever nodes or edges change
@@ -94,7 +143,7 @@ function PipelineFlowContent() {
   return (
     <div className="h-full w-full flex">
       {/* Left Sidebar - Node Catalog */}
-      <div className="w-64 border-r bg-background">
+      <div className="w-64 h-full border-r bg-background overflow-hidden">
         <NodeCatalog />
       </div>
 
@@ -109,9 +158,12 @@ function PipelineFlowContent() {
           onNodeClick={onNodeClick}
           onDragOver={onDragOver}
           onDrop={onDrop}
+          onInit={setReactFlowInstance}
           nodeTypes={nodeTypes}
           connectionMode={ConnectionMode.Loose}
-          fitView
+          defaultViewport={{ x: 100, y: 100, zoom: 0.7 }}
+          minZoom={0.1}
+          maxZoom={2}
           proOptions={proOptions}
         >
           <Background color="#aaa" gap={16} />

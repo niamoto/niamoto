@@ -614,6 +614,187 @@ const LayoutProvider: React.FC = ({ children }) => {
 - [ ] Préparation déploiement
 - [ ] Documentation développeur
 
+### ✅ Phase 8 : Refactorisation des Plugins (91% COMPLÉTÉ - 16/09/2025)
+
+#### Refactorisation Pydantic - Plugins (58 au total, 53 refactorisés)
+**Objectif** : Permettre la génération automatique de formulaires depuis les schémas JSON des plugins
+
+**✅ TRANSFORMERS (32/32 - 100% COMPLÉTÉ) :**
+
+##### Aggregation Plugins (5/5) ✅
+- [x] `field_aggregator.py`
+- [x] `binary_counter.py`
+- [x] `statistical_summary.py`
+- [x] `top_ranking.py`
+- [x] `database_aggregator.py`
+
+##### Class Object Plugins (8/8) ✅
+- [x] `binary_aggregator.py`
+- [x] `categories_extractor.py`
+- [x] `categories_mapper.py`
+- [x] `field_aggregator.py`
+- [x] `series_by_axis_extractor.py`
+- [x] `series_extractor.py`
+- [x] `series_matrix_extractor.py`
+- [x] `series_ratio_aggregator.py`
+
+##### Extraction Plugins (3/3) ✅
+- [x] `direct_attribute.py`
+- [x] `multi_column_extractor.py`
+- [x] `geospatial_extractor.py`
+
+##### Distribution Plugins (3/3) ✅
+- [x] `binned_distribution.py`
+- [x] `categorical_distribution.py`
+- [x] `time_series_analysis.py`
+
+##### Ecological Plugins (7/7) ✅
+- [x] `custom_calculator.py`
+- [x] `custom_formatter.py`
+- [x] `elevation_profile.py`
+- [x] `forest_elevation.py`
+- [x] `forest_holdridge.py`
+- [x] `fragmentation.py`
+- [x] `land_use.py`
+
+##### Geospatial Plugins (3/3) ✅
+- [x] `vector_overlay.py`
+- [x] `shape_processor.py`
+- [x] `raster_stats.py`
+
+##### Chain Plugins (3/3) ✅
+- [x] `chain_validator.py`
+- [x] `reference_resolver.py`
+- [x] `transform_chain.py`
+
+**⚠️ EXPORTERS (2/3 - 67% COMPLÉTÉ) :**
+- [x] `html_page_exporter.py`
+- [ ] `index_generator.py` (Plugin spécial - pas de param_schema requis)
+- [x] `json_api_exporter.py`
+
+**✅ LOADERS (6/6 - COMPLÉTÉ) :**
+- [x] `api_taxonomy_enricher.py`
+- [x] `direct_reference.py`
+- [x] `join_table.py`
+- [x] `nested_set.py`
+- [x] `spatial.py`
+- [x] `stats_loader.py`
+
+**✅ WIDGETS (15/15 - COMPLÉTÉ) :**
+- [x] `bar_plot.py`
+- [x] `concentric_rings.py`
+- [x] `diverging_bar_plot.py`
+- [x] `donut_chart.py`
+- [x] `hierarchical_nav_widget.py`
+- [x] `info_grid.py`
+- [x] `interactive_map.py`
+- [x] `line_plot.py`
+- [x] `radial_gauge.py`
+- [x] `raw_data_widget.py`
+- [x] `scatter_plot.py`
+- [x] `stacked_area_plot.py`
+- [x] `summary_stats.py`
+- [x] `sunburst_chart.py`
+- [x] `table_view.py`
+
+**Changements apportés :**
+- Remplacement de `Dict[str, Any]` par des modèles Pydantic typés
+- Ajout de `BasePluginParams` pour tous les paramètres
+- Implémentation de types `Literal` pour les noms de plugins
+- Ajout de `ConfigDict` avec `json_schema_extra` pour l'UI
+- Définitions de `Field` avec descriptions complètes
+- Hints UI pour génération automatique de formulaires
+- Validators personnalisés pour validation complexe
+
+##### Formats Plugins (1/1) ✅
+- [x] `niamoto_to_dwc_occurrence.py`
+
+**Progression globale :**
+- ✅ **54/58 plugins refactorisés (93%)**
+- 🟢 Transformers : 32/32 (100%)
+- 🟡 Exporters : 2/3 (67%)
+- 🟢 Loaders : 6/6 (100%)
+- 🟢 Widgets : 15/15 (100%)
+- 🟢 Formats : 1/1 (100%)
+
+### ✅ Phase 9 : Implémentation Frontend - Génération Automatique de Formulaires (COMPLÉTÉ - 16/09/2025)
+
+**Objectif** : Créer un système React pour générer automatiquement les formulaires depuis les schémas JSON des plugins
+
+**✅ Composants créés :**
+- [x] `JsonSchemaForm.tsx` - Composant principal de génération de formulaires
+- [x] 11 widgets de formulaire spécialisés :
+  - `TextField.tsx` - Champs de texte simples
+  - `NumberField.tsx` - Champs numériques avec min/max
+  - `SelectField.tsx` - Sélection depuis une liste d'options
+  - `CheckboxField.tsx` - Cases à cocher booléennes
+  - `ArrayField.tsx` - Gestion de tableaux d'éléments
+  - `FieldSelectField.tsx` - Sélection de champs depuis les sources
+  - `JsonField.tsx` - Éditeur JSON avec validation
+  - `TextAreaField.tsx` - Zones de texte multi-lignes
+  - `ObjectField.tsx` - Objets complexes imbriqués
+  - `ColorField.tsx` - Sélecteur de couleurs
+  - `DirectorySelectField.tsx` - Sélection de répertoires/fichiers
+
+**✅ API Integration :**
+- [x] Endpoint `/api/plugins/{plugin_id}/schema` implémenté et fonctionnel
+- [x] Récupération dynamique des schémas JSON avec UI hints
+- [x] Support complet des `json_schema_extra` pour personnalisation UI
+
+**✅ Intégration dans l'application :**
+- [x] `PluginConfigPanel.tsx` mis à jour pour utiliser JsonSchemaForm
+- [x] Suppression de 200+ lignes de code hardcodé
+- [x] Support automatique de tous les plugins sans modification de code
+
+### ✅ Phase 10 : Mise à jour du NodeCatalog (COMPLÉTÉ - 16/09/2025)
+
+**Objectif** : Charger dynamiquement tous les plugins depuis l'API au lieu d'utiliser des listes hardcodées
+
+**✅ Changements apportés :**
+- [x] `NodeCatalog.tsx` dans pipeline/sidebar mis à jour pour charger depuis l'API
+- [x] Utilisation du hook `usePlugins()` pour récupération dynamique
+- [x] Mapping automatique des catégories vers des icônes appropriées
+- [x] Support de tous les types de plugins : loaders, transformers, widgets, exporters
+- [x] Affichage de 54 plugins au total :
+  - 6 Loaders
+  - 30 Transformers
+  - 15 Widgets
+  - 3 Exporters
+
+**✅ Validation :**
+- [x] Build réussi sans erreurs TypeScript
+- [x] API endpoint `/api/plugins/` retourne tous les plugins
+- [x] Endpoint `/api/plugins/{id}/schema` retourne les schémas avec UI hints
+- [x] Drag & drop fonctionnel depuis le catalogue
+
+### ✅ Phase 11 : Améliorations UX du Pipeline Editor (COMPLÉTÉ - 16/09/2025)
+
+**Objectif** : Améliorer l'expérience utilisateur de l'éditeur de pipeline
+
+**✅ Améliorations apportées :**
+
+#### Drag & Drop Optimisé
+- [x] Positionnement centré des nodes au curseur lors du drop
+- [x] Utilisation de `screenToFlowPosition` pour conversion correcte des coordonnées
+- [x] Ajustement automatique avec offset pour centrage parfait
+
+#### Interface et Navigation
+- [x] Zoom par défaut à 0.7 pour vue d'ensemble
+- [x] Séparation claire entre Loaders et Import nodes dans le catalogue
+- [x] ScrollArea fonctionnel dans NodeCatalog avec hauteur fixe et overflow
+
+#### Filtrage et Organisation
+- [x] Système de filtrage par catégories avec badges cliquables
+- [x] Compteur de plugins par catégorie
+- [x] Bouton "Clear" pour réinitialiser les filtres
+- [x] Recherche textuelle et filtrage par catégorie combinés
+
+#### Formulaires Dynamiques
+- [x] Support complet des tableaux d'objets complexes dans les formulaires
+- [x] Interface collapsible pour les items d'array avec chevron
+- [x] Résumés intelligents affichant les champs pertinents
+- [x] Résolution correcte des références $ref dans les schémas JSON
+
 ---
 
 ## 📊 Métriques de Succès
@@ -666,6 +847,16 @@ const LayoutProvider: React.FC = ({ children }) => {
 ---
 
 ## 🔴 ÉLÉMENTS CRITIQUES À IMPLÉMENTER
+
+### 0. ✅ **Endpoint JSON Schema pour Plugins (COMPLÉTÉ)**
+```typescript
+// Implémenté dans l'API FastAPI
+- [x] Endpoint `/api/plugins/schemas` pour récupérer les schémas JSON
+- [x] Génération automatique depuis les modèles Pydantic
+- [x] Cache implicite via le registry
+- [x] Endpoint `/api/plugins/{plugin_id}/schema` pour un plugin spécifique
+- [x] Intégration avec NodeCatalog.tsx pour chargement dynamique
+```
 
 ### 1. **Connexion API (PRIORITÉ HAUTE)**
 ```typescript
@@ -743,7 +934,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 
 ## 📊 ÉTAT D'AVANCEMENT DÉTAILLÉ
 
-### ✅ Complété (35%)
+### ✅ Complété (60%)
 - Infrastructure ReactFlow
 - Store Zustand
 - Types TypeScript
@@ -752,15 +943,22 @@ const LayoutProvider: React.FC = ({ children }) => {
 - Drag & drop fonctionnel
 - Configuration panel
 - Validation basique
+- **Refactorisation de 93% des plugins (54/58) avec Pydantic**
+- **Schémas JSON avec UI hints pour génération automatique de formulaires**
+- **JsonSchemaForm et 11 widgets de formulaire React**
+- **API endpoint pour récupération des schémas**
+- **NodeCatalog dynamique chargé depuis l'API**
+- **PluginCatalog avec tous les types de plugins**
 
 ### ⚠️ Partiellement Complété (15%)
 - Import nodes (générique au lieu de spécifique)
 - Layout system (panel seulement)
 - Validation (basique seulement)
+- Tests des plugins
+- **Refactorisation des plugins (93% - 4 plugins restants dont 1 spécial)**
 
-### ❌ Non Implémenté (50%)
-- API Integration
-- Transform forms
+### ❌ Non Implémenté (25%)
+- API Integration complète (detect-fields, upload)
 - Export forms
 - YAML serialization
 - Pipeline execution
@@ -771,6 +969,19 @@ const LayoutProvider: React.FC = ({ children }) => {
 ---
 
 ## 🎯 PLAN D'ACTION IMMÉDIAT
+
+### ✅ Sprint 0 - Refactorisation Plugins (93% COMPLÉTÉ)
+- 54/58 plugins refactorisés avec Pydantic
+- Schémas JSON avec UI hints fonctionnels pour les plugins refactorisés
+
+**Note sur les plugins non refactorisés (4) :**
+- **index_generator.py** : Plugin spécial qui n'a pas besoin de param_schema (utilise IndexGeneratorConfig)
+- 3 autres plugins sans paramètres configurables
+
+### ✅ Sprint 0.5 - Frontend et API (COMPLÉTÉ)
+- JsonSchemaForm et widgets implémentés
+- API endpoints pour schémas fonctionnels
+- NodeCatalog dynamique opérationnel
 
 ### Sprint 1 (2-3 jours) - API & Validation
 1. **Jour 1**: Connecter forms avec API
@@ -845,3 +1056,14 @@ const LayoutProvider: React.FC = ({ children }) => {
 ---
 
 *Document créé le 15/09/2025 - Version 1.0*
+*Mis à jour le 15/09/2025 - Version 1.1 : Ajout Phase 8 - Refactorisation Pydantic (55% complété)*
+*Mis à jour le 15/09/2025 - Version 1.2 : Clarification - Seulement les Transformers sont refactorisés*
+*Mis à jour le 15/09/2025 - Version 1.3 : 79% complété - Ajout Exporters (3/3), Loaders (2/6), Widgets (8/16)*
+*Mis à jour le 15/09/2025 - Version 1.4 : 88% complété - Widgets (13/16) presque terminés*
+*Mis à jour le 15/09/2025 - Version 1.5 : 95% complété - TOUS les plugins avec params sont refactorisés!*
+*Mis à jour le 15/09/2025 - Version 1.6 : 98% complété - hierarchical_nav_widget et raw_data_widget refactorisés*
+*Mis à jour le 15/09/2025 - Version 1.7 : 100% COMPLÉTÉ - TOUS les plugins avec params sont refactorisés!*
+*Mis à jour le 16/09/2025 - Version 2.0 : Frontend React implémenté - Génération automatique de formulaires et NodeCatalog dynamique*
+*Mis à jour le 16/09/2025 - Version 2.1 : Correction du statut réel - 86% des plugins refactorisés (50/58), 8 plugins restants*
+*Mis à jour le 16/09/2025 - Version 2.2 : 93% des plugins refactorisés (54/58) - Tous les transformers et formats complétés*
+*Mis à jour le 16/09/2025 - Version 2.3 : Interface Pipeline Editor améliorée - Drag & drop centré, zoom optimisé, NodeCatalog avec scroll et filtrage par catégories*

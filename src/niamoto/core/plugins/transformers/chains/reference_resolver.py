@@ -2,9 +2,52 @@
 Advanced reference resolver for transform chains.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 import re
 import numpy as np
+from pydantic import Field, ConfigDict
+
+from niamoto.core.plugins.models import BasePluginParams
+
+
+class ReferenceConfig(BasePluginParams):
+    """Configuration for reference resolution"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Configuration for resolving references in transform chains"
+        }
+    )
+
+    reference_pattern: str = Field(
+        default=r"@([a-zA-Z0-9_]+)\.([a-zA-Z0-9_\.\[\]]+)(?:\|([a-zA-Z0-9_]+)(?:\(([^)]*)\))?)?",
+        description="Regular expression pattern for matching references",
+    )
+
+    allowed_functions: Optional[List[str]] = Field(
+        default=None,
+        description="List of allowed function names (None means all are allowed)",
+    )
+
+    strict_mode: bool = Field(
+        default=False,
+        description="Whether to fail on unresolved references (vs. returning original)",
+    )
+
+
+class ResolverContext(BasePluginParams):
+    """Context for reference resolution"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Context containing named results from previous transformations"
+        }
+    )
+
+    context: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Dictionary of named results from previous transformations",
+    )
 
 
 class ReferenceResolver:
@@ -50,14 +93,22 @@ class ReferenceResolver:
         else x,
     }
 
-    def __init__(self, context: Dict[str, Any]):
+    def __init__(
+        self, context: Dict[str, Any], config: Optional[ReferenceConfig] = None
+    ):
         """
         Initialize the resolver with a context.
 
         Args:
             context: Dictionary of named results from previous transformations
+            config: Optional configuration for the resolver
         """
         self.context = context
+        self.config = config or ReferenceConfig()
+
+        # Update pattern if specified in config
+        if self.config.reference_pattern != self.REF_PATTERN.pattern:
+            self.REF_PATTERN = re.compile(self.config.reference_pattern)
 
     def resolve(self, value: Any) -> Any:
         """
@@ -181,6 +232,15 @@ class ReferenceResolver:
             available_funcs = list(self.FUNCTIONS.keys())
             raise ValueError(
                 f"Function '{func_name}' not found. Available functions: {available_funcs}"
+            )
+
+        # Check if function is allowed (if restriction is configured)
+        if (
+            self.config.allowed_functions
+            and func_name not in self.config.allowed_functions
+        ):
+            raise ValueError(
+                f"Function '{func_name}' is not allowed. Allowed functions: {self.config.allowed_functions}"
             )
 
         # Parse arguments

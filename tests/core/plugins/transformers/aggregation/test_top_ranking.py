@@ -65,6 +65,8 @@ class TestTopRanking(unittest.TestCase):
             "params": {
                 "source": "occurrences",
                 "field": "taxon_ref_id",
+                "mode": "hierarchical",
+                "hierarchy_table": "taxon_ref",
                 "target_ranks": ["species"],
                 "count": 2,  # Get Top 2
             },
@@ -152,6 +154,8 @@ class TestTopRanking(unittest.TestCase):
             "params": {
                 "source": "occurrences",
                 "field": "taxon_ref_id",
+                "mode": "hierarchical",
+                "hierarchy_table": "taxon_ref",
                 "target_ranks": ["genus"],  # Target genus level
                 "count": 1,  # Get Top 1
             },
@@ -206,6 +210,8 @@ class TestTopRanking(unittest.TestCase):
             "params": {
                 "source": "occurrences",
                 "field": "taxon_ref_id",
+                "mode": "hierarchical",
+                "hierarchy_table": "taxon_ref",
                 "target_ranks": ["species"],
                 "count": 5,
             },
@@ -228,6 +234,8 @@ class TestTopRanking(unittest.TestCase):
             "params": {
                 "source": "occurrences",
                 "field": "taxon_ref_id",  # This field is missing now
+                "mode": "hierarchical",
+                "hierarchy_table": "taxon_ref",
                 "target_ranks": ["species"],
                 "count": 5,
             },
@@ -248,6 +256,8 @@ class TestTopRanking(unittest.TestCase):
             "params": {
                 "source": "occurrences",
                 "field": "taxon_ref_id",
+                "mode": "hierarchical",
+                "hierarchy_table": "taxon_ref",
                 "target_ranks": ["species"],
                 "count": 5,
             },

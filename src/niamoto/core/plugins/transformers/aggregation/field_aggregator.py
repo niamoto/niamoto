@@ -2,8 +2,8 @@
 Plugin for aggregating fields from different sources.
 """
 
-from typing import Dict, Any, Union
-from pydantic import BaseModel, field_validator, Field
+from typing import Dict, Any, Union, List, Optional, Literal
+from pydantic import BaseModel, field_validator, Field, ConfigDict
 import os
 
 import pandas as pd
@@ -16,23 +16,48 @@ from niamoto.common.config import Config
 
 
 class FieldConfig(BaseModel):
-    """Field configuration."""
+    """Configuration for a single field mapping.
 
-    source: str
-    field: str
-    target: str
-    transformation: str = "direct"
-    units: str = ""
-    labels: Dict[str, str] = {}
+    This model defines how to extract and transform a field from a source.
+    """
 
-    @field_validator("transformation")
-    def validate_transformation(cls, v):
-        """Validate transformation."""
-        if v not in ["direct", "count", "sum"]:
-            raise ValueError(f"Invalid transformation: {v}")
-        return v
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "source": "taxon_ref",
+                "field": "full_name",
+                "target": "name",
+                "transformation": "direct",
+                "units": "",
+                "format": "text",
+            }
+        }
+    )
+
+    source: str = Field(
+        ...,
+        description="Source table or data source name",
+        json_schema_extra={"ui:widget": "select"},
+    )
+    field: str = Field(
+        ..., description="Field name to extract (supports dot notation for JSON fields)"
+    )
+    target: str = Field(..., description="Target field name in output")
+    transformation: Literal["direct", "count", "sum"] = Field(
+        default="direct", description="Type of transformation to apply"
+    )
+    units: str = Field(
+        default="", description="Units for the field value (e.g., 'ha', 'm', 'km²')"
+    )
+    labels: Dict[str, str] = Field(
+        default_factory=dict, description="Value mappings for field labels"
+    )
+    format: Optional[Literal["boolean", "url", "text", "number"]] = Field(
+        None, description="Output format type for UI rendering"
+    )
 
     @field_validator("labels")
+    @classmethod
     def validate_labels(cls, v):
         """Convert list of labels to dictionary if needed."""
         if isinstance(v, list):
@@ -40,26 +65,28 @@ class FieldConfig(BaseModel):
         return v
 
 
+class FieldAggregatorParams(BaseModel):
+    """Parameters for field aggregator plugin.
+
+    This model validates the complete parameter set for the field aggregator.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Aggregate multiple fields from different sources into a unified output"
+        }
+    )
+
+    fields: List[FieldConfig] = Field(
+        ..., min_length=1, description="List of field configurations to process"
+    )
+
+
 class FieldAggregatorConfig(PluginConfig):
-    """Field aggregator configuration."""
+    """Complete configuration for field aggregator plugin."""
 
-    plugin: str = "field_aggregator"
-    params: Dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("params")
-    @classmethod
-    def validate_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate params configuration."""
-        if not isinstance(v, dict):
-            raise ValueError("params must be a dictionary")
-
-        if "fields" not in v:
-            raise ValueError("Missing required field: fields")
-
-        if not isinstance(v["fields"], list):
-            raise ValueError("fields must be a list")
-
-        return v
+    plugin: Literal["field_aggregator"] = "field_aggregator"
+    params: FieldAggregatorParams
 
 
 @register("field_aggregator", PluginType.TRANSFORMER)
@@ -67,21 +94,18 @@ class FieldAggregator(TransformerPlugin):
     """Field aggregator transformer."""
 
     config_model = FieldAggregatorConfig
+    param_schema = FieldAggregatorParams
 
     def __init__(self, db):
         super().__init__(db)
         self.config = Config()
         self.imports_config = self.config.get_imports_config
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> FieldAggregatorConfig:
+        """Validate configuration and return validated config."""
         try:
             # Validate config using pydantic model
-            validated_config = self.config_model(**config)
-
-            # Validate each field config
-            for field_config in validated_config.params["fields"]:
-                FieldConfig.model_validate(field_config)
+            return self.config_model(**config)
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -171,14 +195,10 @@ class FieldAggregator(TransformerPlugin):
         self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Transform data according to configuration."""
-        self.validate_config(config)
-        validated_config = self.config_model(**config)
+        validated_config = self.validate_config(config)
         result = {}
 
-        for field_config in validated_config.params["fields"]:
-            # Validate field config using pydantic
-            field = FieldConfig.model_validate(field_config)
-
+        for field in validated_config.params.fields:
             # Determine if we should use DataFrame or DB/import source
             source_data = None
 

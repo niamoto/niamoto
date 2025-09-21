@@ -260,7 +260,10 @@ class TestShapeProcessor(NiamotoTestCase):
         """Test configuration validation."""
         # Test valid config
         validated = self.processor.validate_config(self.test_config)
-        self.assertEqual(validated, self.test_config)
+        self.assertEqual(validated.plugin, self.test_config["plugin"])
+        self.assertEqual(validated.params.source, self.test_config["params"]["source"])
+        self.assertEqual(validated.params.field, self.test_config["params"]["field"])
+        self.assertEqual(validated.params.format, self.test_config["params"]["format"])
 
         # Test invalid config
         with self.assertRaises(ValueError):

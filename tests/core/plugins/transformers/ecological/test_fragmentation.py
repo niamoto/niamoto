@@ -71,7 +71,7 @@ class TestFragmentationAnalysis:
         # Use the plugin's validation method, not direct instantiation
         validated = self.plugin.validate_config(config)
         # Assertions need to access attributes of the validated config object
-        assert validated.params["forest_path"] == "dummy/forest.shp"
+        assert validated.params.forest_path == "dummy/forest.shp"
         # Default values inside the 'params' factory are NOT merged when 'params' is provided.
         # We only need to ensure the mandatory 'forest_path' is validated.
         # The transform method uses .get() to handle defaults for other params like 'metrics'.
@@ -89,10 +89,10 @@ class TestFragmentationAnalysis:
             }
         }
         validated = FragmentationConfig(**config)
-        assert validated.params["forest_path"] == "forests.gpkg"
-        assert validated.params["metrics"] == ["meff", "edge_density"]
-        assert validated.params["area_unit"] == "km2"
-        assert validated.params["edge_width"] == 50
+        assert validated.params.forest_path == "forests.gpkg"
+        assert validated.params.metrics == ["meff", "edge_density"]
+        assert validated.params.area_unit == "km2"
+        assert validated.params.edge_width == 50
 
     def test_invalid_config_missing_forest_path(self):
         """Test config validation fails if forest_path is missing."""
@@ -101,9 +101,7 @@ class TestFragmentationAnalysis:
             "params": {},
         }  # Missing forest_path
         # The plugin's validate_config wraps Pydantic/custom checks
-        with pytest.raises(
-            DataTransformError, match="path to the forest layer is required"
-        ):
+        with pytest.raises(DataTransformError, match="Invalid configuration"):
             self.plugin.validate_config(config)
 
     def test_invalid_config_bad_metric(self):

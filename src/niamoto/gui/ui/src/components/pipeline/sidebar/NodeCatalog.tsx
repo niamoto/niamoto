@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Database,
@@ -11,16 +11,41 @@ import {
   FileJson,
   ChevronDown,
   ChevronRight,
+  BarChart,
+  Calculator,
+  TreePine,
+  Package,
+  Loader2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { usePipelineStore } from '../store'
 import type { CatalogItem } from '../types'
+import { usePlugins } from '@/hooks/usePlugins'
 
-// Import catalog items
+// Icon mapping for plugin categories
+const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  file: FileText,
+  geo: Map,
+  aggregation: Layers,
+  statistics: Calculator,
+  hierarchy: TreePine,
+  web: Globe,
+  data: Database,
+  visualization: BarChart,
+  database: Database,
+  relation: Layers,
+  export: FileJson,
+}
+
+// Default icon for unknown categories
+const defaultIcon = Package
+
+// Import catalog items (hardcoded as they're not plugins)
 const importItems: CatalogItem[] = [
   {
     type: 'import',
@@ -56,56 +81,6 @@ const importItems: CatalogItem[] = [
     label: 'Layers',
     description: 'Import raster/vector layers',
     icon: Layers,
-  },
-]
-
-// Transform catalog items (simplified for now)
-const transformItems: CatalogItem[] = [
-  {
-    type: 'transform',
-    label: 'Field Aggregator',
-    description: 'Aggregate fields from sources',
-    icon: Layers,
-    pluginId: 'field_aggregator',
-  },
-  {
-    type: 'transform',
-    label: 'Top Ranking',
-    description: 'Calculate top rankings',
-    icon: Settings2,
-    pluginId: 'top_ranking',
-  },
-  {
-    type: 'transform',
-    label: 'Geospatial Extractor',
-    description: 'Extract geospatial data',
-    icon: Map,
-    pluginId: 'geospatial_extractor',
-  },
-]
-
-// Export catalog items
-const exportItems: CatalogItem[] = [
-  {
-    type: 'export',
-    label: 'HTML Export',
-    description: 'Export as HTML pages',
-    icon: Globe,
-    format: 'html',
-  },
-  {
-    type: 'export',
-    label: 'JSON Export',
-    description: 'Export as JSON data',
-    icon: FileJson,
-    format: 'json',
-  },
-  {
-    type: 'export',
-    label: 'CSV Export',
-    description: 'Export as CSV file',
-    icon: FileText,
-    format: 'csv',
   },
 ]
 
@@ -167,6 +142,71 @@ export function NodeCatalog() {
   const { t } = useTranslation()
   const { catalogFilter, setCatalogFilter } = usePipelineStore()
   const [search, setSearch] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+
+  // Fetch plugins from API
+  const { plugins: apiPlugins, loading, error } = usePlugins()
+
+  // Extract unique categories
+  const availableCategories = useMemo(() => {
+    const categories = new Set<string>()
+    apiPlugins.forEach(plugin => {
+      if (plugin.category) {
+        categories.add(plugin.category)
+      }
+    })
+    return Array.from(categories).sort()
+  }, [apiPlugins])
+
+  // Transform API plugins to CatalogItems with category filtering
+  const { loaderItems, transformItems, widgetItems, exportItems } = useMemo(() => {
+    const loaders: CatalogItem[] = []
+    const transformers: CatalogItem[] = []
+    const widgets: CatalogItem[] = []
+    const exporters: CatalogItem[] = []
+
+    apiPlugins.forEach(plugin => {
+      // Filter by category if any are selected
+      if (selectedCategories.size > 0 && plugin.category && !selectedCategories.has(plugin.category)) {
+        return
+      }
+
+      const icon = categoryIcons[plugin.category || ''] || defaultIcon
+
+      const item: CatalogItem = {
+        type: plugin.type === 'loader' ? 'transform' :
+              plugin.type === 'exporter' ? 'export' : 'transform',
+        label: plugin.name,
+        description: plugin.description,
+        icon: icon,
+        pluginId: plugin.id,
+        category: plugin.category,
+      }
+
+      // Sort plugins by type
+      switch (plugin.type) {
+        case 'loader':
+          loaders.push(item)
+          break
+        case 'transformer':
+          transformers.push(item)
+          break
+        case 'widget':
+          widgets.push(item)
+          break
+        case 'exporter':
+          exporters.push(item)
+          break
+      }
+    })
+
+    return {
+      loaderItems: loaders,
+      transformItems: transformers,
+      widgetItems: widgets,
+      exportItems: exporters,
+    }
+  }, [apiPlugins, selectedCategories])
 
   // Filter items based on search
   const filterItems = (items: CatalogItem[]) => {
@@ -179,47 +219,122 @@ export function NodeCatalog() {
     )
   }
 
+  const toggleCategory = (category: string) => {
+    const newCategories = new Set(selectedCategories)
+    if (newCategories.has(category)) {
+      newCategories.delete(category)
+    } else {
+      newCategories.add(category)
+    }
+    setSelectedCategories(newCategories)
+  }
+
+  const clearCategories = () => {
+    setSelectedCategories(new Set())
+  }
+
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b">
-        <h3 className="font-semibold text-lg mb-3">
-          {t('pipeline.catalog.title', 'Node Catalog')}
-        </h3>
+      <div className="border-b flex-shrink-0">
+        <div className="p-4">
+          <h3 className="font-semibold text-lg mb-3">
+            {t('pipeline.catalog.title', 'Node Catalog')}
+          </h3>
 
-        {/* Search */}
-        <Input
-          placeholder={t('pipeline.catalog.search', 'Search nodes...')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="mb-3"
-        />
-
-        {/* Filter Toggle */}
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="show-all"
-            checked={catalogFilter === 'all'}
-            onCheckedChange={(checked) => setCatalogFilter(checked ? 'all' : 'compatible')}
+          {/* Search */}
+          <Input
+            placeholder={t('pipeline.catalog.search', 'Search nodes...')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="mb-3"
           />
-          <Label htmlFor="show-all" className="text-sm">
-            {t('pipeline.catalog.showAll', 'Show all nodes')}
-          </Label>
+
+          {/* Category Filter Tags */}
+          {availableCategories.length > 0 && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs text-muted-foreground">
+                  {t('pipeline.catalog.filterByCategory', 'Filter by category')}
+                </Label>
+                {selectedCategories.size > 0 && (
+                  <button
+                    onClick={clearCategories}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {t('pipeline.catalog.clearFilters', 'Clear')}
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {availableCategories.map(category => (
+                  <Badge
+                    key={category}
+                    variant={selectedCategories.has(category) ? 'default' : 'outline'}
+                    className="cursor-pointer text-xs"
+                    onClick={() => toggleCategory(category)}
+                  >
+                    {category}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Filter Toggle */}
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="show-all"
+              checked={catalogFilter === 'all'}
+              onCheckedChange={(checked) => setCatalogFilter(checked ? 'all' : 'compatible')}
+            />
+            <Label htmlFor="show-all" className="text-sm">
+              {t('pipeline.catalog.showAll', 'Show all nodes')}
+            </Label>
+          </div>
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4">
-        <Category
-          title={t('pipeline.catalog.import', 'Import')}
-          items={filterItems(importItems)}
-        />
-        <Category
-          title={t('pipeline.catalog.transform', 'Transform')}
-          items={filterItems(transformItems)}
-        />
-        <Category
-          title={t('pipeline.catalog.export', 'Export')}
-          items={filterItems(exportItems)}
-        />
+      <ScrollArea className="flex-1 overflow-y-auto">
+        <div className="p-4">
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        )}
+
+        {error && (
+          <Alert className="mb-4">
+            <AlertDescription>
+              {t('pipeline.catalog.error', 'Failed to load plugins')}: {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!loading && !error && (
+          <>
+            <Category
+              title={t('pipeline.catalog.import', 'Import')}
+              items={filterItems(importItems)}
+            />
+            <Category
+              title={t('pipeline.catalog.loaders', 'Loaders')}
+              items={filterItems(loaderItems)}
+            />
+            <Category
+              title={t('pipeline.catalog.transform', 'Transform')}
+              items={filterItems(transformItems)}
+            />
+            <Category
+              title={t('pipeline.catalog.widgets', 'Widgets')}
+              items={filterItems(widgetItems)}
+            />
+            <Category
+              title={t('pipeline.catalog.export', 'Export')}
+              items={filterItems(exportItems)}
+            />
+          </>
+        )}
+        </div>
       </ScrollArea>
 
       <div className="p-4 border-t text-xs text-muted-foreground">

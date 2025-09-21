@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 # Check if we're in CLI context for progress display
 try:
@@ -35,7 +35,7 @@ from rich.progress import Progress
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, register
-from niamoto.core.plugins.models import TargetConfig
+from niamoto.core.plugins.models import TargetConfig, BasePluginParams
 from niamoto.core.plugins.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
@@ -119,18 +119,51 @@ class GroupConfig(BaseModel):
     json_options: Optional[JsonOptions] = None
 
 
-class JsonApiExporterParams(BaseModel):
+class JsonApiExporterParams(BasePluginParams):
     """Parameters for the JSON API exporter."""
 
-    output_dir: str
-    detail_output_pattern: str = "{group}/{id}.json"
-    index_output_pattern: str = "all_{group}.json"
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Generate static JSON API files for each data group",
+            "examples": [
+                {
+                    "output_dir": "api",
+                    "detail_output_pattern": "{group}/{id}.json",
+                    "index_output_pattern": "all_{group}.json",
+                }
+            ],
+        }
+    )
+
+    output_dir: str = Field(
+        ...,
+        description="Directory where JSON files will be generated",
+        json_schema_extra={"ui:widget": "directory-select"},
+    )
+    detail_output_pattern: str = Field(
+        default="{group}/{id}.json",
+        description="Pattern for detail file paths",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    index_output_pattern: str = Field(
+        default="all_{group}.json",
+        description="Pattern for index file paths",
+        json_schema_extra={"ui:widget": "text"},
+    )
     index_structure: IndexStructure = Field(default_factory=IndexStructure)
     json_options: JsonOptions = Field(default_factory=JsonOptions)
     error_handling: ErrorHandling = Field(default_factory=ErrorHandling)
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
-    size_optimization: Optional[Dict[str, Any]] = None
-    filters: Optional[Dict[str, Dict[str, Any]]] = None
+    size_optimization: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Size optimization settings",
+        json_schema_extra={"ui:widget": "json"},
+    )
+    filters: Optional[Dict[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Data filters",
+        json_schema_extra={"ui:widget": "json"},
+    )
 
 
 @register("json_api_exporter", PluginType.EXPORTER)
@@ -516,10 +549,32 @@ class JsonApiExporter(ExporterPlugin):
             transformer = transformer_class(self.db)
 
             # Validate transformer params if provided
-            if hasattr(transformer, "config_model") and group_config.transformer_params:
-                validated_params = transformer.config_model.model_validate(
-                    group_config.transformer_params
-                )
+            config_model_cls = getattr(transformer, "config_model", None)
+
+            if config_model_cls and group_config.transformer_params:
+                raw_params = group_config.transformer_params
+
+                if isinstance(config_model_cls, type) and isinstance(
+                    raw_params, config_model_cls
+                ):
+                    validated_params = raw_params
+                else:
+                    if isinstance(raw_params, dict) and "plugin" in raw_params:
+                        config_payload = raw_params
+                    else:
+                        if isinstance(raw_params, BaseModel):
+                            params_payload = raw_params
+                        elif isinstance(raw_params, dict):
+                            params_payload = raw_params
+                        else:
+                            params_payload = raw_params or {}
+
+                        config_payload = {
+                            "plugin": group_config.transformer_plugin,
+                            "params": params_payload,
+                        }
+
+                    validated_params = config_model_cls.model_validate(config_payload)
             else:
                 validated_params = group_config.transformer_params or {}
 

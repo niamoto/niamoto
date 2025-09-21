@@ -16,7 +16,11 @@
       "Bash(git log:*)",
       "Bash(npm install:*)",
       "Bash(npx shadcn@latest add scroll-area:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(while read file)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

@@ -3,10 +3,11 @@ from typing import Any, Dict, List, Optional, Union, Set
 
 import pandas as pd
 import plotly.express as px
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     render_plotly_figure,
@@ -144,76 +145,172 @@ def generate_colors(count: int) -> List[str]:
 
 
 # Pydantic model for Bar Plot parameters validation
-class BarPlotParams(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    x_axis: str = Field(..., description="Field name for the X-axis (categories).")
-    y_axis: str = Field(..., description="Field name for the Y-axis (values).")
+class BarPlotParams(BasePluginParams):
+    """Parameters for bar plot widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create interactive bar charts with grouping and stacking options",
+            "examples": [
+                {
+                    "x_axis": "category",
+                    "y_axis": "value",
+                    "title": "Bar Chart",
+                    "barmode": "group",
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None, description="Chart title", json_schema_extra={"ui:widget": "text"}
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Chart description",
+        json_schema_extra={"ui:widget": "textarea"},
+    )
+    x_axis: str = Field(
+        ...,
+        description="Field name for the X-axis (categories)",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    y_axis: str = Field(
+        ...,
+        description="Field name for the Y-axis (values)",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
     color_field: Optional[str] = Field(
-        None,
-        description="Field name for color grouping (creates grouped/stacked bars).",
+        default=None,
+        description="Field name for color grouping (creates grouped/stacked bars)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     barmode: Optional[str] = Field(
-        "group", description="'group', 'stack', or 'relative'."
+        default="group",
+        description="Bar display mode",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["group", "stack", "relative"],
+        },
     )
     orientation: Optional[str] = Field(
-        "v", description="'v' (vertical) or 'h' (horizontal)."
+        default="v",
+        description="Bar orientation",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "v", "label": "Vertical"},
+                {"value": "h", "label": "Horizontal"},
+            ],
+        },
     )
     text_auto: Union[bool, str] = Field(
-        True,
-        description="Display values on bars (True, False, or formatting string like '.2f').",
+        default=True,
+        description="Display values on bars (True, False, or formatting string like '.2f')",
+        json_schema_extra={"ui:widget": "text"},
     )
     hover_name: Optional[str] = Field(
-        None, description="Field for primary hover label."
+        default=None,
+        description="Field for primary hover label",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     hover_data: Optional[List[str]] = Field(
-        None, description="Additional fields for hover tooltip."
+        default=None,
+        description="Additional fields for hover tooltip",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     color_discrete_map: Optional[Any] = Field(
-        None, description="Mapping for discrete colors."
+        default=None,
+        description="Mapping for discrete colors",
+        json_schema_extra={"ui:widget": "json"},
     )
     color_continuous_scale: Optional[str] = Field(
-        None, description="Plotly color scale name (if color_field is numeric)."
+        default=None,
+        description="Plotly color scale name (if color_field is numeric)",
+        json_schema_extra={"ui:widget": "text"},
     )
-    range_y: Optional[List[float]] = Field(None, description="Y-axis range [min, max].")
+    range_y: Optional[List[float]] = Field(
+        default=None,
+        description="Y-axis range [min, max]",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "number"},
+    )
     labels: Optional[Any] = Field(
-        None, description="Mapping for axis/legend labels {'x_axis': 'X Label', ...}"
+        default=None,
+        description="Mapping for axis/legend labels {'x_axis': 'X Label', ...}",
+        json_schema_extra={"ui:widget": "json"},
     )
     sort_order: Optional[str] = Field(
-        None, description="Sort bars: 'ascending', 'descending', or None."
+        default=None,
+        description="Sort bars order",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": None, "label": "None"},
+                {"value": "ascending", "label": "Ascending"},
+                {"value": "descending", "label": "Descending"},
+            ],
+        },
     )
     # New fields for data transformation
     transform: Optional[str] = Field(
-        None,
-        description="Type of transformation to apply to data: 'extract_series', 'unpivot', 'pivot', etc.",
+        default=None,
+        description="Type of transformation to apply to data",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["extract_series", "unpivot", "pivot"],
+        },
     )
     transform_params: Optional[Dict[str, Any]] = Field(
-        None, description="Parameters for the transformation"
+        default=None,
+        description="Parameters for the transformation",
+        json_schema_extra={"ui:widget": "json"},
     )
     # Fields for field mappings
     field_mapping: Optional[Dict[str, str]] = Field(
-        None, description="Mapping from data fields to expected column names"
+        default=None,
+        description="Mapping from data fields to expected column names",
+        json_schema_extra={"ui:widget": "json"},
     )
     auto_color: bool = Field(
-        False, description="Automatically generate harmonious colors for each bar"
+        default=False,
+        description="Automatically generate harmonious colors for each bar",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     gradient_color: Optional[str] = Field(
-        None,
+        default=None,
         description="Base color for gradient generation (e.g., '#1fb99d'). Overrides auto_color if set",
+        json_schema_extra={"ui:widget": "color"},
     )
     gradient_mode: Optional[str] = Field(
-        "luminance",
-        description="Gradient mode: 'luminance' (light to dark) or 'saturation' (saturated to pale)",
+        default="luminance",
+        description="Gradient mode",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "luminance", "label": "Light to dark"},
+                {"value": "saturation", "label": "Saturated to pale"},
+            ],
+        },
     )
     bar_width: Optional[float] = Field(
-        None,
+        default=None,
         description="Width of bars (0.0 to 1.0). If None, width is calculated automatically based on data count",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:min": 0.0,
+            "ui:max": 1.0,
+            "ui:step": 0.1,
+        },
     )
     filter_zero_values: bool = Field(
-        False, description="Remove bars with zero or null values from the plot"
+        default=False,
+        description="Remove bars with zero or null values from the plot",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     show_legend: bool = Field(
-        True, description="Show or hide the legend. Default is True to show the legend"
+        default=True,
+        description="Show or hide the legend",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
 
 
