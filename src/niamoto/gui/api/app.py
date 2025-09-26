@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .routers import config, database, files, imports, plugins, status
+from .routers import bootstrap, config, database, files, imports, plugins
 
 # Get the path to the built React app
 UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
@@ -31,12 +31,12 @@ def create_app() -> FastAPI:
     )
 
     # Include API routers FIRST (before static files)
-    app.include_router(status.router, prefix="/api/status", tags=["status"])
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(database.router, prefix="/api/database", tags=["database"])
     app.include_router(files.router, prefix="/api/files", tags=["files"])
     app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
     app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
+    app.include_router(bootstrap.router, prefix="/api", tags=["bootstrap"])
 
     # Serve static files from the React build
     if UI_BUILD_DIR.exists():

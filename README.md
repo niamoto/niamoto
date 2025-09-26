@@ -118,7 +118,7 @@ uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 ```
 
-📋 **[Detailed Installation Guide](docs/getting-started/installation.md)**
+📋 **[Detailed Installation Guide](docs/01-getting-started/installation.md)**
 
 ## 🏃‍♂️ Usage
 
@@ -159,7 +159,7 @@ niamoto export
 # Your website is ready at exports/web/
 ```
 
-📖 **[Complete CLI Reference](docs/references/cli-commands.md)** | **[Data Import Guide](docs/guides/data-import.md)**
+📖 **[Complete CLI Reference](docs/05-api-reference/cli-commands.md)** | **[Data Import Guide](docs/02-data-pipeline/import-configuration.md)**
 
 ## 📂 Project Structure
 
@@ -186,29 +186,31 @@ Niamoto uses YAML configuration files to define your data pipeline:
 - `config/transform.yml` - Data processing and statistics
 - `config/export.yml` - Website generation and visualizations
 
-📖 **[Complete Configuration Guide](docs/guides/configuration.md)** | **[Data Import Guide](docs/guides/data-import.md)**
+📖 **[Complete Configuration Guide](docs/08-configuration/configuration-guide.md)** | **[Data Import Guide](docs/02-data-pipeline/import-configuration.md)**
 
 ## 🧩 Plugin System
 
 Niamoto includes built-in plugins for data transformation and visualization, with support for custom plugins.
 
-📖 **[Plugin Development Guide](docs/guides/custom_plugin.md)** | **[Plugin Reference](docs/guides/plugin-reference.md)**
+📖 **[Plugin Development Guide](docs/04-plugin-development/creating-transformers.md)** | **[Plugin API Reference](docs/05-api-reference/plugin-api.md)**
 
 ## 👩‍💻 Development
 
 For development setup, testing, and contribution guidelines:
 
-📖 **[Development Setup Guide](docs/development/setup.md)** | **[Contributing Guidelines](docs/development/contributing.md)**
+📖 **[Development Setup Guide](docs/11-development/setup.md)** | **[Contributing Guidelines](CONTRIBUTING.md)**
 
 ## 📚 Documentation
 
 The complete documentation is available in the `docs/` directory and online:
 
 - 📖 **[Online Documentation](https://niamoto.readthedocs.io/)**
-- 🚀 **[Getting Started Guide](docs/getting-started/quickstart.md)**
-- 📋 **[Configuration Guide](docs/guides/configuration.md)**
-- 🧩 **[Plugin Development](docs/guides/custom_plugin.md)**
-- 📖 **[API Reference](docs/api/)**
+- 🚀 **[Getting Started Guide](docs/01-getting-started/quickstart.md)**
+- 📋 **[Configuration Guide](docs/08-configuration/configuration-guide.md)**
+- 🧩 **[Plugin Development](docs/04-plugin-development/)**
+- 📖 **[API Reference](docs/05-api-reference/)**
+- 🤖 **[ML Detection System](docs/03-ml-detection/)**
+- 📊 **[Data Pipeline](docs/02-data-pipeline/)**
 
 To build the documentation locally:
 
@@ -228,7 +230,7 @@ We welcome contributions to Niamoto! Here's how you can help:
 4. Follow our coding standards (Black formatting, type hints, docstrings)
 5. Submit a pull request
 
-📖 **[Contributing Guide](docs/development/contributing.md)**
+📖 **[Contributing Guide](CONTRIBUTING.md)**
 
 ## 📄 License
 
@@ -251,7 +253,7 @@ Yes! Niamoto uses Jinja2 templates and supports custom CSS. You can completely c
 <details>
 <summary><strong>How do I add custom data transformations?</strong></summary>
 
-You can create custom plugins by extending the base plugin classes. See our [Plugin Development Guide](docs/guides/custom_plugin.md).
+You can create custom plugins by extending the base plugin classes. See our [Plugin Development Guide](docs/04-plugin-development/creating-transformers.md).
 </details>
 
 <details>

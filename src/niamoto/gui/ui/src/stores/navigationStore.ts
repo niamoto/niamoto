@@ -47,6 +47,7 @@ export const navigationSections: NavigationSection[] = [
     defaultOpen: true,
     items: [
       { id: 'pipeline-editor', label: 'Pipeline Editor', path: '/setup/pipeline', badge: 'New' },
+      { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap', badge: '✨' },
       { id: 'import', label: 'Import Data', path: '/setup/import' },
       { id: 'transform', label: 'Transform', path: '/setup/transform' },
       { id: 'export', label: 'Export Site', path: '/setup/export' }
@@ -76,7 +77,7 @@ export const navigationSections: NavigationSection[] = [
     label: 'Interface Demos',
     defaultOpen: false,
     items: [
-      { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric', badge: '⭐' }
+      { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric' }
     ]
   }
 ]

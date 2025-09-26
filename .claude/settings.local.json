@@ -20,7 +20,11 @@
       "Bash(while read file)",
       "Bash(do echo \"=== $file ===\")",
       "Bash(done)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "WebSearch",
+      "Bash(uv add:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }
