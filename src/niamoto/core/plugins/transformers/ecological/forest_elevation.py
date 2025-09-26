@@ -3,8 +3,8 @@ Plugin for analyzing the distribution of forest types by elevation.
 Permits to study the altitudinal distribution of different forest types in a landscape.
 """
 
-from typing import Dict, Any, List
-from pydantic import Field, field_validator
+from typing import Dict, Any, List, Literal
+from pydantic import Field, field_validator, ConfigDict
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -13,40 +13,86 @@ import rasterio
 from rasterio.mask import mask
 import rasterio.features
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
-class ForestElevationConfig(PluginConfig):
-    """Configuration for the forest elevation analysis plugin"""
+class ForestElevationParams(BasePluginParams):
+    """Typed parameters for forest elevation analysis plugin.
 
-    plugin: str = "forest_elevation_analysis"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "forest_types_path": "",  # Path to the forest types layer
-            "dem_path": "",  # Path to the elevation raster (DEM)
-            "shape_field": "geometry",  # Field containing the main geometry
-            "elevation_bins": [
-                0,
-                200,
-                400,
-                600,
-                800,
-                1000,
-                1200,
-                1400,
-                1600,
-            ],  # Elevation classes
-            "forest_type_field": "type",  # Field containing the forest type
-            "forest_types": [
-                "Core forest",
-                "Mature forest",
-                "Secondary forest",
-            ],  # Types to analyze
-            "nodata": -9999,  # No data value
+    This plugin analyzes forest type distribution across elevation gradients.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Analyze forest types distribution by elevation",
+            "examples": [
+                {
+                    "forest_types_path": "/path/to/forest_types.shp",
+                    "dem_path": "/path/to/dem.tif",
+                    "elevation_bins": [0, 200, 400, 600, 800, 1000],
+                    "forest_types": [
+                        "Core forest",
+                        "Mature forest",
+                        "Secondary forest",
+                    ],
+                }
+            ],
         }
     )
+
+    forest_types_path: str = Field(
+        ...,
+        description="Path to forest types vector layer",
+        json_schema_extra={"ui:widget": "file"},
+    )
+
+    dem_path: str = Field(
+        ...,
+        description="Path to Digital Elevation Model raster",
+        json_schema_extra={"ui:widget": "file"},
+    )
+
+    shape_field: str = Field(
+        default="geometry",
+        description="Field containing the geometry",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    elevation_bins: List[float] = Field(
+        default=[0, 200, 400, 600, 800, 1000, 1200, 1400, 1600],
+        description="Elevation class boundaries",
+        json_schema_extra={"ui:widget": "array"},
+    )
+
+    forest_type_field: str = Field(
+        default="type",
+        description="Field containing forest type information",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:depends": "forest_types_path",
+        },
+    )
+
+    forest_types: List[str] = Field(
+        default=["Core forest", "Mature forest", "Secondary forest"],
+        description="Forest types to analyze",
+        json_schema_extra={"ui:widget": "tags"},
+    )
+
+    nodata: float = Field(
+        default=-9999,
+        description="No-data value in DEM",
+        json_schema_extra={"ui:widget": "number"},
+    )
+
+
+class ForestElevationConfig(PluginConfig):
+    """Configuration for forest elevation analysis plugin"""
+
+    plugin: Literal["forest_elevation_analysis"] = "forest_elevation_analysis"
+    params: ForestElevationParams
 
     @field_validator("params")
     def validate_paths(cls, v):

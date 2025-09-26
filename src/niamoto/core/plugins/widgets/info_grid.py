@@ -2,9 +2,10 @@ import logging
 from typing import Any, List, Optional, Set, Union, Dict
 import json
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.common.utils.dict_utils import get_nested_value
 
 logger = logging.getLogger(__name__)
@@ -15,60 +16,122 @@ logger = logging.getLogger(__name__)
 class ImageMapping(BaseModel):
     """Model for configuring image field mappings."""
 
-    url: str = Field("url", description="Field name for the full-size image URL")
+    url: str = Field(
+        default="url",
+        description="Field name for the full-size image URL",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
     thumbnail: str = Field(
-        "small_thumb", description="Field name for the thumbnail URL"
+        default="small_thumb",
+        description="Field name for the thumbnail URL",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     author: Optional[str] = Field(
-        None, description="Field name for the image author/photographer"
+        default=None,
+        description="Field name for the image author/photographer",
+        json_schema_extra={"ui:widget": "field-select"},
     )
-    date: Optional[str] = Field(None, description="Field name for the image date")
+    date: Optional[str] = Field(
+        default=None,
+        description="Field name for the image date",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
 
 
 class InfoItem(BaseModel):
     """Model for a single item within the info grid."""
 
-    label: str = Field(..., description="The label or title for the info item.")
+    label: str = Field(
+        ...,
+        description="The label or title for the info item.",
+        json_schema_extra={"ui:widget": "text"},
+    )
     value: Optional[Union[str, int, float]] = Field(
-        None, description="The value to display (if source is not used)."
+        default=None,
+        description="The value to display (if source is not used).",
+        json_schema_extra={"ui:widget": "text"},
     )
     source: Optional[str] = Field(
-        None, description="Dot-notation key to fetch the value from the data source."
+        default=None,
+        description="Dot-notation key to fetch the value from the data source.",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     unit: Optional[str] = Field(
-        None, description="Optional unit for the value (e.g., '%', 'USD')."
+        default=None,
+        description="Optional unit for the value (e.g., '%', 'USD').",
+        json_schema_extra={"ui:widget": "text"},
     )
     description: Optional[str] = Field(
-        None, description="Optional description or tooltip for the item."
+        default=None,
+        description="Optional description or tooltip for the item.",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     icon: Optional[str] = Field(
-        None, description="Optional icon class (e.g., Font Awesome 'fas fa-users')."
+        default=None,
+        description="Optional icon class (e.g., Font Awesome 'fas fa-users').",
+        json_schema_extra={"ui:widget": "text"},
     )
     format: Optional[str] = Field(
-        None, description="Optional format for the value (e.g., 'map', 'number')."
+        default=None,
+        description="Optional format for the value (e.g., 'map', 'number').",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["map", "number", "image"],
+        },
     )
     mapping: Optional[Dict[str, str]] = Field(
-        None, description="Optional mapping for the 'map' format."
+        default=None,
+        description="Optional mapping for the 'map' format.",
+        json_schema_extra={"ui:widget": "json"},
     )
     image_mapping: Optional[ImageMapping] = Field(
-        None, description="Optional image field mapping for the 'image' format."
+        default=None,
+        description="Optional image field mapping for the 'image' format.",
+        json_schema_extra={"ui:widget": "json"},
     )
 
 
-class InfoGridParams(BaseModel):
+class InfoGridParams(BasePluginParams):
     """Parameters for configuring the InfoGridWidget."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Display a grid of key information items (KPIs, stats, labels)",
+            "examples": [
+                {
+                    "items": [
+                        {
+                            "label": "Total Species",
+                            "source": "species_count.value",
+                            "format": "number",
+                            "icon": "fas fa-leaf",
+                        }
+                    ],
+                    "grid_columns": 3,
+                }
+            ],
+        }
+    )
+
     title: Optional[str] = Field(
-        None, description="Optional title for the widget container."
+        default=None,
+        description="Optional title for the widget container.",
+        json_schema_extra={"ui:widget": "text"},
     )
     description: Optional[str] = Field(
-        None, description="Optional description for the widget container."
+        default=None,
+        description="Optional description for the widget container.",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     items: List[InfoItem] = Field(
-        ..., description="A list of info items to display in the grid."
+        ...,
+        description="A list of info items to display in the grid.",
+        json_schema_extra={"ui:widget": "array"},
     )
     grid_columns: Optional[int] = Field(
-        None, description="Number of columns (e.g., 2, 3, 4). Auto-adjusts if None."
+        default=None,
+        description="Number of columns (e.g., 2, 3, 4). Auto-adjusts if None.",
+        json_schema_extra={"ui:widget": "number", "ui:min": 1, "ui:max": 6},
     )
     # Add styling options if needed, e.g., card_style: str = 'basic'
 

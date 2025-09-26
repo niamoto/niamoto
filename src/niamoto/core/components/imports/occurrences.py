@@ -326,6 +326,9 @@ class OccurrenceImporter:
 
                 # Task completed
 
+            # Create indexes on the dynamically created occurrences table
+            self.db.create_indexes_for_table("occurrences")
+
             # Get final count before validation
             result = self.db.execute_sql(
                 "SELECT COUNT(*) FROM occurrences;", fetch=True

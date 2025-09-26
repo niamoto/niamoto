@@ -29,25 +29,27 @@ def test_load_data_success_no_auth(
 
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://test.api.com/search",
-        "query_params": {"format": "json"},
-        "query_field": "full_name",
-        "response_mapping": {
-            "api_id": "id",
-            "description": "details.description",
-            "source_url": "sourceInfo.url",
+        "params": {
+            "api_url": "https://test.api.com/search",
+            "query_params": {"format": "json"},
+            "query_field": "full_name",
+            "response_mapping": {
+                "api_id": "id",
+                "description": "details.description",
+                "source_url": "sourceInfo.url",
+            },
+            "rate_limit": 10.0,  # High limit for testing
+            "cache_results": False,
+            "auth_method": "none",
         },
-        "rate_limit": 10.0,  # High limit for testing
-        "cache_results": False,
-        "auth_method": "none",
     }
 
     # Validate config using the Pydantic model
     valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
 
     # Mock the API request
-    api_url = valid_config["api_url"]
-    expected_query = taxon_data[valid_config["query_field"]]
+    api_url = valid_config["params"]["api_url"]
+    expected_query = taxon_data[valid_config["params"]["query_field"]]
     mock_response_data = {
         "id": 123,
         "name": "Test species",
@@ -92,9 +94,11 @@ def test_config_validation_missing_response_mapping():
     """Test config validation fails when response_mapping is empty."""
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://test.api.com",
-        # Provide an empty mapping to trigger the custom validator
-        "response_mapping": {},
+        "params": {
+            "api_url": "https://test.api.com",
+            # Provide an empty mapping to trigger the custom validator
+            "response_mapping": {},
+        },
     }
     with pytest.raises(ValueError, match="response_mapping cannot be empty"):
         ApiTaxonomyEnricherConfig(**config_dict)
@@ -132,10 +136,12 @@ def test_config_validation_auth_errors(
     """Test various authentication configuration errors."""
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://test.api.com",
-        "response_mapping": {"id": "api_id"},  # Minimal valid mapping
-        "auth_method": auth_method,
-        "auth_params": auth_params,
+        "params": {
+            "api_url": "https://test.api.com",
+            "response_mapping": {"id": "api_id"},  # Minimal valid mapping
+            "auth_method": auth_method,
+            "auth_params": auth_params,
+        },
     }
     with pytest.raises(ValueError, match=error_message):
         ApiTaxonomyEnricherConfig(**config_dict)
@@ -165,10 +171,12 @@ def test_config_validation_auth_success(auth_method: str, auth_params: dict):
     """Test valid authentication configurations."""
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://test.api.com",
-        "response_mapping": {"id": "api_id"},
-        "auth_method": auth_method,
-        "auth_params": auth_params,
+        "params": {
+            "api_url": "https://test.api.com",
+            "response_mapping": {"id": "api_id"},
+            "auth_method": auth_method,
+            "auth_params": auth_params,
+        },
     }
     # Should not raise ValueError
     ApiTaxonomyEnricherConfig(**config_dict)
@@ -184,15 +192,17 @@ def test_load_data_with_caching(
     taxon_data = {"id": 2, "full_name": "Cached species"}
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://cache.api.com/search",
-        "query_field": "full_name",
-        "response_mapping": {"api_id": "id"},
-        "cache_results": True,
-        "auth_method": "none",
+        "params": {
+            "api_url": "https://cache.api.com/search",
+            "query_field": "full_name",
+            "response_mapping": {"api_id": "id"},
+            "cache_results": True,
+            "auth_method": "none",
+        },
     }
     valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
-    api_url = valid_config["api_url"]
-    query_value = taxon_data[valid_config["query_field"]]
+    api_url = valid_config["params"]["api_url"]
+    query_value = taxon_data[valid_config["params"]["query_field"]]
     mock_response = {"id": 456, "name": query_value}
     requests_mock.get(f"{api_url}?q={query_value}", json=mock_response)
 
@@ -215,15 +225,17 @@ def test_load_data_without_caching_multiple_calls(
     taxon_data = {"id": 3, "full_name": "Uncached species"}
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://nocache.api.com/search",
-        "query_field": "full_name",
-        "response_mapping": {"api_id": "id"},
-        "cache_results": False,  # Caching disabled
-        "auth_method": "none",
+        "params": {
+            "api_url": "https://nocache.api.com/search",
+            "query_field": "full_name",
+            "response_mapping": {"api_id": "id"},
+            "cache_results": False,  # Caching disabled
+            "auth_method": "none",
+        },
     }
     valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
-    api_url = valid_config["api_url"]
-    query_value = taxon_data[valid_config["query_field"]]
+    api_url = valid_config["params"]["api_url"]
+    query_value = taxon_data[valid_config["params"]["query_field"]]
     mock_response = {"id": 789, "name": query_value}
     requests_mock.get(f"{api_url}?q={query_value}", json=mock_response)
 
@@ -249,15 +261,17 @@ def test_load_data_api_error_404(
     taxon_data = {"id": 4, "full_name": "Not Found species"}
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://error.api.com/search",
-        "query_field": "full_name",
-        "response_mapping": {"api_id": "id"},
-        "cache_results": False,
-        "auth_method": "none",
+        "params": {
+            "api_url": "https://error.api.com/search",
+            "query_field": "full_name",
+            "response_mapping": {"api_id": "id"},
+            "cache_results": False,
+            "auth_method": "none",
+        },
     }
     valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
-    api_url = valid_config["api_url"]
-    query_value = taxon_data[valid_config["query_field"]]
+    api_url = valid_config["params"]["api_url"]
+    query_value = taxon_data[valid_config["params"]["query_field"]]
     requests_mock.get(f"{api_url}?q={query_value}", status_code=404)
 
     # Act
@@ -276,15 +290,17 @@ def test_load_data_api_error_500(
     taxon_data = {"id": 5, "full_name": "Server Error species"}
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://servererror.api.com/search",
-        "query_field": "full_name",
-        "response_mapping": {"api_id": "id"},
-        "cache_results": False,
-        "auth_method": "none",
+        "params": {
+            "api_url": "https://servererror.api.com/search",
+            "query_field": "full_name",
+            "response_mapping": {"api_id": "id"},
+            "cache_results": False,
+            "auth_method": "none",
+        },
     }
     valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
-    api_url = valid_config["api_url"]
-    query_value = taxon_data[valid_config["query_field"]]
+    api_url = valid_config["params"]["api_url"]
+    query_value = taxon_data[valid_config["params"]["query_field"]]
     requests_mock.get(f"{api_url}?q={query_value}", status_code=500)
 
     # Act
@@ -303,15 +319,17 @@ def test_load_data_request_exception(
     taxon_data = {"id": 6, "full_name": "Connection Error species"}
     config_dict = {
         "plugin": "api_taxonomy_enricher",
-        "api_url": "https://connectionerror.api.com/search",
-        "query_field": "full_name",
-        "response_mapping": {"api_id": "id"},
-        "cache_results": False,
-        "auth_method": "none",
+        "params": {
+            "api_url": "https://connectionerror.api.com/search",
+            "query_field": "full_name",
+            "response_mapping": {"api_id": "id"},
+            "cache_results": False,
+            "auth_method": "none",
+        },
     }
     valid_config = ApiTaxonomyEnricherConfig(**config_dict).model_dump()
-    api_url = valid_config["api_url"]
-    query_value = taxon_data[valid_config["query_field"]]
+    api_url = valid_config["params"]["api_url"]
+    query_value = taxon_data[valid_config["params"]["query_field"]]
     # Use requests.exceptions.RequestException directly
     requests_mock.get(
         f"{api_url}?q={query_value}", exc=requests.exceptions.RequestException

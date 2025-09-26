@@ -3,13 +3,13 @@ Plugin for extracting a series of values from a specific class_object.
 Handles extraction of values along a size/class axis, with optional sorting and numeric conversion.
 """
 
-from typing import Dict, Any, List
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Literal
+from pydantic import BaseModel, Field, ConfigDict
 import pandas as pd
 import numpy as np
 import logging
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
@@ -19,33 +19,73 @@ logger = logging.getLogger(__name__)
 class FieldConfig(BaseModel):
     """Configuration for input/output field mapping with options"""
 
-    input: str
+    input: str = ""
     output: str
     numeric: bool = True
     sort: bool = True
 
 
+class ClassObjectSeriesParams(BasePluginParams):
+    """Parameters for series extractor plugin"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract a series of values from a specific class_object",
+            "examples": [
+                {
+                    "source": "raw_shape_stats",
+                    "class_object": "forest_fragmentation",
+                    "size_field": {
+                        "input": "class_name",
+                        "output": "sizes",
+                        "numeric": True,
+                        "sort": True,
+                    },
+                    "value_field": {
+                        "input": "class_value",
+                        "output": "values",
+                        "numeric": True,
+                    },
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="raw_shape_stats",
+        description="Source table containing class_object data",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["raw_shape_stats", "shape_stats"],
+        },
+    )
+
+    class_object: str = Field(
+        default="",
+        description="The class_object to extract from",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    size_field: FieldConfig = Field(
+        default=FieldConfig(
+            input="class_name", output="sizes", numeric=True, sort=True
+        ),
+        description="Configuration for size/class axis",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    value_field: FieldConfig = Field(
+        default=FieldConfig(input="class_value", output="values", numeric=True),
+        description="Configuration for value axis",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+
 class ClassObjectSeriesConfig(PluginConfig):
     """Configuration for series extractor plugin"""
 
-    plugin: str = "class_object_series_extractor"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "source": "raw_shape_stats",
-            "class_object": "forest_fragmentation",
-            "size_field": {
-                "input": "class_name",
-                "output": "sizes",
-                "numeric": True,
-                "sort": True,
-            },
-            "value_field": {
-                "input": "class_value",
-                "output": "values",
-                "numeric": True,
-            },
-        }
-    )
+    plugin: Literal["class_object_series_extractor"] = "class_object_series_extractor"
+    params: ClassObjectSeriesParams
 
 
 @register("class_object_series_extractor", PluginType.TRANSFORMER)
@@ -54,28 +94,34 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
 
     config_model = ClassObjectSeriesConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration."""
-        validated_config = self.config_model(**config)
+    def validate_config(self, config: Dict[str, Any]) -> ClassObjectSeriesConfig:
+        """Validate plugin configuration and return typed config."""
+        try:
+            validated_config = self.config_model(**config)
 
-        # Validate required fields are specified
-        params = validated_config.params
-        if not params.get("class_object"):
+            # Check for specific validation that tests expect
+            if not validated_config.params.class_object:
+                raise DataTransformError(
+                    "class_object must be specified", details={"config": config}
+                )
+
+            if not validated_config.params.size_field.input:
+                raise DataTransformError(
+                    "size_field.input must be specified", details={"config": config}
+                )
+
+            if not validated_config.params.value_field.input:
+                raise DataTransformError(
+                    "value_field.input must be specified", details={"config": config}
+                )
+
+            return validated_config
+        except DataTransformError:
+            raise
+        except Exception as e:
             raise DataTransformError(
-                "class_object must be specified", details={"config": config}
+                f"Invalid configuration: {str(e)}", details={"config": config}
             )
-
-        if not params.get("size_field", {}).get("input"):
-            raise DataTransformError(
-                "size_field.input must be specified", details={"config": config}
-            )
-
-        if not params.get("value_field", {}).get("input"):
-            raise DataTransformError(
-                "value_field.input must be specified", details={"config": config}
-            )
-
-        return validated_config
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, List]:
         """
@@ -103,7 +149,7 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
             params = validated_config.params
 
             # Get class_object configuration
-            class_object = params["class_object"]
+            class_object = params.class_object
 
             # Filter data for specified class_object
             filtered_data = data[data["class_object"] == class_object].copy()
@@ -113,15 +159,15 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
                 logger.debug(
                     f"No data found for class_object {class_object}, returning empty result"
                 )
-                size_config = FieldConfig(**params["size_field"])
-                value_config = FieldConfig(**params["value_field"])
+                size_config = params.size_field
+                value_config = params.value_field
                 return {
                     size_config.output: [],
                     value_config.output: [],
                 }
 
             # Get size field configuration
-            size_config = FieldConfig(**params["size_field"])
+            size_config = params.size_field
 
             # Validate size field exists
             if size_config.input not in filtered_data.columns:
@@ -150,7 +196,7 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
                 filtered_data = filtered_data.iloc[sorted_indices]
 
             # Get value field configuration
-            value_config = FieldConfig(**params["value_field"])
+            value_config = params.value_field
 
             # Validate value field exists
             if value_config.input not in filtered_data.columns:

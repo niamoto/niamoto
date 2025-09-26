@@ -43,8 +43,8 @@ class TestMultiColumnExtractorValidation:
         }
         # Should not raise an error
         validated_config = multi_column_extractor_plugin.validate_config(config)
-        assert validated_config["params"]["source"] == "table_name"
-        assert validated_config["params"]["columns"] == ["col1", "col2", "col3"]
+        assert validated_config.params.source == "table_name"
+        assert validated_config.params.columns == ["col1", "col2", "col3"]
 
     def test_validate_config_missing_source(self, multi_column_extractor_plugin):
         """Test configuration missing source field."""
@@ -55,7 +55,7 @@ class TestMultiColumnExtractorValidation:
                 "columns": ["col1", "col2"],
             },
         }
-        with pytest.raises(ValueError, match="Missing required field: source"):
+        with pytest.raises(ValueError, match="Field required"):
             multi_column_extractor_plugin.validate_config(config)
 
     def test_validate_config_missing_columns(self, multi_column_extractor_plugin):
@@ -67,7 +67,7 @@ class TestMultiColumnExtractorValidation:
                 # "columns": ["col1", "col2"], # Missing columns
             },
         }
-        with pytest.raises(ValueError, match="Missing required field: columns"):
+        with pytest.raises(ValueError, match="Field required"):
             multi_column_extractor_plugin.validate_config(config)
 
     def test_validate_config_invalid_source_type(self, multi_column_extractor_plugin):
@@ -79,7 +79,7 @@ class TestMultiColumnExtractorValidation:
                 "columns": ["col1", "col2"],
             },
         }
-        with pytest.raises(ValueError, match="source must be a string"):
+        with pytest.raises(ValueError, match="Input should be a valid string"):
             multi_column_extractor_plugin.validate_config(config)
 
     def test_validate_config_invalid_columns_type(self, multi_column_extractor_plugin):
@@ -91,7 +91,7 @@ class TestMultiColumnExtractorValidation:
                 "columns": "col1, col2",  # Invalid columns type
             },
         }
-        with pytest.raises(ValueError, match="columns must be a list"):
+        with pytest.raises(ValueError, match="Input should be a valid list"):
             multi_column_extractor_plugin.validate_config(config)
 
     def test_validate_config_invalid_labels_type(self, multi_column_extractor_plugin):
@@ -104,7 +104,7 @@ class TestMultiColumnExtractorValidation:
                 "labels": "Label 1, Label 2",  # Invalid labels type
             },
         }
-        with pytest.raises(ValueError, match="labels must be a list"):
+        with pytest.raises(ValueError, match="Input should be a valid list"):
             multi_column_extractor_plugin.validate_config(config)
 
     def test_validate_config_mismatched_labels_columns(
@@ -120,7 +120,7 @@ class TestMultiColumnExtractorValidation:
             },
         }
         with pytest.raises(
-            ValueError, match="number of labels must be equal to number of columns"
+            ValueError, match="Number of labels must equal number of columns"
         ):
             multi_column_extractor_plugin.validate_config(config)
 

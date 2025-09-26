@@ -4,8 +4,8 @@ Combines a forest layer with a Holdridge raster to calculate the distribution of
 and non-forest areas in each life zone.
 """
 
-from typing import Dict, Any
-from pydantic import Field
+from typing import Dict, Any, Literal
+from pydantic import Field, ConfigDict, model_validator
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -13,28 +13,84 @@ import rasterio
 from rasterio.mask import mask
 import rasterio.features
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
+
+
+class ForestHoldridgeParams(BasePluginParams):
+    """Typed parameters for Holdridge forest analysis plugin.
+
+    This plugin analyzes the distribution of forests in Holdridge life zones.
+    Combines a forest layer with a Holdridge raster to calculate the distribution
+    of forest and non-forest areas in each life zone.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Analyze forest distribution in Holdridge life zones",
+            "examples": [
+                {
+                    "forest_path": "imports/forest_cover.shp",
+                    "holdridge_path": "rasters/holdridge_zones.tif",
+                    "shape_field": "geometry",
+                    "holdridge_values": {1: "Dry", 2: "Humid", 3: "Very Humid"},
+                    "nodata": -9999,
+                }
+            ],
+        }
+    )
+
+    forest_path: str = Field(
+        ...,
+        description="Path to the forest layer (shapefile, geopackage, etc.)",
+        json_schema_extra={
+            "ui:widget": "file-select",
+            "ui:accept": ".shp,.gpkg,.geojson",
+        },
+    )
+
+    holdridge_path: str = Field(
+        ...,
+        description="Path to the Holdridge life zones raster file",
+        json_schema_extra={"ui:widget": "file-select", "ui:accept": ".tif,.tiff"},
+    )
+
+    shape_field: str = Field(
+        default="geometry",
+        description="Field containing the main geometry",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    holdridge_values: Dict[int, str] = Field(
+        default_factory=lambda: {1: "Dry", 2: "Humid", 3: "Very Humid"},
+        description="Mapping of Holdridge raster values to life zone names",
+        json_schema_extra={"ui:widget": "mapping"},
+    )
+
+    nodata: int = Field(
+        default=-9999,
+        description="Nodata value in the Holdridge raster",
+        json_schema_extra={"ui:widget": "number"},
+    )
+
+    @model_validator(mode="after")
+    def validate_paths(self):
+        """Validate that required paths are provided."""
+        if not self.forest_path.strip():
+            raise ValueError("forest_path is required")
+        if not self.holdridge_path.strip():
+            raise ValueError("holdridge_path is required")
+        if not self.holdridge_values:
+            raise ValueError("holdridge_values mapping is required")
+        return self
 
 
 class ForestHoldridgeConfig(PluginConfig):
     """Configuration for the Holdridge forest analysis plugin"""
 
-    plugin: str = "forest_holdridge_analysis"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "forest_path": "",  # Path to the forest layer
-            "holdridge_path": "",  # Path to the Holdridge raster
-            "shape_field": "geometry",  # Field containing the main geometry
-            "holdridge_values": {
-                1: "Dry",
-                2: "Humid",
-                3: "Very Humid",
-            },  # Correspondence of Holdridge values
-            "nodata": -9999,  # Nodata value of the raster
-        }
-    )
+    plugin: Literal["forest_holdridge_analysis"] = "forest_holdridge_analysis"
+    params: ForestHoldridgeParams
 
 
 @register("forest_holdridge_analysis", PluginType.TRANSFORMER)
@@ -48,28 +104,10 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
 
     config_model = ForestHoldridgeConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validates the plugin configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> ForestHoldridgeConfig:
+        """Validate configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
-            params = validated_config.params
-
-            # Check required paths
-            required_paths = ["forest_path", "holdridge_path"]
-            for path_key in required_paths:
-                if not params[path_key]:
-                    raise DataTransformError(
-                        f"The '{path_key}' path is required", details={"config": params}
-                    )
-
-            # Check Holdridge values
-            if not params["holdridge_values"]:
-                raise DataTransformError(
-                    "The correspondence of Holdridge values is required",
-                    details={"config": params},
-                )
-
-            return validated_config
+            return self.config_model(**config)
         except Exception as e:
             if isinstance(e, DataTransformError):
                 raise e

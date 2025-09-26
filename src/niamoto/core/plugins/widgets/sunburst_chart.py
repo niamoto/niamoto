@@ -2,10 +2,11 @@
 
 import logging
 import plotly.graph_objects as go
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 from typing import Dict, Any, Optional
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -15,39 +16,90 @@ from niamoto.core.plugins.widgets.plotly_utils import (
 logger = logging.getLogger(__name__)
 
 
-class SunburstChartWidgetParams(BaseModel):
+class SunburstChartWidgetParams(BasePluginParams):
     """Parameters specific to the Sunburst Chart widget."""
 
-    title: Optional[str] = Field(None, description="Title of the chart.")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Display a sunburst chart using Plotly for hierarchical data visualization",
+            "examples": [
+                {
+                    "title": "Land Cover Distribution",
+                    "category_labels": {
+                        "forest": "Forest",
+                        "agriculture": "Agriculture",
+                    },
+                    "leaf_labels": {
+                        "primary": "Primary Forest",
+                        "secondary": "Secondary Forest",
+                    },
+                    "branchvalues": "total",
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        description="Title of the chart.",
+        json_schema_extra={"ui:widget": "text"},
+    )
     description: Optional[str] = Field(
-        None, description="Description displayed below the title or in an info tooltip."
+        default=None,
+        description="Description displayed below the title or in an info tooltip.",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     # Labels for the middle ring (categories)
     category_labels: Dict[str, str] = Field(
-        {},
+        default_factory=dict,
         description="Mapping from data keys (e.g., 'emprise') to display labels (e.g., 'Emprise').",
+        json_schema_extra={"ui:widget": "json"},
     )
     # Labels for the outer ring (leaves)
     leaf_labels: Dict[str, str] = Field(
-        {},
+        default_factory=dict,
         description="Mapping from data sub-keys (e.g., 'forest') to display labels (e.g., 'Forêt').",
+        json_schema_extra={"ui:widget": "json"},
     )
     # Colors for the outer ring (leaves). Can be a single color per leaf type
     # or nested dict for specific colors per category/leaf combination.
     leaf_colors: Dict[str, Any] = Field(
-        {},
+        default_factory=dict,
         description="Mapping for leaf node colors. Example: {'Forêt': '#COLOR1', 'Hors-forêt': {'emprise': '#COLOR2', ...}}",
+        json_schema_extra={"ui:widget": "json"},
     )
     branchvalues: str = Field(
-        "total",
+        default="total",
         description="Defines how the 'values' map to the sunburst sectors ('total' or 'remainder'). 'total' is usually preferred.",
+        json_schema_extra={"ui:widget": "select", "ui:options": ["total", "remainder"]},
     )
     text_info: str = Field(
-        "percent parent",
+        default="percent parent",
         description="Determines which trace information appears on the graph ('label', 'text', 'value', 'current path', 'percent root', 'percent entry', 'percent parent'). Use 'percent parent' for percentages within each category.",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                "label",
+                "text",
+                "value",
+                "current path",
+                "percent root",
+                "percent entry",
+                "percent parent",
+            ],
+        },
     )
     opacity: Optional[float] = Field(
-        1.0, ge=0, le=1, description="Sets the opacity of the trace."
+        default=1.0,
+        ge=0,
+        le=1,
+        description="Sets the opacity of the trace.",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:min": 0,
+            "ui:max": 1,
+            "ui:step": 0.1,
+        },
     )
 
 
