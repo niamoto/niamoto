@@ -4,7 +4,7 @@ import { useImport } from './ImportContext'
 import { useImportProgress } from './ImportProgressContext'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { executeImportAndWait } from '@/lib/api/import'
+import { executeImportAndWait, executeImportFromConfig } from '@/lib/api/import'
 import { Loader2, ArrowRight, Check, AlertCircle } from 'lucide-react'
 
 export function ImportButton() {
@@ -28,7 +28,10 @@ export function ImportButton() {
 
     try {
       // 1. Import de la taxonomie (extraite des occurrences)
-      if (occurrences.file) {
+      // Check if we have a file OR a configuration
+      const hasOccurrenceSource = occurrences.file || occurrences.fileAnalysis?.fromConfig
+
+      if (hasOccurrenceSource) {
         // Start taxonomy extraction
         updateStepProgress('taxonomy', {
           status: 'running',
@@ -47,22 +50,39 @@ export function ImportButton() {
                                    occurrences.fileAnalysis?.row_count ||
                                    occurrences.fileAnalysis?.total_rows || 1000
 
-          const taxonomyResult = await executeImportAndWait(
-            {
-              import_type: 'taxonomy',
-              file_name: occurrences.file.name,
-              field_mappings: taxonomyFieldMappings,
-              advanced_options: {
-                ranks: occurrences.taxonomyHierarchy.ranks,
-                apiEnrichment: occurrences.apiEnrichment
-              }
-            },
-            occurrences.file,
-            1000,
-            300000,
-            (progress) => updateStepProgress('taxonomy', { progress }),
-            taxonomyDataSize
-          )
+          // Use config-based import if no file is uploaded
+          const taxonomyResult = occurrences.file ?
+            await executeImportAndWait(
+              {
+                import_type: 'taxonomy',
+                file_name: occurrences.file.name,
+                field_mappings: taxonomyFieldMappings,
+                advanced_options: {
+                  ranks: occurrences.taxonomyHierarchy.ranks,
+                  apiEnrichment: occurrences.apiEnrichment
+                }
+              },
+              occurrences.file,
+              1000,
+              300000,
+              (progress) => updateStepProgress('taxonomy', { progress }),
+              taxonomyDataSize
+            ) :
+            await executeImportFromConfig(
+              {
+                import_type: 'taxonomy',
+                file_name: occurrences.configPath || occurrences.fileAnalysis?.configInfo?.path || 'occurrences.csv',
+                field_mappings: taxonomyFieldMappings,
+                advanced_options: {
+                  ranks: occurrences.taxonomyHierarchy.ranks,
+                  apiEnrichment: occurrences.apiEnrichment
+                }
+              },
+              1000,
+              300000,
+              (progress) => updateStepProgress('taxonomy', { progress }),
+              taxonomyDataSize
+            )
 
           updateStepProgress('taxonomy', {
             status: 'completed',
@@ -89,18 +109,30 @@ export function ImportButton() {
                                       occurrences.fileAnalysis?.row_count ||
                                       occurrences.fileAnalysis?.total_rows || 1000
 
-          const occurrencesResult = await executeImportAndWait(
-            {
-              import_type: 'occurrences',
-              file_name: occurrences.file.name,
-              field_mappings: occurrences.fieldMappings
-            },
-            occurrences.file,
-            1000,
-            300000,
-            (progress) => updateStepProgress('occurrences', { progress }),
-            occurrencesDataSize
-          )
+          const occurrencesResult = occurrences.file ?
+            await executeImportAndWait(
+              {
+                import_type: 'occurrences',
+                file_name: occurrences.file.name,
+                field_mappings: occurrences.fieldMappings
+              },
+              occurrences.file,
+              1000,
+              300000,
+              (progress) => updateStepProgress('occurrences', { progress }),
+              occurrencesDataSize
+            ) :
+            await executeImportFromConfig(
+              {
+                import_type: 'occurrences',
+                file_name: occurrences.configPath || occurrences.fileAnalysis?.configInfo?.path || 'occurrences.csv',
+                field_mappings: occurrences.fieldMappings
+              },
+              1000,
+              300000,
+              (progress) => updateStepProgress('occurrences', { progress }),
+              occurrencesDataSize
+            )
 
           updateStepProgress('occurrences', {
             status: 'completed',
@@ -117,7 +149,7 @@ export function ImportButton() {
       }
 
       // 3. Import des plots si configuré
-      if (hasPlots && plots?.file) {
+      if (hasPlots && (plots?.file || plots?.fileAnalysis?.fromConfig)) {
         updateStepProgress('plots', {
           status: 'running',
           progress: 0,
@@ -129,23 +161,40 @@ export function ImportButton() {
                                 plots.fileAnalysis?.row_count ||
                                 plots.fileAnalysis?.total_rows || 1000
 
-          const plotsResult = await executeImportAndWait(
-            {
-              import_type: 'plots',
-              file_name: plots.file.name,
-              field_mappings: plots.fieldMappings,
-              advanced_options: {
-                linkField: plots.fieldMappings?.link_field || plots.linkField,
-                occurrenceLinkField: plots.fieldMappings?.occurrence_link_field || plots.occurrenceLinkField,
-                hierarchy: plots.hierarchy
-              }
-            },
-            plots.file,
-            1000,
-            300000,
-            (progress) => updateStepProgress('plots', { progress }),
-            plotsDataSize
-          )
+          const plotsResult = plots.file ?
+            await executeImportAndWait(
+              {
+                import_type: 'plots',
+                file_name: plots.file.name,
+                field_mappings: plots.fieldMappings,
+                advanced_options: {
+                  linkField: plots.fieldMappings?.link_field || plots.linkField,
+                  occurrenceLinkField: plots.fieldMappings?.occurrence_link_field || plots.occurrenceLinkField,
+                  hierarchy: plots.hierarchy
+                }
+              },
+              plots.file,
+              1000,
+              300000,
+              (progress) => updateStepProgress('plots', { progress }),
+              plotsDataSize
+            ) :
+            await executeImportFromConfig(
+              {
+                import_type: 'plots',
+                file_name: plots.configPath || plots.fileAnalysis?.configInfo?.path || 'plots.csv',
+                field_mappings: plots.fieldMappings,
+                advanced_options: {
+                  linkField: plots.fieldMappings?.link_field || plots.linkField,
+                  occurrenceLinkField: plots.fieldMappings?.occurrence_link_field || plots.occurrenceLinkField,
+                  hierarchy: plots.hierarchy
+                }
+              },
+              1000,
+              300000,
+              (progress) => updateStepProgress('plots', { progress }),
+              plotsDataSize
+            )
 
           updateStepProgress('plots', {
             status: 'completed',
@@ -164,7 +213,7 @@ export function ImportButton() {
       // 4. Import des shapes si configuré
       if (shapesCount > 0 && shapes) {
         for (const [index, shape] of shapes.entries()) {
-          if (shape.file) {
+          if (shape.file || shape.fileAnalysis?.fromConfig) {
             updateShapeProgress(index, {
               status: 'running',
               progress: 0,
@@ -174,22 +223,38 @@ export function ImportButton() {
             try {
               const shapeDataSize = shape.fileAnalysis?.feature_count || 100
 
-              const shapeResult = await executeImportAndWait(
-                {
-                  import_type: 'shapes',
-                  file_name: shape.file.name,
-                  field_mappings: shape.fieldMappings,
-                  advanced_options: {
-                    shape_type: shape.fieldMappings?.type || shape.type,
-                    is_first_shape: index === 0  // Flag to clear shapes on first import
-                  }
-                },
-                shape.file,
-                1000,
-                300000,
-                (progress) => updateShapeProgress(index, { progress }),
-                shapeDataSize
-              )
+              const shapeResult = shape.file ?
+                await executeImportAndWait(
+                  {
+                    import_type: 'shapes',
+                    file_name: shape.file.name,
+                    field_mappings: shape.fieldMappings,
+                    advanced_options: {
+                      shape_type: shape.fieldMappings?.type || shape.type,
+                      is_first_shape: index === 0  // Flag to clear shapes on first import
+                    }
+                  },
+                  shape.file,
+                  1000,
+                  300000,
+                  (progress) => updateShapeProgress(index, { progress }),
+                  shapeDataSize
+                ) :
+                await executeImportFromConfig(
+                  {
+                    import_type: 'shapes',
+                    file_name: shape.configPath || shape.fileAnalysis?.configInfo?.path || `shape_${index + 1}`,
+                    field_mappings: shape.fieldMappings,
+                    advanced_options: {
+                      shape_type: shape.fieldMappings?.type || shape.type,
+                      is_first_shape: index === 0  // Flag to clear shapes on first import
+                    }
+                  },
+                  1000,
+                  300000,
+                  (progress) => updateShapeProgress(index, { progress }),
+                  shapeDataSize
+                )
 
               updateShapeProgress(index, {
                 status: 'completed',

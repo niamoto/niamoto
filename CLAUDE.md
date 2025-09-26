@@ -1,4 +1,4 @@
-# CLAUDE.md
+e# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -92,8 +92,6 @@ class MyPlugin(TransformerPlugin):
 
 ## Database Patterns
 - Models use SQLAlchemy declarative base
-- Spatial data uses GeoAlchemy2 geometry columns
-- All tables have created_at/updated_at timestamps
 - Use context managers for database sessions
 
 ## Common Pitfalls to Avoid
@@ -101,4 +99,7 @@ class MyPlugin(TransformerPlugin):
 - Always validate plugin configurations with Pydantic
 - Don't hardcode paths - use config system
 - Remember to register new plugins with @register decorator
-- Quand on travail sur l'interface graphique, tu doit faire un build chaque fois qu'une tâche est terminée, puis exécuter "niamoto gui" dans @/Users/julienbarbe/Dev/Niamoto/Niamoto/test-instance/niamoto-gui
+- When working on the graphical interface, you must build the GUI after each completed task, then run "niamoto gui" in @/Users/julienbarbe/Dev/Niamoto/Niamoto/test-instance/niamoto-gui
+
+## Golden Rule
+**If you can explain it to a field ecologist or botanist in 2 minutes, it's the right solution.**

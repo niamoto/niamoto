@@ -4,6 +4,7 @@ import { configService } from '@/services/configService'
 export interface OccurrenceImportData {
   file: File | null
   fileAnalysis: any
+  configPath?: string
   fieldMappings: Record<string, string>
   taxonomyHierarchy: {
     ranks: string[]
@@ -32,6 +33,7 @@ export interface OccurrenceImportData {
 export interface PlotImportData {
   file: File | null
   fileAnalysis: any
+  configPath?: string
   fieldMappings: Record<string, string>
   linkField?: string
   occurrenceLinkField?: string
@@ -45,6 +47,7 @@ export interface PlotImportData {
 export interface ShapeImportData {
   file: File | null
   fileAnalysis: any
+  configPath?: string
   fieldMappings: Record<string, string>
   type: string
   properties: string[]
@@ -66,11 +69,8 @@ interface ImportContextType {
   removeShape: (index: number) => void
   setCurrentStep: (step: number) => void
   canProceed: () => boolean
-  isEditMode: boolean
-  setEditMode: (mode: boolean) => void
   configLoading: boolean
   configError: string | null
-  hasExistingConfig: boolean
 }
 
 const ImportContext = createContext<ImportContextType | undefined>(undefined)
@@ -99,10 +99,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     }
   })
 
-  const [isEditMode, setEditMode] = useState(false)
   const [configLoading, setConfigLoading] = useState(true)
   const [configError, setConfigError] = useState<string | null>(null)
-  const [hasExistingConfig, setHasExistingConfig] = useState(false)
 
   // Load existing configuration on mount
   useEffect(() => {
@@ -122,19 +120,10 @@ export function ImportProvider({ children }: { children: ReactNode }) {
             plots: parsedState.plots,
             shapes: parsedState.shapes
           }))
-
-          setHasExistingConfig(true)
-          // Start in read mode if config exists
-          setEditMode(false)
-        } else {
-          // No existing config, start in edit mode
-          setEditMode(true)
         }
       } catch (error) {
         console.error('Failed to load existing configuration:', error)
         setConfigError(error instanceof Error ? error.message : 'Failed to load configuration')
-        // On error, start in edit mode
-        setEditMode(true)
       } finally {
         setConfigLoading(false)
       }
@@ -200,22 +189,39 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   }
 
   const canProceed = () => {
-    const { currentStep, occurrences } = state
+    const { currentStep, occurrences, shapes } = state
 
     switch (currentStep) {
       case 0: // Overview - always can proceed
         return true
 
       case 1: // Occurrences
+        // Check if we have a file OR a loaded configuration
+        const hasOccurrenceSource = occurrences.file || occurrences.fileAnalysis?.fromConfig
+
         return !!(
-          occurrences.file &&
+          hasOccurrenceSource &&
           occurrences.fieldMappings.taxon_id &&
           occurrences.fieldMappings.location &&
           occurrences.taxonomyHierarchy.ranks.length >= 2 &&
           Object.keys(occurrences.taxonomyHierarchy.mappings).length >= 2
         )
 
-      case 2: // Aggregation - always optional
+      case 2: // Aggregation
+        // Aggregation is optional, but if shapes are added, they must be valid
+        if (shapes && shapes.length > 0) {
+          // All shapes must have required fields mapped
+          return shapes.every(shape => {
+            // Shape must have a file OR a loaded configuration
+            const hasShapeSource = shape.file || shape.fileAnalysis?.fromConfig
+            if (!hasShapeSource) return false
+
+            // Shape must have required fields mapped (type and name)
+            const mappings = shape.fieldMappings || {}
+            return mappings.type && mappings.name
+          })
+        }
+        // If no shapes (and plots are optional), can proceed
         return true
 
       case 3: // Summary
@@ -236,11 +242,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       removeShape,
       setCurrentStep,
       canProceed,
-      isEditMode,
-      setEditMode,
       configLoading,
-      configError,
-      hasExistingConfig
+      configError
     }}>
       {children}
     </ImportContext.Provider>
