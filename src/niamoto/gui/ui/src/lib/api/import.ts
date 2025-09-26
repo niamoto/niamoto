@@ -76,6 +76,75 @@ export async function getImportStatus(jobId: string): Promise<any> {
   return response.data
 }
 
+export async function executeImportFromConfig(
+  request: ImportRequest,
+  pollInterval: number = 500,
+  maxWaitTime: number = 300000,
+  onProgress?: (progress: number) => void,
+  dataSize?: number
+): Promise<any> {
+  // Create a dummy file or use config-based import
+  // For now, we'll create a FormData without a file and let the backend handle it
+  const formData = new FormData()
+  formData.append('import_type', request.import_type)
+  formData.append('file_name', request.file_name)
+  formData.append('field_mappings', JSON.stringify(request.field_mappings))
+  if (request.advanced_options) {
+    formData.append('advanced_options', JSON.stringify(request.advanced_options))
+  }
+
+  // Add a flag to indicate this is a config-based import
+  formData.append('use_config_file', 'true')
+
+  try {
+    const response = await axios.post<{ job_id: string }>('/api/imports/execute', formData)
+    const jobId = response.data.job_id
+
+    // Use the same polling logic as executeImportAndWait
+    const startTime = Date.now()
+    const estimatedDuration = calculateEstimatedDuration(request.import_type, dataSize || 1000)
+    let currentProgress = 0
+    let pollCount = 0
+    const maxPolls = Math.ceil(maxWaitTime / pollInterval)
+
+    while (pollCount < maxPolls) {
+      if (Date.now() - startTime > maxWaitTime) {
+        throw new Error('Import timed out')
+      }
+
+      const status = await getImportStatus(jobId)
+
+      if (onProgress && status.status === 'running') {
+        const elapsed = Date.now() - startTime
+        const rawProgress = (elapsed / estimatedDuration) * 100
+        const logProgress = Math.log(rawProgress + 1) / Math.log(101) * 95
+        currentProgress = Math.max(currentProgress, Math.min(95, logProgress))
+        onProgress(Math.round(currentProgress))
+      }
+
+      if (status.status === 'completed') {
+        onProgress?.(100)
+        return {
+          ...status,
+          count: status.processed_records || status.total_records || status.count || status.imported_count || status.result?.count || 0
+        }
+      } else if (status.status === 'failed') {
+        throw new Error(status.errors?.join(', ') || 'Import failed')
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
+      pollCount++
+    }
+
+    throw new Error('Import timed out')
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.detail || error.message)
+    }
+    throw error
+  }
+}
+
 export async function executeImportAndWait(
   request: ImportRequest,
   file: File,

@@ -41,7 +41,9 @@ export function SummaryStep() {
         >
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.file')}</span>
-            <span className="text-sm font-medium">{occurrences.file?.name}</span>
+            <span className="text-sm font-medium">
+              {occurrences.file?.name || occurrences.configPath || occurrences.fileAnalysis?.configInfo?.path || 'occurrences.csv'}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.rows')}</span>
@@ -49,7 +51,7 @@ export function SummaryStep() {
               {occurrences.fileAnalysis?.rowCount ||
                occurrences.fileAnalysis?.row_count ||
                occurrences.fileAnalysis?.total_rows ||
-               0}
+               (occurrences.fileAnalysis?.fromConfig ? '...' : 0)}
             </Badge>
           </div>
           <div className="flex items-center justify-between">
@@ -88,7 +90,7 @@ export function SummaryStep() {
         </ImportStepCard>
 
         {/* Plots card */}
-        {plots?.file && (
+        {(plots?.file || plots?.fileAnalysis?.fromConfig) && (
           <ImportStepCard
             title={t('summary.sections.plots.title')}
             icon={<MapPin className="w-5 h-5" />}
@@ -96,7 +98,9 @@ export function SummaryStep() {
           >
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.file')}</span>
-              <span className="text-sm font-medium">{plots.file.name}</span>
+              <span className="text-sm font-medium">
+                {plots.file?.name || plots.configPath || plots.fileAnalysis?.configInfo?.path || 'plots.csv'}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{t('summary.sections.occurrences.rows')}</span>
@@ -104,7 +108,7 @@ export function SummaryStep() {
                 {plots.fileAnalysis?.rowCount ||
                  plots.fileAnalysis?.row_count ||
                  plots.fileAnalysis?.total_rows ||
-                 0}
+                 (plots.fileAnalysis?.fromConfig ? '...' : 0)}
               </Badge>
             </div>
             {plots.linkField && (
@@ -141,16 +145,23 @@ export function SummaryStep() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{t('summary.sections.shapes.totalElements')}</span>
               <Badge variant="secondary">
-                {shapes.reduce((total, shape) => total + (shape.fileAnalysis?.feature_count || 0), 0)}
+                {shapes.reduce((total, shape) => {
+                  const count = shape.fileAnalysis?.summary?.feature_count ||
+                               shape.fileAnalysis?.feature_count ||
+                               0
+                  return total + count
+                }, 0) || (shapes.some(s => s.fileAnalysis?.fromConfig) ? shapes.length : 0)}
               </Badge>
             </div>
-            {shapes.map((shape, i) => shape.file && (
+            {shapes.map((shape, i) => (shape.file || shape.fileAnalysis?.fromConfig) && (
               <div key={i} className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">{shape.fieldMappings?.type || shape.type || `Shape ${i + 1}`}</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium truncate max-w-[150px]">{shape.file.name}</span>
+                  <span className="font-medium truncate max-w-[150px]">
+                    {shape.file?.name || shape.configPath || shape.fileAnalysis?.configInfo?.path || `shape_${i + 1}`}
+                  </span>
                   <span className="text-muted-foreground">
-                    {t('summary.sections.shapes.elements', { count: shape.fileAnalysis?.feature_count || 0 })}
+                    ({shape.fileAnalysis?.summary?.feature_count || shape.fileAnalysis?.feature_count || 0} {t('summary.sections.shapes.elementsUnit', 'éléments')})
                   </span>
                 </div>
               </div>
@@ -184,7 +195,7 @@ export function SummaryStep() {
               </div>
             </div>
 
-            {plots?.file && (
+            {(plots?.file || plots?.fileAnalysis?.fromConfig) && (
               <div className="flex items-start gap-3">
                 <div className="mt-0.5">
                   <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">

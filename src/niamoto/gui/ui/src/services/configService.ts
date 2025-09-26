@@ -163,6 +163,7 @@ class ConfigService {
     const state: any = {
       occurrences: {
         file: null,
+        fileAnalysis: null,
         fieldMappings: {},
         taxonomyHierarchy: {
           ranks: [],
@@ -200,29 +201,55 @@ class ConfigService {
 
     // Parse occurrences configuration
     if (config.occurrences) {
+      state.occurrences.configPath = config.occurrences.path; // Store the path from config
       state.occurrences.fieldMappings.location = config.occurrences.location_field;
       if (config.occurrences.plot_field) {
         state.occurrences.fieldMappings.plot_name = config.occurrences.plot_field;
       }
+      // Add identifier if exists
+      if (config.occurrences.identifier) {
+        state.occurrences.fieldMappings.taxon_id = config.occurrences.identifier;
+      }
+      // Add fileAnalysis to indicate config is loaded
+      state.occurrences.fileAnalysis = {
+        columns: [], // Will be populated when file is re-uploaded
+        fromConfig: true, // Flag to indicate this is from existing config
+        configInfo: {
+          path: config.occurrences.path,
+          type: config.occurrences.type
+        }
+      };
     }
 
     // Parse plots configuration
     if (config.plots) {
       state.plots = {
         file: null,
+        configPath: config.plots.path, // Store the path from config
         fieldMappings: {
           identifier: config.plots.identifier,
           locality: config.plots.locality_field,
           location: config.plots.location_field,
         },
-        hierarchy: config.plots.hierarchy || { enabled: false, levels: [] }
+        hierarchy: config.plots.hierarchy || { enabled: false, levels: [], aggregate_geometry: false },
+        // Store as fileAnalysis to simulate loaded state
+        fileAnalysis: {
+          columns: [], // Will be populated when file is re-uploaded
+          fromConfig: true, // Flag to indicate this is from existing config
+          configInfo: {
+            path: config.plots.path,
+            type: config.plots.type
+          }
+        }
       };
 
       if (config.plots.link_field) {
         state.plots.linkField = config.plots.link_field;
+        state.plots.fieldMappings.link_field = config.plots.link_field;
       }
       if (config.plots.occurrence_link_field) {
         state.plots.occurrenceLinkField = config.plots.occurrence_link_field;
+        state.plots.fieldMappings.occurrence_link_field = config.plots.occurrence_link_field;
       }
     }
 
@@ -230,12 +257,22 @@ class ConfigService {
     if (config.shapes && config.shapes.length > 0) {
       state.shapes = config.shapes.map(shape => ({
         file: null,
+        configPath: shape.path, // Store the path from config
         fieldMappings: {
           name: shape.name_field,
           id: shape.id_field || '',
           type: shape.type
         },
-        properties: shape.properties || []
+        properties: shape.properties || [],
+        // Store as fileAnalysis to simulate loaded state
+        fileAnalysis: {
+          columns: [], // Will be populated when file is re-uploaded
+          fromConfig: true, // Flag to indicate this is from existing config
+          configInfo: {
+            path: shape.path,
+            type: shape.type
+          }
+        }
       }));
     }
 

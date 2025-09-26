@@ -166,12 +166,13 @@ async def validate_import(
 @router.post("/execute", response_model=ImportJobResponse)
 async def execute_import(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
     import_type: str = Form(...),
     file_name: str = Form(...),
     field_mappings: str = Form(...),
     advanced_options: Optional[str] = Form(None),
     validate_only: bool = Form(False),
+    use_config_file: Optional[str] = Form(None),
 ) -> ImportJobResponse:
     """Execute an import job asynchronously."""
 
@@ -192,35 +193,73 @@ async def execute_import(
     imports_dir = project_dir / "imports"
     imports_dir.mkdir(exist_ok=True)
 
-    # Save uploaded file to imports directory
-    file_path = imports_dir / file.filename
-    content = await file.read()
+    # Handle file path based on whether we have an upload or use existing config
+    if use_config_file == "true":
+        # Use the file from config
+        # Remove 'imports/' prefix if present as we're already in the imports directory
+        clean_file_name = (
+            file_name.replace("imports/", "")
+            if file_name.startswith("imports/")
+            else file_name
+        )
+        file_path = imports_dir / clean_file_name
 
-    with open(file_path, "wb") as f:
-        f.write(content)
+        # Check if the file exists
+        if not file_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Configuration file not found: {clean_file_name}",
+            )
 
-    # Also keep a temp copy for the job
-    temp_dir = Path(tempfile.gettempdir()) / "niamoto_imports"
-    temp_dir.mkdir(exist_ok=True)
-    temp_file_path = temp_dir / f"{job_id}_{file.filename}"
+        # Create a temp copy for the job
+        temp_dir = Path(tempfile.gettempdir()) / "niamoto_imports"
+        temp_dir.mkdir(exist_ok=True)
+        temp_file_path = temp_dir / f"{job_id}_{clean_file_name}"
 
-    with open(temp_file_path, "wb") as f:
-        f.write(content)
+        # Copy existing file to temp
+        import shutil
+
+        shutil.copy(file_path, temp_file_path)
+
+    else:
+        # Handle uploaded file
+        if not file:
+            raise HTTPException(
+                status_code=400,
+                detail="File is required when not using configuration file",
+            )
+
+        # Save uploaded file to imports directory
+        file_path = imports_dir / file.filename
+        content = await file.read()
+
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        # Also keep a temp copy for the job
+        temp_dir = Path(tempfile.gettempdir()) / "niamoto_imports"
+        temp_dir.mkdir(exist_ok=True)
+        temp_file_path = temp_dir / f"{job_id}_{file.filename}"
+
+        with open(temp_file_path, "wb") as f:
+            f.write(content)
 
     # Update import.yml configuration
     import_config_path = project_dir / "config" / "import.yml"
     try:
-        # Clean unused config when starting a new import session (occurrences is always first)
-        if import_type == "occurrences":
-            clean_unused_config(import_config_path)
+        # Only update config for new uploads, not when using existing config
+        if use_config_file != "true":
+            # Clean unused config when starting a new import session (occurrences is always first)
+            if import_type == "occurrences":
+                clean_unused_config(import_config_path)
 
-        update_import_config(
-            import_config_path,
-            import_type,
-            file.filename,
-            field_mappings_dict,
-            advanced_options_dict,
-        )
+            update_import_config(
+                import_config_path,
+                import_type,
+                file.filename if file else file_name,
+                field_mappings_dict,
+                advanced_options_dict,
+            )
     except Exception:
         # Log error but don't fail the import
         pass  # Log error but don't fail the import
