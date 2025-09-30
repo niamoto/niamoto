@@ -10,6 +10,8 @@ import json
 from datetime import datetime
 from niamoto.common.config import Config
 from niamoto.common.database import Database
+from niamoto.common.exceptions import ConfigurationError, ValidationError, FileError
+from niamoto.core.services.importer import ImporterService
 from niamoto.gui.api.utils.import_fields import (
     get_required_fields_for_import_type,
     get_all_import_types_info,
@@ -25,6 +27,41 @@ router = APIRouter()
 
 # Import status tracking (in production, use a database)
 import_jobs: Dict[str, Dict[str, Any]] = {}
+
+
+def parse_import_metrics(result_text: str) -> dict:
+    """Parse import result text into structured metrics."""
+    import re
+
+    metrics = {"taxonomy": 0, "occurrences": 0, "plots": 0, "shapes": 0}
+
+    # Parse taxonomy
+    taxon_match = re.search(
+        r"(\d+)\s+taxons?\s+(?:extracted|imported)", result_text, re.IGNORECASE
+    )
+    if taxon_match:
+        metrics["taxonomy"] = int(taxon_match.group(1))
+
+    # Parse occurrences
+    occ_match = re.search(
+        r"(\d+)\s+occurrences?\s+imported", result_text, re.IGNORECASE
+    )
+    if occ_match:
+        metrics["occurrences"] = int(occ_match.group(1))
+
+    # Parse plots
+    plot_match = re.search(r"(\d+)\s+plots?\s+imported", result_text, re.IGNORECASE)
+    if plot_match:
+        metrics["plots"] = int(plot_match.group(1))
+
+    # Parse shapes
+    shape_match = re.search(
+        r"(\d+)\s+processed(?:,\s+\d+\s+added)?", result_text, re.IGNORECASE
+    )
+    if shape_match:
+        metrics["shapes"] = int(shape_match.group(1))
+
+    return metrics
 
 
 class ImportStatus(BaseModel):
@@ -193,8 +230,337 @@ async def execute_import(
     imports_dir = project_dir / "imports"
     imports_dir.mkdir(exist_ok=True)
 
+    # Create job record first (needed for both paths)
+    job = {
+        "id": job_id,
+        "status": "pending",
+        "import_type": import_type,
+        "file_name": file_name,
+        "file_path": "",  # Will be set later
+        "field_mappings": field_mappings_dict,
+        "advanced_options": advanced_options_dict,
+        "created_at": datetime.utcnow().isoformat(),
+        "started_at": None,
+        "completed_at": None,
+        "progress": 0,
+        "total_records": 0,
+        "processed_records": 0,
+        "errors": [],
+        "warnings": [],
+    }
+
+    import_jobs[job_id] = job
+
     # Handle file path based on whether we have an upload or use existing config
-    if use_config_file == "true":
+    if use_config_file == "true" and import_type == "all":
+        # Special case: run full import using the ImporterService directly
+        import asyncio
+
+        async def run_full_import():
+            """Run the full import using ImporterService directly."""
+            import os
+
+            print(f"Starting full import for job {job_id}")
+
+            try:
+                # Update job status
+                import_jobs[job_id]["status"] = "running"
+                import_jobs[job_id]["started_at"] = datetime.utcnow().isoformat()
+                import_jobs[job_id]["progress"] = 10
+                import_jobs[job_id]["message"] = "Starting full data import..."
+
+                # Get configuration
+                config = Config()
+                imports_config = config.imports
+
+                # Create a single ImporterService instance to reuse
+                importer = ImporterService(config.database_path)
+
+                # Collect all import results for summary
+                import_results = []
+                total_records = 0
+
+                # Helper function to reset table
+                def reset_table(db_path: str, table_name: str) -> None:
+                    """Reset a single table and recreate it."""
+                    from niamoto.core.models import Base
+                    from sqlalchemy import create_engine
+
+                    db = Database(db_path)
+                    try:
+                        # Drop the table
+                        db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+
+                        # Recreate the table using SQLAlchemy models
+                        engine = create_engine(f"sqlite:///{db_path}")
+                        # Create all tables if needed (they will be created only if they don't exist)
+                        if table_name in Base.metadata.tables:
+                            Base.metadata.tables[table_name].create(
+                                engine, checkfirst=True
+                            )
+                        else:
+                            # For tables not in metadata, create them all
+                            Base.metadata.create_all(engine)
+                    except Exception as e:
+                        print(f"Failed to reset table {table_name}: {str(e)}")
+
+                # Helper function to validate source config
+                def validate_source_config(sources, source_name, required_fields):
+                    """Validate source configuration."""
+                    source = sources.get(source_name)
+                    if not source:
+                        raise ConfigurationError(
+                            config_key=f"imports.{source_name}",
+                            message=f"Missing {source_name} configuration",
+                        )
+
+                    missing_fields = [f for f in required_fields if f not in source]
+                    if missing_fields:
+                        raise ValidationError(
+                            field=source_name,
+                            message=f"Missing required fields: {missing_fields}",
+                        )
+
+                    return source
+
+                # Import taxonomy
+                import_jobs[job_id]["progress"] = 15
+                import_jobs[job_id]["message"] = "Preparing taxonomy import..."
+                print(f"Job {job_id}: Starting taxonomy import")
+
+                source_def = validate_source_config(
+                    imports_config, "taxonomy", ["path", "hierarchy"]
+                )
+                file_path = source_def.get("path")
+                hierarchy_config = source_def.get("hierarchy")
+
+                # Validate file path
+                if not os.path.exists(file_path):
+                    raise FileError(
+                        file_path=file_path,
+                        message="File not found",
+                        details={"path": file_path},
+                    )
+
+                api_config = None
+                if source_def.get("api_enrichment", {}).get("enabled", False):
+                    api_config = source_def.get("api_enrichment", {})
+                    api_config["enabled"] = True
+
+                import_jobs[job_id]["progress"] = 20
+                import_jobs[job_id]["message"] = "Resetting taxonomy table..."
+                await asyncio.to_thread(reset_table, config.database_path, "taxon_ref")
+
+                import_jobs[job_id]["progress"] = 25
+                import_jobs[job_id]["message"] = "Importing taxonomy data..."
+                result = await asyncio.to_thread(
+                    importer.import_taxonomy, file_path, hierarchy_config, api_config
+                )
+
+                # Parse taxonomy result
+                import re
+
+                taxon_match = re.search(r"(\d+) taxa imported", result)
+                taxon_count = 0
+                if taxon_match:
+                    taxon_count = int(taxon_match.group(1))
+                    total_records += taxon_count
+                    import_jobs[job_id]["message"] = f"Imported {taxon_count} taxa"
+
+                import_jobs[job_id]["progress"] = 30
+                import_results.append(result)
+                print(f"Job {job_id}: Taxonomy import completed - {taxon_count} taxa")
+
+                # Import occurrences
+                import_jobs[job_id]["progress"] = 35
+                import_jobs[job_id]["message"] = "Preparing occurrences import..."
+                print(f"Job {job_id}: Starting occurrences import")
+
+                source_def = validate_source_config(
+                    imports_config,
+                    "occurrences",
+                    ["path", "identifier", "location_field"],
+                )
+                file_path = source_def.get("path")
+                taxon_id = source_def.get("identifier")
+                location_field = source_def.get("location_field")
+
+                import_jobs[job_id]["progress"] = 40
+                import_jobs[job_id]["message"] = "Resetting occurrences table..."
+                await asyncio.to_thread(
+                    reset_table, config.database_path, "occurrences"
+                )
+
+                import_jobs[job_id]["progress"] = 45
+                import_jobs[job_id]["message"] = "Importing occurrences data..."
+                result = await asyncio.to_thread(
+                    importer.import_occurrences, file_path, taxon_id, location_field
+                )
+
+                # Parse occurrences result
+                occ_match = re.search(r"(\d+) occurrences imported", result)
+                occ_count = 0
+                if occ_match:
+                    occ_count = int(occ_match.group(1))
+                    total_records += occ_count
+                    import_jobs[job_id]["message"] = f"Imported {occ_count} occurrences"
+
+                import_jobs[job_id]["progress"] = 55
+                import_results.append(result)
+                print(
+                    f"Job {job_id}: Occurrences import completed - {occ_count} occurrences"
+                )
+
+                # Import plots
+                import_jobs[job_id]["progress"] = 60
+                import_jobs[job_id]["message"] = "Preparing plots import..."
+                print(f"Job {job_id}: Starting plots import")
+
+                source_def = validate_source_config(
+                    imports_config,
+                    "plots",
+                    ["path", "identifier", "location_field", "locality_field"],
+                )
+                file_path = source_def.get("path")
+                id_field = source_def.get("identifier")
+                location_field = source_def.get("location_field")
+                locality_field = source_def.get("locality_field")
+                link_field = source_def.get("link_field")
+                occurrence_link_field = source_def.get("occurrence_link_field")
+                hierarchy_config = source_def.get("hierarchy")
+
+                import_jobs[job_id]["progress"] = 65
+                import_jobs[job_id]["message"] = "Resetting plots table..."
+                await asyncio.to_thread(reset_table, config.database_path, "plot_ref")
+
+                import_jobs[job_id]["progress"] = 70
+                import_jobs[job_id]["message"] = "Importing plots data..."
+                result = await asyncio.to_thread(
+                    importer.import_plots,
+                    file_path,
+                    id_field,
+                    location_field,
+                    locality_field,
+                    link_field=link_field,
+                    occurrence_link_field=occurrence_link_field,
+                    hierarchy_config=hierarchy_config,
+                )
+
+                # Parse plots result
+                plot_match = re.search(r"(\d+) plots imported", result)
+                plot_count = 0
+                if plot_match:
+                    plot_count = int(plot_match.group(1))
+                    total_records += plot_count
+                    import_jobs[job_id]["message"] = f"Imported {plot_count} plots"
+
+                import_jobs[job_id]["progress"] = 75
+                import_results.append(result)
+                print(f"Job {job_id}: Plots import completed - {plot_count} plots")
+
+                # Import shapes
+                import_jobs[job_id]["progress"] = 80
+                import_jobs[job_id]["message"] = "Preparing shapes import..."
+                print(f"Job {job_id}: Starting shapes import")
+
+                shapes_config = imports_config.get("shapes", [])
+                if shapes_config and isinstance(shapes_config, list):
+                    import_jobs[job_id]["progress"] = 85
+                    import_jobs[job_id]["message"] = (
+                        f"Importing {len(shapes_config)} shape layers..."
+                    )
+                    print(
+                        f"Job {job_id}: Found {len(shapes_config)} shape layers to import"
+                    )
+
+                    # Reset shape table first
+                    try:
+                        await asyncio.to_thread(
+                            reset_table, config.database_path, "shape_ref"
+                        )
+                    except Exception as e:
+                        print(f"Warning: Could not reset shape_ref table: {e}")
+
+                    import_jobs[job_id]["progress"] = 87
+                    import_jobs[job_id]["message"] = "Processing shape files..."
+
+                    try:
+                        # Import shapes with a timeout
+                        result = await asyncio.wait_for(
+                            asyncio.to_thread(importer.import_shapes, shapes_config),
+                            timeout=300,  # 5 minutes timeout
+                        )
+
+                        # Parse shapes result
+                        shape_match = re.search(r"(\d+) shapes imported", result)
+                        shape_count = 0
+                        if shape_match:
+                            shape_count = int(shape_match.group(1))
+                            total_records += shape_count
+
+                        import_jobs[job_id]["message"] = (
+                            f"Imported {shape_count} shapes from {len(shapes_config)} layers"
+                        )
+                        import_results.append(result)
+                        print(
+                            f"Job {job_id}: Shapes import completed - {shape_count} shapes from {len(shapes_config)} layers"
+                        )
+
+                    except asyncio.TimeoutError:
+                        print(f"Job {job_id}: Shapes import timed out after 5 minutes")
+                        import_jobs[job_id]["message"] = "Shapes import timed out"
+                        import_results.append("Shapes import timed out after 5 minutes")
+                    except Exception as e:
+                        print(f"Job {job_id}: Error importing shapes: {e}")
+                        import_jobs[job_id]["message"] = (
+                            f"Error importing shapes: {str(e)}"
+                        )
+                        import_results.append(f"Shapes import error: {str(e)}")
+
+                    import_jobs[job_id]["progress"] = 95
+                else:
+                    import_jobs[job_id]["progress"] = 95
+                    import_jobs[job_id]["message"] = "No shapes to import"
+                    print(f"Job {job_id}: No shapes configuration found")
+
+                # Mark as completed
+                import_jobs[job_id]["status"] = "completed"
+                import_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+                import_jobs[job_id]["progress"] = 100
+
+                # Parse results into structured format
+                result_summary = "\n".join(import_results)
+                import_jobs[job_id]["result"] = {
+                    "metrics": parse_import_metrics(result_summary),
+                    "summary": result_summary,
+                }
+
+                import_jobs[job_id]["processed_records"] = total_records
+                import_jobs[job_id]["total_records"] = total_records
+                import_jobs[job_id]["message"] = (
+                    f"Import completed successfully. {total_records} records imported."
+                )
+
+                print(f"Import completed successfully. Total records: {total_records}")
+
+            except Exception as e:
+                import_jobs[job_id]["status"] = "failed"
+                import_jobs[job_id]["errors"].append(str(e))
+                import_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+                import_jobs[job_id]["message"] = f"Import failed: {str(e)}"
+                print(f"Import failed: {str(e)}")
+
+        # Queue the full import task
+        background_tasks.add_task(run_full_import)
+
+        return ImportJobResponse(
+            job_id=job_id,
+            status="pending",
+            created_at=job["created_at"],
+            message=f"Import job {job_id} created successfully (full pipeline mode)",
+        )
+
+    elif use_config_file == "true":
         # Use the file from config
         # Remove 'imports/' prefix if present as we're already in the imports directory
         clean_file_name = (
@@ -264,26 +630,8 @@ async def execute_import(
         # Log error but don't fail the import
         pass  # Log error but don't fail the import
 
-    # Create job record
-    job = {
-        "id": job_id,
-        "status": "pending",
-        "import_type": import_type,
-        "file_name": file_name,
-        "file_path": str(file_path),
-        "field_mappings": field_mappings_dict,
-        "advanced_options": advanced_options_dict,
-        "created_at": datetime.utcnow().isoformat(),
-        "started_at": None,
-        "completed_at": None,
-        "progress": 0,
-        "total_records": 0,
-        "processed_records": 0,
-        "errors": [],
-        "warnings": [],
-    }
-
-    import_jobs[job_id] = job
+    # Update job with file_path (job already created above)
+    job["file_path"] = str(file_path)
 
     # Queue background import task
     background_tasks.add_task(
@@ -801,7 +1149,10 @@ async def process_import(
         job["status"] = "completed"
         job["completed_at"] = datetime.utcnow().isoformat()
         job["progress"] = 100
-        job["result"] = result
+        job["result"] = {
+            "metrics": parse_import_metrics(result),
+            "summary": result,  # Keep original text for reference
+        }
 
     except Exception as e:
         # Mark as failed

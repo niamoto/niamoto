@@ -83,8 +83,6 @@ niamoto test-pipeline
 
 1. Check [Common Issues](common-issues.md)
 2. Search [GitHub Issues](https://github.com/niamoto/niamoto/issues)
-3. Ask on [Community Forum](https://forum.niamoto.org)
-4. Contact support: support@niamoto.org
 
 ## 🔗 Related Documentation
 
