@@ -155,11 +155,11 @@ export function CommandPalette() {
           <CommandSeparator className="my-2" />
           <CommandItem value="language:en" onSelect={handleSelect}>
             <Globe className="mr-2 h-4 w-4" />
-            <span>English</span>
+            <span>EN</span>
           </CommandItem>
           <CommandItem value="language:fr" onSelect={handleSelect}>
             <Globe className="mr-2 h-4 w-4" />
-            <span>Français</span>
+            <span>FR</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

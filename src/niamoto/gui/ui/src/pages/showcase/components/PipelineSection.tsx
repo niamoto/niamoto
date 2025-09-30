@@ -17,7 +17,6 @@ import {
   Code,
   Activity,
   Terminal,
-  Zap,
   Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,63 +26,56 @@ import { executeTransformAndWait } from '@/lib/api/transform'
 import { executeExportAndWait } from '@/lib/api/export'
 import { toast } from 'sonner'
 import { PipelineMetrics } from '@/components/PipelineMetrics'
+import yaml from 'js-yaml'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 
 // Pipeline steps with real data integration
-const createPipelineSteps = (transformConfig: any, exportConfig: any) => [
-  {
-    id: 'import',
-    title: 'Import',
-    icon: FileInput,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10',
-    borderColor: 'border-blue-500/20',
-    description: 'Chargement des données',
-    yamlSnippet: `sources:
-  occurrences:
-    path: data/occurrences.csv
-    type: csv
-  plots:
-    path: data/plots.csv
-    type: csv`
-  },
-  {
-    id: 'transform',
-    title: 'Transform',
-    icon: Settings,
-    color: 'text-green-500',
-    bgColor: 'bg-green-500/10',
-    borderColor: 'border-green-500/20',
-    description: 'Analyse et calculs',
-    yamlSnippet: transformConfig?.config ?
-      Object.entries(transformConfig.config.widgets_data || {})
-        .slice(0, 1)
-        .map(([key, value]: [string, any]) =>
-          `widgets_data:
-  ${key}:
-    plugin: ${value.plugin || 'unknown'}`
-        )
-        .join('\n') || 'widgets_data: {}' : 'widgets_data: {}'
-  },
-  {
-    id: 'export',
-    title: 'Export',
-    icon: Globe,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-500/10',
-    borderColor: 'border-purple-500/20',
-    description: 'Génération du site',
-    yamlSnippet: exportConfig?.config ?
-      Object.entries(exportConfig.config.exports || {})
-        .slice(0, 1)
-        .map(([key, value]: [string, any]) =>
-          `exports:
-  ${key}:
-    plugin: ${value.plugin || 'unknown'}`
-        )
-        .join('\n') || 'exports: {}' : 'exports: {}'
+const createPipelineSteps = (importConfig: any, transformConfig: any, exportConfig: any) => {
+  const convertToYaml = (config: any) => {
+    if (!config) return 'Configuration non disponible'
+    try {
+      const data = config.config || config
+      return yaml.dump(data, { indent: 2, lineWidth: -1 })
+    } catch (error) {
+      return JSON.stringify(config, null, 2)
+    }
   }
-]
+
+  return [
+    {
+      id: 'import',
+      title: 'Import',
+      icon: FileInput,
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-500/10',
+      borderColor: 'border-blue-500/20',
+      description: 'Chargement des données',
+      yamlSnippet: convertToYaml(importConfig)
+    },
+    {
+      id: 'transform',
+      title: 'Transform',
+      icon: Settings,
+      color: 'text-green-500',
+      bgColor: 'bg-green-500/10',
+      borderColor: 'border-green-500/20',
+      description: 'Analyse et calculs',
+      yamlSnippet: convertToYaml(transformConfig)
+    },
+    {
+      id: 'export',
+      title: 'Export',
+      icon: Globe,
+      color: 'text-purple-500',
+      bgColor: 'bg-purple-500/10',
+      borderColor: 'border-purple-500/20',
+      description: 'Génération du site',
+      yamlSnippet: convertToYaml(exportConfig)
+    }
+  ]
+}
 
 const IMPORT_WEIGHT = 33
 const TRANSFORM_WEIGHT = 33
@@ -107,6 +99,7 @@ export function PipelineSection() {
   const {
     metricsLoading,
     loadMetrics,
+    importConfig,
     transformConfig,
     exportConfig,
     loadConfiguration
@@ -121,7 +114,7 @@ export function PipelineSection() {
     loadData()
   }, [loadMetrics, loadConfiguration])
 
-  const pipelineSteps = createPipelineSteps(transformConfig, exportConfig)
+  const pipelineSteps = createPipelineSteps(importConfig, transformConfig, exportConfig)
 
   const addLog = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
     const time = new Date().toLocaleTimeString('fr-FR')
@@ -170,7 +163,7 @@ export function PipelineSection() {
       )
 
       const importDuration = (Date.now() - importStartTime) / 1000
-      addLog(`✅ Import terminé: ${importResult.summary?.total_records || 0} enregistrements`, 'success')
+      addLog(`✅ Import terminé`, 'success')
       setSimulationProgress(prev => Math.max(prev, IMPORT_WEIGHT))
       lastImportStatusRef.current = null
 
@@ -271,16 +264,6 @@ export function PipelineSection() {
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
           Processus complet de transformation des données en site web
         </p>
-        <div className="flex justify-center gap-2">
-          <Badge variant="outline" className="bg-green-500/10">
-            <Zap className="w-3 h-3 mr-1" />
-            Optimisé pour la performance
-          </Badge>
-          <Badge variant="outline" className="bg-blue-500/10">
-            <Activity className="w-3 h-3 mr-1" />
-            Monitoring en temps réel
-          </Badge>
-        </div>
       </div>
 
       {/* Pipeline Visualization with Flow Animation */}
@@ -500,25 +483,60 @@ export function PipelineSection() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {pipelineSteps.map((step, index) => (
-                  <div
-                    key={step.id}
-                    className={cn(
-                      "space-y-2 transition-all",
-                      activeStep !== index && "opacity-50"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <step.icon className={cn("w-4 h-4", step.color)} />
-                      <h4 className="font-semibold">{step.title}</h4>
-                    </div>
-                    <pre className="p-3 bg-muted rounded-lg overflow-x-auto">
-                      <code className="text-xs">{step.yamlSnippet}</code>
-                    </pre>
-                  </div>
-                ))}
-              </div>
+              <ScrollArea className="h-[500px] w-full">
+                <div className="space-y-4">
+                  {pipelineSteps.map((step, index) => {
+                    const Icon = step.icon
+                    const isActiveStep = activeStep === index
+                    const isExpanded = isActiveStep || (!simulationRunning && index === activeStep)
+
+                    return (
+                      <div
+                        key={step.id}
+                        className={cn(
+                          "space-y-2 transition-all duration-300",
+                          !isActiveStep && simulationRunning && "opacity-30"
+                        )}
+                      >
+                        <button
+                          onClick={() => !simulationRunning && setActiveStep(index)}
+                          className="flex items-center gap-2 mb-2 w-full text-left hover:opacity-80 transition-opacity"
+                          disabled={simulationRunning}
+                        >
+                          <Icon className={cn("w-4 h-4", step.color)} />
+                          <h4 className="font-semibold">{step.title}</h4>
+                          {isActiveStep && simulationRunning && (
+                            <Badge variant="outline" className="ml-auto bg-green-500/10">
+                              <Activity className="w-3 h-3 mr-1 animate-pulse" />
+                              En cours
+                            </Badge>
+                          )}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="animate-fadeIn">
+                            <ScrollArea className="h-[400px] w-full">
+                              <SyntaxHighlighter
+                                language="yaml"
+                                style={vscDarkPlus}
+                                customStyle={{
+                                  margin: 0,
+                                  borderRadius: '0.5rem',
+                                  fontSize: '0.75rem',
+                                  padding: '1rem'
+                                }}
+                                showLineNumbers
+                              >
+                                {step.yamlSnippet}
+                              </SyntaxHighlighter>
+                            </ScrollArea>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>

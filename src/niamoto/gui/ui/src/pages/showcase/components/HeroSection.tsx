@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowRight, Workflow, Package, Globe, GitBranch, ExternalLink } from 'lucide-react'
+import { ArrowRight, Workflow, Package, GitBranch, ExternalLink } from 'lucide-react'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
 import { useShowcaseStore } from '@/stores/showcaseStore'
 import niamotoLogo from '@/assets/niamoto_logo.png'
@@ -22,7 +22,6 @@ export function HeroSection({ configLoaded }: HeroSectionProps) {
 
   const stepsCounter = useProgressiveCounter(4, 1000)
   const pluginsCounter = useProgressiveCounter(totalPlugins, 2000)
-  const sitesCounter = useProgressiveCounter(1, 500)
   const [showLogo, setShowLogo] = useState(false)
 
   useEffect(() => {
@@ -41,7 +40,7 @@ export function HeroSection({ configLoaded }: HeroSectionProps) {
         <img
           src={niamotoLogo}
           alt="Niamoto"
-          className="w-32 h-32 mx-auto animate-pulse"
+          className="w-49 h-49 mx-auto animate-pulse"
         />
       </div>
 
@@ -56,24 +55,16 @@ export function HeroSection({ configLoaded }: HeroSectionProps) {
       </div>
 
       {/* Key Features */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl w-full">
         <div className="space-y-2 p-6 rounded-lg bg-card/50 backdrop-blur hover:bg-card/70 transition-all cursor-default">
           <div className="text-4xl font-bold text-primary">{stepsCounter.value}</div>
-          <div className="text-sm text-muted-foreground">Étapes du pipeline</div>
+          <div className="text-sm text-muted-foreground">Étapes</div>
           <Workflow className="w-8 h-8 mx-auto text-primary/60" />
         </div>
         <div className="space-y-2 p-6 rounded-lg bg-card/50 backdrop-blur hover:bg-card/70 transition-all cursor-default">
           <div className="text-4xl font-bold text-primary">{pluginsCounter.value}</div>
-          <div className="text-sm text-muted-foreground">Plugins disponibles</div>
+          <div className="text-sm text-muted-foreground">Plugins</div>
           <Package className="w-8 h-8 mx-auto text-primary/60" />
-        </div>
-        <div className="space-y-2 p-6 rounded-lg bg-card/50 backdrop-blur hover:bg-card/70 transition-all cursor-pointer"
-             onClick={() => window.open('https://niamoto.github.io/niamoto-static-site/', '_blank')}>
-          <div className="text-4xl font-bold text-primary">{sitesCounter.value}</div>
-          <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-            Niamoto 2.0 <ExternalLink className="w-3 h-3" />
-          </div>
-          <Globe className="w-8 h-8 mx-auto text-primary/60" />
         </div>
       </div>
 
