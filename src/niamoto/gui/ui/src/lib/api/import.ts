@@ -81,7 +81,8 @@ export async function executeImportFromConfig(
   pollInterval: number = 500,
   maxWaitTime: number = 300000,
   onProgress?: (progress: number) => void,
-  dataSize?: number
+  dataSize?: number,
+  onStatusUpdate?: (status: any) => void
 ): Promise<any> {
   // Create a dummy file or use config-based import
   // For now, we'll create a FormData without a file and let the backend handle it
@@ -113,13 +114,19 @@ export async function executeImportFromConfig(
       }
 
       const status = await getImportStatus(jobId)
+      onStatusUpdate?.(status)
 
-      if (onProgress && status.status === 'running') {
-        const elapsed = Date.now() - startTime
-        const rawProgress = (elapsed / estimatedDuration) * 100
-        const logProgress = Math.log(rawProgress + 1) / Math.log(101) * 95
-        currentProgress = Math.max(currentProgress, Math.min(95, logProgress))
-        onProgress(Math.round(currentProgress))
+      if (onProgress) {
+        if (typeof status.progress === 'number') {
+          currentProgress = Math.max(currentProgress, status.progress)
+          onProgress(Math.round(Math.min(100, currentProgress)))
+        } else if (status.status === 'running') {
+          const elapsed = Date.now() - startTime
+          const rawProgress = (elapsed / estimatedDuration) * 100
+          const logProgress = Math.log(rawProgress + 1) / Math.log(101) * 95
+          currentProgress = Math.max(currentProgress, Math.min(95, logProgress))
+          onProgress(Math.round(currentProgress))
+        }
       }
 
       if (status.status === 'completed') {

@@ -81,7 +81,7 @@ async def get_project_info() -> Dict[str, Any]:
 
 
 @router.get("/{config_name}")
-async def get_config(config_name: str) -> Dict[str, Any]:
+async def get_config(config_name: str):
     """
     Get a configuration file by name.
 

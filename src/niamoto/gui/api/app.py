@@ -5,7 +5,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .routers import bootstrap, config, database, files, imports, plugins
+from .routers import (
+    bootstrap,
+    config,
+    database,
+    files,
+    imports,
+    plugins,
+    transform,
+    export,
+    data_explorer,
+)
+from .context import get_working_directory
 
 # Get the path to the built React app
 UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
@@ -36,7 +47,21 @@ def create_app() -> FastAPI:
     app.include_router(files.router, prefix="/api/files", tags=["files"])
     app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
     app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
+    app.include_router(transform.router, prefix="/api/transform", tags=["transform"])
+    app.include_router(export.router, prefix="/api/export", tags=["export"])
+    app.include_router(data_explorer.router, prefix="/api/data", tags=["data-explorer"])
     app.include_router(bootstrap.router, prefix="/api", tags=["bootstrap"])
+
+    # Serve exported site from exports/web/ directory
+    work_dir = get_working_directory()
+    if work_dir:
+        exports_web_dir = work_dir / "exports" / "web"
+        if exports_web_dir.exists():
+            app.mount(
+                "/preview",
+                StaticFiles(directory=exports_web_dir, html=True),
+                name="exported-site",
+            )
 
     # Serve static files from the React build
     if UI_BUILD_DIR.exists():

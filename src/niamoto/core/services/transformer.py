@@ -2,7 +2,7 @@
 Service for transforming data based on YAML configuration.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 import logging
 import difflib
 import json
@@ -31,9 +31,9 @@ try:
     from niamoto.cli.utils.progress import ProgressManager
     from niamoto.cli.utils.metrics import OperationMetrics, MetricsCollector
 
-    CLI_CONTEXT = True
+    CLI_DETECTED = True
 except ImportError:
-    CLI_CONTEXT = False
+    CLI_DETECTED = False
     ProgressManager = None
     OperationMetrics = None
     MetricsCollector = None
@@ -44,7 +44,13 @@ logger = logging.getLogger(__name__)
 class TransformerService:
     """Service for transforming data based on YAML configuration."""
 
-    def __init__(self, db_path: str, config: Config):
+    def __init__(
+        self,
+        db_path: str,
+        config: Config,
+        *,
+        enable_cli_integration: bool | None = None,
+    ):
         """
         Initialize the service.
 
@@ -57,6 +63,9 @@ class TransformerService:
         self.transforms_config = config.get_transforms_config()
         self.console = Console()
         self.transform_metrics = None  # Store metrics for CLI access
+        if enable_cli_integration is None:
+            enable_cli_integration = CLI_DETECTED
+        self.use_cli_integration = enable_cli_integration and CLI_DETECTED
 
         # Initialize plugin loader and load plugins
         self.plugin_loader = PluginLoader()
@@ -71,6 +80,7 @@ class TransformerService:
         group_by: Optional[str] = None,
         csv_file: Optional[str] = None,
         recreate_table: bool = True,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """
         Transform data according to the configuration.
@@ -88,7 +98,7 @@ class TransformerService:
             ProcessError: If the transformation fails
         """
         # Initialize metrics collection
-        if CLI_CONTEXT and OperationMetrics:
+        if self.use_cli_integration and OperationMetrics:
             self.transform_metrics = OperationMetrics("transform")
 
         # Initialize results collection
@@ -98,17 +108,17 @@ class TransformerService:
         configs = self._filter_configs(group_by)
 
         try:
-            if CLI_CONTEXT and ProgressManager:
+            if self.use_cli_integration and ProgressManager:
                 # Use unified progress manager when in CLI context
                 progress_manager = ProgressManager(self.console)
                 with progress_manager.progress_context() as pm:
                     results = self._process_configs_with_progress(
-                        configs, csv_file, recreate_table, pm
+                        configs, csv_file, recreate_table, pm, progress_callback
                     )
             else:
                 # Fallback to simple processing without progress bars
                 results = self._process_configs_simple(
-                    configs, csv_file, recreate_table
+                    configs, csv_file, recreate_table, progress_callback
                 )
         except Exception as e:
             if self.transform_metrics:
@@ -121,7 +131,12 @@ class TransformerService:
         return results
 
     def _process_configs_with_progress(
-        self, configs, csv_file, recreate_table, progress_manager
+        self,
+        configs,
+        csv_file,
+        recreate_table,
+        progress_manager,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         """Process configurations with progress display using ProgressManager only."""
         results = {}
@@ -244,6 +259,15 @@ class TransformerService:
 
                     # Update progress
                     progress_manager.update_task(task_name, advance=1)
+                    if progress_callback:
+                        progress_callback(
+                            {
+                                "group": group_by_name,
+                                "widget": widget_name,
+                                "processed": None,
+                                "total": None,
+                            }
+                        )
 
             # Update final widget count for this group
             if self.transform_metrics:
@@ -263,10 +287,27 @@ class TransformerService:
 
         return results
 
-    def _process_configs_simple(self, configs, csv_file, recreate_table):
+    def _process_configs_simple(
+        self,
+        configs,
+        csv_file,
+        recreate_table,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ):
         """Process configurations without progress display (fallback)."""
         results = {}
         start_time = datetime.now()
+
+        total_ops = 0
+        try:
+            for group_config in configs:
+                group_ids = self._get_group_ids(group_config)
+                widgets_config = group_config.get("widgets_data", {})
+                total_ops += len(group_ids) * max(len(widgets_config), 1)
+        except Exception:
+            total_ops = 0
+
+        processed_ops = 0
 
         for group_config in configs:
             # Validate the configuration
@@ -359,6 +400,17 @@ class TransformerService:
                             and "No data found" in str(e)
                         ):
                             self.console.print(f"[yellow]⚠ {error_msg}[/yellow]")
+
+                    processed_ops += 1
+                    if progress_callback and total_ops:
+                        progress_callback(
+                            {
+                                "group": group_by_name,
+                                "widget": widget_name,
+                                "processed": processed_ops,
+                                "total": total_ops,
+                            }
+                        )
 
             # Update results with final metrics
             results[group_by_name]["widgets_generated"] = widgets_generated

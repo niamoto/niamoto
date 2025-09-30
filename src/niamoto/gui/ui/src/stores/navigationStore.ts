@@ -42,9 +42,17 @@ interface NavigationState {
 // Navigation structure definition
 export const navigationSections: NavigationSection[] = [
   {
+    id: 'showcase',
+    label: 'Showcase',
+    defaultOpen: true,
+    items: [
+      { id: 'showcase-demo', label: 'Démo Interactive', path: '/showcase', badge: '🎬' }
+    ]
+  },
+  {
     id: 'pipeline',
     label: 'Pipeline',
-    defaultOpen: true,
+    defaultOpen: false,
     items: [
       { id: 'pipeline-editor', label: 'Pipeline Editor', path: '/setup/pipeline', badge: 'New' },
       { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap', badge: '✨' },
@@ -59,7 +67,7 @@ export const navigationSections: NavigationSection[] = [
     defaultOpen: false,
     items: [
       { id: 'explorer', label: 'Data Explorer', path: '/data/explorer' },
-      { id: 'preview', label: 'Live Preview', path: '/data/preview', badge: 'Soon' }
+      { id: 'preview', label: 'Live Preview', path: '/data/preview' }
     ]
   },
   {
@@ -77,7 +85,9 @@ export const navigationSections: NavigationSection[] = [
     label: 'Interface Demos',
     defaultOpen: false,
     items: [
-      { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric' }
+      { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric' },
+      { id: 'demo-pipeline', label: 'Pipeline Visual', path: '/demos/pipeline-visual' },
+      { id: 'demo-wizard', label: 'Wizard & Forms', path: '/demos/wizard-form'}
     ]
   }
 ]

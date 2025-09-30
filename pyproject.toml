@@ -136,6 +136,8 @@ dependencies = [
     # httpx - HTTP client library for making API requests
     # Documentation: https://www.python-httpx.org/
     "httpx>=0.25.0",
+    # scikit-learn - Machine learning library for Python
+    # Documentation: https://scikit-learn.org/
     "scikit-learn>=1.7.2",
 ]
 

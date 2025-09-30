@@ -35,8 +35,14 @@ def gui(port: int, host: str, no_browser: bool, reload: bool):
     click.echo(
         click.style("Starting Niamoto GUI...", fg="green") + f"\n"
         f"Server: http://{host}:{port}\n"
-        f"API Docs: http://{host}:{port}/docs"
+        f"API Docs: http://{host}:{port}/api/docs"
     )
+
+    # Set the working directory for the GUI context
+    from pathlib import Path
+    from niamoto.gui.api.context import set_working_directory
+
+    set_working_directory(Path.cwd())
 
     # Create the app
     app = create_app()
