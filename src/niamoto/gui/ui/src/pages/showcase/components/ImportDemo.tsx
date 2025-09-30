@@ -24,6 +24,8 @@ import * as yaml from 'js-yaml'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
 import { executeImportFromConfig } from '@/lib/api/import'
 import { toast } from 'sonner'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 interface ImportDemoProps {}
 
@@ -173,7 +175,7 @@ export function ImportDemo({}: ImportDemoProps) {
       <div className="text-center space-y-4">
         <h2 className="text-4xl font-bold">Import des données</h2>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Chargement et validation des données écologiques depuis la configuration niamoto-og
+          Chargement et validation des données écologiques depuis la configuration
         </p>
         <div className="flex justify-center gap-2">
           {importStarted && (
@@ -264,7 +266,7 @@ export function ImportDemo({}: ImportDemoProps) {
             <CardHeader>
               <CardTitle>Sources de données configurées</CardTitle>
               <CardDescription>
-                Configuration chargée depuis /test-instance/niamoto-og/config/import.yml
+                Configuration chargée depuis /test-instance/niamoto-nc/config/import.yml
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -420,10 +422,20 @@ export function ImportDemo({}: ImportDemoProps) {
               <CardTitle>Configuration YAML brute</CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px] w-full rounded-md border p-4">
-                <pre className="text-xs font-mono">
-                  <code>{yaml.dump(importConfig, { indent: 2 })}</code>
-                </pre>
+              <ScrollArea className="h-[400px] w-full">
+                <SyntaxHighlighter
+                  language="yaml"
+                  style={vscDarkPlus}
+                  customStyle={{
+                    margin: 0,
+                    borderRadius: '0.5rem',
+                    fontSize: '0.75rem',
+                    padding: '1rem'
+                  }}
+                  showLineNumbers
+                >
+                  {yaml.dump(importConfig, { indent: 2, lineWidth: -1 })}
+                </SyntaxHighlighter>
               </ScrollArea>
             </CardContent>
           </Card>
