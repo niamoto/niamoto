@@ -1,30 +1,79 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Database, Table, Search, Filter, Download, RefreshCw } from 'lucide-react'
+import { Database, Table, Search, RefreshCw, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getTables, queryTable, type TableInfo, type QueryResponse } from '@/lib/api/data'
+import { toast } from 'sonner'
 
 export function DataExplorer() {
   const { t } = useTranslation()
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [tables, setTables] = useState<TableInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [queryResult, setQueryResult] = useState<QueryResponse | null>(null)
+  const [querying, setQuerying] = useState(false)
+  const [currentPage, setCurrentPage] = useState(0)
+  const pageSize = 100
 
-  // Mock data for demonstration
-  const tables = [
-    { name: 'occurrences', count: 15234, description: 'Species occurrence data' },
-    { name: 'taxon', count: 2456, description: 'Taxonomic hierarchy' },
-    { name: 'plots', count: 567, description: 'Plot locations and metadata' },
-    { name: 'shapes', count: 89, description: 'Geographic boundaries' },
-  ]
+  // Load tables on mount
+  useEffect(() => {
+    loadTables()
+  }, [])
+
+  // Load query results when table changes
+  useEffect(() => {
+    if (selectedTable) {
+      loadTableData()
+    }
+  }, [selectedTable, currentPage])
+
+  const loadTables = async () => {
+    setLoading(true)
+    try {
+      const data = await getTables()
+      setTables(data)
+    } catch (error) {
+      console.error('Failed to load tables:', error)
+      toast.error('Erreur lors du chargement des tables')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadTableData = async () => {
+    if (!selectedTable) return
+
+    setQuerying(true)
+    try {
+      const result = await queryTable({
+        table: selectedTable,
+        limit: pageSize,
+        offset: currentPage * pageSize,
+        where: searchQuery || undefined
+      })
+      setQueryResult(result)
+    } catch (error) {
+      console.error('Failed to query table:', error)
+      toast.error('Erreur lors de la requête')
+    } finally {
+      setQuerying(false)
+    }
+  }
+
+  const handleSearch = () => {
+    setCurrentPage(0)
+    loadTableData()
+  }
+
+  const handleTableSelect = (tableName: string) => {
+    setSelectedTable(tableName)
+    setSearchQuery('')
+    setCurrentPage(0)
+    setQueryResult(null)
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -39,13 +88,9 @@ export function DataExplorer() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {t('common.refresh', 'Refresh')}
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
-            {t('common.export', 'Export')}
+          <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            {t('common.refresh', 'Actualiser')}
           </Button>
         </div>
       </div>
@@ -62,30 +107,43 @@ export function DataExplorer() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {tables.map((table) => (
-                <button
-                  key={table.name}
-                  onClick={() => setSelectedTable(table.name)}
-                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                    selectedTable === table.name
-                      ? 'bg-accent border-accent-foreground/20'
-                      : 'hover:bg-muted border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Table className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{table.name}</span>
-                    </div>
-                    <span className="text-sm text-muted-foreground">
-                      {table.count.toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {table.description}
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : tables.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {t('data_explorer.no_tables', 'Aucune table disponible')}
                   </p>
-                </button>
-              ))}
+                </div>
+              ) : (
+                tables.map((table) => (
+                  <button
+                    key={table.name}
+                    onClick={() => handleTableSelect(table.name)}
+                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                      selectedTable === table.name
+                        ? 'bg-accent border-accent-foreground/20'
+                        : 'hover:bg-muted border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Table className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{table.name}</span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {table.count.toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {table.description}
+                    </p>
+                  </button>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
@@ -105,44 +163,29 @@ export function DataExplorer() {
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
                     <Input
-                      placeholder={t('data_explorer.search_placeholder', 'Search...')}
+                      placeholder={t('data_explorer.search_placeholder', 'WHERE clause (ex: id > 100)')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                       className="flex-1"
                     />
-                    <Button>
-                      <Search className="mr-2 h-4 w-4" />
-                      {t('common.search', 'Search')}
-                    </Button>
-                    <Button variant="outline">
-                      <Filter className="mr-2 h-4 w-4" />
-                      {t('common.filter', 'Filter')}
+                    <Button onClick={handleSearch} disabled={querying}>
+                      {querying ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="mr-2 h-4 w-4" />
+                      )}
+                      {t('common.search', 'Rechercher')}
                     </Button>
                   </div>
 
-                  <div className="grid gap-2 md:grid-cols-3">
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('data_explorer.select_column', 'Select column')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="id">ID</SelectItem>
-                        <SelectItem value="name">Name</SelectItem>
-                        <SelectItem value="date">Date</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('data_explorer.operator', 'Operator')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="equals">Equals</SelectItem>
-                        <SelectItem value="contains">Contains</SelectItem>
-                        <SelectItem value="greater">Greater than</SelectItem>
-                        <SelectItem value="less">Less than</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input placeholder={t('data_explorer.value', 'Value')} />
+                  <div className="text-xs text-muted-foreground">
+                    <p>Exemples de requêtes WHERE :</p>
+                    <ul className="list-disc list-inside mt-1 space-y-0.5">
+                      <li><code className="bg-muted px-1 rounded">id &lt; 100</code></li>
+                      <li><code className="bg-muted px-1 rounded">full_name LIKE '%Araucaria%'</code></li>
+                      <li><code className="bg-muted px-1 rounded">dbh &gt; 50 AND height &lt; 30</code></li>
+                    </ul>
                   </div>
                 </CardContent>
               </Card>
@@ -150,40 +193,84 @@ export function DataExplorer() {
               {/* Results */}
               <Card>
                 <CardHeader>
-                  <CardTitle>{t('data_explorer.results', 'Results')}</CardTitle>
-                  <CardDescription>
-                    {t('data_explorer.showing_records', 'Showing {count} records', { count: 100 })}
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>{t('data_explorer.results', 'Résultats')}</CardTitle>
+                      <CardDescription>
+                        {queryResult
+                          ? `Affichage de ${queryResult.page_count} sur ${queryResult.total_count.toLocaleString()} enregistrements`
+                          : t('data_explorer.no_query', 'Exécutez une requête pour voir les résultats')}
+                      </CardDescription>
+                    </div>
+                    {queryResult && queryResult.total_count > pageSize && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                          disabled={currentPage === 0 || querying}
+                        >
+                          Précédent
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          Page {currentPage + 1} / {Math.ceil(queryResult.total_count / pageSize)}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(currentPage + 1)}
+                          disabled={currentPage >= Math.floor(queryResult.total_count / pageSize) || querying}
+                        >
+                          Suivant
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <Tabs defaultValue="table">
-                    <TabsList>
-                      <TabsTrigger value="table">{t('data_explorer.table_view', 'Table')}</TabsTrigger>
-                      <TabsTrigger value="chart">{t('data_explorer.chart_view', 'Chart')}</TabsTrigger>
-                      <TabsTrigger value="map">{t('data_explorer.map_view', 'Map')}</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="table" className="mt-4">
-                      <div className="rounded-lg border p-4">
-                        <p className="text-sm text-muted-foreground text-center py-8">
-                          {t('data_explorer.table_preview', 'Table data will be displayed here')}
-                        </p>
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="chart" className="mt-4">
-                      <div className="rounded-lg border p-4">
-                        <p className="text-sm text-muted-foreground text-center py-8">
-                          {t('data_explorer.chart_preview', 'Chart visualization will be displayed here')}
-                        </p>
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="map" className="mt-4">
-                      <div className="rounded-lg border p-4">
-                        <p className="text-sm text-muted-foreground text-center py-8">
-                          {t('data_explorer.map_preview', 'Map visualization will be displayed here')}
-                        </p>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
+                  {querying ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : queryResult && queryResult.rows.length > 0 ? (
+                    <div className="rounded-lg border overflow-auto max-h-[600px]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            {queryResult.columns.map((col) => (
+                              <th key={col} className="px-4 py-2 text-left font-medium whitespace-nowrap">
+                                {col}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {queryResult.rows.map((row, idx) => (
+                            <tr key={idx} className="border-t hover:bg-muted/30">
+                              {queryResult.columns.map((col) => (
+                                <td key={col} className="px-4 py-2 whitespace-nowrap">
+                                  {row[col] !== null && row[col] !== undefined
+                                    ? String(row[col]).length > 100
+                                      ? String(row[col]).substring(0, 100) + '...'
+                                      : String(row[col])
+                                    : <span className="text-muted-foreground italic">null</span>
+                                  }
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        {queryResult?.rows.length === 0
+                          ? t('data_explorer.no_results', 'Aucun résultat trouvé')
+                          : t('data_explorer.table_preview', 'Sélectionnez une table et cliquez sur Rechercher')}
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </>

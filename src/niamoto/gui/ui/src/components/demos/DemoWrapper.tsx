@@ -20,48 +20,23 @@ interface DemoOption {
 
 const demoOptions: DemoOption[] = [
   {
-    id: 'pipeline-to-widgets',
-    name: 'Pipeline vers Widgets',
-    path: '/demos/pipeline-to-widgets',
-    description: 'Vue unifiée avec flux descendant (Sources → Transformations → Widgets)'
-  },
-  {
-    id: 'widget-first',
-    name: 'Widget-First',
-    path: '/demos/widget-first',
-    description: 'Partir du résultat souhaité pour générer le pipeline'
-  },
-  {
-    id: 'dual-mode',
-    name: 'Dual-Mode',
-    path: '/demos/dual-mode',
-    description: 'Deux vues synchronisées (Transformation ↔ Visualisation)'
-  },
-  {
-    id: 'decision-tree',
-    name: 'Arbre de Décision',
-    path: '/demos/decision-tree',
-    description: 'Navigation guidée par arbre interactif'
-  },
-  {
-    id: 'integrated-pipeline',
-    name: 'Pipeline Intégré',
-    path: '/demos/integrated-pipeline',
-    description: 'Fusion complète transformation/export en 3 colonnes',
-    recommended: true
-  },
-  {
-    id: 'goal-centered',
-    name: 'Objectif-Centré',
-    path: '/demos/goal-centered',
-    description: 'Workflow guidé en 4 étapes basé sur l\'objectif'
-  },
-  {
     id: 'entity-centric',
     name: 'Entity-Centric',
     path: '/demos/entity-centric',
     description: 'Gestion dynamique des entités avec génération YAML en temps réel',
     recommended: true
+  },
+  {
+    id: 'pipeline-visual',
+    name: 'Pipeline Visual',
+    path: '/demos/pipeline-visual',
+    description: 'Éditeur visuel de pipeline avec vue flow des dépendances'
+  },
+  {
+    id: 'wizard-form',
+    name: 'Wizard & Forms',
+    path: '/demos/wizard-form',
+    description: 'Configuration guidée avec formulaires et validation progressive'
   }
 ]
 
