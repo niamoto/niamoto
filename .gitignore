@@ -117,5 +117,4 @@ tailwindcss-windows-x64.exe
 
 # Node/npm files (if any remain)
 node_modules/
-package.json
 package-lock.json

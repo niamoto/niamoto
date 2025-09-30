@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Database, Table, Search, RefreshCw, Loader2, AlertCircle } from 'lucide-react'
+import { Database, Table, Search, RefreshCw, Loader2, AlertCircle, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getTables, queryTable, type TableInfo, type QueryResponse } from '@/lib/api/data'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { getTables, queryTable, previewEnrichment, type TableInfo, type QueryResponse, type EnrichmentPreviewResponse } from '@/lib/api/data'
 import { toast } from 'sonner'
 
 export function DataExplorer() {
@@ -17,6 +18,9 @@ export function DataExplorer() {
   const [querying, setQuerying] = useState(false)
   const [currentPage, setCurrentPage] = useState(0)
   const pageSize = 100
+  const [enrichmentModal, setEnrichmentModal] = useState(false)
+  const [enrichmentData, setEnrichmentData] = useState<EnrichmentPreviewResponse | null>(null)
+  const [enrichmentLoading, setEnrichmentLoading] = useState(false)
 
   // Load tables on mount
   useEffect(() => {
@@ -73,6 +77,23 @@ export function DataExplorer() {
     setSearchQuery('')
     setCurrentPage(0)
     setQueryResult(null)
+  }
+
+  const handleEnrichmentPreview = async (taxonName: string) => {
+    setEnrichmentLoading(true)
+    setEnrichmentModal(true)
+    setEnrichmentData(null)
+
+    try {
+      const result = await previewEnrichment({ taxon_name: taxonName, table: selectedTable })
+      setEnrichmentData(result)
+    } catch (error) {
+      console.error('Failed to preview enrichment:', error)
+      toast.error('Erreur lors de la prévisualisation de l\'enrichissement')
+      setEnrichmentModal(false)
+    } finally {
+      setEnrichmentLoading(false)
+    }
   }
 
   return (
@@ -237,6 +258,7 @@ export function DataExplorer() {
                       <table className="w-full text-sm">
                         <thead className="bg-muted/50 sticky top-0">
                           <tr>
+                            {selectedTable === 'taxon_ref' && <th className="px-4 py-2 text-left font-medium whitespace-nowrap">Actions</th>}
                             {queryResult.columns.map((col) => (
                               <th key={col} className="px-4 py-2 text-left font-medium whitespace-nowrap">
                                 {col}
@@ -247,6 +269,19 @@ export function DataExplorer() {
                         <tbody>
                           {queryResult.rows.map((row, idx) => (
                             <tr key={idx} className="border-t hover:bg-muted/30">
+                              {selectedTable === 'taxon_ref' && (
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleEnrichmentPreview(row['full_name'])}
+                                    disabled={!row['full_name']}
+                                    className="h-8 px-2"
+                                  >
+                                    <Sparkles className="h-4 w-4" />
+                                  </Button>
+                                </td>
+                              )}
                               {queryResult.columns.map((col) => (
                                 <td key={col} className="px-4 py-2 whitespace-nowrap">
                                   {row[col] !== null && row[col] !== undefined
@@ -289,6 +324,140 @@ export function DataExplorer() {
           )}
         </div>
       </div>
+
+      {/* Enrichment Preview Modal */}
+      <Dialog open={enrichmentModal} onOpenChange={setEnrichmentModal}>
+        <DialogContent className="!max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              {t('data_explorer.enrichment_preview', 'API Enrichment Preview')}
+            </DialogTitle>
+            <DialogDescription>
+              {enrichmentData?.taxon_name && `Données enrichies pour : ${enrichmentData.taxon_name}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {enrichmentLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : enrichmentData ? (
+            <div className="space-y-4">
+              {/* Config Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Configuration</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium">API URL:</span>{' '}
+                    <span className="text-muted-foreground">{enrichmentData.config_used.api_url}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Query Field:</span>{' '}
+                    <span className="text-muted-foreground">{enrichmentData.config_used.query_field}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Images */}
+              {enrichmentData.api_enrichment.images && Array.isArray(enrichmentData.api_enrichment.images) && enrichmentData.api_enrichment.images.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Images</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {enrichmentData.api_enrichment.images.slice(0, 6).map((img: any, idx: number) => (
+                        <div key={idx} className="space-y-2">
+                          <img
+                            src={img.big_thumb || img.small_thumb}
+                            alt={img.auteur || 'Image'}
+                            className="w-full h-40 object-cover rounded-lg border"
+                          />
+                          {img.auteur && (
+                            <p className="text-xs text-muted-foreground">© {img.auteur}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Single image fields */}
+              {(enrichmentData.api_enrichment.image_big_thumb || enrichmentData.api_enrichment.image_small_thumb) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Image</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <img
+                        src={enrichmentData.api_enrichment.image_big_thumb || enrichmentData.api_enrichment.image_small_thumb}
+                        alt="Taxon"
+                        className="w-full max-w-md h-64 object-cover rounded-lg border"
+                      />
+                      {enrichmentData.api_enrichment.image_auteur && (
+                        <p className="text-sm text-muted-foreground">© {enrichmentData.api_enrichment.image_auteur}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Other Data */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Données enrichies</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium">Champ</th>
+                          <th className="px-4 py-2 text-left font-medium">Valeur</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(enrichmentData.api_enrichment).map(([key, value]) => {
+                          // Skip image fields already displayed
+                          if (key === 'images' || key.startsWith('image_')) return null
+
+                          return (
+                            <tr key={key} className="border-t">
+                              <td className="px-4 py-2 font-medium">{key}</td>
+                              <td className="px-4 py-2">
+                                {value !== null && value !== undefined ? (
+                                  typeof value === 'object' ? (
+                                    <pre className="text-xs overflow-auto max-h-32 bg-muted p-2 rounded">
+                                      {JSON.stringify(value, null, 2)}
+                                    </pre>
+                                  ) : (
+                                    String(value)
+                                  )
+                                ) : (
+                                  <span className="text-muted-foreground italic">null</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Aucune donnée disponible
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

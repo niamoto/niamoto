@@ -53,3 +53,26 @@ export async function getTableColumns(tableName: string): Promise<{ table: strin
   const response = await apiClient.get<{ table: string; columns: ColumnInfo[] }>(`/data/tables/${tableName}/columns`)
   return response.data
 }
+
+export interface EnrichmentPreviewRequest {
+  taxon_name: string
+  table?: string
+}
+
+export interface EnrichmentPreviewResponse {
+  success: boolean
+  taxon_name: string
+  api_enrichment: Record<string, any>
+  config_used: {
+    api_url: string
+    query_field: string
+  }
+}
+
+/**
+ * Preview API enrichment for a taxon name without saving to database
+ */
+export async function previewEnrichment(request: EnrichmentPreviewRequest): Promise<EnrichmentPreviewResponse> {
+  const response = await apiClient.post<EnrichmentPreviewResponse>('/data/enrichment/preview', request)
+  return response.data
+}

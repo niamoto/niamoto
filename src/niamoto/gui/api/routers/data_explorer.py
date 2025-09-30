@@ -4,9 +4,11 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text, inspect
+import yaml
 
 from niamoto.common.database import Database
-from niamoto.gui.api.context import get_database_path
+from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.core.plugins.loaders.api_taxonomy_enricher import ApiTaxonomyEnricher
 
 router = APIRouter()
 
@@ -251,3 +253,92 @@ async def get_table_columns_endpoint(table_name: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get columns: {str(e)}")
+
+
+class EnrichmentPreviewRequest(BaseModel):
+    """Request model for enrichment preview."""
+
+    taxon_name: str
+    table: Optional[str] = "taxon_ref"
+
+
+@router.post("/enrichment/preview")
+async def preview_enrichment(request: EnrichmentPreviewRequest):
+    """
+    Preview API enrichment for a taxon without saving to database.
+
+    Reads api_enrichment config from import.yml and calls the API.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=404, detail="Working directory not found")
+
+    # Read import.yml to get API enrichment config
+    import_config_path = work_dir / "config" / "import.yml"
+    if not import_config_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="import.yml not found. API enrichment not configured.",
+        )
+
+    try:
+        with open(import_config_path, "r") as f:
+            import_config = yaml.safe_load(f)
+
+        # Extract API enrichment config from taxonomy section
+        taxonomy_config = import_config.get("taxonomy", {})
+        api_enrichment = taxonomy_config.get("api_enrichment", {})
+
+        if not api_enrichment:
+            raise HTTPException(
+                status_code=404,
+                detail="API enrichment not configured in import.yml",
+            )
+
+        # For preview, we don't require enabled=true, just that config exists
+
+        # Prepare config for the plugin
+        plugin_config = {
+            "plugin": api_enrichment.get("plugin", "api_taxonomy_enricher"),
+            "params": {
+                "api_url": api_enrichment.get("api_url"),
+                "query_field": api_enrichment.get("query_field", "full_name"),
+                "query_param_name": api_enrichment.get("query_param_name", "q"),
+                "response_mapping": api_enrichment.get("response_mapping", {}),
+                "rate_limit": api_enrichment.get("rate_limit", 1.0),
+                "cache_results": False,  # Disable cache for preview
+                "auth_method": api_enrichment.get("auth_method", "none"),
+                "auth_params": api_enrichment.get("auth_params", {}),
+                "query_params": api_enrichment.get("query_params", {}),
+                "chained_endpoints": api_enrichment.get("chained_endpoints", []),
+            },
+        }
+
+        # Create plugin instance and call it
+        enricher = ApiTaxonomyEnricher()
+
+        # Prepare taxon data
+        taxon_data = {
+            api_enrichment.get("query_field", "full_name"): request.taxon_name
+        }
+
+        # Call plugin
+        result = enricher.load_data(taxon_data, plugin_config)
+
+        # Return enriched data
+        return {
+            "success": True,
+            "taxon_name": request.taxon_name,
+            "api_enrichment": result.get("api_enrichment", {}),
+            "config_used": {
+                "api_url": plugin_config["params"]["api_url"],
+                "query_field": plugin_config["params"]["query_field"],
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to preview enrichment: {str(e)}"
+        )
