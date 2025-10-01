@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useShowcaseStore } from '@/stores/showcaseStore'
+import { usePipelineStore } from '@/stores/pipelineStore'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
 import { listEntities, getEntityDetail, type EntitySummary, type EntityDetail } from '@/lib/api/entities'
 import {
@@ -34,6 +35,14 @@ interface TransformDemoProps {}
 
 export function TransformDemo({}: TransformDemoProps) {
   const { transformConfig, exportConfig, setDemoProgress } = useShowcaseStore()
+
+  // Use shared pipeline store
+  const {
+    transformResult,
+    setTransformResult,
+    setCurrentStep: setPipelineStep
+  } = usePipelineStore()
+
   const [activeGroup, setActiveGroup] = useState(0)
   const [transforming, setTransforming] = useState(false)
   const [transformProgress, setTransformProgress] = useState(0)
@@ -68,6 +77,42 @@ export function TransformDemo({}: TransformDemoProps) {
     2000,
     transformStarted
   )
+
+  // Check for existing transform result from pipeline store
+  useEffect(() => {
+    if (transformResult && transformResult.result) {
+      const transformations = transformResult.result.transformations || {}
+      const metrics = transformResult.result.metrics || {}
+
+      let totalWidgets = 0
+      const groups: { [group: string]: { count: number; total: number } } = {}
+
+      // Count total widgets and group metrics
+      Object.values(transformations).forEach((trans: any) => {
+        if (trans && trans.generated !== undefined) {
+          totalWidgets += trans.generated
+
+          const groupName = trans.group || 'default'
+          if (!groups[groupName]) {
+            groups[groupName] = { count: 0, total: 0 }
+          }
+          groups[groupName].count += 1
+          groups[groupName].total += trans.generated
+        }
+      })
+
+      const totalItems = metrics.total_transformations || Object.keys(transformations).length
+
+      setTargetMetrics({
+        widgets: totalWidgets,
+        items: totalItems,
+        duration: transformResult.duration
+      })
+      setGroupMetrics(groups)
+      setTransformStarted(true)
+      setTransformProgress(100)
+    }
+  }, [transformResult])
 
   // Parse dependencies from transform and export configs
   const dependencies = useMemo(() => {
@@ -199,6 +244,7 @@ export function TransformDemo({}: TransformDemoProps) {
 
   const runTransformation = async () => {
     setTransforming(true)
+    setPipelineStep('transform') // Signal to pipeline store that transform is running
     setTransformStarted(false)
     setTransformProgress(0)
 
@@ -248,6 +294,13 @@ export function TransformDemo({}: TransformDemoProps) {
         setTargetMetrics(newMetrics)
         setGroupMetrics(groups)
 
+        // Save to shared pipeline store
+        setTransformResult({
+          status: 'completed',
+          result: result.result,
+          duration: parseFloat(duration)
+        })
+
         // Start counters after metrics are updated
         setTimeout(() => {
           setTransformStarted(true)
@@ -262,6 +315,7 @@ export function TransformDemo({}: TransformDemoProps) {
       toast.error('Erreur lors des transformations')
     } finally {
       setTransforming(false)
+      setPipelineStep(null) // Clear running state
     }
   }
 
