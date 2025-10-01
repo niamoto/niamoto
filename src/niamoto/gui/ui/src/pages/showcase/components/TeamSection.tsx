@@ -17,7 +17,7 @@ const coreTeam = [
   {
     name: 'Philippe Birnbaum',
     nickname: 'La Source',
-    role: 'IRD - UMR AMAP',
+    role: 'CIRAD - UMR AMAP',
     description: 'Le visionnaire qui a tout déclenché',
     icon: Sparkles,
     photo: '/team/philippe.png',
@@ -83,7 +83,7 @@ export function TeamSection() {
       <div className="text-center space-y-4">
         <div className="flex items-center justify-center gap-3 mb-4">
           <Heart className="w-8 h-8 text-red-500 fill-red-500" />
-          <h2 className="text-4xl font-bold">Équipe & Communauté</h2>
+          <h2 className="text-4xl font-bold">Niamoteam</h2>
           <Heart className="w-8 h-8 text-red-500 fill-red-500" />
         </div>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">

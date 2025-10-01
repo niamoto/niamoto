@@ -4,6 +4,7 @@ import { OverviewSection } from './components/OverviewSection'
 import { PipelineFullSection } from './components/PipelineFullSection'
 import { IntegrationSection } from './components/IntegrationSection'
 import { CommunitySection } from './components/CommunitySection'
+import { PerspectivesSection } from './components/PerspectivesSection'
 import { ShowcaseNav } from './components/ShowcaseNav'
 import { Progress } from '@/components/ui/progress'
 
@@ -16,23 +17,76 @@ export default function ShowcasePage() {
   } = useShowcaseStore()
 
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
+  const hasUserScrolled = useRef(false)
+  const isProgrammaticScroll = useRef(false)
+  const observerEnabled = useRef(false)
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
 
   const sectionComponents = [
     OverviewSection,
     PipelineFullSection,
     IntegrationSection,
-    CommunitySection
+    CommunitySection,
+    PerspectivesSection
   ]
+
+  // Find the scroll container (main element) on mount
+  useEffect(() => {
+    scrollContainerRef.current = document.querySelector('main')
+  }, [])
 
   useEffect(() => {
     // Load configuration on mount
     loadConfiguration()
   }, [loadConfiguration])
 
+  // Scroll to top on mount and detect user scrolling
   useEffect(() => {
+    if (!scrollContainerRef.current) return
+
+    const scrollContainer = scrollContainerRef.current
+
+    // Force section to 0 and scroll to top
+    setCurrentSection(0)
+    isProgrammaticScroll.current = true
+    observerEnabled.current = false
+
+    // Clear any hash in URL that might cause scroll
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+
+    // Force scroll to top
+    scrollContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+
+    // Enable observer after layout has settled
+    const enableObserverTimeout = setTimeout(() => {
+      isProgrammaticScroll.current = false
+      observerEnabled.current = true
+    }, 500)
+
+    const handleScroll = () => {
+      if (!isProgrammaticScroll.current) {
+        hasUserScrolled.current = true
+      }
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      clearTimeout(enableObserverTimeout)
+    }
+  }, [setCurrentSection])
+
+  useEffect(() => {
+    if (!scrollContainerRef.current) return
+
     // Intersection Observer for auto-updating current section
     const observer = new IntersectionObserver(
       (entries) => {
+        if (!observerEnabled.current || !hasUserScrolled.current) return
+
         // Find the section that's most visible
         const visibleSections = entries
           .filter(entry => entry.isIntersecting)
@@ -47,6 +101,7 @@ export default function ShowcasePage() {
         }
       },
       {
+        root: scrollContainerRef.current,
         threshold: [0, 0.25, 0.5, 0.75, 1],
         rootMargin: '-100px 0px -50% 0px'
       }
@@ -64,11 +119,19 @@ export default function ShowcasePage() {
   }, [setCurrentSection])
 
   const scrollToSection = (index: number) => {
+    hasUserScrolled.current = true
+    isProgrammaticScroll.current = true
+
+    setCurrentSection(index)
     sectionRefs.current[index]?.scrollIntoView({
       behavior: 'smooth',
       block: 'start'
     })
-    setCurrentSection(index)
+
+    // Re-enable observer after smooth scroll completes (~500ms)
+    setTimeout(() => {
+      isProgrammaticScroll.current = false
+    }, 600)
   }
 
   // Keyboard navigation
@@ -105,7 +168,8 @@ export default function ShowcasePage() {
     'Vue d\'ensemble',
     'Pipeline',
     'API & Intégration',
-    'Communauté'
+    'Communauté',
+    'Perspectives'
   ]
 
   return (

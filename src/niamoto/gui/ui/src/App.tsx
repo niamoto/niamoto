@@ -23,6 +23,7 @@ const Bootstrap = lazy(() => import('@/components/pipeline/Bootstrap').then(m =>
 const EntityCentricDemo = lazy(() => import('@/pages/demos/EntityCentricDemo').then(m => ({ default: m.EntityCentricDemo })))
 const PipelineVisualDemo = lazy(() => import('@/pages/demos/PipelineVisualDemo').then(m => ({ default: m.PipelineVisualDemo })))
 const WizardFormDemo = lazy(() => import('@/pages/demos/WizardFormDemo').then(m => ({ default: m.WizardFormDemo })))
+const GoalDrivenPageBuilder = lazy(() => import('@/pages/demos/GoalDrivenPageBuilder'))
 const Showcase = lazy(() => import('@/pages/showcase'))
 
 function App() {
@@ -110,6 +111,11 @@ function App() {
             <Route path="demos/wizard-form" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <WizardFormDemo />
+              </Suspense>
+            } />
+            <Route path="demos/goal-driven" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <GoalDrivenPageBuilder />
               </Suspense>
             } />
           </Route>
