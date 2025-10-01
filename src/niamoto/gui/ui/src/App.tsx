@@ -14,7 +14,7 @@ const DataExplorer = lazy(() => import('@/pages/data-explorer').then(m => ({ def
 const LivePreview = lazy(() => import('@/pages/live-preview').then(m => ({ default: m.LivePreview })))
 const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.Settings })))
 const Plugins = lazy(() => import('@/pages/plugins').then(m => ({ default: m.Plugins })))
-const Documentation = lazy(() => import('@/pages/documentation').then(m => ({ default: m.Documentation })))
+const ApiDocs = lazy(() => import('@/pages/api-docs').then(m => ({ default: m.ApiDocs })))
 const PipelineEditor = lazy(() => import('@/pages/PipelineEditor'))
 const Bootstrap = lazy(() => import('@/components/pipeline/Bootstrap').then(m => ({ default: m.Bootstrap })))
 
@@ -78,7 +78,7 @@ function App() {
             } />
             <Route path="tools/docs" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Documentation />
+                <ApiDocs />
               </Suspense>
             } />
 

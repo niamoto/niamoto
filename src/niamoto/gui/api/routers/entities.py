@@ -388,8 +388,18 @@ async def render_widget(group_by: str, entity_id: int, transform_key: str):
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body {{ margin: 0; padding: 10px; font-family: sans-serif; }}
-        .plotly-graph-div {{ width: 100%; height: 100%; }}
+        html, body {{
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: sans-serif;
+        }}
+        .plotly-graph-div {{
+            width: 100% !important;
+            height: 100% !important;
+        }}
     </style>
     {dependency_scripts}
 </head>

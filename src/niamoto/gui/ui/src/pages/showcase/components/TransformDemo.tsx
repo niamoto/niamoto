@@ -772,7 +772,7 @@ export function TransformDemo({}: TransformDemoProps) {
                       <p className="text-xs text-muted-foreground mb-3">
                         Colonne <code className="bg-muted px-1 py-0.5 rounded">{currentTransformationData.transformation}</code> dans la table <code className="bg-muted px-1 py-0.5 rounded">{currentTransformationData.entity.group_by}</code>
                       </p>
-                      <ScrollArea className="h-[400px] w-full rounded-md border">
+                      <ScrollArea className="h-[450px] w-full rounded-md border">
                         <pre className="p-4 text-xs">
                           {JSON.stringify(currentTransformationData.jsonData, null, 2)}
                         </pre>
@@ -788,12 +788,13 @@ export function TransformDemo({}: TransformDemoProps) {
                       <p className="text-xs text-muted-foreground mb-3">
                         Widget rendu par le plugin configuré dans export.yml
                       </p>
-                      <div className="border rounded-lg bg-background overflow-hidden">
+                      <div className="border rounded-lg bg-background overflow-hidden h-[450px]">
                         <iframe
                           src={`/api/entities/render-widget/${currentTransformationData.entity.group_by}/${currentTransformationData.entity.id}/${currentTransformationData.transformation}`}
-                          className="w-full h-[400px] border-0"
+                          className="w-full h-full border-0"
                           title="Widget preview"
                           sandbox="allow-scripts allow-same-origin"
+                          scrolling="no"
                         />
                       </div>
                     </div>
