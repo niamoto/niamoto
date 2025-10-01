@@ -15,17 +15,72 @@ import {
   FileJson,
   Layers,
   Package,
-  FolderOpen
+  FolderOpen,
+  ChevronRight,
+  ChevronDown
 } from 'lucide-react'
 import { executeExportAndWait } from '@/lib/api/export'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api/client'
+import { getExportsStructure, type ExportsStructure, type ExportTreeItem } from '@/lib/api/exports'
 
 interface ExportDemoProps {}
 
 interface ExportTarget {
   name: string
   files: number
+}
+
+// Helper component to render tree items recursively
+function TreeItem({ item, depth }: { item: ExportTreeItem; depth: number }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const icon = item.type === 'directory' ? '📁' : '📄'
+
+  // Get description based on folder name
+  const getDescription = (name: string) => {
+    const descriptions: Record<string, string> = {
+      'web': 'Site statique HTML',
+      'api': 'API JSON statique',
+      'dwc': 'Darwin Core exports',
+      'dwc-archive': 'Archive DwC-A standard',
+      'taxon': 'Pages/JSON par taxon',
+      'plot': 'Pages/JSON par parcelle',
+      'shape': 'Pages/JSON par zone',
+      'assets': 'CSS, JS, images',
+      'occurrence_json': 'Occurrences par taxon',
+    }
+    return descriptions[name]
+  }
+
+  const description = item.type === 'directory' ? getDescription(item.name) : null
+  const displayCount = item.type === 'directory' && item.count ? ` (${item.count})` : ''
+
+  const handleToggle = () => {
+    if (item.type === 'directory' && item.children) {
+      setIsExpanded(!isExpanded)
+    }
+  }
+
+  return (
+    <>
+      <div
+        style={{ marginLeft: `${depth * 1}rem` }}
+        className={item.type === 'directory' && item.children ? 'cursor-pointer hover:bg-muted/50 rounded px-1' : 'px-1'}
+        onClick={handleToggle}
+      >
+        {item.type === 'directory' && item.children && (
+          isExpanded ?
+            <ChevronDown className="inline w-3 h-3 mr-1" /> :
+            <ChevronRight className="inline w-3 h-3 mr-1" />
+        )}
+        {icon} {item.name}{displayCount}
+        {description && <span className="text-muted-foreground"> → {description}</span>}
+      </div>
+      {isExpanded && item.children && item.children.map((child, idx) => (
+        <TreeItem key={idx} item={child} depth={depth + 1} />
+      ))}
+    </>
+  )
 }
 
 export function ExportDemo({}: ExportDemoProps) {
@@ -40,6 +95,7 @@ export function ExportDemo({}: ExportDemoProps) {
     duration: number
     targets: ExportTarget[]
   }>({ totalFiles: 0, duration: 0, targets: [] })
+  const [exportsStructure, setExportsStructure] = useState<ExportsStructure | null>(null)
 
   const totalFilesCounter = useProgressiveCounter(
     exportStarted ? targetMetrics.totalFiles : 0,
@@ -61,6 +117,15 @@ export function ExportDemo({}: ExportDemoProps) {
     }
     loadWorkingDir()
   }, [])
+
+  const loadExportsStructure = async () => {
+    try {
+      const structure = await getExportsStructure()
+      setExportsStructure(structure)
+    } catch (error) {
+      console.error('Failed to load exports structure:', error)
+    }
+  }
 
   const runExport = async () => {
     setExporting(true)
@@ -122,6 +187,10 @@ export function ExportDemo({}: ExportDemoProps) {
 
       setExportProgress(100)
       setDemoProgress('export', 100)
+
+      // Load exports structure
+      await loadExportsStructure()
+
       toast.success('Export terminé avec succès!')
     } catch (error) {
       console.error('Export error:', error)
@@ -201,11 +270,11 @@ export function ExportDemo({}: ExportDemoProps) {
             <div className="pt-2 space-y-1 text-xs">
               <div className="flex items-center gap-2">
                 <Globe className="w-3 h-3" />
-                <span className="text-muted-foreground">Standard international</span>
+                <span className="text-muted-foreground">Standard international GBIF</span>
               </div>
               <div className="flex items-center gap-2">
                 <FileJson className="w-3 h-3" />
-                <span className="text-muted-foreground">Fichiers JSON par taxon</span>
+                <span className="text-muted-foreground">JSON par taxon + Archive ZIP</span>
               </div>
             </div>
           </CardContent>
@@ -276,6 +345,7 @@ export function ExportDemo({}: ExportDemoProps) {
                           {target.name === 'web_pages' && <Globe className="w-4 h-4 text-purple-500" />}
                           {target.name === 'json_api' && <FileJson className="w-4 h-4 text-blue-500" />}
                           {target.name === 'dwc_occurrence_json' && <Database className="w-4 h-4 text-green-500" />}
+                          {target.name === 'dwc_archive_standard' && <Package className="w-4 h-4 text-emerald-500" />}
                           <span className="text-sm font-medium capitalize">{target.name.replace(/_/g, ' ')}</span>
                         </div>
                         <Badge variant="secondary">
@@ -358,25 +428,21 @@ export function ExportDemo({}: ExportDemoProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="font-mono text-xs space-y-1">
-              <div className="flex items-center gap-2">
-                <FolderOpen className="w-4 h-4 text-muted-foreground" />
-                <span className="font-semibold">exports/</span>
+            {exportsStructure && exportsStructure.exists ? (
+              <div className="font-mono text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-semibold">exports/</span>
+                </div>
+                {exportsStructure.tree.map((item, idx) => (
+                  <TreeItem key={idx} item={item} depth={1} />
+                ))}
               </div>
-              <div className="ml-4">📁 web/ <span className="text-muted-foreground">→ Site statique HTML</span></div>
-              <div className="ml-8">📄 index.html</div>
-              <div className="ml-8">📁 taxon/ <span className="text-muted-foreground">→ Pages par taxon</span></div>
-              <div className="ml-8">📁 plot/ <span className="text-muted-foreground">→ Pages par parcelle</span></div>
-              <div className="ml-8">📁 shape/ <span className="text-muted-foreground">→ Pages par zone</span></div>
-              <div className="ml-8">📁 assets/ <span className="text-muted-foreground">→ CSS, JS, images</span></div>
-              <div className="ml-4">📁 api/ <span className="text-muted-foreground">→ API JSON statique</span></div>
-              <div className="ml-8">📄 all_taxon.json</div>
-              <div className="ml-8">📄 all_plot.json</div>
-              <div className="ml-8">📄 all_shape.json</div>
-              <div className="ml-8">📁 taxon/ <span className="text-muted-foreground">→ JSON détaillés par taxon</span></div>
-              <div className="ml-4">📁 dwc/ <span className="text-muted-foreground">→ Darwin Core exports</span></div>
-              <div className="ml-8">📁 occurrence_json/ <span className="text-muted-foreground">→ Occurrences par taxon</span></div>
-            </div>
+            ) : (
+              <div className="text-sm text-muted-foreground text-center py-8">
+                Aucun export disponible
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
