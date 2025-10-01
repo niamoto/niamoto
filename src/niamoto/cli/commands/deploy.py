@@ -293,3 +293,156 @@ def deploy_to_netlify(site_id: str) -> None:
                 "exit_code": e.returncode,
             },
         )
+
+
+@deploy_commands.command(name="cloudflare")
+@click.option(
+    "--project-name",
+    required=True,
+    help="Cloudflare Pages project name",
+)
+@click.option(
+    "--branch",
+    default=None,
+    help="Branch name for deployment (optional, creates alias URL if specified)",
+)
+@error_handler(log=True, raise_error=True)
+def deploy_to_cloudflare(project_name: str, branch: str = None) -> None:
+    """Deploy to Cloudflare Pages."""
+    config = Config()
+    output_dir = get_output_dir(config)
+
+    # Check if Wrangler CLI is installed
+    try:
+        version_check = subprocess.run(
+            ["wrangler", "--version"], check=True, capture_output=True, text=True
+        )
+        print_success(f"Using Wrangler CLI version: {version_check.stdout.strip()}")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        raise CommandError(
+            command="cloudflare",
+            message="Wrangler CLI not found. Please install it with: npm install -g wrangler",
+            details={
+                "setup": "https://developers.cloudflare.com/workers/wrangler/install-and-update/"
+            },
+        )
+
+    # Deploy to Cloudflare Pages
+    deploy_cmd = [
+        "wrangler",
+        "pages",
+        "deploy",
+        output_dir,
+        "--project-name",
+        project_name,
+        "--commit-message",
+        f"Deploy from Niamoto CLI at {datetime.now().isoformat()}",
+        "--commit-dirty=true",
+    ]
+
+    # Add branch parameter only if specified
+    if branch:
+        deploy_cmd.insert(-2, "--branch")
+        deploy_cmd.insert(-2, branch)
+
+    try:
+        deploy_result = subprocess.run(
+            deploy_cmd, check=True, capture_output=True, text=True
+        )
+
+        print_success(
+            f"Successfully deployed to Cloudflare Pages project: {project_name}"
+        )
+
+        # Extract and display the deployment URL
+        for line in deploy_result.stdout.split("\n"):
+            if "https://" in line and "pages.dev" in line:
+                print_success(f"Deployment URL: {line.strip()}")
+
+    except subprocess.CalledProcessError as e:
+        raise CommandError(
+            command="cloudflare",
+            message="Cloudflare Pages deployment failed",
+            details={
+                "command": " ".join(deploy_cmd),
+                "output": e.stdout,
+                "error": e.stderr,
+                "exit_code": e.returncode,
+            },
+        )
+
+
+@deploy_commands.command(name="ssh")
+@click.option(
+    "--host",
+    required=True,
+    help="SSH host (e.g., user@example.com)",
+)
+@click.option(
+    "--path",
+    required=True,
+    help="Remote path to deploy to (e.g., /var/www/html)",
+)
+@click.option(
+    "--port",
+    default=22,
+    help="SSH port (default: 22)",
+)
+@click.option(
+    "--key",
+    help="Path to SSH private key file",
+)
+@error_handler(log=True, raise_error=True)
+def deploy_via_ssh(host: str, path: str, port: int, key: str = None) -> None:
+    """Deploy via SSH/rsync."""
+    config = Config()
+    output_dir = get_output_dir(config)
+
+    # Check if rsync is installed
+    try:
+        subprocess.run(
+            ["rsync", "--version"], check=True, capture_output=True, text=True
+        )
+        print_success("Using rsync for deployment")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        raise CommandError(
+            command="ssh",
+            message="rsync not found. Please install rsync on your system",
+            details={"setup": "rsync is required for SSH deployment"},
+        )
+
+    # Build rsync command
+    rsync_cmd = [
+        "rsync",
+        "-avz",
+        "--delete",
+        "-e",
+        f"ssh -p {port}" + (f" -i {key}" if key else ""),
+        f"{output_dir}/",
+        f"{host}:{path}/",
+    ]
+
+    try:
+        print_success(f"Deploying to {host}:{path}...")
+        deploy_result = subprocess.run(
+            rsync_cmd, check=True, capture_output=True, text=True
+        )
+
+        print_success(f"Successfully deployed to {host}:{path}")
+
+        # Show transfer statistics
+        for line in deploy_result.stdout.split("\n"):
+            if "sent" in line or "total size" in line:
+                print_success(line.strip())
+
+    except subprocess.CalledProcessError as e:
+        raise CommandError(
+            command="ssh",
+            message="SSH deployment failed",
+            details={
+                "command": " ".join(rsync_cmd),
+                "output": e.stdout,
+                "error": e.stderr,
+                "exit_code": e.returncode,
+            },
+        )

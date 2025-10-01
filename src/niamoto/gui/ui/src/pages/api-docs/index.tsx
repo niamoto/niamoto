@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Database,
@@ -299,24 +298,6 @@ export function ApiDocs() {
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Lien vers Swagger */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Documentation interactive (Swagger UI)</CardTitle>
-            <CardDescription>
-              Explorez et testez tous les endpoints directement depuis votre navigateur
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="w-full">
-              <a href="/api/docs" target="_blank" rel="noopener noreferrer">
-                <BookOpen className="w-4 h-4 mr-2" />
-                Ouvrir la documentation Swagger
-              </a>
-            </Button>
           </CardContent>
         </Card>
       </div>
