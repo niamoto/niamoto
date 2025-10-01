@@ -39,8 +39,8 @@ export const useShowcaseStore = create<ShowcaseState>((set, get) => ({
   currentSection: 0,
   sections: [
     'hero',
-    'architecture',
     'pipeline-overview',
+    'architecture',
     'import-demo',
     'transform-demo',
     'export-demo',
