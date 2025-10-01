@@ -27,8 +27,9 @@ import { executeExportAndWait } from '@/lib/api/export'
 import { toast } from 'sonner'
 import { PipelineMetrics } from '@/components/PipelineMetrics'
 import yaml from 'js-yaml'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { YamlEditor } from '@/components/editors/YamlEditor'
+import { useConfig } from '@/hooks/useConfig'
+import type { ConfigType } from '@/hooks/useConfig'
 
 
 // Pipeline steps with real data integration
@@ -80,6 +81,61 @@ const createPipelineSteps = (importConfig: any, transformConfig: any, exportConf
 const IMPORT_WEIGHT = 33
 const TRANSFORM_WEIGHT = 33
 const EXPORT_WEIGHT = 34
+
+// Config Editor Tab Component
+function ConfigEditorTab({ configName, disabled }: { configName: ConfigType; disabled: boolean }) {
+  const { config, loading, updateConfig } = useConfig(configName)
+
+  const handleSave = async (yamlContent: string) => {
+    try {
+      // Parse YAML to validate and convert to JSON
+      const content = yaml.load(yamlContent) as Record<string, any>
+
+      const result = await updateConfig({ content, backup: true })
+      toast.success('Configuration sauvegardée', {
+        description: result.backup_path
+          ? `Backup créé: ${result.backup_path.split('/').pop()}`
+          : 'Configuration sauvegardée avec succès'
+      })
+    } catch (error) {
+      if (error instanceof Error) {
+        toast.error('Erreur lors de la sauvegarde', {
+          description: error.message
+        })
+      }
+      throw error
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // Convert config object to YAML string
+  const yamlContent = config ? yaml.dump(config, { indent: 2, lineWidth: -1 }) : ''
+
+  return (
+    <div className={cn(disabled && "opacity-50 pointer-events-none")}>
+      <YamlEditor
+        value={yamlContent}
+        onSave={handleSave}
+        configName={configName}
+        showToolbar={true}
+        height="500px"
+        readOnly={disabled}
+      />
+      {disabled && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 mt-2 text-center">
+          ⚠️ L'édition est désactivée pendant l'exécution du pipeline
+        </p>
+      )}
+    </div>
+  )
+}
 
 export function PipelineSection() {
   const [activeStep, setActiveStep] = useState(0)
@@ -473,67 +529,38 @@ export function PipelineSection() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Code className="w-5 h-5" />
-                Configuration YAML
+                Éditeur de Configuration
               </CardTitle>
               <CardDescription>
-                Configuration de l'étape {pipelineSteps[activeStep].title}
+                Modifiez les configurations avant de lancer le pipeline
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px] w-full">
-                <div className="space-y-4">
-                  {pipelineSteps.map((step, index) => {
+              <Tabs value={pipelineSteps[activeStep].id} onValueChange={(value) => {
+                const index = pipelineSteps.findIndex(s => s.id === value)
+                if (index >= 0) setActiveStep(index)
+              }}>
+                <TabsList className="grid w-full grid-cols-3 mb-4">
+                  {pipelineSteps.map((step) => {
                     const Icon = step.icon
-                    const isActiveStep = activeStep === index
-                    const isExpanded = isActiveStep || (!simulationRunning && index === activeStep)
-
                     return (
-                      <div
-                        key={step.id}
-                        className={cn(
-                          "space-y-2 transition-all duration-300",
-                          !isActiveStep && simulationRunning && "opacity-30"
-                        )}
-                      >
-                        <button
-                          onClick={() => !simulationRunning && setActiveStep(index)}
-                          className="flex items-center gap-2 mb-2 w-full text-left hover:opacity-80 transition-opacity"
-                          disabled={simulationRunning}
-                        >
-                          <Icon className={cn("w-4 h-4", step.color)} />
-                          <h4 className="font-semibold">{step.title}</h4>
-                          {isActiveStep && simulationRunning && (
-                            <Badge variant="outline" className="ml-auto bg-green-500/10">
-                              <Activity className="w-3 h-3 mr-1 animate-pulse" />
-                              En cours
-                            </Badge>
-                          )}
-                        </button>
-
-                        {isExpanded && (
-                          <div className="animate-fadeIn">
-                            <ScrollArea className="h-[400px] w-full">
-                              <SyntaxHighlighter
-                                language="yaml"
-                                style={vscDarkPlus}
-                                customStyle={{
-                                  margin: 0,
-                                  borderRadius: '0.5rem',
-                                  fontSize: '0.75rem',
-                                  padding: '1rem'
-                                }}
-                                showLineNumbers
-                              >
-                                {step.yamlSnippet}
-                              </SyntaxHighlighter>
-                            </ScrollArea>
-                          </div>
-                        )}
-                      </div>
+                      <TabsTrigger key={step.id} value={step.id} className="gap-2">
+                        <Icon className={cn("w-4 h-4", step.color)} />
+                        {step.title}
+                      </TabsTrigger>
                     )
                   })}
-                </div>
-              </ScrollArea>
+                </TabsList>
+
+                {pipelineSteps.map((step) => (
+                  <TabsContent key={step.id} value={step.id} className="mt-0">
+                    <ConfigEditorTab
+                      configName={step.id as ConfigType}
+                      disabled={simulationRunning}
+                    />
+                  </TabsContent>
+                ))}
+              </Tabs>
             </CardContent>
           </Card>
         </TabsContent>

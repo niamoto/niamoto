@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 import json
 import yaml
 
@@ -111,6 +112,13 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
 
             return entities
 
+    except OperationalError as e:
+        # Table doesn't exist yet (database not initialized or no import done)
+        if "no such table" in str(e).lower():
+            return []
+        raise HTTPException(
+            status_code=500, detail=f"Error querying {group_by} table: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error querying {group_by} table: {str(e)}"
@@ -201,6 +209,14 @@ async def get_entity_detail(group_by: str, entity_id: int):
 
     except HTTPException:
         raise
+    except OperationalError as e:
+        # Table doesn't exist yet (database not initialized or no import done)
+        if "no such table" in str(e).lower():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Table '{group_by}' not found. Please run import first.",
+            )
+        raise HTTPException(status_code=500, detail=f"Error querying entity: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error querying entity: {str(e)}")
 

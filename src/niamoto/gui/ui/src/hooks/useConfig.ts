@@ -19,7 +19,9 @@ interface ValidationResult {
   warnings: string[];
 }
 
-export function useConfig(configName: 'import' | 'transform' | 'export' | 'config') {
+export type ConfigType = 'import' | 'transform' | 'export' | 'config';
+
+export function useConfig(configName: ConfigType) {
   const [config, setConfig] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

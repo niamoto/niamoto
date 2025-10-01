@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Database, Table, Search, RefreshCw, Loader2, AlertCircle, Sparkles } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Database, Table, Search, RefreshCw, Loader2, AlertCircle, Sparkles, FileCode, Globe, Package, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getTables, queryTable, previewEnrichment, type TableInfo, type QueryResponse, type EnrichmentPreviewResponse } from '@/lib/api/data'
+import { listExports, readExportFile, type ExportsListResponse, type ExportFileContent } from '@/lib/api/exports'
 import { toast } from 'sonner'
+import Editor from '@monaco-editor/react'
 
 export function DataExplorer() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [tables, setTables] = useState<TableInfo[]>([])
@@ -22,10 +27,57 @@ export function DataExplorer() {
   const [enrichmentData, setEnrichmentData] = useState<EnrichmentPreviewResponse | null>(null)
   const [enrichmentLoading, setEnrichmentLoading] = useState(false)
 
+  // Exports state
+  const [exports, setExports] = useState<ExportsListResponse | null>(null)
+  const [exportsLoading, setExportsLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<string>('database')
+
+  // JSON viewer state
+  const [jsonViewerModal, setJsonViewerModal] = useState(false)
+  const [selectedJsonFile, setSelectedJsonFile] = useState<ExportFileContent | null>(null)
+  const [jsonFileLoading, setJsonFileLoading] = useState(false)
+
   // Load tables on mount
   useEffect(() => {
     loadTables()
   }, [])
+
+  // Load exports when tab changes
+  useEffect(() => {
+    if (activeTab === 'exports') {
+      loadExports()
+    }
+  }, [activeTab])
+
+  const loadExports = async () => {
+    setExportsLoading(true)
+    try {
+      const data = await listExports()
+      setExports(data)
+    } catch (error) {
+      console.error('Failed to load exports:', error)
+      toast.error('Erreur lors du chargement des exports')
+    } finally {
+      setExportsLoading(false)
+    }
+  }
+
+  const handleJsonFileClick = async (filePath: string) => {
+    setJsonFileLoading(true)
+    setJsonViewerModal(true)
+    setSelectedJsonFile(null)
+
+    try {
+      const fileContent = await readExportFile(filePath)
+      setSelectedJsonFile(fileContent)
+    } catch (error) {
+      console.error('Failed to load JSON file:', error)
+      toast.error('Erreur lors du chargement du fichier')
+      setJsonViewerModal(false)
+    } finally {
+      setJsonFileLoading(false)
+    }
+  }
 
   // Load query results when table changes
   useEffect(() => {
@@ -116,7 +168,21 @@ export function DataExplorer() {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Tabs for Database and Exports */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="database" className="gap-2">
+            <Database className="h-4 w-4" />
+            Database
+          </TabsTrigger>
+          <TabsTrigger value="exports" className="gap-2">
+            <Package className="h-4 w-4" />
+            Exports
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Database Tab */}
+        <TabsContent value="database" className="space-y-6">
       <div className="grid gap-6 md:grid-cols-3">
         {/* Sidebar - Table List */}
         <div className="space-y-4">
@@ -324,6 +390,229 @@ export function DataExplorer() {
           )}
         </div>
       </div>
+        </TabsContent>
+
+        {/* Exports Tab */}
+        <TabsContent value="exports" className="space-y-6">
+          <div className="space-y-4">
+            {exportsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : !exports?.exists ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <Package className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium">Aucun export disponible</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Exécutez le pipeline pour générer des exports
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Export Statistics */}
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-2xl font-bold">{exports.web.length}</p>
+                          <p className="text-xs text-muted-foreground">Pages HTML</p>
+                        </div>
+                        <Globe className="h-8 w-8 text-purple-500" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-2xl font-bold">{exports.api.length}</p>
+                          <p className="text-xs text-muted-foreground">Fichiers JSON</p>
+                        </div>
+                        <FileCode className="h-8 w-8 text-blue-500" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-2xl font-bold">{exports.dwc.length}</p>
+                          <p className="text-xs text-muted-foreground">Darwin Core</p>
+                        </div>
+                        <Database className="h-8 w-8 text-green-500" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Export Path */}
+                {exports.path && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">Répertoire :</span>
+                          <code className="px-2 py-1 bg-muted rounded font-mono text-xs">
+                            {exports.path}
+                          </code>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => navigate('/data/preview')}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Voir le site
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Web Exports */}
+                {exports.web.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Globe className="h-5 w-5 text-purple-500" />
+                        Pages Web ({exports.web.length})
+                      </CardTitle>
+                      <CardDescription>
+                        Pages HTML statiques générées
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-lg border overflow-auto max-h-96">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 sticky top-0">
+                            <tr>
+                              <th className="px-4 py-2 text-left font-medium">Fichier</th>
+                              <th className="px-4 py-2 text-left font-medium">Chemin</th>
+                              <th className="px-4 py-2 text-right font-medium">Taille</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {exports.web.slice(0, 50).map((file, idx) => (
+                              <tr key={idx} className="border-t hover:bg-muted/30">
+                                <td className="px-4 py-2 font-mono text-xs">{file.name}</td>
+                                <td className="px-4 py-2 text-xs text-muted-foreground">{file.path}</td>
+                                <td className="px-4 py-2 text-right text-xs">
+                                  {(file.size / 1024).toFixed(1)} KB
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {exports.web.length > 50 && (
+                          <div className="p-3 text-center text-sm text-muted-foreground border-t">
+                            ... et {exports.web.length - 50} autres fichiers
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* API Exports */}
+                {exports.api.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileCode className="h-5 w-5 text-blue-500" />
+                        API JSON ({exports.api.length})
+                      </CardTitle>
+                      <CardDescription>
+                        Fichiers JSON pour API statique
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-lg border overflow-auto max-h-96">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 sticky top-0">
+                            <tr>
+                              <th className="px-4 py-2 text-left font-medium">Fichier</th>
+                              <th className="px-4 py-2 text-left font-medium">Chemin</th>
+                              <th className="px-4 py-2 text-right font-medium">Taille</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {exports.api.slice(0, 50).map((file, idx) => (
+                              <tr
+                                key={idx}
+                                className="border-t hover:bg-muted/30 cursor-pointer"
+                                onClick={() => handleJsonFileClick(file.path)}
+                              >
+                                <td className="px-4 py-2 font-mono text-xs">{file.name}</td>
+                                <td className="px-4 py-2 text-xs text-muted-foreground">{file.path}</td>
+                                <td className="px-4 py-2 text-right text-xs">
+                                  {(file.size / 1024).toFixed(1)} KB
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {exports.api.length > 50 && (
+                          <div className="p-3 text-center text-sm text-muted-foreground border-t">
+                            ... et {exports.api.length - 50} autres fichiers
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Darwin Core Exports */}
+                {exports.dwc.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5 text-green-500" />
+                        Darwin Core ({exports.dwc.length})
+                      </CardTitle>
+                      <CardDescription>
+                        Exports au format Darwin Core
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-lg border overflow-auto max-h-96">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 sticky top-0">
+                            <tr>
+                              <th className="px-4 py-2 text-left font-medium">Fichier</th>
+                              <th className="px-4 py-2 text-left font-medium">Chemin</th>
+                              <th className="px-4 py-2 text-right font-medium">Taille</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {exports.dwc.slice(0, 50).map((file, idx) => (
+                              <tr
+                                key={idx}
+                                className="border-t hover:bg-muted/30 cursor-pointer"
+                                onClick={() => handleJsonFileClick(file.path)}
+                              >
+                                <td className="px-4 py-2 font-mono text-xs">{file.name}</td>
+                                <td className="px-4 py-2 text-xs text-muted-foreground">{file.path}</td>
+                                <td className="px-4 py-2 text-right text-xs">
+                                  {(file.size / 1024).toFixed(1)} KB
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {exports.dwc.length > 50 && (
+                          <div className="p-3 text-center text-sm text-muted-foreground border-t">
+                            ... et {exports.dwc.length - 50} autres fichiers
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Enrichment Preview Modal */}
       <Dialog open={enrichmentModal} onOpenChange={setEnrichmentModal}>
@@ -454,6 +743,55 @@ export function DataExplorer() {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               Aucune donnée disponible
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* JSON Viewer Modal */}
+      <Dialog open={jsonViewerModal} onOpenChange={setJsonViewerModal}>
+        <DialogContent className="!max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCode className="h-5 w-5" />
+              Visualisation JSON
+            </DialogTitle>
+            <DialogDescription>
+              {selectedJsonFile?.path}
+            </DialogDescription>
+          </DialogHeader>
+
+          {jsonFileLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : selectedJsonFile ? (
+            <div className="flex-1 min-h-0">
+              <div className="h-[600px] border rounded-lg overflow-hidden">
+                <Editor
+                  height="100%"
+                  language="json"
+                  value={selectedJsonFile.content}
+                  theme="vs-dark"
+                  options={{
+                    readOnly: true,
+                    minimap: { enabled: true },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    automaticLayout: true,
+                  }}
+                />
+              </div>
+              <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                <span>Taille : {(selectedJsonFile.size / 1024).toFixed(1)} KB</span>
+                {selectedJsonFile.error && (
+                  <span className="text-destructive">{selectedJsonFile.error}</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Aucun fichier sélectionné
             </div>
           )}
         </DialogContent>

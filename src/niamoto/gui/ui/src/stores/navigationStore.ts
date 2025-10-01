@@ -75,6 +75,7 @@ export const navigationSections: NavigationSection[] = [
     defaultOpen: false,
     items: [
       { id: 'settings', label: 'Settings', path: '/tools/settings' },
+      { id: 'config-editor', label: 'Config Editor', path: '/tools/config-editor' },
       { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
       { id: 'docs', label: 'API Documentation', path: '/tools/docs' }
     ]

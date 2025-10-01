@@ -15,6 +15,7 @@ const LivePreview = lazy(() => import('@/pages/live-preview').then(m => ({ defau
 const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.Settings })))
 const Plugins = lazy(() => import('@/pages/plugins').then(m => ({ default: m.Plugins })))
 const ApiDocs = lazy(() => import('@/pages/api-docs').then(m => ({ default: m.ApiDocs })))
+const ConfigEditor = lazy(() => import('@/pages/config-editor').then(m => ({ default: m.ConfigEditor })))
 const PipelineEditor = lazy(() => import('@/pages/PipelineEditor'))
 const Bootstrap = lazy(() => import('@/components/pipeline/Bootstrap').then(m => ({ default: m.Bootstrap })))
 
@@ -79,6 +80,11 @@ function App() {
             <Route path="tools/docs" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <ApiDocs />
+              </Suspense>
+            } />
+            <Route path="tools/config-editor" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <ConfigEditor />
               </Suspense>
             } />
 
