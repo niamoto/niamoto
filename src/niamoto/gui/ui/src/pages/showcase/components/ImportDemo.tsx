@@ -315,7 +315,7 @@ export function ImportDemo({}: ImportDemoProps) {
                       <div>
                         <p className="font-medium">{key}</p>
                         <p className="text-sm text-muted-foreground">
-                          {value?.path || value?.file || 'Configuration complexe'}
+                          {(value && (value.path || value.file)) || 'Configuration complexe'}
                         </p>
                       </div>
                     </div>
