@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowRight, Workflow, Package, GitBranch, ExternalLink } from 'lucide-react'
-import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
-import { useShowcaseStore } from '@/stores/showcaseStore'
+import { ArrowRight, GitBranch, ExternalLink } from 'lucide-react'
 import niamotoLogo from '@/assets/niamoto_logo.png'
 
 interface HeroSectionProps {
@@ -11,17 +9,6 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ configLoaded }: HeroSectionProps) {
-  // Récupérer tous les plugins depuis le store partagé
-  const { plugins, loadPlugins } = useShowcaseStore()
-  const totalPlugins = plugins ? plugins.length : 55
-
-  // Charger les plugins au montage
-  useEffect(() => {
-    loadPlugins()
-  }, [])
-
-  const stepsCounter = useProgressiveCounter(3, 1000)
-  const pluginsCounter = useProgressiveCounter(totalPlugins, 2000)
   const [showLogo, setShowLogo] = useState(false)
 
   useEffect(() => {
@@ -52,20 +39,6 @@ export function HeroSection({ configLoaded }: HeroSectionProps) {
         <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl">
           Plateforme de valorisation des données écologiques pour la recherche
         </p>
-      </div>
-
-      {/* Key Features */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl w-full">
-        <div className="space-y-2 p-6 rounded-lg bg-card/50 backdrop-blur hover:bg-card/70 transition-all cursor-default">
-          <div className="text-4xl font-bold text-primary">{stepsCounter.value}</div>
-          <div className="text-sm text-muted-foreground">Étapes</div>
-          <Workflow className="w-8 h-8 mx-auto text-primary/60" />
-        </div>
-        <div className="space-y-2 p-6 rounded-lg bg-card/50 backdrop-blur hover:bg-card/70 transition-all cursor-default">
-          <div className="text-4xl font-bold text-primary">{pluginsCounter.value}</div>
-          <div className="text-sm text-muted-foreground">Plugins</div>
-          <Package className="w-8 h-8 mx-auto text-primary/60" />
-        </div>
       </div>
 
       {/* Features Badges */}

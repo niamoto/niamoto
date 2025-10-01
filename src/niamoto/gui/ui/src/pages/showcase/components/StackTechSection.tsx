@@ -19,7 +19,7 @@ const pythonStack = [
     bgColor: 'bg-blue-500/10',
     items: [
       { name: 'Click', description: 'Interface ligne de commande élégante', version: '8.1+' },
-      { name: 'Rich', description: 'Affichage console moderne', version: '13.0+' },
+      { name: 'Rich', description: 'Affichage console moderne', version: '10.0+' },
       { name: 'Pydantic', description: 'Validation de données', version: '2.0+' }
     ]
   },
@@ -135,7 +135,7 @@ export function StackTechSection() {
         <div className="flex items-center gap-3">
           <Terminal className="w-6 h-6 text-blue-500" />
           <h3 className="text-2xl font-bold">Python Core & CLI</h3>
-          <Badge variant="outline">Python 3.13+</Badge>
+          <Badge variant="outline">Python 3.10+</Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {pythonStack.map((stack) => {

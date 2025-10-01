@@ -41,7 +41,8 @@ export const useShowcaseStore = create<ShowcaseState>((set, get) => ({
     'overview',
     'pipeline',
     'integration',
-    'community'
+    'community',
+    'perspectives'
   ],
 
   configLoaded: false,
