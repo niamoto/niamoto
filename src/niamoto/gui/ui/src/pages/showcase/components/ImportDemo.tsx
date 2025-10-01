@@ -276,7 +276,7 @@ export function ImportDemo({}: ImportDemoProps) {
                       <div>
                         <p className="font-medium">{key}</p>
                         <p className="text-sm text-muted-foreground">
-                          {typeof value === 'object' && value.path ? value.path : 'Configuration complexe'}
+                          {value?.path || value?.file || 'Configuration complexe'}
                         </p>
                       </div>
                     </div>

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -10,15 +11,15 @@ import {
   FileCode,
   Rocket,
   CheckCircle,
-  ExternalLink,
-  FolderOpen,
   Database,
   FileJson,
   Layers,
-  Package
+  Package,
+  FolderOpen
 } from 'lucide-react'
 import { executeExportAndWait } from '@/lib/api/export'
 import { toast } from 'sonner'
+import { apiClient } from '@/lib/api/client'
 
 interface ExportDemoProps {}
 
@@ -28,10 +29,12 @@ interface ExportTarget {
 }
 
 export function ExportDemo({}: ExportDemoProps) {
+  const navigate = useNavigate()
   const { setDemoProgress } = useShowcaseStore()
   const [exporting, setExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportStarted, setExportStarted] = useState(false)
+  const [exportPath, setExportPath] = useState<string>('')
   const [targetMetrics, setTargetMetrics] = useState<{
     totalFiles: number
     duration: number
@@ -43,6 +46,21 @@ export function ExportDemo({}: ExportDemoProps) {
     3000,
     exportStarted
   )
+
+  // Load working directory to get export path
+  useEffect(() => {
+    const loadWorkingDir = async () => {
+      try {
+        const response = await apiClient.get('/config/project')
+        const workingDir = response.data.working_directory || process.cwd()
+        setExportPath(`${workingDir}/exports`)
+      } catch (error) {
+        console.error('Failed to load working directory:', error)
+        setExportPath('exports')
+      }
+    }
+    loadWorkingDir()
+  }, [])
 
   const runExport = async () => {
     setExporting(true)
@@ -270,12 +288,12 @@ export function ExportDemo({}: ExportDemoProps) {
               )}
 
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1">
-                  <FolderOpen className="w-4 h-4 mr-2" />
-                  Ouvrir exports/
-                </Button>
-                <Button className="flex-1">
-                  <ExternalLink className="w-4 h-4 mr-2" />
+                <Button
+                  variant="default"
+                  className="flex-1"
+                  onClick={() => navigate('/data/preview')}
+                >
+                  <Globe className="w-4 h-4 mr-2" />
                   Voir le site
                 </Button>
               </div>
@@ -324,25 +342,40 @@ export function ExportDemo({}: ExportDemoProps) {
       {exportProgress === 100 && exportStarted && (
         <Card>
           <CardHeader>
-            <CardTitle>Structure des exports</CardTitle>
-            <CardDescription>Organisation des fichiers générés</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <FolderOpen className="w-5 h-5" />
+              Structure des exports
+            </CardTitle>
+            <CardDescription>
+              Organisation des fichiers générés
+              {exportPath && (
+                <div className="mt-2 flex items-center gap-2 p-2 rounded bg-muted/50 font-mono text-xs">
+                  <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Répertoire :</span>
+                  <code className="text-foreground">{exportPath}</code>
+                </div>
+              )}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="font-mono text-xs space-y-1">
-              <div>📁 exports/</div>
+              <div className="flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                <span className="font-semibold">exports/</span>
+              </div>
               <div className="ml-4">📁 web/ <span className="text-muted-foreground">→ Site statique HTML</span></div>
               <div className="ml-8">📄 index.html</div>
-              <div className="ml-8">📁 taxon/ <span className="text-muted-foreground">→ ~187 pages</span></div>
-              <div className="ml-8">📁 plot/ <span className="text-muted-foreground">→ ~265 pages</span></div>
-              <div className="ml-8">📁 shape/ <span className="text-muted-foreground">→ ~71 pages</span></div>
+              <div className="ml-8">📁 taxon/ <span className="text-muted-foreground">→ Pages par taxon</span></div>
+              <div className="ml-8">📁 plot/ <span className="text-muted-foreground">→ Pages par parcelle</span></div>
+              <div className="ml-8">📁 shape/ <span className="text-muted-foreground">→ Pages par zone</span></div>
               <div className="ml-8">📁 assets/ <span className="text-muted-foreground">→ CSS, JS, images</span></div>
               <div className="ml-4">📁 api/ <span className="text-muted-foreground">→ API JSON statique</span></div>
               <div className="ml-8">📄 all_taxon.json</div>
               <div className="ml-8">📄 all_plot.json</div>
               <div className="ml-8">📄 all_shape.json</div>
-              <div className="ml-8">📁 taxon/ <span className="text-muted-foreground">→ JSON détaillés</span></div>
+              <div className="ml-8">📁 taxon/ <span className="text-muted-foreground">→ JSON détaillés par taxon</span></div>
               <div className="ml-4">📁 dwc/ <span className="text-muted-foreground">→ Darwin Core exports</span></div>
-              <div className="ml-8">📁 occurrence_json/</div>
+              <div className="ml-8">📁 occurrence_json/ <span className="text-muted-foreground">→ Occurrences par taxon</span></div>
             </div>
           </CardContent>
         </Card>

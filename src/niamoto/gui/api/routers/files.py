@@ -583,3 +583,141 @@ async def browse_files(path: str = ".") -> Dict[str, Any]:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/exports/list")
+async def list_exports() -> Dict[str, Any]:
+    """List all exported files organized by type."""
+    try:
+        # Get current working directory
+        cwd = Path.cwd()
+        exports_dir = cwd / "exports"
+
+        if not exports_dir.exists():
+            return {
+                "exists": False,
+                "path": str(exports_dir),
+                "web": [],
+                "api": [],
+                "dwc": [],
+            }
+
+        result = {
+            "exists": True,
+            "path": str(exports_dir),
+            "web": [],
+            "api": [],
+            "dwc": [],
+        }
+
+        # List web exports (HTML)
+        web_dir = exports_dir / "web"
+        if web_dir.exists():
+            for item in web_dir.rglob("*.html"):
+                rel_path = item.relative_to(exports_dir)
+                result["web"].append(
+                    {
+                        "name": item.name,
+                        "path": str(rel_path),
+                        "full_path": str(item),
+                        "size": item.stat().st_size,
+                        "modified": item.stat().st_mtime,
+                    }
+                )
+
+        # List API exports (JSON)
+        api_dir = exports_dir / "api"
+        if api_dir.exists():
+            for item in api_dir.rglob("*.json"):
+                rel_path = item.relative_to(exports_dir)
+                result["api"].append(
+                    {
+                        "name": item.name,
+                        "path": str(rel_path),
+                        "full_path": str(item),
+                        "size": item.stat().st_size,
+                        "modified": item.stat().st_mtime,
+                    }
+                )
+
+        # List Darwin Core exports
+        dwc_dir = exports_dir / "dwc"
+        if dwc_dir.exists():
+            for item in dwc_dir.rglob("*.json"):
+                rel_path = item.relative_to(exports_dir)
+                result["dwc"].append(
+                    {
+                        "name": item.name,
+                        "path": str(rel_path),
+                        "full_path": str(item),
+                        "size": item.stat().st_size,
+                        "modified": item.stat().st_mtime,
+                    }
+                )
+
+        # Sort by name
+        for key in ["web", "api", "dwc"]:
+            result[key].sort(key=lambda x: x["name"])
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing exports: {str(e)}")
+
+
+@router.get("/exports/read")
+async def read_export_file(file_path: str) -> Dict[str, Any]:
+    """Read content of an exported file."""
+    try:
+        cwd = Path.cwd()
+        exports_dir = cwd / "exports"
+
+        # Construct full path
+        full_path = exports_dir / file_path
+
+        # Security check: ensure the file is within exports directory
+        if not str(full_path.resolve()).startswith(str(exports_dir.resolve())):
+            raise HTTPException(
+                status_code=403, detail="Access denied: file outside exports directory"
+            )
+
+        # Check if file exists
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+        # Read file content
+        with open(full_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Parse JSON if it's a JSON file
+        if file_path.endswith(".json"):
+            try:
+                import json
+
+                parsed_content = json.loads(content)
+                return {
+                    "path": file_path,
+                    "content": content,
+                    "parsed": parsed_content,
+                    "size": full_path.stat().st_size,
+                }
+            except json.JSONDecodeError:
+                # If JSON parsing fails, return raw content
+                return {
+                    "path": file_path,
+                    "content": content,
+                    "size": full_path.stat().st_size,
+                    "error": "Invalid JSON format",
+                }
+
+        # For non-JSON files, return raw content
+        return {
+            "path": file_path,
+            "content": content,
+            "size": full_path.stat().st_size,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
