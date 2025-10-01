@@ -21,6 +21,17 @@ export default function ShowcasePage() {
 
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
 
+  const sectionComponents = [
+    HeroSection,
+    PipelineSection,
+    ArchitectureSection,
+    ImportDemo,
+    TransformDemo,
+    ExportDemo,
+    UseCasesSection,
+    CallToAction
+  ]
+
   useEffect(() => {
     // Load configuration on mount
     loadConfiguration()
@@ -68,16 +79,35 @@ export default function ShowcasePage() {
     setCurrentSection(index)
   }
 
-  const sectionComponents = [
-    HeroSection,
-    PipelineSection,
-    ArchitectureSection,
-    ImportDemo,
-    TransformDemo,
-    ExportDemo,
-    UseCasesSection,
-    CallToAction
-  ]
+  // Keyboard navigation
+  useEffect(() => {
+    const totalSections = sectionComponents.length
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault()
+          if (currentSection > 0) {
+            scrollToSection(currentSection - 1)
+          }
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          if (currentSection < totalSections - 1) {
+            scrollToSection(currentSection + 1)
+          }
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentSection])
 
   const sectionTitles = [
     'Accueil',

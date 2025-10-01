@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useShowcaseStore } from '@/stores/showcaseStore'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
+import { listEntities, getEntityDetail, type EntitySummary, type EntityDetail } from '@/lib/api/entities'
 import {
   Settings,
   BarChart3,
@@ -17,7 +19,10 @@ import {
   ChevronRight,
   Play,
   CheckCircle,
-  Database
+  Database,
+  ArrowRight,
+  GitBranch,
+  Sparkles
 } from 'lucide-react'
 import * as yaml from 'js-yaml'
 import { executeTransformAndWait } from '@/lib/api/transform'
@@ -43,6 +48,15 @@ export function TransformDemo({}: TransformDemoProps) {
     [group: string]: { count: number; total: number }
   }>({})
 
+  // Dynamic preview state
+  const [previewGroupBy, setPreviewGroupBy] = useState<string>('taxon')
+  const [entities, setEntities] = useState<EntitySummary[]>([])
+  const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
+  const [entityDetail, setEntityDetail] = useState<EntityDetail | null>(null)
+  const [selectedTransformKey, setSelectedTransformKey] = useState<string | null>(null)
+  const [loadingEntities, setLoadingEntities] = useState(false)
+  const [loadingEntityDetail, setLoadingEntityDetail] = useState(false)
+
   const widgetsCounter = useProgressiveCounter(
     transformStarted ? targetMetrics.widgets : 0,
     2500,
@@ -55,6 +69,134 @@ export function TransformDemo({}: TransformDemoProps) {
     transformStarted
   )
 
+  // Parse dependencies from transform and export configs
+  const dependencies = useMemo(() => {
+    if (!transformConfig || !exportConfig) return []
+
+    const deps: Array<{
+      transformer: string
+      widget: string
+      plugin: string
+      groupBy: string
+    }> = []
+
+    // Parse export config to find data_source references
+    const exports = exportConfig.exports || []
+    exports.forEach((exp: any) => {
+      const groups = exp.groups || []
+      groups.forEach((group: any) => {
+        const groupBy = group.group_by
+        const widgets = group.widgets || []
+
+        widgets.forEach((widget: any) => {
+          const dataSource = widget.data_source
+          const pluginName = widget.plugin
+
+          if (dataSource && pluginName) {
+            deps.push({
+              transformer: dataSource,
+              widget: pluginName,
+              plugin: pluginName,
+              groupBy: groupBy
+            })
+          }
+        })
+      })
+    })
+
+    return deps
+  }, [transformConfig, exportConfig])
+
+  // Group dependencies by groupBy for visualization
+  const dependenciesByGroup = useMemo(() => {
+    const grouped: Record<string, typeof dependencies> = {}
+
+    dependencies.forEach(dep => {
+      if (!grouped[dep.groupBy]) {
+        grouped[dep.groupBy] = []
+      }
+      grouped[dep.groupBy].push(dep)
+    })
+
+    return grouped
+  }, [dependencies])
+
+  // Load entities when group_by changes
+  useEffect(() => {
+    const loadEntityList = async () => {
+      setLoadingEntities(true)
+      try {
+        // Pas de limite - récupérer toutes les entités
+        const data = await listEntities(previewGroupBy)
+        // Ensure data is an array
+        const entitiesList = Array.isArray(data) ? data : []
+        setEntities(entitiesList)
+        // Auto-select first entity if available
+        if (entitiesList.length > 0) {
+          setSelectedEntityId(entitiesList[0].id)
+        } else {
+          setSelectedEntityId(null)
+        }
+      } catch (error) {
+        console.error('Failed to load entities:', error)
+        setEntities([])
+        setSelectedEntityId(null)
+      } finally {
+        setLoadingEntities(false)
+      }
+    }
+    loadEntityList()
+  }, [previewGroupBy])
+
+  // Load entity detail when entity is selected
+  useEffect(() => {
+    if (!selectedEntityId) {
+      setEntityDetail(null)
+      setSelectedTransformKey(null)
+      return
+    }
+
+    const loadEntity = async () => {
+      setLoadingEntityDetail(true)
+      try {
+        const data = await getEntityDetail(previewGroupBy, selectedEntityId)
+        setEntityDetail(data)
+        // Auto-select first transformation if available
+        const transformKeys = Object.keys(data.widgets_data || {})
+        if (transformKeys.length > 0) {
+          setSelectedTransformKey(transformKeys[0])
+        } else {
+          setSelectedTransformKey(null)
+        }
+      } catch (error) {
+        console.error('Failed to load entity detail:', error)
+        setEntityDetail(null)
+        setSelectedTransformKey(null)
+      } finally {
+        setLoadingEntityDetail(false)
+      }
+    }
+    loadEntity()
+  }, [selectedEntityId, previewGroupBy])
+
+  // Get current transformation data
+  const currentTransformationData = useMemo(() => {
+    if (!entityDetail || !selectedTransformKey) return null
+
+    const transformData = entityDetail.widgets_data[selectedTransformKey]
+    if (!transformData) return null
+
+    return {
+      entity: {
+        id: entityDetail.id,
+        name: entityDetail.name,
+        group_by: entityDetail.group_by
+      },
+      transformation: selectedTransformKey,
+      jsonData: transformData
+    }
+  }, [entityDetail, selectedTransformKey])
+
   const runTransformation = async () => {
     setTransforming(true)
     setTransformStarted(false)
@@ -65,14 +207,10 @@ export function TransformDemo({}: TransformDemoProps) {
     try {
       const result = await executeTransformAndWait(
         { config_path: 'config/transform.yml' },
-        (progress, message) => {
+        (progress) => {
           setTransformProgress(progress)
-          console.log('Transform progress:', progress, message)
         }
       )
-
-      console.log('Transform completed:', result)
-      console.log('Transform result.result:', result.result)
 
       // Extract real metrics from result
       if (result.result) {
@@ -100,8 +238,6 @@ export function TransformDemo({}: TransformDemoProps) {
         const duration = metrics.execution_time
           ? metrics.execution_time.toFixed(1)
           : ((Date.now() - startTime) / 1000).toFixed(1)
-
-        console.log('TransformDemo - Metrics:', { totalWidgets, totalItems, duration, groups })
 
         const newMetrics = {
           widgets: totalWidgets,
@@ -154,7 +290,7 @@ export function TransformDemo({}: TransformDemoProps) {
               {group.group_by}
               {group.widgets_data && (
                 <Badge variant="secondary" className="ml-2">
-                  {Object.keys(group.widgets_data).length} widgets
+                  {Object.keys(group.widgets_data).length} transformations
                 </Badge>
               )}
             </Button>
@@ -164,10 +300,12 @@ export function TransformDemo({}: TransformDemoProps) {
 
       {/* Transformation Details */}
       <Tabs defaultValue="widgets" className="w-full">
-        <TabsList>
-          <TabsTrigger value="widgets">Widgets configurés</TabsTrigger>
-          <TabsTrigger value="dependencies">Dépendances</TabsTrigger>
-          <TabsTrigger value="yaml">Configuration YAML</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="widgets">Transformations</TabsTrigger>
+          <TabsTrigger value="architecture">Architecture</TabsTrigger>
+          <TabsTrigger value="graph">Graphe</TabsTrigger>
+          <TabsTrigger value="preview">Aperçu live</TabsTrigger>
+          <TabsTrigger value="yaml">YAML</TabsTrigger>
         </TabsList>
 
         <TabsContent value="widgets">
@@ -257,7 +395,7 @@ export function TransformDemo({}: TransformDemoProps) {
                         </Badge>
                         <span className="text-sm text-muted-foreground">Configuration de génération</span>
                       </div>
-                      <ScrollArea className="h-[300px] w-full">
+                      <ScrollArea className="h-[500px] w-full">
                         <SyntaxHighlighter
                           language="yaml"
                           style={vscDarkPlus}
@@ -283,7 +421,7 @@ export function TransformDemo({}: TransformDemoProps) {
                         </Badge>
                         <span className="text-sm text-muted-foreground">Configuration d'affichage</span>
                       </div>
-                      <ScrollArea className="h-[300px] w-full">
+                      <ScrollArea className="h-[500px] w-full">
                         {exportConfig && exportConfig.exports && exportConfig.exports.length > 0 ? (
                           <SyntaxHighlighter
                             language="yaml"
@@ -344,7 +482,7 @@ export function TransformDemo({}: TransformDemoProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="dependencies">
+        <TabsContent value="architecture">
           <Card>
             <CardHeader>
               <CardTitle>Architecture de transformation</CardTitle>
@@ -408,7 +546,7 @@ export function TransformDemo({}: TransformDemoProps) {
               <div>
                 <h4 className="font-medium mb-3 flex items-center gap-2">
                   <Badge variant="outline" className="bg-purple-500/10">3</Badge>
-                  Widgets générés
+                  Transformations générés
                 </h4>
                 <div className="pl-4">
                   <div className="grid grid-cols-1 gap-2">
@@ -424,7 +562,7 @@ export function TransformDemo({}: TransformDemoProps) {
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2 ml-6">
-                          Un widget "<span className="font-medium">{key}</span>" sera créé pour chaque {currentGroup.group_by}
+                          Une colonne "<span className="font-medium">{key}</span>" sera créé pour chaque {currentGroup.group_by}
                         </p>
                       </div>
                     ))}
@@ -432,17 +570,275 @@ export function TransformDemo({}: TransformDemoProps) {
                 </div>
               </div>
 
-              {/* Summary */}
-              <div className="pt-4 border-t">
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5">
-                  <CheckCircle className="w-4 h-4 text-primary" />
-                  <span className="text-sm">
-                    <strong>{currentGroup.widgets_data ? Object.keys(currentGroup.widgets_data).length : 0}</strong> types de widgets ×
-                    <strong> N</strong> {currentGroup.group_by}s =
-                    <strong className="ml-1">Widgets dynamiques</strong>
-                  </span>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="graph">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="w-5 h-5" />
+                Graphe de dépendances
+              </CardTitle>
+              <CardDescription>
+                Relations entre transformations et widgets d'export
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {Object.keys(dependenciesByGroup).length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Aucune dépendance trouvée. Chargez les configurations transform et export.
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {Object.entries(dependenciesByGroup).map(([groupBy, deps]) => (
+                    <div key={groupBy} className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-sm">
+                          {groupBy}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {deps.length} dépendance{deps.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {deps.map((dep, idx) => (
+                          <div
+                            key={`${dep.transformer}-${dep.widget}-${idx}`}
+                            className="flex items-center gap-4 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            {/* Transformer */}
+                            <div className="flex items-center gap-2 flex-1">
+                              <Settings className="w-4 h-4 text-green-500" />
+                              <div>
+                                <div className="text-sm font-medium">{dep.transformer}</div>
+                                <div className="text-xs text-muted-foreground">Transform</div>
+                              </div>
+                            </div>
+
+                            {/* Arrow */}
+                            <ArrowRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+
+                            {/* Widget */}
+                            <div className="flex items-center gap-2 flex-1">
+                              <BarChart3 className="w-4 h-4 text-orange-500" />
+                              <div>
+                                <div className="text-sm font-medium">{dep.widget}</div>
+                                <div className="text-xs text-muted-foreground">Widget</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Summary stats */}
+                  <div className="border-t pt-4 mt-6">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-primary">
+                          {Object.keys(dependenciesByGroup).length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Groupes</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-primary">
+                          {dependencies.length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Dépendances</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-primary">
+                          {new Set(dependencies.map(d => d.transformer)).size}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Transformations</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="preview">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5" />
+                Transformation → Widget
+              </CardTitle>
+              <CardDescription>
+                Exemple concret : de la colonne JSON aux données affichables
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Selectors */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Group By Selector */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Type d'entité</label>
+                  <Select value={previewGroupBy} onValueChange={setPreviewGroupBy}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="taxon">Taxons</SelectItem>
+                      <SelectItem value="plot">Parcelles</SelectItem>
+                      <SelectItem value="shape">Zones</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Entity Selector */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Entité
+                    {loadingEntities && <span className="ml-2 text-xs text-muted-foreground">(chargement...)</span>}
+                  </label>
+                  <Select
+                    value={selectedEntityId?.toString() || ''}
+                    onValueChange={(value) => setSelectedEntityId(parseInt(value))}
+                    disabled={loadingEntities || !Array.isArray(entities) || entities.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une entité" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.isArray(entities) && entities.map((entity) => (
+                        <SelectItem key={entity.id} value={entity.id.toString()}>
+                          {entity.display_name || entity.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Transformation Selector */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Transformation
+                    {loadingEntityDetail && <span className="ml-2 text-xs text-muted-foreground">(chargement...)</span>}
+                  </label>
+                  <Select
+                    value={selectedTransformKey || ''}
+                    onValueChange={setSelectedTransformKey}
+                    disabled={loadingEntityDetail || !entityDetail || Object.keys(entityDetail.widgets_data || {}).length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une transformation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entityDetail && Object.keys(entityDetail.widgets_data || {}).map((key) => (
+                        <SelectItem key={key} value={key}>
+                          {key}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+
+              {/* Entity info */}
+              {currentTransformationData && (
+                <>
+                  <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">Données actuelles</div>
+                      <div className="text-xs text-muted-foreground">
+                        Table: <Badge variant="outline">{currentTransformationData.entity.group_by}</Badge>
+                        {' • '}
+                        ID: {currentTransformationData.entity.id}
+                        {' • '}
+                        {currentTransformationData.entity.name}
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <Settings className="w-4 h-4 inline mr-1 text-green-500" />
+                      {currentTransformationData.transformation}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Left: JSON data display */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 text-primary" />
+                        <h4 className="font-semibold">Données JSON stockées</h4>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Colonne <code className="bg-muted px-1 py-0.5 rounded">{currentTransformationData.transformation}</code> dans la table <code className="bg-muted px-1 py-0.5 rounded">{currentTransformationData.entity.group_by}</code>
+                      </p>
+                      <ScrollArea className="h-[400px] w-full rounded-md border">
+                        <pre className="p-4 text-xs">
+                          {JSON.stringify(currentTransformationData.jsonData, null, 2)}
+                        </pre>
+                      </ScrollArea>
+                    </div>
+
+                    {/* Right: Widget preview */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-primary" />
+                        <h4 className="font-semibold">Widget généré</h4>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Widget rendu par le plugin configuré dans export.yml
+                      </p>
+                      <div className="border rounded-lg bg-background overflow-hidden">
+                        <iframe
+                          src={`/api/entities/render-widget/${currentTransformationData.entity.group_by}/${currentTransformationData.entity.id}/${currentTransformationData.transformation}`}
+                          className="w-full h-[400px] border-0"
+                          title="Widget preview"
+                          sandbox="allow-scripts allow-same-origin"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Explanation */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-start gap-3 text-sm">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        💡
+                      </div>
+                      <div className="space-y-2">
+                        <div className="font-medium">Comment ça fonctionne ?</div>
+                        <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                          <li>Le plugin de transformation calcule les données pour chaque entité</li>
+                          <li>Les résultats sont stockés en JSON dans la colonne <code className="bg-muted px-1 py-0.5 rounded text-xs">{currentTransformationData.transformation}</code></li>
+                          <li>Le widget plugin (configuré dans export.yml) lit ces données JSON</li>
+                          <li>Il génère le graphique interactif avec Plotly.js</li>
+                          <li>Le widget est intégré dans les pages HTML exportées</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Loading or empty state */}
+              {!currentTransformationData && (
+                <div className="text-center py-12 text-muted-foreground">
+                  {loadingEntities || loadingEntityDetail ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Settings className="w-8 h-8 animate-spin" />
+                      <span>Chargement des données...</span>
+                    </div>
+                  ) : entities.length === 0 ? (
+                    <div>Aucune entité trouvée avec des données de transformation</div>
+                  ) : !entityDetail ? (
+                    <div>Sélectionnez une entité pour voir ses données</div>
+                  ) : Object.keys(entityDetail.widgets_data || {}).length === 0 ? (
+                    <div>Cette entité n'a pas de données de transformation</div>
+                  ) : (
+                    <div>Sélectionnez une transformation pour voir ses données</div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -493,7 +889,7 @@ export function TransformDemo({}: TransformDemoProps) {
                 {transformProgress < 25 && 'Chargement des données...'}
                 {transformProgress >= 25 && transformProgress < 50 && 'Calcul des agrégations...'}
                 {transformProgress >= 50 && transformProgress < 75 && 'Analyse statistique...'}
-                {transformProgress >= 75 && transformProgress < 100 && 'Génération des widgets...'}
+                {transformProgress >= 75 && transformProgress < 100 && 'Génération des tables...'}
                 {transformProgress === 100 && 'Transformation terminée !'}
               </div>
             </div>
@@ -505,7 +901,7 @@ export function TransformDemo({}: TransformDemoProps) {
               <div className="grid grid-cols-3 gap-4 mt-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{widgetsCounter.value.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">Widgets générés</p>
+                  <p className="text-xs text-muted-foreground">Transformations générés</p>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">{itemsCounter.value.toLocaleString()}</div>
@@ -531,7 +927,7 @@ export function TransformDemo({}: TransformDemoProps) {
                           </span>
                         </div>
                         <div className="text-sm font-medium">
-                          {data.total.toLocaleString()} widgets
+                          {data.total.toLocaleString()} transformations
                         </div>
                       </div>
                     ))}

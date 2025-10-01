@@ -46,7 +46,7 @@ export const navigationSections: NavigationSection[] = [
     label: 'Showcase',
     defaultOpen: true,
     items: [
-      { id: 'showcase-demo', label: 'Démo Interactive', path: '/showcase', badge: '🎬' }
+      { id: 'showcase-demo', label: 'Démo Interactive', path: '/showcase' }
     ]
   },
   {
@@ -54,8 +54,8 @@ export const navigationSections: NavigationSection[] = [
     label: 'Pipeline',
     defaultOpen: false,
     items: [
-      { id: 'pipeline-editor', label: 'Pipeline Editor', path: '/setup/pipeline', badge: 'New' },
-      { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap', badge: '✨' },
+      { id: 'pipeline-editor', label: 'Flow Editor', path: '/setup/pipeline' },
+      { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap' },
       { id: 'import', label: 'Import Data', path: '/setup/import' },
       { id: 'transform', label: 'Transform', path: '/setup/transform' },
       { id: 'export', label: 'Export Site', path: '/setup/export' }
