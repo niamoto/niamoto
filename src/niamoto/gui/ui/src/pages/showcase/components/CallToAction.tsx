@@ -85,7 +85,7 @@ export function CallToAction({}: CallToActionProps) {
         </p>
         <div className="flex justify-center gap-4">
           <Badge variant="secondary">v0.7.3</Badge>
-          <Badge variant="secondary">MIT License</Badge>
+          <Badge variant="secondary">GPL-3.0</Badge>
           <Badge variant="secondary">Python 3.10+</Badge>
         </div>
       </div>

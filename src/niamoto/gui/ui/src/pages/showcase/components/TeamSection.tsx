@@ -2,44 +2,57 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Users,
   Mail,
   Github,
   Globe,
   Heart,
-  Code,
-  BookOpen
+  BookOpen,
+  Sparkles,
+  Wand2,
+  Bug,
+  Hammer
 } from 'lucide-react'
 
-const team = [
+const coreTeam = [
   {
-    name: 'Équipe Niamoto',
-    role: 'Développement & Recherche',
-    description: 'Scientifiques, développeurs et écologistes passionnés par la biodiversité',
-    icon: Users,
-    color: 'text-green-600',
-    bgColor: 'bg-green-600/10'
-  }
-]
-
-const contributors = [
-  {
-    category: 'Core Contributors',
-    members: [
-      'Développeurs Python',
-      'Experts en biodiversité',
-      'Data scientists',
-      'Designers UI/UX'
-    ]
+    name: 'Philippe Birnbaum',
+    nickname: 'La Source',
+    role: 'IRD - UMR AMAP',
+    description: 'Le visionnaire qui a tout déclenché',
+    icon: Sparkles,
+    photo: '/team/philippe.png',
+    color: 'text-yellow-600',
+    bgColor: 'bg-yellow-600/10'
   },
   {
-    category: 'Community',
-    members: [
-      'Contributeurs open-source',
-      'Utilisateurs beta-testeurs',
-      'Chercheurs partenaires',
-      'Institutions partenaires'
-    ]
+    name: 'Dimitri Justeau-Allaire',
+    nickname: 'Le Sorcier',
+    role: 'IRD - UMR AMAP',
+    description: 'Le magicien des algorithmes et des données spatiales',
+    icon: Wand2,
+    photo: '/team/dimitri.jpeg',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-600/10'
+  },
+  {
+    name: 'Gilles Dauby',
+    nickname: 'Le Cobaye',
+    role: 'IRD - UMR AMAP',
+    description: 'Le testeur intrépide qui fait marcher tout ça',
+    icon: Bug,
+    photo: '/team/gilles.png',
+    color: 'text-green-600',
+    bgColor: 'bg-green-600/10'
+  },
+  {
+    name: 'Julien Barbe',
+    nickname: 'Le Bourreau',
+    role: 'Indépendant',
+    description: 'Le codeur qui transforme les rêves en réalité',
+    icon: Hammer,
+    photo: '/team/julien.png',
+    color: 'text-red-600',
+    bgColor: 'bg-red-600/10'
   }
 ]
 
@@ -53,13 +66,13 @@ const links = [
   {
     name: 'Documentation',
     icon: BookOpen,
-    url: '#',
+    url: 'https://niamoto.readthedocs.io/',
     description: 'Guides et tutoriels'
   },
   {
     name: 'Contact',
     icon: Mail,
-    url: 'mailto:contact@niamoto.nc',
+    url: 'mailto:julien.barbe@me.com',
     description: 'Nous contacter'
   }
 ]
@@ -78,52 +91,52 @@ export function TeamSection() {
         </p>
       </div>
 
-      {/* Main Team Card */}
-      <div className="grid grid-cols-1 gap-6">
-        {team.map((member) => {
+      {/* Core Team - The Dream Team */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {coreTeam.map((member) => {
           const Icon = member.icon
           return (
-            <Card key={member.name} className="border-2 hover:shadow-xl transition-all">
-              <CardHeader>
-                <div className="flex items-center gap-4">
-                  <div className={`w-16 h-16 rounded-full ${member.bgColor} flex items-center justify-center`}>
-                    <Icon className={`w-8 h-8 ${member.color}`} />
+            <Card key={member.name} className="border-2 hover:shadow-xl transition-all hover:scale-105">
+              <CardHeader className="text-center">
+                {/* Photo placeholder with icon */}
+                <div className="mb-6 mx-auto relative">
+                  <div className={`w-32 h-32 rounded-full ${member.bgColor} flex items-center justify-center overflow-hidden border-4 border-background shadow-lg`}>
+                    {/* Photo will be shown when added, icon as fallback */}
+                    <img
+                      src={member.photo}
+                      alt={member.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to icon if image not found
+                        e.currentTarget.style.display = 'none'
+                        const iconContainer = e.currentTarget.nextElementSibling as HTMLElement
+                        if (iconContainer) iconContainer.style.display = 'flex'
+                      }}
+                    />
+                    <div className="w-full h-full hidden items-center justify-center">
+                      <Icon className={`w-16 h-16 ${member.color}`} />
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-2xl">{member.name}</CardTitle>
-                    <CardDescription className="text-lg">{member.role}</CardDescription>
-                  </div>
+                  {/* Badge with nickname and icon */}
+                  <Badge
+                    className={`absolute -bottom-3 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-900 ${member.color} border-2 border-background shadow-lg font-bold px-3 py-1 flex items-center gap-1.5`}
+                  >
+                    <Icon className={`w-4 h-4 ${member.color}`} />
+                    {member.nickname}
+                  </Badge>
                 </div>
+
+                <CardTitle className="text-xl mt-4">{member.name}</CardTitle>
+                <CardDescription className="text-sm font-medium">{member.role}</CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">{member.description}</p>
+              <CardContent className="text-center">
+                <p className="text-sm text-muted-foreground italic">
+                  {member.description}
+                </p>
               </CardContent>
             </Card>
           )
         })}
-      </div>
-
-      {/* Contributors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {contributors.map((group) => (
-          <Card key={group.category}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Code className="w-5 h-5" />
-                {group.category}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {group.members.map((member) => (
-                  <Badge key={member} variant="secondary" className="text-sm py-1.5">
-                    {member}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
       </div>
 
       {/* Links & Contact */}
@@ -176,7 +189,7 @@ export function TeamSection() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-            Niamoto est un projet open-source sous licence MIT. Toutes les contributions sont les bienvenues !
+            Niamoto est un projet open-source sous licence GPL-3.0. Toutes les contributions sont les bienvenues !
             <br />
             <span className="text-xs opacity-75">
               Développé avec passion pour la conservation de la biodiversité mondiale
