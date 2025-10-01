@@ -6,7 +6,6 @@ import {
   Upload,
   Settings,
   Download,
-  Database,
   Search,
   Eye,
   Wrench,
@@ -16,7 +15,10 @@ import {
   Menu,
   Layers,
   Package,
-  FlaskConical
+  FlaskConical,
+  Presentation,
+  Workflow,
+  Database
 } from 'lucide-react'
 import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
 import { Button } from '@/components/ui/button'
@@ -24,6 +26,7 @@ import niamotoLogo from '@/assets/niamoto_logo.png'
 
 // Icon mapping
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  'showcase-demo': Workflow,
   import: Upload,
   transform: Settings,
   export: Download,
@@ -36,10 +39,11 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 
 const sectionIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  showcase: Presentation,
   pipeline: Layers,
   data: Database,
   tools: Wrench,
-  demos: FlaskConical
+  labs: FlaskConical
 }
 
 interface NavigationSidebarProps {
