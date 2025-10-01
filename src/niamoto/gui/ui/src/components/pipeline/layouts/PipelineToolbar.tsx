@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Play, Save, RotateCcw, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { usePipelineStore } from '../store'
+import { YamlConfigDialog } from '../dialogs/YamlConfigDialog'
 
 export function PipelineToolbar() {
   const { t } = useTranslation()
@@ -57,6 +58,7 @@ export function PipelineToolbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 ml-auto">
+          <YamlConfigDialog />
           <Button
             size="sm"
             variant="outline"
