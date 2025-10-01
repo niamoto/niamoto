@@ -131,7 +131,7 @@ export function ArchitectureSection({}: ArchitectureSectionProps) {
   return (
     <div className="w-full max-w-6xl mx-auto space-y-8">
       <div className="text-center space-y-4">
-        <h2 className="text-4xl font-bold">Architecture Plugin</h2>
+        <h2 className="text-4xl font-bold">Plugin System</h2>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
           Système modulaire extensible permettant d'ajouter facilement de nouvelles fonctionnalités
         </p>
@@ -254,7 +254,7 @@ export function ArchitectureSection({}: ArchitectureSectionProps) {
 
       {/* Code Example */}
       <Tabs defaultValue="usage" className="w-full">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="usage">Utilisation</TabsTrigger>
           <TabsTrigger value="creation">Créer un plugin</TabsTrigger>
         </TabsList>

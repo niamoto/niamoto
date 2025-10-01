@@ -54,14 +54,10 @@ export function ExportDemo({}: ExportDemoProps) {
     try {
       const result = await executeExportAndWait(
         { config_path: 'config/export.yml' },
-        (progress, message) => {
+        (progress) => {
           setExportProgress(progress)
-          console.log('Export progress:', progress, message)
         }
       )
-
-      console.log('Export completed:', result)
-      console.log('Export result.result:', result.result)
 
       // Extract real metrics from result
       if (result.result) {
@@ -91,7 +87,6 @@ export function ExportDemo({}: ExportDemoProps) {
           ? metrics.execution_time.toFixed(1)
           : ((Date.now() - startTime) / 1000).toFixed(1)
 
-        console.log('ExportDemo - Metrics:', { totalFiles, duration, targets })
 
         const newMetrics = {
           totalFiles,

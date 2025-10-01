@@ -167,9 +167,6 @@ export function PipelineSection() {
       setSimulationProgress(prev => Math.max(prev, IMPORT_WEIGHT))
       lastImportStatusRef.current = null
 
-      // Debug: log import result structure
-      console.log('Import result:', importResult)
-
       // Store import results - extract the result property from the job
       setJobResults(prev => ({
         ...prev,
