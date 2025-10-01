@@ -7,7 +7,7 @@ The Niamoto GUI is a modern web application built with React and FastAPI, provid
 ## Technology Stack
 
 ### Frontend
-- **React 18** - UI library
+- **React 19** - UI library
 - **TypeScript** - Type safety
 - **Vite** - Build tool and dev server
 - **Tailwind CSS v4** - Utility-first styling
