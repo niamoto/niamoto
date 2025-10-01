@@ -90,7 +90,8 @@ export const navigationSections: NavigationSection[] = [
       { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap' },
       { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric' },
       { id: 'demo-pipeline', label: 'Pipeline Visual', path: '/demos/pipeline-visual' },
-      { id: 'demo-wizard', label: 'Wizard & Forms', path: '/demos/wizard-form'}
+      { id: 'demo-wizard', label: 'Wizard & Forms', path: '/demos/wizard-form'},
+      { id: 'demo-goal-driven', label: 'Goal-Driven Builder', path: '/demos/goal-driven'}
     ]
   }
 ]

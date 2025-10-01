@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 export function PipelineFullSection() {
   const [activeTab, setActiveTab] = useState('overview')
   const sectionRef = useRef<HTMLDivElement>(null)
+  const isInitialMount = useRef(true)
   const { currentStep, importResult, transformResult, exportResult } = usePipelineStore()
 
   // Helper to get step status
@@ -36,8 +37,13 @@ export function PipelineFullSection() {
   const transformStatus = getStepStatus('transform')
   const exportStatus = getStepStatus('export')
 
-  // Scroll to top of section when tab changes
+  // Scroll to top of section when tab changes (but not on initial mount)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
     if (sectionRef.current) {
       sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }

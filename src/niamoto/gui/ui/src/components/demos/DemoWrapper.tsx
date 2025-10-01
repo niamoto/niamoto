@@ -20,11 +20,22 @@ interface DemoOption {
 
 const demoOptions: DemoOption[] = [
   {
+    id: 'flow-editor',
+    name: 'Flow Editor',
+    path: '/setup/pipeline',
+    description: 'Éditeur de pipeline basé sur React Flow avec gestion visuelle des nœuds'
+  },
+  {
+    id: 'bootstrap',
+    name: 'Bootstrap',
+    path: '/setup/bootstrap',
+    description: 'Assistant de configuration initiale avec détection automatique'
+  },
+  {
     id: 'entity-centric',
     name: 'Entity-Centric',
     path: '/demos/entity-centric',
     description: 'Gestion dynamique des entités avec génération YAML en temps réel',
-    recommended: true
   },
   {
     id: 'pipeline-visual',
@@ -37,6 +48,12 @@ const demoOptions: DemoOption[] = [
     name: 'Wizard & Forms',
     path: '/demos/wizard-form',
     description: 'Configuration guidée avec formulaires et validation progressive'
+  },
+  {
+    id: 'goal-driven',
+    name: 'Goal-Driven Page Builder',
+    path: '/demos/goal-driven',
+    description: 'Approche inversée : concevoir la page puis générer la configuration nécessaire'
   }
 ]
 
