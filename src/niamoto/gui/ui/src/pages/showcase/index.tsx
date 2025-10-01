@@ -30,18 +30,22 @@ export default function ShowcasePage() {
     // Intersection Observer for auto-updating current section
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const index = sectionRefs.current.indexOf(entry.target as HTMLElement)
-            if (index !== -1) {
-              setCurrentSection(index)
-            }
-          }
-        })
+        // Find the section that's most visible
+        const visibleSections = entries
+          .filter(entry => entry.isIntersecting)
+          .map(entry => ({
+            index: sectionRefs.current.indexOf(entry.target as HTMLElement),
+            ratio: entry.intersectionRatio
+          }))
+          .sort((a, b) => b.ratio - a.ratio)
+
+        if (visibleSections.length > 0 && visibleSections[0].index !== -1) {
+          setCurrentSection(visibleSections[0].index)
+        }
       },
       {
-        threshold: 0.5,
-        rootMargin: '-20% 0px -60% 0px'
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+        rootMargin: '-100px 0px -50% 0px'
       }
     )
 
@@ -66,8 +70,8 @@ export default function ShowcasePage() {
 
   const sectionComponents = [
     HeroSection,
-    ArchitectureSection,
     PipelineSection,
+    ArchitectureSection,
     ImportDemo,
     TransformDemo,
     ExportDemo,
@@ -77,8 +81,8 @@ export default function ShowcasePage() {
 
   const sectionTitles = [
     'Accueil',
-    'Architecture',
     'Pipeline',
+    'Architecture',
     'Import',
     'Transform',
     'Export',
@@ -116,7 +120,7 @@ export default function ShowcasePage() {
             key={sections[index]}
             ref={el => { sectionRefs.current[index] = el }}
             id={sections[index]}
-            className="min-h-screen flex items-center justify-center py-20"
+            className="relative min-h-screen flex items-center justify-center py-20"
           >
             <Component />
           </section>
