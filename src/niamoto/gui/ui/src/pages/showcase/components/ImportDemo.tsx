@@ -133,7 +133,6 @@ export function ImportDemo({}: ImportDemoProps) {
         // Update target metrics with real import results
         // result is the full job object, metrics are in result.result.metrics
         if (result.result?.metrics) {
-          console.log('ImportDemo - Using result.result.metrics:', result.result.metrics)
           const newMetrics = {
             occurrences: result.result.metrics.occurrences || 0,
             taxonomy: result.result.metrics.taxonomy || 0,
@@ -141,7 +140,6 @@ export function ImportDemo({}: ImportDemoProps) {
             shapes: result.result.metrics.shapes || 0
           }
           setTargetMetrics(newMetrics)
-          console.log('ImportDemo - Updated targetMetrics to:', newMetrics)
 
           // Start the counters after metrics are updated
           // Use a small delay to ensure state is updated

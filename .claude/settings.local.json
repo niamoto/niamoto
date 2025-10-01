@@ -27,7 +27,8 @@
       "WebFetch(domain:github.com)",
       "Bash(niamoto gui:*)",
       "Bash(lsof:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

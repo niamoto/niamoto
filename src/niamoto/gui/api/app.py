@@ -15,6 +15,7 @@ from .routers import (
     transform,
     export,
     data_explorer,
+    entities,
 )
 from .context import get_working_directory
 
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(transform.router, prefix="/api/transform", tags=["transform"])
     app.include_router(export.router, prefix="/api/export", tags=["export"])
     app.include_router(data_explorer.router, prefix="/api/data", tags=["data-explorer"])
+    app.include_router(entities.router, prefix="/api/entities", tags=["entities"])
     app.include_router(bootstrap.router, prefix="/api", tags=["bootstrap"])
 
     # Serve exported site from exports/web/ directory
