@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useShowcaseStore } from '@/stores/showcaseStore'
+import { usePipelineStore } from '@/stores/pipelineStore'
 import { executeImportFromConfig } from '@/lib/api/import'
 import { executeTransformAndWait } from '@/lib/api/transform'
 import { executeExportAndWait } from '@/lib/api/export'
@@ -138,20 +139,30 @@ function ConfigEditorTab({ configName, disabled }: { configName: ConfigType; dis
 }
 
 export function PipelineSection() {
-  const [activeStep, setActiveStep] = useState(0)
-  const [simulationRunning, setSimulationRunning] = useState(false)
-  const [simulationProgress, setSimulationProgress] = useState(0)
-  const [logs, setLogs] = useState<Array<{ time: string; message: string; type: 'info' | 'success' | 'warning' }>>([])
   const lastImportStatusRef = useRef<string | null>(null)
 
-  // Store job results for metrics display
-  const [jobResults, setJobResults] = useState<{
-    import?: { result: any; duration: number }
-    transform?: { result: any; duration: number }
-    export?: { result: any; duration: number }
-  }>({})
+  // Use shared pipeline store
+  const {
+    status,
+    setStatus,
+    activeStepIndex,
+    setActiveStepIndex,
+    progress,
+    setProgress,
+    logs,
+    addLog,
+    clearLogs,
+    importResult,
+    transformResult,
+    exportResult,
+    setImportResult,
+    setTransformResult,
+    setExportResult,
+    setCurrentStep,
+    reset
+  } = usePipelineStore()
 
-  // Fetch real metrics and configs from store
+  // Fetch real metrics and configs from showcase store
   const {
     metricsLoading,
     loadMetrics,
@@ -160,6 +171,8 @@ export function PipelineSection() {
     exportConfig,
     loadConfiguration
   } = useShowcaseStore()
+
+  const simulationRunning = status === 'running'
 
   // Load metrics and configs
   useEffect(() => {
@@ -172,31 +185,37 @@ export function PipelineSection() {
 
   const pipelineSteps = createPipelineSteps(importConfig, transformConfig, exportConfig)
 
-  const addLog = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
-    const time = new Date().toLocaleTimeString('fr-FR')
-    setLogs(prev => [...prev, { time, message, type }])
+  // Helper to get result from store by step id
+  const getStepResult = (stepId: string) => {
+    if (stepId === 'import') return importResult
+    if (stepId === 'transform') return transformResult
+    if (stepId === 'export') return exportResult
+    return null
   }
+
+  // Helper to check if we have any results
+  const hasAnyResults = importResult || transformResult || exportResult
 
   const runSimulation = async () => {
     await runRealPipeline()
   }
 
   const runRealPipeline = async () => {
-    setSimulationRunning(true)
-    setSimulationProgress(0)
-    setActiveStep(0)
-    setLogs([])
-    setJobResults({}) // Reset job results
+    setStatus('running')
+    setProgress(0)
+    setActiveStepIndex(0)
+    clearLogs()
     lastImportStatusRef.current = null
     addLog('🚀 Démarrage du pipeline Niamoto', 'info')
 
     try {
       // Step 1: Import
       addLog('📂 Exécution de l\'import...', 'info')
-      setActiveStep(0)
+      setActiveStepIndex(0)
+      setCurrentStep('import') // Signal import running to tabs
       const importStartTime = Date.now()
 
-      const importResult = await executeImportFromConfig(
+      const importJobResult = await executeImportFromConfig(
         {
           import_type: 'all', // Import all types from config
           file_name: 'config/import.yml',
@@ -205,7 +224,7 @@ export function PipelineSection() {
         500, // pollInterval
         300000, // maxWaitTime
         (progress: number) => {
-          setSimulationProgress(prev =>
+          setProgress(prev =>
             Math.max(prev, Math.round((progress / 100) * IMPORT_WEIGHT))
           )
         },
@@ -220,26 +239,28 @@ export function PipelineSection() {
 
       const importDuration = (Date.now() - importStartTime) / 1000
       addLog(`✅ Import terminé`, 'success')
-      setSimulationProgress(prev => Math.max(prev, IMPORT_WEIGHT))
+      setProgress(prev => Math.max(prev, IMPORT_WEIGHT))
       lastImportStatusRef.current = null
 
-      // Store import results - extract the result property from the job
-      setJobResults(prev => ({
-        ...prev,
-        import: { result: importResult.result, duration: importDuration }
-      }))
+      // Store import results
+      setImportResult({
+        status: 'completed',
+        result: importJobResult.result,
+        duration: importDuration
+      })
 
       await loadMetrics() // Refresh metrics after import
 
       // Step 2: Transform
-      setActiveStep(1)
+      setActiveStepIndex(1)
+      setCurrentStep('transform') // Signal transform running to tabs
       addLog('🔄 Exécution des transformations...', 'info')
       const transformStartTime = Date.now()
 
-      const transformResult = await executeTransformAndWait(
+      const transformJobResult = await executeTransformAndWait(
         { config_path: 'config/transform.yml' },
         (progress, message) => {
-          setSimulationProgress(prev =>
+          setProgress(prev =>
             Math.max(
               prev,
               IMPORT_WEIGHT + Math.round((progress / 100) * TRANSFORM_WEIGHT)
@@ -251,23 +272,25 @@ export function PipelineSection() {
 
       const transformDuration = (Date.now() - transformStartTime) / 1000
       addLog('✅ Transformations terminées', 'success')
-      setSimulationProgress(prev => Math.max(prev, IMPORT_WEIGHT + TRANSFORM_WEIGHT))
+      setProgress(prev => Math.max(prev, IMPORT_WEIGHT + TRANSFORM_WEIGHT))
 
-      // Store transform results - extract the result property from the job
-      setJobResults(prev => ({
-        ...prev,
-        transform: { result: transformResult.result, duration: transformDuration }
-      }))
+      // Store transform results
+      setTransformResult({
+        status: 'completed',
+        result: transformJobResult.result,
+        duration: transformDuration
+      })
 
       // Step 3: Export
-      setActiveStep(2)
+      setActiveStepIndex(2)
+      setCurrentStep('export') // Signal export running to tabs
       addLog('🌐 Génération du site statique...', 'info')
       const exportStartTime = Date.now()
 
-      const exportResult = await executeExportAndWait(
+      const exportJobResult = await executeExportAndWait(
         { config_path: 'config/export.yml' },
         (progress, message) => {
-          setSimulationProgress(prev =>
+          setProgress(prev =>
             Math.max(
               prev,
               IMPORT_WEIGHT + TRANSFORM_WEIGHT + Math.round((progress / 100) * EXPORT_WEIGHT)
@@ -279,33 +302,33 @@ export function PipelineSection() {
 
       const exportDuration = (Date.now() - exportStartTime) / 1000
       addLog('✅ Export terminé avec succès', 'success')
-      setSimulationProgress(100)
+      setProgress(100)
 
-      // Store export results - extract the result property from the job
-      setJobResults(prev => ({
-        ...prev,
-        export: { result: exportResult.result, duration: exportDuration }
-      }))
+      // Store export results
+      setExportResult({
+        status: 'completed',
+        result: exportJobResult.result,
+        duration: exportDuration
+      })
 
       addLog('✨ Pipeline terminé avec succès!', 'success')
+      setStatus('completed')
+      setCurrentStep(null) // Clear running state
       toast.success('Pipeline exécuté avec succès!')
 
     } catch (error) {
-      addLog(`❌ Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`, 'warning')
+      addLog(`❌ Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`, 'error')
+      setStatus('error')
+      setCurrentStep(null) // Clear running state
       toast.error('Erreur lors de l\'exécution du pipeline')
     } finally {
-      setSimulationRunning(false)
       // Ne pas réinitialiser automatiquement - garder les résultats affichés
       // L'utilisateur peut cliquer sur "Réinitialiser" s'il veut relancer
     }
   }
 
   const resetSimulation = () => {
-    setSimulationRunning(false)
-    setSimulationProgress(0)
-    setActiveStep(0)
-    setLogs([])
-    setJobResults({}) // Reset job results
+    reset()
     lastImportStatusRef.current = null
     addLog('🔄 Pipeline réinitialisé', 'info')
   }
@@ -324,8 +347,8 @@ export function PipelineSection() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative">
           {pipelineSteps.map((step, index) => {
             const Icon = step.icon
-            const isActive = activeStep === index
-            const isComplete = simulationRunning ? activeStep > index : simulationProgress > (index + 1) * 33
+            const isActive = activeStepIndex === index
+            const isComplete = simulationRunning ? activeStepIndex > index : progress > (index + 1) * 33
 
             return (
               <div key={step.id} className="relative group">
@@ -354,7 +377,7 @@ export function PipelineSection() {
                     step.id === 'export' && isActive && "ring-purple-500/50",
                     !simulationRunning && "hover:ring-1 hover:ring-primary/30"
                   )}
-                  onClick={() => !simulationRunning && setActiveStep(index)}
+                  onClick={() => !simulationRunning && setActiveStepIndex(index)}
                 >
                   <CardHeader>
                     <div className="flex items-center justify-between mb-2">
@@ -390,12 +413,12 @@ export function PipelineSection() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Metrics - Show PipelineMetrics when available */}
-                    {jobResults[step.id as 'import' | 'transform' | 'export'] && (
+                    {getStepResult(step.id) && (
                       <div className="animate-fadeIn">
                         <PipelineMetrics
                           type={step.id as 'import' | 'transform' | 'export'}
-                          result={jobResults[step.id as 'import' | 'transform' | 'export']?.result}
-                          duration={jobResults[step.id as 'import' | 'transform' | 'export']?.duration}
+                          result={getStepResult(step.id)?.result}
+                          duration={getStepResult(step.id)?.duration}
                         />
                       </div>
                     )}
@@ -432,9 +455,9 @@ export function PipelineSection() {
                       <Clock className="w-4 h-4 animate-spin" />
                       Progression globale
                     </span>
-                    <span className="font-bold">{simulationProgress}%</span>
+                    <span className="font-bold">{progress}%</span>
                   </div>
-                  <Progress value={simulationProgress} className="h-3" />
+                  <Progress value={progress} className="h-3" />
                 </div>
               )}
 
@@ -451,7 +474,7 @@ export function PipelineSection() {
                       <Activity className="w-4 h-4 text-green-500 animate-pulse" />
                       <span className="text-sm">Pipeline en cours...</span>
                     </>
-                  ) : simulationProgress === 100 && Object.keys(jobResults).length > 0 ? (
+                  ) : progress === 100 && hasAnyResults ? (
                     <>
                       <CheckCircle className="w-4 h-4 text-green-500" />
                       <span className="text-sm">Pipeline terminé - Cliquez sur une étape pour voir les résultats</span>
@@ -536,9 +559,9 @@ export function PipelineSection() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs value={pipelineSteps[activeStep].id} onValueChange={(value) => {
+              <Tabs value={pipelineSteps[activeStepIndex].id} onValueChange={(value) => {
                 const index = pipelineSteps.findIndex(s => s.id === value)
-                if (index >= 0) setActiveStep(index)
+                if (index >= 0) setActiveStepIndex(index)
               }}>
                 <TabsList className="grid w-full grid-cols-3 mb-4">
                   {pipelineSteps.map((step) => {
