@@ -44,6 +44,7 @@ export const useShowcaseStore = create<ShowcaseState>((set, get) => ({
     'import-demo',
     'transform-demo',
     'export-demo',
+    'api-demo',
     'use-cases',
     'call-to-action'
   ],
