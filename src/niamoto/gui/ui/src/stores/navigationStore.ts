@@ -44,9 +44,10 @@ export const navigationSections: NavigationSection[] = [
   {
     id: 'showcase',
     label: 'Showcase',
+    icon: 'presentation',
     defaultOpen: true,
     items: [
-      { id: 'showcase-demo', label: 'Démo Interactive', path: '/showcase' }
+      { id: 'showcase-demo', label: 'Niamoto Flow', path: '/showcase' }
     ]
   },
   {
@@ -54,8 +55,6 @@ export const navigationSections: NavigationSection[] = [
     label: 'Pipeline',
     defaultOpen: false,
     items: [
-      { id: 'pipeline-editor', label: 'Flow Editor', path: '/setup/pipeline' },
-      { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap' },
       { id: 'import', label: 'Import Data', path: '/setup/import' },
       { id: 'transform', label: 'Transform', path: '/setup/transform' },
       { id: 'export', label: 'Export Site', path: '/setup/export' }
@@ -63,7 +62,7 @@ export const navigationSections: NavigationSection[] = [
   },
   {
     id: 'data',
-    label: 'Data & Analytics',
+    label: 'Data',
     defaultOpen: false,
     items: [
       { id: 'explorer', label: 'Data Explorer', path: '/data/explorer' },
@@ -77,14 +76,17 @@ export const navigationSections: NavigationSection[] = [
     items: [
       { id: 'settings', label: 'Settings', path: '/tools/settings' },
       { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
-      { id: 'docs', label: 'Documentation', path: '/tools/docs', badge: 'Soon' }
+      { id: 'docs', label: 'API Documentation', path: '/tools/docs' }
     ]
   },
   {
-    id: 'demos',
-    label: 'Interface Demos',
+    id: 'labs',
+    label: 'Labs',
+    icon: 'flask-conical',
     defaultOpen: false,
     items: [
+      { id: 'pipeline-editor', label: 'Flow Editor', path: '/setup/pipeline' },
+      { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap' },
       { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric' },
       { id: 'demo-pipeline', label: 'Pipeline Visual', path: '/demos/pipeline-visual' },
       { id: 'demo-wizard', label: 'Wizard & Forms', path: '/demos/wizard-form'}
