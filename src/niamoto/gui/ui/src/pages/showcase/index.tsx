@@ -6,6 +6,7 @@ import { PipelineSection } from './components/PipelineSection'
 import { ImportDemo } from './components/ImportDemo'
 import { TransformDemo } from './components/TransformDemo'
 import { ExportDemo } from './components/ExportDemo'
+import { ApiDemo } from './components/ApiDemo'
 import { UseCasesSection } from './components/UseCasesSection'
 import { CallToAction } from './components/CallToAction'
 import { ShowcaseNav } from './components/ShowcaseNav'
@@ -28,6 +29,7 @@ export default function ShowcasePage() {
     ImportDemo,
     TransformDemo,
     ExportDemo,
+    ApiDemo,
     UseCasesSection,
     CallToAction
   ]
@@ -116,6 +118,7 @@ export default function ShowcasePage() {
     'Import',
     'Transform',
     'Export',
+    'API',
     'Cas d\'usage',
     'Commencer'
   ]
