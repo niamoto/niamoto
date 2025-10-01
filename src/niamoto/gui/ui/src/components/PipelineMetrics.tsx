@@ -137,7 +137,7 @@ export function PipelineMetrics({ type, result, duration }: PipelineMetricsProps
             Object.values(exportData.data).forEach((value: any) => {
               if (Array.isArray(value)) {
                 fileCount += value.length;
-              } else if (typeof value === 'object' && value.files) {
+              } else if (value && typeof value === 'object' && value.files) {
                 fileCount += value.files.length || 0;
               }
             });
