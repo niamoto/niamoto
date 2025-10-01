@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useShowcaseStore } from '@/stores/showcaseStore'
+import { usePipelineStore } from '@/stores/pipelineStore'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
 import {
   Globe,
@@ -95,6 +96,7 @@ function TreeItem({ item, depth }: { item: ExportTreeItem; depth: number }) {
 export function ExportDemo({}: ExportDemoProps) {
   const navigate = useNavigate()
   const { setDemoProgress } = useShowcaseStore()
+  const { exportResult, setExportResult, setCurrentStep: setPipelineStep } = usePipelineStore()
   const [exporting, setExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportStarted, setExportStarted] = useState(false)
@@ -134,6 +136,46 @@ export function ExportDemo({}: ExportDemoProps) {
     }
     loadWorkingDir()
   }, [])
+
+  // Check for existing export result from pipeline store
+  useEffect(() => {
+    if (exportResult && exportResult.result) {
+      const exports = exportResult.result.exports || {}
+      const metrics = exportResult.result.metrics || {}
+
+      const targets: ExportTarget[] = []
+      let totalFiles = 0
+
+      // Extract files from each export target
+      Object.entries(exports).forEach(([name, exportData]: [string, any]) => {
+        if (exportData && exportData.data) {
+          const filesGenerated = exportData.data.files_generated || 0
+          if (filesGenerated > 0) {
+            targets.push({ name, files: filesGenerated })
+            totalFiles += filesGenerated
+          }
+        }
+      })
+
+      // Fallback: use metrics if no exports data
+      if (totalFiles === 0 && metrics.generated_pages) {
+        totalFiles = metrics.generated_pages
+      }
+
+      const newMetrics = {
+        totalFiles,
+        duration: exportResult.duration,
+        targets
+      }
+
+      setTargetMetrics(newMetrics)
+      setExportStarted(true)
+      setExportProgress(100)
+
+      // Load exports structure
+      loadExportsStructure()
+    }
+  }, [exportResult])
 
   const loadExportsStructure = async () => {
     try {
@@ -200,6 +242,7 @@ export function ExportDemo({}: ExportDemoProps) {
 
   const runExport = async () => {
     setExporting(true)
+    setPipelineStep('export') // Signal to pipeline store that export is running
     setExportStarted(false)
     setExportProgress(0)
 
@@ -250,6 +293,13 @@ export function ExportDemo({}: ExportDemoProps) {
 
         setTargetMetrics(newMetrics)
 
+        // Save to shared pipeline store
+        setExportResult({
+          status: 'completed',
+          result: result.result,
+          duration: parseFloat(duration)
+        })
+
         // Start counters after metrics are updated
         setTimeout(() => {
           setExportStarted(true)
@@ -268,6 +318,7 @@ export function ExportDemo({}: ExportDemoProps) {
       toast.error('Erreur lors de l\'export')
     } finally {
       setExporting(false)
+      setPipelineStep(null) // Clear running state
     }
   }
 

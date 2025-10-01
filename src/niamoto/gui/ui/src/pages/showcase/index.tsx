@@ -1,14 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useShowcaseStore } from '@/stores/showcaseStore'
-import { HeroSection } from './components/HeroSection'
-import { ArchitectureSection } from './components/ArchitectureSection'
-import { PipelineSection } from './components/PipelineSection'
-import { ImportDemo } from './components/ImportDemo'
-import { TransformDemo } from './components/TransformDemo'
-import { ExportDemo } from './components/ExportDemo'
-import { ApiDemo } from './components/ApiDemo'
-import { UseCasesSection } from './components/UseCasesSection'
-import { CallToAction } from './components/CallToAction'
+import { OverviewSection } from './components/OverviewSection'
+import { PipelineFullSection } from './components/PipelineFullSection'
+import { IntegrationSection } from './components/IntegrationSection'
+import { CommunitySection } from './components/CommunitySection'
 import { ShowcaseNav } from './components/ShowcaseNav'
 import { Progress } from '@/components/ui/progress'
 
@@ -23,15 +18,10 @@ export default function ShowcasePage() {
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
 
   const sectionComponents = [
-    HeroSection,
-    PipelineSection,
-    ArchitectureSection,
-    ImportDemo,
-    TransformDemo,
-    ExportDemo,
-    ApiDemo,
-    UseCasesSection,
-    CallToAction
+    OverviewSection,
+    PipelineFullSection,
+    IntegrationSection,
+    CommunitySection
   ]
 
   useEffect(() => {
@@ -112,15 +102,10 @@ export default function ShowcasePage() {
   }, [currentSection])
 
   const sectionTitles = [
-    'Accueil',
+    'Vue d\'ensemble',
     'Pipeline',
-    'Architecture',
-    'Import',
-    'Transform',
-    'Export',
-    'API',
-    'Cas d\'usage',
-    'Commencer'
+    'API & Intégration',
+    'Communauté'
   ]
 
   return (
@@ -153,7 +138,7 @@ export default function ShowcasePage() {
             key={sections[index]}
             ref={el => { sectionRefs.current[index] = el }}
             id={sections[index]}
-            className="relative min-h-screen flex items-center justify-center py-20"
+            className="relative min-h-screen flex items-start justify-center py-20"
           >
             <Component />
           </section>

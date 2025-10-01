@@ -38,15 +38,10 @@ export const useShowcaseStore = create<ShowcaseState>((set, get) => ({
   // Initial state
   currentSection: 0,
   sections: [
-    'hero',
-    'pipeline-overview',
-    'architecture',
-    'import-demo',
-    'transform-demo',
-    'export-demo',
-    'api-demo',
-    'use-cases',
-    'call-to-action'
+    'overview',
+    'pipeline',
+    'integration',
+    'community'
   ],
 
   configLoaded: false,

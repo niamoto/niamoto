@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useShowcaseStore } from '@/stores/showcaseStore'
+import { usePipelineStore } from '@/stores/pipelineStore'
 import {
   MapPin,
   Trees,
@@ -37,6 +38,14 @@ export function ImportDemo({}: ImportDemoProps) {
     metricsLoading,
     loadMetrics
   } = useShowcaseStore()
+
+  // Use shared pipeline store
+  const {
+    importResult,
+    setImportResult,
+    setCurrentStep: setPipelineStep
+  } = usePipelineStore()
+
   const [activeTab, setActiveTab] = useState('overview')
   const [importProgress, setImportProgress] = useState(0)
   const [importing, setImporting] = useState(false)
@@ -51,12 +60,28 @@ export function ImportDemo({}: ImportDemoProps) {
     loadMetrics()
   }, [loadMetrics])
 
+  // Check for existing import result from pipeline store
+  useEffect(() => {
+    if (importResult && importResult.result?.metrics) {
+      const newMetrics = {
+        occurrences: importResult.result.metrics.occurrences || 0,
+        taxonomy: importResult.result.metrics.taxonomy || 0,
+        plots: importResult.result.metrics.plots || 0,
+        shapes: importResult.result.metrics.shapes || 0
+      }
+      setTargetMetrics(newMetrics)
+      setImportStarted(true)
+      setImportProgress(100)
+      setCurrentStep('Import terminé!')
+    }
+  }, [importResult])
+
   // Set target metrics based on real data
   useEffect(() => {
-    if (metrics && !targetMetrics) {
+    if (metrics && !targetMetrics && !importResult) {
       setTargetMetrics(metrics)
     }
-  }, [metrics, targetMetrics])
+  }, [metrics, targetMetrics, importResult])
 
   // Progressive counters based on real data
   const occurrencesCounter = useProgressiveCounter(
@@ -82,10 +107,13 @@ export function ImportDemo({}: ImportDemoProps) {
 
   const handleImport = async () => {
     setImporting(true)
+    setPipelineStep('import') // Signal to pipeline store that import is running
     setImportStarted(false) // Reset counters first
     setImportProgress(0)
     setImportLogs([])
     lastStatusMessageRef.current = null
+
+    const startTime = Date.now()
 
     // Real import execution
     try {
@@ -130,6 +158,16 @@ export function ImportDemo({}: ImportDemoProps) {
         // Refresh metrics after import
         await loadMetrics()
 
+        // Calculate duration
+        const duration = (Date.now() - startTime) / 1000
+
+        // Save to shared pipeline store
+        setImportResult({
+          status: 'completed',
+          result: result.result,
+          duration: duration
+        })
+
         // Update target metrics with real import results
         // result is the full job object, metrics are in result.result.metrics
         if (result.result?.metrics) {
@@ -163,6 +201,7 @@ export function ImportDemo({}: ImportDemoProps) {
         toast.error('Erreur lors de l\'import réel')
       } finally {
         setImporting(false)
+        setPipelineStep(null) // Clear running state
       }
   }
 
