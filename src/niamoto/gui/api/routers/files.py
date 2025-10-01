@@ -721,3 +721,61 @@ async def read_export_file(file_path: str) -> Dict[str, Any]:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
+
+
+@router.get("/exports/structure")
+async def get_exports_structure() -> Dict[str, Any]:
+    """Get the directory structure of exports folder."""
+    try:
+        cwd = Path.cwd()
+        exports_dir = cwd / "exports"
+
+        if not exports_dir.exists():
+            return {"exists": False, "path": str(exports_dir), "tree": []}
+
+        def build_tree(
+            path: Path, max_depth: int = 3, current_depth: int = 0
+        ) -> List[Dict[str, Any]]:
+            """Recursively build directory tree."""
+            if current_depth >= max_depth:
+                return []
+
+            items = []
+            try:
+                for item in sorted(
+                    path.iterdir(), key=lambda x: (not x.is_dir(), x.name)
+                ):
+                    item_data = {
+                        "name": item.name,
+                        "type": "directory" if item.is_dir() else "file",
+                        "path": str(item.relative_to(exports_dir)),
+                    }
+
+                    if item.is_file():
+                        item_data["size"] = item.stat().st_size
+                        item_data["extension"] = item.suffix
+                    elif item.is_dir():
+                        # Count items in directory
+                        try:
+                            item_data["count"] = len(list(item.iterdir()))
+                            # Recursively build children
+                            children = build_tree(item, max_depth, current_depth + 1)
+                            if children:
+                                item_data["children"] = children
+                        except PermissionError:
+                            item_data["count"] = 0
+
+                    items.append(item_data)
+            except PermissionError:
+                pass
+
+            return items
+
+        tree = build_tree(exports_dir)
+
+        return {"exists": True, "path": str(exports_dir), "tree": tree}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting exports structure: {str(e)}"
+        )

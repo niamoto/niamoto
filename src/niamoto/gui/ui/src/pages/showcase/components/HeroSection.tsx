@@ -20,7 +20,7 @@ export function HeroSection({ configLoaded }: HeroSectionProps) {
     loadPlugins()
   }, [])
 
-  const stepsCounter = useProgressiveCounter(4, 1000)
+  const stepsCounter = useProgressiveCounter(3, 1000)
   const pluginsCounter = useProgressiveCounter(totalPlugins, 2000)
   const [showLogo, setShowLogo] = useState(false)
 
