@@ -2,8 +2,8 @@
 Plugin for getting a direct attribute from a source.
 """
 
-from typing import Dict, Any, Union
-from pydantic import Field, field_validator
+from typing import Dict, Any, Union, Optional, Literal
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import os
 import pandas as pd
 import geopandas as gpd
@@ -14,32 +14,66 @@ from niamoto.common.exceptions import DatabaseError
 from niamoto.common.config import Config
 
 
-class DirectAttributeConfig(PluginConfig):
-    """Configuration for direct attribute plugin"""
+class DirectAttributeParams(BaseModel):
+    """Parameters for direct attribute extraction.
 
-    plugin: str = "direct_attribute"
-    params: Dict[str, Any] = Field(default_factory=lambda: {"source": "", "field": ""})
+    This plugin extracts a single field value directly from a data source.
+    """
 
-    @field_validator("params")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract a single attribute value from a data source",
+            "examples": [
+                {"source": "plots", "field": "shannon", "units": "", "max_value": 5},
+                {
+                    "source": "plots",
+                    "field": "basal_area",
+                    "units": "m²/ha",
+                    "max_value": 100,
+                    "format": "number",
+                    "precision": 2,
+                },
+            ],
+        }
+    )
+
+    source: str = Field(
+        ...,
+        description="Data source name (table or import)",
+        json_schema_extra={"ui:widget": "select"},
+    )
+    field: str = Field(
+        ...,
+        description="Field name to extract from the source",
+        json_schema_extra={"ui:widget": "field-select", "ui:depends": "source"},
+    )
+    units: str = Field(
+        default="", description="Units for the value (e.g., 'm', 'ha', 'g/cm³')"
+    )
+    max_value: Optional[float] = Field(
+        None, description="Maximum value to cap the result (for gauge widgets)"
+    )
+    format: Optional[Literal["number", "percentage", "text"]] = Field(
+        None, description="Output format type"
+    )
+    precision: Optional[int] = Field(
+        None, ge=0, le=10, description="Number of decimal places for numeric values"
+    )
+
+    @field_validator("max_value")
     @classmethod
-    def validate_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate params configuration."""
-        if not isinstance(v, dict):
-            raise ValueError("params must be a dictionary")
-
-        # Validate required fields
-        required_fields = ["source", "field"]
-        for field in required_fields:
-            if field not in v:
-                raise ValueError(f"Missing required field: {field}")
-
-        # Validate field types
-        if not isinstance(v["source"], str):
-            raise ValueError("source must be a string")
-        if not isinstance(v["field"], str):
-            raise ValueError("field must be a string")
-
+    def validate_max_value(cls, v):
+        """Ensure max_value is positive if provided."""
+        if v is not None and v <= 0:
+            raise ValueError("max_value must be positive")
         return v
+
+
+class DirectAttributeConfig(PluginConfig):
+    """Complete configuration for direct attribute plugin."""
+
+    plugin: Literal["direct_attribute"] = "direct_attribute"
+    params: DirectAttributeParams
 
 
 @register("direct_attribute", PluginType.TRANSFORMER)
@@ -58,10 +92,10 @@ class DirectAttribute(TransformerPlugin):
             self.config = None
             self.imports_config = {}
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> DirectAttributeConfig:
+        """Validate configuration and return typed config."""
         try:
-            return self.config_model(**config).model_dump()
+            return self.config_model(**config)
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -125,13 +159,14 @@ class DirectAttribute(TransformerPlugin):
             # Préserver group_id avant validation
             group_id = config.get("group_id")
             validated_config = self.validate_config(config)
+            params = validated_config.params
 
             if group_id is None:
                 return {"value": None}
 
             # Get field value
-            source = validated_config["params"]["source"]
-            field = validated_config["params"]["field"]
+            source = params.source
+            field = params.field
 
             # Check if data is already the source we need (TransformerService smart selection)
             value = None
@@ -160,7 +195,7 @@ class DirectAttribute(TransformerPlugin):
 
             # Handle numeric values while preserving format
             original_format = value
-            max_value = validated_config["params"].get("max_value")
+            max_value = params.max_value
 
             if value is not None:
                 try:
@@ -178,8 +213,10 @@ class DirectAttribute(TransformerPlugin):
 
                 # Ensure consistent string representation
                 if isinstance(value, (float, int)):
-                    # Convert to string while preserving format
-                    if isinstance(original_format, str) and "." in original_format:
+                    # Apply precision if specified
+                    if params.precision is not None:
+                        value = f"{value:.{params.precision}f}"
+                    elif isinstance(original_format, str) and "." in original_format:
                         # Try to maintain decimal precision from original
                         decimal_places = len(original_format.split(".")[-1])
                         value = f"{value:.{decimal_places}f}"
@@ -191,10 +228,18 @@ class DirectAttribute(TransformerPlugin):
                             else str(value)
                         )
 
-            return {
+            result = {
                 "value": value,
-                "units": validated_config["params"].get("units", ""),
+                "units": params.units,
             }
+
+            # Add optional fields if they exist
+            if params.max_value is not None:
+                result["max_value"] = params.max_value
+            if params.format is not None:
+                result["format"] = params.format
+
+            return result
 
         except Exception as e:
             raise ValueError(f"Error transforming data: {str(e)}")

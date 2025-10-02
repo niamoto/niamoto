@@ -4,7 +4,6 @@ from unittest.mock import MagicMock
 
 from niamoto.core.plugins.transformers.distribution.categorical_distribution import (
     CategoricalDistribution,
-    CategoricalDistributionConfig,
 )
 
 
@@ -54,13 +53,13 @@ class TestCategoricalDistribution:
         """Test config validation fails with missing required field."""
         config = {"params": {"source": "occurrences"}}  # Missing 'field'
         with pytest.raises(ValueError, match="Missing required field: field"):
-            CategoricalDistributionConfig(**config)  # Test Pydantic validation directly
+            self.plugin.validate_config(config)
 
     def test_invalid_config_missing_source(self):
         """Test config validation fails with missing required source."""
         config = {"params": {"field": "category_col"}}  # Missing 'source'
         with pytest.raises(ValueError, match="Missing required field: source"):
-            CategoricalDistributionConfig(**config)
+            self.plugin.validate_config(config)
 
     def test_invalid_config_categories_not_list(self):
         """Test config validation fails if categories is not a list."""
@@ -68,13 +67,13 @@ class TestCategoricalDistribution:
             "params": {"source": "occurrences", "field": "col", "categories": "A"}
         }
         with pytest.raises(ValueError, match="categories must be a list"):
-            CategoricalDistributionConfig(**config)
+            self.plugin.validate_config(config)
 
     def test_invalid_config_labels_not_list(self):
         """Test config validation fails if labels is not a list."""
         config = {"params": {"source": "occurrences", "field": "col", "labels": "L1"}}
         with pytest.raises(ValueError, match="labels must be a list"):
-            CategoricalDistributionConfig(**config)
+            self.plugin.validate_config(config)
 
     def test_invalid_config_mismatched_labels_categories(self):
         """Test config validation fails if labels/categories count mismatch."""
@@ -87,7 +86,7 @@ class TestCategoricalDistribution:
             }
         }
         with pytest.raises(ValueError, match="number of labels must be equal"):
-            CategoricalDistributionConfig(**config)
+            self.plugin.validate_config(config)
 
     # --- Transformation Logic Tests --- #
 

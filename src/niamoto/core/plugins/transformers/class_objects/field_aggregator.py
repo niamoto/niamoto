@@ -3,11 +3,11 @@ Plugin for aggregating field values from shape statistics.
 Supports single fields, ranges (min/max), and multiple fields.
 """
 
-from typing import Dict, Any, List, Union, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Union, Optional, Literal
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
@@ -15,33 +15,72 @@ from niamoto.common.exceptions import DataTransformError
 class FieldConfig(BaseModel):
     """Configuration for a field"""
 
+    source: Optional[str] = (
+        None  # Optional source, will use parent source if not specified
+    )
     class_object: Union[str, List[str]]  # Can be string or list for ranges
     target: str
     units: str = ""
     format: Optional[str] = None  # "range" for min/max fields
 
 
+class FieldAggregatorParams(BasePluginParams):
+    """Parameters for field aggregator plugin"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Aggregate field values from shape statistics",
+            "examples": [
+                {
+                    "source": "shape_stats",
+                    "fields": [
+                        {
+                            "class_object": "land_area_ha",
+                            "target": "land_area_ha",
+                            "units": "ha",
+                        },
+                        {
+                            "class_object": ["rainfall_min", "rainfall_max"],
+                            "target": "rainfall",
+                            "units": "mm/an",
+                            "format": "range",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="shape_stats",
+        description="Source table containing class_object data",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["raw_shape_stats", "shape_stats"],
+        },
+    )
+
+    fields: List[FieldConfig] = Field(
+        ...,
+        min_length=1,
+        description="List of field configurations",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    @field_validator("fields")
+    @classmethod
+    def validate_fields(cls, v: List[FieldConfig]) -> List[FieldConfig]:
+        """Validate field configurations."""
+        if not v:
+            raise ValueError("At least one field must be specified")
+        return v
+
+
 class ClassObjectFieldAggregatorConfig(PluginConfig):
     """Configuration for field aggregator plugin"""
 
-    plugin: str = "class_object_field_aggregator"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "fields": [
-                {
-                    "class_object": "land_area_ha",
-                    "target": "land_area_ha",
-                    "units": "ha",
-                },
-                {
-                    "class_object": ["rainfall_min", "rainfall_max"],
-                    "target": "rainfall",
-                    "units": "mm/an",
-                    "format": "range",
-                },
-            ]
-        }
-    )
+    plugin: Literal["class_object_field_aggregator"] = "class_object_field_aggregator"
+    params: FieldAggregatorParams
 
 
 @register("class_object_field_aggregator", PluginType.TRANSFORMER)
@@ -115,21 +154,16 @@ class ClassObjectFieldAggregator(TransformerPlugin):
                     },
                 )
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration."""
-        validated_config = self.config_model(**config)
-        params = validated_config.params
-
-        # Validate fields configuration
-        fields = params.get("fields", [])
-        if not fields:
+    def validate_config(
+        self, config: Dict[str, Any]
+    ) -> ClassObjectFieldAggregatorConfig:
+        """Validate plugin configuration and return typed config."""
+        try:
+            return self.config_model(**config)
+        except Exception as e:
             raise DataTransformError(
-                "At least one field must be specified", details={"config": config}
+                f"Invalid configuration: {str(e)}", details={"config": config}
             )
-
-        # Field validation is now handled by Pydantic model
-
-        return validated_config
 
     def transform(
         self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
@@ -172,17 +206,19 @@ class ClassObjectFieldAggregator(TransformerPlugin):
             results = {}
 
             # Process each field
-            for field_config in params["fields"]:
-                field = FieldConfig(**field_config)
+            for field in params.fields:
+                # Determine which source to use
+                # Priority: field.source -> params.source -> first available
+                source_name = field.source if field.source else params.source
 
-                # Use the data passed by TransformerService
-                # (already selected based on params.source)
                 if isinstance(data, dict):
-                    # This should not happen with the new logic
-                    # TransformerService should pass a single DataFrame
-                    source_data = list(data.values())[0] if data else pd.DataFrame()
+                    # Multiple data sources available
+                    source_data = data.get(source_name, pd.DataFrame())
+                    if source_data.empty and data:
+                        # Fallback to first available data if source not found
+                        source_data = list(data.values())[0]
                 else:
-                    # Expected case: single DataFrame
+                    # Single DataFrame case
                     source_data = data
 
                 # Get field data

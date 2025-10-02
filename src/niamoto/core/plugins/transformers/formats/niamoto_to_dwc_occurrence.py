@@ -9,29 +9,28 @@ which is widely used for biodiversity data exchange.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Literal
 import re
 
-from pydantic import BaseModel
-
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.plugins.models import DwcTransformerParams, PluginConfig
 from niamoto.common.exceptions import DataTransformError
 
 logger = logging.getLogger(__name__)
 
 
-class DwCMappingConfig(BaseModel):
-    """Configuration for Darwin Core mapping."""
+class NiamotoDwCConfig(PluginConfig):
+    """Configuration for Darwin Core transformer plugin."""
 
-    occurrence_list_source: str = "occurrences"
-    mapping: Dict[str, Union[str, Dict[str, Any]]]
+    plugin: Literal["niamoto_to_dwc_occurrence"] = "niamoto_to_dwc_occurrence"
+    params: DwcTransformerParams
 
 
 @register("niamoto_to_dwc_occurrence", PluginType.TRANSFORMER)
 class NiamotoDwCTransformer(TransformerPlugin):
     """Transform Niamoto data to Darwin Core Occurrence format."""
 
-    # We'll handle validation manually in the transform method
+    config_model = NiamotoDwCConfig
 
     def __init__(self, db: Any):
         """Initialize the transformer."""
@@ -39,55 +38,77 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self._current_taxon = None
         self._occurrence_index = 0
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_config(self, config: Dict[str, Any]) -> NiamotoDwCConfig:
         """
-        Validate the configuration for this transformer.
+        Validate the configuration using Pydantic model.
 
         Args:
             config: Configuration dictionary to validate
 
         Returns:
-            Validated configuration
+            Validated NiamotoDwCConfig instance
 
         Raises:
             ValueError: If configuration is invalid
         """
-        if not isinstance(config, dict):
-            raise ValueError("Configuration must be a dictionary")
+        try:
+            # Accept already validated configs (handle potential duplicate class definitions)
+            if hasattr(config, "plugin") and hasattr(config, "params"):
+                if getattr(config, "plugin") == "niamoto_to_dwc_occurrence":
+                    return self.config_model.model_validate(config)
 
-        if "mapping" not in config:
-            raise ValueError("Configuration must include a 'mapping' section")
+            # Accept direct params objects coming from the typed UI flow (or any BaseModel with mapping)
+            if hasattr(config, "model_dump"):
+                dumped = config.model_dump()
+                if "mapping" in dumped:
+                    config = {
+                        "plugin": "niamoto_to_dwc_occurrence",
+                        "params": config,
+                    }
 
-        if not isinstance(config["mapping"], dict):
-            raise ValueError("'mapping' must be a dictionary")
-
-        # Validate that occurrence_list_source is present
-        if "occurrence_list_source" not in config:
-            config["occurrence_list_source"] = "occurrences"  # default value
-
-        return config
+            # Handle both old format (direct params) and new format (with params key)
+            if (
+                isinstance(config, dict)
+                and "params" not in config
+                and "mapping" in config
+            ):
+                # Old format: wrap in params for compatibility
+                config = {
+                    "plugin": "niamoto_to_dwc_occurrence",
+                    "params": {
+                        "occurrence_list_source": config.get(
+                            "occurrence_list_source", "occurrences"
+                        ),
+                        "mapping": config["mapping"],
+                    },
+                }
+            return self.config_model.model_validate(config)
+        except Exception as e:
+            raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(
-        self, data: Dict[str, Any], params: Union[DwCMappingConfig, Dict[str, Any]]
+        self, data: Dict[str, Any], config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Transform Niamoto taxon data to Darwin Core occurrences.
 
         Args:
             data: Niamoto taxon data with occurrences
-            params: Configuration with mapping rules (can be dict or validated model)
+            config: Configuration dictionary with params
 
         Returns:
             List of Darwin Core formatted occurrences
         """
         try:
+            # Validate config and get typed parameters
+            validated_config = self.validate_config(config)
+            params = validated_config.params
+
             # Store current taxon data for reference in mapping
             self._current_taxon = data
 
-            if hasattr(params, "mapping"):
-                mapping = params.mapping
-            else:
-                mapping = params.get("mapping", {})
+            # Get mapping from typed params
+            mapping = params.mapping
 
             # Get taxon ID (field is called 'taxon_id' in the taxon table)
             taxon_id = data.get("taxon_id") or data.get("id")
@@ -185,22 +206,23 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
         return dwc_record
 
-    def _resolve_mapping(
-        self, occurrence: Dict[str, Any], mapping_config: Union[str, Dict[str, Any]]
-    ) -> Any:
+    def _resolve_mapping(self, occurrence: Dict[str, Any], mapping_config: Any) -> Any:
         """Resolve a mapping configuration to a value."""
-        # Handle DwcMappingValue objects (Pydantic models)
-        if hasattr(mapping_config, "generator") or hasattr(mapping_config, "source"):
-            if hasattr(mapping_config, "generator") and mapping_config.generator:
+        # Import here to avoid circular imports
+        from niamoto.core.plugins.models import DwcMappingValue
+
+        # Handle DwcMappingValue objects from Pydantic models
+        if isinstance(mapping_config, DwcMappingValue):
+            if mapping_config.generator:
                 return self._apply_generator(
                     occurrence,
                     mapping_config.generator,
-                    mapping_config.params if hasattr(mapping_config, "params") else {},
+                    mapping_config.params,
                 )
-            elif hasattr(mapping_config, "source") and mapping_config.source:
+            elif mapping_config.source:
                 return self._resolve_reference(occurrence, mapping_config.source)
 
-        if isinstance(mapping_config, str):
+        elif isinstance(mapping_config, str):
             # Simple string value or reference
             if mapping_config.startswith("@"):
                 return self._resolve_reference(occurrence, mapping_config)
@@ -209,7 +231,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
                 return mapping_config
 
         elif isinstance(mapping_config, dict):
-            # Complex mapping with generator or source
+            # Legacy dict format (shouldn't happen with Pydantic validation, but kept for safety)
             if "generator" in mapping_config:
                 return self._apply_generator(
                     occurrence,
