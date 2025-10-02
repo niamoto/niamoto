@@ -82,6 +82,8 @@ async def run_command_with_streaming(
 @router.get("/cloudflare/deploy")
 async def deploy_to_cloudflare(project_name: str, branch: str = ""):
     """Deploy to Cloudflare Pages with streaming logs."""
+    import os
+
     working_dir = get_working_directory()
     if not working_dir:
         raise HTTPException(status_code=400, detail="Working directory not set")
@@ -90,6 +92,13 @@ async def deploy_to_cloudflare(project_name: str, branch: str = ""):
     if not exports_dir.exists():
         raise HTTPException(
             status_code=404, detail=f"Exports directory not found: {exports_dir}"
+        )
+
+    # Check if CLOUDFLARE_API_TOKEN is set
+    if not os.getenv("CLOUDFLARE_API_TOKEN"):
+        raise HTTPException(
+            status_code=400,
+            detail="CLOUDFLARE_API_TOKEN environment variable not set. Please configure it in your deployment environment.",
         )
 
     # Build wrangler command
@@ -108,8 +117,7 @@ async def deploy_to_cloudflare(project_name: str, branch: str = ""):
 
     # Add branch parameter only if specified and not empty
     if branch and branch.strip():
-        command.insert(-2, "--branch")
-        command.insert(-2, branch)
+        command.extend(["--branch", branch])
 
     return StreamingResponse(
         run_command_with_streaming(command, working_dir, project_name, branch),
