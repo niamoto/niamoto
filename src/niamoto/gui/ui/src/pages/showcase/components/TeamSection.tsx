@@ -5,13 +5,14 @@ import {
   Mail,
   Github,
   Globe,
-  Heart,
   BookOpen,
   Sparkles,
   Wand2,
   Bug,
-  Hammer
+  Hammer,
+  HandHeart
 } from 'lucide-react'
+import niamotoLogo from '@/assets/niamoto_logo.png'
 
 const coreTeam = [
   {
@@ -77,14 +78,71 @@ const links = [
   }
 ]
 
+const partners = [
+  {
+    name: 'Province Nord',
+    logo: '/partners/pn_100.png',
+    url: 'https://www.province-nord.nc/',
+    description: 'Partenaire institutionnel et financier'
+  },
+  {
+    name: 'Province Sud',
+    logo: '/partners/ps_100.png',
+    url: 'https://www.province-sud.nc/',
+    description: 'Partenaire institutionnel'
+  },
+  {
+    name: 'Endemia',
+    logo: '/partners/endemia_100.png',
+    url: 'https://endemia.nc/',
+    description: 'Plateforme collaborative sur la biodiversité'
+  },
+  {
+    name: 'UMR AMAP',
+    logo: '/partners/amap_100.png',
+    url: 'https://amap.cirad.fr/',
+    description: 'Unité Mixte de Recherche botAnique et Modélisation de l\'Architecture des Plantes'
+  },
+  {
+    name: 'Herbarium',
+    logo: '/partners/herbarium_100.png',
+    url: 'http://publish.plantnet-project.org/project/nou',
+    description: 'Herbier de Nouvelle-Calédonie'
+  },
+  {
+    name: 'IAC',
+    logo: '/partners/iac_100.png',
+    url: 'https://iac.nc/',
+    description: 'Institut Agronomique néo-Calédonien'
+  },
+  {
+    name: 'IRD',
+    logo: '/partners/ird_100.png',
+    url: 'https://nouvelle-caledonie.ird.fr/',
+    description: 'Institut de Recherche pour le Développement'
+  },
+  {
+    name: 'Cirad',
+    logo: '/partners/cirad_100.png',
+    url: 'https://cirad.fr/',
+    description: 'Centre de coopération internationale en recherche agronomique'
+  },
+  {
+    name: 'OFB',
+    logo: '/partners/ofb_100.png',
+    url: 'https://www.ofb.gouv.fr/',
+    description: 'Office Français de la Biodiversité'
+  }
+]
+
 export function TeamSection() {
   return (
     <div className="w-full max-w-6xl mx-auto space-y-12 py-12">
       <div className="text-center space-y-4">
         <div className="flex items-center justify-center gap-3 mb-4">
-          <Heart className="w-8 h-8 text-red-500 fill-red-500" />
+          <img src={niamotoLogo} alt="Niamoto" className="w-14 h-14 object-contain" />
           <h2 className="text-4xl font-bold">Niamoteam</h2>
-          <Heart className="w-8 h-8 text-red-500 fill-red-500" />
+          <img src={niamotoLogo} alt="Niamoto" className="w-14 h-14 object-contain" />
         </div>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
           Projet collaboratif open-source pour la conservation de la biodiversité
@@ -138,6 +196,47 @@ export function TeamSection() {
           )
         })}
       </div>
+
+      {/* Partners & Funders */}
+      <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+        <CardHeader>
+          <div className="flex items-center gap-3 mb-2">
+            <HandHeart className="w-6 h-6 text-blue-600" />
+            <CardTitle>Partenaires & Financeurs</CardTitle>
+          </div>
+          <CardDescription className="text-base">
+            Le développement de Niamoto s'inscrit dans le cadre du projet de recherche
+            <strong className="text-foreground"> "Partenariat pour l'Analyse des DynaMIques de REforestation et de la résilience forestière (ADMIRE)"</strong>,
+            établi entre la Province Nord, l'IAC et le Cirad. Ce projet vise à développer des outils informatiques
+            pour l'aide à la décision dans la gestion des espaces naturels de la Province Nord de la Nouvelle-Calédonie.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-6 items-center justify-items-center">
+            {partners.map((partner) => (
+              <a
+                key={partner.name}
+                href={partner.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-3 group"
+              >
+                <div className="w-20 h-20 bg-white dark:bg-gray-800 rounded-lg p-2 shadow-md group-hover:shadow-xl transition-all group-hover:scale-105 flex items-center justify-center">
+                  <img
+                    src={partner.logo}
+                    alt={partner.name}
+                    className="w-full h-full object-contain"
+                    title={partner.description}
+                  />
+                </div>
+                <p className="text-xs text-center text-muted-foreground font-medium group-hover:text-foreground transition-colors">
+                  {partner.name}
+                </p>
+              </a>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Links & Contact */}
       <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
