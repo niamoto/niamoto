@@ -1,4 +1,6 @@
 import os
+import re
+from string import Template
 import yaml
 from typing import Any, Dict, Optional, List
 from niamoto.common.exceptions import (
@@ -117,15 +119,19 @@ class Config:
         try:
             if os.path.exists(file_path):
                 with open(file_path, "r", encoding="utf-8") as f:
-                    try:
-                        data = yaml.safe_load(f)
-                    except yaml.YAMLError as e:
-                        raise FileFormatError(
-                            file_path=file_path,
-                            message="Invalid YAML format",
-                            details={"error": str(e)},
-                        )
-                    return data or {}
+                    raw_content = f.read()
+                resolved_content = Config._substitute_env_variables(
+                    raw_content, source=file_path
+                )
+                try:
+                    data = yaml.safe_load(resolved_content)
+                except yaml.YAMLError as e:
+                    raise FileFormatError(
+                        file_path=file_path,
+                        message="Invalid YAML format",
+                        details={"error": str(e)},
+                    )
+                return data or {}
             elif create_if_missing:
                 # Check if we're in a test environment
                 if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get(
@@ -173,6 +179,42 @@ class Config:
                 message="Failed to access config file",
                 details={"error": str(e)},
             )
+
+    @staticmethod
+    def _substitute_env_variables(content: str, *, source: str) -> str:
+        """Replace ${VAR} or ${VAR:-default} placeholders with environment values."""
+
+        if "${" not in content:
+            return content
+
+        pattern = re.compile(r"\$\{([A-Z0-9_]+)(?::-(.*?))?\}")
+
+        def replace(match: re.Match[str]) -> str:
+            var_name = match.group(1)
+            default_value = match.group(2)
+            env_value = os.environ.get(var_name)
+            if env_value is not None:
+                return env_value
+            if default_value is not None:
+                return default_value
+            raise EnvironmentSetupError(
+                message="Missing environment variable",
+                details={"variable": var_name, "file": source},
+            )
+
+        substituted = pattern.sub(replace, content)
+
+        # Support $VAR style via string.Template for backwards compatibility
+        try:
+            return Template(substituted).safe_substitute(os.environ)
+        except (
+            ValueError
+        ) as exc:  # pragma: no cover - only triggered on malformed template
+            raise FileFormatError(
+                file_path=source,
+                message="Invalid template syntax in configuration",
+                details={"error": str(exc)},
+            ) from exc
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:

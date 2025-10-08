@@ -11,6 +11,7 @@ import pandas as pd
 from datetime import datetime
 from rich.console import Console
 from sqlalchemy.exc import SQLAlchemyError
+from pydantic import ValidationError as PydanticValidationError
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.exceptions import (
@@ -40,6 +41,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Backward compatibility toggle expected by tests and legacy code
+CLI_CONTEXT = CLI_DETECTED
+
 
 class TransformerService:
     """Service for transforming data based on YAML configuration."""
@@ -64,8 +68,10 @@ class TransformerService:
         self.console = Console()
         self.transform_metrics = None  # Store metrics for CLI access
         if enable_cli_integration is None:
-            enable_cli_integration = CLI_DETECTED
-        self.use_cli_integration = enable_cli_integration and CLI_DETECTED
+            enable_cli_integration = CLI_CONTEXT
+        self.use_cli_integration = (
+            bool(enable_cli_integration) and CLI_CONTEXT and CLI_DETECTED
+        )
 
         # Initialize plugin loader and load plugins
         self.plugin_loader = PluginLoader()
@@ -233,6 +239,10 @@ class TransformerService:
                             # Plugins can access them via config['available_sources']
                             data_to_pass = group_data
 
+                        self._validate_plugin_configuration(
+                            transformer, config, widget_config["plugin"]
+                        )
+
                         widget_results = transformer.transform(data_to_pass, config)
 
                         # Save the results
@@ -373,6 +383,10 @@ class TransformerService:
                             # Plugins can access them via config['available_sources']
                             data_to_pass = group_data
 
+                        self._validate_plugin_configuration(
+                            transformer, config, widget_config["plugin"]
+                        )
+
                         widget_results = transformer.transform(data_to_pass, config)
 
                         # Save the results
@@ -486,6 +500,30 @@ class TransformerService:
             )
 
         return filtered
+
+    def _validate_plugin_configuration(
+        self, transformer: Any, config: Dict[str, Any], plugin_name: str
+    ) -> None:
+        """Validate plugin configuration before execution."""
+
+        try:
+            if hasattr(transformer, "validate_config"):
+                transformer.validate_config(config)
+                return
+
+            config_model = getattr(transformer, "config_model", None)
+            if config_model is not None:
+                config_model(**config)
+        except PydanticValidationError as exc:
+            raise DataTransformError(
+                f"Invalid parameters for transformer '{plugin_name}'",
+                details={"errors": exc.errors()},
+            ) from exc
+        except Exception as exc:
+            raise DataTransformError(
+                f"Invalid parameters for transformer '{plugin_name}'",
+                details={"error": str(exc)},
+            ) from exc
 
     def validate_configuration(self, config: Dict[str, Any]) -> None:
         """
