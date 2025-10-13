@@ -1,0 +1,49 @@
+references:
+  taxonomy:
+    source: imports/occurrences.csv
+    type: hierarchical
+    extract_from: occurrences
+    hierarchy:
+    - family
+    - genus
+    - species
+    id_field: id_taxonref
+  locations:
+    source: imports/raw_plot_stats.csv
+    type: spatial
+    id_field: id
+    name_field: plot_id
+  mines:
+    source: shapes/mines.gpkg
+    type: spatial
+    id_field: id
+    geometry_field: geometry
+  protected_areas:
+    source: shapes/protected_areas.gpkg
+    type: spatial
+    id_field: id
+    geometry_field: geometry
+  substrate:
+    source: shapes/substrate.gpkg
+    type: spatial
+    id_field: id
+    name_field: nb_plots
+    geometry_field: geometry
+data:
+  observations:
+    source: imports/occurrences.csv
+    geometry_field: geo_pt
+  shape:
+    source: imports/raw_shape_stats.csv
+shapes:
+- type: Communes
+  path: shapes/communes.gpkg
+  name_field: nom
+- type: Holdridge Zones
+  path: shapes/holdridge_zones.gpkg
+- type: Ppe
+  path: shapes/ppe.gpkg
+  name_field: nom_ppe
+- type: Provinces
+  path: shapes/provinces.gpkg
+  name_field: nom

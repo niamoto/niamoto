@@ -183,7 +183,7 @@ def create_router(static_fallback=True):
 
 ### 5. Intégration avec l'Interface React
 
-```typescript
+```text
 // services/api.ts
 class NiamotoAPI {
   private baseURL: string;

@@ -1,8 +1,6 @@
 # Roadmap : Système de Liaison Configuration/Base de Données
 ## Niamoto GUI - Décembre 2024 / Janvier 2025
 
----
-
 ## 📌 Vue d'ensemble
 
 ### Problématique Actuelle
@@ -29,8 +27,6 @@ Créer un système de liaison bidirectionnelle entre l'interface GUI et le backe
 - **Cohérence** : Une source de vérité unique (fichiers config + base)
 - **Efficacité** : Pas de reconfiguration inutile
 - **Flexibilité** : Support de n'importe quelle structure de données
-
----
 
 ## 🏗️ Architecture Technique
 
@@ -66,7 +62,7 @@ Créer un système de liaison bidirectionnelle entre l'interface GUI et le backe
 ### Endpoints API Nécessaires
 
 #### 1. Status & Configuration
-```python
+```text
 # État global du pipeline
 GET /api/status
 Response: {
@@ -99,7 +95,7 @@ POST /api/config/{step}/validate
 ```
 
 #### 2. Base de Données
-```python
+```text
 # Schéma de la base
 GET /api/database/schema
 Response: {
@@ -124,7 +120,7 @@ GET /api/database/tables/{table_name}/stats
 ```
 
 #### 3. Plugins
-```python
+```text
 # Liste des plugins disponibles
 GET /api/plugins?type={plugin_type}
 Response: {
@@ -153,7 +149,7 @@ Body: {
 ```
 
 #### 4. Transform Spécifiques
-```python
+```text
 # Groupes de transformation
 GET /api/transform/groups
 POST /api/transform/groups
@@ -315,7 +311,7 @@ POST /api/transform/groups/{group_name}/pipeline
 ## 🔧 Stack Technique
 
 ### Frontend
-```typescript
+```text
 // Hooks personnalisés
 useConfigStatus() // État global
 useTableSchema(tableName) // Schéma d'une table
@@ -330,7 +326,7 @@ syncService // Synchronisation
 ```
 
 ### Backend
-```python
+```text
 # Nouveaux modules
 api/routers/status.py
 api/routers/config.py

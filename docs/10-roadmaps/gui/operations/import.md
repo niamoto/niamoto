@@ -62,7 +62,7 @@ src/niamoto/gui/ui/src/
 
 ### Technical Workflow Example
 
-```typescript
+```text
 // 1. User selects import type
 const config: ImportConfig = {
     importType: 'taxonomy'  // Note: uses importType, not type
@@ -236,7 +236,7 @@ const finalConfig = {
 ## Code Structure
 
 ### Frontend State Management
-```typescript
+```text
 // Using Zustand for import state
 interface ImportStore {
     configs: ImportConfig[]
@@ -262,7 +262,7 @@ ImportPage
 ```
 
 ### Error Handling Pattern
-```typescript
+```text
 try {
     const result = await importService.execute(config)
     showSuccess(`Imported ${result.recordCount} records`)
@@ -414,7 +414,7 @@ The Vite config includes a proxy that forwards `/api/*` requests to port 8080.
 
 The import process uses asynchronous job execution with polling:
 
-```typescript
+```text
 // Start import job
 const response = await axios.post('/api/imports/execute', formData)
 const jobId = response.data.job_id

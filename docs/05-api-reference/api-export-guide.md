@@ -360,7 +360,7 @@ exports/api/
 
 Index files provide quick access to summary information:
 
-```json
+```text
 {
   "total": 1250,
   "taxon": [
@@ -382,7 +382,7 @@ Index files provide quick access to summary information:
 
 Detail files contain complete transformed data:
 
-```json
+```text
 {
   "taxon_id": 1,
   "general_info": {
@@ -404,6 +404,6 @@ Detail files contain complete transformed data:
 
 ## Next Steps
 
-- [Darwin Core Export Guide](darwin-core-export.md) - Biodiversity data standards
-- [API Deployment Guide](api-deployment.md) - Hosting and accessing your APIs
-- [Data Integration Guide](api-integration.md) - Consuming the APIs in applications
+- [Darwin Core Export Guide](../04-plugin-development/examples/darwin-core-export.md) - Biodiversity data standards
+- [Deployment Guide](../11-development/deployment.md) - Hosting and accessing your APIs
+- [Export Process Guide](../02-data-pipeline/export-process.md) - Consuming the APIs in applications

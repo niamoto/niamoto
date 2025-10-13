@@ -48,9 +48,9 @@ class MyPlugin(TransformerPlugin):
 
 ## 🔗 Related Documentation
 
-- [Data Pipeline](../02-data-pipeline/) - Using plugins in pipelines
+- [Data Pipeline](../02-data-pipeline/README.md) - Using plugins in pipelines
 - [API Reference](../05-api-reference/plugin-api.md) - Plugin API documentation
-- [Configuration](../08-configuration/) - Plugin configuration
+- [Configuration](../08-configuration/README.md) - Plugin configuration
 
 ---
-*For real examples, see [Tutorials](../07-tutorials/)*
+*For real examples, see [Tutorials](../07-tutorials/README.md)*

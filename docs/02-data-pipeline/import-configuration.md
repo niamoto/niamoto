@@ -68,7 +68,7 @@ taxonomy:
 ```
 
 **Required CSV Structure:**
-```csv
+```text
 id_taxon,id_family,id_genus,id_species,id_subspecies,full_name,rank_name
 1,1,NULL,NULL,NULL,Araucariaceae,family
 2,1,1,NULL,NULL,Araucaria,genus
@@ -145,7 +145,7 @@ occurrences:
 ```
 
 **Required CSV Structure:**
-```csv
+```text
 id,id_taxon,longitude,latitude,dbh,height,date_observed,observer,plot_id
 1,3,166.4580,-22.2764,45.5,12.3,2024-03-15,J.Smith,P001
 2,3,166.4582,-22.2765,52.1,14.1,2024-03-15,J.Smith,P001
@@ -239,7 +239,7 @@ plots:
 ```
 
 **Example CSV:**
-```csv
+```text
 plot_id,plot_name,center_longitude,center_latitude,elevation,slope_percent,aspect_degrees,area_m2,forest_type
 P001,Mont Panié Plot 1,164.7672,-20.5819,1250,15.5,180,2500,cloud_forest
 P002,Rivière Bleue Plot 2,166.6421,-22.0943,450,8.2,90,2500,humid_forest
@@ -543,5 +543,5 @@ After successful import:
 
 For more advanced import scenarios, see:
 - [Data Preparation Guide](data-preparation.md)
-- [Transform Chain Guide](transform_chain_guide.md)
-- [API Taxonomy Enricher](api_taxonomy_enricher.md)
+- [Transform Chain Guide](transform-pipeline.md)
+- [API Taxonomy Enricher](../04-plugin-development/examples/taxonomy-enricher.md)

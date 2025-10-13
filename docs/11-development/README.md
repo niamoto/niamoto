@@ -89,9 +89,9 @@ cd docs && sphinx-apidoc -o . ../src/niamoto && make html
 
 ## 🔗 Related Documentation
 
-- [Architecture](../09-architecture/) - System design
-- [Plugin Development](../04-plugin-development/) - Creating plugins
-- [API Reference](../05-api-reference/) - API documentation
+- [Architecture](../09-architecture/README.md) - System design
+- [Plugin Development](../04-plugin-development/README.md) - Creating plugins
+- [API Reference](../05-api-reference/README.md) - API documentation
 
 ---
 *Questions? Open an issue on GitHub!*

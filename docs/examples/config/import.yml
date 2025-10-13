@@ -1,0 +1,207 @@
+version: "1.0"
+
+entities:
+  # ========================================
+  # DATASETS: Data sources
+  # ========================================
+  datasets:
+    occurrences:
+      description: Species occurrence observations captured in the field.
+      connector:
+        type: file
+        format: csv
+        path: imports/occurrences.csv
+      schema:
+        id_field: id_taxonref
+        fields:
+          - name: geo_pt
+            type: geometry
+            description: Point geometry in EPSG:4326.
+          - name: plot_name
+            type: string
+          - name: family
+            type: string
+          - name: genus
+            type: string
+          - name: species
+            type: string
+          - name: infra
+            type: string
+      links:
+        - entity: plots
+          field: plot_name
+          target_field: locality
+        - entity: taxonomy
+          field: id_taxonref
+          target_field: taxon_id
+      options:
+        mode: replace
+        chunk_size: 10000
+        geometry_field: geo_pt
+
+  # ========================================
+  # REFERENCES: Hierarchical references
+  # ========================================
+  references:
+    # DERIVED: Taxonomy extracted from occurrences
+    taxonomy:
+      kind: hierarchical
+      description: Taxonomic reference extracted from the occurrences dataset.
+      connector:
+        type: derived
+        source: occurrences
+        extraction:
+          levels:
+            - name: family
+              column: family
+            - name: genus
+              column: genus
+            - name: species
+              column: species
+            - name: infra
+              column: infra
+          id_column: id_taxonref
+          name_column: taxaname
+          incomplete_rows: skip
+          # ID generation strategy:
+          # - hash (default): Stable IDs via MD5 hash (e.g., 2071543557)
+          #   → Same path always generates same ID (safe for reimports)
+          # - sequence: Sequential IDs (1, 2, 3...)
+          #   → WARNING: IDs change on reimport
+          # - external: Use IDs from source data (id_column)
+          id_strategy: hash
+
+      hierarchy:
+        strategy: adjacency_list
+        levels:
+          - family
+          - genus
+          - species
+          - infra
+
+      schema:
+        id_field: id
+        fields: []
+
+      enrichment:
+        - plugin: api_taxonomy_enricher
+          enabled: false
+          config:
+            api_url: https://api.endemia.nc/v1/taxons
+            auth_method: api_key
+            auth_params:
+              key: 1e106508-9a86-4242-9012-d6cafdea3374
+              location: header
+              name: apiKey
+            query_params:
+              section: flore
+              maxitem: "1"
+              excludes: meta,links
+              includes: images
+            query_field: taxaname
+            rate_limit: 2
+            cache_results: true
+            response_mapping:
+              id_endemia: id
+              id_florical: id_florical
+              endemia_url: endemia_url
+              endemic: endemique
+              protected: protected
+              protected_provnord: protected_provnord
+              protected_provsud: protected_provsud
+              redlist: redlist
+              redlist_cat: categorie_uicn
+              image_small_thumb: image.small_thumb
+              image_big_thumb: image.big_thumb
+              image_auteur: image.auteur
+              images: images
+
+
+    # DIRECT: Plots from CSV
+    plots:
+      kind: hierarchical
+      description: Plot and site reference catalogue used for spatial aggregation.
+      connector:
+        type: file
+        format: csv
+        path: imports/plots.csv
+      schema:
+        id_field: id_plot
+        fields:
+          - name: plot
+            type: string
+            description: Plot label used in reports.
+          - name: geo_pt
+            type: geometry
+          - name: locality
+            type: string
+          - name: plot_name
+            type: string
+      links:
+        - entity: occurrences
+          field: locality
+          target_field: plot_name
+
+    # SPATIAL: Geographic features (Provinces, Communes, etc.)
+    shapes:
+      kind: spatial
+      description: Geographic reference features for spatial analysis (one row per feature).
+      connector:
+        type: file_multi_feature
+        sources:
+          - name: Provinces
+            path: imports/shapes/provinces.gpkg
+            name_field: nom
+          - name: Communes
+            path: imports/shapes/communes.gpkg
+            name_field: nom
+          - name: Aires proteges
+            path: imports/shapes/protected_areas.gpkg
+            name_field: libelle
+          - name: Substrats
+            path: imports/shapes/substrate.gpkg
+            name_field: label
+          - name: Zones de vie
+            path: imports/shapes/holdridge_zones.gpkg
+            name_field: zone
+          - name: Captage
+            path: imports/shapes/ppe.gpkg
+            name_field: nom_ppe
+          - name: Emprises minieres
+            path: imports/shapes/mines.gpkg
+            name_field: region
+      schema:
+        id_field: id
+        fields:
+          - name: name
+            type: string
+            description: Feature name from source file
+          - name: location
+            type: geometry
+            description: Geometry in WKT format
+          - name: entity_type
+            type: string
+            description: Source type (e.g. "Provinces", "Communes")
+
+# ========================================
+# METADATA: Layers (raster/vector resources)
+# ========================================
+metadata:
+  layers:
+    - name: forest_cover
+      type: vector
+      format: shapefile
+      path: imports/layers/amap_carto_3k_20240715.gpkg
+      description: Forest cover layer
+    - name: elevation
+      type: raster
+      path: imports/layers/mnt100_epsg3163.tif
+      description: Digital elevation model
+    - name: rainfall
+      type: raster
+      path: imports/layers/rainfall_epsg3163.tif
+      description: Annual rainfall distribution
+    - name: holdridge
+      type: raster
+      path: imports/layers/amap_raster_holdridge_nc.tif
+      description: Holdridge life zones

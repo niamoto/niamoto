@@ -84,7 +84,7 @@ frontend/
 - Installation simplifiée sans erreurs
 
 ### pyproject.toml mis à jour
-```toml
+```text
 # Dépendances principales
 "fastapi>=0.115.0",
 "uvicorn[standard]>=0.34.0",

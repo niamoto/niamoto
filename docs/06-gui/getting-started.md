@@ -203,8 +203,8 @@ L'interface affiche des messages d'erreur détaillés. Vérifiez :
 ## Prochaines étapes
 
 - Consultez le [parcours utilisateur détaillé](user-workflow.md) pour des cas d'usage avancés
-- Explorez la [référence API](api-reference.md) pour intégrer l'interface dans vos workflows
-- Lisez la [documentation technique](development/architecture.md) pour comprendre le fonctionnement interne
+- Explorez la [référence API](../10-roadmaps/gui/api-reference.md) pour intégrer l'interface dans vos workflows
+- Lisez la [documentation technique](../10-roadmaps/gui/development/architecture.md) pour comprendre le fonctionnement interne
 
 ## Support
 

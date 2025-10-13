@@ -28,7 +28,7 @@ In this tutorial, you'll create a portal that analyzes forest inventory plots wi
 
 ## Prerequisites
 
-- Niamoto installed ([Installation Guide](../getting-started/installation.md))
+- Niamoto installed ([Installation Guide](../01-getting-started/installation.md))
 - Basic understanding of forest inventory concepts
 - Familiarity with CSV data formats
 
@@ -37,7 +37,7 @@ In this tutorial, you'll create a portal that analyzes forest inventory plots wi
 We'll use forest inventory data from New Caledonia's monitoring network:
 
 **Plots** (`plots.csv`):
-```csv
+```text
 plot_id,plot_name,latitude,longitude,elevation,slope,aspect,forest_type,area_m2,establishment_date
 P001,Mont Panié - Plot 1,-20.5819,164.7672,850,15,180,humid_forest,2500,2018-03-15
 P002,Mont Panié - Plot 2,-20.5825,164.7685,875,12,165,humid_forest,2500,2018-03-16
@@ -47,7 +47,7 @@ P005,Pic du Grand Kaori - Plot 1,-21.3456,165.9123,950,25,200,humid_forest,2500,
 ```
 
 **Trees** (`trees.csv`):
-```csv
+```text
 tree_id,plot_id,taxon_id,species,dbh_cm,height_m,status,x_coord,y_coord
 T001,P001,123,Araucaria columnaris,45.2,18.5,alive,12.5,15.3
 T002,P001,124,Agathis ovata,38.7,16.2,alive,8.2,22.1
@@ -57,7 +57,7 @@ T005,P002,126,Calophyllum caledonicum,33.5,14.8,alive,28.1,31.2
 ```
 
 **Environmental** (`plot_environment.csv`):
-```csv
+```text
 plot_id,soil_type,substrate,annual_rainfall_mm,mean_temp_c,humidity_percent,canopy_cover_percent
 P001,ferralsol,ultramafic,2800,18.5,85,92
 P002,ferralsol,ultramafic,2850,18.2,87,89

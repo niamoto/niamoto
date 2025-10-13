@@ -7,7 +7,7 @@ Complete guide to configuring Niamoto for your needs.
 - **[Configuration Guide](configuration-guide.md)** - Comprehensive configuration reference
 - **[YAML Strategies](yaml-strategies.md)** - Simplifying YAML configurations
 - **[Templates Hierarchy](templates-hierarchy.md)** - Hierarchical template system
-- **[Auto-Config Roadmap](auto-config-roadmap.md)** - Automatic configuration generation
+- **[Auto-Config Roadmap](../03-ml-detection/auto-config-roadmap.md)** - Automatic configuration generation
 
 ## 🔧 Configuration Files
 
@@ -61,9 +61,9 @@ site:
 
 ## 🔗 Related Documentation
 
-- [Data Pipeline](../02-data-pipeline/) - Using configurations
-- [ML Detection](../03-ml-detection/) - Auto-configuration
-- [Plugin Development](../04-plugin-development/) - Plugin configs
+- [Data Pipeline](../02-data-pipeline/README.md) - Using configurations
+- [ML Detection](../03-ml-detection/README.md) - Auto-configuration
+- [Plugin Development](../04-plugin-development/README.md) - Plugin configs
 
 ---
-*For examples, see [Tutorials](../07-tutorials/)*
+*For examples, see [Tutorials](../07-tutorials/README.md)*

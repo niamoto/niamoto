@@ -187,7 +187,7 @@ Fonctionnalités :
 
 **Process 6 étapes** :
 
-```typescript
+```text
 interface PipelineSteps {
   1: 'Upload files',        // Drag & drop
   2: 'Detect types',         // ML analysis

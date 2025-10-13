@@ -757,7 +757,7 @@ if __name__ == "__main__":
 ## 5. Résultats Attendus
 
 ### Input : CSV avec colonnes aux noms random
-```csv
+```text
 X1,toto,machin,truc,bidule
 23.5,Araucaria columnaris,15.2,0.65,Province Sud
 45.1,Agathis lanceolata,22.8,0.72,Province Nord

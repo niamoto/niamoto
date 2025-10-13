@@ -424,7 +424,7 @@ GROUP BY name;
 
 ## Related Documentation
 
-- [Data Import Guide](../guides/data-import.md) - How user data becomes database tables
-- [Transform Chain Guide](../guides/transform_chain_guide.md) - How transform results are generated
+- [Data Import Guide](../02-data-pipeline/import-configuration.md) - How user data becomes database tables
+- [Transform Chain Guide](../02-data-pipeline/transform-pipeline.md) - How transform results are generated
 - [CLI Commands Reference](cli-commands.md) - Database-related commands (`niamoto stats`)
-- [Common Issues](../troubleshooting/common-issues.md) - Database troubleshooting
+- [Common Issues](../12-troubleshooting/common-issues.md) - Database troubleshooting

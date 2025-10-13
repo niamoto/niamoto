@@ -698,6 +698,6 @@ After successful deployment:
 5. **Document your deployment process**
 
 For more advanced configurations:
-- [Performance Optimization Guide](../advanced/optimization.md)
-- [CI/CD Best Practices](../development/contributing.md)
-- [Troubleshooting Guide](../troubleshooting/common-issues.md)
+- [Performance Optimization Guide](../09-architecture/technical-analysis.md)
+- [CI/CD Best Practices](contributing.md)
+- [Troubleshooting Guide](../12-troubleshooting/common-issues.md)

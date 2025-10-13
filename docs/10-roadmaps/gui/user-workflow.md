@@ -21,14 +21,14 @@ flore-endemique/
 **Format des données :**
 
 `taxonomie_complete.csv` :
-```csv
+```text
 id_taxonref,family,genus,species,authors,endemic
 1,Araucariaceae,Araucaria,columnaris,(Forster) Hooker,true
 2,Cunoniaceae,Cunonia,macrophylla,Brongn. & Gris,true
 ```
 
 `observations_terrain.csv` :
-```csv
+```text
 id,taxonref,geo_pt,date_obs,observateur
 1,Araucaria columnaris,"POINT(166.5 -22.3)",2024-03-15,M. Dupont
 2,Cunonia macrophylla,"POINT(166.4 -22.2)",2024-03-16,M. Dupont

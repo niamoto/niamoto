@@ -67,7 +67,7 @@ App
 ```
 
 #### State Management Pattern
-```typescript
+```text
 // Global state with Zustand
 const useImportStore = create<ImportStore>((set) => ({
   configs: [],
@@ -87,7 +87,7 @@ const { data, isLoading, error } = useQuery({
 ```
 
 #### Component Patterns
-```typescript
+```text
 // Compound Components
 <ImportWizard>
   <ImportWizard.Steps />
@@ -183,7 +183,7 @@ Frontend                    Backend                     Database
 ```
 
 ### WebSocket for Real-time Updates
-```typescript
+```text
 // Frontend
 const ws = new WebSocket('ws://localhost:8080/ws')
 ws.onmessage = (event) => {
@@ -202,7 +202,7 @@ async def websocket_endpoint(websocket: WebSocket):
 ## Error Handling
 
 ### Frontend Error Boundaries
-```typescript
+```text
 class ErrorBoundary extends Component {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo)
@@ -288,7 +288,7 @@ npm run dev
 ```
 
 ### Testing Strategy
-```typescript
+```text
 // Component Testing
 describe('ImportWizard', () => {
   it('should advance to next step when valid', () => {
@@ -348,7 +348,7 @@ services:
 ## Monitoring & Logging
 
 ### Frontend Monitoring
-```typescript
+```text
 // Error tracking with Sentry
 Sentry.init({
   dsn: "YOUR_SENTRY_DSN",

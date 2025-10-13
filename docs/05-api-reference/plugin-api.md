@@ -552,7 +552,7 @@ widgets:
 | `summary_stats` | Display statistical summaries | `fields`, `statistics` |
 | `table_view` | Display tabular data | `columns`, `pagination`, `sorting` |
 
-For detailed widget documentation, see the [Widget Reference Guide](widget-reference.md).
+For detailed widget documentation, see the [Widget Reference Guide](../02-data-pipeline/widget-system.md).
 
 ### Example: Custom Widget Plugin
 
@@ -803,9 +803,9 @@ niamoto plugins --plugin top_ranking --details
 
 ## Related Documentation
 
-- [Widget Reference Guide](widget-reference.md) - Detailed widget documentation
-- [Custom Plugin Development](custom-plugin.md) - Creating custom plugins
-- [Transform Chain Guide](transform-chain-guide.md) - Chaining transformations
-- [Configuration Guide](configuration.md) - YAML configuration reference
+- [Widget Reference Guide](../02-data-pipeline/widget-system.md) - Detailed widget documentation
+- [Custom Plugin Development](../04-plugin-development/creating-transformers.md) - Creating custom plugins
+- [Transform Chain Guide](../02-data-pipeline/transform-pipeline.md) - Chaining transformations
+- [Configuration Guide](../08-configuration/README.md) - YAML configuration reference
 
-For troubleshooting plugin issues, see the [Common Issues Guide](../troubleshooting/common-issues.md).
+For troubleshooting plugin issues, see the [Common Issues Guide](../12-troubleshooting/common-issues.md).

@@ -143,7 +143,7 @@ Create interactive maps with point data, choropleth layers, and multi-layer supp
 ```
 
 *Choropleth map*:
-```geojson
+```text
 {
   "type": "FeatureCollection",
   "features": [
@@ -920,13 +920,13 @@ tail -f logs/niamoto.log | grep "widget"
 
 For more advanced widget usage:
 
-- [Plugin Development Guide](plugin-development.md) - Create custom widgets
-- [Export Configuration](export-guide.md) - Configure widget exports
-- [Styling Guide](styling-guide.md) - Custom CSS and themes
-- [Performance Guide](performance-optimization.md) - Optimize large datasets
+- [Plugin Development Guide](../04-plugin-development/README.md) - Create custom widgets
+- [Export Configuration](export-process.md) - Configure widget exports
+- [Styling Tips](../06-gui/operations/export.md) - Custom CSS and themes
+- [Performance Guide](../11-development/deployment.md) - Optimize large datasets
 
 For troubleshooting widget issues:
 
-- [Common Issues](../troubleshooting/common-issues.md) - Widget-specific troubleshooting
+- [Common Issues](../12-troubleshooting/common-issues.md) - Widget-specific troubleshooting
 - [Data Validation](data-preparation.md) - Ensure proper data formats
-- [Export Problems](../troubleshooting/export-issues.md) - Export-related problems
+- [Export Problems](../12-troubleshooting/common-issues.md) - Export-related problems

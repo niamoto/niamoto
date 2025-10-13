@@ -448,7 +448,7 @@ queries:
 
 ## Related Documentation
 
-- [Plugin Reference Guide](plugin-reference.md) - Complete plugin system overview
-- [Widget Reference Guide](widget-reference.md) - Using aggregated data in widgets
-- [Export Guide](export-guide.md) - Configuring website exports
-- [Database Schema Reference](../references/database-schema.md) - Available tables and columns
+- [Plugin Reference Guide](README.md) - Complete plugin system overview
+- [Widget Reference Guide](../02-data-pipeline/widget-system.md) - Using aggregated data in widgets
+- [Export Guide](../02-data-pipeline/export-process.md) - Configuring website exports
+- [Database Schema Reference](../05-api-reference/database-schema.md) - Available tables and columns

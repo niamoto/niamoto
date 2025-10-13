@@ -6,12 +6,12 @@ This guide helps you diagnose and resolve common issues when working with Niamot
 
 This troubleshooting guide is organized by:
 
-1. [Installation Issues](#installation-issues)
-2. [Import Problems](#import-problems)
-3. [Transformation Errors](#transformation-errors)
-4. [Export Issues](#export-issues)
-5. [Performance Problems](#performance-problems)
-6. [Deployment Issues](#deployment-issues)
+1. Installation issues
+2. Import problems
+3. Transformation errors
+4. Export issues
+5. Performance problems
+6. Deployment issues
 
 ## Installation Issues
 
@@ -52,13 +52,13 @@ This troubleshooting guide is organized by:
    ```
 
 4. **Windows PATH issues**:
-   ```cmd
-   # Add Python Scripts to PATH
-   # Usually: C:\Users\YourName\AppData\Local\Programs\Python\Python311\Scripts
+```text
+# Add Python Scripts to PATH
+# Usually: C:\Users\YourName\AppData\Local\Programs\Python\Python311\Scripts
 
-   # Or use py launcher
-   py -m niamoto --version
-   ```
+# Or use py launcher
+py -m niamoto --version
+```
 
 ### GDAL Installation Problems
 
@@ -640,10 +640,10 @@ mprof plot
 
 ### Check Documentation
 
-1. [Installation Guide](../getting-started/installation.md)
-2. [Data Import Guide](../guides/data-import.md)
-3. [Export Guide](../guides/export-guide.md)
-4. [CLI Reference](../references/cli-commands.md)
+1. [Installation Guide](../01-getting-started/installation.md)
+2. [Data Import Guide](../02-data-pipeline/import-configuration.md)
+3. [Export Guide](../02-data-pipeline/export-process.md)
+4. [CLI Reference](../05-api-reference/cli-commands.md)
 
 ### Community Resources
 
@@ -689,7 +689,7 @@ occurrences:
 ```
 
 **Sample Data**:
-```csv
+```text
 id,latitude,longitude
 1,-22.2764,166.4580
 2,-999,-999

@@ -28,7 +28,8 @@
       "Bash(niamoto gui:*)",
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(awk:*)"
     ],
     "deny": []
   }

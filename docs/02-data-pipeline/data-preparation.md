@@ -31,7 +31,7 @@ Proper data preparation is crucial for successful Niamoto projects. This guide c
 - `synonyms` - Alternative scientific names
 
 **Example structure:**
-```csv
+```text
 id_taxon,family,genus,species,rank_name,full_name,authors
 1,Araucariaceae,,,family,Araucariaceae,
 2,Araucariaceae,Araucaria,,genus,Araucaria,
@@ -64,7 +64,7 @@ id_taxon,family,genus,species,rank_name,full_name,authors
 - `status` - Health status (alive, dead, damaged)
 
 **Example structure:**
-```csv
+```text
 id,id_taxon,latitude,longitude,plot_id,date_observed,observer,dbh,height,status
 1,3,-22.2764,166.4580,P001,2024-03-15,J.Smith,45.5,12.3,alive
 2,3,-22.2765,166.4582,P001,2024-03-15,J.Smith,52.1,14.1,alive
@@ -96,7 +96,7 @@ id,id_taxon,latitude,longitude,plot_id,date_observed,observer,dbh,height,status
 - `establishment_date` - When plot was established
 
 **Example structure:**
-```csv
+```text
 plot_id,plot_name,latitude,longitude,elevation,slope_percent,aspect_degrees,area_m2,forest_type
 P001,Mont Panié Plot 1,-20.5819,164.7672,1250,15.5,180,2500,cloud_forest
 P002,Rivière Bleue Plot 2,-22.0943,166.6421,450,8.2,90,2500,humid_forest
@@ -587,7 +587,7 @@ Create a data dictionary (`docs/data_dictionary.md`):
 ### Issue 1: Inconsistent Species Names
 
 **Problem**: Same species with different names
-```csv
+```text
 Araucaria columnaris
 Araucaria columnaris (G.Forst.) Hook.
 A. columnaris
@@ -704,6 +704,6 @@ After preparing your data:
 5. **Document any issues** found
 
 For detailed import procedures, see:
-- [Data Import Guide](data-import.md)
-- [Quick Start Guide](../getting-started/quickstart.md)
-- [Common Issues](../troubleshooting/common-issues.md)
+- [Data Import Guide](import-configuration.md)
+- [Quick Start Guide](../01-getting-started/quickstart.md)
+- [Common Issues](../12-troubleshooting/common-issues.md)

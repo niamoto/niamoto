@@ -7,7 +7,7 @@ Welcome to the Niamoto documentation! This comprehensive guide will help you und
 New to Niamoto? Start here:
 1. **[Installation](01-getting-started/installation.md)** - Get Niamoto up and running
 2. **[Quick Start](01-getting-started/quickstart.md)** - Your first Niamoto project
-3. **[Tutorials](07-tutorials/)** - Learn by example
+3. **[Tutorials](07-tutorials/README.md)** - Learn by example
 
 ## 📖 Documentation Structure
 
@@ -17,28 +17,28 @@ Our documentation is organized into numbered sections for easy navigation:
 
 | Section | Description | For Who |
 |---------|-------------|---------|
-| **[01-getting-started/](01-getting-started/)** | Installation, setup, and basic concepts | New users |
-| **[02-data-pipeline/](02-data-pipeline/)** | Import, transform, and export data | All users |
-| **[03-ml-detection/](03-ml-detection/)** | Machine learning auto-detection features | Advanced users |
-| **[07-tutorials/](07-tutorials/)** | Step-by-step practical examples | All users |
+| **[01-getting-started](01-getting-started/README.md)** | Installation, setup, and basic concepts | New users |
+| **[02-data-pipeline](02-data-pipeline/README.md)** | Import, transform, and export data | All users |
+| **[03-ml-detection](03-ml-detection/README.md)** | Machine learning auto-detection features | Advanced users |
+| **[07-tutorials](07-tutorials/README.md)** | Step-by-step practical examples | All users |
 
 ### Configuration & Development
 
 | Section | Description | For Who |
 |---------|-------------|---------|
-| **[04-plugin-development/](04-plugin-development/)** | Create custom plugins | Developers |
-| **[05-api-reference/](05-api-reference/)** | Complete API documentation | Developers |
-| **[06-gui/](06-gui/)** | Web interface documentation | GUI users |
-| **[08-configuration/](08-configuration/)** | Configuration strategies | Power users |
+| **[04-plugin-development](04-plugin-development/README.md)** | Create custom plugins | Developers |
+| **[05-api-reference](05-api-reference/README.md)** | Complete API documentation | Developers |
+| **[06-gui](06-gui/README.md)** | Web interface documentation | GUI users |
+| **[08-configuration](08-configuration/README.md)** | Configuration strategies | Power users |
 
 ### Architecture & Planning
 
 | Section | Description | For Who |
 |---------|-------------|---------|
-| **[09-architecture/](09-architecture/)** | System design and decisions | Architects |
-| **[10-roadmaps/](10-roadmaps/)** | Future development plans | Contributors |
-| **[11-development/](11-development/)** | Contributing to Niamoto | Developers |
-| **[12-troubleshooting/](12-troubleshooting/)** | Common issues and solutions | All users |
+| **[09-architecture](09-architecture/README.md)** | System design and decisions | Architects |
+| **[10-roadmaps](10-roadmaps/README.md)** | Future development plans | Contributors |
+| **[11-development](11-development/README.md)** | Contributing to Niamoto | Developers |
+| **[12-troubleshooting](12-troubleshooting/README.md)** | Common issues and solutions | All users |
 
 ## 🎯 Common Tasks
 
@@ -51,31 +51,29 @@ Our documentation is organized into numbered sections for easy navigation:
 ### For Developers
 - [Create a plugin](04-plugin-development/creating-transformers.md)
 - [Build widgets](04-plugin-development/building-widgets.md)
-- [API reference](05-api-reference/)
+- [API reference](05-api-reference/README.md)
 - [Development setup](11-development/setup.md)
 
 ### For Project Managers
-- [System overview](09-architecture/)
-- [Roadmaps](10-roadmaps/)
+- [System overview](09-architecture/README.md)
+- [Roadmaps](10-roadmaps/README.md)
 - [GUI workflow](06-gui/user-workflow.md)
 
 ## 🔍 Finding Information
 
 ### By Topic
 - **Data Import**: [02-data-pipeline/import-configuration.md](02-data-pipeline/import-configuration.md)
-- **ML Detection**: [03-ml-detection/](03-ml-detection/)
-- **Configuration**: [08-configuration/](08-configuration/)
-- **Plugins**: [04-plugin-development/](04-plugin-development/)
-- **GUI**: [06-gui/](06-gui/)
+- **ML Detection**: [03-ml-detection](03-ml-detection/README.md)
+- **Configuration**: [08-configuration](08-configuration/README.md)
+- **Plugins**: [04-plugin-development](04-plugin-development/README.md)
+- **GUI**: [06-gui](06-gui/README.md)
 
 ### By Use Case
 - **Biodiversity monitoring**: [07-tutorials/biodiversity-site.md](07-tutorials/biodiversity-site.md)
 - **Forest analysis**: [07-tutorials/forest-plot-analysis.md](07-tutorials/forest-plot-analysis.md)
-- **Auto-configuration**: [03-ml-detection/auto-configuration.md](03-ml-detection/auto-configuration.md)
+- **Auto-configuration**: [03-ml-detection/auto-config-roadmap.md](03-ml-detection/auto-config-roadmap.md)
 
 ## 📊 Documentation Status
-
-See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for detailed status of all documentation.
 
 ### Recent Updates
 - ✨ **ML Detection System** - Complete documentation for machine learning features
@@ -90,7 +88,7 @@ Help improve our documentation:
 2. Submit pull requests with corrections or new content
 3. Share your use cases and examples
 
-See [11-development/contributing.md](11-development/contributing.md) for guidelines.
+See [11-development/README.md](11-development/README.md) for guidelines.
 
 ## 📝 Documentation Conventions
 
