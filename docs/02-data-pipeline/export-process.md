@@ -544,7 +544,7 @@ site:
 
 ### Custom CSS and Styling
 
-```yaml
+```text
 # Copy custom assets
 copy_assets_from:
   - "templates/assets/"
@@ -825,8 +825,8 @@ This generates machine-readable data compatible with GBIF and other biodiversity
 
 ## Next Steps
 
-- [API Export Guide](api-export-guide.md) - Complete JSON API documentation
-- [Darwin Core Export Guide](darwin-core-export.md) - Biodiversity data standards
-- [Deployment Guide](deployment.md) - Publishing your site
-- [Widget Reference](widget-reference.md) - Complete widget documentation
-- [Template Development](template-development.md) - Advanced template customization
+- [API Export Guide](../05-api-reference/api-export-guide.md) - Complete JSON API documentation
+- [Darwin Core Export Guide](../04-plugin-development/examples/darwin-core-export.md) - Biodiversity data standards
+- [Deployment Guide](../11-development/deployment.md) - Publishing your site
+- [Widget Reference](widget-system.md) - Complete widget documentation
+- [Custom Exporters](../04-plugin-development/custom-exporters.md) - Advanced template customization

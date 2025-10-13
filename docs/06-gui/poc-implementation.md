@@ -31,7 +31,7 @@ Cette page documente l'implémentation actuelle du POC de l'interface graphique 
 
 #### Architecture API
 
-```python
+```text
 src/niamoto/gui/
 ├── api/
 │   ├── app.py          # Application FastAPI principale
@@ -73,7 +73,7 @@ src/niamoto/gui/
 
 #### Commande `niamoto gui`
 
-```python
+```text
 # src/niamoto/cli/commands/gui.py
 - Lance le serveur FastAPI
 - Ouvre automatiquement le navigateur

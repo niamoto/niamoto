@@ -39,7 +39,7 @@ Train custom detection models:
 
 ## 🚀 Getting Started
 
-1. Complete [Getting Started](../01-getting-started/) first
+1. Complete [Getting Started](../01-getting-started/README.md) first
 2. Choose a tutorial matching your use case
 3. Follow step-by-step instructions
 4. Adapt to your own data
@@ -52,9 +52,9 @@ Beginner → Biodiversity Site → Forest Analysis → ML Training
 
 ## 🔗 Related Documentation
 
-- [Data Pipeline](../02-data-pipeline/) - Understanding the pipeline
-- [Configuration](../08-configuration/) - Advanced configuration
-- [Plugin Development](../04-plugin-development/) - Extend functionality
+- [Data Pipeline](../02-data-pipeline/README.md) - Understanding the pipeline
+- [Configuration](../08-configuration/README.md) - Advanced configuration
+- [Plugin Development](../04-plugin-development/README.md) - Extend functionality
 
 ---
 *Have a tutorial idea? Contribute to the documentation!*

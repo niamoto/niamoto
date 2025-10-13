@@ -11,7 +11,7 @@ Machine learning-based column detection and automatic configuration generation.
 - **[Detector Usage](detector-usage.md)** - Using the ML detector
 - **[Synthetic Data](synthetic-data.md)** - Generate training data
 - **[Semantic Detection](semantic-detection.md)** - Semantic type analysis
-- **[Auto Configuration](auto-configuration.md)** - Automatic config generation
+- **[Auto Configuration](auto-config-roadmap.md)** - Automatic config generation
 - **[Roadmap](roadmap.md)** - Future development plans
 
 ## 🤖 Key Features
@@ -36,9 +36,9 @@ Machine learning-based column detection and automatic configuration generation.
 
 ## 📖 Related Documentation
 
-- [Data Pipeline](../02-data-pipeline/) - Integration with import process
-- [Configuration](../08-configuration/) - Configuration strategies
-- [API Reference](../05-api-reference/) - ML API documentation
+- [Data Pipeline](../02-data-pipeline/README.md) - Integration with import process
+- [Configuration](../08-configuration/README.md) - Configuration strategies
+- [API Reference](../05-api-reference/README.md) - ML API documentation
 
 ---
 *Status: Active development - see [Current State](current-state.md) and [Roadmap](roadmap.md)*

@@ -58,7 +58,7 @@ graph TB
 
 ### Core Components
 
-```python
+```text
 # System architecture
 AutoConfigSystem:
     ├── MLColumnDetector       # ✅ Already implemented (85% done)
@@ -86,7 +86,7 @@ AutoConfigSystem:
 ### What's Already Implemented
 
 #### 1. ML Column Detector (`ml_detector.py`) - 85% Complete
-```python
+```text
 # Current implementation
 class MLColumnDetector:
     def extract_features(self, series: pd.Series) -> np.ndarray:
@@ -103,7 +103,7 @@ class MLColumnDetector:
 **Status**: Model training script exists, needs more training data
 
 #### 2. Data Profiler (`profiler.py`) - 90% Complete
-```python
+```text
 # Current implementation
 class DataProfiler:
     def profile(self, file_path: Path) -> DatasetProfile:
@@ -116,7 +116,7 @@ class DataProfiler:
 **Status**: Working well, could benefit from more patterns
 
 #### 3. Auto Detector (`auto_detector.py`) - 80% Complete
-```python
+```text
 # Current implementation
 class AutoDetector:
     def analyze_directory(self, directory: Path) -> Dict:
@@ -141,7 +141,7 @@ class AutoDetector:
 ### Phase 1: Complete ML Detection & New Import Format (Week 1-2)
 
 #### 1.1 Enhance ML Training Data
-```python
+```text
 # scripts/enhance_ml_training.py
 def generate_enhanced_training_data():
     """Generate more diverse training examples"""
@@ -166,7 +166,7 @@ def generate_enhanced_training_data():
 ```
 
 #### 1.2 Update Auto Detector for New Format
-```python
+```text
 # core/imports/auto_detector.py
 class AutoDetector:
     def _generate_config(self, profiles: List[DatasetProfile]) -> Dict:
@@ -198,7 +198,7 @@ class AutoDetector:
 ### Phase 2: Transform Generation with Introspection (Week 3-4)
 
 #### 2.1 Plugin Introspector
-```python
+```text
 # core/transforms/introspector.py
 from pydantic import BaseModel
 from typing import Dict, Any, List, Type
@@ -269,7 +269,7 @@ class PluginIntrospector:
 ```
 
 #### 2.2 Transform Config Generator
-```python
+```text
 # core/transforms/generator.py
 class TransformConfigGenerator:
     """Generates transform.yml from detected column types"""
@@ -309,7 +309,7 @@ class TransformConfigGenerator:
 ### Phase 3: Export Generation (Week 5)
 
 #### 3.1 Simple Widget Generator
-```python
+```text
 # core/exports/generator.py
 class ExportConfigGenerator:
     """Generates export.yml with 1 type = 1 widget rule"""
@@ -409,7 +409,7 @@ class ExportConfigGenerator:
 ### Phase 4: Complete Integration (Week 6-7)
 
 #### 4.1 Orchestrator
-```python
+```text
 # core/bootstrap/orchestrator.py
 class NiamotoBootstrap:
     """Complete auto-configuration orchestrator"""
@@ -483,7 +483,7 @@ class NiamotoBootstrap:
 ```
 
 #### 4.2 CLI Integration
-```python
+```text
 # cli/commands/bootstrap.py
 @click.command()
 @click.option('--data-dir', type=click.Path(exists=True), required=True)
@@ -517,7 +517,7 @@ def bootstrap(data_dir, auto):
 
 ### React Components
 
-```typescript
+```text
 // components/bootstrap/AutoConfigWizard.tsx
 interface AutoConfigState {
     stage: 'upload' | 'analyzing' | 'review' | 'generating' | 'complete';
@@ -606,7 +606,7 @@ data/
 ```
 
 ### ML Detection Results
-```python
+```text
 detected = {
     'species_name': ('species_name', 0.95),
     'dbh': ('diameter', 0.92),
@@ -691,7 +691,7 @@ User gets a working pipeline with:
 ## Testing Strategy
 
 ### Unit Tests
-```python
+```text
 # tests/test_ml_detector.py
 def test_detect_diameter():
     """Test diameter detection from values alone"""
@@ -719,7 +719,7 @@ def test_auto_bins():
 ```
 
 ### Integration Tests
-```python
+```text
 # tests/test_bootstrap.py
 def test_complete_bootstrap():
     """Test end-to-end bootstrap"""
@@ -754,7 +754,7 @@ def test_complete_bootstrap():
 ## Migration Path
 
 ### From Existing Instances
-```python
+```text
 # scripts/migrate_config.py
 def migrate_to_generic_format(old_config: Dict) -> Dict:
     """Convert old rigid format to new generic format"""

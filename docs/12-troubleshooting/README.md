@@ -86,9 +86,9 @@ niamoto test-pipeline
 
 ## 🔗 Related Documentation
 
-- [Getting Started](../01-getting-started/) - Initial setup
-- [Configuration](../08-configuration/) - Config troubleshooting
-- [Development](../11-development/) - Debug techniques
+- [Getting Started](../01-getting-started/README.md) - Initial setup
+- [Configuration](../08-configuration/README.md) - Config troubleshooting
+- [Development](../11-development/README.md) - Debug techniques
 
 ---
 *Can't find your issue? Please report it on GitHub!*

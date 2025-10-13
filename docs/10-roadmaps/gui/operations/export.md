@@ -65,7 +65,7 @@ The Export system in Niamoto:
 
 ### Phase 1: Export Type Selection
 
-```typescript
+```text
 interface ExportType {
   id: string
   name: string
@@ -115,7 +115,7 @@ interface ExportWizard {
 
 ### Phase 3: Theme Customization
 
-```typescript
+```text
 interface ThemeCustomizer {
   baseTheme: 'modern' | 'classic' | 'minimal' | 'custom'
   colors: {
@@ -286,7 +286,7 @@ Basic Export → Enhanced Features → Premium Options
 ## Technical Architecture
 
 ### State Management
-```typescript
+```text
 interface ExportStore {
     exportConfig: ExportConfig
     previewStatus: PreviewStatus
@@ -301,7 +301,7 @@ interface ExportStore {
 ```
 
 ### Build Pipeline
-```typescript
+```text
 class ExportBuilder {
     async build(config: ExportConfig): Promise<BuildResult> {
         // 1. Validate configuration

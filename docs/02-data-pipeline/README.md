@@ -30,9 +30,9 @@ Import → Transform → Export
 
 ## 📖 Related Documentation
 
-- [Plugin Development](../04-plugin-development/) - Create custom transformers
-- [ML Detection](../03-ml-detection/) - Automatic field detection
-- [Configuration Guide](../08-configuration/) - Advanced configuration
+- [Plugin Development](../04-plugin-development/README.md) - Create custom transformers
+- [ML Detection](../03-ml-detection/README.md) - Automatic field detection
+- [Configuration Guide](../08-configuration/README.md) - Advanced configuration
 
 ---
-*For examples, see [Tutorials](../07-tutorials/)*
+*For examples, see [Tutorials](../07-tutorials/README.md)*

@@ -21,8 +21,8 @@ System architecture and design decisions for Niamoto.
 │       Service Layer         │
 │  (Components & Plugins)     │
 ├─────────────────────────────┤
-│        Data Layer          │
-│    (SQLite + SQLAlchemy)   │
+│        Data Layer           │
+│   (DuckDB + Registry)      │
 └─────────────────────────────┘
 ```
 
@@ -30,7 +30,7 @@ System architecture and design decisions for Niamoto.
 
 1. **Plugin-Based** - Everything is a plugin
 2. **Configuration-Driven** - YAML controls behavior
-3. **Database-Centric** - SQLite as single source of truth
+3. **Database-Centric** - DuckDB as the main analytical source
 4. **Type-Safe** - Pydantic models everywhere
 5. **Modular** - Clear separation of concerns
 
@@ -53,16 +53,23 @@ Import → Database → Transform → Database → Export
 
 ## 🎯 Design Decisions
 
-- **SQLite over PostgreSQL** - Simplicity and portability
-- **Static Site Generation** - No runtime dependencies
-- **Plugin Registry** - Extensibility without modification
-- **YAML Configuration** - Human-readable, versionable
+- **DuckDB for Analytics** — Fast ingestion (`read_csv_auto`), recursive CTEs, spatial extension
+- **Static Site Generation** — No runtime dependencies
+- **Plugin Registry** — Extensibility without modifying the core
+- **YAML Configuration** — Human-readable and version-controllable
+- **Entity Registry** — Transform/Export/GUI services now resolve tables via a persistent registry
+- **Hash-Based ID Generation** — Hierarchical IDs use MD5 hashes (e.g., `2071543557`) rather than sequences to ensure stability during reimports. Configurable via `id_strategy` in `import.yml`.
+
+## 📄 Architectural Decision Records (ADR)
+
+- [ADR 0001 — DuckDB Adoption](adr/0001-adopt-duckdb.md)
+- [ADR 0002 — Retirement of Specialized Importers](adr/0002-retire-legacy-importers.md)
 
 ## 🔗 Related Documentation
 
-- [Plugin Development](../04-plugin-development/) - Building plugins
-- [Data Pipeline](../02-data-pipeline/) - Pipeline implementation
-- [Roadmaps](../10-roadmaps/) - Future architecture plans
+- [Plugin Development](../04-plugin-development/README.md) - Building plugins
+- [Data Pipeline](../02-data-pipeline/README.md) - Pipeline implementation
+- [Roadmaps](../10-roadmaps/README.md) - Future architecture plans
 
 ---
 *For implementation details, see code and API documentation*

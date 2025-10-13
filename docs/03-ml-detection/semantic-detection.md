@@ -42,7 +42,7 @@ graph LR
 **Paper**: https://arxiv.org/abs/1905.10688
 
 #### Architecture
-```python
+```text
 # Sherlock Feature Extraction Pipeline
 Features (1,588 total):
 ├── Character-level (960)
@@ -74,7 +74,7 @@ Features (1,588 total):
 **Demo**: http://18.191.96.23:5000/
 
 #### Architecture Enhancement
-```python
+```text
 Sato = Sherlock + Context
 ├── Single-column prediction (Sherlock base)
 ├── Topic modeling (table context)
@@ -96,7 +96,7 @@ Sato = Sherlock + Context
 **Paper**: https://openproceedings.org/2024/conf/edbt/paper-196.pdf
 
 #### Revolutionary Graph Approach
-```python
+```text
 # Pythagoras Graph Structure
 Node Types:
 - Column nodes (what we're classifying)
@@ -123,7 +123,7 @@ Edge Types:
 **Repository**: https://github.com/hoseinzadeehsan/GAIT
 
 #### Multiple GNN Architectures
-```python
+```text
 GAIT Variants:
 ├── GAT (Graph Attention Networks)
 │   └── Learns which relationships matter
@@ -154,7 +154,7 @@ GAIT Variants:
 
 ### Phase 1: Enhanced Feature Extraction (Week 1)
 
-```python
+```text
 # src/niamoto/core/imports/advanced_features.py
 
 import numpy as np
@@ -506,7 +506,7 @@ class AdvancedFeatureExtractor:
 
 ### Phase 2: Graph-based Context (Pythagoras-inspired)
 
-```python
+```text
 # src/niamoto/core/imports/graph_detector.py
 
 import networkx as nx
@@ -627,7 +627,7 @@ class EcologicalGNN(nn.Module):
 
 ### Phase 3: Ensemble System
 
-```python
+```text
 # src/niamoto/core/imports/ensemble_detector.py
 
 class EcologicalTypeDetector:
@@ -818,7 +818,7 @@ class EcologicalTypeDetector:
 
 #### 1. International Biodiversity Databases
 
-```python
+```text
 # Data collection script
 # src/scripts/collect_training_data.py
 
@@ -997,7 +997,7 @@ class EcologicalDataCollector:
 
 #### 2. Open Ecological Datasets
 
-```python
+```text
 # Additional high-quality datasets
 
 ECOLOGICAL_DATASETS = {
@@ -1054,7 +1054,7 @@ ECOLOGICAL_DATASETS = {
 
 #### 3. Data Augmentation Strategy
 
-```python
+```text
 class EcologicalDataAugmenter:
     """
     Augment training data with synthetic variations
@@ -1129,7 +1129,7 @@ class EcologicalDataAugmenter:
 
 ### Automated Training Pipeline
 
-```python
+```text
 # src/scripts/train_ecological_detector.py
 
 class TrainingPipeline:

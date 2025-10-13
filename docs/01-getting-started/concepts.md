@@ -327,6 +327,6 @@ This modular architecture allows you to create biodiversity portals adapted to y
 
 ## Next Steps
 
-- [Detailed configuration](../guides/configuration.md)
-- [Plugin development](../guides/custom_plugin.md)
-- [Widget reference](../guides/plugin_reference.md)
+- [Detailed configuration](../08-configuration/configuration-guide.md)
+- [Plugin development](../04-plugin-development/creating-transformers.md)
+- [Widget reference](../02-data-pipeline/widget-system.md)

@@ -1,58 +1,5 @@
 # Niamoto Configuration Reference
 
-## Table of Contents
-
-- [Niamoto Configuration Reference](#niamoto-configuration-reference)
-  - [Table of Contents](#table-of-contents)
-  - [Introduction](#introduction)
-  - [Configuration Files Overview](#configuration-files-overview)
-  - [config.yml](#configyml)
-  - [import.yml](#importyml)
-    - [Taxonomy Configuration](#taxonomy-configuration)
-      - [Method 1: Dedicated Taxonomy CSV File](#method-1-dedicated-taxonomy-csv-file)
-      - [Method 2: Extraction from Occurrences](#method-2-extraction-from-occurrences)
-      - [API Enrichment (Optional)](#api-enrichment-optional)
-    - [Plots Configuration](#plots-configuration)
-      - [Hierarchical Plot Structure](#hierarchical-plot-structure)
-        - [CSV Structure Example](#csv-structure-example)
-        - [Field Mapping](#field-mapping)
-        - [Navigation Generation](#navigation-generation)
-        - [Example with Hierarchical Navigation Widget](#example-with-hierarchical-navigation-widget)
-        - [Best Practices](#best-practices)
-    - [Occurrences Configuration](#occurrences-configuration)
-    - [Shapes Configuration](#shapes-configuration)
-    - [Layers Configuration](#layers-configuration)
-  - [transform.yml](#transformyml)
-    - [Group Configuration](#group-configuration)
-    - [Source Configuration](#source-configuration)
-    - [Multiple Data Sources](#multiple-data-sources)
-      - [Configuration Syntax](#configuration-syntax)
-      - [How It Works](#how-it-works)
-      - [Using Multiple Sources in Widgets](#using-multiple-sources-in-widgets)
-      - [Source Selection Logic](#source-selection-logic)
-      - [Example: Combining Calculated and Pre-calculated Data](#example-combining-calculated-and-pre-calculated-data)
-    - [Transformation Plugins](#transformation-plugins)
-    - [Plugin Reference](#plugin-reference)
-      - [Example Configurations](#example-configurations)
-  - [export.yml](#exportyml)
-    - [Basic Structure](#basic-structure)
-    - [Available Widget Types](#available-widget-types)
-    - [Widget Configuration Reference](#widget-configuration-reference)
-      - [info\_grid](#info_grid)
-      - [interactive\_map](#interactive_map)
-      - [bar\_plot](#bar_plot)
-      - [donut\_chart](#donut_chart)
-      - [radial\_gauge](#radial_gauge)
-      - [line\_plot](#line_plot)
-      - [stacked\_area\_plot](#stacked_area_plot)
-      - [sunburst\_chart](#sunburst_chart)
-      - [hierarchical\_nav\_widget](#hierarchical_nav_widget)
-  - [Configuration Relationships](#configuration-relationships)
-  - [Best Practices](#best-practices-1)
-  - [FAQ](#faq)
-  - [Diagrams](#diagrams)
-    - [Configuration Overview](#configuration-overview)
-
 ## Introduction
 
 Niamoto uses a "Configuration over code" philosophy, with YAML configuration files directing data import, transformation, and visualization. This reference document provides detailed information about each configuration file, its structure, and available options.
@@ -149,9 +96,51 @@ taxonomy:
 
 This method extracts taxonomy directly from the occurrences file, with mappings defined in `occurrence_columns`.
 
+#### ID Generation Strategies
+
+When importing hierarchical references (taxonomy, plots, shapes), Niamoto generates stable IDs for each node in the hierarchy. You may notice that these IDs are large integers like `2071543557` rather than simple sequences (1, 2, 3...).
+
+**How ID Generation Works:**
+
+Niamoto supports three ID generation strategies configured via the `id_strategy` parameter:
+
+1. **`hash` (default)**: Generates deterministic IDs using MD5 hash of the hierarchical path
+   - Example: `"Anacardiaceae|Euroschinus|elegans"` → hash → `2071543557`
+   - **Advantages**:
+     - Stable across reimports (same path = same ID)
+     - No collisions (4 billion possible values)
+     - Works with distributed imports
+   - **Why use this**: Preserves referential integrity when reimporting data
+
+2. **`sequence`**: Sequential IDs starting from 1
+   - Example: `1, 2, 3, 4, 5...`
+   - **Advantages**:
+     - Human-readable
+     - Simple to understand
+   - **Warning**: IDs will change if you add/remove/reorder items on reimport
+
+3. **`external`**: Uses IDs from your source data
+   - Preserves original IDs from CSV files
+   - Useful for maintaining compatibility with external systems
+
+**Configuration Example:**
+
+```yaml
+references:
+  taxonomy:
+    connector:
+      type: derived
+      source: occurrences
+      extraction:
+        id_strategy: hash  # or 'sequence', 'external'
+        # ... other extraction config
+```
+
+**Recommendation:** Use the default `hash` strategy for production systems to ensure data stability across imports.
+
 #### API Enrichment (Optional)
 
-For detailed information about the API taxonomy enrichment features, refer to the [API Taxonomy Enrichment Guide](api_taxonomy_enrichment.md).
+For detailed information about the API taxonomy enrichment features, refer to the [API Taxonomy Enricher example](../04-plugin-development/examples/taxonomy-enricher.md).
 
 ```yaml
 api_enrichment:
@@ -205,7 +194,7 @@ This hierarchy is automatically established through the CSV data structure. Here
 
 Your plots CSV file should include columns that define the hierarchy:
 
-```csv
+```text
 id_plot,plot,locality,country,lat,lon,geo_pt
 PLOT001,Forest Plot A,Mont-Dore,Nouvelle-Calédonie,-22.2666,166.4535,"POINT(166.4535 -22.2666)"
 PLOT002,Forest Plot B,Mont-Dore,Nouvelle-Calédonie,-22.2750,166.4620,"POINT(166.4620 -22.2750)"
@@ -509,12 +498,12 @@ The following table lists common transformation plugins:
 | `binned_distribution`               | Creates histogram data                   | `source`, `field`, `bins`                        | DBH distribution             |
 | `statistical_summary`               | Calculates statistics                    | `source`, `field`, `stats`, `units`, `max_value` | Maximum height, wood density |
 | `categorical_distribution`          | Distribution of categorical values       | `source`, `field`, `categories`, `labels`        | Life zone distribution       |
-| `transform_chain`  | Chains multiple transformations ([detailed guide](../guides/transform_chain_guide.md))| `steps`              | Complex transformations      |
+| `transform_chain`  | Chains multiple transformations ([detailed guide](../02-data-pipeline/transform-pipeline.md))| `steps`              | Complex transformations      |
 | `class_object_field_aggregator`     | Aggregates class object fields           | `fields`                                         | Shape statistics             |
 | `class_object_binary_aggregator`    | Aggregates binary class objects          | `groups`                                         | Forest cover                 |
 | `class_object_categories_extractor` | Extracts categories from class objects   | `class_object`, `categories_order`               | Land use                     |
 
-For detailed documentation on each plugin, refer to the [Plugin Reference Guide](plugin_reference.md).
+For detailed documentation on each plugin, refer to the [Plugin Development guides](../04-plugin-development/README.md).
 
 #### Example Configurations
 
@@ -573,7 +562,7 @@ phenology:
         output_key: "phenology_peaks"
 ```
 
-For a comprehensive explanation of the transform chain system, including advanced reference resolution, function application, and best practices, see the [Transform Chain Guide](../guides/transform_chain_guide.md).
+For a comprehensive explanation of the transform chain system, including advanced reference resolution, function application, and best practices, see the [Transform Chain Guide](../02-data-pipeline/transform-pipeline.md).
 
 ## export.yml
 

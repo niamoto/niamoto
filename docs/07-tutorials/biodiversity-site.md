@@ -19,7 +19,7 @@ By the end of this tutorial, you'll have created a fully functional biodiversity
 
 ## Prerequisites
 
-- Niamoto installed ([Installation Guide](../getting-started/installation.md))
+- Niamoto installed ([Installation Guide](../01-getting-started/installation.md))
 - Basic understanding of CSV files and ecological data
 - Text editor for configuration files
 - Web browser for testing
@@ -104,7 +104,7 @@ wc -l imports/*.csv
 ```
 
 **Taxonomy structure** (first few lines):
-```csv
+```text
 id_taxon,family,genus,species,authors,rank_name,full_name
 1,Araucariaceae,Araucaria,columnaris,"(G.Forst.) Hook.",species,Araucaria columnaris
 2,Araucariaceae,Araucaria,montana,"Brongn. & Gris",species,Araucaria montana
@@ -112,7 +112,7 @@ id_taxon,family,genus,species,authors,rank_name,full_name
 ```
 
 **Occurrence structure**:
-```csv
+```text
 id,id_taxon,plot_id,latitude,longitude,dbh,height,date_observed,observer
 1,1,P001,-22.2764,166.4580,45.5,12.3,2024-03-15,J.Smith
 2,1,P001,-22.2765,166.4582,52.1,14.1,2024-03-15,J.Smith
@@ -1158,15 +1158,15 @@ Congratulations! You've created a complete biodiversity portal. Here are ways to
 
 ## Resources
 
-- [Export Guide](../guides/export-guide.md) - Advanced website customization
-- [Widget Reference](../guides/widget-reference.md) - All available widgets
-- [Deployment Guide](../guides/deployment.md) - Hosting options
-- [Transform Chain Guide](../guides/transform_chain_guide.md) - Advanced data processing
+- [Export Guide](../02-data-pipeline/export-process.md) - Advanced website customization
+- [Widget Reference](../02-data-pipeline/widget-system.md) - All available widgets
+- [Deployment Guide](../11-development/deployment.md) - Hosting options
+- [Transform Chain Guide](../02-data-pipeline/transform-pipeline.md) - Advanced data processing
 
 ## Support
 
 If you encounter issues:
-- Check the [troubleshooting guide](../troubleshooting/common-issues.md)
+- Check the [troubleshooting guide](../12-troubleshooting/common-issues.md)
 - Search [GitHub issues](https://github.com/niamoto/niamoto/issues)
 - Ask questions in [Discussions](https://github.com/niamoto/niamoto/discussions)
 

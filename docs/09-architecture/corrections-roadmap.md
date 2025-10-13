@@ -1,37 +1,37 @@
-# Plan de Corrections Complet pour Niamoto
+# Complete Corrections Plan for Niamoto
 
-## Résumé Exécutif
+## Executive Summary
 
-Ce document compile **tous les problèmes identifiés** dans le système Niamoto et propose des corrections concrètes, priorisées et estimées. Les problèmes sont classés par criticité : 🔴 Critique, 🟠 Important, 🟡 Modéré, 🟢 Amélioration.
+This document compiles **all identified issues** in the Niamoto system and proposes concrete, prioritized, and estimated corrections. Issues are classified by criticality: 🔴 Critical, 🟠 Important, 🟡 Moderate, 🟢 Enhancement.
 
-**Impact total estimé** : 3-6 mois pour tout corriger, mais les corrections critiques peuvent être faites en 2-3 semaines.
+**Total estimated impact**: 3-6 months to fix everything, but critical fixes can be done in 2-3 weeks.
 
 ---
 
-## 1. PROBLÈMES CRITIQUES 🔴 (À corriger immédiatement)
+## 1. CRITICAL ISSUES 🔴 (Fix Immediately)
 
-### 1.1 Secrets en Clair dans les YAML
+### 1.1 Plaintext Secrets in YAML ✅
 
-**Problème**
+**Problem**
 ```yaml
 # test-instance/niamoto-og/config/import.yml:22
 auth_params:
-  key: "1e106508-9a86-4242-9012-d6cafdea3374"  # API key en clair !
+  key: "1e106508-9a86-4242-9012-d6cafdea3374"  # Plaintext API key!
 ```
 
 **Solution**
 ```python
-# src/niamoto/common/config.py - Ajouter le support des variables d'env
+# src/niamoto/common/config.py - Add environment variable support
 import os
 from string import Template
 
 class Config:
     def _load_yaml_with_env(self, path: str) -> dict:
-        """Charge YAML avec substitution de variables d'environnement"""
+        """Load YAML with environment variable substitution"""
         with open(path) as f:
             content = f.read()
 
-        # Remplace ${VAR_NAME} par la valeur d'environnement
+        # Replace ${VAR_NAME} with environment value
         template = Template(content)
         resolved = template.safe_substitute(os.environ)
 
@@ -39,9 +39,9 @@ class Config:
 ```
 
 ```yaml
-# config/import.yml - Version sécurisée
+# config/import.yml - Secure version
 auth_params:
-  key: ${ENDEMIA_API_KEY}  # Variable d'environnement
+  key: ${ENDEMIA_API_KEY}  # Environment variable
 ```
 
 ```bash
@@ -50,73 +50,73 @@ ENDEMIA_API_KEY=your-key-here
 DATABASE_URL=postgresql://...
 ```
 
-**Effort** : 4 heures
-**Impact** : Sécurité critique
+**Effort**: 4 hours — ✅ delivered (${VAR} / ${VAR:-default} substitution in `Config._load_yaml_with_defaults`).
+**Impact**: Critical security — keys must no longer appear in plaintext.
 
 ---
 
-### 1.2 Validation Inconsistante des Paramètres
+### 1.2 Inconsistent Parameter Validation ✅
 
-**Problème**
+**Problem**
 ```python
 # src/niamoto/core/services/transformer.py:190
-# Passe un dict brut sans validation !
-result = plugin.transform(data, config['params'])  # Dangereux
+# Passes raw dict without validation!
+result = plugin.transform(data, config['params'])  # Dangerous
 ```
 
 **Solution**
 ```python
-# src/niamoto/core/services/transformer.py - Validation centralisée
+# src/niamoto/core/services/transformer.py - Centralized validation
 from pydantic import ValidationError
 
 class TransformerService:
     def execute_widget(self, widget_config: dict, data: Any) -> Any:
-        """Exécute un widget avec validation centralisée"""
+        """Execute a widget with centralized validation"""
 
         plugin_name = widget_config.get('plugin')
         plugin = self.registry.get(plugin_name)
 
-        # NOUVEAU : Validation AVANT l'appel
+        # NEW: Validation BEFORE call
         try:
-            # Utilise le param_schema du plugin pour valider
+            # Use plugin's param_schema for validation
             if hasattr(plugin, 'param_schema'):
                 validated_params = plugin.param_schema(**widget_config.get('params', {}))
             else:
-                # Fallback pour anciens plugins
+                # Fallback for legacy plugins
                 validated_params = widget_config.get('params', {})
                 logger.warning(f"Plugin {plugin_name} has no param_schema")
         except ValidationError as e:
             raise ValueError(f"Invalid params for {plugin_name}: {e}")
 
-        # Appel avec params validés (objet Pydantic, pas dict)
+        # Call with validated params (Pydantic object, not dict)
         return plugin.transform(data, validated_params)
 ```
 
-**Effort** : 1 jour
-**Impact** : Stabilité critique
+**Effort**: 1 day — ✅ delivered (`TransformerService.transform_data` now calls `_validate_plugin_configuration`).
+**Impact**: Critical stability (invalid plugins blocked before execution).
 
 ---
 
-### 1.3 Couplage Fort des Plugins
+### 1.3 Strong Plugin Coupling
 
-**Problème**
+**Problem**
 ```python
 # src/niamoto/core/plugins/transformers/aggregation/field_aggregator.py:101
 class FieldAggregator(TransformerPlugin):
     def __init__(self, db):
         super().__init__(db)
-        # PROBLÈME : Accès direct à la config globale !
+        # PROBLEM: Direct access to global config!
         self.config = Config()
         self.imports_config = self.config.get_imports_config
 ```
 
 **Solution**
 ```python
-# src/niamoto/core/plugins/base.py - Injection de dépendances
+# src/niamoto/core/plugins/base.py - Dependency injection
 from typing import Protocol
 
 class DataProvider(Protocol):
-    """Interface pour accès aux données"""
+    """Interface for data access"""
     def get_table_data(self, table: str, filters: dict = None) -> pd.DataFrame:
         ...
 
@@ -124,91 +124,91 @@ class DataProvider(Protocol):
         ...
 
 class TransformerPlugin(Plugin, ABC):
-    """Plugin avec injection de dépendances"""
+    """Plugin with dependency injection"""
 
     def __init__(self, data_provider: DataProvider):
-        self.data_provider = data_provider  # Interface, pas implémentation
+        self.data_provider = data_provider  # Interface, not implementation
 
     @abstractmethod
     def transform(self, data: Any, params: BaseModel) -> Any:
-        """Transform avec params validés"""
+        """Transform with validated params"""
         pass
 
 # src/niamoto/core/services/transformer.py
 class TransformerService:
     def __init__(self):
-        # Crée le provider centralisé
+        # Create centralized provider
         self.data_provider = DataProviderImpl(self.db, self.config)
 
     def create_plugin(self, plugin_class):
-        """Injecte les dépendances"""
+        """Inject dependencies"""
         return plugin_class(self.data_provider)
 ```
 
-**Effort** : 2 jours
-**Impact** : Architecture, testabilité
+**Effort**: 2 days
+**Impact**: Architecture, testability
 
 ---
 
-## 2. PROBLÈMES DE PERFORMANCE 🟠
+## 2. PERFORMANCE ISSUES 🟠
 
-### 2.1 Rechargement Répétitif des Données (TRANSFORM + EXPORT)
+### 2.1 Repetitive Data Reloading (TRANSFORM + EXPORT)
 
-**Problème Confirmé dans le Code**
+**Confirmed Problem in Code**
 
-**A. Dans TransformerService** (`src/niamoto/core/services/transformer.py:186-236`)
+**A. In TransformerService** (`src/niamoto/core/services/transformer.py:186-236`)
 ```python
-# Pour chaque group_id, on charge les données
+# For each group_id, load data
 for group_id in group_ids:
-    group_data = self._get_group_data(group_config, csv_file, group_id)  # Ligne 188
+    group_data = self._get_group_data(group_config, csv_file, group_id)  # Line 188
 
-    # Puis pour chaque widget, certains plugins refont leurs propres requêtes !
+    # Then for each widget, some plugins make their own queries!
     for widget_name, widget_config in widgets_config.items():
         transformer = PluginRegistry.get_plugin(...)
-        widget_results = transformer.transform(data_to_pass, config)  # Ligne 236
+        widget_results = transformer.transform(data_to_pass, config)  # Line 236
 ```
 
-**Exemple concret** : `field_aggregator.py:108-113` et `binary_counter.py:108-113`
+**Concrete Example**: `field_aggregator.py:108-113` and `binary_counter.py:108-113`
 ```python
-# Le plugin recharge les données alors qu'elles sont déjà passées en paramètre !
+# Plugin reloads data even though it's already passed as parameter!
 if params.source != "occurrences":
     sql_query = f"SELECT * FROM {params.source}"
-    result = self.db.execute_select(sql_query)  # Requête redondante
+    result = self.db.execute_select(sql_query)  # Redundant query
     data = pd.DataFrame(result.fetchall(), ...)
 ```
 
-**B. Dans HtmlPageExporter** (`src/niamoto/core/plugins/exporters/html_page_exporter.py:660-710`)
+**B. In HtmlPageExporter** (`src/niamoto/core/plugins/exporters/html_page_exporter.py:660-710`)
 ```python
-# Charge l'index une fois
-index_data = self._get_group_index_data(repository, table_name, id_column)  # Ligne 660
+# Load index once
+index_data = self._get_group_index_data(repository, table_name, id_column)  # Line 660
 
-# PUIS pour CHAQUE item, refait une requête SQL complète !
-for item_summary in index_data:  # Ligne 696
-    item_data = self._get_item_detail_data(  # Ligne 708
+# THEN for EACH item, make a complete SQL query!
+for item_summary in index_data:  # Line 696
+    item_data = self._get_item_detail_data(  # Line 708
         repository, table_name, id_column, item_id
     )
-    # Ligne 1238 : SELECT * FROM "{table_name}" WHERE "{id_column}" = :item_id
+    # Line 1238: SELECT * FROM "{table_name}" WHERE "{id_column}" = :item_id
 ```
 
-**Résultat** : Pour 1000 taxons = **1001 requêtes SQL** (1 index + 1000 détails) !
+**Result**: For 1000 taxa = **1001 SQL queries** (1 index + 1000 details)!
 
-**C. Dans JsonApiExporter** (`src/niamoto/core/plugins/exporters/json_api_exporter.py:697-750`)
+**C. In JsonApiExporter** (`src/niamoto/core/plugins/exporters/json_api_exporter.py:697-750`)
 ```python
-# Ligne 708 : Charge TOUT le groupe d'un coup (MIEUX)
+# Line 708: Load ENTIRE group at once (BETTER)
 query = text(f"SELECT * FROM {table_name}")
 
-# Ligne 726-742 : MAIS parse le JSON pour CHAQUE cellule de CHAQUE ligne
+# Line 726-742: BUT parse JSON for EACH cell of EACH row
 for col_name, col_value in row_dict.items():
     if col_value:
         if isinstance(col_value, str):
-            data = json.loads(col_value)  # Parse répétitif !
+            data = json.loads(col_value)  # Repetitive parsing!
 ```
 
-**Impact mesuré** :
-- 1000 items × 20 colonnes = **20,000 appels à json.loads()** potentiels
-- Cache de navigation perdu entre exports (ligne 53 : `self._navigation_cache = {}` réinitialisé)
+**Measured Impact**:
+- 1000 items × 20 columns = **20,000 calls to json.loads()** potential
+- Navigation cache lost between exports (line 53: `self._navigation_cache = {}` reinitialized)
 
-**Solution Optimale : DataContext Unifié**
+**Optimal Solution: Unified DataContext**
 
 ```python
 # src/niamoto/core/services/data_context.py
@@ -221,32 +221,32 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DataContext:
-    """Context de données partagé entre Transform et Export avec cache intelligent"""
+    """Shared data context between Transform and Export with intelligent cache"""
 
     def __init__(self, db, ttl: int = 3600):
         """
         Args:
-            db: Instance de Database
-            ttl: Time-to-live du cache en secondes (défaut: 1h)
+            db: Database instance
+            ttl: Cache time-to-live in seconds (default: 1h)
         """
         self.db = db
         self._cache: Dict[str, tuple[float, Any]] = {}
         self._ttl = ttl
-        self._json_cache: Dict[int, Any] = {}  # Cache de parsing JSON
+        self._json_cache: Dict[int, Any] = {}  # JSON parsing cache
 
     def get_or_load(self, cache_key: str, loader_fn: Callable, *args, **kwargs) -> Any:
         """
-        Récupère du cache ou exécute le loader
+        Retrieve from cache or execute loader
 
         Args:
-            cache_key: Clé unique pour le cache
-            loader_fn: Fonction qui charge les données si pas en cache
-            *args, **kwargs: Arguments pour loader_fn
+            cache_key: Unique cache key
+            loader_fn: Function that loads data if not in cache
+            *args, **kwargs: Arguments for loader_fn
 
         Returns:
-            Les données (depuis cache ou fraîchement chargées)
+            Data (from cache or freshly loaded)
         """
-        # Vérifier le cache
+        # Check cache
         if cache_key in self._cache:
             timestamp, data = self._cache[cache_key]
             age = time.time() - timestamp
@@ -258,7 +258,7 @@ class DataContext:
                 logger.debug(f"Cache expired: {cache_key} (age: {age:.1f}s)")
                 del self._cache[cache_key]
 
-        # Charger et mettre en cache
+        # Load and cache
         logger.debug(f"Cache miss: {cache_key}, loading...")
         data = loader_fn(*args, **kwargs)
         self._cache[cache_key] = (time.time(), data)
@@ -266,14 +266,14 @@ class DataContext:
 
     def get_all_items(self, table_name: str, id_column: str = None) -> List[Dict[str, Any]]:
         """
-        Charge tous les items d'une table (avec cache)
+        Load all items from a table (with cache)
 
         Args:
-            table_name: Nom de la table
-            id_column: Colonne d'identifiant (pour tri)
+            table_name: Table name
+            id_column: ID column (for sorting)
 
         Returns:
-            Liste de dictionnaires représentant les lignes
+            List of dictionaries representing rows
         """
         cache_key = f"all_items:{table_name}"
 
@@ -292,21 +292,21 @@ class DataContext:
 
     def get_item_by_id(self, table_name: str, id_column: str, item_id: Any) -> Optional[Dict[str, Any]]:
         """
-        Récupère UN item par son ID en utilisant le cache de tous les items
-        (évite les requêtes SQL individuelles)
+        Retrieve ONE item by ID using all items cache
+        (avoids individual SQL queries)
 
         Args:
-            table_name: Nom de la table
-            id_column: Nom de la colonne ID
-            item_id: Valeur de l'ID recherché
+            table_name: Table name
+            id_column: ID column name
+            item_id: ID value to search for
 
         Returns:
-            Dict de l'item ou None si non trouvé
+            Item dict or None if not found
         """
-        # Charger TOUS les items une seule fois (mis en cache)
+        # Load ALL items once (cached)
         all_items = self.get_all_items(table_name, id_column)
 
-        # Chercher l'item dans la liste cachée
+        # Search item in cached list
         for item in all_items:
             if item.get(id_column) == item_id:
                 return item
@@ -316,18 +316,18 @@ class DataContext:
 
     def parse_json_cached(self, value: str) -> Any:
         """
-        Parse JSON avec cache pour éviter les parsing répétitifs
+        Parse JSON with cache to avoid repetitive parsing
 
         Args:
-            value: Chaîne JSON à parser
+            value: JSON string to parse
 
         Returns:
-            Objet Python parsé
+            Parsed Python object
         """
         if not isinstance(value, str):
             return value
 
-        # Utiliser hash comme clé (plus rapide que stocker la chaîne complète)
+        # Use hash as key (faster than storing complete string)
         cache_key = hash(value)
 
         if cache_key in self._json_cache:
@@ -338,15 +338,15 @@ class DataContext:
             self._json_cache[cache_key] = parsed
             return parsed
         except json.JSONDecodeError:
-            # Pas du JSON valide, retourner tel quel
+            # Not valid JSON, return as-is
             return value
 
     def invalidate(self, pattern: str = None):
         """
-        Invalide le cache (partiellement ou complètement)
+        Invalidate cache (partially or completely)
 
         Args:
-            pattern: Si fourni, invalide seulement les clés contenant ce pattern
+            pattern: If provided, only invalidate keys containing this pattern
         """
         if pattern:
             keys_to_remove = [k for k in self._cache.keys() if pattern in k]
@@ -360,7 +360,7 @@ class DataContext:
             logger.info(f"Invalidated entire cache ({count} entries)")
 
     def get_stats(self) -> Dict[str, Any]:
-        """Retourne les statistiques du cache"""
+        """Return cache statistics"""
         total_size = sum(
             len(str(data)) for _, data in self._cache.values()
         )
@@ -372,7 +372,7 @@ class DataContext:
         }
 ```
 
-**Intégration dans TransformerService**
+**Integration in TransformerService**
 
 ```python
 # src/niamoto/core/services/transformer.py
@@ -388,13 +388,13 @@ class TransformerService:
         self.db = Database(db_path)
         self.config = config
 
-        # Injecter ou créer le DataContext
+        # Inject or create DataContext
         self.data_context = data_context or DataContext(self.db)
 
-        # ... reste du code
+        # ... rest of code
 ```
 
-**Intégration dans HtmlPageExporter**
+**Integration in HtmlPageExporter**
 
 ```python
 # src/niamoto/core/plugins/exporters/html_page_exporter.py
@@ -403,22 +403,22 @@ class HtmlPageExporter(ExporterPlugin):
     def __init__(self, db: Database, data_context: Optional[DataContext] = None):
         super().__init__(db)
         self.data_context = data_context or DataContext(db)
-        # ... reste du code
+        # ... rest of code
 
     def _get_item_detail_data(
         self, repository: Database, table_name: str, id_column: str, item_id: Any
     ) -> Optional[Dict[str, Any]]:
-        """Utilise le cache pour éviter les requêtes répétées"""
+        """Use cache to avoid repeated queries"""
         return self.data_context.get_item_by_id(table_name, id_column, item_id)
 
     def _load_and_cache_navigation_data(
         self, referential_data_source: str, required_fields: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
-        """Utilise le DataContext partagé au lieu du cache local"""
+        """Use shared DataContext instead of local cache"""
         return self.data_context.get_all_items(referential_data_source)
 ```
 
-**Intégration dans JsonApiExporter**
+**Integration in JsonApiExporter**
 
 ```python
 # src/niamoto/core/plugins/exporters/json_api_exporter.py
@@ -427,16 +427,16 @@ class JsonApiExporter(ExporterPlugin):
     def __init__(self, db: Database, data_context: Optional[DataContext] = None):
         super().__init__(db)
         self.data_context = data_context or DataContext(db)
-        # ... reste du code
+        # ... rest of code
 
     def _fetch_group_data(
         self, repository: Database, data_source: str, group_name: str
     ) -> List[Dict[str, Any]]:
-        """Utilise le cache pour éviter rechargements"""
-        # Utiliser get_all_items qui est mis en cache
+        """Use cache to avoid reloading"""
+        # Use get_all_items which is cached
         items = self.data_context.get_all_items(group_name)
 
-        # Parser les JSON avec cache
+        # Parse JSON with cache
         result = []
         for item in items:
             parsed_item = {}
@@ -450,7 +450,7 @@ class JsonApiExporter(ExporterPlugin):
         return result
 ```
 
-**Ajout du flag CLI**
+**CLI Flag Addition**
 
 ```python
 # src/niamoto/cli/commands.py
@@ -466,41 +466,41 @@ def transform(clear_cache: bool, ...):
     service.transform_data(...)
 ```
 
-**Comparaison Avant/Après**
+**Before/After Comparison**
 
-| Scénario | Avant | Après | Gain |
+| Scenario | Before | After | Gain |
 |----------|-------|-------|------|
-| Export HTML 1000 taxons | 1001 requêtes SQL | **1 requête** | **x1000** |
-| Transform 1000 taxons × 20 widgets | Données rechargées par certains plugins | Cache partagé | **x3-5** |
-| JSON parsing (1000 items × 20 cols) | 20,000 `json.loads()` | **~100** (dédupliqués) | **x200** |
-| Export HTML puis JSON (même groupe) | 2 chargements complets | **1 chargement** (partagé) | **x2** |
+| HTML Export 1000 taxa | 1001 SQL queries | **1 query** | **x1000** |
+| Transform 1000 taxa × 20 widgets | Data reloaded by some plugins | Shared cache | **x3-5** |
+| JSON parsing (1000 items × 20 cols) | 20,000 `json.loads()` | **~100** (deduplicated) | **x200** |
+| HTML then JSON export (same group) | 2 complete loads | **1 load** (shared) | **x2** |
 
-**Avantages de cette solution** :
-1. ✅ **Fonctionne avec méthodes d'instance** (pas de problème `@lru_cache`)
-2. ✅ **S'intègre au pattern loader existant**
-3. ✅ **Cache partagé entre Transform ET Export**
-4. ✅ **Gère invalidation par TTL et manuelle**
-5. ✅ **Cache le parsing JSON** (problème non mentionné dans doc original)
-6. ✅ **Stats du cache pour monitoring**
+**Advantages of this solution**:
+1. ✅ **Works with instance methods** (no `@lru_cache` issue)
+2. ✅ **Integrates with existing loader pattern**
+3. ✅ **Shared cache between Transform AND Export**
+4. ✅ **Handles invalidation by TTL and manual**
+5. ✅ **Caches JSON parsing** (issue not mentioned in original doc)
+6. ✅ **Cache stats for monitoring**
 
-**Effort** : 2 jours (vs 1 jour estimé initialement)
-- Jour 1 : Implémenter DataContext + intégration TransformerService
-- Jour 2 : Intégration Exporters + tests + flag CLI
+**Effort**: 2 days (vs 1 day initially estimated)
+- Day 1: Implement DataContext + TransformerService integration
+- Day 2: Exporter integration + tests + CLI flag
 
-**Impact** : Performance **x5-15** (vs x5-10 estimé)
-- x5 minimum sur petit datasets
-- x15 sur gros datasets avec beaucoup de colonnes JSON
+**Impact**: Performance **x5-15** (vs x5-10 estimated)
+- x5 minimum on small datasets
+- x15 on large datasets with many JSON columns
 
 ---
 
-### 2.2 Pipeline Séquentiel (Pas de Parallélisation)
+### 2.2 Sequential Pipeline (No Parallelization)
 
-**Problème**
+**Problem**
 ```python
-# Actuel : Tout est séquentiel
-for taxon in taxons:        # 1000 taxons
+# Current: Everything is sequential
+for taxon in taxons:        # 1000 taxa
     for widget in widgets:   # 20 widgets
-        process()            # = 20,000 opérations séquentielles !
+        process()            # = 20,000 sequential operations!
 ```
 
 **Solution**
@@ -511,15 +511,15 @@ from typing import List
 import multiprocessing as mp
 
 class ParallelTransformerService:
-    """Service avec parallélisation"""
+    """Service with parallelization"""
 
     def __init__(self, max_workers: int = None):
         self.max_workers = max_workers or mp.cpu_count()
 
     def process_taxons_parallel(self, taxon_ids: List[int]):
-        """Traite les taxons en parallèle"""
+        """Process taxa in parallel"""
 
-        # Utilise ProcessPool pour calculs lourds
+        # Use ProcessPool for heavy computations
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             futures = []
 
@@ -527,7 +527,7 @@ class ParallelTransformerService:
                 future = executor.submit(self.process_single_taxon, taxon_id)
                 futures.append(future)
 
-            # Collecte les résultats
+            # Collect results
             results = []
             for future in as_completed(futures):
                 try:
@@ -539,13 +539,13 @@ class ParallelTransformerService:
         return results
 
     def process_widgets_parallel(self, taxon_id: int, widgets: List[dict]):
-        """Traite les widgets indépendants en parallèle"""
+        """Process independent widgets in parallel"""
 
-        # Identifie les widgets indépendants
+        # Identify independent widgets
         independent = self.identify_independent_widgets(widgets)
         dependent = [w for w in widgets if w not in independent]
 
-        # Parallélise les indépendants
+        # Parallelize independent ones
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {
                 executor.submit(self.process_widget, taxon_id, w): w
@@ -557,25 +557,25 @@ class ParallelTransformerService:
                 widget = futures[future]
                 results[widget['name']] = future.result()
 
-        # Puis les dépendants en séquence
+        # Then dependent ones in sequence
         for widget in dependent:
             results[widget['name']] = self.process_widget(taxon_id, widget, results)
 
         return results
 ```
 
-**Effort** : 2 jours
-**Impact** : Performance x4-8 sur multi-core
+**Effort**: 2 days
+**Impact**: Performance x4-8 on multi-core
 
 ---
 
-### 2.3 Absence de Cache pour Transformations Coûteuses
+### 2.3 No Cache for Expensive Transformations
 
-**Problème**
+**Problem**
 ```python
-# Recalcul constant des mêmes transformations
-process_taxon(123)  # 10 secondes
-process_taxon(123)  # 10 secondes encore ! (même résultat)
+# Constant recalculation of same transformations
+process_taxon(123)  # 10 seconds
+process_taxon(123)  # 10 seconds again! (same result)
 ```
 
 **Solution**
@@ -587,27 +587,27 @@ from pathlib import Path
 from typing import Optional
 
 class TransformCache:
-    """Cache persistant pour transformations"""
+    """Persistent cache for transformations"""
 
     def __init__(self, cache_dir: str = ".niamoto_cache"):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
 
     def get_cache_key(self, entity_id: str, widget: str, params: dict) -> str:
-        """Génère une clé de cache unique"""
-        # Hash des params pour détecter les changements
+        """Generate unique cache key"""
+        # Hash params to detect changes
         params_str = json.dumps(params, sort_keys=True)
         params_hash = hashlib.md5(params_str.encode()).hexdigest()
 
         return f"{entity_id}_{widget}_{params_hash}"
 
     def get(self, entity_id: str, widget: str, params: dict) -> Optional[Any]:
-        """Récupère du cache si existe"""
+        """Retrieve from cache if exists"""
         key = self.get_cache_key(entity_id, widget, params)
         cache_file = self.cache_dir / f"{key}.pkl"
 
         if cache_file.exists():
-            # Vérifie la fraîcheur (24h)
+            # Check freshness (24h)
             age = time.time() - cache_file.stat().st_mtime
             if age < 86400:
                 with open(cache_file, 'rb') as f:
@@ -616,7 +616,7 @@ class TransformCache:
         return None
 
     def set(self, entity_id: str, widget: str, params: dict, data: Any):
-        """Sauvegarde en cache"""
+        """Save to cache"""
         key = self.get_cache_key(entity_id, widget, params)
         cache_file = self.cache_dir / f"{key}.pkl"
 
@@ -624,60 +624,60 @@ class TransformCache:
             pickle.dump(data, f)
 
     def invalidate(self, entity_id: str = None):
-        """Invalide le cache"""
+        """Invalidate cache"""
         if entity_id:
-            # Invalide seulement pour cette entité
+            # Invalidate only for this entity
             for file in self.cache_dir.glob(f"{entity_id}_*.pkl"):
                 file.unlink()
         else:
-            # Invalide tout
+            # Invalidate everything
             for file in self.cache_dir.glob("*.pkl"):
                 file.unlink()
 ```
 
-**Effort** : 1 jour
-**Impact** : Performance x10-100 sur re-runs
+**Effort**: 1 day
+**Impact**: Performance x10-100 on re-runs
 
 ---
 
-## 3. PROBLÈMES DE MAINTENABILITÉ 🟡
+## 3. MAINTAINABILITY ISSUES 🟡
 
-### 3.1 Configuration YAML Monolithique
+### 3.1 Monolithic YAML Configuration
 
-**Problème**
+**Problem**
 ```yaml
-# transform.yml : 900+ lignes !
-# export.yml : 1600+ lignes !
+# transform.yml: 900+ lines!
+# export.yml: 1600+ lines!
 ```
 
 **Solution**
 ```python
 # src/niamoto/config/modular_loader.py
 class ModularConfigLoader:
-    """Charge des configs modulaires avec includes"""
+    """Load modular configs with includes"""
 
     def load_config(self, main_file: str) -> dict:
-        """Charge une config avec support des includes"""
+        """Load config with includes support"""
 
         with open(main_file) as f:
             config = yaml.safe_load(f)
 
-        # Résout les includes
+        # Resolve includes
         config = self._resolve_includes(config, Path(main_file).parent)
 
-        # Résout les templates
+        # Resolve templates
         config = self._resolve_templates(config)
 
         return config
 
     def _resolve_includes(self, config: dict, base_dir: Path) -> dict:
-        """Résout les !include"""
+        """Resolve !include directives"""
 
         if isinstance(config, dict):
             result = {}
             for key, value in config.items():
                 if isinstance(value, str) and value.startswith("!include"):
-                    # Charge le fichier inclus
+                    # Load included file
                     include_path = base_dir / value.replace("!include ", "")
                     with open(include_path) as f:
                         result[key] = yaml.safe_load(f)
@@ -690,7 +690,7 @@ class ModularConfigLoader:
 ```
 
 ```yaml
-# config/transform/main.yml - Modulaire
+# config/transform/main.yml - Modular
 taxon:
   !include taxon/general.yml
   !include taxon/distributions.yml
@@ -703,36 +703,36 @@ shape:
   !include shape/config.yml
 ```
 
-**Effort** : 1 jour
-**Impact** : Maintenabilité ++
+**Effort**: 1 day
+**Impact**: Maintainability ++
 
 ---
 
-### 3.2 Duplication Massive dans les Configs
+### 3.2 Massive Duplication in Configs
 
-**Problème**
+**Problem**
 ```yaml
-# Même structure répétée 50+ fois
+# Same structure repeated 50+ times
 - plugin: radial_gauge
   params:
     style_mode: "contextual"
     show_axis: false
-    # ... 10 lignes identiques
+    # ... 10 identical lines
 ```
 
-**Solution** : Voir section Templates (déjà détaillée dans docs précédents)
+**Solution**: See Templates section (already detailed in previous docs)
 
-**Effort** : 2 jours
-**Impact** : -60% lignes de config
+**Effort**: 2 days
+**Impact**: -60% config lines
 
 ---
 
-### 3.3 Pas de Tests pour les Plugins
+### 3.3 No Tests for Plugins
 
-**Problème**
+**Problem**
 ```python
-# Tests difficiles à cause du couplage
-# Comment tester un plugin qui accède directement à la DB ?
+# Tests difficult due to coupling
+# How to test a plugin that directly accesses the DB?
 ```
 
 **Solution**
@@ -743,11 +743,11 @@ from unittest.mock import Mock, MagicMock
 from typing import Any
 
 class PluginTestCase:
-    """Classe de base pour tests de plugins"""
+    """Base class for plugin tests"""
 
     @pytest.fixture
     def mock_data_provider(self):
-        """Mock du data provider"""
+        """Mock data provider"""
         provider = Mock()
         provider.get_table_data.return_value = pd.DataFrame({
             'id': [1, 2, 3],
@@ -757,10 +757,10 @@ class PluginTestCase:
 
     @pytest.fixture
     def plugin_factory(self, mock_data_provider):
-        """Factory pour créer des plugins testables"""
+        """Factory to create testable plugins"""
         def factory(plugin_class, **params):
             plugin = plugin_class(mock_data_provider)
-            # Injecte les params validés
+            # Inject validated params
             if hasattr(plugin, 'param_schema'):
                 validated = plugin.param_schema(**params)
             else:
@@ -771,7 +771,7 @@ class PluginTestCase:
 # tests/plugins/transformers/test_field_aggregator.py
 class TestFieldAggregator(PluginTestCase):
     def test_aggregation(self, plugin_factory):
-        """Test l'agrégation de champs"""
+        """Test field aggregation"""
 
         # Arrange
         plugin, params = plugin_factory(
@@ -792,20 +792,20 @@ class TestFieldAggregator(PluginTestCase):
         assert result['aggregated'] == 60  # sum(10, 20, 30)
 ```
 
-**Effort** : 3 jours
-**Impact** : Qualité, régression prevention
+**Effort**: 3 days
+**Impact**: Quality, regression prevention
 
 ---
 
-## 4. PROBLÈMES D'ARCHITECTURE 🟡
+## 4. ARCHITECTURE ISSUES 🟡
 
-### 4.1 Logging Insuffisant
+### 4.1 Insufficient Logging
 
-**Problème**
+**Problem**
 ```python
 # src/niamoto/core/plugins/plugin_loader.py:165
 except Exception:
-    pass  # Erreur silencieuse !
+    pass  # Silent error!
 ```
 
 **Solution**
@@ -816,7 +816,7 @@ from functools import wraps
 import traceback
 
 def setup_logging():
-    """Configure un logging structuré"""
+    """Configure structured logging"""
 
     logging.basicConfig(
         level=logging.INFO,
@@ -827,7 +827,7 @@ def setup_logging():
         ]
     )
 
-    # Logging structuré pour production
+    # Structured logging for production
     if os.getenv('ENV') == 'production':
         import structlog
         structlog.configure(
@@ -845,7 +845,7 @@ def setup_logging():
         )
 
 def log_exceptions(logger):
-    """Décorateur pour logger les exceptions"""
+    """Decorator to log exceptions"""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -867,17 +867,17 @@ def log_exceptions(logger):
     return decorator
 ```
 
-**Effort** : 1 jour
-**Impact** : Debugging, monitoring
+**Effort**: 1 day
+**Impact**: Debugging, monitoring
 
 ---
 
-### 4.2 Pas de Mécanisme de Health Check
+### 4.2 No Health Check Mechanism
 
-**Problème**
+**Problem**
 ```python
-# Comment savoir si un plugin fonctionne ?
-# Comment détecter les plugins cassés ?
+# How to know if a plugin works?
+# How to detect broken plugins?
 ```
 
 **Solution**
@@ -892,10 +892,10 @@ class HealthStatus(Enum):
     UNHEALTHY = "unhealthy"
 
 class HealthChecker:
-    """Vérifie la santé du système"""
+    """Check system health"""
 
     def check_all(self) -> Dict[str, HealthStatus]:
-        """Vérifie tous les composants"""
+        """Check all components"""
 
         results = {
             'database': self._check_database(),
@@ -907,7 +907,7 @@ class HealthChecker:
         return results
 
     def _check_plugins(self) -> HealthStatus:
-        """Vérifie que les plugins sont chargés"""
+        """Check that plugins are loaded"""
 
         registry = PluginRegistry()
         required_plugins = [
@@ -921,11 +921,11 @@ class HealthChecker:
                 logger.error(f"Missing required plugin: {plugin_name}")
                 return HealthStatus.UNHEALTHY
 
-        # Test basique de chaque plugin
+        # Basic test of each plugin
         for plugin_name in registry.list():
             try:
                 plugin = registry.get(plugin_name)
-                # Vérifie que le plugin a les méthodes requises
+                # Check plugin has required methods
                 if not hasattr(plugin, 'transform'):
                     return HealthStatus.DEGRADED
             except Exception as e:
@@ -956,21 +956,21 @@ def health():
         sys.exit(1)
 ```
 
-**Effort** : 1 jour
-**Impact** : Monitoring, ops
+**Effort**: 1 day
+**Impact**: Monitoring, ops
 
 ---
 
-### 4.3 Pas de Versioning des Plugins
+### 4.3 No Plugin Versioning
 
-**Solution** : Manifest System (voir analyse externe)
+**Solution**: Manifest System (see external analysis)
 ```python
 # src/niamoto/core/plugins/manifest.py
 from pydantic import BaseModel
 from typing import List, Optional
 
 class PluginManifest(BaseModel):
-    """Manifest pour un plugin"""
+    """Manifest for a plugin"""
 
     name: str
     version: str
@@ -978,18 +978,18 @@ class PluginManifest(BaseModel):
     author: Optional[str]
     description: str
 
-    # Compatibilité
+    # Compatibility
     niamoto_version: str  # ">=2.0.0"
 
-    # Dépendances
+    # Dependencies
     dependencies: List[str] = []
 
-    # Entrées/Sorties
+    # Inputs/Outputs
     inputs: List[Dict[str, str]]
     outputs: List[Dict[str, str]]
 
-    # Paramètres
-    param_schema: Optional[str]  # Référence au schema
+    # Parameters
+    param_schema: Optional[str]  # Schema reference
 
 # plugins/my_plugin/__manifest__.py
 MANIFEST = PluginManifest(
@@ -1008,14 +1008,14 @@ MANIFEST = PluginManifest(
 )
 ```
 
-**Effort** : 2 jours
-**Impact** : Gouvernance, compatibilité
+**Effort**: 2 days
+**Impact**: Governance, compatibility
 
 ---
 
-## 5. PROBLÈMES D'EXPÉRIENCE DÉVELOPPEUR 🟢
+## 5. DEVELOPER EXPERIENCE ISSUES 🟢
 
-### 5.1 Documentation Auto-générée Manquante
+### 5.1 Missing Auto-Generated Documentation
 
 **Solution**
 ```python
@@ -1024,7 +1024,7 @@ from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 
 def generate_plugin_docs():
-    """Génère la doc Markdown de tous les plugins"""
+    """Generate Markdown doc for all plugins"""
 
     registry = PluginRegistry()
     docs = []
@@ -1060,121 +1060,121 @@ if __name__ == "__main__":
     generate_plugin_docs()
 ```
 
-**Effort** : 4 heures
-**Impact** : Documentation
+**Effort**: 4 hours
+**Impact**: Documentation
 
 ---
 
-## 6. Plan d'Action Priorisé
+## 6. Prioritized Action Plan
 
-### Phase 1 : Corrections Critiques (1 semaine)
-| Tâche | Priorité | Effort | Impact |
-|-------|----------|--------|--------|
-| Externaliser les secrets | 🔴 | 4h | Sécurité |
-| Validation centralisée | 🔴 | 1j | Stabilité |
-| Logging amélioré | 🟠 | 1j | Debugging |
-| Cache basique | 🟠 | 1j | Perf x5 |
+### Phase 1: Critical Fixes (1 week)
+| Task | Priority | Effort | Impact |
+|------|----------|--------|--------|
+| Externalize secrets | 🔴 | 4h | Security |
+| Centralized validation | 🔴 | 1d | Stability |
+| Improved logging | 🟠 | 1d | Debugging |
+| Basic cache | 🟠 | 1d | Perf x5 |
 
-### Phase 2 : Architecture (2 semaines)
-| Tâche | Priorité | Effort | Impact |
-|-------|----------|--------|--------|
-| Injection dépendances | 🔴 | 2j | Testabilité |
-| Templates YAML | 🟠 | 2j | -60% config |
-| Tests plugins | 🟠 | 3j | Qualité |
-| Health checks | 🟡 | 1j | Monitoring |
+### Phase 2: Architecture (2 weeks)
+| Task | Priority | Effort | Impact |
+|------|----------|--------|--------|
+| Dependency injection | 🔴 | 2d | Testability |
+| YAML templates | 🟠 | 2d | -60% config |
+| Plugin tests | 🟠 | 3d | Quality |
+| Health checks | 🟡 | 1d | Monitoring |
 
-### Phase 3 : Performance (1 semaine)
-| Tâche | Priorité | Effort | Impact |
-|-------|----------|--------|--------|
-| Parallélisation | 🟠 | 2j | Perf x4-8 |
-| Cache avancé | 🟠 | 1j | Perf x10 |
-| Data provider | 🟡 | 2j | Architecture |
+### Phase 3: Performance (1 week)
+| Task | Priority | Effort | Impact |
+|------|----------|--------|--------|
+| Parallelization | 🟠 | 2d | Perf x4-8 |
+| Advanced cache | 🟠 | 1d | Perf x10 |
+| Data provider | 🟡 | 2d | Architecture |
 
-### Phase 4 : Gouvernance (2 semaines)
-| Tâche | Priorité | Effort | Impact |
-|-------|----------|--------|--------|
-| Plugin manifest | 🟡 | 2j | Versioning |
-| Config modulaire | 🟡 | 1j | Maintenabilité |
-| Doc auto-générée | 🟢 | 4h | DX |
-| UI config builder | 🟢 | 1 sem | UX |
+### Phase 4: Governance (2 weeks)
+| Task | Priority | Effort | Impact |
+|------|----------|--------|--------|
+| Plugin manifest | 🟡 | 2d | Versioning |
+| Modular config | 🟡 | 1d | Maintainability |
+| Auto-generated docs | 🟢 | 4h | DX |
+| UI config builder | 🟢 | 1 wk | UX |
 
-## 7. Quick Start : Les 3 Premières Actions
+## 7. Quick Start: The First 3 Actions
 
-### Action 1 : Sécuriser les Secrets (Aujourd'hui)
+### Action 1: Secure Secrets (Today)
 ```bash
-# 1. Créer .env
+# 1. Create .env
 echo "ENDEMIA_API_KEY=${CURRENT_KEY}" > .env
 
-# 2. Modifier Config class
-# Ajouter le code de la section 1.1
+# 2. Modify Config class
+# Add code from section 1.1
 
-# 3. Mettre à jour les YAML
-# Remplacer les valeurs par ${VAR_NAME}
+# 3. Update YAMLs
+# Replace values with ${VAR_NAME}
 
-# 4. Tester
+# 4. Test
 niamoto transform --config config/transform.yml
 ```
 
-### Action 2 : Ajouter la Validation (Demain)
+### Action 2: Add Validation (Tomorrow)
 ```python
-# 1. Modifier TransformerService
-# Ajouter le code de la section 1.2
+# 1. Modify TransformerService
+# Add code from section 1.2
 
-# 2. Vérifier que tous les plugins ont param_schema
-# Si non, ajouter progressivement
+# 2. Verify all plugins have param_schema
+# If not, add progressively
 
-# 3. Tester avec config invalide
-# Doit lever une erreur claire
+# 3. Test with invalid config
+# Should raise clear error
 ```
 
-### Action 3 : Implémenter le Cache (Cette Semaine)
+### Action 3: Implement Cache (This Week)
 ```python
-# 1. Ajouter DataCache
-# Code de la section 2.1
+# 1. Add DataCache
+# Code from section 2.1
 
-# 2. Modifier TransformerService pour utiliser le cache
+# 2. Modify TransformerService to use cache
 
-# 3. Mesurer les gains
+# 3. Measure gains
 # time niamoto transform --config config/transform.yml
-# Devrait être 5-10x plus rapide au 2e run
+# Should be 5-10x faster on 2nd run
 ```
 
-## 8. Métriques de Succès
+## 8. Success Metrics
 
-### Avant Corrections
-- 🔴 Secrets en clair
-- 🔴 Crashes fréquents (validation)
-- 🔴 Performance : 30 min pour pipeline complet
-- 🔴 Config : 2500+ lignes YAML
-- 🔴 Tests : 0% coverage plugins
+### Before Corrections
+- 🔴 Plaintext secrets
+- 🔴 Frequent crashes (validation)
+- 🔴 Performance: 30 min for complete pipeline
+- 🔴 Config: 2500+ YAML lines
+- 🔴 Tests: 0% plugin coverage
 
-### Après Corrections (Objectif)
-- ✅ Secrets externalisés
+### After Corrections (Goal)
+- ✅ Externalized secrets
 - ✅ Validation = 0 crashes
-- ✅ Performance : 3-5 min (x6-10)
-- ✅ Config : 800 lignes (-70%)
-- ✅ Tests : 80% coverage
+- ✅ Performance: 3-5 min (x6-10)
+- ✅ Config: 800 lines (-70%)
+- ✅ Tests: 80% coverage
 
-## 9. Ressources et Outils
+## 9. Resources and Tools
 
-### Outils Recommandés
-- **Monitoring** : Prometheus + Grafana pour métriques
-- **Logging** : ELK Stack ou Loki pour centralisation
-- **Cache** : Redis pour cache distribué (futur)
-- **CI/CD** : GitHub Actions pour tests automatiques
+### Recommended Tools
+- **Monitoring**: Prometheus + Grafana for metrics
+- **Logging**: ELK Stack or Loki for centralization
+- **Cache**: Redis for distributed cache (future)
+- **CI/CD**: GitHub Actions for automated tests
 
-### Documentation de Référence
-- [The Twelve-Factor App](https://12factor.net/) - Bonnes pratiques
-- [Plugin Architecture Patterns](https://www.martinfowler.com/articles/injection.html) - Injection de dépendances
-- [Python Testing Best Practices](https://realpython.com/pytest-python-testing/) - Tests avec pytest
+### Reference Documentation
+- [The Twelve-Factor App](https://12factor.net/) - Best practices
+- [Plugin Architecture Patterns](https://www.martinfowler.com/articles/injection.html) - Dependency injection
+- [Python Testing Best Practices](https://realpython.com/pytest-python-testing/) - Testing with pytest
 
 ## Conclusion
 
-**80% des bénéfices viendront de 20% des corrections**. Focalisez sur :
+**80% of benefits will come from 20% of corrections**. Focus on:
 
-1. **Sécurité** (secrets)
-2. **Stabilité** (validation)
+1. **Security** (secrets)
+2. **Stability** (validation)
 3. **Performance** (cache)
-4. **Maintenabilité** (templates)
+4. **Maintainability** (templates)
 
-Les corrections critiques peuvent être faites en **1-2 semaines** pour un gain immédiat. Le reste peut être étalé sur 2-3 mois selon les ressources.
+Critical fixes can be done in **1-2 weeks** for immediate gain. The rest can be spread over 2-3 months depending on resources.

@@ -259,6 +259,6 @@ Once Niamoto is successfully installed:
 
 If you encounter issues:
 
-1. Check the [FAQ](../faq/general.md)
+1. Review [Common Issues](../12-troubleshooting/common-issues.md)
 2. Look at [GitHub issues](https://github.com/niamoto/niamoto/issues)
 3. Join the community on [Discussions](https://github.com/niamoto/niamoto/discussions)

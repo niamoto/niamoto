@@ -1,8 +1,6 @@
 # Roadmap : Architecture de Navigation et Interface Export
 ## Niamoto GUI - Décembre 2024 / Janvier 2025
 
----
-
 ## 📌 Vue d'ensemble
 
 ### Objectif Principal
@@ -18,13 +16,11 @@ Créer une architecture de navigation évolutive et une interface complète pour
 - **MVP Navigation** : 20 décembre 2024
 - **MVP Export** : 3 janvier 2025
 
----
-
 ## 🏗️ Architecture Proposée
 
 ### Navigation Hiérarchique à 2 Niveaux
 
-```typescript
+```text
 interface NavigationStructure {
   sections: [
     {
@@ -317,7 +313,7 @@ GET /api/export/download
 
 ### Composants Réutilisables
 
-```typescript
+```text
 // Navigation
 <NavigationSection />
 <NavigationItem />

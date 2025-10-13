@@ -256,7 +256,7 @@ class InteractiveValidator:
 ## Exemple Concret : Données Nouvelle-Calédonie
 
 ### Données d'entrée
-```csv
+```text
 id,id_taxonref,plot_name,taxaname,famille,genre,espece,province,commune,substrat,dbh
 1,2283,P01,Araucaria columnaris,Araucariaceae,Araucaria,columnaris,Province Sud,Mont-Dore,ultramafique,45
 2,3467,P01,Agathis lanceolata,Araucariaceae,Agathis,lanceolata,Province Sud,Mont-Dore,ultramafique,120

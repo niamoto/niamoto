@@ -101,7 +101,7 @@ src/components/pipeline/
 
 #### 2.1 Import Nodes
 
-```typescript
+```text
 interface ImportNodeData {
   nodeType: 'import'
   subType: 'taxonomy' | 'occurrences' | 'plots' | 'shapes' | 'layers'
@@ -171,7 +171,7 @@ interface ImportNodeData {
 
 #### 2.2 Transform Nodes
 
-```typescript
+```text
 interface TransformNodeData {
   nodeType: 'transform'
   pluginId: string  // field_aggregator, top_ranking, etc.
@@ -220,7 +220,7 @@ interface TransformNodeData {
 
 #### 2.3 Export Nodes
 
-```typescript
+```text
 interface ExportNodeData {
   nodeType: 'export'
   format: 'html' | 'json' | 'csv' | 'geojson'
@@ -274,7 +274,7 @@ interface ExportNodeData {
 
 #### 3.1 Règles de Connexion
 
-```typescript
+```text
 class PipelineRules {
   // Règles de base du pipeline
   static readonly SEQUENCE_RULES = {
@@ -307,7 +307,7 @@ class PipelineRules {
 
 #### 3.2 Compatibilité des Données
 
-```typescript
+```text
 interface DataCompatibility {
   // Formats de données supportés
   formats: {
@@ -351,7 +351,7 @@ interface DataCompatibility {
 
 ### 4. Catalogue Contextuel
 
-```typescript
+```text
 class CatalogContext {
   private currentStep: 'import' | 'transform' | 'export'
   private selectedNode: Node | null
@@ -399,7 +399,7 @@ class CatalogContext {
 
 ### 5. Layout Flexible
 
-```typescript
+```text
 interface LayoutConfig {
   type: 'side-panel' | 'modal' | 'bottom-panel'
   position?: 'left' | 'right' | 'top' | 'bottom'
@@ -849,7 +849,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ## 🔴 ÉLÉMENTS CRITIQUES À IMPLÉMENTER
 
 ### 0. ✅ **Endpoint JSON Schema pour Plugins (COMPLÉTÉ)**
-```typescript
+```text
 // Implémenté dans l'API FastAPI
 - [x] Endpoint `/api/plugins/schemas` pour récupérer les schémas JSON
 - [x] Génération automatique depuis les modèles Pydantic
@@ -859,7 +859,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 1. **Connexion API (PRIORITÉ HAUTE)**
-```typescript
+```text
 // À implémenter dans les forms d'import
 - [ ] Connexion réelle avec `/api/imports/detect-fields`
 - [ ] Upload de fichiers vers l'API
@@ -869,7 +869,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 2. **Système de Validation Avancé**
-```typescript
+```text
 // components/pipeline/validation/
 - [ ] CompatibilityChecker.tsx - Vérifier compatibilité entre nodes
 - [ ] DataFormatMatcher.tsx - Valider formats de données
@@ -877,7 +877,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 3. **Sérialisation YAML (CRITIQUE)**
-```typescript
+```text
 // utils/pipelineSerializer.ts
 - [ ] ReactFlow → YAML conversion
 - [ ] YAML → ReactFlow parsing
@@ -886,7 +886,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 4. **Transform Forms (Phase 3)**
-```typescript
+```text
 // forms/transform/
 - [ ] PluginConfigForm.tsx - Configuration des plugins
 - [ ] SourceRelationForm.tsx - Relations entre sources
@@ -895,7 +895,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 5. **Export Forms (Phase 4)**
-```typescript
+```text
 // forms/export/
 - [ ] HtmlPageForm.tsx - Configuration pages HTML
 - [ ] TemplateForm.tsx - Sélection templates
@@ -903,7 +903,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 6. **Système d'Exécution (Phase 5-6)**
-```typescript
+```text
 // execution/
 - [ ] PipelineRunner.tsx - Orchestrateur
 - [ ] NodeExecutor.tsx - Exécuteur par node
@@ -912,7 +912,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 7. **Layout Flexible**
-```typescript
+```text
 // layouts/
 - [ ] LayoutProvider.tsx - Context pour layouts
 - [ ] ModalLayout.tsx - Mode modal
@@ -921,7 +921,7 @@ const LayoutProvider: React.FC = ({ children }) => {
 ```
 
 ### 8. **Améliorations UX**
-```typescript
+```text
 - [ ] Tooltips sur tous les éléments
 - [ ] Animations de transition
 - [ ] Undo/Redo system

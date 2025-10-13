@@ -441,4 +441,4 @@ def export(self, data, config, output_path):
 
 - [Plugin Architecture](architecture.md)
 - [Export Process](../02-data-pipeline/export-process.md)
-- [Configuration](../08-configuration/)
+- [Configuration](../08-configuration/README.md)

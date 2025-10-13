@@ -195,6 +195,6 @@ If mypy reports errors:
 
 ## Next Steps
 
-- Read the [Contributing Guidelines](../CONTRIBUTING.md)
-- Explore the [Architecture Documentation](../architecture/README.md)
-- Check out the [Plugin Development Guide](../plugins/README.md)
+- Read the [Contributing Guidelines](contributing.md)
+- Explore the [Architecture Documentation](../09-architecture/README.md)
+- Check out the [Plugin Development Guide](../04-plugin-development/README.md)

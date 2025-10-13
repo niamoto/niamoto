@@ -63,7 +63,7 @@ Transformations in Niamoto are plugin-based operations that:
 
 ### Phase 1: Basic Transform List
 
-```typescript
+```text
 interface Transform {
   id: string
   name: string
@@ -83,7 +83,7 @@ interface TransformListProps {
 
 ### Phase 2: Visual Pipeline Builder
 
-```typescript
+```text
 interface TransformNode {
   id: string
   transformId: string
@@ -260,7 +260,7 @@ Based on your data, we recommend:
 ## Technical Considerations
 
 ### State Management
-```typescript
+```text
 interface TransformStore {
     availableTransforms: Transform[]
     currentPipeline: Pipeline

@@ -5,7 +5,7 @@ Future development plans and feature roadmaps for Niamoto.
 ## 📚 Documents in this Section
 
 - **[GUI Navigation](gui-navigation.md)** - GUI navigation architecture improvements
-- **[Generic Import](generic-import.md)** - Generic import system development
+- **[Generic Import Refactor](generic-import-refactor-roadmap.md)** - Generic import system development
 - **[Error Handling](error-handling.md)** - Comprehensive error handling strategy
 - **[Plugin Routing](plugin-routing.md)** - Plugin routing and discovery
 
@@ -36,12 +36,12 @@ Automatic field detection and mapping using machine learning.
 ### Unified Pipeline Interface
 Visual pipeline builder with ReactFlow.
 - Status: In Progress
-- [Details](pipeline-unified.md)
+- [Details](../09-architecture/pipeline-unified.md)
 
 ### Generic Import System
 Support for any data format through plugins.
 - Status: Planning
-- [Details](generic-import.md)
+- [Details](generic-import-refactor-roadmap.md)
 
 ## 📊 Progress Tracking
 
@@ -54,9 +54,9 @@ Support for any data format through plugins.
 
 ## 🔗 Related Documentation
 
-- [Architecture](../09-architecture/) - System design
-- [ML Detection](../03-ml-detection/) - ML features
-- [Development](../11-development/) - Contributing
+- [Architecture](../09-architecture/README.md) - System design
+- [ML Detection](../03-ml-detection/README.md) - ML features
+- [Development](../11-development/README.md) - Contributing
 
 ---
 *Roadmaps are reviewed quarterly and updated based on user feedback*

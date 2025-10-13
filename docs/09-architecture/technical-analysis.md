@@ -324,7 +324,7 @@ The system can support multiple biodiversity APIs:
 Here's a concrete example showing a taxon's journey through the system:
 
 1. **Import** (CSV → Database):
-   ```csv
+   ```text
    id_taxonref,family,genus,species,geo_pt
    123,Araucariaceae,Araucaria,columnaris,"POINT(166.4580 -22.2764)"
    ```
@@ -480,7 +480,7 @@ CREATE INDEX ix_occurrences_taxon_ref_id ON occurrences(taxon_ref_id);
 ```
 
 **Consistent Response Structure**:
-```json
+```text
 {
   "taxon": [...],
   "total": 1247,

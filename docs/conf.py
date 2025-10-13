@@ -9,7 +9,8 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../src/niamoto"))
+sys.path.insert(0, os.path.abspath("../src"))
+sys.path.insert(0, os.path.abspath("_ext"))
 
 
 project = "niamoto"
@@ -26,6 +27,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "myst_parser",
     "sphinx_markdown_builder",
+    "mermaid",
 ]
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
@@ -35,6 +37,8 @@ myst_enable_extensions = [
     "colon_fence",
     "deflist",
 ]
+myst_heading_anchors = 5
+myst_fence_as_directive = ["mermaid"]
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",

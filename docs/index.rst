@@ -4,129 +4,152 @@
    contain the root `toctree` directive.
 
 Niamoto Documentation
-====================
+=======================
 
 Niamoto is an ecological data platform for creating biodiversity web portals.
 
 .. toctree::
+   :maxdepth: 1
+   :caption: Overview
+   :hidden:
+
+   README
+
+.. toctree::
    :maxdepth: 2
+   :glob:
    :caption: Getting Started
    :hidden:
 
-   getting-started/installation
-   getting-started/quickstart
-   getting-started/concepts
+   01-getting-started/*
 
 .. toctree::
    :maxdepth: 2
-   :caption: Practical Guides
+   :glob:
+   :caption: Data Pipeline
    :hidden:
 
-   guides/configuration
-   guides/data-import
-   guides/data-preparation
-   guides/transform_chain_guide
-   guides/database-aggregation-plugin
-   guides/custom_plugin
-   guides/plugin_reference
-   guides/api_taxonomy_enricher
-   guides/export-guide
-   guides/deployment
+   02-data-pipeline/*
 
 .. toctree::
    :maxdepth: 2
-   :caption: Tutorials
+   :glob:
+   :caption: ML Detection
    :hidden:
 
-   tutorials/biodiversity-site
-   tutorials/forest-plots
-   tutorials/external-data
+   03-ml-detection/*
 
 .. toctree::
    :maxdepth: 2
-   :caption: References
+   :glob:
+   :caption: Plugin Development
    :hidden:
 
-   references/plugin-system-overview
-   references/database-schema
-   references/pipeline-architecture
-   references/cli-commands
-   references/yaml-reference
+   04-plugin-development/*
+   04-plugin-development/*/*
 
 .. toctree::
    :maxdepth: 2
-   :caption: Development
-   :hidden:
-
-   development/contributing
-   development/widget-development
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Advanced Topics
-   :hidden:
-
-   advanced/optimization
-   advanced/gis-integration
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Support
-   :hidden:
-
-   troubleshooting/common-issues
-   faq/general
-   resources/glossary
-   resources/links
-
-.. toctree::
-   :maxdepth: 2
+   :glob:
    :caption: API Reference
    :hidden:
 
-   api/modules
+   05-api-reference/*
+   modules
 
 .. toctree::
-   :maxdepth: 1
-   :caption: Meta
+   :maxdepth: 2
+   :glob:
+   :caption: GUI
    :hidden:
 
-   DOCUMENTATION_INDEX
-   DOCUMENTATION_STRUCTURE
-   migration/migration-guide
+   06-gui/*
+   06-gui/*/*
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   :caption: Tutorials
+   :hidden:
+
+   07-tutorials/*
+   07-tutorials/*/*
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   :caption: Configuration
+   :hidden:
+
+   08-configuration/*
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   :caption: Architecture
+   :hidden:
+
+   09-architecture/*
+   09-architecture/*/*
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   :caption: Roadmaps
+   :hidden:
+
+   10-roadmaps/*
+   10-roadmaps/*/*
+   10-roadmaps/*/*/*
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   :caption: Development
+   :hidden:
+
+   11-development/*
+
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   :caption: Troubleshooting
+   :hidden:
+
+   12-troubleshooting/*
 
 Quick Start
 -----------
 
-1. **Installation**: :doc:`getting-started/installation`
+1. **Installation**: :doc:`01-getting-started/installation`
 
    .. code-block:: bash
 
       pip install niamoto
 
-2. **First Project**: :doc:`getting-started/quickstart`
+2. **First Project**: :doc:`01-getting-started/quickstart`
 
    .. code-block:: bash
 
       niamoto init
       niamoto run
 
-3. **Key Concepts**: :doc:`getting-started/concepts`
+3. **Key Concepts**: :doc:`01-getting-started/concepts`
 
 Main Resources
 --------------
 
-* **Configuration**: :doc:`guides/configuration` - Master YAML files
-* **Plugins**: :doc:`guides/custom_plugin` - Create your own plugins
-* **Widgets**: :doc:`guides/plugin_reference` - Available visualizations
-* **Deployment**: :doc:`guides/deployment` - Publish your site
+* **Configuration**: :doc:`08-configuration/configuration-guide` - Master YAML files
+* **Data Pipeline**: :doc:`02-data-pipeline/transform-pipeline` - Manage transformations
+* **Plugin Development**: :doc:`04-plugin-development/creating-transformers` - Build custom logic
+* **GUI Workflow**: :doc:`06-gui/user-workflow` - Navigate the interface
 
 Getting Help
 ------------
 
 * `GitHub Issues <https://github.com/niamoto/niamoto/issues>`_
 * `Discussions <https://github.com/niamoto/niamoto/discussions>`_
-* :doc:`faq/general`
+* :doc:`12-troubleshooting/common-issues`
 
 Indices and Tables
 ==================

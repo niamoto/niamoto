@@ -537,6 +537,6 @@ niamoto run --verbose
 - Run `niamoto transform check` to validate configurations
 
 For more information, see:
-- [Installation Guide](../getting-started/installation.md)
-- [Quick Start Guide](../getting-started/quickstart.md)
-- [Data Import Guide](../guides/data-import.md)
+- [Installation Guide](../01-getting-started/installation.md)
+- [Quick Start Guide](../01-getting-started/quickstart.md)
+- [Data Import Guide](../02-data-pipeline/import-configuration.md)

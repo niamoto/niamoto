@@ -1,0 +1,85 @@
+# Niamoto Import Configuration
+# This file defines data sources for importing into Niamoto
+
+# TAXONOMY CONFIGURATION
+# Import taxonomic reference data
+taxonomy:
+  type: csv                              # File type: csv
+  path: imports/taxonomy.csv             # Path to taxonomy file
+  # source: file                         # Options: 'file' or 'occurrence' (extract from occurrences)
+  # ranks: family,genus,species,infra    # When source is 'occurrence', specify ranks to extract
+
+  # Optional: Enrich taxonomy with external API
+  # api_enrichment:
+  #   enabled: true
+  #   plugin: api_taxonomy_enricher
+  #   api_url: https://api.example.com/taxons
+  #   auth_method: api_key               # Options: 'api_key', 'basic', 'bearer'
+  #   auth_params:
+  #     key: your-api-key
+  #     location: header                 # Options: 'header' or 'query'
+  #     name: apiKey                     # Parameter name for the API key
+  #   query_field: full_name             # Field to use for API queries
+  #   rate_limit: 2.0                    # Requests per second
+  #   cache_results: true                # Cache API responses
+  #   response_mapping:                  # Map API response fields to database columns
+  #     conservation_status: status
+  #     endemic: is_endemic
+
+# PLOT CONFIGURATION
+# Import plot/site data
+plots:
+  type: csv                              # Options: 'csv' or 'vector'
+  path: imports/plots.csv                # Path to plots file
+  # identifier: id                       # Column containing plot ID
+  # locality_field: name                 # Column for plot name/locality
+  # location_field: geometry             # Column for spatial data (WKT or coordinates)
+  # format: csv                          # For vector type: 'shapefile', 'geopackage', 'geojson'
+
+# OCCURRENCE CONFIGURATION
+# Import species occurrence data
+occurrences:
+  type: csv
+  path: imports/occurrences.csv
+  # identifier: id                       # Column for occurrence ID
+  # location_field: geometry             # Column for spatial data
+  # taxon_field: taxon_id                # Column linking to taxonomy
+  # plot_field: plot_id                  # Column linking to plots
+
+# SHAPE CONFIGURATION (Optional)
+# Import geographic boundaries and zones
+# shapes:
+#   - category: provinces                # Shape category identifier
+#     type: vector
+#     format: shapefile                  # Options: 'shapefile', 'geopackage', 'geojson'
+#     path: imports/shapes/provinces.shp
+#     name_field: name                   # Field containing shape names
+#     label: Provinces                   # Display label
+#     description: Administrative boundaries
+#
+#   - category: ecological_zones
+#     type: vector
+#     format: geopackage
+#     path: imports/shapes/eco_zones.gpkg
+#     name_field: zone_name
+#     label: Ecological Zones
+#     description: Ecological classification zones
+
+# LAYER CONFIGURATION (Optional)
+# Import additional spatial layers (rasters, vectors)
+# layers:
+#   - name: elevation
+#     type: raster
+#     path: imports/layers/elevation.tif
+#     description: Digital elevation model
+#
+#   - name: rainfall
+#     type: raster
+#     path: imports/layers/rainfall.tif
+#     description: Annual rainfall distribution
+#
+#   - name: forest_cover
+#     type: vector
+#     format: shapefile
+#     path: imports/layers/forest.shp
+#     description: Forest coverage

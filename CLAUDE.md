@@ -16,6 +16,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run tests with uv**: `uv run pytest`
 - **Smart commit with pre-commit**: `./scripts/smart_commit.sh "commit message"` (automates commit process with pre-commit)
 
+### Database Commands
+- **Query database**: `uv run python scripts/query_db.py "SELECT * FROM taxon LIMIT 5"` (execute SQL queries)
+- **List tables**: `uv run python scripts/query_db.py --list-tables`
+- **Describe table**: `uv run python scripts/query_db.py --describe taxon`
+- **Interactive mode**: `uv run python scripts/query_db.py --interactive` (SQL REPL)
+- **Database location**: Test instance database is at `test-instance/niamoto-nc/db/niamoto.duckdb`
+
 ### GUI Commands
 - **Install GUI dependencies**: `cd src/niamoto/gui/ui && npm install`
 - **Run GUI development server**: `cd src/niamoto/gui/ui && npm run dev`
@@ -24,7 +31,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Access GUI**: Default at `http://127.0.0.1:8080`, API docs at `/api/docs`
 
 ## Development Notes
-- A niamoto instance exists in the test-instance/niamoto-og directory, where you can find source configuration files and execute niamoto commands
+- A niamoto instance exists in the test-instance/niamoto-nc directory, where you can find source configuration files and execute niamoto commands
+- **Database**: Niamoto uses **DuckDB** (not SQLite) - database file is `test-instance/niamoto-nc/db/niamoto.duckdb`
+- Use `scripts/query_db.py` to inspect and query the database during development
 
 ## High-Level Architecture
 Niamoto is an ecological data platform built around a data pipeline with three phases:
@@ -36,7 +45,7 @@ Niamoto is an ecological data platform built around a data pipeline with three p
 - **Plugin System**: All transformations are plugins registered in a global registry
 - **Configuration-Driven**: YAML files define the entire pipeline - no code changes needed for new analyses
 - **Type Safety**: Pydantic models validate all plugin configurations
-- **Database-Centric**: SQLite with SQLAlchemy stores all data; GeoAlchemy2 handles spatial data
+- **Database-Centric**: DuckDB (analytics database) with SQLAlchemy ORM; GeoAlchemy2 handles spatial data
 
 ### Key Architectural Components
 - **CLI (cli/)**: Click-based commands orchestrate the pipeline
@@ -93,6 +102,12 @@ class MyPlugin(TransformerPlugin):
 ## Database Patterns
 - Models use SQLAlchemy declarative base
 - Use context managers for database sessions
+- **DuckDB Read-Only Mode**: Use `Database(db_path, read_only=True)` to inspect the database while other processes (like DBeaver) have a write lock
+  ```python
+  from niamoto.common.database import Database
+  db = Database('db/niamoto.duckdb', read_only=True)
+  # Can now query even if another process has the file locked
+  ```
 
 ## Common Pitfalls to Avoid
 - Don't access database outside of service layer

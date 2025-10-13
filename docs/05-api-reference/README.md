@@ -44,9 +44,9 @@ class MyPlugin(TransformerPlugin):
 
 ## 🔗 Related Documentation
 
-- [Plugin Development](../04-plugin-development/) - Create plugins
-- [Configuration](../08-configuration/) - API configuration
-- [GUI Documentation](../06-gui/) - Web interface APIs
+- [Plugin Development](../04-plugin-development/README.md) - Create plugins
+- [Configuration](../08-configuration/README.md) - API configuration
+- [GUI Documentation](../06-gui/README.md) - Web interface APIs
 
 ---
-*For usage examples, see [Tutorials](../07-tutorials/)*
+*For usage examples, see [Tutorials](../07-tutorials/README.md)*

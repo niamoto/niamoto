@@ -75,17 +75,17 @@ niamoto gui --no-browser     # Ne pas ouvrir le navigateur
 
 - [Guide de démarrage](getting-started.md) - Installation et premier projet
 - [Parcours utilisateur](user-workflow.md) - Workflow détaillé avec exemples
-- [POC actuel](poc-implementation.md) - État et limitations du prototype
-- [Référence API](api-reference.md) - Documentation des endpoints
-- [Guide de développement](development.md) - Architecture et workflow de développement
-- [Architecture](development/architecture.md) - Détails techniques
-- [Contribution](development/contributing.md) - Guide pour les développeurs
-- [Roadmap](development/roadmap.md) - Évolutions prévues
+- [POC actuel](../10-roadmaps/gui/poc-implementation.md) - État et limitations du prototype
+- [Référence API](../10-roadmaps/gui/api-reference.md) - Documentation des endpoints
+- [Guide de développement](../10-roadmaps/gui/development.md) - Architecture et workflow de développement
+- [Architecture](../10-roadmaps/gui/development/architecture.md) - Détails techniques
+- [Contribution](../10-roadmaps/gui/development/contributing.md) - Guide pour les développeurs
+- [Roadmap](../10-roadmaps/gui/development/roadmap.md) - Évolutions prévues
 
 ## Support
 
 Pour toute question ou problème :
-- Consultez le [guide de dépannage](troubleshooting.md)
+- Consultez le [guide de dépannage](../10-roadmaps/gui/troubleshooting.md)
 - Ouvrez une issue sur [GitHub](https://github.com/niamoto/niamoto/issues)
 - Contactez l'équipe de développement
 

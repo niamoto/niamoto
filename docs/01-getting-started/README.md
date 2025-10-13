@@ -19,9 +19,9 @@ Welcome to Niamoto! This section will help you get up and running quickly.
 ## 📖 Next Steps
 
 Once you're comfortable with the basics, explore:
-- [Data Pipeline](../02-data-pipeline/) - Learn about data flow
-- [Tutorials](../07-tutorials/) - Real-world examples
-- [Configuration](../08-configuration/) - Customize your setup
+- [Data Pipeline](../02-data-pipeline/README.md) - Learn about data flow
+- [Tutorials](../07-tutorials/README.md) - Real-world examples
+- [Configuration](../08-configuration/README.md) - Customize your setup
 
 ---
-*For help and support, see [Troubleshooting](../12-troubleshooting/)*
+*For help and support, see [Troubleshooting](../12-troubleshooting/README.md)*
