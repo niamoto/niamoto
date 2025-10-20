@@ -260,17 +260,35 @@ _Aucun pour le moment_
 ---
 
 ### Mardi 21 Janvier 2025
-_À remplir en fin de journée_
+_Session de travail complétée_
 
-**Tâches prévues**:
-- [ ] Migrer `nested_set.py`
-- [ ] Tests unitaires `nested_set`
-- [ ] Valider `transform.yml` fonctionne
+**Tâches réalisées**:
+- [x] Migration de 3 distribution transformers vers EntityRegistry
+  - [x] `categorical_distribution.py`
+  - [x] `binned_distribution.py`
+  - [x] `time_series_analysis.py`
+- [x] Tests des plugins migrés (22 tests passent)
+- [x] Commit "feat: migrate distribution transformers to EntityRegistry"
+- [x] Vérification complète des résultats transform en base de données
 
 **Résultats**:
-- Statut:
-- Blockers:
-- Notes:
+- Statut: ✅ **Succès complet** - 3/3 distribution transformers migrés et vérifiés
+- Tests: 22 tests passent (13 categorical + 9 binned, pas de test pour time_series)
+- Vérification DB:
+  - ✅ taxons: dbh_distribution, elevation_distribution, rainfall_distribution (binned)
+  - ✅ taxons: holdridge_distribution, strata_distribution (categorical)
+  - ✅ taxons: phenology_distribution (time_series)
+  - ✅ shapes: land_use (categorical pour PPE Nord, PPE Sud, Ultramafique)
+  - ⚠️  shapes: Certaines shapes ont NULL car ce sont des entités "type" (catégories), pas de géométries
+- Progression: 15/27 plugins critiques migrés (56%)
+- Blockers: Aucun
+
+**Notes**:
+- Vérification exhaustive de la base de données test-instance/niamoto-nc/db/niamoto.duckdb
+- Les 3 shapes géographiques importées (PPE Nord, PPE Sud, Ultramafique) ont des données complètes
+- Les plugins migrés fonctionnent correctement avec EntityRegistry
+- Le CSV raw_shape_stats.csv contient des données pour beaucoup plus de shapes que celles importées
+- Pattern de migration cohérent: EntityRegistry dans __init__, _resolve_table_name() en fallback
 
 ---
 
