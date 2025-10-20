@@ -4,10 +4,12 @@ Tests for the ClassObjectSeriesExtractor plugin.
 
 import pytest
 import pandas as pd
+from unittest.mock import Mock
 
 from niamoto.core.plugins.transformers.class_objects.series_extractor import (
     ClassObjectSeriesExtractor,
 )
+from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -40,12 +42,19 @@ def mock_db():
     return MockDb()
 
 
+# Plugin fixture with mocked registry
+@pytest.fixture
+def plugin(mock_db):
+    """Create plugin with mocked registry for legacy tests."""
+    mock_registry = Mock(spec=EntityRegistry)
+    return ClassObjectSeriesExtractor(mock_db, registry=mock_registry)
+
+
 # == Test Cases ==
 
 
-def test_basic_extraction(mock_db, sample_data):
+def test_basic_extraction(plugin, sample_data):
     """Test basic series extraction with default sorting and numeric conversion."""
-    plugin = ClassObjectSeriesExtractor(mock_db)
     config = {
         "plugin": "class_object_series_extractor",
         "params": {
@@ -75,9 +84,8 @@ def test_basic_extraction(mock_db, sample_data):
     assert result["values"] == [15, 25, 35, 25, 15]
 
 
-def test_extraction_no_sort(mock_db, sample_data):
+def test_extraction_no_sort(plugin, sample_data):
     """Test extraction without sorting the size axis."""
-    plugin = ClassObjectSeriesExtractor(mock_db)
     config = {
         "plugin": "class_object_series_extractor",
         "params": {
@@ -107,9 +115,8 @@ def test_extraction_no_sort(mock_db, sample_data):
     assert result["values"] == [35, 15, 15, 25, 25]
 
 
-def test_error_missing_class_object_data(mock_db, sample_data):
+def test_error_missing_class_object_data(plugin, sample_data):
     """Test that plugin returns empty result when the specified class_object is not found in data."""
-    plugin = ClassObjectSeriesExtractor(mock_db)
     config = {
         "plugin": "class_object_series_extractor",
         "params": {
@@ -125,9 +132,8 @@ def test_error_missing_class_object_data(mock_db, sample_data):
     assert result == {"sizes": [], "values": []}
 
 
-def test_error_missing_input_field(mock_db, sample_data):
+def test_error_missing_input_field(plugin, sample_data):
     """Test error when an input field (size or value) is missing."""
-    plugin = ClassObjectSeriesExtractor(mock_db)
     config_missing_size = {
         "plugin": "class_object_series_extractor",
         "params": {
@@ -158,9 +164,8 @@ def test_error_missing_input_field(mock_db, sample_data):
     )
 
 
-def test_error_invalid_config(mock_db):
+def test_error_invalid_config(plugin):
     """Test error during validation for invalid configuration."""
-    plugin = ClassObjectSeriesExtractor(mock_db)
     invalid_config = {
         "plugin": "class_object_series_extractor",
         "params": {  # Missing class_object, size_field, value_field
@@ -187,3 +192,81 @@ def test_error_invalid_config(mock_db):
         plugin.validate_config(config_missing_size_input)
     # The manual check for size_field.input should trigger
     assert "size_field.input must be specified" in str(exc_info_size.value)
+
+
+# == EntityRegistry Tests ==
+
+
+def test_init_with_registry(mock_db):
+    """Test plugin initialization with EntityRegistry."""
+    mock_registry = Mock(spec=EntityRegistry)
+    plugin = ClassObjectSeriesExtractor(mock_db, registry=mock_registry)
+
+    assert plugin.registry is mock_registry
+
+
+def test_init_without_registry():
+    """Test plugin initialization creates EntityRegistry if not provided."""
+    # Use a real mock with execute_sql method
+    mock_db = Mock()
+    mock_db.execute_sql = Mock()
+
+    plugin = ClassObjectSeriesExtractor(mock_db)
+
+    assert plugin.registry is not None
+    assert isinstance(plugin.registry, EntityRegistry)
+
+
+def test_resolve_table_name_with_registry(mock_db):
+    """Test table name resolution via EntityRegistry."""
+    mock_registry = Mock(spec=EntityRegistry)
+    mock_metadata = Mock()
+    mock_metadata.table_name = "entity_custom_stats"
+    mock_registry.get.return_value = mock_metadata
+
+    plugin = ClassObjectSeriesExtractor(mock_db, registry=mock_registry)
+    result = plugin._resolve_table_name("custom_stats")
+
+    assert result == "entity_custom_stats"
+    mock_registry.get.assert_called_once_with("custom_stats")
+
+
+def test_resolve_table_name_fallback(mock_db):
+    """Test fallback to logical name when entity not found in registry."""
+    mock_registry = Mock(spec=EntityRegistry)
+    mock_registry.get.side_effect = Exception("Entity not found")
+
+    plugin = ClassObjectSeriesExtractor(mock_db, registry=mock_registry)
+    result = plugin._resolve_table_name("legacy_table")
+
+    assert result == "legacy_table"
+
+
+def test_transform_with_custom_entity_names(plugin, sample_data):
+    """Test transform works with custom entity names via registry."""
+
+    config = {
+        "plugin": "class_object_series_extractor",
+        "params": {
+            "source": "habitat_stats",  # Custom entity name
+            "class_object": "forest_fragmentation",
+            "size_field": {
+                "input": "class_name",
+                "output": "sizes",
+                "numeric": True,
+                "sort": True,
+            },
+            "value_field": {
+                "input": "class_value",
+                "output": "values",
+                "numeric": True,
+            },
+        },
+    }
+
+    # The plugin doesn't use source in transform(), only in TransformerService
+    # So this test validates that the plugin accepts custom entity names
+    result = plugin.transform(sample_data, config)
+
+    assert "sizes" in result
+    assert "values" in result

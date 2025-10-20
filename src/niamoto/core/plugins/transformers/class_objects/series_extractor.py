@@ -11,6 +11,7 @@ import logging
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,33 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
     """Plugin for extracting series from class_object data"""
 
     config_model = ClassObjectSeriesConfig
+
+    def __init__(self, db, registry=None):
+        """Initialize with database and optional EntityRegistry.
+
+        Args:
+            db: Database instance
+            registry: EntityRegistry instance (created if not provided)
+        """
+        super().__init__(db)
+        self.registry = registry or EntityRegistry(db)
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via EntityRegistry.
+
+        Args:
+            logical_name: Entity name from config (e.g., "raw_shape_stats", "occurrences")
+
+        Returns:
+            Physical table name (e.g., "entity_raw_shape_stats", "entity_occurrences")
+            Falls back to logical_name if not found in registry (backward compatibility)
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            return metadata.table_name
+        except Exception:
+            # Fallback: assume it's already a physical table name
+            return logical_name
 
     def validate_config(self, config: Dict[str, Any]) -> ClassObjectSeriesConfig:
         """Validate plugin configuration and return typed config."""
