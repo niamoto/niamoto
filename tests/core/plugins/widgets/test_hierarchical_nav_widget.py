@@ -154,6 +154,26 @@ class TestHierarchicalNavWidget:
         # Should render HTML structure but with empty items array
         assert "hierarchical-nav-test-ref-container" in html
         assert '"items": []' in html
+        # With no hierarchy hints, widget should fall back to flat mode
+        assert '"flatMode": true' in html
+
+    def test_render_flat_list_data(self, widget):
+        """Flat lists (no hierarchy fields) should enable flat mode configuration."""
+        params = HierarchicalNavWidgetParams(
+            referential_data="plots",
+            id_field="id_plot",
+            name_field="plot",
+            base_url="/plots/",
+        )
+        data = [
+            {"id_plot": 1, "plot": "Plot A"},
+            {"id_plot": 2, "plot": "Plot B"},
+        ]
+
+        html = widget.render(data, params)
+
+        assert '"flatMode": true' in html
+        assert '"items": [{"id_plot": 1, "plot": "Plot A"}' in html
 
     def test_render_nested_set(self, widget, sample_nested_set_data):
         """Test rendering with nested set data."""

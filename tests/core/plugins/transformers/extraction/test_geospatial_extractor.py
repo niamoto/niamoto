@@ -8,30 +8,35 @@ from shapely.geometry import Point
 from niamoto.core.plugins.transformers.extraction.geospatial_extractor import (
     GeospatialExtractor,
 )
+from niamoto.core.imports.registry import EntityMetadata, EntityKind
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def geospatial_extractor_plugin():
     """Fixture for GeospatialExtractor plugin instance."""
     # Mock database interaction
     mock_db = MagicMock()
+    mock_db.has_table = MagicMock(return_value=False)
+    mock_db.engine = MagicMock()
 
-    # Mock Config to prevent creating config directory at project root
-    with patch(
-        "niamoto.core.plugins.transformers.extraction.geospatial_extractor.Config"
-    ) as mock_config:
-        mock_config.return_value.get_imports_config = {
-            "test_csv": {"path": "data/test.csv", "type": "csv", "identifier": "id"},
-            "test_vector": {
-                "path": "data/test.geojson",
-                "type": "vector",
-                "identifier": "id",
-            },
-        }
-        plugin = GeospatialExtractor(db=mock_db)
+    # Create mock config
+    mock_config_instance = MagicMock()
+    mock_config_instance.config_dir = "/mock/config"
 
-    # Set the mocked config on the plugin
-    plugin.config.config_dir = "/mock/config"
+    # Create a MagicMock for the registry
+    mock_registry = MagicMock()
+
+    # Create plugin WITHOUT the dependencies first (so we can inject mocks)
+    # We'll manually create the plugin and inject mocks
+    plugin = object.__new__(GeospatialExtractor)
+    plugin.db = mock_db
+    plugin.registry = mock_registry
+    plugin.config = mock_config_instance
+    plugin.config_model = GeospatialExtractor.config_model
+
+    # Store references for test access
+    plugin._test_mock_db = mock_db
+    plugin._test_mock_registry = plugin.registry
 
     return plugin
 
@@ -154,91 +159,173 @@ class TestGeospatialExtractorGetData:
     """Tests for the _get_data_from_source method."""
 
     def test_get_data_from_csv_import(self, geospatial_extractor_plugin):
-        """Test getting data from a CSV import."""
-        # Create a test dataframe to return
-        mock_df = pd.DataFrame({"id": [1, 2], "value": ["a", "b"]})
-
-        # Directly patch the _get_data_from_source method
-        with patch.object(
-            geospatial_extractor_plugin, "_get_data_from_source", return_value=mock_df
-        ) as mock_method:
-            # Call the method
-            result = geospatial_extractor_plugin._get_data_from_source("test_csv")
-
-            # Verify method was called
-            mock_method.assert_called_once_with("test_csv")
-
-            # Verify result is correct
-            pd.testing.assert_frame_equal(result, mock_df)
-
-    def test_get_data_from_vector_import(self, geospatial_extractor_plugin):
-        """Test getting data from a vector import."""
-        # Create a test geodataframe to return
-        mock_df = gpd.GeoDataFrame(
-            {"id": [1, 2], "geometry": [Point(1, 1), Point(2, 2)]}
+        """Test getting data from a CSV import via connector."""
+        # Setup: Create EntityMetadata with CSV connector config
+        metadata = EntityMetadata(
+            name="test_csv",
+            kind=EntityKind.DATASET,
+            table_name="test_csv_table",
+            config={
+                "connector": {
+                    "type": "csv",
+                    "path": "data/test.csv",
+                    "identifier": "id",
+                }
+            },
         )
 
-        # Directly patch the _get_data_from_source method
-        with patch.object(
-            geospatial_extractor_plugin, "_get_data_from_source", return_value=mock_df
-        ) as mock_method:
-            # Call the method
+        # Mock registry to return this metadata
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = False
+
+        # Mock CSV file reading
+        expected_df = pd.DataFrame({"id": [1, 2], "value": ["a", "b"]})
+        with patch("pandas.read_csv", return_value=expected_df) as mock_read_csv:
+            # Execute: Call the method we're testing
+            result = geospatial_extractor_plugin._get_data_from_source("test_csv")
+
+        # Verify: pandas.read_csv was called with correct path
+        mock_read_csv.assert_called_once()
+        called_path = mock_read_csv.call_args[0][0]
+        assert called_path.endswith("data/test.csv")
+
+        # Verify: Result matches expected data
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_get_data_from_vector_import(self, geospatial_extractor_plugin):
+        """Test getting data from a vector import via connector."""
+        # Setup: Create EntityMetadata with vector connector config
+        metadata = EntityMetadata(
+            name="test_vector",
+            kind=EntityKind.DATASET,
+            table_name="test_vector_table",
+            config={
+                "connector": {
+                    "type": "vector",
+                    "path": "data/test.geojson",
+                    "identifier": "id",
+                }
+            },
+        )
+
+        # Mock registry to return this metadata
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = False
+
+        # Mock GeoJSON file reading
+        expected_gdf = gpd.GeoDataFrame(
+            {"id": [1, 2], "geometry": [Point(1, 1), Point(2, 2)]}
+        )
+        with patch("geopandas.read_file", return_value=expected_gdf) as mock_read_file:
+            # Execute: Call the method we're testing
             result = geospatial_extractor_plugin._get_data_from_source("test_vector")
 
-            # Verify method was called
-            mock_method.assert_called_once_with("test_vector")
+        # Verify: geopandas.read_file was called with correct path
+        mock_read_file.assert_called_once()
+        called_path = mock_read_file.call_args[0][0]
+        assert called_path.endswith("data/test.geojson")
 
-            # Verify result is correct
-            assert isinstance(result, gpd.GeoDataFrame)
-            assert len(result) == 2
+        # Verify: Result is a GeoDataFrame with correct data
+        assert isinstance(result, gpd.GeoDataFrame)
+        assert len(result) == 2
 
-    def test_get_data_from_database(self, geospatial_extractor_plugin):
-        """Test getting data from a database table."""
-        # Create a mock for database results
-        mock_cursor = MagicMock()
-        mock_cursor.description = [("id",), ("value",)]
+    def test_get_data_from_registry_table(self, geospatial_extractor_plugin):
+        """Test getting data from a database table via registry."""
+        # Setup: Create EntityMetadata for a database table (no connector)
+        metadata = EntityMetadata(
+            name="db_table",
+            kind=EntityKind.DATASET,
+            table_name="db_table",
+            config={},
+        )
 
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = [(1, "a"), (2, "b")]
-        mock_result.cursor = mock_cursor
+        # Mock registry and database
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = True
 
-        # Mock the database execute_select method
-        geospatial_extractor_plugin.db.execute_select.return_value = mock_result
-
-        # Create a patched version of GeospatialExtractor._get_data_from_source
-        original_method = GeospatialExtractor._get_data_from_source
-
-        def patched_method(self, source, id_value=None):
-            # Call the database method for this test
-            if source == "db_table":
-                query = f"SELECT * FROM {source}"
-                if id_value is not None:
-                    query += f" WHERE id = {id_value}"
-
-                result = self.db.execute_select(query)
-                df = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-                return df
-
-            # For other sources, use the original method
-            return original_method(self, source, id_value)
-
-        # Apply the patch
-        with patch.object(GeospatialExtractor, "_get_data_from_source", patched_method):
-            # Call the method
-            result = geospatial_extractor_plugin._get_data_from_source("db_table")
-
-            # Verify database was queried
-            geospatial_extractor_plugin.db.execute_select.assert_called_once_with(
-                "SELECT * FROM db_table"
+        # Mock SQL query execution
+        expected_df = pd.DataFrame({"id": [1], "value": ["a"]})
+        with patch("pandas.read_sql", return_value=expected_df) as mock_read_sql:
+            # Execute: Call with id filter
+            result = geospatial_extractor_plugin._get_data_from_source(
+                "db_table", id_value=5
             )
 
-            # Verify result structure
-            assert isinstance(result, pd.DataFrame)
-            assert list(result.columns) == ["id", "value"]
-            assert len(result) == 2
+        # Verify: SQL query was called correctly
+        mock_read_sql.assert_called_once()
+        query, engine = mock_read_sql.call_args[0][:2]
+        params = mock_read_sql.call_args.kwargs.get("params")
+        assert "FROM db_table" in query
+        assert "WHERE id = :id" in query
+        assert params == {"id": 5}
+        assert isinstance(result, pd.DataFrame)
+
+    def test_get_data_from_registry_connector_csv(self, geospatial_extractor_plugin):
+        """Test getting data from CSV connector with id filtering."""
+        # Setup: Create EntityMetadata with CSV connector
+        metadata = EntityMetadata(
+            name="custom",
+            kind=EntityKind.DATASET,
+            table_name="missing_table",
+            config={
+                "connector": {
+                    "type": "csv",
+                    "path": "data/custom.csv",
+                    "identifier": "id",
+                }
+            },
+        )
+
+        # Mock registry and database (table doesn't exist, fallback to connector)
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = False
+
+        # Mock CSV reading
+        full_df = pd.DataFrame({"id": [1, 2], "value": ["x", "y"]})
+        with patch("pandas.read_csv", return_value=full_df) as mock_read_csv:
+            # Execute: Call with id filter - should filter the dataframe
+            result = geospatial_extractor_plugin._get_data_from_source(
+                "custom", id_value=1
+            )
+
+        # Verify: CSV was read and filtered correctly
+        mock_read_csv.assert_called_once()
+        called_path = mock_read_csv.call_args[0][0]
+        assert called_path.endswith("data/custom.csv")
+
+        # Verify: Result is filtered to only id=1
+        expected_filtered = full_df[full_df["id"] == 1]
+        pd.testing.assert_frame_equal(result, expected_filtered)
+
+    def test_get_data_from_database(self, geospatial_extractor_plugin):
+        """Test getting data from a database table without id filter."""
+        # Setup: Create EntityMetadata for a database table
+        metadata = EntityMetadata(
+            name="db_table",
+            kind=EntityKind.DATASET,
+            table_name="db_table",
+            config={},
+        )
+
+        # Mock registry and database
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = True
+
+        # Mock SQL query execution
+        expected_df = pd.DataFrame({"id": [1, 2], "value": ["a", "b"]})
+        with patch("pandas.read_sql", return_value=expected_df) as mock_read_sql:
+            # Execute: Call without id filter
+            result = geospatial_extractor_plugin._get_data_from_source("db_table")
+
+        # Verify: SQL query was called correctly (no WHERE clause)
+        mock_read_sql.assert_called_once()
+        query = mock_read_sql.call_args[0][0]
+        params = mock_read_sql.call_args.kwargs.get("params")
+        assert "FROM db_table" in query
+        assert "WHERE" not in query  # No filter when id_value is None
+        assert params is None
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == ["id", "value"]
 
 
 class TestGeospatialExtractorTransform:

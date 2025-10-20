@@ -4,14 +4,14 @@ Plugin for extracting values from multiple columns and transforming them into a 
 
 from typing import Dict, Any, List, Optional, Literal, Union
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-import os
 import pandas as pd
-import geopandas as gpd
 import re
+from sqlalchemy import text
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
+from niamoto.core.imports.registry import EntityRegistry
 
 
 class DerivedColumnConfig(BaseModel):
@@ -67,7 +67,7 @@ class MultiColumnExtractorParams(BasePluginParams):
     )
     columns: List[str] = Field(
         ...,
-        min_items=1,
+        min_length=1,
         description="List of column names to extract values from",
         json_schema_extra={"ui:widget": "multi-field-select", "ui:depends": "source"},
     )
@@ -126,10 +126,12 @@ class MultiColumnExtractor(TransformerPlugin):
 
     config_model = MultiColumnExtractorConfig
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, registry=None):
+        super().__init__(db, registry)
         self.config = Config()
-        self.imports_config = self.config.get_imports_config
+        # Use registry from parent if provided, otherwise create new instance
+        if not self.registry:
+            self.registry = EntityRegistry(db)
 
     def validate_config(self, config: Dict[str, Any]) -> MultiColumnExtractorConfig:
         """Validate configuration and return typed config."""
@@ -139,46 +141,26 @@ class MultiColumnExtractor(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def _get_data_from_source(self, source: str, id_value: int = None) -> pd.DataFrame:
-        """Get data from a source (table or import)."""
+        """Get data from a source using registry."""
         try:
-            # Check if source is in import.yml
-            if source in self.imports_config:
-                import_config = self.imports_config[source]
+            # Resolve source table name from registry
+            entity_info = self.registry.get(source)
+            table_name = entity_info.table_name if entity_info else source
 
-                # Build full file path
-                file_path = os.path.join(
-                    os.path.dirname(self.config.config_dir), import_config["path"]
-                )
+            # Get ID field name from entity metadata
+            id_field = "id"  # Default
+            if entity_info:
+                id_field = entity_info.config.get("schema", {}).get("id_field", "id")
 
-                # Load data according to type
-                if import_config["type"] == "csv":
-                    df = pd.read_csv(file_path)
-                elif import_config["type"] == "vector":
-                    df = gpd.read_file(file_path)
-                else:
-                    raise ValueError(
-                        f"Unsupported import type: {import_config['type']}"
-                    )
-
-                # Filter data if id_value is provided
-                if id_value is not None:
-                    identifier = import_config["identifier"]
-                    df = df[df[identifier] == id_value]
-
-                return df
-
-            # Otherwise, it's a database table
-            query = f"""
-                SELECT * FROM {source}
-            """
+            # Query the database table
+            base_query = f"SELECT * FROM {table_name}"
+            params: Dict[str, Any] = {}
             if id_value is not None:
-                query += f" WHERE id = {id_value}"
+                base_query += f" WHERE {id_field} = :id_value"
+                params["id_value"] = id_value
 
-            result = self.db.execute_select(query)
-            df = pd.DataFrame(
-                result.fetchall(),
-                columns=[desc[0] for desc in result.cursor.description],
-            )
+            # Use pd.read_sql with bound parameters for cleaner DataFrame creation
+            df = pd.read_sql(text(base_query), self.db.engine, params=params)
             return df
 
         except Exception as e:

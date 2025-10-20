@@ -32,11 +32,18 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
     config_model = NiamotoDwCConfig
 
-    def __init__(self, db: Any):
+    def __init__(self, db: Any, registry=None):
         """Initialize the transformer."""
-        super().__init__(db)
+        super().__init__(db, registry)
         self._current_taxon = None
         self._occurrence_index = 0
+        # Store config parameters for use in generators
+        self._occurrence_table: Optional[str] = None
+        self._taxon_id_column = "id_taxonref"
+        self._taxon_id_field = "id"
+        self._taxonomy_table: Optional[str] = None
+        self._taxonomy_external_id_column: Optional[str] = None
+        self._taxonomy_entity: Optional[str] = None
 
     def validate_config(self, config: Dict[str, Any]) -> NiamotoDwCConfig:
         """
@@ -107,17 +114,33 @@ class NiamotoDwCTransformer(TransformerPlugin):
             # Store current taxon data for reference in mapping
             self._current_taxon = data
 
-            # Get mapping from typed params
+            # Get mapping and database config from typed params
             mapping = params.mapping
+            self._occurrence_table = self._resolve_entity_table(params.occurrence_table)
+            self._taxonomy_entity = params.taxonomy_entity
+            self._taxonomy_table = self._resolve_entity_table(params.taxonomy_entity)
+            self._taxon_id_column = params.taxon_id_column
+            self._taxon_id_field = params.taxon_id_field
+            self._taxonomy_external_id_column = (
+                self._resolve_taxonomy_external_id_column(
+                    params.taxonomy_external_id_column
+                )
+            )
 
-            # Get taxon ID (field is called 'taxon_id' in the taxon table)
-            taxon_id = data.get("taxon_id") or data.get("id")
+            # Get taxon ID from configured field
+            taxon_id = data.get(self._taxon_id_field)
             if not taxon_id:
-                logger.warning("Taxon data missing 'taxon_id' or 'id' field")
+                logger.warning(f"Taxon data missing '{self._taxon_id_field}' field")
                 return []
 
             # Fetch occurrences from database for this taxon
-            occurrences = self._fetch_occurrences_from_db(taxon_id)
+            occurrences = self._fetch_occurrences_from_db(
+                taxon_id,
+                self._occurrence_table,
+                self._taxon_id_column,
+                self._taxonomy_table,
+                self._taxonomy_external_id_column,
+            )
             if not occurrences:
                 logger.debug(f"No occurrences found for taxon {taxon_id}, skipping")
                 return []
@@ -139,34 +162,44 @@ class NiamotoDwCTransformer(TransformerPlugin):
         except Exception as e:
             raise DataTransformError(f"Darwin Core transformation failed: {str(e)}")
 
-    def _fetch_occurrences_from_db(self, taxon_id: int) -> List[Dict[str, Any]]:
-        """Fetch occurrences for a taxon from the database."""
+    def _fetch_occurrences_from_db(
+        self,
+        taxon_id: int,
+        occurrence_table: str,
+        taxon_id_column: str,
+        taxonomy_table: str,
+        taxonomy_external_id_column: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch occurrences for a taxon from the database.
+
+        Args:
+            taxon_id: The taxon ID value to search for (taxon.taxon_id)
+            occurrence_table: Name of the table containing occurrence data
+            taxon_id_column: Name of the column that links to the taxon (usually id_taxonref)
+
+        Returns:
+            List of occurrence records as dictionaries
+        """
         try:
             from sqlalchemy import text
 
-            # The correct relationship is:
-            # taxon.taxon_id (1-1667) -> taxon_ref.id (1-1667) -> occurrences.taxon_ref_id (179-1667)
-            # AND taxon_ref.taxon_id (1598-16871) -> occurrences.id_taxonref (1598-16871)
-
-            # First try: get occurrences using taxon_ref_id (the correct foreign key)
-            query = text("""
-                SELECT o.* FROM occurrences o
-                WHERE o.taxon_ref_id = :taxon_id
-            """)
+            # The taxon_id from the taxon table corresponds to entity_taxonomy.id
+            # But occurrences link via entity_taxonomy.taxonomy_id
+            # So we need to join entity_taxonomy to get the taxonomy_id first
+            query = text(
+                f"""
+                SELECT o.*
+                FROM "{occurrence_table}" o
+                JOIN "{taxonomy_table}" t
+                  ON o."{taxon_id_column}" = t."{taxonomy_external_id_column}"
+                WHERE t.id = :taxon_id
+            """
+            )
 
             with self.db.engine.connect() as connection:
                 result = connection.execute(query, {"taxon_id": taxon_id})
                 rows = result.fetchall()
-
-                if not rows:
-                    # Second try: get taxon_ref.taxon_id and use that for id_taxonref
-                    query2 = text("""
-                        SELECT o.* FROM occurrences o
-                        JOIN taxon_ref tr ON o.id_taxonref = tr.taxon_id
-                        WHERE tr.id = :taxon_id
-                    """)
-                    result = connection.execute(query2, {"taxon_id": taxon_id})
-                    rows = result.fetchall()
 
                 if not rows:
                     return []
@@ -179,13 +212,70 @@ class NiamotoDwCTransformer(TransformerPlugin):
                     occurrences.append(occurrence_dict)
 
                 logger.info(
-                    f"Found {len(occurrences)} occurrences for taxon {taxon_id}"
+                    "Found %s occurrences for taxon %s in %s.%s (via %s.%s)",
+                    len(occurrences),
+                    taxon_id,
+                    occurrence_table,
+                    taxon_id_column,
+                    taxonomy_table,
+                    taxonomy_external_id_column,
                 )
                 return occurrences
 
         except Exception as e:
-            logger.error(f"Error fetching occurrences for taxon {taxon_id}: {str(e)}")
+            logger.error(
+                "Error fetching occurrences for taxon %s from %s.%s: %s",
+                taxon_id,
+                occurrence_table,
+                taxon_id_column,
+                str(e),
+            )
             return []
+
+    def _resolve_entity_table(self, logical_name: str) -> str:
+        """Resolve a logical entity name to the physical table name."""
+
+        if self.registry:
+            try:
+                return self.resolve_entity_table(logical_name)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to resolve entity '%s' via registry (%s); using provided value",
+                    logical_name,
+                    exc,
+                )
+        return logical_name
+
+    def _resolve_taxonomy_external_id_column(
+        self, explicit_column: Optional[str]
+    ) -> str:
+        """Determine which column to use as the taxonomy external identifier."""
+
+        if explicit_column:
+            return explicit_column
+
+        if self.registry and self._taxonomy_entity:
+            try:
+                metadata = self.registry.get(self._taxonomy_entity)
+                derived_config = metadata.config.get("derived", {})
+                external_column = derived_config.get("external_id_field")
+                if external_column:
+                    return external_column
+
+                # Fallback to conventional naming if metadata is missing
+                candidate = f"{metadata.name}_id"
+                if candidate in self.db.get_table_columns(metadata.table_name):
+                    return candidate
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.debug(
+                    "Unable to infer external id column for entity '%s': %s",
+                    self._taxonomy_entity,
+                    exc,
+                )
+
+        # Last resort: assume <entity>_id naming convention
+        entity_name = self._taxonomy_entity or "taxonomy"
+        return f"{entity_name}_id"
 
     def _map_occurrence(
         self, occurrence: Dict[str, Any], mapping: Dict[str, Any]
@@ -673,13 +763,30 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self, occurrence: Dict[str, Any], params: Dict[str, Any]
     ) -> int:
         """Count occurrences for the current taxon (for index generation)."""
-        # Get taxon ID from the current taxon data
-        taxon_id = self._current_taxon.get("taxon_id") or self._current_taxon.get("id")
+        # Get taxon ID from the current taxon data using configured field
+        taxon_id = self._current_taxon.get(self._taxon_id_field)
         if not taxon_id:
             return 0
 
-        # Fetch occurrences count from database
-        occurrences = self._fetch_occurrences_from_db(taxon_id)
+        occurrence_table = self._occurrence_table or self._resolve_entity_table(
+            "occurrences"
+        )
+        taxonomy_table = self._taxonomy_table or self._resolve_entity_table(
+            self._taxonomy_entity or "taxonomy"
+        )
+        taxonomy_external_id = (
+            self._taxonomy_external_id_column
+            or self._resolve_taxonomy_external_id_column(None)
+        )
+
+        # Fetch occurrences count from database using configured table and column
+        occurrences = self._fetch_occurrences_from_db(
+            taxon_id,
+            occurrence_table,
+            self._taxon_id_column,
+            taxonomy_table,
+            taxonomy_external_id,
+        )
         return len(occurrences)
 
     def _current_date(self, occurrence: Dict[str, Any], params: Dict[str, Any]) -> str:

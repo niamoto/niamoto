@@ -170,9 +170,9 @@ class JsonApiExporterParams(BasePluginParams):
 class JsonApiExporter(ExporterPlugin):
     """Generates static JSON API files based on the export configuration."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, registry=None):
         """Initialize the exporter with database connection."""
-        super().__init__(db)
+        super().__init__(db, registry)
         self.errors: List[Dict[str, Any]] = []
         self.stats: Dict[str, Any] = {
             "start_time": None,
@@ -546,7 +546,7 @@ class JsonApiExporter(ExporterPlugin):
                 )
 
             # Instantiate and configure the transformer
-            transformer = transformer_class(self.db)
+            transformer = transformer_class(self.db, registry=self.registry)
 
             # Validate transformer params if provided
             config_model_cls = getattr(transformer, "config_model", None)
@@ -964,32 +964,24 @@ class DataMapper:
                         source = config["source"]
                         field = config.get("field", out_name)
 
-                        if source in ["taxon_ref", "plot_ref", "shape_ref"]:
-                            # Reference table access - for now, log and skip
-                            # TODO: Implement table joins
-                            logger.warning(
-                                f"Reference table access not yet implemented: {source}"
-                            )
-                            result[out_name] = None
+                        # Source from current data
+                        source_data = self._get_nested_value(data, source)
+                        if source_data is not None and "fields" in config:
+                            # Select specific fields from source
+                            selected = {}
+                            for field_name in config["fields"]:
+                                if (
+                                    isinstance(source_data, dict)
+                                    and field_name in source_data
+                                ):
+                                    selected[field_name] = source_data[field_name]
+                            result[out_name] = selected
                         else:
-                            # Source from current data
-                            source_data = self._get_nested_value(data, source)
-                            if source_data is not None and "fields" in config:
-                                # Select specific fields from source
-                                selected = {}
-                                for field_name in config["fields"]:
-                                    if (
-                                        isinstance(source_data, dict)
-                                        and field_name in source_data
-                                    ):
-                                        selected[field_name] = source_data[field_name]
-                                result[out_name] = selected
-                            else:
-                                result[out_name] = (
-                                    self._get_nested_value(source_data, field)
-                                    if source_data
-                                    else None
-                                )
+                            result[out_name] = (
+                                self._get_nested_value(source_data, field)
+                                if source_data
+                                else None
+                            )
 
                     elif "field" in config:
                         # Simple field access with alternative syntax

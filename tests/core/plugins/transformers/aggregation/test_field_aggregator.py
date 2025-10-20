@@ -386,14 +386,28 @@ class TestFieldAggregator:
 
     def test_transform_json_field_access(self, mocker):
         """Test transformation accessing data within a JSON field."""
-        # 1. Mock _get_field_from_table to return the extracted JSON value directly
+        # 1. Mock the registry to avoid DatabaseQueryError on entity lookup
+        from types import SimpleNamespace
+
+        mocker.patch.object(
+            self.plugin.registry,
+            "get",
+            return_value=SimpleNamespace(
+                table_name="db_table_with_json",
+                config={
+                    "connector": {"type": "csv", "path": "test.csv", "identifier": "id"}
+                },
+            ),
+        )
+
+        # 2. Mock _get_field_from_table to return the extracted JSON value directly
         mock_get_field = mocker.patch.object(
             self.plugin,
             "_get_field_from_table",
             return_value="123",  # JSON fields are returned as strings from DB
         )
 
-        # 2. Configuration to access a nested key using dot notation
+        # 3. Configuration to access a nested key using dot notation
         config = {
             "plugin": "field_aggregator",
             "params": {
@@ -408,13 +422,13 @@ class TestFieldAggregator:
             },
         }
 
-        # 3. Expected result: the value of the nested key (as string from DB)
+        # 4. Expected result: the value of the nested key (as string from DB)
         expected_result = {"extracted_json_value": {"value": "123"}}
 
-        # 4. Run transform (SAMPLE_DATA ignored for this field)
+        # 5. Run transform (SAMPLE_DATA ignored for this field)
         result = self.plugin.transform(SAMPLE_DATA.copy(), config)
 
-        # 5. Assertions
+        # 6. Assertions
         assert result == expected_result
         # Check that _get_field_from_table was called with the full JSON field path
         mock_get_field.assert_called_once_with(

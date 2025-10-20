@@ -70,6 +70,10 @@ docutils==0.21.2
     #   myst-parser
     #   sphinx
     #   sphinx-markdown-builder
+duckdb==1.4.1
+    # via duckdb-engine
+duckdb-engine==0.17.0
+    # via niamoto (pyproject.toml)
 executing==2.2.0
     # via stack-data
 fastapi==0.115.14
@@ -170,6 +174,7 @@ numpy==2.2.3
     #   types-shapely
 packaging==24.2
     # via
+    #   duckdb-engine
     #   geoalchemy2
     #   geopandas
     #   plotly
@@ -329,6 +334,7 @@ sqlalchemy==2.0.38
     # via
     #   niamoto (pyproject.toml)
     #   alembic
+    #   duckdb-engine
     #   geoalchemy2
 stack-data==0.6.3
     # via ipython

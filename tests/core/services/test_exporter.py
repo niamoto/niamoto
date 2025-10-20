@@ -46,12 +46,17 @@ class TestExporterService(NiamotoTestCase):
             ]
         }
 
+        self.registry_patcher = patch("niamoto.core.services.exporter.EntityRegistry")
+        self.mock_entity_registry = self.registry_patcher.start()
+        self.mock_entity_registry.return_value = Mock()
+
     def tearDown(self):
         """Tear down test fixtures."""
         import shutil
 
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
+        self.registry_patcher.stop()
         super().tearDown()
 
     @patch("niamoto.core.services.exporter.Database")
@@ -474,8 +479,10 @@ class TestExporterService(NiamotoTestCase):
         service = ExporterService(self.db_path, self.mock_config)
         service.run_export()
 
-        # Verify database was passed to plugin constructor
-        mock_plugin_class.assert_called_once_with(db=mock_db_instance)
+        # Verify database and registry were passed to plugin constructor
+        call_args = mock_plugin_class.call_args
+        self.assertEqual(call_args.kwargs["db"], mock_db_instance)
+        self.assertIn("registry", call_args.kwargs)  # Verify registry is passed
 
         # Verify repository parameter in export call is the same db instance
         call_args = mock_plugin_instance.export.call_args

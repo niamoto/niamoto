@@ -9,7 +9,7 @@ group-by transformation patterns.
 import re
 import logging
 from typing import Dict, Any, List, Optional, Literal
-from datetime import datetime
+from datetime import datetime, UTC
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -81,7 +81,7 @@ class DatabaseAggregatorParams(BasePluginParams):
                 {
                     "queries": {
                         "species_count": {
-                            "sql": "SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'",
+                            "sql": "SELECT COUNT(*) FROM taxons WHERE rank_name = 'species'",
                             "description": "Total number of species",
                         },
                         "occurrence_count": "SELECT COUNT(*) FROM occurrences",
@@ -168,8 +168,8 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
         r"/\*",  # Block comments
     ]
 
-    def __init__(self, db: Optional[Any] = None) -> None:
-        super().__init__(db)
+    def __init__(self, db: Optional[Any] = None, registry=None) -> None:
+        super().__init__(db, registry)
         self.logger = logging.getLogger(__name__)
 
     def validate_config(self, config: Dict[str, Any]) -> DatabaseAggregatorConfig:
@@ -234,7 +234,7 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
 
             # Add metadata
             results["_metadata"] = {
-                "computed_at": datetime.utcnow().isoformat(),
+                "computed_at": datetime.now(UTC).isoformat(),
                 "plugin": "database_aggregator",
                 "total_queries": len(queries),
                 "total_computed_fields": len(computed_fields),
@@ -437,7 +437,7 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
             "params": {
                 "queries": {
                     "species_count": {
-                        "sql": "SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'",
+                        "sql": "SELECT COUNT(*) FROM taxons WHERE rank_name = 'species'",
                         "description": "Total number of species",
                     },
                     "occurrence_count": {
@@ -473,7 +473,7 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
                 "validation": {
                     "check_referential_integrity": True,
                     "max_execution_time": 30,
-                    "required_tables": ["taxon_ref", "occurrences"],
+                    "required_tables": ["taxons", "occurrences"],
                 },
             },
         }

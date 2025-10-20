@@ -43,8 +43,7 @@ class TestEnvironment(NiamotoTestCase):
         mock.patch.stopall()
 
     @patch("niamoto.common.environment.Database", autospec=True)
-    @patch("niamoto.common.environment.Base", autospec=True)
-    def test_initialize(self, mock_base, mock_database):
+    def test_initialize(self, mock_database):
         """Test environment initialization."""
         # Create the mock database
         mock_engine = MagicMock()
@@ -71,7 +70,6 @@ class TestEnvironment(NiamotoTestCase):
 
         # Verify that the database has been initialized
         mock_database.assert_called_once_with(self.mock_config.database_path)
-        mock_base.metadata.create_all.assert_called_once_with(mock_engine)
 
     @patch("os.path.exists", autospec=True)
     @patch("os.remove", autospec=True)
@@ -138,8 +136,7 @@ class TestEnvironment(NiamotoTestCase):
             mock_initialize.assert_called_once()
 
     @patch("niamoto.common.environment.Database", autospec=True)
-    @patch("niamoto.common.environment.Base", autospec=True)
-    def test_initialization_with_empty_paths(self, mock_base, mock_database):
+    def test_initialization_with_empty_paths(self, mock_database):
         """Test environment initialization with empty paths."""
         self.mock_config.logs_path = ""
         self.mock_config.database_path = "/tmp/test_db.sqlite"  # Concrete value

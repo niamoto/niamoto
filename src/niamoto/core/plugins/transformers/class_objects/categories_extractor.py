@@ -94,26 +94,21 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
             )
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, List]:
-        """
-        Extract values for ordered categories from shape statistics data.
+        """Return ordered category/value pairs for a given class object.
 
-        Args:
-            data: DataFrame containing shape statistics in long format with columns:
-                - class_object: The type of data (e.g. land_use)
-                - class_name: The class name (e.g. NUM, UM, etc.)
-                - class_value: The value for this class
-            config: Configuration dictionary with:
-                - params.class_object: Field name to match in class_object
-                - params.categories_order: List of categories in desired order
+        Parameters
+        ----------
+        data:
+            Long-format DataFrame with ``class_object``, ``class_name`` and
+            ``class_value`` columns.
+        config:
+            Raw configuration describing the target ``class_object`` and the desired
+            category ordering.
 
-        Returns:
-            Dictionary with categories list and corresponding values
-
-        Example output:
-            {
-                "categories": ["NUM", "UM", "Sec", "Humide", "Très Humide", "Réserve", "PPE", "Concessions", "Forêt"],
-                "values": [720516.37, 220736.05, 245865.63, 564601.88, 130784.90, 14272.87, 94334.71, 121703.50, 321711.77]
-            }
+        Returns
+        -------
+        dict[str, list]
+            Lists of category labels and their associated values.
         """
         try:
             # Use validated config directly if passed or re-validate

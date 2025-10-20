@@ -1,17 +1,15 @@
 import axios from 'axios'
 
-// Estimate import duration based on type and data size
-function calculateEstimatedDuration(importType: string, dataSize: number): number {
+// Estimate import duration based on entity type and data size
+function calculateEstimatedDuration(entityType: string, dataSize: number): number {
   // Base durations in milliseconds per 1000 records
   // Adjusted for more realistic progress display
   const baseDurations: Record<string, number> = {
-    taxonomy: 8000,      // ~8s per 1000 taxa
-    occurrences: 10000,  // ~10s per 1000 occurrences
-    plots: 8000,         // ~8s per 1000 plots
-    shapes: 6000         // ~6s per 1000 features (actually fast)
+    reference: 8000,   // ~8s per 1000 reference records
+    dataset: 10000,    // ~10s per 1000 dataset records
   }
 
-  const baseTime = baseDurations[importType] || 8000
+  const baseTime = baseDurations[entityType] || 8000
   const estimatedTime = (dataSize / 1000) * baseTime
 
   // Minimum duration to show progress (at least 3 seconds)
@@ -32,16 +30,16 @@ export interface FileAnalysis {
 }
 
 export interface ImportRequest {
-  import_type: string
-  file_name: string
-  field_mappings: Record<string, string>
-  advanced_options?: Record<string, any>
+  entity_name: string
+  entity_type: 'reference' | 'dataset'  // 'reference' or 'dataset'
+  reset_table?: boolean
+  file?: File
 }
 
-export async function analyzeFile(file: File, importType: string): Promise<FileAnalysis> {
+export async function analyzeFile(file: File, entityType: string): Promise<FileAnalysis> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('import_type', importType)
+  formData.append('entity_type', entityType)
 
   const response = await axios.post<FileAnalysis>('/api/files/analyze', formData, {
     headers: {
@@ -52,17 +50,35 @@ export async function analyzeFile(file: File, importType: string): Promise<FileA
   return response.data
 }
 
-export async function executeImport(request: ImportRequest, file: File): Promise<any> {
+export async function executeImport(request: ImportRequest, file?: File): Promise<any> {
   const formData = new FormData()
-  formData.append('file', file)
-  formData.append('import_type', request.import_type)
-  formData.append('file_name', request.file_name)
-  formData.append('field_mappings', JSON.stringify(request.field_mappings))
-  if (request.advanced_options) {
-    formData.append('advanced_options', JSON.stringify(request.advanced_options))
+  formData.append('reset_table', String(request.reset_table || false))
+  const fileToUpload = file ?? request.file
+  if (fileToUpload) {
+    formData.append('file', fileToUpload)
   }
 
-  const response = await axios.post('/api/imports/execute', formData, {
+  let endpoint: string
+  if (request.entity_type === 'reference') {
+    endpoint = `/api/imports/execute/reference/${request.entity_name}`
+  } else {
+    endpoint = `/api/imports/execute/dataset/${request.entity_name}`
+  }
+
+  const response = await axios.post(endpoint, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+
+  return response.data
+}
+
+export async function executeImportAll(resetTable: boolean = false): Promise<any> {
+  const formData = new FormData()
+  formData.append('reset_table', String(resetTable))
+
+  const response = await axios.post('/api/imports/execute/all', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -84,26 +100,13 @@ export async function executeImportFromConfig(
   dataSize?: number,
   onStatusUpdate?: (status: any) => void
 ): Promise<any> {
-  // Create a dummy file or use config-based import
-  // For now, we'll create a FormData without a file and let the backend handle it
-  const formData = new FormData()
-  formData.append('import_type', request.import_type)
-  formData.append('file_name', request.file_name)
-  formData.append('field_mappings', JSON.stringify(request.field_mappings))
-  if (request.advanced_options) {
-    formData.append('advanced_options', JSON.stringify(request.advanced_options))
-  }
-
-  // Add a flag to indicate this is a config-based import
-  formData.append('use_config_file', 'true')
-
   try {
-    const response = await axios.post<{ job_id: string }>('/api/imports/execute', formData)
-    const jobId = response.data.job_id
+    const response = await executeImport(request)
+    const jobId = response.job_id
 
     // Use the same polling logic as executeImportAndWait
     const startTime = Date.now()
-    const estimatedDuration = calculateEstimatedDuration(request.import_type, dataSize || 1000)
+    const estimatedDuration = calculateEstimatedDuration(request.entity_type, dataSize || 1000)
     let currentProgress = 0
     let pollCount = 0
     const maxPolls = Math.ceil(maxWaitTime / pollInterval)
@@ -154,7 +157,7 @@ export async function executeImportFromConfig(
 
 export async function executeImportAndWait(
   request: ImportRequest,
-  file: File,
+  file?: File,
   pollInterval: number = 500, // Poll every 500ms for smoother progress
   maxWaitTime: number = 300000, // 5 minutes max
   onProgress?: (progress: number) => void,
@@ -169,8 +172,8 @@ export async function executeImportAndWait(
   let pollCount = 0
   let currentProgress = 0
 
-  // Estimate processing speed based on import type and data size
-  const estimatedDuration = calculateEstimatedDuration(request.import_type, dataSize || 1000)
+  // Estimate processing speed based on entity type and data size
+  const estimatedDuration = calculateEstimatedDuration(request.entity_type, dataSize || 1000)
 
   while (Date.now() - startTime < maxWaitTime) {
     const status = await getImportStatus(jobId)
@@ -207,4 +210,22 @@ export async function executeImportAndWait(
   }
 
   throw new Error('Import timed out')
+}
+
+export interface EntityInfo {
+  name: string
+  kind?: string
+  connector_type: string
+  path: string
+  links?: number
+}
+
+export interface EntitiesResponse {
+  references: EntityInfo[]
+  datasets: EntityInfo[]
+}
+
+export async function getEntities(): Promise<EntitiesResponse> {
+  const response = await axios.get<EntitiesResponse>('/api/imports/entities')
+  return response.data
 }

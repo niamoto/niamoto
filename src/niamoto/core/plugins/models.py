@@ -244,6 +244,11 @@ class GroupConfigWeb(BaseModel):
 
     group_by: str
     data_source: Optional[str] = None
+    navigation_entity: Optional[str] = Field(
+        None,
+        description="Entity name to use for navigation data (e.g., 'taxonomy' for hierarchy). "
+        "If not specified, defaults to group_by value.",
+    )
     index_template: Optional[str] = None  # Template for the index page, optional
     page_template: Optional[str] = None  # Template for the detail page, optional
     output_pattern: str
@@ -362,6 +367,9 @@ class DwcTransformerParams(BasePluginParams):
             "examples": [
                 {
                     "occurrence_list_source": "occurrences",
+                    "occurrence_table": "dataset_occurrences",
+                    "taxon_id_column": "id_taxonref",
+                    "taxon_id_field": "id",
                     "mapping": {
                         "occurrenceID": {"source": "occurrence_id"},
                         "scientificName": {"source": "taxon_name"},
@@ -377,6 +385,34 @@ class DwcTransformerParams(BasePluginParams):
         ...,
         description="Field containing the list of occurrences",
         json_schema_extra={"ui:widget": "field-select"},
+    )
+    occurrence_table: str = Field(
+        default="occurrences",
+        description="Logical entity name for the occurrence data",
+        json_schema_extra={"ui:widget": "entity-select"},
+    )
+    taxonomy_entity: str = Field(
+        default="taxonomy",
+        description="Logical name of the taxonomy entity used for joins",
+        json_schema_extra={"ui:widget": "entity-select"},
+    )
+    taxon_id_column: str = Field(
+        default="id_taxonref",
+        description="Column in occurrence table that links to taxon",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    taxon_id_field: str = Field(
+        default="id",
+        description="Field in taxon data containing the taxon ID",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    taxonomy_external_id_column: Optional[str] = Field(
+        default=None,
+        description=(
+            "Column in the taxonomy entity that stores the external identifier matching"
+            " the occurrences (defaults to derived metadata if available)"
+        ),
+        json_schema_extra={"ui:widget": "text"},
     )
     mapping: Dict[str, Union[str, DwcMappingValue]] = Field(
         ...,

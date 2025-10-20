@@ -105,24 +105,17 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
             )
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform shape statistics data into series by axis.
+        """Convert class-object statistics into parallel series indexed by a common axis.
 
-        Args:
-            data: DataFrame containing shape statistics
-            config: Configuration dictionary with:
-                - params.axis: Configuration for axis
-                - params.types: Mapping of output names to class_objects
+        The ``config`` argument is expected to contain an ``axis`` description and a
+        mapping of output series. Each entry associates an output name with the
+        ``class_object`` value to extract.
 
-        Returns:
-            Dictionary with axis values and series data
-
-        Example output:
-            {
-                "altitudes": [0, 200, 400, 600, 800],
-                "secondaire": [10, 15, 20, 15, 10],
-                "mature": [30, 40, 45, 40, 30],
-                "coeur": [20, 25, 30, 25, 20]
-            }
+        Returns
+        -------
+        dict
+            A dictionary whose keys include the configured axis output field along with a
+            series for each requested class object.
         """
         try:
             # Validate configuration

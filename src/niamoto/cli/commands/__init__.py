@@ -27,12 +27,13 @@ def create_cli() -> click.Group:
 
     This function initializes the Niamoto command-line interface (CLI)
     by registering the following command groups:
-        - `init`: Initializes or resets the environment.
-        - `import`: Imports raw data into the system.
-        - `transforms`: Transforms and aggregates raw data for analysis.
-        - `export`: Generates static content using processed data.
-        - `deploy`: Deploys generated content to supported platforms.
-        - `plugins`: Lists available plugins in the system.
+
+    - ``init``: Initializes or resets the environment.
+    - ``import``: Imports raw data into the system.
+    - ``transforms``: Transforms and aggregates raw data for analysis.
+    - ``export``: Generates static content using processed data.
+    - ``deploy``: Deploys generated content to supported platforms.
+    - ``plugins``: Lists available plugins in the system.
 
     Returns:
         click.Group: The root command group for the Niamoto CLI.

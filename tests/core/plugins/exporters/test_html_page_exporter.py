@@ -4,6 +4,7 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
+from typing import List
 from unittest.mock import Mock, MagicMock, patch
 
 from niamoto.core.plugins.exporters.html_page_exporter import HtmlPageExporter
@@ -64,6 +65,14 @@ class TestHtmlPageExporter(NiamotoTestCase):
 
         # Create mock database
         self.mock_db = Mock(spec=Database)
+        self.mock_db.get_table_columns.return_value = [
+            "id",
+            "name",
+            "full_name",
+            "parent_id",
+            "lft",
+            "rght",
+        ]
 
         # Create test templates
         self._create_test_templates()
@@ -190,6 +199,98 @@ class TestHtmlPageExporter(NiamotoTestCase):
         # Test accessing non-dict
         result = exporter._get_nested_data(data, "level1.level2.value.extra")
         self.assertIsNone(result)
+
+    def test_navigation_data_orders_by_lft_for_nested_sets(self):
+        """
+        Navigation data should be ordered by nested-set boundaries to preserve hierarchy.
+
+        The exporter currently chooses the ORDER BY column from an unordered set of fields,
+        which can select the wrong column (e.g. taxonomy_id) and scramble the resulting tree.
+        """
+        exporter = HtmlPageExporter(self.mock_db)
+
+        self.mock_db.has_table.return_value = True
+        self.mock_db.get_table_columns.return_value = [
+            "taxonomy_id",
+            "full_name",
+            "lft",
+            "rght",
+            "level",
+        ]
+
+        group_config = GroupConfigWeb(
+            group_by="taxonomy",
+            data_source="db",
+            navigation_entity="taxonomy",
+            output_pattern="taxonomy/{id}.html",
+            index_output_pattern="taxonomy/index.html",
+            widgets=[
+                WidgetConfig(
+                    plugin="hierarchical_nav_widget",
+                    data_source="unused",
+                    params={
+                        "referential_data": "entity_taxonomy",
+                        "id_field": "id",
+                        "name_field": "full_name",
+                        "lft_field": "lft",
+                        "rght_field": "rght",
+                        "level_field": "level",
+                        "base_url": "{{ depth }}taxon/",
+                    },
+                )
+            ],
+        )
+
+        captured_queries: List[str] = []
+
+        def fake_fetch_all(query: str):
+            captured_queries.append(query)
+            return [
+                {
+                    "taxonomy_id": 10,
+                    "full_name": "Family A",
+                    "lft": 1,
+                    "rght": 6,
+                    "level": 0,
+                },
+                {
+                    "taxonomy_id": 11,
+                    "full_name": "Genus A",
+                    "lft": 2,
+                    "rght": 5,
+                    "level": 1,
+                },
+                {
+                    "taxonomy_id": 12,
+                    "full_name": "Species A",
+                    "lft": 3,
+                    "rght": 4,
+                    "level": 2,
+                },
+            ]
+
+        self.mock_db.fetch_all.side_effect = fake_fetch_all
+
+        with patch.object(
+            exporter,
+            "_extract_navigation_fields",
+            return_value=["taxonomy_id", "full_name", "lft", "rght", "level"],
+        ):
+            exporter._generate_navigation_js(group_config, self.output_dir)
+
+        self.assertGreater(
+            len(captured_queries), 0, "navigation query was not executed"
+        )
+        navigation_query = captured_queries[0]
+        self.assertIn('ORDER BY "lft"', navigation_query)
+
+        # Ensure identifier values are serialised as strings in the JS payload
+        js_path = self.output_dir / "assets/js/taxonomy_navigation.js"
+        if not js_path.exists():
+            js_path = self.output_dir / "assets/js/taxons_navigation.js"
+        self.assertTrue(js_path.exists())
+        js_content = js_path.read_text()
+        self.assertIn('"taxonomy_id":"10"', js_content)
 
     def test_export_basic(self):
         """Test basic export functionality."""
@@ -627,6 +728,7 @@ class TestHtmlPageExporter(NiamotoTestCase):
 
         group_config = GroupConfigWeb(
             group_by="taxon",
+            navigation_entity="taxonomy",
             data_source="db",
             template="_layouts/group_detail.html",
             output_pattern="{group_by}/{id}.html",
@@ -635,6 +737,8 @@ class TestHtmlPageExporter(NiamotoTestCase):
         )
 
         exporter._generate_navigation_js(group_config, self.output_dir)
+
+        self.mock_db.get_table_columns.assert_called_with("entity_taxonomy")
 
         # Check JS file was created
         js_file = self.output_dir / "assets" / "js" / "taxon_navigation.js"

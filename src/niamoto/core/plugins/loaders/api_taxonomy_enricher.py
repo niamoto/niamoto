@@ -178,8 +178,8 @@ class ApiTaxonomyEnricher(LoaderPlugin):
     _cache = {}  # Simple in-memory cache
     _oauth_tokens = {}  # Cache for OAuth tokens
 
-    def __init__(self, db=None):
-        super().__init__(db)
+    def __init__(self, db=None, registry=None):
+        super().__init__(db, registry)
         self.log_messages = []  # Liste pour stocker les messages de log
 
     def validate_config(self, config: Dict[str, Any]) -> ApiTaxonomyEnricherConfig:

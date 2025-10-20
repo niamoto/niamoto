@@ -43,17 +43,50 @@ class Plugin(ABC):
     # Each concrete plugin class SHOULD define its Pydantic config model (for params)
     # config_model: Type[BaseModel] = None # Example placeholder
 
-    def __init__(self, db: Any):
+    def __init__(self, db: Any, registry: Optional[Any] = None):
         """
         Initialize the plugin.
 
         Args:
             db: Database connection object or similar shared resource.
-                Consider using dependency injection for more complex scenarios.
+            registry: Optional EntityRegistry for resolving entity names to table names.
+                     Plugins should use registry.get(entity_name).table_name to resolve
+                     dynamically configured entity names instead of hardcoding table names.
         """
         # Store database connection if needed by all plugins
         # If not all plugins need it, consider passing it only where required.
         self.db = db
+        self.registry = registry
+
+    def resolve_entity_table(self, entity_name: str) -> str:
+        """
+        Helper method to resolve an entity name to its physical table name.
+
+        Args:
+            entity_name: Logical entity name (e.g., 'taxonomy', 'plots', 'occurrences')
+
+        Returns:
+            Physical table name (e.g., 'entity_taxonomy', 'dataset_occurrences').
+            Returns the original entity_name if the registry is not available
+            (backward compatibility fallback).
+
+        Raises:
+            ValueError: If entity not found in registry
+        """
+        if not self.registry:
+            # Fallback: return entity_name as-is (backward compatibility)
+            return entity_name
+
+        entity_info = self.registry.get(entity_name)
+        if entity_info is None:
+            raise ValueError(f"Entity '{entity_name}' not found in registry")
+
+        try:
+            return entity_info.table_name
+        except AttributeError as exc:
+            raise ValueError(
+                f"Entity info for '{entity_name}' missing required 'table_name' attribute"
+            ) from exc
 
 
 class LoaderPlugin(Plugin, ABC):

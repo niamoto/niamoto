@@ -7,6 +7,8 @@ import csv
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
+from typing import Dict, Any, Optional, List
+
 import pytest
 from click.testing import CliRunner
 
@@ -19,6 +21,9 @@ from niamoto.cli.commands.stats import (
     show_data_exploration_suggestions,
     export_statistics,
 )
+from niamoto.common.exceptions import DatabaseQueryError
+from niamoto.core.imports.registry import EntityKind
+from types import SimpleNamespace
 
 
 @pytest.fixture
@@ -40,14 +45,34 @@ def mock_database():
     """Mock Database class."""
     with patch("niamoto.cli.commands.stats.Database") as mock_db_class:
         mock_db = Mock()
+        mock_db.engine = Mock()
+        mock_db.has_table = Mock(return_value=True)
+        mock_db.get_table_columns = Mock(return_value=["id"])
         mock_db_class.return_value = mock_db
 
-        # Mock execute_sql for general queries
         mock_result = Mock()
         mock_result.scalar.return_value = 100
         mock_db.execute_sql.return_value = mock_result
 
         yield mock_db
+
+
+@pytest.fixture
+def command_registry():
+    """Patch EntityRegistry to use the fake registry during CLI command tests."""
+    registry = make_registry()
+    with patch("niamoto.cli.commands.stats.EntityRegistry", return_value=registry):
+        yield registry
+
+
+@pytest.fixture
+def mock_inspector():
+    """Patch SQLAlchemy inspector used by the stats module."""
+    with patch("niamoto.cli.commands.stats.inspect") as inspect_mock:
+        inspector = MagicMock()
+        inspector.get_table_names.return_value = []
+        inspect_mock.return_value = inspector
+        yield inspector
 
 
 @pytest.fixture
@@ -61,6 +86,95 @@ def mock_path():
             lambda x: mock_path_instance if x == "/mock/db/path.db" else Path(x)
         )
         yield mock_path_class
+
+
+DEFAULT_REGISTRY_ENTRIES = [
+    {
+        "name": "taxon_ref",
+        "table_name": "taxon_ref",
+        "kind": EntityKind.REFERENCE,
+        "aliases": ["taxonomy"],
+    },
+    {
+        "name": "plot_ref",
+        "table_name": "plot_ref",
+        "kind": EntityKind.REFERENCE,
+        "aliases": ["plots"],
+    },
+    {
+        "name": "shape_ref",
+        "table_name": "shape_ref",
+        "kind": EntityKind.REFERENCE,
+        "aliases": ["shapes"],
+    },
+    {
+        "name": "occurrences",
+        "table_name": "occurrences",
+        "kind": EntityKind.DATASET,
+        "aliases": ["occurrence"],
+    },
+]
+
+
+class FakeRegistry:
+    """Minimal registry implementation for tests."""
+
+    def __init__(self, entries=None):
+        self._entities: Dict[str, SimpleNamespace] = {}
+        self._aliases: Dict[str, str] = {}
+        if entries:
+            for entry in entries:
+                self.register_entity(**entry)
+
+    def register_entity(
+        self,
+        name: str,
+        table_name: str,
+        kind: EntityKind = EntityKind.REFERENCE,
+        config: Optional[Dict[str, Any]] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> None:
+        aliases = aliases or []
+        metadata = SimpleNamespace(
+            name=name,
+            table_name=table_name,
+            kind=kind,
+            config=config or {},
+            aliases=list(aliases),
+        )
+        self._entities[name] = metadata
+        for alias in aliases:
+            self._aliases[alias] = name
+
+    def get(self, name: str) -> SimpleNamespace:
+        if name in self._entities:
+            return self._entities[name]
+        if name in self._aliases:
+            return self._entities[self._aliases[name]]
+        raise DatabaseQueryError(
+            query="registry_lookup", message="missing", details={"name": name}
+        )
+
+    def list_entities(self, kind: Optional[EntityKind] = None):
+        values = list(self._entities.values())
+        if kind is not None:
+            values = [meta for meta in values if meta.kind == kind]
+        return values
+
+
+def make_registry(mapping=None, include_defaults: bool = True):
+    entries = []
+    if include_defaults:
+        entries.extend(DEFAULT_REGISTRY_ENTRIES)
+
+    mapping = mapping or {}
+    for name, table_name in mapping.items():
+        kind = EntityKind.DATASET
+        if name.endswith("_ref"):
+            kind = EntityKind.REFERENCE
+        entries.append({"name": name, "table_name": table_name, "kind": kind})
+
+    return FakeRegistry(entries)
 
 
 class TestStatsCommand:
@@ -87,23 +201,35 @@ class TestStatsCommand:
             assert "Database not found" in result.output
 
     def test_stats_command_general_statistics(
-        self, runner, mock_config, mock_database, mock_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test stats command showing general statistics."""
-        # Mock table list
-        mock_result = Mock()
-        mock_result.__iter__ = Mock(
-            return_value=iter(
-                [("taxon_ref",), ("plot_ref",), ("shape_ref",), ("occurrences",)]
-            )
-        )
-        mock_database.execute_sql.side_effect = [
-            mock_result,  # Table list query
-            Mock(scalar=Mock(return_value=1000)),  # taxon_ref count
-            Mock(scalar=Mock(return_value=500)),  # plot_ref count
-            Mock(scalar=Mock(return_value=200)),  # shape_ref count
-            Mock(scalar=Mock(return_value=5000)),  # occurrences count
+        mock_inspector.get_table_names.return_value = [
+            "taxon_ref",
+            "plot_ref",
+            "shape_ref",
+            "occurrences",
         ]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "plot_ref" in sql:
+                return Mock(scalar=Mock(return_value=500))
+            if "shape_ref" in sql:
+                return Mock(scalar=Mock(return_value=200))
+            if "occurrences" in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = lambda table: ["id"]
 
         result = runner.invoke(stats_command)
 
@@ -111,24 +237,28 @@ class TestStatsCommand:
         assert "Niamoto Database Statistics" in result.output
 
     def test_stats_command_with_group(
-        self, runner, mock_config, mock_database, mock_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test stats command with specific group."""
-        # Mock for group statistics
-        mock_database.execute_sql.side_effect = [
-            Mock(scalar=Mock(return_value=1000)),  # Count query
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # PRAGMA table_info
-                            (0, "id", "INTEGER", 0, None, 1),
-                            (1, "full_name", "TEXT", 0, None, 0),
-                            (2, "rank_name", "TEXT", 0, None, 0),
-                        ]
-                    )
-                )
-            ),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref"]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = (
+            lambda table: ["id", "full_name", "rank_name"]
+            if table == "taxon_ref"
+            else ["id"]
+        )
 
         result = runner.invoke(stats_command, ["--group", "taxon"])
 
@@ -136,64 +266,69 @@ class TestStatsCommand:
         assert "Taxon Statistics" in result.output
 
     def test_stats_command_with_detailed(
-        self, runner, mock_config, mock_database, mock_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test stats command with detailed flag."""
-        # Mock complex responses for detailed statistics
-        mock_database.execute_sql.side_effect = [
-            # Table list
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            ("taxon_ref",),
-                            ("plot_ref",),
-                            ("shape_ref",),
-                            ("occurrences",),
-                        ]
-                    )
-                )
-            ),
-            # Basic counts
-            Mock(scalar=Mock(return_value=1000)),  # taxon_ref
-            Mock(scalar=Mock(return_value=500)),  # plot_ref
-            Mock(scalar=Mock(return_value=200)),  # shape_ref
-            Mock(scalar=Mock(return_value=5000)),  # occurrences
-            # Shape types (PRAGMA table_info)
-            Mock(
-                __iter__=Mock(
-                    return_value=iter([(0, "id", "INTEGER"), (1, "type", "TEXT")])
-                )
-            ),
-            # Shape type counts
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            Mock(type="Forest", count=100),
-                            Mock(type="River", count=50),
-                        ]
-                    )
-                )
-            ),
-            # Occurrences columns for families
-            Mock(
-                __iter__=Mock(
-                    return_value=iter([(0, "id", "INTEGER"), (1, "family", "TEXT")])
-                )
-            ),
-            # Top families
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            Mock(family="Myrtaceae", count=500),
-                            Mock(family="Lauraceae", count=300),
-                        ]
-                    )
-                )
-            ),
+        mock_inspector.get_table_names.return_value = [
+            "taxon_ref",
+            "plot_ref",
+            "shape_ref",
+            "occurrences",
         ]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "FROM taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "FROM plot_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=500))
+            if "FROM shape_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=200))
+            if "FROM occurrences" in sql and "GROUP" not in sql and "AVG" not in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            if "FROM shape_ref" in sql and "GROUP BY type" in sql:
+                return [
+                    SimpleNamespace(type="Forest", count=100),
+                    SimpleNamespace(type="River", count=50),
+                ]
+            if "FROM occurrences" in sql and "GROUP BY family" in sql:
+                return [
+                    SimpleNamespace(family="Myrtaceae", count=500),
+                    SimpleNamespace(family="Lauraceae", count=300),
+                ]
+            if "AVG(elevation)" in sql:
+                row = SimpleNamespace(
+                    min_elev=0,
+                    max_elev=1000,
+                    avg_elev=500,
+                    count_with_elev=4000,
+                )
+                return Mock(first=Mock(return_value=row))
+            if "AVG(dbh)" in sql and "COUNT(dbh)" in sql:
+                row = SimpleNamespace(
+                    count_non_null=3000,
+                    min_val=5.0,
+                    max_val=150.0,
+                    avg_val=45.5,
+                )
+                return Mock(first=Mock(return_value=row))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+
+        def get_columns(table: str):
+            if table == "shape_ref":
+                return ["id", "type"]
+            if table == "occurrences":
+                return ["id", "family", "elevation", "dbh"]
+            return ["id"]
+
+        mock_database.get_table_columns.side_effect = get_columns
 
         result = runner.invoke(stats_command, ["--detailed"])
 
@@ -201,16 +336,27 @@ class TestStatsCommand:
         assert "Niamoto Database Statistics" in result.output
 
     def test_stats_command_with_export_json(
-        self, runner, mock_config, mock_database, mock_path, tmp_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        tmp_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test stats command with JSON export."""
         export_file = tmp_path / "stats.json"
 
         # Mock database responses
-        mock_database.execute_sql.side_effect = [
-            Mock(__iter__=Mock(return_value=iter([("taxon_ref",)]))),
-            Mock(scalar=Mock(return_value=1000)),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref"]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
 
         result = runner.invoke(stats_command, ["--export", str(export_file)])
 
@@ -221,20 +367,31 @@ class TestStatsCommand:
         # Check JSON content
         with open(export_file) as f:
             data = json.load(f)
-            assert "Reference Taxa" in data
-            assert data["Reference Taxa"] == 1000
+            assert "Reference Taxon" in data
+            assert data["Reference Taxon"] == 1000
 
     def test_stats_command_with_export_csv(
-        self, runner, mock_config, mock_database, mock_path, tmp_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        tmp_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test stats command with CSV export."""
         export_file = tmp_path / "stats.csv"
 
         # Mock database responses
-        mock_database.execute_sql.side_effect = [
-            Mock(__iter__=Mock(return_value=iter([("taxon_ref",)]))),
-            Mock(scalar=Mock(return_value=1000)),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref"]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
 
         result = runner.invoke(stats_command, ["--export", str(export_file)])
 
@@ -246,32 +403,33 @@ class TestStatsCommand:
             reader = csv.reader(f)
             rows = list(reader)
             assert rows[0] == ["Category", "Metric", "Value"]
-            assert ["General", "Reference Taxa", "1000"] in rows
+            assert ["General", "Reference Taxon", "1000"] in rows
 
     def test_stats_command_with_suggestions(
-        self, runner, mock_config, mock_database, mock_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test stats command with suggestions flag."""
-        # Mock for suggestions
-        mock_database.execute_sql.side_effect = [
-            # General stats queries
-            Mock(__iter__=Mock(return_value=iter([("taxon_ref",)]))),
-            Mock(scalar=Mock(return_value=1000)),
-            # Suggestions queries
-            Mock(__iter__=Mock(return_value=iter([("taxon_ref",), ("occurrences",)]))),
-            # Occurrences columns
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            (0, "id", "INTEGER"),
-                            (1, "family", "TEXT"),
-                            (2, "elevation", "REAL"),
-                        ]
-                    )
-                )
-            ),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref", "occurrences"]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "FROM taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "FROM occurrences" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = (
+            lambda table: ["id", "family", "elevation", "dbh"]
+            if table == "occurrences"
+            else ["id"]
+        )
 
         result = runner.invoke(stats_command, ["--suggestions"])
 
@@ -313,133 +471,109 @@ class TestStatsCommandEdgeCases:
 class TestGetGeneralStatistics:
     """Test the get_general_statistics function."""
 
-    def test_get_general_statistics_basic(self, mock_database):
+    def test_get_general_statistics_basic(self, mock_database, mock_inspector):
         """Test getting basic general statistics."""
         # Mock responses
-        mock_database.execute_sql.side_effect = [
-            # Table list
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            ("taxon_ref",),
-                            ("plot_ref",),
-                            ("shape_ref",),
-                            ("occurrences",),
-                        ]
-                    )
-                )
-            ),
-            # Counts
-            Mock(scalar=Mock(return_value=1000)),  # taxon_ref
-            Mock(scalar=Mock(return_value=500)),  # plot_ref
-            Mock(scalar=Mock(return_value=200)),  # shape_ref
-            Mock(scalar=Mock(return_value=5000)),  # occurrences
+        mock_inspector.get_table_names.return_value = [
+            "taxon_ref",
+            "plot_ref",
+            "shape_ref",
+            "occurrences",
         ]
 
-        stats = get_general_statistics(mock_database)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "plot_ref" in sql:
+                return Mock(scalar=Mock(return_value=500))
+            if "shape_ref" in sql:
+                return Mock(scalar=Mock(return_value=200))
+            if "occurrences" in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            return Mock(scalar=Mock(return_value=0))
 
-        assert stats["Reference Taxa"] == 1000
-        assert stats["Reference Plots"] == 500
-        assert stats["Reference Shapes"] == 200
-        assert stats["Occurrences"] == 5000
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        registry = make_registry()
 
-    def test_get_general_statistics_with_generated_tables(self, mock_database):
+        stats = get_general_statistics(mock_database, registry)
+
+        assert stats["Reference Taxon"] == 1000
+        assert stats["Reference Plot"] == 500
+        assert stats["Reference Shape"] == 200
+        assert stats["Dataset Occurrences"] == 5000
+
+    def test_get_general_statistics_with_generated_tables(
+        self, mock_database, mock_inspector
+    ):
         """Test getting statistics including generated tables."""
-        mock_database.execute_sql.side_effect = [
-            # Table list including generated tables
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [("taxon_ref",), ("taxon",), ("plot",), ("occurrences",)]
-                    )
-                )
-            ),
-            # Reference counts
-            Mock(scalar=Mock(return_value=1000)),  # taxon_ref
-            Mock(scalar=Mock(return_value=5000)),  # occurrences
-            # Generated table counts
-            Mock(scalar=Mock(return_value=800)),  # taxon
-            Mock(scalar=Mock(return_value=400)),  # plot
+        mock_inspector.get_table_names.return_value = [
+            "taxon_ref",
+            "taxon",
+            "plot",
+            "occurrences",
         ]
 
-        stats = get_general_statistics(mock_database)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "occurrences" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            if "FROM taxon" in sql:
+                return Mock(scalar=Mock(return_value=800))
+            if "FROM plot" in sql:
+                return Mock(scalar=Mock(return_value=400))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        registry = make_registry()
+
+        stats = get_general_statistics(mock_database, registry)
 
         assert "Generated Tables" in stats
-        assert stats["Generated Tables"]["Taxon"] == 800
-        assert stats["Generated Tables"]["Plot"] == 400
+        assert stats["Generated Tables"]["taxon"] == 800
+        assert stats["Generated Tables"]["plot"] == 400
 
-    def test_get_general_statistics_detailed(self, mock_database):
+    def test_get_general_statistics_detailed(self, mock_database, mock_inspector):
         """Test getting detailed general statistics."""
-        mock_database.execute_sql.side_effect = [
-            # Table list
-            Mock(__iter__=Mock(return_value=iter([("occurrences",)]))),
-            Mock(scalar=Mock(return_value=5000)),  # occurrences count
-            # Check columns for families
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            (0, "id", "INTEGER"),
-                            (1, "family", "TEXT"),
-                            (2, "elevation", "REAL"),
-                            (3, "dbh", "REAL"),
-                        ]
-                    )
-                )
-            ),
-            # Top families
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            Mock(family="Myrtaceae", count=500),
-                            Mock(family="Lauraceae", count=300),
-                        ]
-                    )
-                )
-            ),
-            # Check columns for elevation
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            (0, "id", "INTEGER"),
-                            (1, "elevation", "REAL"),
-                        ]
-                    )
-                )
-            ),
-            # Elevation stats
-            Mock(
-                first=Mock(
-                    return_value=Mock(
-                        min_elev=0, max_elev=1000, avg_elev=500, count_with_elev=4000
-                    )
-                )
-            ),
-            # Check columns for numerical data
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            (0, "id", "INTEGER"),
-                            (1, "dbh", "REAL"),
-                        ]
-                    )
-                )
-            ),
-            # DBH stats
-            Mock(
-                first=Mock(
-                    return_value=Mock(
-                        count_non_null=3000, min_val=5.0, max_val=150.0, avg_val=45.5
-                    )
-                )
-            ),
-        ]
+        mock_inspector.get_table_names.return_value = ["occurrences"]
 
-        stats = get_general_statistics(mock_database, detailed=True)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "occurrences" in sql and "GROUP" not in sql and "AVG" not in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            if "GROUP BY family" in sql:
+                return [
+                    SimpleNamespace(family="Myrtaceae", count=500),
+                    SimpleNamespace(family="Lauraceae", count=300),
+                ]
+            if "AVG(elevation)" in sql:
+                row = SimpleNamespace(
+                    min_elev=0,
+                    max_elev=1000,
+                    avg_elev=500,
+                    count_with_elev=4000,
+                )
+                return Mock(first=Mock(return_value=row))
+            if "AVG(dbh)" in sql:
+                row = SimpleNamespace(
+                    count_non_null=3000,
+                    min_val=5.0,
+                    max_val=150.0,
+                    avg_val=45.5,
+                )
+                return Mock(first=Mock(return_value=row))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+
+        def get_columns(table: str):
+            if table == "occurrences":
+                return ["id", "family", "elevation", "dbh"]
+            return ["id"]
+
+        mock_database.get_table_columns.side_effect = get_columns
+        registry = make_registry({"occurrences": "occurrences"})
+
+        stats = get_general_statistics(mock_database, registry, detailed=True)
 
         assert "Top Families" in stats
         assert stats["Top Families"][0] == ("Myrtaceae", 500)
@@ -449,25 +583,33 @@ class TestGetGeneralStatistics:
         assert "Numerical Data" in stats
         assert "dbh" in stats["Numerical Data"]
 
-    def test_get_general_statistics_handles_errors(self, mock_database):
+    def test_get_general_statistics_handles_errors(self, mock_database, mock_inspector):
         """Test that get_general_statistics handles database errors gracefully."""
         # First query succeeds, subsequent queries fail
-        mock_database.execute_sql.side_effect = [
-            Mock(__iter__=Mock(return_value=iter([("taxon_ref",)]))),
-            Exception("Query failed"),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref"]
 
-        stats = get_general_statistics(mock_database)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql:
+                raise Exception("Query failed")
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        registry = make_registry()
+
+        stats = get_general_statistics(mock_database, registry)
 
         # Should have empty stats but not crash
-        assert stats["Reference Taxa"] == 0
+        assert stats["Reference Taxon"] == 0
 
-    def test_get_general_statistics_table_list_fails(self, mock_database):
+    def test_get_general_statistics_table_list_fails(
+        self, mock_database, mock_inspector
+    ):
         """Test when the initial table list query fails."""
         # Table list query fails
-        mock_database.execute_sql.side_effect = Exception("Cannot query tables")
+        mock_inspector.get_table_names.side_effect = Exception("Cannot inspect")
+        registry = make_registry()
 
-        stats = get_general_statistics(mock_database)
+        stats = get_general_statistics(mock_database, registry)
 
         # Should return empty stats
         assert stats == {}
@@ -476,104 +618,93 @@ class TestGetGeneralStatistics:
 class TestGetGroupStatistics:
     """Test the get_group_statistics function."""
 
-    def test_get_group_statistics_taxon(self, mock_database):
+    def test_get_group_statistics_taxon(self, mock_database, mock_inspector):
         """Test getting statistics for taxon group."""
-        mock_database.execute_sql.side_effect = [
-            Mock(scalar=Mock(return_value=1000)),  # Count
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # Columns
-                            (0, "id", "INTEGER"),
-                            (1, "full_name", "TEXT"),
-                            (2, "rank_name", "TEXT"),
-                        ]
-                    )
-                )
-            ),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref"]
 
-        stats = get_group_statistics(mock_database, "taxon")
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = (
+            lambda table: ["id", "full_name", "rank_name"]
+            if table == "taxon_ref"
+            else ["id"]
+        )
+        registry = make_registry()
+
+        stats = get_group_statistics(mock_database, registry, "taxon")
 
         assert stats["Total Count"] == 1000
         assert stats["Columns"] == 3
 
-    def test_get_group_statistics_taxon_detailed(self, mock_database):
+    def test_get_group_statistics_taxon_detailed(self, mock_database, mock_inspector):
         """Test getting detailed statistics for taxon group."""
-        mock_database.execute_sql.side_effect = [
-            Mock(scalar=Mock(return_value=1000)),  # Count
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # Columns
-                            (0, "id", "INTEGER"),
-                            (1, "full_name", "TEXT"),
-                            (2, "rank_name", "TEXT"),
-                        ]
-                    )
-                )
-            ),
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # Rank distribution
-                            Mock(rank="species", count=800),
-                            Mock(rank="genus", count=150),
-                            Mock(rank="family", count=50),
-                        ]
-                    )
-                )
-            ),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref"]
 
-        stats = get_group_statistics(mock_database, "taxon", detailed=True)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "GROUP BY rank_name" in sql:
+                return [
+                    SimpleNamespace(rank="species", count=800),
+                    SimpleNamespace(rank="genus", count=150),
+                    SimpleNamespace(rank="family", count=50),
+                ]
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = (
+            lambda table: ["id", "full_name", "rank_name"]
+            if table == "taxon_ref"
+            else ["id"]
+        )
+        registry = make_registry()
+
+        stats = get_group_statistics(mock_database, registry, "taxon", detailed=True)
 
         assert "Column Names" in stats
         assert "rank_name" in stats["Column Names"]
         assert "Rank Distribution" in stats
         assert stats["Rank Distribution"]["species"] == 800
 
-    def test_get_group_statistics_shape_detailed(self, mock_database):
+    def test_get_group_statistics_shape_detailed(self, mock_database, mock_inspector):
         """Test getting detailed statistics for shape group."""
-        mock_database.execute_sql.side_effect = [
-            Mock(scalar=Mock(return_value=200)),  # Count
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # Columns
-                            (0, "id", "INTEGER"),
-                            (1, "type", "TEXT"),
-                            (2, "name", "TEXT"),
-                        ]
-                    )
-                )
-            ),
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # Type distribution
-                            Mock(type="Forest", count=100),
-                            Mock(type="River", count=50),
-                            Mock(type="Road", count=50),
-                        ]
-                    )
-                )
-            ),
-        ]
+        mock_inspector.get_table_names.return_value = ["shape_ref"]
 
-        stats = get_group_statistics(mock_database, "shape", detailed=True)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "shape_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=200))
+            if "GROUP BY type" in sql:
+                return [
+                    SimpleNamespace(type="Forest", count=100),
+                    SimpleNamespace(type="River", count=50),
+                    SimpleNamespace(type="Road", count=50),
+                ]
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = (
+            lambda table: ["id", "type", "name"] if table == "shape_ref" else ["id"]
+        )
+        registry = make_registry()
+
+        stats = get_group_statistics(mock_database, registry, "shape", detailed=True)
 
         assert "Types" in stats
         assert ("Forest", 100) in stats["Types"]
 
-    def test_get_group_statistics_error_handling(self, mock_database):
+    def test_get_group_statistics_error_handling(self, mock_database, mock_inspector):
         """Test error handling in get_group_statistics."""
-        mock_database.execute_sql.side_effect = Exception("Table not found")
+        mock_inspector.get_table_names.return_value = []
+        registry = make_registry()
 
-        stats = get_group_statistics(mock_database, "invalid_group")
+        stats = get_group_statistics(mock_database, registry, "invalid_group")
 
         assert "Error" in stats
-        assert "Table not found" in stats["Error"]
+        assert "not found" in stats["Error"]
 
 
 class TestDisplayFunctions:
@@ -582,12 +713,12 @@ class TestDisplayFunctions:
     def test_display_general_statistics(self, capsys):
         """Test displaying general statistics."""
         stats = {
-            "Reference Taxa": 1000,
-            "Reference Plots": 500,
-            "Occurrences": 5000,
+            "Reference Taxon": 1000,
+            "Reference Plot": 500,
+            "Dataset Occurrences": 5000,
             "Generated Tables": {
-                "Taxon": 800,
-                "Plot": 400,
+                "taxon": 800,
+                "plot": 400,
             },
             "Shape Types": {
                 "Forest": 100,
@@ -605,7 +736,7 @@ class TestDisplayFunctions:
     def test_display_general_statistics_detailed(self, capsys):
         """Test displaying detailed general statistics."""
         stats = {
-            "Reference Taxa": 1000,
+            "Reference Taxon": 1000,
             "Top Families": [
                 ("Myrtaceae", 500),
                 ("Lauraceae", 300),
@@ -689,34 +820,35 @@ class TestDisplayFunctions:
 class TestShowDataExplorationSuggestions:
     """Test the show_data_exploration_suggestions function."""
 
-    def test_show_suggestions_basic(self, mock_database, capsys):
+    def test_show_suggestions_basic(self, mock_database, mock_inspector, capsys):
         """Test showing basic data exploration suggestions."""
-        mock_database.execute_sql.side_effect = [
-            # Table list
-            Mock(
-                __iter__=Mock(
-                    return_value=iter([("taxon_ref",), ("plot_ref",), ("occurrences",)])
-                )
-            ),
-            # Occurrences columns
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            (0, "id", "INTEGER"),
-                            (1, "family", "TEXT"),
-                            (2, "elevation", "REAL"),
-                            (3, "dbh", "REAL"),
-                        ]
-                    )
-                )
-            ),
-            # Ref table counts
-            Mock(scalar=Mock(return_value=1000)),  # taxon_ref
-            Mock(scalar=Mock(return_value=500)),  # plot_ref
+        mock_inspector.get_table_names.return_value = [
+            "taxon_ref",
+            "plot_ref",
+            "occurrences",
         ]
 
-        show_data_exploration_suggestions(mock_database)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "FROM taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "FROM plot_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=500))
+            if "FROM occurrences" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+
+        def get_columns(table: str):
+            if table == "occurrences":
+                return ["id", "family", "elevation", "dbh"]
+            return ["id"]
+
+        mock_database.get_table_columns.side_effect = get_columns
+
+        registry = make_registry()
+
+        show_data_exploration_suggestions(mock_database, registry)
 
         captured = capsys.readouterr()
         assert "Data Exploration Suggestions" in captured.out
@@ -725,45 +857,46 @@ class TestShowDataExplorationSuggestions:
         assert "Elevation distribution" in captured.out
         assert "Reference Data Exploration" in captured.out
 
-    def test_show_suggestions_with_generated_tables(self, mock_database, capsys):
+    def test_show_suggestions_with_generated_tables(
+        self, mock_database, mock_inspector, capsys
+    ):
         """Test showing suggestions with generated tables."""
-        mock_database.execute_sql.side_effect = [
-            # Table list
-            Mock(
-                __iter__=Mock(
-                    return_value=iter([("taxon_ref",), ("taxon",), ("occurrences",)])
-                )
-            ),
-            # Occurrences columns
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            (0, "id", "INTEGER"),
-                        ]
-                    )
-                )
-            ),
-            # Ref table count
-            Mock(scalar=Mock(return_value=1000)),
-            # Generated table count
-            Mock(scalar=Mock(return_value=800)),
+        mock_inspector.get_table_names.return_value = [
+            "taxon_ref",
+            "taxon",
+            "occurrences",
         ]
 
-        show_data_exploration_suggestions(mock_database)
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "FROM taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "FROM taxon" in sql:
+                return Mock(scalar=Mock(return_value=800))
+            if "FROM occurrences" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = lambda table: ["id"]
+        registry = make_registry()
+
+        show_data_exploration_suggestions(mock_database, registry)
 
         captured = capsys.readouterr()
         assert "Generated Analysis Tables" in captured.out
         assert "generated from transforms" in captured.out
 
-    def test_show_suggestions_error_handling(self, mock_database, capsys):
+    def test_show_suggestions_error_handling(
+        self, mock_database, mock_inspector, capsys
+    ):
         """Test error handling in suggestions."""
-        mock_database.execute_sql.side_effect = Exception("Database error")
+        mock_inspector.get_table_names.side_effect = Exception("Database error")
+        registry = make_registry()
 
-        show_data_exploration_suggestions(mock_database)
+        show_data_exploration_suggestions(mock_database, registry)
 
         captured = capsys.readouterr()
-        assert "Error generating suggestions" in captured.out
+        assert "Data Exploration Suggestions" in captured.out
 
 
 class TestExportStatistics:
@@ -772,7 +905,7 @@ class TestExportStatistics:
     def test_export_statistics_json(self, tmp_path):
         """Test exporting statistics to JSON."""
         stats = {
-            "Reference Taxa": 1000,
+            "Reference Taxon": 1000,
             "Top Families": [("Myrtaceae", 500), ("Lauraceae", 300)],
             "Shape Types": {"Forest": 100, "River": 50},
         }
@@ -784,7 +917,7 @@ class TestExportStatistics:
 
         with open(export_file) as f:
             data = json.load(f)
-            assert data["Reference Taxa"] == 1000
+            assert data["Reference Taxon"] == 1000
             assert (
                 data["Top Families"]["Myrtaceae"] == 500
             )  # Converted from list of tuples
@@ -793,7 +926,7 @@ class TestExportStatistics:
     def test_export_statistics_csv(self, tmp_path):
         """Test exporting statistics to CSV."""
         stats = {
-            "Reference Taxa": 1000,
+            "Reference Taxon": 1000,
             "Shape Types": {"Forest": 100, "River": 50},
             "Top Families": [("Myrtaceae", 500), ("Lauraceae", 300)],
         }
@@ -808,7 +941,7 @@ class TestExportStatistics:
             rows = list(reader)
 
             assert rows[0] == ["Category", "Metric", "Value"]
-            assert ["General", "Reference Taxa", "1000"] in rows
+            assert ["General", "Reference Taxon", "1000"] in rows
             assert ["Shape Types", "Forest", "100"] in rows
             assert ["Top Families", "Myrtaceae", "500"] in rows
 
@@ -827,56 +960,66 @@ class TestIntegration:
     """Integration tests for the stats command."""
 
     def test_stats_command_full_flow(
-        self, runner, mock_config, mock_database, mock_path, tmp_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        tmp_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test full flow with all options."""
         export_file = tmp_path / "full_stats.json"
 
-        # Mock comprehensive database responses
-        mock_database.execute_sql.side_effect = [
-            # General stats queries
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            ("taxon_ref",),
-                            ("plot_ref",),
-                            ("shape_ref",),
-                            ("occurrences",),
-                        ]
-                    )
-                )
-            ),
-            Mock(scalar=Mock(return_value=1000)),  # taxon_ref
-            Mock(scalar=Mock(return_value=500)),  # plot_ref
-            Mock(scalar=Mock(return_value=200)),  # shape_ref
-            Mock(scalar=Mock(return_value=5000)),  # occurrences
-            # Shape types
-            Mock(__iter__=Mock(return_value=iter([(0, "type", "TEXT")]))),
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            Mock(type="Forest", count=100),
-                        ]
-                    )
-                )
-            ),
-            # Detailed stats
-            Mock(__iter__=Mock(return_value=iter([(0, "family", "TEXT")]))),
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [
-                            Mock(family="Myrtaceae", count=500),
-                        ]
-                    )
-                )
-            ),
-            # Suggestions queries
-            Mock(__iter__=Mock(return_value=iter([("occurrences",)]))),
-            Mock(__iter__=Mock(return_value=iter([(0, "family", "TEXT")]))),
+        mock_inspector.get_table_names.return_value = [
+            "taxon_ref",
+            "plot_ref",
+            "shape_ref",
+            "occurrences",
         ]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "FROM taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "FROM plot_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=500))
+            if "FROM shape_ref" in sql and "GROUP" not in sql and "GROUP BY" not in sql:
+                return Mock(scalar=Mock(return_value=200))
+            if "FROM occurrences" in sql and "GROUP" not in sql and "AVG" not in sql:
+                return Mock(scalar=Mock(return_value=5000))
+            if "FROM shape_ref" in sql and "GROUP BY type" in sql:
+                return [SimpleNamespace(type="Forest", count=100)]
+            if "FROM occurrences" in sql and "GROUP BY family" in sql:
+                return [SimpleNamespace(family="Myrtaceae", count=500)]
+            if "AVG(elevation)" in sql:
+                row = SimpleNamespace(
+                    min_elev=0,
+                    max_elev=1000,
+                    avg_elev=500,
+                    count_with_elev=4000,
+                )
+                return Mock(first=Mock(return_value=row))
+            if "AVG(dbh)" in sql:
+                row = SimpleNamespace(
+                    count_non_null=3000,
+                    min_val=5.0,
+                    max_val=150.0,
+                    avg_val=45.5,
+                )
+                return Mock(first=Mock(return_value=row))
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+
+        def get_columns(table: str):
+            if table == "shape_ref":
+                return ["id", "type"]
+            if table == "occurrences":
+                return ["id", "family", "elevation", "dbh"]
+            return ["id"]
+
+        mock_database.get_table_columns.side_effect = get_columns
 
         result = runner.invoke(
             stats_command, ["--detailed", "--export", str(export_file), "--suggestions"]
@@ -889,33 +1032,33 @@ class TestIntegration:
         assert export_file.exists()
 
     def test_stats_command_group_with_export(
-        self, runner, mock_config, mock_database, mock_path, tmp_path
+        self,
+        runner,
+        mock_config,
+        mock_database,
+        mock_path,
+        tmp_path,
+        command_registry,
+        mock_inspector,
     ):
         """Test group statistics with export."""
         export_file = tmp_path / "taxon_stats.csv"
 
-        mock_database.execute_sql.side_effect = [
-            Mock(scalar=Mock(return_value=1000)),  # Count
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # Columns
-                            (0, "id", "INTEGER"),
-                            (1, "full_name", "TEXT"),
-                        ]
-                    )
-                )
-            ),
-            Mock(
-                __iter__=Mock(
-                    return_value=iter(
-                        [  # Rank distribution
-                            Mock(rank="species", count=800),
-                        ]
-                    )
-                )
-            ),
-        ]
+        mock_inspector.get_table_names.return_value = ["taxon_ref"]
+
+        def execute_sql_side_effect(sql: str, *args, **kwargs):
+            if "taxon_ref" in sql and "GROUP" not in sql:
+                return Mock(scalar=Mock(return_value=1000))
+            if "GROUP BY rank_name" in sql:
+                return [SimpleNamespace(rank="species", count=800)]
+            return Mock(scalar=Mock(return_value=0))
+
+        mock_database.execute_sql.side_effect = execute_sql_side_effect
+        mock_database.get_table_columns.side_effect = (
+            lambda table: ["id", "full_name", "rank_name"]
+            if table == "taxon_ref"
+            else ["id"]
+        )
 
         result = runner.invoke(
             stats_command,

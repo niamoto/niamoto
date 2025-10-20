@@ -172,29 +172,25 @@ class ClassObjectFieldAggregator(TransformerPlugin):
         Transform shape statistics data into field aggregations.
 
         Args:
-            data: DataFrame containing shape statistics
-            config: Configuration dictionary with:
-                - params.fields: List of field configurations with:
-                    - class_object: Field name or list of fields for ranges
-                    - target: Name for output
-                    - units: Optional units for output
-                    - format: Optional format for output (range)
-                - params.source: Optional source name (handled by TransformerService)
+            data: DataFrame (or mapping of DataFrames) containing the statistics
+                to aggregate.
+            config: Dictionary whose ``params`` entry declares the field
+                transformations. Each field definition may specify ``class_object``
+                (string or pair of strings when ``format`` is ``"range"``),
+                ``target`` (output key), optional ``units`` and optional
+                ``format``. An optional ``source`` can override the top-level
+                source for individual fields.
 
         Returns:
-            Dictionary with aggregated fields
+            dict[str, Any]: Aggregated fields keyed by their target names.
 
-        Example output:
+        Example
+        -------
+        .. code-block:: json
+
             {
-                "land_area_ha": {
-                    "value": 1000,
-                    "units": "ha"
-                },
-                "rainfall": {
-                    "min": 1000,
-                    "max": 2000,
-                    "units": "mm/an"
-                }
+              "land_area_ha": {"value": 1000, "units": "ha"},
+              "rainfall": {"min": 1000, "max": 2000, "units": "mm/an"}
             }
         """
         try:

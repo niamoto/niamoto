@@ -4,7 +4,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
+
+from niamoto.common.database import Database
+from niamoto.common.exceptions import DatabaseQueryError
 
 router = APIRouter()
 
@@ -59,7 +62,7 @@ class TableStats(BaseModel):
 
 
 def get_database_path() -> Optional[Path]:
-    """Get the path to the SQLite database."""
+    """Get the path to the configured analytics database (SQLite or DuckDB)."""
     # First check config for database path
     import yaml
 
@@ -76,19 +79,18 @@ def get_database_path() -> Optional[Path]:
         except Exception:
             pass
 
-    # Fallback to common locations
-    db_path = Path.cwd() / "db" / "niamoto.db"
-    if db_path.exists():
-        return db_path
+    candidates = [
+        Path.cwd() / "db" / "niamoto.duckdb",
+        Path.cwd() / "db" / "niamoto.db",
+        Path.cwd() / "niamoto.duckdb",
+        Path.cwd() / "niamoto.db",
+        Path.cwd() / "data" / "niamoto.duckdb",
+        Path.cwd() / "data" / "niamoto.db",
+    ]
 
-    db_path = Path.cwd() / "niamoto.db"
-    if db_path.exists():
-        return db_path
-
-    # Check in data directory
-    data_path = Path.cwd() / "data" / "niamoto.db"
-    if data_path.exists():
-        return data_path
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
 
     return None
 
@@ -104,9 +106,11 @@ async def get_database_schema():
     if not db_path:
         return DatabaseSchema(tables=[], views=[], total_size=None)
 
+    db: Optional[Database] = None
     try:
-        engine = create_engine(f"sqlite:///{db_path}")
-        inspector = inspect(engine)
+        db = Database(str(db_path))
+        inspector = inspect(db.engine)
+        preparer = db.engine.dialect.identifier_preparer
 
         tables = []
         views = []
@@ -145,16 +149,22 @@ async def get_database_schema():
                                 col.foreign_key = f"{ref_table}.{ref_cols[0]}"
 
             # Get row count
-            with engine.connect() as conn:
-                result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
-                row_count = result.scalar() or 0
+            try:
+                quoted_table = preparer.quote(table_name)
+                result = db.execute_sql(f"SELECT COUNT(*) FROM {quoted_table}")
+                row_count = result.scalar() if result is not None else 0
+            except DatabaseQueryError:
+                row_count = 0
 
             # Get indexes
-            indexes = [
-                idx["name"]
-                for idx in inspector.get_indexes(table_name)
-                if idx.get("name")
-            ]
+            if getattr(db, "is_duckdb", False):
+                indexes = []
+            else:
+                indexes = [
+                    idx["name"]
+                    for idx in inspector.get_indexes(table_name)
+                    if idx.get("name")
+                ]
 
             table_info = TableInfo(
                 name=table_name,
@@ -165,47 +175,43 @@ async def get_database_schema():
             )
             tables.append(table_info)
 
-        # Get views
-        with engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='view'")
-            )
-            view_names = [row[0] for row in result]
+        view_names = inspector.get_view_names() or []
 
-            for view_name in view_names:
-                # Try to get view columns
-                try:
-                    result = conn.execute(text(f"PRAGMA table_info({view_name})"))
-                    columns = []
-                    for row in result:
-                        column_info = ColumnInfo(
-                            name=row[1],
-                            type=row[2] or "UNKNOWN",
-                            nullable=row[3] == 0,
-                            primary_key=row[5] == 1,
-                        )
-                        columns.append(column_info)
-
-                    # Get row count
-                    result = conn.execute(text(f"SELECT COUNT(*) FROM {view_name}"))
-                    row_count = result.scalar() or 0
-
-                    view_info = TableInfo(
-                        name=view_name,
-                        row_count=row_count,
-                        columns=columns,
-                        indexes=[],
-                        is_view=True,
+        for view_name in view_names:
+            try:
+                columns = []
+                for col in inspector.get_columns(view_name):
+                    column_info = ColumnInfo(
+                        name=col["name"],
+                        type=str(col.get("type", "UNKNOWN")),
+                        nullable=col.get("nullable", True),
+                        primary_key=col.get("primary_key", False),
                     )
-                    views.append(view_info)
-                except Exception:
-                    # Skip views that can't be introspected
-                    pass
+                    columns.append(column_info)
+
+                try:
+                    quoted_view = preparer.quote(view_name)
+                    result = db.execute_sql(f"SELECT COUNT(*) FROM {quoted_view}")
+                    row_count = result.scalar() if result is not None else 0
+                except DatabaseQueryError:
+                    row_count = 0
+
+                view_info = TableInfo(
+                    name=view_name,
+                    row_count=row_count,
+                    columns=columns,
+                    indexes=[],
+                    is_view=True,
+                )
+                views.append(view_info)
+            except Exception:
+                continue
 
         # Get database size
         total_size = db_path.stat().st_size if db_path.exists() else None
 
-        engine.dispose()
+        db.close_db_session()
+        db.engine.dispose()
 
         return DatabaseSchema(tables=tables, views=views, total_size=total_size)
 
@@ -213,6 +219,16 @@ async def get_database_schema():
         raise HTTPException(
             status_code=500, detail=f"Error reading database schema: {str(e)}"
         )
+    finally:
+        if db is not None:
+            try:
+                db.close_db_session()
+            except Exception:
+                pass
+            try:
+                db.engine.dispose()
+            except Exception:
+                pass
 
 
 @router.get("/tables/{table_name}/preview", response_model=TablePreview)
@@ -238,33 +254,29 @@ async def get_table_preview(
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
 
+    db: Optional[Database] = None
     try:
-        engine = create_engine(f"sqlite:///{db_path}")
+        db = Database(str(db_path))
+        inspector = inspect(db.engine)
+        preparer = db.engine.dialect.identifier_preparer
 
-        with engine.connect() as conn:
-            # Check if table exists
-            inspector = inspect(engine)
-            if table_name not in inspector.get_table_names():
-                # Check if it's a view
-                result = conn.execute(
-                    text(
-                        "SELECT name FROM sqlite_master WHERE type='view' AND name=:name"
-                    ),
-                    {"name": table_name},
-                )
-                if not result.fetchone():
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Table or view '{table_name}' not found",
-                    )
+        table_names = set(inspector.get_table_names() or [])
+        view_names = set(inspector.get_view_names() or [])
 
-            # Get total row count
-            result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+        if table_name not in table_names and table_name not in view_names:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Table or view '{table_name}' not found",
+            )
+
+        quoted_table = preparer.quote(table_name)
+
+        with db.engine.connect() as conn:
+            result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
             total_rows = result.scalar() or 0
 
-            # Get preview data
             result = conn.execute(
-                text(f"SELECT * FROM {table_name} LIMIT :limit OFFSET :offset"),
+                text(f"SELECT * FROM {quoted_table} LIMIT :limit OFFSET :offset"),
                 {"limit": limit, "offset": offset},
             )
 
@@ -274,7 +286,6 @@ async def get_table_preview(
                 row_dict = {}
                 for i, col in enumerate(columns):
                     value = row[i]
-                    # Convert bytes to string for display
                     if isinstance(value, bytes):
                         try:
                             value = value.decode("utf-8")
@@ -282,8 +293,6 @@ async def get_table_preview(
                             value = f"<binary:{len(value)}bytes>"
                     row_dict[col] = value
                 rows.append(row_dict)
-
-        engine.dispose()
 
         return TablePreview(
             table_name=table_name,
@@ -297,6 +306,16 @@ async def get_table_preview(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error previewing table: {str(e)}")
+    finally:
+        if db is not None:
+            try:
+                db.close_db_session()
+            except Exception:
+                pass
+            try:
+                db.engine.dispose()
+            except Exception:
+                pass
 
 
 @router.get("/tables/{table_name}/stats", response_model=TableStats)
@@ -315,22 +334,23 @@ async def get_table_stats(table_name: str):
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
 
+    db: Optional[Database] = None
     try:
-        engine = create_engine(f"sqlite:///{db_path}")
-        inspector = inspect(engine)
+        db = Database(str(db_path))
+        inspector = inspect(db.engine)
+        preparer = db.engine.dialect.identifier_preparer
 
-        # Check if table exists
         if table_name not in inspector.get_table_names():
             raise HTTPException(
                 status_code=404, detail=f"Table '{table_name}' not found"
             )
 
-        with engine.connect() as conn:
-            # Get row count
-            result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+        quoted_table = preparer.quote(table_name)
+
+        with db.engine.connect() as conn:
+            result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
             row_count = result.scalar() or 0
 
-            # Get column information
             columns = inspector.get_columns(table_name)
             column_count = len(columns)
 
@@ -340,21 +360,20 @@ async def get_table_stats(table_name: str):
 
             for col in columns:
                 col_name = col["name"]
-                data_types[col_name] = str(col["type"])
+                data_types[col_name] = str(col.get("type", "UNKNOWN"))
+                quoted_col = preparer.quote(col_name)
 
-                # Count nulls
                 result = conn.execute(
-                    text(f"SELECT COUNT(*) FROM {table_name} WHERE {col_name} IS NULL")
+                    text(
+                        f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_col} IS NULL"
+                    )
                 )
                 null_counts[col_name] = result.scalar() or 0
 
-                # Count unique values
                 result = conn.execute(
-                    text(f"SELECT COUNT(DISTINCT {col_name}) FROM {table_name}")
+                    text(f"SELECT COUNT(DISTINCT {quoted_col}) FROM {quoted_table}")
                 )
                 unique_counts[col_name] = result.scalar() or 0
-
-        engine.dispose()
 
         return TableStats(
             table_name=table_name,
@@ -371,6 +390,16 @@ async def get_table_stats(table_name: str):
         raise HTTPException(
             status_code=500, detail=f"Error getting table statistics: {str(e)}"
         )
+    finally:
+        if db is not None:
+            try:
+                db.close_db_session()
+            except Exception:
+                pass
+            try:
+                db.engine.dispose()
+            except Exception:
+                pass
 
 
 @router.get("/query")
@@ -417,15 +446,17 @@ async def execute_query(
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
 
+    db: Optional[Database] = None
     try:
-        engine = create_engine(f"sqlite:///{db_path}")
+        db = Database(str(db_path))
 
-        with engine.connect() as conn:
-            # Add LIMIT if not present
+        with db.engine.connect() as conn:
             if "limit" not in query_lower:
-                query = f"{query} LIMIT {limit}"
+                query_to_run = f"{query} LIMIT {limit}"
+            else:
+                query_to_run = query
 
-            result = conn.execute(text(query))
+            result = conn.execute(text(query_to_run))
             columns = list(result.keys())
             rows = []
 
@@ -433,7 +464,6 @@ async def execute_query(
                 row_dict = {}
                 for i, col in enumerate(columns):
                     value = row[i]
-                    # Convert bytes to string for display
                     if isinstance(value, bytes):
                         try:
                             value = value.decode("utf-8")
@@ -442,9 +472,17 @@ async def execute_query(
                     row_dict[col] = value
                 rows.append(row_dict)
 
-        engine.dispose()
-
         return {"columns": columns, "rows": rows, "row_count": len(rows)}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query execution error: {str(e)}")
+    finally:
+        if db is not None:
+            try:
+                db.close_db_session()
+            except Exception:
+                pass
+            try:
+                db.engine.dispose()
+            except Exception:
+                pass

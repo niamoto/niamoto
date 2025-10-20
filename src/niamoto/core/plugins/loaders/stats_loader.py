@@ -68,11 +68,20 @@ class StatsLoader(LoaderPlugin):
 
     config_model = StatsLoaderConfig
 
-    def __init__(self, db):
+    def __init__(self, db, registry=None):
         """Initialize the loader with database connection."""
-        super().__init__(db)
+        super().__init__(db, registry)
         self.config = Config()
-        self.imports_config = self.config.imports
+        # Get typed imports config and convert to dict for compatibility
+        try:
+            generic_imports = self.config.get_imports_config
+            if callable(generic_imports):
+                generic_imports = generic_imports()
+            self.imports_config = (
+                generic_imports.model_dump() if generic_imports else {}
+            )
+        except Exception:
+            self.imports_config = {}
         self.logger = logging.getLogger(__name__)
 
     def validate_config(self, config: Dict[str, Any]) -> StatsLoaderConfig:
@@ -120,7 +129,14 @@ class StatsLoader(LoaderPlugin):
         # Get the actual value from the reference table
         # We always need to look up the value from the reference table
         grouping_table = config.get("grouping", "")
-        group_name = grouping_table.replace("_ref", "")  # e.g., "shape_ref" -> "shape"
+        logical_grouping = config.get("logical_grouping")
+
+        group_name_source = logical_grouping or grouping_table
+        group_name = group_name_source
+        if group_name.startswith("entity_"):
+            group_name = group_name[len("entity_") :]
+        if group_name.startswith("dataset_"):
+            group_name = group_name[len("dataset_") :]
 
         # Get params from validated config
         validated_config = self.validate_config(config)
@@ -134,8 +150,21 @@ class StatsLoader(LoaderPlugin):
         # Allow custom match field in CSV (default to key)
         match_field = params.match_field or params.key
 
+        # Get the ID field name from entity metadata
+        # Use logical_grouping if provided (entity name), otherwise use grouping (table name)
+        entity_name = config.get("logical_grouping", grouping_table)
+        id_field = "id"  # Default
+        try:
+            from niamoto.core.imports.registry import EntityRegistry
+
+            entity_registry = EntityRegistry(self.db)
+            metadata = entity_registry.get(entity_name)
+            id_field = metadata.config.get("schema", {}).get("id_field", "id")
+        except Exception:
+            pass
+
         query = text(f"""
-            SELECT {ref_field} FROM {config["grouping"]} WHERE id = :group_id
+            SELECT {ref_field} FROM {config["grouping"]} WHERE {id_field} = :group_id
         """)
 
         with self.db.engine.connect() as conn:
@@ -170,15 +199,15 @@ class StatsLoader(LoaderPlugin):
         self, config: Dict[str, Any], group_id: int
     ) -> pd.DataFrame:
         """Load data from the database."""
-        query = text(f"""
+        query = f"""
             SELECT m.*
             FROM {config["data"]} m
             JOIN {config["grouping"]} ref ON m.{config.get("key", "id")} = ref.id
             WHERE ref.id = :group_id
-        """)
+        """
 
-        with self.db.engine.connect() as conn:
-            return pd.read_sql(query, conn, params={"group_id": group_id})
+        # Use text() wrapped query with engine directly to avoid pandas warning
+        return pd.read_sql(text(query), self.db.engine, params={"group_id": group_id})
 
     def load_data(self, group_id: int, config: Dict[str, Any]) -> pd.DataFrame:
         """

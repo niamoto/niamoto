@@ -2,7 +2,6 @@ import os
 import shutil
 from niamoto.common.config import Config
 from niamoto.common.database import Database
-from niamoto.core.models import Base
 from niamoto.common.exceptions import (
     EnvironmentSetupError,
     FileWriteError,
@@ -123,8 +122,7 @@ class Environment:
 
             # Initialize database
             try:
-                db = Database(self.config.database_path)
-                Base.metadata.create_all(db.engine)
+                Database(self.config.database_path)
             except Exception as e:
                 raise DatabaseError(
                     message="Failed to initialize database",

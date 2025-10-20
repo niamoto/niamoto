@@ -4,14 +4,13 @@ Plugin for getting a direct attribute from a source.
 
 from typing import Dict, Any, Union, Optional, Literal
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-import os
 import pandas as pd
-import geopandas as gpd
 
 from niamoto.core.plugins.models import PluginConfig
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError
 from niamoto.common.config import Config
+from niamoto.core.imports.registry import EntityRegistry
 
 
 class DirectAttributeParams(BaseModel):
@@ -82,15 +81,21 @@ class DirectAttribute(TransformerPlugin):
 
     config_model = DirectAttributeConfig
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, registry=None):
+        super().__init__(db, registry)
         try:
             self.config = Config()
-            self.imports_config = self.config.get_imports_config()
+            self.imports_config = (
+                self.config.get_imports_config() if self.config else {}
+            )
+            # Use registry from parent if provided, otherwise create new instance
+            if not self.registry:
+                self.registry = EntityRegistry(db)
         except Exception:
             # In test environment, config might not be available
             self.config = None
             self.imports_config = {}
+            self.registry = EntityRegistry(db)
 
     def validate_config(self, config: Dict[str, Any]) -> DirectAttributeConfig:
         """Validate configuration and return typed config."""
@@ -103,50 +108,23 @@ class DirectAttribute(TransformerPlugin):
         """Get a field value from any table."""
         try:
             query = f"""
-                SELECT {field} FROM {source} WHERE id = {id_value}
+                SELECT {field} FROM {source} WHERE id = :id_value
             """
-            result = self.db.execute_select(query).fetchone()
+            # Use fetch_one which properly handles connection lifecycle
+            row = self.db.fetch_one(query, {"id_value": id_value})
             # Return raw value without string conversion to preserve format
-            return result[0] if result and result[0] is not None else None
+            return row[field] if row and row.get(field) is not None else None
         except Exception as e:
             raise DatabaseError(f"Error getting field {field} from {source}") from e
 
     def _get_field_value(self, source: str, field: str, id_value: int) -> Any:
-        """Get a field value from a source (table or import)."""
+        """Get a field value from a source using registry."""
         try:
-            # D'abord vérifier si la source est dans import.yml
-            if source in self.imports_config:
-                import_config = self.imports_config[source]
+            # Resolve source table name from registry
+            entity_info = self.registry.get(source)
+            table_name = entity_info.table_name if entity_info else source
 
-                # Construire le chemin complet du fichier
-                if self.config and hasattr(self.config, "config_dir"):
-                    file_path = os.path.join(
-                        os.path.dirname(self.config.config_dir), import_config["path"]
-                    )
-                else:
-                    # Fallback for tests
-                    file_path = import_config["path"]
-
-                # Charger les données selon le type
-                if import_config["type"] == "csv":
-                    df = pd.read_csv(file_path)
-                elif import_config["type"] == "vector":
-                    df = gpd.read_file(file_path)
-                else:
-                    raise ValueError(
-                        f"Unsupported import type: {import_config['type']}"
-                    )
-
-                # Récupérer la valeur en utilisant l'identifiant spécifié
-                identifier = import_config["identifier"]
-                row = df[df[identifier] == id_value]
-                if not row.empty:
-                    # Return the raw value instead of converting to string
-                    return row[field].iloc[0]
-                else:
-                    return None
-
-            return self._get_field_from_table(source, field, id_value)
+            return self._get_field_from_table(table_name, field, id_value)
 
         except Exception as e:
             raise ValueError(f"Error getting field {field} from {source}") from e
