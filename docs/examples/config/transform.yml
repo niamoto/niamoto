@@ -8,15 +8,15 @@
 ##################################################################
 # 1) CONFIG POUR LES TAXONS
 ##################################################################
-- group_by: taxon
+- group_by: taxons
   sources:
     - name: occurrences
       data: occurrences
-      grouping: taxonomy
+      grouping: taxons
       relation:
         plugin: nested_set
         key: id_taxonref
-        ref_key: taxonomy_id  # Match on external ID, not hash ID
+        ref_key: taxons_id  # Match on external ID, not hash ID
         fields:
           left: lft
           right: rght
@@ -27,46 +27,46 @@
       plugin: field_aggregator
       params:
         fields:
-          - source: taxonomy
+          - source: taxons
             field: full_name
             target: name
-          - source: taxonomy
+          - source: taxons
             field: rank_name
             target: rank
-          - source: taxonomy
+          - source: taxons
             field: extra_data.taxon_type
             target: taxon_type
-          - source: taxonomy
+          - source: taxons
             field: extra_data.parent_family
             target: parent_family
-          - source: taxonomy
+          - source: taxons
             field: extra_data.parent_genus
             target: parent_genus
           - source: occurrences
             field: id
             target: occurrences_count
             transformation: count
-          - source: taxonomy
+          - source: taxons
             field: extra_data.endemic
             target: endemic
             format: boolean
-          - source: taxonomy
+          - source: taxons
             field: extra_data.id_florical
             target: id_florical
             format: boolean
-          - source: taxonomy
+          - source: taxons
             field: extra_data.redlist_cat
             target: redlist_cat
             format: boolean
-          - source: taxonomy
+          - source: taxons
             field: extra_data.endemia_url
             target: endemia_url
             format: url
-          - source: taxonomy
+          - source: taxons
             field: extra_data.image_small_thumb
             target: image_url
             format: url
-          - source: taxonomy
+          - source: taxons
             field: extra_data.images
             target: images
       # ex:
@@ -105,9 +105,9 @@
         field: id_taxonref
         mode: direct
         count: 10
-        hierarchy_table: taxonomy
+        hierarchy_table: taxons
         hierarchy_columns:
-          id: taxonomy_id  # Match on taxonomy_id (external ID from source data)
+          id: taxons_id  # Match on taxons_id (external ID from source data)
           name: full_name
           rank: rank_name
           parent_id: parent_id
@@ -371,7 +371,7 @@
 ##################################################################
 # 2) CONFIG POUR LES PLOTS
 ##################################################################
-- group_by: plot
+- group_by: plots
   sources:
     - name: plot_stats
       data: imports/raw_plot_stats.csv
@@ -380,6 +380,7 @@
         plugin: stats_loader
         key: id
         ref_field: id_plot
+        match_field: plot_id
     - name: plots
       data: imports/plots.csv  # Fichier CSV original avec toutes les données
       grouping: plots
@@ -425,7 +426,7 @@
       plugin: geospatial_extractor
       params:
         source: plots
-        field: geometry
+        field: geo_pt
         format: geojson
       # ex: { "coordinates": [...], "label": ... }
 
@@ -616,7 +617,7 @@
 ##################################################################
 # 3) CONFIG POUR LES SHAPES
 ##################################################################
-- group_by: shape
+- group_by: shapes
   sources:
     - name: shape_stats
       data: imports/raw_shape_stats.csv

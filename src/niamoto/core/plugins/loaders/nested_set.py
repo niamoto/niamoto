@@ -5,6 +5,7 @@ import pandas as pd
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
+from niamoto.core.imports.registry import EntityRegistry
 
 
 class NestedSetParams(BasePluginParams):
@@ -25,6 +26,12 @@ class NestedSetParams(BasePluginParams):
     key: str = Field(
         ...,
         description="Foreign key field linking data to the hierarchy",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    ref_key: str = Field(
+        default="id",
+        description="Field in the reference table to match against (e.g., 'taxonomy_id', 'id')",
         json_schema_extra={"ui:widget": "text"},
     )
 
@@ -50,6 +57,16 @@ class NestedSetParams(BasePluginParams):
             },
         },
     )
+
+    @field_validator("ref_key")
+    @classmethod
+    def validate_ref_key(cls, v: str) -> str:
+        """Validate that ref_key is a safe SQL identifier"""
+        import re
+
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", v or ""):
+            raise ValueError(f"Invalid SQL identifier: {v}")
+        return v
 
     @field_validator("fields")
     @classmethod
@@ -83,6 +100,34 @@ class NestedSetLoader(LoaderPlugin):
 
     config_model = NestedSetConfig
 
+    def __init__(self, db, registry=None):
+        """Initialize with database and optional EntityRegistry.
+
+        Args:
+            db: Database instance
+            registry: EntityRegistry instance (created if not provided)
+        """
+        super().__init__(db)
+        self.registry = registry or EntityRegistry(db)
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via EntityRegistry.
+
+        Args:
+            logical_name: Entity name from config (e.g., "taxons", "occurrences")
+
+        Returns:
+            Physical table name (e.g., "entity_taxons", "entity_occurrences")
+            Falls back to logical_name if not found in registry (backward compatibility)
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            return metadata.table_name
+        except Exception:
+            # Fallback: assume it's already a physical table name
+            # This maintains backward compatibility with configs that use table names directly
+            return logical_name
+
     def validate_config(self, config: Dict[str, Any]) -> NestedSetConfig:
         """Validate plugin configuration."""
         # Extract params if they exist in the config
@@ -91,6 +136,8 @@ class NestedSetLoader(LoaderPlugin):
             params = {}
             if "key" in config:
                 params["key"] = config["key"]
+            if "ref_key" in config:
+                params["ref_key"] = config["ref_key"]
             if "fields" in config:
                 params["fields"] = config["fields"]
             config = {"plugin": "nested_set", "params": params}
@@ -100,10 +147,14 @@ class NestedSetLoader(LoaderPlugin):
         validated_config = self.validate_config(config)
         fields = validated_config.params.fields
 
+        # Resolve entity names to physical table names via EntityRegistry
+        grouping_table = self._resolve_table_name(config["grouping"])
+        data_table = self._resolve_table_name(config["data"])
+
         # Get the left and right values for the target node
         node_query = text(f"""
             SELECT {fields["left"]}, {fields["right"]}
-            FROM {config["grouping"]}
+            FROM {grouping_table}
             WHERE id = :id
         """)
 
@@ -113,10 +164,12 @@ class NestedSetLoader(LoaderPlugin):
                 return pd.DataFrame()
 
             # Get all records that belong to the target node's hierarchy
+            # Use ref_key to specify which field in the reference table to match against
+            ref_key = validated_config.params.ref_key
             query = text(f"""
                 SELECT m.*
-                FROM {config["data"]} m
-                JOIN {config["grouping"]} ref ON m.{validated_config.params.key} = ref.id
+                FROM {data_table} m
+                JOIN {grouping_table} ref ON m.{validated_config.params.key} = ref.{ref_key}
                 WHERE ref.{fields["left"]} >= :left
                 AND ref.{fields["right"]} <= :right
             """)

@@ -24,6 +24,11 @@ def mock_db():
     db.execute_query.return_value = pd.DataFrame()
     db.execute.return_value = None
     db.get_connection.return_value = MagicMock()
+    db.execute_sql.return_value = None
+    db.has_table.return_value = False
+    db.get_table_schema.return_value = []
+    db.get_table_columns.return_value = []
+    db.engine = MagicMock()
 
     return db
 

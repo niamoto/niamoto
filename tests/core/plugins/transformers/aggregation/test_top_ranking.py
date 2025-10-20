@@ -53,6 +53,9 @@ class TestTopRanking(unittest.TestCase):
         self.plugin = TopRanking(db=self.db_mock)
         # Reset the mock before each test
         self.db_mock.reset_mock()
+        self.db_mock.execute_select.side_effect = None
+        self.db_mock.get_table_columns.side_effect = None
+        self.db_mock.get_table_columns.return_value = None
 
     def test_initialization(self):
         """Test that the plugin initializes correctly."""
@@ -248,6 +251,78 @@ class TestTopRanking(unittest.TestCase):
         # Verify no DB call was made
         self.db_mock.execute_select.assert_not_called()
         self.assertEqual(result, expected_result)
+
+    def test_direct_mode_counts(self):
+        """Direct mode should return top frequency counts without DB access."""
+        df = pd.DataFrame({"species_id": [1, 1, 2, 3, 3, 3]})
+        config = {
+            "plugin": "top_ranking",
+            "params": {
+                "source": "occurrences",
+                "field": "species_id",
+                "mode": "direct",
+                "count": 2,
+            },
+        }
+
+        result = self.plugin.transform(df, config)
+
+        self.db_mock.execute_select.assert_not_called()
+        self.assertEqual(result["tops"], [3, 1])
+        self.assertEqual(result["counts"], [3, 2])
+
+    def test_join_mode_sum_requires_aggregate_field(self):
+        """Sum/avg aggregations must provide aggregate_field."""
+        config = {
+            "plugin": "top_ranking",
+            "params": {
+                "source": "occurrences",
+                "field": "taxon_ref_id",
+                "mode": "join",
+                "hierarchy_table": "taxonomy",
+                "join_table": "occurrence_taxon",
+                "target_ranks": ["genus"],
+                "aggregate_function": "sum",
+                "count": 5,
+            },
+        }
+
+        with self.assertRaises(ValueError):
+            self.plugin.transform(SAMPLE_DATA.copy(), config)
+
+    def test_join_mode_sum_with_aggregate_field(self):
+        """Join mode should embed aggregate field in generated SQL."""
+        field_data = pd.Series([101, 102, 101, 103])
+        config = {
+            "plugin": "top_ranking",
+            "params": {
+                "source": "occurrences",
+                "field": "taxon_ref_id",
+                "mode": "join",
+                "hierarchy_table": "taxonomy",
+                "join_table": "occurrence_taxon",
+                "target_ranks": ["genus"],
+                "aggregate_function": "sum",
+                "aggregate_field": "value",
+                "count": 3,
+            },
+        }
+
+        self.db_mock.get_table_columns.side_effect = [
+            ["id", "parent_id", "rank_name"],
+        ]
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = [("Genus Alpha", 10)]
+        self.db_mock.execute_select.return_value = mock_result
+
+        result = self.plugin.transform(
+            pd.DataFrame({"taxon_ref_id": field_data}), config
+        )
+
+        executed_query = self.db_mock.execute_select.call_args[0][0]
+        self.assertIn('SUM(hierarchy_path."metric_value")', executed_query)
+        self.assertEqual(result, {"tops": ["Genus Alpha"], "counts": [10]})
 
     def test_transform_no_taxa_found_in_db(self):
         """Test when initial DB query returns no matching taxa."""

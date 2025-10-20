@@ -124,24 +124,16 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
             )
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, List]:
-        """
-        Transform shape statistics data into a series.
+        """Produce a one-dimensional series from class-object statistics.
 
-        Args:
-            data: DataFrame containing shape statistics
-            config: Configuration dictionary with:
-                - params.class_object: The class_object to extract from
-                - params.size_field: Configuration for size/class axis
-                - params.value_field: Configuration for value axis
+        The configuration must provide a ``class_object`` to extract along with the
+        field definitions that describe how to map input columns to output lists.
 
-        Returns:
-            Dictionary with size and value arrays
-
-        Example output:
-            {
-                "sizes": [10, 20, 30, 40, 50],  # Valeurs triées de class_name
-                "values": [15, 25, 35, 25, 15]  # Valeurs correspondantes de class_value
-            }
+        Returns
+        -------
+        dict
+            A dictionary containing the ordered axis values and their corresponding
+            measurements.
         """
         try:
             # Validate configuration

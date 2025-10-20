@@ -122,7 +122,7 @@ class DataProfiler:
 
     IDENTIFIER_PATTERNS = {
         "id": ["id", "identifier", "code"],
-        "reference": ["_ref", "_id", "_code", "_num"],
+        "reference": ["_id", "_code", "_num"],
     }
 
     def __init__(self, ml_detector: Optional[MLColumnDetector] = None):
@@ -194,7 +194,7 @@ class DataProfiler:
 
         try:
             if file_path.suffix.lower() == ".csv":
-                return pd.read_csv(file_str)
+                return pd.read_csv(file_str, low_memory=False)
             elif file_path.suffix.lower() in [".geojson", ".json"]:
                 if HAS_GEOPANDAS:
                     return gpd.read_file(file_str)

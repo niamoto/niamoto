@@ -135,36 +135,20 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
             )
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Transform shape statistics data into binary/ternary distributions.
+        """Aggregate class-object statistics into binary or ternary distributions.
 
-        Args:
-            data: DataFrame containing shape statistics in long format with columns:
-                - class_object: The type of data (e.g. cover_forest)
-                - class_name: The class name (e.g. Forêt, Hors-forêt)
-                - class_value: The value for this class
-            config: Configuration dictionary with:
-                - params.source: Source of the data
-                - params.groups: List of group configurations with:
-                    - label: Name of the distribution
-                    - field: Field name to match in class_object
-                    - classes: Optional list of class names (default: ["forest", "non_forest"])
-                    - class_mapping: Optional dict mapping input class names to output class names
+        Parameters
+        ----------
+        data:
+            Long-format DataFrame containing ``class_object``, ``class_name`` and
+            ``class_value`` columns.
+        config:
+            Raw configuration mapping produced by the transformer service.
 
-        Returns:
-            Dictionary with distributions for each group
-
-        Example output:
-            {
-                "emprise": {
-                    "forest": 0.34,
-                    "non_forest": 0.66
-                },
-                "um": {
-                    "forest": 0.23,
-                    "non_forest": 0.77
-                }
-            }
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Normalized values for each configured group.
         """
         try:
             # Validate configuration

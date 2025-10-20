@@ -114,29 +114,17 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
     def transform(
         self, data: pd.DataFrame, config: Dict[str, Any]
     ) -> Dict[str, Dict[str, List]]:
-        """
-        Transform shape statistics data into ratio distributions.
+        """Compute ratios between subset and total series stored as class objects.
 
-        Args:
-            data: DataFrame containing shape statistics in long format with columns:
-                - class_object: The type of data (e.g. land_elevation)
-                - class_name: The class name (e.g. elevation values)
-                - class_value: The value for this class
-            config: Configuration dictionary with:
-                - params.distributions: Mapping of distribution names to total/subset field pairs
-                - params.numeric_class_name: Whether to convert class names to numeric
+        The configuration describes the distributions to compare; each entry identifies
+        the ``class_object`` representing the total population and the subset to be
+        contrasted. Optionally the class names can be coerced to numeric values before
+        aggregation.
 
-        Returns:
-            Dictionary with distribution ratios for each configured distribution
-
-        Example output:
-            {
-                "elevation": {
-                    "classes": [0, 200, 400, 600, 800],
-                    "subset": [0.1, 0.2, 0.3, 0.2, 0.1],
-                    "complement": [0.1, 0.2, 0.3, 0.2, 0.1]
-                }
-            }
+        Returns
+        -------
+        dict
+            A mapping from distribution name to the combined series information.
         """
         try:
             # Validate configuration

@@ -655,7 +655,9 @@ class TestJsonApiExporterTransformers:
 
             # Verify plugin was loaded correctly
             mock_get.assert_called_once_with("test_transformer", PluginType.TRANSFORMER)
-            mock_transformer_class.assert_called_once_with(exporter.db)
+            mock_transformer_class.assert_called_once_with(
+                exporter.db, registry=exporter.registry
+            )
             mock_transformer.transform.assert_called_once()
 
             assert result == {"transformed": True}

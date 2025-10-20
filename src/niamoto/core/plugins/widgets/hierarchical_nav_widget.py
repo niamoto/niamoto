@@ -30,7 +30,7 @@ class HierarchicalNavWidgetParams(BasePluginParams):
             "description": "Interactive tree navigation widget for hierarchical data",
             "examples": [
                 {
-                    "referential_data": "taxon_ref",
+                    "referential_data": "taxons",
                     "id_field": "id",
                     "name_field": "full_name",
                     "lft_field": "lft",
@@ -46,7 +46,7 @@ class HierarchicalNavWidgetParams(BasePluginParams):
     # Data source configuration
     referential_data: str = Field(
         ...,
-        description="Identifier for the reference data source (e.g., 'taxon_ref', 'shape_ref')",
+        description="Identifier for the reference data source (e.g., 'taxons', 'shapes')",
         json_schema_extra={"ui:widget": "text"},
     )
 
@@ -152,8 +152,12 @@ class HierarchicalNavWidget(WidgetPlugin):
         )
 
         # Generate generic file and variable names based on referential_data
-        # Extract group name from referential_data (e.g., "taxon_ref" -> "taxon")
-        group_name = params.referential_data.replace("_ref", "")
+        # Derive base name from referential_data regardless of prefixes/suffixes
+        group_name = params.referential_data
+        if group_name.startswith("entity_"):
+            group_name = group_name[len("entity_") :]
+        if group_name.startswith("dataset_"):
+            group_name = group_name[len("dataset_") :]
 
         # Use generic naming convention
         js_file = f"{group_name}_navigation.js"
@@ -196,6 +200,13 @@ class HierarchicalNavWidget(WidgetPlugin):
         ''')
 
         # Prepare configuration for JavaScript (without data)
+        flat_mode = (
+            params.parent_id_field is None
+            and params.lft_field is None
+            and params.rght_field is None
+            and params.group_by_field is None
+        )
+
         js_config = {
             "containerId": container_id,
             "searchInputId": search_id,
@@ -209,6 +220,7 @@ class HierarchicalNavWidget(WidgetPlugin):
                 "levelField": params.level_field,
                 "groupByField": params.group_by_field,
                 "groupByLabelField": params.group_by_label_field,
+                "flatMode": flat_mode,
                 "baseUrl": base_url,
             },
             "currentItemId": params.current_item_id,

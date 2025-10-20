@@ -21,6 +21,7 @@ from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.models import ExportConfig
+from niamoto.core.imports.registry import EntityRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ class ExporterService:
 
         # Get registry instance (already populated by PluginLoader)
         self.plugin_registry = PluginRegistry()
+        self.entity_registry = EntityRegistry(self.db)
 
         logger.info("ExporterService initialized successfully.")
 
@@ -192,8 +194,10 @@ class ExporterService:
                         message=f"Exporter plugin '{target.exporter}' not found for target '{target.name}'.",
                     )
 
-                # Instantiate the plugin
-                exporter_instance = exporter_plugin_class(db=self.db)
+                # Instantiate the plugin with registry
+                exporter_instance = exporter_plugin_class(
+                    db=self.db, registry=self.entity_registry
+                )
 
                 # Execute the plugin's export method with validated config
                 exporter_instance.export(

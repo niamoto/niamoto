@@ -6,13 +6,16 @@ add instances to the database, and close sessions.
 """
 
 from typing import TypeVar, Any, Optional, List, Dict
+import warnings
 from sqlalchemy import create_engine, exc, text, inspect
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import scoped_session, sessionmaker, Session
 
 from niamoto.common.exceptions import (
     DatabaseError,
     DatabaseConnectionError,
     DatabaseQueryError,
+    DatabaseLockError,
     DatabaseWriteError,
     TransactionError,
 )
@@ -21,6 +24,18 @@ from niamoto.common.utils import error_handler
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Suppress DuckDB reflection warnings - we handle reflection checks manually
+# We skip index operations for DuckDB where needed, so this warning is expected
+warnings.filterwarnings(
+    "ignore",
+    message="duckdb-engine doesn't yet support reflection on indices",
+)
+# Also catch by module
+warnings.filterwarnings(
+    "ignore",
+    module="duckdb_engine",
+)
 
 T = TypeVar("T")
 
@@ -36,29 +51,85 @@ class Database:
         self,
         db_path: str,
         optimize: bool = True,
+        engine: Optional[Engine] = None,
+        read_only: bool = False,
     ) -> None:
         """
         Initialize the Database class with given parameters.
 
         Args:
             db_path (str): Path to the database file.
-            optimize (bool): Whether to apply SQLite optimizations. Defaults to True.
+            optimize (bool): Whether to apply engine-specific optimizations.
+            engine (Optional[Engine]): Optional pre-configured SQLAlchemy engine.
+            read_only (bool): If True, open database in read-only mode (DuckDB only).
+                This allows viewing the database when another process has a write lock.
         """
 
         try:
             self.db_path = db_path
-            self.connection_string = f"sqlite:///{db_path}"
-            self.engine = create_engine(self.connection_string, echo=False)
+            self.active_transaction = False
+            self.read_only = read_only
+
+            if engine is not None:
+                self.engine = engine
+                self.connection_string = str(getattr(engine, "url", "duckdb"))
+                logger.debug("Database initialized with external engine instance")
+            else:
+                # Detect backend from path and create SQLAlchemy engine
+                if db_path.startswith("sqlite://"):
+                    self.connection_string = db_path
+                    self.engine = create_engine(self.connection_string, echo=False)
+                elif db_path in {":memory:", "memory", "sqlite:///:memory:"}:
+                    self.connection_string = "sqlite:///:memory:"
+                    self.engine = create_engine(self.connection_string, echo=False)
+                elif db_path.endswith(".db") or db_path.endswith(".sqlite"):
+                    self.connection_string = f"sqlite:///{db_path}"
+                    self.engine = create_engine(self.connection_string, echo=False)
+                else:
+                    # For DuckDB, use connect_args to set access_mode
+                    self.connection_string = f"duckdb:///{db_path}"
+                    engine_kwargs: Dict[str, Any] = {"echo": False}
+                    if read_only:
+                        # Pass access_mode as connect_args for DuckDB
+                        engine_kwargs["connect_args"] = {"read_only": True}
+                        logger.info(f"Opening DuckDB in read-only mode: {db_path}")
+                    self.engine = create_engine(self.connection_string, **engine_kwargs)
+
+            connection_str = str(self.connection_string)
+            self.is_duckdb = connection_str.startswith("duckdb")
+            self.is_sqlite = connection_str.startswith("sqlite")
+
             self.session_factory = sessionmaker(bind=self.engine)
             self.session = scoped_session(self.session_factory)
-            self.active_transaction = False
 
-            # Apply SQLite optimizations for better performance
-            if optimize:
+            # Apply engine-specific optimizations
+            if optimize and self.is_sqlite:
                 self._apply_sqlite_optimizations()
                 self._create_missing_indexes()
+            if optimize and self.is_duckdb and not read_only:
+                self._initialize_duckdb()
 
         except exc.SQLAlchemyError as e:
+            error_msg = str(e)
+            # Detect DuckDB lock error and provide a clearer message
+            if (
+                "Could not set lock on file" in error_msg
+                and "Conflicting lock is held" in error_msg
+            ):
+                # Extract the application name from error message
+                import re
+
+                app_match = re.search(r"in ([^\(]+) \(PID", error_msg)
+                app_name = (
+                    app_match.group(1).strip() if app_match else "another application"
+                )
+
+                raise DatabaseLockError(
+                    message=f"Database is locked by {app_name}. Close it or use read-only mode: Database(db_path, read_only=True)",
+                    query="",
+                    details={"path": db_path},
+                )
+
             raise DatabaseConnectionError(
                 message="Failed to initialize database connection",
                 details={"path": db_path, "error": str(e)},
@@ -96,6 +167,28 @@ class Database:
             logger.warning(f"Failed to apply some SQLite optimizations: {e}")
             # Don't fail initialization if optimizations fail
 
+    def _initialize_duckdb(self) -> None:
+        """Load DuckDB extensions required by Niamoto (best effort)."""
+
+        try:
+            with self.engine.connect() as connection:
+                for command in ("INSTALL spatial", "LOAD spatial"):
+                    try:
+                        connection.execute(text(command))
+                    except exc.SQLAlchemyError as extension_error:
+                        logger.debug(
+                            "DuckDB extension command failed: %s (%s)",
+                            command,
+                            extension_error,
+                        )
+                connection.commit()
+        except exc.SQLAlchemyError as e:
+            # Check if it's a lock error - don't log it as warning in that case
+            if "Could not set lock on file" in str(e):
+                logger.debug("DuckDB initialization skipped (database locked)")
+            else:
+                logger.warning(f"DuckDB initialization warning: {e}")
+
     def _create_missing_indexes(self) -> None:
         """
         Automatically create indexes on foreign key columns that don't have them.
@@ -103,6 +196,9 @@ class Database:
         SQLite doesn't automatically create indexes on foreign keys,
         which can significantly slow down joins and lookups.
         """
+        if self.is_duckdb:
+            logger.debug("Skipping automatic index creation for DuckDB (not supported)")
+            return
         try:
             with self.engine.connect() as connection:
                 # Get all tables
@@ -151,7 +247,7 @@ class Database:
         Args:
             table_name: Name of the dynamically created table
             index_columns: List of columns to index. If None, will auto-detect:
-                - Columns ending with _id, _ref, _ref_id (likely foreign keys)
+                - Columns ending with _id (likely foreign keys)
                 - Common query columns (id, type, name, etc.)
 
         Example:
@@ -161,6 +257,13 @@ class Database:
             # After transform creates 'taxon_stats' table
             db.create_indexes_for_table('taxon_stats', ['taxon_id', 'year'])
         """
+        if self.is_duckdb:
+            logger.debug(
+                "Skipping create_indexes_for_table('%s') for DuckDB (index reflection unsupported)",
+                table_name,
+            )
+            return
+
         try:
             with self.engine.connect() as connection:
                 inspector = inspect(self.engine)
@@ -181,7 +284,7 @@ class Database:
                     index_columns = []
 
                     # Pattern 1: Foreign key-like columns
-                    fk_patterns = ["_id", "_ref", "_ref_id", "_fk"]
+                    fk_patterns = ["_id", "_fk"]
                     for col in all_columns:
                         if any(col.endswith(pattern) for pattern in fk_patterns):
                             index_columns.append(col)
@@ -357,8 +460,18 @@ class Database:
 
         Returns:
             Optional[Any]: The result of the query if successful, None otherwise.
+
+        Note:
+            For DuckDB, this method disposes of the connection pool before executing queries
+            to ensure we see the latest committed data. This is necessary because DuckDB
+            uses in-process connections that may cache database state.
         """
         try:
+            # For DuckDB, dispose of the pool to get fresh connections
+            # This ensures we see the latest data after imports/transforms
+            if self.is_duckdb:
+                self.engine.dispose()
+
             with self.engine.connect() as connection:
                 return connection.execute(text(sql))
         except exc.SQLAlchemyError as e:
@@ -368,7 +481,12 @@ class Database:
 
     @error_handler(log=True, raise_error=True)
     def execute_sql(
-        self, sql: str, params: Dict[str, Any] = None, fetch: bool = False
+        self,
+        sql: str,
+        params: Dict[str, Any] = None,
+        fetch: bool = False,
+        *,
+        fetch_all: bool = False,
     ) -> Optional[Any]:
         """
         Execute a raw SQL query using the database engine.
@@ -384,11 +502,48 @@ class Database:
         try:
             with self.engine.connect() as connection:
                 result = connection.execute(text(sql), params or {})
+
+                if fetch_all and fetch:
+                    raise DatabaseQueryError(
+                        query=sql,
+                        message="Invalid fetch parameters",
+                        details={"fetch": fetch, "fetch_all": fetch_all},
+                    )
+
+                if fetch_all:
+                    rows = result.fetchall()
+                    connection.commit()
+                    return rows
+
                 if fetch:
-                    return result.fetchone() if fetch else result.fetchall()
+                    row = result.fetchone()
+                    connection.commit()
+                    return row
+
                 connection.commit()
                 return result
         except exc.SQLAlchemyError as e:
+            error_msg = str(e)
+            # Detect DuckDB lock error and provide a clearer message
+            if (
+                "Could not set lock on file" in error_msg
+                and "Conflicting lock is held" in error_msg
+            ):
+                import re
+
+                app_match = re.search(r"in ([^\(]+) \(PID", error_msg)
+                app_name = (
+                    app_match.group(1).strip() if app_match else "another application"
+                )
+
+                raise DatabaseLockError(
+                    message=f"💾 Database is locked by {app_name}. Close it to perform write operations.",
+                    query=sql,
+                    details={
+                        "suggestion": "Close the other application or wait for it to finish."
+                    },
+                )
+
             raise DatabaseQueryError(
                 query=sql,
                 message="SQL execution failed",
@@ -488,29 +643,35 @@ class Database:
             )
 
     def get_table_columns(self, table_name: str) -> List[str]:
-        """Retrieves the list of column names for a given table."""
-        query = f"PRAGMA table_info({table_name});"
-        try:
-            with self.engine.connect() as connection:
-                result = connection.execute(text(query))
-                columns_info = result.fetchall()
-                # The column name is the second element (index 1) in each row returned by PRAGMA table_info
-                column_names = [row[1] for row in columns_info]
-                if not column_names:
-                    logger.warning(
-                        f"Could not retrieve columns for table '{table_name}', it might not exist or has no columns."
-                    )
-                return column_names
-        except exc.SQLAlchemyError as e:
-            logger.error(
-                f"Database error getting columns for table '{table_name}': {e}"
-            )
-            # Depending on desired strictness, could return empty list or re-raise
+        """Return column names for the given table."""
+
+        schema = self.get_table_schema(table_name)
+        if not schema:
+            logger.warning("Could not retrieve columns for table '%s'", table_name)
             return []
-        except Exception as e:  # Catch potential issues like table name injection, though PRAGMA is safer
-            logger.error(
-                f"Unexpected error getting columns for table '{table_name}': {e}"
-            )
+        return [column["name"] for column in schema]
+
+    def get_table_schema(self, table_name: str) -> List[Dict[str, Any]]:
+        """Return table schema as list of {name, type} dictionaries."""
+
+        try:
+            if self.is_duckdb:
+                query = (
+                    "SELECT column_name, data_type "
+                    "FROM information_schema.columns "
+                    "WHERE table_schema = current_schema() "
+                    "AND table_name = :table "
+                    "ORDER BY ordinal_position"
+                )
+                rows = self.execute_sql(query, {"table": table_name}, fetch_all=True)
+                return (
+                    [{"name": row[0], "type": row[1]} for row in rows] if rows else []
+                )
+
+            query = f"PRAGMA table_info('{table_name}')"
+            rows = self.execute_sql(query, fetch_all=True)
+            return [{"name": row[1], "type": row[2]} for row in rows] if rows else []
+        except DatabaseQueryError:
             return []
 
     def optimize_database(self) -> None:
@@ -558,34 +719,43 @@ class Database:
         try:
             with self.engine.connect() as connection:
                 # Database size
-                result = connection.execute(text("PRAGMA page_count"))
-                page_count = result.scalar()
+                if self.is_sqlite:
+                    result = connection.execute(text("PRAGMA page_count"))
+                    page_count = result.scalar()
 
-                result = connection.execute(text("PRAGMA page_size"))
-                page_size = result.scalar()
+                    result = connection.execute(text("PRAGMA page_size"))
+                    page_size = result.scalar()
 
-                stats["database_size_bytes"] = page_count * page_size
-                stats["database_size_mb"] = round(
-                    (page_count * page_size) / (1024 * 1024), 2
-                )
+                    stats["database_size_bytes"] = page_count * page_size
+                    stats["database_size_mb"] = round(
+                        (page_count * page_size) / (1024 * 1024), 2
+                    )
 
-                # Cache statistics
-                result = connection.execute(text("PRAGMA cache_size"))
-                stats["cache_size"] = result.scalar()
+                    # Cache statistics
+                    result = connection.execute(text("PRAGMA cache_size"))
+                    stats["cache_size"] = result.scalar()
 
-                # Journal mode
-                result = connection.execute(text("PRAGMA journal_mode"))
-                stats["journal_mode"] = result.scalar()
+                    # Journal mode
+                    result = connection.execute(text("PRAGMA journal_mode"))
+                    stats["journal_mode"] = result.scalar()
+                else:
+                    stats["database_size_bytes"] = None
+                    stats["database_size_mb"] = None
+                    stats["cache_size"] = None
+                    stats["journal_mode"] = None
 
                 # Number of tables
                 inspector = inspect(self.engine)
                 stats["table_count"] = len(inspector.get_table_names())
 
                 # Index count
-                index_count = 0
-                for table in inspector.get_table_names():
-                    index_count += len(inspector.get_indexes(table))
-                stats["index_count"] = index_count
+                if self.is_duckdb:
+                    stats["index_count"] = None
+                else:
+                    index_count = 0
+                    for table in inspector.get_table_names():
+                        index_count += len(inspector.get_indexes(table))
+                    stats["index_count"] = index_count
 
                 logger.debug(f"Database stats: {stats}")
 
@@ -650,6 +820,26 @@ class Database:
                 )
             return row
         except exc.SQLAlchemyError as e:
+            error_msg = str(e)
+            # Check for lock error
+            if (
+                "Could not set lock on file" in error_msg
+                and "Conflicting lock is held" in error_msg
+            ):
+                import re
+
+                app_match = re.search(r"in ([^\(]+) \(PID", error_msg)
+                app_name = (
+                    app_match.group(1).strip() if app_match else "another application"
+                )
+
+                raise DatabaseLockError(
+                    message=(
+                        "💾 Database is locked by {app}. Try read-only mode or close the other application."
+                    ).format(app=app_name),
+                    query=query,
+                )
+
             logger.error(
                 f"Database error executing fetch_one query '{query}' with params {params}: {e}"
             )

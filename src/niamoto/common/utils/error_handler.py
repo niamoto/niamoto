@@ -18,6 +18,7 @@ from niamoto.common.exceptions import (
     DataImportError,
     DatabaseWriteError,
     DatabaseQueryError,
+    DatabaseLockError,
     CommandError,
     ArgumentError,
     ProcessError,
@@ -146,18 +147,33 @@ def handle_error(
     else:
         error_message = str(error)
 
+    # Check if it's a database lock error (user-friendly handling)
+    is_lock_error = isinstance(error, DatabaseLockError)
+
     # Log error if requested
     if log:
-        # Only log full traceback for unexpected errors
-        if isinstance(error, NiamotoError):
-            logging.error("Error: %s", error_message)
+        if is_lock_error:
+            # Just log as info, it's a normal operational situation
+            logging.info("Database operation blocked: %s", error_message)
+        elif isinstance(error, NiamotoError):
+            # Known error types - avoid traceback noise unless debugging
+            if os.environ.get("NIAMOTO_DEBUG") == "1":
+                logging.error("Error: %s", error_message, exc_info=True)
+            else:
+                logging.error("Error: %s", error_message)
         else:
+            # Unexpected errors get full traceback
             logging.error("Unexpected error: %s", error_message, exc_info=True)
 
     # Console output if requested
     if console_output:
+        # Special handling for database lock errors (show only the friendly message)
+        if is_lock_error:
+            # Extract just the main message without technical details
+            main_message = error_message.split("Query:")[0].strip()
+            console.print(f"[yellow]⚠ {main_message}[/yellow]")
         # For DataTransformError, use a more contextual message
-        if isinstance(error, DataTransformError):
+        elif isinstance(error, DataTransformError):
             console.print(f"[yellow]⚠ {error_message}[/yellow]")
         else:
             console.print(f"[red]✗ {error_message}[/red]")

@@ -328,6 +328,10 @@ class InteractiveMapWidget(WidgetPlugin):
 
     def _process_geojson_or_topojson(self, data: dict) -> Optional[dict]:
         """Process GeoJSON or TopoJSON data for rendering."""
+        # Handle None or empty data silently
+        if not data or not isinstance(data, dict):
+            return None
+
         if data.get("type") == "Topology":
             try:
                 # Identify object name from TopoJSON
@@ -356,7 +360,8 @@ class InteractiveMapWidget(WidgetPlugin):
         elif data.get("type") == "FeatureCollection":
             return data
         else:
-            logger.warning(f"Unsupported data type: {data.get('type')}")
+            # Use debug level to avoid polluting output - this is expected for shapes without geometry
+            logger.debug(f"Unsupported or missing data type: {data.get('type')}")
         return None
 
     def _optimize_geojson_to_topojson(self, geojson_data: dict) -> Optional[dict]:

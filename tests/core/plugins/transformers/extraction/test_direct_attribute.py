@@ -153,24 +153,22 @@ class TestDirectAttribute:
 
     def test_get_field_from_table_success(self, direct_attribute, mock_db):
         """Test successful field retrieval from database table."""
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (42.5,)
-        mock_db.execute_select.return_value = mock_result
+        # Mock database response - fetch_one returns a dict-like object
+        mock_db.fetch_one.return_value = {"area": 42.5}
 
         result = direct_attribute._get_field_from_table("plots", "area", 1)
 
         assert result == 42.5
-        mock_db.execute_select.assert_called_once()
-        call_args = mock_db.execute_select.call_args[0][0]
-        assert "SELECT area FROM plots WHERE id = 1" in call_args
+        mock_db.fetch_one.assert_called_once()
+        # Check the call arguments - args[0] is query, args[1] is params dict
+        call_args = mock_db.fetch_one.call_args
+        assert "SELECT area FROM plots WHERE id = :id_value" in call_args.args[0]
+        assert call_args.args[1] == {"id_value": 1}
 
     def test_get_field_from_table_not_found(self, direct_attribute, mock_db):
         """Test field retrieval when record not found."""
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = None
-        mock_db.execute_select.return_value = mock_result
+        # Mock database response - fetch_one returns None when not found
+        mock_db.fetch_one.return_value = None
 
         result = direct_attribute._get_field_from_table("plots", "area", 999)
 
@@ -178,10 +176,8 @@ class TestDirectAttribute:
 
     def test_get_field_from_table_null_value(self, direct_attribute, mock_db):
         """Test field retrieval with NULL value."""
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (None,)
-        mock_db.execute_select.return_value = mock_result
+        # Mock database response - fetch_one returns dict with None value
+        mock_db.fetch_one.return_value = {"area": None}
 
         result = direct_attribute._get_field_from_table("plots", "area", 1)
 
@@ -189,121 +185,80 @@ class TestDirectAttribute:
 
     def test_get_field_from_table_error(self, direct_attribute, mock_db):
         """Test field retrieval with database error."""
-        mock_db.execute_select.side_effect = Exception("Database error")
+        mock_db.fetch_one.side_effect = Exception("Database error")
 
         with pytest.raises(DatabaseError) as exc_info:
             direct_attribute._get_field_from_table("plots", "area", 1)
 
         assert "Error getting field area from plots" in str(exc_info.value)
 
-    @patch("os.path.dirname")
-    @patch("pandas.read_csv")
-    def test_get_field_value_from_csv_import(
-        self, mock_read_csv, mock_dirname, direct_attribute
-    ):
-        """Test field retrieval from CSV import source."""
-        # Ensure imports_config has the correct structure
-        direct_attribute.imports_config = {
-            "occurrences": {
-                "type": "csv",
-                "path": "data/occurrences.csv",
-                "identifier": "id",
-            }
-        }
+    def test_get_field_value_from_csv_import(self, direct_attribute, mock_db):
+        """Test field retrieval from entity resolved via registry."""
+        # Mock registry to return entity info
+        from types import SimpleNamespace
 
-        # Mock path construction
-        mock_dirname.return_value = "/mock/base"
-
-        # Mock CSV data
-        mock_df = pd.DataFrame(
-            {
-                "id": [1, 2, 3],
-                "species": ["Species A", "Species B", "Species C"],
-                "count": [10, 20, 30],
-            }
+        direct_attribute.registry.get = Mock(
+            return_value=SimpleNamespace(table_name="dataset_occurrences")
         )
-        mock_read_csv.return_value = mock_df
+
+        # Mock database response
+        mock_db.fetch_one.return_value = {"species": "Species B"}
 
         result = direct_attribute._get_field_value("occurrences", "species", 2)
 
         assert result == "Species B"
-        mock_read_csv.assert_called_once()
+        direct_attribute.registry.get.assert_called_once_with("occurrences")
+        mock_db.fetch_one.assert_called_once()
 
-    @patch("os.path.dirname")
-    @patch("geopandas.read_file")
-    def test_get_field_value_from_vector_import(
-        self, mock_read_file, mock_dirname, direct_attribute
-    ):
-        """Test field retrieval from vector import source."""
-        # Ensure imports_config has the correct structure
-        direct_attribute.imports_config = {
-            "plots": {
-                "type": "vector",
-                "path": "data/plots.shp",
-                "identifier": "plot_id",
-            }
-        }
+    def test_get_field_value_from_vector_import(self, direct_attribute, mock_db):
+        """Test field retrieval from entity resolved via registry."""
+        # Mock registry to return entity info
+        from types import SimpleNamespace
 
-        # Mock path construction
-        mock_dirname.return_value = "/mock/base"
-
-        # Mock GeoDataFrame
-        mock_gdf = gpd.GeoDataFrame(
-            {
-                "plot_id": [1, 2, 3],
-                "name": ["Plot A", "Plot B", "Plot C"],
-                "area": [100.5, 200.0, 150.3],
-                "geometry": [Point(0, 0), Point(1, 1), Point(2, 2)],
-            }
+        direct_attribute.registry.get = Mock(
+            return_value=SimpleNamespace(table_name="entity_plots")
         )
-        mock_read_file.return_value = mock_gdf
+
+        # Mock database response
+        mock_db.fetch_one.return_value = {"area": 200.0}
 
         result = direct_attribute._get_field_value("plots", "area", 2)
 
         assert result == 200.0
-        mock_read_file.assert_called_once()
+        direct_attribute.registry.get.assert_called_once_with("plots")
+        mock_db.fetch_one.assert_called_once()
 
     def test_get_field_value_from_table(self, direct_attribute, mock_db):
-        """Test field retrieval from database table (not in imports)."""
-        # Remove the source from imports config
-        direct_attribute.imports_config = {}
+        """Test field retrieval from database table (not in registry)."""
+        # Mock registry returns None (entity not found)
+        direct_attribute.registry.get = Mock(return_value=None)
 
-        # Mock database response
-        mock_result = Mock()
-        mock_result.fetchone.return_value = ("Value from DB",)
-        mock_db.execute_select.return_value = mock_result
+        # Mock database response - uses source name as table name when not in registry
+        mock_db.fetch_one.return_value = {"field": "Value from DB"}
 
         result = direct_attribute._get_field_value("custom_table", "field", 1)
 
         assert result == "Value from DB"
+        direct_attribute.registry.get.assert_called_once_with("custom_table")
+        mock_db.fetch_one.assert_called_once()
 
-    @patch("os.path.dirname")
-    @patch("pandas.read_csv")
-    def test_get_field_value_not_found_in_import(
-        self, mock_read_csv, mock_dirname, direct_attribute
-    ):
-        """Test field retrieval when record not found in import."""
-        # Ensure imports_config has the correct structure
-        direct_attribute.imports_config = {
-            "occurrences": {
-                "type": "csv",
-                "path": "data/occurrences.csv",
-                "identifier": "id",
-            }
-        }
+    def test_get_field_value_not_found_in_import(self, direct_attribute, mock_db):
+        """Test field retrieval when record not found."""
+        # Mock registry to return entity info
+        from types import SimpleNamespace
 
-        # Mock path construction
-        mock_dirname.return_value = "/mock/base"
-
-        # Mock CSV data
-        mock_df = pd.DataFrame(
-            {"id": [1, 2, 3], "species": ["Species A", "Species B", "Species C"]}
+        direct_attribute.registry.get = Mock(
+            return_value=SimpleNamespace(table_name="dataset_occurrences")
         )
-        mock_read_csv.return_value = mock_df
+
+        # Mock database returns None (record not found)
+        mock_db.fetch_one.return_value = None
 
         result = direct_attribute._get_field_value("occurrences", "species", 999)
 
         assert result is None
+        direct_attribute.registry.get.assert_called_once_with("occurrences")
+        mock_db.fetch_one.assert_called_once()
 
     def test_get_field_value_unsupported_import_type(self, direct_attribute):
         """Test field retrieval with unsupported import type."""
@@ -526,40 +481,26 @@ class TestDirectAttribute:
         # Should remove trailing .0 for integer-like floats
         assert result["value"] == "42"
 
-    @patch("pandas.read_csv")
-    def test_file_path_construction(self, mock_read_csv, direct_attribute):
-        """Test correct file path construction for imports."""
-        # Ensure imports_config has the correct structure
-        direct_attribute.imports_config = {
-            "occurrences": {
-                "type": "csv",
-                "path": "data/occurrences.csv",
-                "identifier": "id",
-            }
-        }
+    def test_file_path_construction(self, direct_attribute, mock_db):
+        """Test field retrieval uses registry-resolved table names."""
+        # Mock registry to return entity info with specific table name
+        from types import SimpleNamespace
 
-        # Set up a mock config with config_dir
-        direct_attribute.config = Mock()
-        direct_attribute.config.config_dir = "/base/dir/config/niamoto.yml"
+        direct_attribute.registry.get = Mock(
+            return_value=SimpleNamespace(table_name="dataset_occurrences")
+        )
 
-        mock_df = pd.DataFrame({"id": [1], "species": ["Test Species"]})
-        mock_read_csv.return_value = mock_df
+        # Mock database response
+        mock_db.fetch_one.return_value = {"species": "Test Species"}
 
-        # Patch os.path at the module level
-        with patch(
-            "niamoto.core.plugins.transformers.extraction.direct_attribute.os.path.dirname"
-        ) as mock_dirname:
-            with patch(
-                "niamoto.core.plugins.transformers.extraction.direct_attribute.os.path.join"
-            ) as mock_join:
-                mock_dirname.return_value = "/base/dir/config"
-                mock_join.return_value = "/base/dir/config/data/occurrences.csv"
+        result = direct_attribute._get_field_value("occurrences", "species", 1)
 
-                result = direct_attribute._get_field_value("occurrences", "species", 1)
-
-        # Verify result
+        # Verify result and that registry was consulted
         assert result == "Test Species"
-        mock_read_csv.assert_called_once_with("/base/dir/config/data/occurrences.csv")
+        direct_attribute.registry.get.assert_called_once_with("occurrences")
+        # Verify the resolved table name was used in the query
+        call_args = mock_db.fetch_one.call_args
+        assert "dataset_occurrences" in call_args[0][0]
 
     def test_max_value_with_string_numeric(
         self, direct_attribute, sample_dataframe, mock_db

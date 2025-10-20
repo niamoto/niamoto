@@ -139,6 +139,7 @@ dependencies = [
     # scikit-learn - Machine learning library for Python
     # Documentation: https://scikit-learn.org/
     "scikit-learn>=1.7.2",
+    "duckdb-engine>=0.17.0",
 ]
 
 [project.urls]

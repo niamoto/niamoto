@@ -102,9 +102,7 @@ class TestStatsLoader(NiamotoTestCase):
             " ".join(query_string.split()), " ".join(expected_query.split())
         )
         self.assertEqual(kwargs["params"], {"group_id": group_id})
-        self.assertEqual(
-            args[1], self.mock_db.engine.connect().__enter__()
-        )  # Check connection used
+        self.assertEqual(args[1], self.mock_db.engine)  # Check engine used directly
 
     @patch("pandas.read_sql")
     def test_load_data_db_read_error(self, mock_read_sql):

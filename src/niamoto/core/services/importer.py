@@ -1,213 +1,375 @@
-"""
-Service for importing data into Niamoto.
-"""
+"""Generic import service using entity registry and typed configurations."""
+
+from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+import logging
 
-from niamoto.core.components.imports.occurrences import OccurrenceImporter
-from niamoto.core.components.imports.plots import PlotImporter
-from niamoto.core.components.imports.taxons import TaxonomyImporter
-from niamoto.core.components.imports.shapes import ShapeImporter
 from niamoto.common.database import Database
 from niamoto.common.utils import error_handler
 from niamoto.common.exceptions import (
     FileReadError,
     DataImportError,
     ValidationError,
+    DatabaseQueryError,
 )
+from niamoto.core.imports.engine import GenericImporter
+from niamoto.core.imports.registry import EntityRegistry, EntityKind
+from niamoto.core.imports.config_models import (
+    GenericImportConfig,
+    ReferenceEntityConfig,
+    DatasetEntityConfig,
+    ConnectorType,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class ImporterService:
-    """
-    Service providing methods to import taxonomy, occurrences, plots, and shapes data.
-    """
+    """Service for importing entities using the generic import engine and registry."""
 
-    def __init__(self, db_path: str):
-        """
-        Initialize the ImporterService.
+    def __init__(self, db_path: str) -> None:
+        """Initialize the import service.
 
         Args:
             db_path: Path to the database file
         """
         self.db = Database(db_path)
-        self.taxonomy_importer = TaxonomyImporter(self.db)
-        self.occurrence_importer = OccurrenceImporter(self.db)
-        self.plot_importer = PlotImporter(self.db)
-        self.shape_importer = ShapeImporter(self.db)
+        self.registry = EntityRegistry(self.db)
+        self.engine = GenericImporter(self.db, self.registry)
 
     @error_handler(log=True, raise_error=True)
-    def import_taxonomy(
+    def import_reference(
         self,
-        occurrences_file: str,
-        hierarchy_config: Dict[str, Any],
-        api_config: Optional[Dict[str, Any]] = None,
+        name: str,
+        config: ReferenceEntityConfig,
+        reset_table: bool = False,
     ) -> str:
-        """
-        Extract and import taxonomy data from occurrences.
+        """Import a reference entity from generic configuration.
 
         Args:
-            occurrences_file: Path to occurrences CSV file
-            hierarchy_config: Hierarchical configuration with levels
-            api_config: API configuration for enrichment
+            name: Entity name
+            config: Reference configuration
+            reset_table: If True, drop and recreate the table
 
         Returns:
-            Success message
+            Status message with row count
 
         Raises:
-            ValidationError: If parameters are invalid
-            FileReadError: If file cannot be read
-            DataImportError: If import operation fails
+            ValidationError: If configuration is invalid
+            FileReadError: If source file not found
+            DataImportError: If import fails
         """
-        # Validate input parameters
-        if not occurrences_file:
-            raise ValidationError("occurrences_file", "File path cannot be empty")
-        if not hierarchy_config:
-            raise ValidationError(
-                "hierarchy_config", "Hierarchy configuration cannot be empty"
-            )
+        if not name:
+            raise ValidationError("name", "Entity name cannot be empty")
 
-        # Validate file exists
-        occurrences_file = str(Path(occurrences_file).resolve())
-        if not Path(occurrences_file).exists():
+        # Build table name
+        table_name = f"entity_{name}"
+
+        # Determine entity kind
+        kind = EntityKind.REFERENCE
+        if config.kind == "hierarchical":
+            kind = EntityKind.REFERENCE
+        elif config.kind == "spatial":
+            kind = EntityKind.REFERENCE
+
+        # Reset table if requested
+        if reset_table and self.db.has_table(table_name):
+            self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+            logger.info(f"Dropped existing table: {table_name}")
+
+        try:
+            # Detect connector mode
+            if config.connector.type == ConnectorType.DERIVED:
+                # DERIVED MODE: Extract from source dataset
+                logger.info(
+                    f"Importing derived reference '{name}' from source '{config.connector.source}'"
+                )
+
+                # 1. Validate source exists
+                try:
+                    source_entity = self.registry.get(config.connector.source)
+                except DatabaseQueryError:
+                    raise ValidationError(
+                        "connector.source",
+                        f"Source entity '{config.connector.source}' not found. "
+                        f"Ensure datasets are imported before derived references.",
+                    )
+
+                if not source_entity:
+                    raise ValidationError(
+                        "connector.source",
+                        f"Source entity '{config.connector.source}' not found. "
+                        f"Ensure datasets are imported before derived references.",
+                    )
+
+                # 2. Import via hierarchy builder
+                result = self.engine.import_derived_reference(
+                    entity_name=name,
+                    table_name=table_name,
+                    source_table=source_entity.table_name,
+                    extraction_config=config.connector.extraction,
+                    hierarchy_config=config.hierarchy,
+                    kind=kind,
+                )
+
+                return f"Derived {result.rows} hierarchical records into {table_name} from {source_entity.table_name}"
+
+            elif config.connector.type == ConnectorType.FILE_MULTI_FEATURE:
+                # FILE_MULTI_FEATURE MODE: Import multiple spatial files as features
+                logger.info(
+                    f"Importing multi-feature reference '{name}' from {len(config.connector.sources)} sources"
+                )
+
+                # Import via multi-feature engine
+                result = self.engine.import_multi_feature(
+                    entity_name=name,
+                    table_name=table_name,
+                    sources=config.connector.sources,
+                    kind=kind,
+                    id_field=config.schema.id_field if config.schema else None,
+                )
+
+                return f"Imported {result.rows} features into {table_name} from {len(config.connector.sources)} source files"
+
+            else:
+                # DIRECT MODE: Import from file (existing logic)
+                # Validate connector configuration
+                if not config.connector or not config.connector.path:
+                    raise ValidationError(
+                        "connector.path", "Connector path must be specified"
+                    )
+
+                source_path = Path(config.connector.path).resolve()
+                if not source_path.exists():
+                    raise FileReadError(
+                        str(source_path),
+                        "Source file not found",
+                        details={"path": str(source_path)},
+                    )
+
+                # Import using generic engine
+                result = self.engine.import_from_csv(
+                    entity_name=name,
+                    table_name=table_name,
+                    source_path=str(source_path),
+                    kind=kind,
+                    id_field=config.schema.id_field if config.schema else None,
+                    extra_config={
+                        "hierarchy": config.hierarchy.model_dump()
+                        if config.hierarchy
+                        else None,
+                        "enrichment": [e.model_dump() for e in config.enrichment]
+                        if config.enrichment
+                        else [],
+                    },
+                )
+
+                return f"Imported {result.rows} records into {table_name} from {source_path.name}"
+
+        except Exception as exc:
+            if isinstance(exc, (ValidationError, FileReadError)):
+                raise
+            raise DataImportError(
+                f"Failed to import reference '{name}'",
+                details={"error": str(exc)},
+            ) from exc
+
+    @error_handler(log=True, raise_error=True)
+    def import_dataset(
+        self,
+        name: str,
+        config: DatasetEntityConfig,
+        reset_table: bool = False,
+    ) -> str:
+        """Import a dataset entity from generic configuration.
+
+        Args:
+            name: Entity name
+            config: Dataset configuration
+            reset_table: If True, drop and recreate the table
+
+        Returns:
+            Status message with row count
+
+        Raises:
+            ValidationError: If configuration is invalid
+            FileReadError: If source file not found
+            DataImportError: If import fails
+        """
+        if not name:
+            raise ValidationError("name", "Entity name cannot be empty")
+
+        # Validate connector configuration
+        if not config.connector or not config.connector.path:
+            raise ValidationError("connector.path", "Connector path must be specified")
+
+        source_path = Path(config.connector.path).resolve()
+        if not source_path.exists():
             raise FileReadError(
-                occurrences_file, "File not found", details={"path": occurrences_file}
+                str(source_path),
+                "Source file not found",
+                details={"path": str(source_path)},
             )
 
-        # Import the data
         try:
-            result = self.taxonomy_importer.import_taxonomy(
-                occurrences_file, hierarchy_config, api_config
-            )
-            return result
-        except Exception as e:
-            raise DataImportError(
-                f"Failed to extract and import taxonomy from occurrences: {str(e)}",
-                details={"file": occurrences_file, "error": str(e)},
-            ) from e
+            # Build table name
+            table_name = f"dataset_{name}"
 
-    @error_handler(log=True, raise_error=True)
-    def import_occurrences(
-        self, csvfile: str, taxon_id_column: str, location_column: str
-    ) -> str:
-        """
-        Import occurrences data.
+            # Reset table if requested
+            if reset_table and self.db.has_table(table_name):
+                self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+                logger.info(f"Dropped existing table: {table_name}")
+
+            # Import using generic engine
+            result = self.engine.import_from_csv(
+                entity_name=name,
+                table_name=table_name,
+                source_path=str(source_path),
+                kind=EntityKind.DATASET,
+                id_field=config.schema.id_field if config.schema else None,
+                extra_config={
+                    "links": [link.model_dump() for link in config.links]
+                    if config.links
+                    else [],
+                    "options": config.options.model_dump() if config.options else {},
+                },
+            )
+
+            return f"Imported {result.rows} records into {table_name} from {source_path.name}"
+
+        except Exception as exc:
+            raise DataImportError(
+                f"Failed to import dataset '{name}'",
+                details={"file": str(source_path), "error": str(exc)},
+            ) from exc
+
+    def _validate_dependencies(self, config: GenericImportConfig) -> None:
+        """Validate no circular dependencies in derived references.
 
         Args:
-            csvfile: Path to CSV file
-            taxon_id_column: Name of taxon ID column
-            location_column: Name of location column
-
-        Returns:
-            Success message
+            config: Import configuration to validate
 
         Raises:
-            ValidationError: If parameters are invalid
-            FileReadError: If file cannot be read
-            DataImportError: If import fails
+            ValidationError: If circular dependencies are detected
         """
-        if not csvfile:
-            raise ValidationError("csvfile", "CSV file path cannot be empty")
-        if not taxon_id_column:
-            raise ValidationError(
-                "taxon_id_column", "Taxon ID column must be specified"
-            )
-        if not location_column:
-            raise ValidationError(
-                "location_column", "Location column must be specified"
-            )
+        entities = config.entities
+        if not entities or not entities.references:
+            return
 
-        if not Path(csvfile).exists():
-            raise FileReadError(csvfile, "File not found")
+        references = entities.references
+        datasets = entities.datasets or {}
 
-        try:
-            return self.occurrence_importer.import_valid_occurrences(
-                csvfile, taxon_id_column, location_column
-            )
-        except Exception as e:
-            raise DataImportError(
-                "Failed to import occurrences", details={"error": str(e)}
-            ) from e
+        derived_deps: dict[str, str] = {}
+        for ref_name, ref_config in references.items():
+            if ref_config.connector.type != ConnectorType.DERIVED:
+                continue
+
+            source = ref_config.connector.source
+
+            # Ignore dependencies on datasets even if they share the same name
+            if source == ref_name and source in datasets:
+                continue
+
+            if (
+                source in references
+                and references[source].connector.type == ConnectorType.DERIVED
+            ):
+                derived_deps[ref_name] = source
+
+        # Check for cycles (simple DFS)
+        def has_cycle(node, visited, rec_stack):
+            visited.add(node)
+            rec_stack.add(node)
+
+            if node in derived_deps:
+                neighbor = derived_deps[node]
+                if neighbor not in visited:
+                    if has_cycle(neighbor, visited, rec_stack):
+                        return True
+                elif neighbor in rec_stack:
+                    return True
+
+            rec_stack.remove(node)
+            return False
+
+        visited = set()
+        for ref_name in derived_deps:
+            if ref_name not in visited:
+                if has_cycle(ref_name, visited, set()):
+                    raise ValidationError(
+                        "entities.references",
+                        f"Circular dependency detected involving '{ref_name}'",
+                    )
 
     @error_handler(log=True, raise_error=True)
-    def import_plots(
+    def import_all(
         self,
-        file_path: str,
-        plot_identifier: str,
-        location_field: str,
-        locality_field: str,
-        link_field: Optional[str] = None,
-        occurrence_link_field: Optional[str] = None,
-        hierarchy_config: Optional[Dict[str, Any]] = None,
+        generic_config: GenericImportConfig,
+        reset_table: bool = False,
     ) -> str:
-        """
-        Import plot data from GeoPackage or CSV.
+        """Import all entities from a generic import configuration.
+
+        This imports in 3 phases:
+        1. Datasets (sources for derived references)
+        2. Derived references (depend on datasets)
+        3. Direct references (no dependencies)
 
         Args:
-            file_path: Path to the file (GeoPackage or CSV)
-            plot_identifier: Plot identifier field
-            location_field: Location field name (containing geometry)
-            locality_field: Field for locality name (mandatory for CSV imports)
-            link_field: Field in plot_ref to use for linking with occurrences
-            occurrence_link_field: Field in occurrences to use for linking with plots
-            hierarchy_config: Configuration for hierarchical import (optional)
+            generic_config: Generic import configuration
+            reset_table: If True, drop and recreate all tables
 
         Returns:
-            Success message
+            Status message with import summary
 
         Raises:
-            ValidationError: If parameters are invalid
-            FileReadError: If file cannot be read
-            DataImportError: If import fails
+            ValidationError: If circular dependencies detected
+            DataImportError: If any import fails
         """
-        if not file_path:
-            raise ValidationError("file_path", "File path cannot be empty")
-        if not plot_identifier:
-            raise ValidationError(
-                "plot_identifier", "Plot identifier field must be specified"
-            )
+        # Validate dependencies first
+        self._validate_dependencies(generic_config)
 
-        if not Path(file_path).exists():
-            raise FileReadError(file_path, "File not found")
+        results = []
 
         try:
-            return self.plot_importer.import_plots(
-                file_path,
-                plot_identifier,
-                location_field,
-                locality_field=locality_field,
-                link_field=link_field,
-                occurrence_link_field=occurrence_link_field,
-                hierarchy_config=hierarchy_config,
-            )
-        except Exception as e:
+            # Phase 1: Import datasets (sources for derived references)
+            if generic_config.entities and generic_config.entities.datasets:
+                logger.info("Phase 1: Importing datasets...")
+                for ds_name, ds_config in generic_config.entities.datasets.items():
+                    result = self.import_dataset(ds_name, ds_config, reset_table)
+                    results.append(f"  [Dataset] {result}")
+
+            # Phase 2: Import derived references (depend on datasets)
+            if generic_config.entities and generic_config.entities.references:
+                logger.info("Phase 2: Importing derived references...")
+                derived_refs = {
+                    name: cfg
+                    for name, cfg in generic_config.entities.references.items()
+                    if cfg.connector.type == ConnectorType.DERIVED
+                }
+                for ref_name, ref_config in derived_refs.items():
+                    result = self.import_reference(ref_name, ref_config, reset_table)
+                    results.append(f"  [Derived Ref] {result}")
+
+            # Phase 3: Import direct references (no dependencies)
+            if generic_config.entities and generic_config.entities.references:
+                logger.info("Phase 3: Importing direct references...")
+                direct_refs = {
+                    name: cfg
+                    for name, cfg in generic_config.entities.references.items()
+                    if cfg.connector.type != ConnectorType.DERIVED
+                }
+                for ref_name, ref_config in direct_refs.items():
+                    result = self.import_reference(ref_name, ref_config, reset_table)
+                    results.append(f"  [Direct Ref] {result}")
+
+            summary = "\n".join(results) if results else "No entities imported"
+            return f"Import completed successfully:\n{summary}"
+
+        except Exception as exc:
+            if isinstance(exc, ValidationError):
+                raise
             raise DataImportError(
-                "Failed to import plots", details={"error": str(e)}
-            ) from e
-
-    @error_handler(log=True, raise_error=True)
-    def import_shapes(self, shapes_config: List[Dict[str, Any]]) -> str:
-        """
-        Import shape data.
-
-        Args:
-            shapes_config: List of shape configurations
-
-        Returns:
-            Success message
-
-        Raises:
-            ValidationError: If config is invalid
-            DataImportError: If import fails
-        """
-        if not shapes_config:
-            raise ValidationError(
-                "shapes_config", "Shapes configuration cannot be empty"
-            )
-
-        try:
-            return self.shape_importer.import_from_config(shapes_config)
-        except Exception as e:
-            raise DataImportError(
-                "Failed to import shapes", details={"error": str(e)}
-            ) from e
+                "Failed to import configuration",
+                details={"error": str(exc)},
+            ) from exc

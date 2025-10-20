@@ -91,9 +91,9 @@ class DwcArchiveExporterParams(BasePluginParams):
 class DwcArchiveExporter(ExporterPlugin):
     """Generates standard Darwin Core Archive files."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, registry=None):
         """Initialize the exporter with database connection."""
-        super().__init__(db)
+        super().__init__(db, registry)
         self.stats: Dict[str, Any] = {
             "start_time": None,
             "end_time": None,

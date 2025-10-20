@@ -47,9 +47,9 @@ class HtmlPageExporter(ExporterPlugin):
     # Define the parameter schema for this exporter
     param_schema = HtmlExporterParams
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, registry=None):
         """Initialize the exporter with database connection."""
-        super().__init__(db)
+        super().__init__(db, registry)
         self._navigation_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._navigation_js_generated: Set[str] = set()
 
@@ -794,7 +794,11 @@ class HtmlPageExporter(ExporterPlugin):
                                         else:
                                             params_dict = dict(validated_widget_params)
 
-                                        params_dict["current_item_id"] = item_id
+                                        params_dict["current_item_id"] = (
+                                            str(item_id)
+                                            if item_id is not None
+                                            else None
+                                        )
 
                                         # Re-validate with updated params
                                         try:
@@ -990,20 +994,29 @@ class HtmlPageExporter(ExporterPlugin):
             return False
 
     def _load_and_cache_navigation_data(
-        self, referential_data_source: str, required_fields: Optional[List[str]] = None
+        self,
+        referential_data_source: str,
+        required_fields: Optional[List[str]] = None,
+        preferred_order_fields: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Load and cache navigation reference data.
 
         Args:
-            referential_data_source: Name of the reference table (e.g., 'taxon_ref')
+            referential_data_source: Name of the reference table (e.g., 'taxons')
             required_fields: List of specific fields to select. If None, selects all fields.
+            preferred_order_fields: Optional list defining desired ORDER BY precedence.
 
         Returns:
             List of all items from the reference table
         """
         # Check cache first
-        cache_key = f"{referential_data_source}:{','.join(required_fields) if required_fields else '*'}"
+        order_key = ",".join(preferred_order_fields) if preferred_order_fields else ""
+        cache_key = (
+            f"{referential_data_source}:"
+            f"{','.join(required_fields) if required_fields else '*'}:"
+            f"{order_key}"
+        )
         if cache_key in self._navigation_cache:
             logger.debug(
                 f"Using cached navigation data for '{referential_data_source}'"
@@ -1025,7 +1038,22 @@ class HtmlPageExporter(ExporterPlugin):
                 # Escape field names to prevent SQL injection
                 escaped_fields = [f'"{field}"' for field in required_fields]
                 fields_str = ", ".join(escaped_fields)
-                query = f'SELECT {fields_str} FROM "{referential_data_source}" ORDER BY "id"'
+                # Determine deterministic ORDER BY clause prioritising nested-set structure
+                order_candidates: List[str] = []
+                if preferred_order_fields:
+                    for field in preferred_order_fields:
+                        if field in required_fields and field not in order_candidates:
+                            order_candidates.append(field)
+                if not order_candidates:
+                    if required_fields:
+                        order_candidates.append(required_fields[0])
+                    else:
+                        order_candidates.append("id")
+                order_clause = ", ".join(f'"{field}"' for field in order_candidates)
+                query = (
+                    f'SELECT {fields_str} FROM "{referential_data_source}" '
+                    f"ORDER BY {order_clause}"
+                )
             else:
                 query = f'SELECT * FROM "{referential_data_source}" ORDER BY "id"'
             results = self.db.fetch_all(query)
@@ -1033,7 +1061,8 @@ class HtmlPageExporter(ExporterPlugin):
             if results:
                 # Convert to list of dicts and cache
                 data_list = [dict(row) for row in results]
-                self._navigation_cache[referential_data_source] = data_list
+                # ✅ FIX: Use consistent cache_key for both storage and retrieval
+                self._navigation_cache[cache_key] = data_list
                 logger.debug(
                     f"Loaded {len(data_list)} items from '{referential_data_source}'"
                 )
@@ -1089,7 +1118,8 @@ class HtmlPageExporter(ExporterPlugin):
                 if "shape_type_field" in params:
                     required_fields.add(params["shape_type_field"])
                 # Also add shape_type if we're dealing with shapes
-                if params.get("referential_data") == "shape_ref":
+                ref_data = params.get("referential_data", "")
+                if ref_data in ("shape_ref", "shapes"):
                     required_fields.add("shape_type")
 
         # If no hierarchical widgets found, use default minimal set
@@ -1115,19 +1145,101 @@ class HtmlPageExporter(ExporterPlugin):
         if group_by_key in self._navigation_js_generated:
             return
 
-        # Get reference table name based on group
-        reference_table = f"{group_by_key}_ref"
+        # Use navigation_entity if specified, otherwise fall back to group_by
+        entity_name = group_config.navigation_entity or group_by_key
+
+        # Resolve the entity table via the registry when available
+        if self.registry:
+            try:
+                reference_table = self.registry.get(entity_name).table_name
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.debug(
+                    "Failed to resolve entity '%s' from registry (%s); falling back to conventional name",
+                    entity_name,
+                    exc,
+                )
+                reference_table = f"entity_{entity_name}"
+        else:
+            reference_table = f"entity_{entity_name}"
 
         # Extract required fields from hierarchical navigation widgets
         required_fields = self._extract_navigation_fields(group_config)
 
-        # Load navigation data with only required fields
+        # Check which fields actually exist in the table
+        try:
+            table_columns = self.db.get_table_columns(reference_table)
+            # Filter to only include fields that exist in the table
+            existing_fields = [f for f in required_fields if f in table_columns]
+
+            if not existing_fields:
+                logger.warning(
+                    f"None of the required fields {required_fields} exist in table {reference_table}"
+                )
+                id_candidates = [
+                    col for col in table_columns if col == "id" or col.endswith("_id")
+                ]
+                if id_candidates:
+                    existing_fields = [id_candidates[0]]
+                    logger.debug(
+                        "Using fallback identifier column '%s' for %s",
+                        existing_fields[0],
+                        reference_table,
+                    )
+                else:
+                    logger.error(
+                        "No suitable identifier column found in table %s; skipping navigation generation",
+                        reference_table,
+                    )
+                    return
+
+            logger.debug(f"Using fields {existing_fields} from table {reference_table}")
+        except Exception as e:
+            logger.error("Could not get columns for table %s: %s", reference_table, e)
+            logger.error("Cannot load navigation data without valid column information")
+            return
+
+        # Build ordering preference (nested set first, then adjacency fallbacks)
+        preferred_order_fields: List[str] = []
+        if "lft" in existing_fields:
+            preferred_order_fields.append("lft")
+            if "rght" in existing_fields:
+                preferred_order_fields.append("rght")
+            if "level" in existing_fields:
+                preferred_order_fields.append("level")
+        else:
+            if "level" in existing_fields:
+                preferred_order_fields.append("level")
+            if "parent_id" in existing_fields:
+                preferred_order_fields.append("parent_id")
+
+        if "id" in existing_fields:
+            preferred_order_fields.append("id")
+
+        # Load navigation data with only existing fields
         navigation_data = self._load_and_cache_navigation_data(
-            reference_table, required_fields
+            reference_table,
+            existing_fields,
+            preferred_order_fields,
         )
         if not navigation_data:
             logger.warning(f"No navigation data to generate JS for {group_by_key}")
             return
+
+        # Ensure identifier columns are serialised as strings to avoid float rounding in JS
+        id_like_fields = [
+            field
+            for field in existing_fields
+            if field == "id" or field.endswith("_id") or field == "parent_id"
+        ]
+        if id_like_fields:
+            for item in navigation_data:
+                for field in id_like_fields:
+                    value = item.get(field)
+                    if value is not None:
+                        try:
+                            item[field] = str(int(value))
+                        except (TypeError, ValueError):
+                            item[field] = str(value)
 
         try:
             # Create JS directory if it doesn't exist

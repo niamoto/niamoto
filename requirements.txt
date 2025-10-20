@@ -46,6 +46,10 @@ cligj==0.7.2
     # via
     #   fiona
     #   rasterio
+duckdb==1.4.1
+    # via duckdb-engine
+duckdb-engine==0.17.0
+    # via niamoto (pyproject.toml)
 fastapi==0.115.14
     # via niamoto (pyproject.toml)
 fiona==1.10.1
@@ -111,6 +115,7 @@ numpy==2.2.3
     #   topojson
 packaging==24.2
     # via
+    #   duckdb-engine
     #   geoalchemy2
     #   geopandas
     #   plotly
@@ -183,6 +188,7 @@ sqlalchemy==2.0.38
     # via
     #   niamoto (pyproject.toml)
     #   alembic
+    #   duckdb-engine
     #   geoalchemy2
 starlette==0.46.2
     # via fastapi

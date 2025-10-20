@@ -81,10 +81,10 @@ exports:
     groups:
 
       # ------------------------- Groupe: Taxon (Nouveau système d'index générique) -------------------------
-      - group_by: taxon
-        output_pattern: "taxon/{id}.html"
-        index_output_pattern: "taxon/index.html"
-        # page_template: "taxon/detail.html"
+      - group_by: taxons
+        output_pattern: "taxons/{id}.html"
+        index_output_pattern: "taxons/index.html"
+        # page_template: "taxons/detail.html"
         # Configuration du nouveau générateur d'index générique
         index_generator:
           enabled: true
@@ -221,7 +221,7 @@ exports:
             title: "Navigation taxonomique"
             data_source: ""  # Ignoré par ce widget
             params:
-              referential_data: "taxonomy"  # Table contenant la hiérarchie complète
+              referential_data: "taxons"  # Table contenant la hiérarchie complète
               id_field: "id"
               name_field: "full_name"
               # Méthode Nested Set (pour taxonomie)
@@ -229,7 +229,7 @@ exports:
               rght_field: "rght"
               level_field: "level"
               parent_id_field: "parent_id"  # Optionnel mais utile pour le JS
-              base_url: "{{ depth }}taxon/"  # URL relative avec placeholder
+              base_url: "{{ depth }}taxons/"  # URL relative avec placeholder
               show_search: true
 
           # --- Carte Interactive ---
@@ -555,11 +555,11 @@ exports:
 
 
       # ------------------------- Groupe: Plot (Plugins Spécialisés) -------------------------
-      - group_by: plot
-        #index_template: "plot/index.html"             # Template pour /exports/web/plot/index.html
-        #page_template: "plot/detail.html"            # Template pour /exports/web/plot/{id}.html
-        output_pattern: "plot/{id}.html"
-        index_output_pattern: "plot/index.html"
+      - group_by: plots
+        #index_template: "plots/index.html"             # Template pour /exports/web/plot/index.html
+        #page_template: "plots/detail.html"            # Template pour /exports/web/plot/{id}.html
+        output_pattern: "plots/{id}.html"
+        index_output_pattern: "plots/index.html"
 
         # Configuration du nouveau générateur d'index générique
         index_generator:
@@ -638,7 +638,7 @@ exports:
               name_field: "plot"
               # Liste simple avec parent_id null (tous au niveau racine)
               # Note: entity_plots n'a pas de colonnes hiérarchiques
-              base_url: "{{ depth }}plot/"
+              base_url: "{{ depth }}plots/"
               show_search: true
 
           # --- Info Panel ---
@@ -901,11 +901,11 @@ exports:
       # --------------------- Fin Groupe: Plot -------------------------
 
       # ------------------------- Groupe: Shape (Plugins Spécialisés) -------------------------
-      - group_by: shape
-        #index_template: "shape/index.html"            # Template pour /exports/web/shape/index.html
-        #page_template: "shape/detail.html"           # Template pour /exports/web/shape/{id}.html
-        output_pattern: "shape/{id}.html"
-        index_output_pattern: "shape/index.html"
+      - group_by: shapes
+        #index_template: "shapes/index.html"            # Template pour /exports/web/shape/index.html
+        #page_template: "shapes/detail.html"           # Template pour /exports/web/shape/{id}.html
+        output_pattern: "shapes/{id}.html"
+        index_output_pattern: "shapes/index.html"
 
         # Configuration du nouveau générateur d'index générique
         index_generator:
@@ -997,7 +997,7 @@ exports:
               lft_field: "lft"
               rght_field: "rght"
               level_field: "level"
-              base_url: "{{ depth }}shape/"
+              base_url: "{{ depth }}shapes/"
               show_search: true
 
           # --- Carte Interactive ---
@@ -1304,7 +1304,7 @@ exports:
     groups:
 
       # ------------------------- Groupe: Taxon -------------------------
-      - group_by: taxon
+      - group_by: taxons
         # (Optionnel) Spécifier la source de données si différente du nom du groupe
         # data_source: transformed_taxa_data
 
@@ -1362,7 +1362,7 @@ exports:
       # --------------------- Fin Groupe: Taxon ---------------------
 
       # ------------------------- Groupe: Plot (API JSON) -------------------------
-      - group_by: plot
+      - group_by: plots
         # (Optionnel) data_source: transformed_plots_data # Si nécessaire
 
         # --- Configuration pour les fichiers de détail (ex: plot/2.json) ---
@@ -1390,7 +1390,7 @@ exports:
       # --------------------- Fin Groupe: Plot -------------------------
 
       # ------------------------- Groupe: Shape (API JSON) -------------------------
-      - group_by: shape
+      - group_by: shapes
         # (Optionnel) data_source: transformed_shapes_data # Si nécessaire
 
         # Options JSON spécifiques aux shapes pour réduire la taille des fichiers
@@ -1443,13 +1443,13 @@ exports:
 
     groups:
       # --- Configuration DwC pour le groupe Taxon ---
-      - group_by: taxon
+      - group_by: taxons
         # Le plugin transformateur qui fera le mapping Niamoto -> DwC
         transformer_plugin: niamoto_to_dwc_occurrence
         # Configuration pour le fichier d'index (taxon_index.json)
         index:
           fields:
-            - id: taxon_id
+            - id: taxons_id
             - scientificName: "general_info.name.value"
             - taxonRank: "general_info.rank.value"
             - occurrences_count: "general_info.occurrences_count.value"
@@ -1461,12 +1461,13 @@ exports:
 
         # Paramètres pour le transformateur, notamment le mapping
         transformer_params:
+          # Entité logique et table d'occurrences à utiliser pour le mapping
+          occurrence_table: "occurrences"
+          taxonomy_entity: "taxons"
+          taxon_id_field: "taxons_id"
+          taxonomy_external_id_column: "taxons_id"
           # Clé dans les données du taxon contenant la liste des occurrences brutes
           occurrence_list_source: "occurrences"
-          # Configuration de la source de données pour les occurrences
-          occurrence_table: "dataset_occurrences"  # Table contenant les données d'occurrences
-          taxon_id_column: "id_taxonref"  # Colonne dans occurrence_table qui lie au taxon
-          taxon_id_field: "taxon_id"  # Champ dans les données taxon contenant l'ID
           # Mapping des champs Niamoto vers les termes Darwin Core Occurrence
           # @source fait référence aux données de chaque occurrence dans la base
           # @taxon fait référence aux données globales du taxon

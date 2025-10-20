@@ -9,7 +9,8 @@ import pandas as pd
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
-from niamoto.common.exceptions import DatabaseError
+from niamoto.common.exceptions import DatabaseError, DatabaseQueryError
+from niamoto.core.imports.registry import EntityRegistry
 
 
 class JoinTableParams(BasePluginParams):
@@ -21,7 +22,7 @@ class JoinTableParams(BasePluginParams):
             "examples": [
                 {
                     "data": "occurrences",
-                    "grouping": "plot_ref",
+                    "grouping": "plots",
                     "key": "id_plot",
                     "join_table": "custom_links",
                     "keys": {"source": "id_occurrence", "reference": "id_plot"},
@@ -93,6 +94,12 @@ class JoinTableLoader(LoaderPlugin):
 
     config_model = JoinTableConfig
 
+    def __init__(self, db, registry=None):
+        super().__init__(db, registry)
+        # Use registry from parent if provided, otherwise create new instance
+        if not self.registry:
+            self.registry = EntityRegistry(db)
+
     def validate_config(self, config: Dict[str, Any]) -> JoinTableConfig:
         """Validate plugin configuration."""
         # Extract params if they exist in the config
@@ -103,33 +110,35 @@ class JoinTableLoader(LoaderPlugin):
         return self.config_model(**config)
 
     def _check_table_exists(self, table_name: str) -> bool:
-        """Vérifie si une table existe dans la base de données."""
+        """Check if a table exists using database helpers."""
         try:
-            query = """
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name=:table_name
-            """
-            result = self.db.execute_sql(query, {"table_name": table_name}, fetch=True)
-            return bool(result)
+            if not self.db.has_table(table_name):
+                return False
+            columns = self.db.get_table_columns(table_name)
+            return len(columns) > 0
         except Exception as e:
             raise DatabaseError(f"Error checking table {table_name}: {str(e)}") from e
 
     def load_data(self, group_id: int, config: Dict[str, Any]) -> pd.DataFrame:
-        """Load data using a join table.
+        """Load data by traversing an intermediate join table.
 
-        Example config:
-        {
-            'params': {
-                'data': 'occurrences',  # Main table
-                'grouping': 'plot_ref',  # Field in main table for grouping
-                'key': 'id_plot',  # Key in reference table
-                'join_table': 'custom_links',  # Join table
-                'keys': {
-                    'source': 'id_occurrence',  # Key in join table linking to main table
-                    'reference': 'id_plot'  # Key in join table linking to reference
-                }
-            }
-        }
+        The configuration should specify the source table, the join table, and the
+        mapping of key fields that relate the join table to both the source and
+        reference tables.
+
+        Example
+        -------
+        .. code-block:: yaml
+
+            plugin: join_table
+            params:
+              data: occurrences
+              grouping: plots
+              key: id_plot
+              join_table: custom_links
+              keys:
+                source: id_occurrence
+                reference: id_plot
         """
 
         validated_config = self.validate_config(config)
@@ -139,19 +148,32 @@ class JoinTableLoader(LoaderPlugin):
         if not main_table:
             raise ValueError(f"No main table specified in config: {config}")
 
+        physical_main = self._resolve_table_name(main_table)
+        physical_join = self._resolve_table_name(params.join_table)
+
         # Vérifier l'existence des tables
-        if not self._check_table_exists(main_table):
-            raise DatabaseError(f"Main table '{main_table}' does not exist")
-        if not self._check_table_exists(params.join_table):
-            raise DatabaseError(f"Join table '{params.join_table}' does not exist")
+        if not self._check_table_exists(physical_main):
+            raise DatabaseError(f"Main table '{physical_main}' does not exist")
+        if not self._check_table_exists(physical_join):
+            raise DatabaseError(f"Join table '{physical_join}' does not exist")
 
         query = f"""
             SELECT m.*
-            FROM {main_table} m
-            JOIN {params.join_table} j
+            FROM {physical_main} m
+            JOIN {physical_join} j
               ON m.id = j.{params.keys["source"]}
             WHERE j.{params.keys["reference"]} = :id
         """
 
         with self.db.engine.connect() as conn:
             return pd.read_sql(query, conn, params={"id": group_id})
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        try:
+            metadata = self.registry.get(logical_name)
+            table_name = getattr(metadata, "table_name", None)
+            if not table_name:
+                return logical_name
+            return table_name
+        except DatabaseQueryError:
+            return logical_name

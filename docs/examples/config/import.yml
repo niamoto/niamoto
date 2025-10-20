@@ -2,7 +2,7 @@ version: "1.0"
 
 entities:
   # ========================================
-  # DATASETS: Data sources
+  # DATASETS: Sources de données
   # ========================================
   datasets:
     occurrences:
@@ -40,11 +40,11 @@ entities:
         geometry_field: geo_pt
 
   # ========================================
-  # REFERENCES: Hierarchical references
+  # REFERENCES: Références hiérarchiques
   # ========================================
   references:
-    # DERIVED: Taxonomy extracted from occurrences
-    taxonomy:
+    # DERIVED: Taxonomie extraite des occurrences
+    taxons:
       kind: hierarchical
       description: Taxonomic reference extracted from the occurrences dataset.
       connector:
@@ -63,12 +63,6 @@ entities:
           id_column: id_taxonref
           name_column: taxaname
           incomplete_rows: skip
-          # ID generation strategy:
-          # - hash (default): Stable IDs via MD5 hash (e.g., 2071543557)
-          #   → Same path always generates same ID (safe for reimports)
-          # - sequence: Sequential IDs (1, 2, 3...)
-          #   → WARNING: IDs change on reimport
-          # - external: Use IDs from source data (id_column)
           id_strategy: hash
 
       hierarchy:
@@ -117,7 +111,7 @@ entities:
               images: images
 
 
-    # DIRECT: Plots from CSV
+    # DIRECT: Plots depuis CSV
     plots:
       kind: hierarchical
       description: Plot and site reference catalogue used for spatial aggregation.

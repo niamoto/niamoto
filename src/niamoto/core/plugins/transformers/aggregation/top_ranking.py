@@ -3,7 +3,7 @@ Plugin for getting top N items from a dataset with support for hierarchical data
 """
 
 from typing import Dict, Any, List, Optional, Literal
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, model_validator
 
 import pandas as pd
 
@@ -45,15 +45,15 @@ class TopRankingParams(BasePluginParams):
             "examples": [
                 {
                     "source": "occurrences",
-                    "field": "taxon_ref_id",
+                    "field": "taxons_id",
                     "count": 10,
                     "mode": "hierarchical",
-                    "hierarchy_table": "taxon_ref",
+                    "hierarchy_table": "taxons",
                     "target_ranks": ["family", "genus"],
                 },
                 {
                     "source": "occurrences",
-                    "field": "plot_ref_id",
+                    "field": "plots_id",
                     "count": 5,
                     "mode": "direct",
                 },
@@ -95,8 +95,7 @@ class TopRankingParams(BasePluginParams):
         default=None,
         description="Hierarchy table name (required for hierarchical/join modes)",
         json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["taxon_ref", "plot_ref", "shape_ref"],
+            "ui:widget": "entity-select",
             "ui:condition": "mode !== 'direct'",
         },
     )
@@ -120,7 +119,10 @@ class TopRankingParams(BasePluginParams):
     join_table: Optional[str] = Field(
         default=None,
         description="Join table name (required for join mode)",
-        json_schema_extra={"ui:widget": "text", "ui:condition": "mode === 'join'"},
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            "ui:condition": "mode === 'join'",
+        },
     )
 
     join_columns: JoinColumns = Field(
@@ -146,6 +148,32 @@ class TopRankingParams(BasePluginParams):
         },
     )
 
+    @model_validator(mode="after")
+    def validate_aggregate_field_requirement(
+        cls, values: "TopRankingParams"
+    ) -> "TopRankingParams":
+        """Ensure aggregate_field is provided and valid when required."""
+
+        agg_func = values.aggregate_function
+        if agg_func in {"sum", "avg"}:
+            if not values.aggregate_field:
+                msg = "aggregate_field is required when aggregate_function is 'sum' or 'avg'"
+                raise ValueError(msg)
+
+            if not cls._is_safe_identifier(values.aggregate_field):
+                msg = "aggregate_field must be an alphanumeric column name (letters, numbers, underscore)"
+                raise ValueError(msg)
+
+        return values
+
+    @staticmethod
+    def _is_safe_identifier(identifier: str) -> bool:
+        """Check that an identifier is made of safe SQL characters."""
+
+        import re
+
+        return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", identifier))
+
     @field_validator("mode")
     @classmethod
     def validate_mode_requirements(cls, v: str, info) -> str:
@@ -155,15 +183,13 @@ class TopRankingParams(BasePluginParams):
     @field_validator("hierarchy_table")
     @classmethod
     def validate_hierarchy_table(cls, v: Optional[str], info) -> Optional[str]:
-        """Auto-set hierarchy table for common cases."""
-        if info.data.get("mode") == "hierarchical" and not v:
-            field = info.data.get("field")
-            if field == "taxon_ref_id":
-                return "taxon_ref"
-            elif field == "plot_ref_id":
-                return "plot_ref"
-            elif field == "shape_ref_id":
-                return "shape_ref"
+        """Validate hierarchy_table is provided for hierarchical/join modes."""
+        mode = info.data.get("mode")
+        if mode in ["hierarchical", "join"] and not v:
+            raise ValueError(
+                f"hierarchy_table is required when mode is '{mode}'. "
+                "Please specify the entity name (e.g., 'taxonomy', 'plots', 'shapes')"
+            )
         return v
 
 
@@ -179,6 +205,19 @@ class TopRanking(TransformerPlugin):
     """Plugin for getting top N items"""
 
     config_model = TopRankingConfig
+
+    def __init__(self, db, registry=None):
+        """Initialize with optional registry."""
+        super().__init__(db, registry)
+        # Use resolve_entity_table from parent Plugin class if registry available
+        # This replaces the old _resolve_table_name method
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical table name to actual table name via entity registry.
+
+        Uses the parent Plugin.resolve_entity_table() method for consistency.
+        """
+        return self.resolve_entity_table(logical_name)
 
     def validate_config(self, config: Dict[str, Any]) -> TopRankingConfig:
         """Validate configuration and return typed config."""
@@ -230,7 +269,76 @@ class TopRanking(TransformerPlugin):
         tops = top_items.index.tolist()
         counts = top_items.values.tolist()
 
+        # Enrich with names if hierarchy_table is provided
+        if params.hierarchy_table:
+            tops = self._enrich_with_names(tops, params)
+
         return {"tops": tops, "counts": counts}
+
+    def _enrich_with_names(self, ids: List, params: TopRankingParams) -> List[str]:
+        """Enrich IDs with names from hierarchy table."""
+        if not ids:
+            return []
+
+        try:
+            # Resolve table name
+            hierarchy_table = self._resolve_table_name(params.hierarchy_table)
+            cols = params.hierarchy_columns
+
+            # Get name column (default to "full_name" if not specified)
+            name_col = cols.name if cols and cols.name else "full_name"
+
+            # Build query to get names
+            ids_str = ",".join(str(int(id)) for id in ids)
+
+            # Determine which ID field to use for matching
+            # IMPORTANT: The IDs we receive are from the source data (e.g., id_taxonref)
+            # These correspond to taxon_id in entity_taxonomy, NOT to the hash-based id field
+            id_field = cols.id if (cols and cols.id) else "id"
+
+            # Use the specified id field from config, or default to "id"
+            query = f"""
+                SELECT {id_field}, {name_col}
+                FROM {hierarchy_table}
+                WHERE {id_field} IN ({ids_str})
+            """
+
+            # Force a fresh connection to see latest data
+            # Issue: SQLAlchemy might be using a stale transaction/snapshot
+            with self.db.engine.connect() as fresh_conn:
+                from sqlalchemy import text
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Enrichment query: {query}")
+                result = fresh_conn.execute(text(query))
+                rows = result.fetchall()
+
+            if not rows:
+                return [str(id) for id in ids]
+
+            # Build ID -> name mapping
+            id_to_name = {row[0]: row[1] for row in rows}
+
+            # Return names in same order as input IDs
+            # Handle type mismatch: pandas may return strings, dict has int keys
+            def safe_get_name(id_val):
+                try:
+                    # Convert to int for dict lookup if needed
+                    numeric_id = int(id_val) if isinstance(id_val, str) else id_val
+                    return id_to_name.get(numeric_id, str(id_val))
+                except (ValueError, TypeError):
+                    return str(id_val)
+
+            return [safe_get_name(id) for id in ids]
+
+        except Exception as e:
+            # Fallback to IDs if enrichment fails
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to enrich names for IDs {ids[:3]}...: {e}")
+            return [str(id) for id in ids]
 
     def _process_hierarchical_ranking(
         self, field_data: pd.Series, params: TopRankingParams
@@ -241,8 +349,8 @@ class TopRanking(TransformerPlugin):
         if not unique_ids:
             return {"tops": [], "counts": []}
 
-        # Get hierarchy configuration
-        hierarchy_table = params.hierarchy_table
+        # Get hierarchy configuration and resolve table name
+        hierarchy_table = self._resolve_table_name(params.hierarchy_table)
         cols = params.hierarchy_columns
         id_col = cols.id
         name_col = cols.name
@@ -286,15 +394,26 @@ class TopRanking(TransformerPlugin):
     def _process_join_ranking(
         self, field_data: pd.Series, params: TopRankingParams
     ) -> Dict[str, Any]:
-        """Process ranking with join table."""
+        """Process ranking with join table.
+
+        Supports both nested sets (lft/rght) and adjacency list (parent_id) models.
+        Auto-detects which model is available in the hierarchy table.
+        """
         # Get unique IDs
         unique_ids = set(field_data.dropna().unique())
         if not unique_ids:
             return {"tops": [], "counts": []}
 
-        # Get configuration
-        join_table = params.join_table
-        hierarchy_table = params.hierarchy_table
+        # Get configuration and resolve table names
+        join_table = (
+            self._resolve_table_name(params.join_table) if params.join_table else None
+        )
+        if join_table is None:
+            raise ValueError(
+                "join_table is required when mode is 'join'. "
+                "Please specify the entity to join against."
+            )
+        hierarchy_table = self._resolve_table_name(params.hierarchy_table)
         join_cols = params.join_columns
         hierarchy_cols = params.hierarchy_columns
 
@@ -304,29 +423,82 @@ class TopRanking(TransformerPlugin):
         hierarchy_id_col = hierarchy_cols.id
         hierarchy_name_col = hierarchy_cols.name
         hierarchy_rank_col = hierarchy_cols.rank
+        hierarchy_parent_col = hierarchy_cols.parent_id
         hierarchy_left_col = hierarchy_cols.left
         hierarchy_right_col = hierarchy_cols.right
 
         target_ranks = params.target_ranks
         aggregate_func = params.aggregate_function
+        aggregate_column = params.aggregate_field
+        metric_alias = "metric_value" if aggregate_column else None
 
         # Build query dynamically
         ids_str = ",".join(str(int(id)) for id in unique_ids)
 
-        query = f"""
-            SELECT h_target.{hierarchy_name_col}, {self._get_aggregate_sql(aggregate_func, join_table)}
-            FROM {join_table} j
-            JOIN {hierarchy_table} h_source ON j.{hierarchy_ref_col} = h_source.{hierarchy_id_col}
-            JOIN {hierarchy_table} h_target ON (
-                h_target.{hierarchy_left_col} <= h_source.{hierarchy_left_col}
-                AND h_target.{hierarchy_right_col} >= h_source.{hierarchy_right_col}
-                AND h_target.{hierarchy_rank_col} IN ({",".join([f"'{rank}'" for rank in target_ranks])})
+        # Check if hierarchy table uses nested sets or adjacency list
+        # Try to detect by checking if lft/rght columns exist
+        has_nested_sets = self._has_columns(
+            hierarchy_table, [hierarchy_left_col, hierarchy_right_col]
+        )
+
+        if has_nested_sets:
+            # Use nested sets query (legacy)
+            query = f"""
+                SELECT h_target.{hierarchy_name_col}, {self._get_aggregate_sql(aggregate_func, "j", aggregate_column)}
+                FROM {join_table} j
+                JOIN {hierarchy_table} h_source ON j.{hierarchy_ref_col} = h_source.{hierarchy_id_col}
+                JOIN {hierarchy_table} h_target ON (
+                    h_target.{hierarchy_left_col} <= h_source.{hierarchy_left_col}
+                    AND h_target.{hierarchy_right_col} >= h_source.{hierarchy_right_col}
+                    AND h_target.{hierarchy_rank_col} IN ({",".join([f"'{rank}'" for rank in target_ranks])})
+                )
+                WHERE j.{source_col} IN ({ids_str})
+                GROUP BY h_target.{hierarchy_name_col}
+                ORDER BY {self._get_aggregate_sql(aggregate_func, "j", aggregate_column)} DESC
+                LIMIT {params.count}
+            """
+        else:
+            # Use adjacency list query with recursive CTE
+            metric_base_select = (
+                f', j."{aggregate_column}" as {metric_alias}'
+                if aggregate_column
+                else ""
             )
-            WHERE j.{source_col} IN ({ids_str})
-            GROUP BY h_target.{hierarchy_name_col}
-            ORDER BY {self._get_aggregate_sql(aggregate_func, join_table)} DESC
-            LIMIT {params.count}
-        """
+            metric_recursive_select = f", hp.{metric_alias}" if aggregate_column else ""
+            query = f"""
+                WITH RECURSIVE hierarchy_path AS (
+                    -- Base case: source nodes
+                    SELECT
+                        h_source.{hierarchy_id_col} as source_id,
+                        h_source.{hierarchy_id_col} as current_id,
+                        h_source.{hierarchy_name_col} as current_name,
+                        h_source.{hierarchy_rank_col} as current_rank,
+                        h_source.{hierarchy_parent_col} as parent_id
+                        {metric_base_select}
+                    FROM {hierarchy_table} h_source
+                    JOIN {join_table} j ON j.{hierarchy_ref_col} = h_source.{hierarchy_id_col}
+                    WHERE j.{source_col} IN ({ids_str})
+
+                    UNION ALL
+
+                    -- Recursive case: traverse up to parents
+                    SELECT
+                        hp.source_id,
+                        h_parent.{hierarchy_id_col},
+                        h_parent.{hierarchy_name_col},
+                        h_parent.{hierarchy_rank_col},
+                        h_parent.{hierarchy_parent_col}
+                        {metric_recursive_select}
+                    FROM hierarchy_path hp
+                    JOIN {hierarchy_table} h_parent ON hp.parent_id = h_parent.{hierarchy_id_col}
+                )
+                SELECT current_name, {self._get_aggregate_sql(aggregate_func, "hierarchy_path", metric_alias)}
+                FROM hierarchy_path
+                WHERE current_rank IN ({",".join([f"'{rank}'" for rank in target_ranks])})
+                GROUP BY current_name
+                ORDER BY {self._get_aggregate_sql(aggregate_func, "hierarchy_path", metric_alias)} DESC
+                LIMIT {params.count}
+            """
 
         result = self.db.execute_select(query)
         if not result:
@@ -413,13 +585,44 @@ class TopRanking(TransformerPlugin):
 
         return hierarchy_dict
 
-    def _get_aggregate_sql(self, func: str, table: str) -> str:
+    def _get_aggregate_sql(
+        self,
+        func: str,
+        table_alias: str,
+        column: Optional[str] = None,
+    ) -> str:
         """Get SQL aggregate function string."""
         if func == "count":
             return "COUNT(*)"
-        elif func == "sum":
-            return f"SUM({table}.value)"
-        elif func == "avg":
-            return f"AVG({table}.value)"
-        else:
-            return "COUNT(*)"
+
+        if not column:
+            raise ValueError(
+                "aggregate_field must be provided when aggregate_function is 'sum' or 'avg'"
+            )
+
+        if func == "sum":
+            return f'SUM({table_alias}."{column}")'
+        if func == "avg":
+            return f'AVG({table_alias}."{column}")'
+        raise ValueError(f"Unsupported aggregate_function: {func}")
+
+    def _has_columns(self, table: str, columns: List[str]) -> bool:
+        """Check if table has all specified columns.
+
+        Args:
+            table: Table name to check
+            columns: List of column names to verify
+
+        Returns:
+            True if all columns exist, False otherwise
+        """
+        try:
+            # Try to get table columns
+            table_columns = self.db.get_table_columns(table)
+            if not table_columns:
+                return False
+
+            # Check if all required columns exist
+            return all(col in table_columns for col in columns)
+        except Exception:
+            return False

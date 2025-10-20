@@ -49,6 +49,7 @@ def mock_config():
 def test_invalid_group(runner):
     """Test validation of invalid group parameter."""
     with mock.patch("niamoto.cli.commands.transform.Config") as mock_config:
+        mock_config.return_value.database_path = "test.db"
         mock_config.return_value.get_transforms_config.side_effect = ConfigurationError(
             config_key="transforms",
             message="No configuration found for group: invalid_group",

@@ -14,6 +14,7 @@ from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.core.services.transformer import TransformerService
+from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.common.exceptions import (
     ConfigurationError,
     ValidationError,
@@ -96,16 +97,32 @@ class TestTransformerService:
     def transformer_service(self, mock_db, mock_config, mock_plugin_loader):
         """Create a TransformerService instance with mocked dependencies."""
         with patch("niamoto.core.services.transformer.Database") as mock_db_class:
-            mock_db_class.return_value = mock_db
-            service = TransformerService("mock_db_path", mock_config)
-            return service
+            with patch(
+                "niamoto.core.services.transformer.EntityRegistry"
+            ) as mock_registry:
+                mock_db_class.return_value = mock_db
+                registry_instance = Mock()
+                registry_instance.get.side_effect = DatabaseQueryError(
+                    query="registry_lookup", message="missing"
+                )
+                mock_registry.return_value = registry_instance
+                service = TransformerService("mock_db_path", mock_config)
+                return service
 
     def test_initialization(self, mock_db, mock_config, mock_plugin_loader):
         """Test TransformerService initialization."""
         with patch("niamoto.core.services.transformer.Database") as mock_db_class:
             mock_db_class.return_value = mock_db
 
-            service = TransformerService("mock_db_path", mock_config)
+            with patch(
+                "niamoto.core.services.transformer.EntityRegistry"
+            ) as mock_registry:
+                registry_instance = Mock()
+                registry_instance.get.side_effect = DatabaseQueryError(
+                    query="registry_lookup", message="missing"
+                )
+                mock_registry.return_value = registry_instance
+                service = TransformerService("mock_db_path", mock_config)
 
             assert service.db == mock_db
             assert service.config == mock_config
@@ -117,6 +134,7 @@ class TestTransformerService:
             mock_plugin_loader.load_project_plugins.assert_called_once_with(
                 "/mock/plugins"
             )
+            mock_registry.assert_called_once_with(mock_db)
 
     def test_filter_configs_no_group(self, transformer_service):
         """Test _filter_configs with no group specified."""
@@ -450,7 +468,7 @@ class TestTransformerService:
         # Second call should be CREATE TABLE
         create_call = mock_db.execute_sql.call_args_list[1][0][0]
         assert "CREATE TABLE IF NOT EXISTS plots" in create_call
-        assert "plots_id INTEGER PRIMARY KEY" in create_call
+        assert "plots_id BIGINT PRIMARY KEY" in create_call
         assert "species_count JSON" in create_call
         assert "diversity_index JSON" in create_call
 
@@ -574,7 +592,9 @@ class TestTransformerService:
         mock_transformer.transform.return_value = {"count": 5}
 
         with patch("niamoto.core.services.transformer.PluginRegistry") as mock_registry:
-            mock_registry.get_plugin.return_value = lambda db: mock_transformer
+            mock_registry.get_plugin.return_value = (
+                lambda db, registry=None: mock_transformer
+            )
 
             with patch.object(transformer_service, "_get_group_data") as mock_get_data:
                 mock_get_data.return_value = pd.DataFrame(
@@ -617,10 +637,14 @@ class TestTransformerService:
         mock_transformer.transform.return_value = {"count": 5}
 
         with patch("niamoto.core.services.transformer.PluginRegistry") as mock_registry:
-            mock_registry.get_plugin.return_value = lambda db: mock_transformer
+            mock_registry.get_plugin.return_value = (
+                lambda db, registry=None: mock_transformer
+            )
 
             with patch.object(transformer_service, "_get_group_data") as mock_get_data:
                 mock_get_data.return_value = pd.DataFrame({"id": [1], "species": ["A"]})
+
+                transformer_service.use_cli_integration = True
 
                 transformer_service.transform_data(group_by="plots")
 
@@ -643,7 +667,9 @@ class TestTransformerService:
         mock_transformer.transform.side_effect = Exception("Widget error")
 
         with patch("niamoto.core.services.transformer.PluginRegistry") as mock_registry:
-            mock_registry.get_plugin.return_value = lambda db: mock_transformer
+            mock_registry.get_plugin.return_value = (
+                lambda db, registry=None: mock_transformer
+            )
 
             with patch.object(transformer_service, "_get_group_data") as mock_get_data:
                 mock_get_data.return_value = pd.DataFrame({"id": [1], "species": ["A"]})
@@ -676,7 +702,9 @@ class TestTransformerService:
         mock_transformer.transform.return_value = {"count": 5}
 
         with patch("niamoto.core.services.transformer.PluginRegistry") as mock_registry:
-            mock_registry.get_plugin.return_value = lambda db: mock_transformer
+            mock_registry.get_plugin.return_value = (
+                lambda db, registry=None: mock_transformer
+            )
 
             with patch("pandas.read_csv") as mock_read_csv:
                 mock_read_csv.return_value = pd.DataFrame({"id": [1], "species": ["A"]})
@@ -799,18 +827,14 @@ class TestTransformerServiceIntegration:
         mock_ref_result.cursor.description = [("id",), ("name",)]
         mock_ref_result.fetchall.return_value = [(1, "plot1"), (2, "plot2")]
 
-        # Mock database responses
-        mock_db.execute_sql.side_effect = [
-            [(1,), (2,)],  # Group IDs
-            mock_ref_result,  # Reference table for group 1
-            mock_ref_result,  # Reference table for group 2
-            None,  # DROP TABLE
-            None,  # CREATE TABLE
-            None,  # INSERT for group 1 widget 1
-            None,  # INSERT for group 1 widget 2
-            None,  # INSERT for group 2 widget 1
-            None,  # INSERT for group 2 widget 2
-        ]
+        def execute_sql_side_effect(sql, params=None, fetch=False, fetch_all=False):
+            if "SELECT DISTINCT id" in sql:
+                return [(1,), (2,)]
+            if sql.strip().startswith("SELECT * FROM plot_ref"):
+                return mock_ref_result
+            return None
+
+        mock_db.execute_sql.side_effect = execute_sql_side_effect
 
         # Mock plugin registry
         with patch("niamoto.core.services.transformer.PluginRegistry") as mock_registry:
@@ -837,20 +861,29 @@ class TestTransformerServiceIntegration:
                 if name == "direct_reference":
                     return mock_loader_class
                 elif name == "count_transformer":
-                    return lambda db: mock_count_transformer
+                    return lambda db, registry=None: mock_count_transformer
                 elif name == "sum_transformer":
-                    return lambda db: mock_sum_transformer
+                    return lambda db, registry=None: mock_sum_transformer
 
             mock_registry.get_plugin.side_effect = get_plugin_side_effect
 
             with patch("niamoto.core.services.transformer.PluginLoader"):
                 with patch(
-                    "niamoto.core.services.transformer.Database"
-                ) as mock_db_class:
-                    mock_db_class.return_value = mock_db
+                    "niamoto.core.services.transformer.EntityRegistry"
+                ) as mock_registry_cls:
+                    registry_instance = Mock()
+                    registry_instance.get.side_effect = DatabaseQueryError(
+                        query="registry_lookup", message="missing"
+                    )
+                    mock_registry_cls.return_value = registry_instance
 
-                    service = TransformerService("test.db", real_config)
-                    result = service.transform_data(group_by="plots")
+                    with patch(
+                        "niamoto.core.services.transformer.Database"
+                    ) as mock_db_class:
+                        mock_db_class.return_value = mock_db
+
+                        service = TransformerService("test.db", real_config)
+                        result = service.transform_data(group_by="plots")
 
         # Verify results
         assert "plots" in result

@@ -84,24 +84,27 @@ class TestShapeProcessor(NiamotoTestCase):
             f"Test layer 2 file not created: {test_layer_2_path}"
         )
 
-        # Create test import.yml
+        # Create test import.yml with new schema format
         self.import_config = {
-            "layers": [
-                {
-                    "name": "test_layer",
-                    "type": "vector",
-                    "format": "geopackage",
-                    "path": test_layer_path,
-                    "description": "Test layer",
-                },
-                {
-                    "name": "test_layer_2",
-                    "type": "vector",
-                    "format": "geopackage",
-                    "path": test_layer_2_path,
-                    "description": "Test layer 2",
-                },
-            ]
+            "entities": {"references": {}, "datasets": {}},
+            "metadata": {
+                "layers": [
+                    {
+                        "name": "test_layer",
+                        "type": "vector",
+                        "format": "geopackage",
+                        "path": test_layer_path,
+                        "description": "Test layer",
+                    },
+                    {
+                        "name": "test_layer_2",
+                        "type": "vector",
+                        "format": "geopackage",
+                        "path": test_layer_2_path,
+                        "description": "Test layer 2",
+                    },
+                ]
+            },
         }
 
         # Write test import.yml
@@ -172,8 +175,33 @@ class TestShapeProcessor(NiamotoTestCase):
             },
         }
 
-        # Initialize processor with config
-        self.processor = ShapeProcessor(self.db, self.test_config)
+        # Mock the registry to return shape_ref entity
+        from types import SimpleNamespace
+        from unittest.mock import patch, Mock
+
+        # Create a mock registry BEFORE initializing processor
+        mock_registry = Mock()
+        mock_registry.get.return_value = SimpleNamespace(
+            table_name="shape_ref",
+            config={
+                "connector": {
+                    "type": "duckdb_csv",
+                    "path": "test.csv",
+                    "identifier": "id",
+                }
+            },
+        )
+
+        # Mock Config to prevent validation errors during processor initialization
+        with patch("niamoto.common.config.Config") as mock_config_class:
+            mock_cfg = Mock()
+            mock_cfg.get_imports_config = Mock()
+            mock_cfg.get_imports_config.model_dump.return_value = {}
+            mock_config_class.return_value = mock_cfg
+
+            # Initialize processor with registry and config (db, registry, config)
+            self.processor = ShapeProcessor(self.db, mock_registry, self.test_config)
+
         # Override the config_dir to use our test config directory
         self.processor.config_dir = self.temp_dir
         # Reload the imports config from our test config directory
@@ -187,7 +215,13 @@ class TestShapeProcessor(NiamotoTestCase):
         from unittest import mock
         import shutil
 
-        self.db.close_db_session()
+        if getattr(self, "db", None):
+            try:
+                self.db.close_db_session()
+            except Exception:
+                pass
+            if getattr(self.db, "engine", None):
+                self.db.engine.dispose()
 
         # Clean up test files if they exist
         try:
@@ -203,6 +237,8 @@ class TestShapeProcessor(NiamotoTestCase):
 
         # Stop all active patches to prevent MagicMock leaks
         mock.patch.stopall()
+
+        super().tearDown()
 
     def create_test_files(self):
         """Create test files needed for layer processing."""

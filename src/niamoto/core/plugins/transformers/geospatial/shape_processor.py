@@ -10,7 +10,6 @@ import geopandas as gpd
 from shapely.wkb import loads
 from shapely.geometry import mapping
 import topojson as tp
-import yaml
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
@@ -58,7 +57,7 @@ class ShapeProcessorParams(BasePluginParams):
             "description": "Process shapes with additional layers and convert to TopoJSON",
             "examples": [
                 {
-                    "source": "shape_ref",
+                    "source": "shapes",
                     "field": "location",
                     "format": "topojson",
                     "simplify": True,
@@ -71,7 +70,7 @@ class ShapeProcessorParams(BasePluginParams):
     )
 
     source: str = Field(
-        default="shape_ref",
+        default="shapes",
         description="Source table containing shape data",
         json_schema_extra={"ui:widget": "text"},
     )
@@ -117,27 +116,25 @@ class ShapeProcessor(TransformerPlugin):
 
     config_model = ShapeProcessorConfig
 
-    def __init__(self, db: Database, config: Dict[str, Any] = None):
+    def __init__(self, db: Database, registry=None, config: Dict[str, Any] = None):
         """Initialize the plugin with database connection and configuration."""
         try:
+            super().__init__(db, registry)
             self.db = db
 
             self.config_dir = os.getcwd()
 
-            possible_paths = [
-                os.path.join(self.config_dir, "config", "import.yml"),
-            ]
+            # Use Config to get imports configuration
+            try:
+                from niamoto.common.config import Config
 
-            import_config_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    import_config_path = path
-                    break
-
-            if import_config_path and os.path.exists(import_config_path):
-                with open(import_config_path, "r") as f:
-                    self.imports_config = yaml.safe_load(f)
-            else:
+                cfg = Config()
+                generic_imports = cfg.get_imports_config
+                # Convert GenericImportConfig to dict for backward compatibility with layers access
+                self.imports_config = (
+                    generic_imports.model_dump() if generic_imports else {}
+                )
+            except Exception:
                 self.imports_config = {}
 
             self.config = ShapeProcessorConfig(
@@ -157,10 +154,17 @@ class ShapeProcessor(TransformerPlugin):
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
-    def load_shape_geometry(self, wkb_str: str) -> gpd.GeoDataFrame:
-        """Load a geometry from a WKB hex string."""
+    def load_shape_geometry(self, geometry_str: str) -> gpd.GeoDataFrame:
+        """Load a geometry from a WKT string or WKB hex string."""
         try:
-            geometry = loads(bytes.fromhex(wkb_str))
+            from shapely import wkt
+
+            # Try WKT first (most common format from generic imports)
+            try:
+                geometry = wkt.loads(geometry_str)
+            except Exception:
+                # Fallback to WKB hex if WKT fails
+                geometry = loads(bytes.fromhex(geometry_str))
 
             if hasattr(self.config, "params"):
                 simplify = self.config.params.simplify
@@ -194,7 +198,15 @@ class ShapeProcessor(TransformerPlugin):
     def get_simplified_coordinates(self, geometry_location: str) -> Dict[str, Any]:
         """Get simplified coordinates for a geometry and convert to TopoJSON."""
         try:
-            geometry = loads(bytes.fromhex(geometry_location))
+            from shapely import wkt
+
+            # Try WKT first (most common format from generic imports)
+            try:
+                geometry = wkt.loads(geometry_location)
+            except Exception:
+                # Fallback to WKB hex if WKT fails
+                geometry = loads(bytes.fromhex(geometry_location))
+
             if hasattr(self.config, "params"):
                 simplify = self.config.params.simplify
             else:
@@ -379,12 +391,24 @@ class ShapeProcessor(TransformerPlugin):
         try:
             layer_import = None
 
-            if "layers" in self.imports_config:
+            # First check new format: metadata.layers
+            if (
+                "metadata" in self.imports_config
+                and "layers" in self.imports_config["metadata"]
+            ):
+                for layer in self.imports_config["metadata"]["layers"]:
+                    if layer.get("name") == layer_name:
+                        layer_import = layer
+                        break
+
+            # Fallback to old format: root-level layers
+            if not layer_import and "layers" in self.imports_config:
                 for layer in self.imports_config["layers"]:
                     if layer.get("name") == layer_name:
                         layer_import = layer
                         break
 
+            # Also check shapes for backward compatibility
             if not layer_import and "shapes" in self.imports_config:
                 for shape in self.imports_config["shapes"]:
                     if shape.get("category") == layer_name:
@@ -451,14 +475,27 @@ class ShapeProcessor(TransformerPlugin):
                         "No group_id provided in config and no 'id' column in data"
                     )
 
-            query = f"SELECT {field} FROM {source} WHERE id = {group_id}"
+            # Resolve table name via registry
+            resolved_source = self.resolve_entity_table(source)
 
-            result = self.db.execute_select(query)
-            if not result:
-                raise ValueError(f"No data found in {source} for id {group_id}")
+            # Ensure group_id is an integer for safe SQL interpolation
+            # (avoid SQL injection by converting to int first)
+            try:
+                safe_group_id = int(group_id)
+            except (ValueError, TypeError):
+                raise ValueError(f"Invalid group_id: {group_id} - must be an integer")
 
-            wkb_data = result.fetchone()[0]
+            # Use direct interpolation for id (safe because we validated it's an int)
+            # Note: Named parameters (:group_id) don't work reliably with SQLite in-memory in tests
+            query = f"SELECT {field} FROM {resolved_source} WHERE id = {safe_group_id}"
 
+            # Use fetch_one which properly handles connection lifecycle
+            row = self.db.fetch_one(query, {})
+            if not row or row.get(field) is None:
+                # Shape has no geometry (e.g., container/type rows in hierarchy)
+                return {}
+
+            wkb_data = row[field]
             shape_gdf = self.load_shape_geometry(str(wkb_data))
 
             layers_result = {}

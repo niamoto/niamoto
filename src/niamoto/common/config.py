@@ -3,6 +3,8 @@ import re
 from string import Template
 import yaml
 from typing import Any, Dict, Optional, List
+
+from niamoto.core.imports.config_models import GenericImportConfig
 from niamoto.common.exceptions import (
     ConfigurationError,
     FileReadError,
@@ -41,6 +43,7 @@ class Config:
             self.imports: Dict[str, Any] = {}
             self.transforms: Any = {}
             self.exports: Any = {}
+            self._generic_import_config: Optional[GenericImportConfig] = None
 
             self._load_files(create_default)
 
@@ -381,10 +384,10 @@ occurrences:
 # - group_by: taxon                    # Entity type: 'taxon', 'plot', or 'shape'
 #   source:
 #     data: occurrences                # Main data source table
-#     grouping: taxon_ref              # Reference table for grouping
+#     grouping: taxons                 # Reference table for grouping
 #     relation:                        # How to relate data to reference
 #       plugin: nested_set             # Plugin for hierarchical data
-#       key: taxon_ref_id              # Foreign key field
+#       key: taxons_id.                # Foreign key field
 #       fields:                        # Additional fields for hierarchy
 #         parent: parent_id
 #         left: lft
@@ -395,7 +398,7 @@ occurrences:
 #       plugin: field_aggregator       # Plugin to aggregate fields
 #       params:
 #         fields:
-#           - source: taxon_ref        # Source table
+#           - source: taxons           # Source table
 #             field: full_name         # Source field
 #             target: name             # Output field name
 #           - source: occurrences
@@ -414,7 +417,7 @@ occurrences:
 # - group_by: plot
 #   source:
 #     data: plot_stats                 # Pre-calculated statistics
-#     grouping: plot_ref
+#     grouping: plots                  # Reference table
 #     relation:
 #       plugin: stats_loader           # Load pre-calculated stats
 #       key: plot_id
@@ -641,12 +644,15 @@ exports:
 
     @property
     @error_handler(log=True, raise_error=True)
-    def get_imports_config(self) -> Dict[str, Any]:
+    def get_imports_config(self) -> GenericImportConfig:
         """
-        Get the data sources from import.yml.
-        Returns:
-            Dict[str, Any]: data sources
+        Get the generic import configuration from import.yml.
 
+        Returns:
+            GenericImportConfig: Typed import configuration with entities.references and entities.datasets
+
+        Raises:
+            ConfigurationError: If import.yml is missing or doesn't follow the entities schema
         """
         if not self.imports:
             raise ConfigurationError(
@@ -654,7 +660,27 @@ exports:
                 message="No import sources configured",
                 details={"imports_file": "import.yml"},
             )
-        return self.imports
+
+        # Return typed GenericImportConfig only
+        if self._generic_import_config is not None:
+            return self._generic_import_config
+
+        if isinstance(self.imports, GenericImportConfig):
+            self._generic_import_config = self.imports
+            return self._generic_import_config
+
+        if isinstance(self.imports, dict) and "entities" in self.imports:
+            self._generic_import_config = GenericImportConfig.from_dict(self.imports)
+            return self._generic_import_config
+
+        raise ConfigurationError(
+            config_key="imports",
+            message="Invalid import configuration - must use entities.references/datasets schema",
+            details={
+                "current_type": type(self.imports).__name__,
+                "required_schema": "entities: { references: {...}, datasets: {...} }",
+            },
+        )
 
     @error_handler(log=True, raise_error=True)
     def get_transforms_config(self) -> List[Dict[str, Any]]:
