@@ -171,12 +171,12 @@ Finaliser la migration vers le système d'import générique en:
 - [x] multi_column_extractor.py
 - [x] geospatial_extractor.py
 
-**Transformers - Class Objects**: 0/5 → 5/5
-- [ ] categories_extractor.py 🔴
-- [ ] series_extractor.py 🔴
-- [ ] binary_aggregator.py 🔴
-- [ ] series_ratio_aggregator.py 🔴
-- [ ] field_aggregator.py (class_objects) 🔴
+**Transformers - Class Objects**: 5/5 ✅
+- [x] categories_extractor.py ✅ (2025-01-20)
+- [x] series_extractor.py ✅ (2025-01-20)
+- [x] binary_aggregator.py ✅ (2025-01-20)
+- [x] series_ratio_aggregator.py ✅ (2025-01-20)
+- [x] field_aggregator.py (class_objects) ✅ (2025-01-20)
 
 **Transformers - Distribution**: 0/3 → 3/3
 - [ ] categorical_distribution.py 🔴
@@ -188,7 +188,7 @@ Finaliser la migration vers le système d'import générique en:
 - [ ] shape_processor.py
 - [ ] Autres (formats, geospatial)
 
-**Total Critique**: **7/27 (26%)** → **27/27 (100%)**
+**Total Critique**: **12/27 (44%)** → **27/27 (100%)**
 
 ---
 

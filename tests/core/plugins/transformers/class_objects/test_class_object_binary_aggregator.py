@@ -4,10 +4,12 @@ Tests for the ClassObjectBinaryAggregator plugin.
 
 import pytest
 import pandas as pd
+from unittest.mock import Mock
 
 from niamoto.core.plugins.transformers.class_objects.binary_aggregator import (
     ClassObjectBinaryAggregator,
 )
+from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -55,12 +57,19 @@ def mock_db():
     return MockDb()
 
 
+# Plugin fixture with mocked registry
+@pytest.fixture
+def plugin(mock_db):
+    """Create plugin with mocked registry for legacy tests."""
+    mock_registry = Mock(spec=EntityRegistry)
+    return ClassObjectBinaryAggregator(mock_db, registry=mock_registry)
+
+
 # == Test Cases ==
 
 
-def test_single_group_aggregation(mock_db, sample_data):
+def test_single_group_aggregation(plugin, sample_data):
     """Test aggregation for a single group with default mapping."""
-    plugin = ClassObjectBinaryAggregator(mock_db)
     config = {
         "plugin": "class_object_binary_aggregator",
         "params": {
@@ -84,9 +93,9 @@ def test_single_group_aggregation(mock_db, sample_data):
     assert dist["Hors-forêt"] == 700
 
 
-def test_multiple_groups_aggregation(mock_db, sample_data):
+def test_multiple_groups_aggregation(plugin, sample_data):
     """Test aggregation with multiple groups."""
-    plugin = ClassObjectBinaryAggregator(mock_db)
+
     config = {
         "plugin": "class_object_binary_aggregator",
         "params": {
@@ -118,9 +127,9 @@ def test_multiple_groups_aggregation(mock_db, sample_data):
     assert dist2["Non-Bâti"] == 850
 
 
-def test_custom_class_mapping(mock_db, sample_data):
+def test_custom_class_mapping(plugin, sample_data):
     """Test aggregation with a custom class mapping."""
-    plugin = ClassObjectBinaryAggregator(mock_db)
+
     config = {
         "plugin": "class_object_binary_aggregator",
         "params": {
@@ -150,9 +159,9 @@ def test_custom_class_mapping(mock_db, sample_data):
     assert dist["Naturel"] == 500
 
 
-def test_error_missing_field_data(mock_db, sample_data):
+def test_error_missing_field_data(plugin, sample_data):
     """Test error when data for a specified field is missing."""
-    plugin = ClassObjectBinaryAggregator(mock_db)
+
     config = {
         "plugin": "class_object_binary_aggregator",
         "params": {
@@ -171,9 +180,8 @@ def test_error_missing_field_data(mock_db, sample_data):
     assert "No data found for class_object non_existent_field" in str(exc_info.value)
 
 
-def test_error_missing_class_in_data(mock_db, sample_data):
+def test_error_missing_class_in_data(plugin, sample_data):
     """Test error when a class in data is missing from the class_mapping."""
-    plugin = ClassObjectBinaryAggregator(mock_db)
 
     # --- Test Case: Data class is missing from the mapping ---
     config_missing_mapping = {
@@ -199,9 +207,9 @@ def test_error_missing_class_in_data(mock_db, sample_data):
     )
 
 
-def test_error_invalid_config(mock_db):
+def test_error_invalid_config(plugin):
     """Test error during validation for invalid configuration."""
-    plugin = ClassObjectBinaryAggregator(mock_db)
+
     config_missing_source = {
         "plugin": "class_object_binary_aggregator",
         "params": {  # Missing source

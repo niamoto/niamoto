@@ -1,18 +1,22 @@
 import pytest
 import pandas as pd
 import numpy as np
+from unittest.mock import Mock
 
 from niamoto.core.plugins.transformers.class_objects.series_ratio_aggregator import (
     ClassObjectSeriesRatioAggregator,
 )
+from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
 
 
 @pytest.fixture
 def aggregator():
     """Provides an instance of the ClassObjectSeriesRatioAggregator."""
-    # The base Plugin class requires a 'db' argument, provide None for this unit test.
-    return ClassObjectSeriesRatioAggregator(db=None)
+    # Use mocked registry for tests
+    mock_db = Mock()
+    mock_registry = Mock(spec=EntityRegistry)
+    return ClassObjectSeriesRatioAggregator(db=mock_db, registry=mock_registry)
 
 
 @pytest.fixture
