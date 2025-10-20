@@ -14,6 +14,7 @@ from niamoto.core.plugins.base import (
     PluginType,
     register,
 )
+from niamoto.core.imports.registry import EntityRegistry
 
 
 class BinnedDistributionParams(BasePluginParams):
@@ -124,6 +125,33 @@ class BinnedDistribution(TransformerPlugin):
     """Plugin for creating binned distributions"""
 
     config_model = BinnedDistributionConfig
+
+    def __init__(self, db, registry=None):
+        """Initialize with database and optional EntityRegistry.
+
+        Args:
+            db: Database instance
+            registry: EntityRegistry instance (created if not provided)
+        """
+        super().__init__(db)
+        self.registry = registry or EntityRegistry(db)
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via EntityRegistry.
+
+        Args:
+            logical_name: Entity name from config (e.g., "occurrences", "plots")
+
+        Returns:
+            Physical table name (e.g., "entity_occurrences", "entity_plots")
+            Falls back to logical_name if not found in registry (backward compatibility)
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            return metadata.table_name
+        except Exception:
+            # Fallback: assume it's already a physical table name
+            return logical_name
 
     def validate_config(self, config: Dict[str, Any]) -> None:
         """Validate configuration."""

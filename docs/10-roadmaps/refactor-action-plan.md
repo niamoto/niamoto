@@ -178,17 +178,17 @@ Finaliser la migration vers le système d'import générique en:
 - [x] series_ratio_aggregator.py ✅ (2025-01-20)
 - [x] field_aggregator.py (class_objects) ✅ (2025-01-20)
 
-**Transformers - Distribution**: 0/3 → 3/3
-- [ ] categorical_distribution.py 🔴
-- [ ] binned_distribution.py 🔴
-- [ ] time_series_analysis.py 🔴
+**Transformers - Distribution**: 3/3 ✅
+- [x] categorical_distribution.py ✅ (2025-01-20)
+- [x] binned_distribution.py ✅ (2025-01-20)
+- [x] time_series_analysis.py ✅ (2025-01-20)
 
 **Transformers - Autres**: 0/4+ → 4+/4+
 - [ ] niamoto_to_dwc_occurrence.py
 - [ ] shape_processor.py
 - [ ] Autres (formats, geospatial)
 
-**Total Critique**: **12/27 (44%)** → **27/27 (100%)**
+**Total Critique**: **15/27 (56%)** → **27/27 (100%)**
 
 ---
 
