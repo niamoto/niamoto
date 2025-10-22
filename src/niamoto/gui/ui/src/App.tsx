@@ -1,7 +1,6 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
-import { ImportPage } from '@/pages/import'
 import { TransformPage } from '@/pages/transform'
 import { ExportPage } from '@/pages/export'
 import { VisualizePage } from '@/pages/visualize'
@@ -24,6 +23,7 @@ const PipelineVisualDemo = lazy(() => import('@/pages/demos/PipelineVisualDemo')
 const WizardFormDemo = lazy(() => import('@/pages/demos/WizardFormDemo').then(m => ({ default: m.WizardFormDemo })))
 const GoalDrivenPageBuilder = lazy(() => import('@/pages/demos/GoalDrivenPageBuilder'))
 const Showcase = lazy(() => import('@/pages/showcase'))
+const EntityConfigPage = lazy(() => import('@/pages/entity-config').then(m => ({ default: m.EntityConfigPage })))
 
 function App() {
   const { data: projectInfo } = useProjectInfo()
@@ -48,7 +48,11 @@ function App() {
                 <Bootstrap />
               </Suspense>
             } />
-            <Route path="setup/import" element={<ImportPage />} />
+            <Route path="setup/import" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <EntityConfigPage />
+              </Suspense>
+            } />
             <Route path="setup/transform" element={<TransformPage />} />
             <Route path="setup/export" element={<ExportPage />} />
             <Route path="setup/visualize" element={<VisualizePage />} />

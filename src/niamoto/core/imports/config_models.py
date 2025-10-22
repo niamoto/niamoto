@@ -190,17 +190,25 @@ class EnrichmentConfig(BaseModel):
 class EntitySchema(BaseModel):
     """Schema definition shared by references and datasets."""
 
-    id_field: str = Field(alias="id")
+    id_field: str = Field(default="id", alias="id")
     fields: List[FieldConfig] = Field(default_factory=list)
     extras: Dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
     def support_id_aliases(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        if "id_field" not in values and "id" in values:
-            values["id_field"] = values["id"]
-        if "id" not in values and "id_field" in values:
+        # Handle both 'id' and 'id_field' aliases
+        # Priority: id_field > id > default "id"
+        if "id_field" in values:
+            # Explicit id_field takes priority, sync to id alias
             values["id"] = values["id_field"]
+        elif "id" in values:
+            # Use id alias, sync to id_field
+            values["id_field"] = values["id"]
+        else:
+            # Neither provided, use default "id"
+            values["id_field"] = "id"
+            values["id"] = "id"
         return values
 
 
@@ -225,14 +233,18 @@ class BaseEntityConfig(BaseModel):
     """Common attributes shared by reference/dataset entities."""
 
     connector: ConnectorConfig
-    entity_schema: EntitySchema = Field(alias="schema")
+    entity_schema: Optional[EntitySchema] = Field(default=None, alias="schema")
     description: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
 
     @property
     def schema(self) -> EntitySchema:
-        """Expose schema attribute for backward compatibility."""
+        """Expose schema attribute for backward compatibility.
 
+        Returns an empty EntitySchema if none is provided (with default id_field="id").
+        """
+        if self.entity_schema is None:
+            return EntitySchema(fields=[])
         return self.entity_schema
 
 
@@ -266,6 +278,16 @@ class EntitiesConfig(BaseModel):
     references: Dict[str, ReferenceEntityConfig] = Field(default_factory=dict)
     datasets: Dict[str, DatasetEntityConfig] = Field(default_factory=dict)
 
+    @model_validator(mode="before")
+    @classmethod
+    def handle_none_values(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert None values to empty dicts (from empty YAML sections)."""
+        if values.get("references") is None:
+            values["references"] = {}
+        if values.get("datasets") is None:
+            values["datasets"] = {}
+        return values
+
 
 class GenericImportConfig(BaseModel):
     """Root configuration for the generic import system."""
@@ -273,6 +295,14 @@ class GenericImportConfig(BaseModel):
     version: Optional[str] = None
     entities: EntitiesConfig
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_none_metadata(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert None metadata to empty dict (from empty YAML section)."""
+        if values.get("metadata") is None:
+            values["metadata"] = {}
+        return values
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GenericImportConfig":
