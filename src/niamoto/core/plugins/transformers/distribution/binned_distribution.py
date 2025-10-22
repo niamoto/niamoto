@@ -21,12 +21,11 @@ class BinnedDistributionParams(BasePluginParams):
     """Typed parameters for binned distribution plugin."""
 
     source: str = Field(
-        ...,
-        description="Data source table name",
+        default="occurrences",
+        description="Data source entity name",
         json_schema_extra={
-            "examples": ["occurrences", "taxonomy", "plots"],
-            "ui_component": "select",
-            "ui_options": ["occurrences", "taxonomy", "plots"],
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
         },
     )
 

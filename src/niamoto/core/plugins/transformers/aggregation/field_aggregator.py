@@ -23,7 +23,7 @@ class FieldConfig(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "source": "taxons",
+                "source": "occurrences",
                 "field": "full_name",
                 "target": "name",
                 "transformation": "direct",
@@ -34,9 +34,12 @@ class FieldConfig(BaseModel):
     )
 
     source: str = Field(
-        ...,
-        description="Source table or data source name",
-        json_schema_extra={"ui:widget": "select"},
+        default="occurrences",
+        description="Data source entity name",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
+        },
     )
     field: str = Field(
         ..., description="Field name to extract (supports dot notation for JSON fields)"

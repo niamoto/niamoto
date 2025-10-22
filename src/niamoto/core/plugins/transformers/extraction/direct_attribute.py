@@ -37,9 +37,12 @@ class DirectAttributeParams(BaseModel):
     )
 
     source: str = Field(
-        ...,
-        description="Data source name (table or import)",
-        json_schema_extra={"ui:widget": "select"},
+        default="occurrences",
+        description="Data source entity name",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
+        },
     )
     field: str = Field(
         ...,
@@ -105,7 +108,7 @@ class DirectAttribute(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def _get_field_from_table(self, source: str, field: str, id_value: int) -> Any:
-        """Get a field value from any table."""
+        """Get a field value from any entity."""
         try:
             query = f"""
                 SELECT {field} FROM {source} WHERE id = :id_value
