@@ -178,10 +178,11 @@ const nodeTypes = {
 
 interface PipelineCanvasProps {
   sources: Source[]
+  groupBy: string
   onPipelineChange?: (nodes: Node[], edges: Edge[]) => void
 }
 
-function PipelineCanvasContent({ sources, onPipelineChange }: PipelineCanvasProps) {
+function PipelineCanvasContent({ sources, groupBy, onPipelineChange }: PipelineCanvasProps) {
   const { t } = useTranslation()
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState<PipelineNodeData>([]);
@@ -409,6 +410,7 @@ function PipelineCanvasContent({ sources, onPipelineChange }: PipelineCanvasProp
         <PluginConfigPanel
           selectedNode={selectedNode}
           availableSources={getAvailableSources()}
+          groupBy={groupBy}
           onConfigChange={handleConfigChange}
           onClose={() => setShowConfigPanel(false)}
         />
