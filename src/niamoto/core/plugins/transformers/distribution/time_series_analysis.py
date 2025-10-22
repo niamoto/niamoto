@@ -49,10 +49,10 @@ class TimeSeriesAnalysisParams(BasePluginParams):
 
     source: str = Field(
         default="occurrences",
-        description="Source table for time series data",
+        description="Data source entity name",
         json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["occurrences", "plots", "observations"],
+            "ui:widget": "entity-select",
+            "ui:entity-filter": {"kind": "dataset"},
         },
     )
 

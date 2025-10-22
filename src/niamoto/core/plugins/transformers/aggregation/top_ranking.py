@@ -63,10 +63,10 @@ class TopRankingParams(BasePluginParams):
 
     source: str = Field(
         default="occurrences",
-        description="Source table name",
+        description="Data source entity name",
         json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["occurrences", "taxonomy", "plots", "shapes"],
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
         },
     )
 

@@ -71,8 +71,11 @@ class ShapeProcessorParams(BasePluginParams):
 
     source: str = Field(
         default="shapes",
-        description="Source table containing shape data",
-        json_schema_extra={"ui:widget": "text"},
+        description="Data source entity name for shape data",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            "ui:entity-filter": {"kind": "reference"},
+        },
     )
 
     field: str = Field(

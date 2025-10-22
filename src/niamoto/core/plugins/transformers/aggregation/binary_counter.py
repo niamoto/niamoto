@@ -36,10 +36,10 @@ class BinaryCounterParams(BasePluginParams):
 
     source: str = Field(
         default="occurrences",
-        description="Data source table name",
+        description="Data source entity name",
         json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["occurrences", "taxonomy", "plots"],
+            "ui:widget": "entity-select",
+            "ui:entity-filter": {"kind": "dataset"},
         },
     )
 

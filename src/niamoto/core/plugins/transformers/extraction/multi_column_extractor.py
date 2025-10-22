@@ -61,9 +61,12 @@ class MultiColumnExtractorParams(BasePluginParams):
     )
 
     source: str = Field(
-        ...,
-        description="Data source name (table or import)",
-        json_schema_extra={"ui:widget": "select"},
+        default="occurrences",
+        description="Data source entity name",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
+        },
     )
     columns: List[str] = Field(
         ...,

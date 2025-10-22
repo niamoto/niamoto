@@ -16,9 +16,12 @@ class CategoricalDistributionParams(BaseModel):
     """Parameters for categorical distribution plugin"""
 
     source: str = Field(
-        ...,
-        description="Data source table or view name",
-        json_schema_extra={"ui:widget": "text", "ui:placeholder": "occurrences"},
+        default="occurrences",
+        description="Data source entity name",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
+        },
     )
     field: str = Field(
         ...,
