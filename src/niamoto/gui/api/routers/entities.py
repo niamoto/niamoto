@@ -1,7 +1,7 @@
-"""Entities API endpoints for accessing taxon, plot, and shape data with transformations."""
+"""Entities API endpoints for accessing entity data with transformations and EntityRegistry."""
 
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -10,10 +10,12 @@ import json
 import yaml
 
 from niamoto.common.database import Database
+from niamoto.common.config import Config
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.exceptions import PluginNotFoundError
+from niamoto.core.imports.registry import EntityRegistry
 
 router = APIRouter()
 
@@ -44,6 +46,88 @@ class TransformationPreview(BaseModel):
     transformation_key: str
     transformation_data: Dict[str, Any]
     widget_plugin: Optional[str] = None
+
+
+class EntityInfo(BaseModel):
+    """Information about a registered entity from EntityRegistry."""
+
+    name: str
+    kind: str  # 'reference' or 'dataset'
+    entity_type: str  # 'flat', 'nested', 'spatial' for references
+
+
+class EntityListResponse(BaseModel):
+    """Response with available entities grouped by kind."""
+
+    datasets: List[str] = []
+    references: List[str] = []
+    all: List[EntityInfo] = []
+
+
+@router.get("/available", response_model=EntityListResponse)
+async def get_available_entities(
+    kind: Optional[str] = Query(
+        None, description="Filter by kind: 'dataset' or 'reference'"
+    ),
+):
+    """
+    Get list of available entities from EntityRegistry.
+
+    This endpoint is used by entity-select widgets in plugin forms to
+    dynamically populate entity dropdowns.
+
+    Args:
+        kind: Optional filter - 'dataset' or 'reference'
+
+    Returns:
+        EntityListResponse with entities grouped by kind
+    """
+    try:
+        # Get config to access EntityRegistry
+        config = Config()
+
+        # Initialize EntityRegistry with config
+        registry = EntityRegistry(config)
+
+        # Get all entities
+        all_entities = registry.list_all()
+
+        datasets = []
+        references = []
+        all_entity_info = []
+
+        for entity in all_entities:
+            entity_info = EntityInfo(
+                name=entity.name,
+                kind=entity.kind.value,
+                entity_type=getattr(entity, "entity_type", entity.kind.value),
+            )
+
+            all_entity_info.append(entity_info)
+
+            if entity.kind.value == "dataset":
+                datasets.append(entity.name)
+            else:  # reference
+                references.append(entity.name)
+
+        # Apply filter if requested
+        if kind:
+            if kind.lower() == "dataset":
+                references = []
+            elif kind.lower() == "reference":
+                datasets = []
+
+        return EntityListResponse(
+            datasets=sorted(datasets),
+            references=sorted(references),
+            all=sorted(all_entity_info, key=lambda x: x.name),
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error loading entities from EntityRegistry: {str(e)}",
+        )
 
 
 @router.get("/entities/{group_by}", response_model=List[EntitySummary])

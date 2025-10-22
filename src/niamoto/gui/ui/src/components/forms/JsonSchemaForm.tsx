@@ -13,6 +13,7 @@ import NumberField from './widgets/NumberField';
 import SelectField from './widgets/SelectField';
 import CheckboxField from './widgets/CheckboxField';
 import FieldSelectField from './widgets/FieldSelectField';
+import EntitySelectField from './widgets/EntitySelectField';
 import ArrayField from './widgets/ArrayField';
 import JsonField from './widgets/JsonField';
 import ColorField from './widgets/ColorField';
@@ -198,6 +199,16 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               key={fieldName}
               {...commonProps}
               availableFields={availableFields}
+            />
+          );
+
+        case 'entity-select':
+          const entityKind = fieldSchema.json_schema_extra?.['ui:entity-filter']?.kind;
+          return (
+            <EntitySelectField
+              key={fieldName}
+              {...commonProps}
+              kind={entityKind}
             />
           );
 
