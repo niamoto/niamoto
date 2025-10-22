@@ -14,6 +14,7 @@ import SelectField from './widgets/SelectField';
 import CheckboxField from './widgets/CheckboxField';
 import FieldSelectField from './widgets/FieldSelectField';
 import EntitySelectField from './widgets/EntitySelectField';
+import TransformSourceSelectField from './widgets/TransformSourceSelectField';
 import ArrayField from './widgets/ArrayField';
 import JsonField from './widgets/JsonField';
 import ColorField from './widgets/ColorField';
@@ -24,6 +25,7 @@ import ObjectField from './widgets/ObjectField';
 interface JsonSchemaFormProps {
   pluginId: string;
   pluginType?: string;
+  groupBy?: string;
   form?: UseFormReturn<any>;
   onSubmit?: (data: any) => void;
   onChange?: (data: any) => void;
@@ -69,6 +71,7 @@ interface FieldSchema {
 const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   pluginId,
   pluginType: _pluginType, // unused but kept for interface compatibility
+  groupBy,
   form,
   onSubmit: _onSubmit, // unused but kept for interface compatibility
   onChange,
@@ -209,6 +212,17 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               key={fieldName}
               {...commonProps}
               kind={entityKind}
+              groupBy={groupBy}
+            />
+          );
+
+        case 'transform-source-select':
+          const sourceGroupBy = fieldSchema.json_schema_extra?.['ui:groupBy'];
+          return (
+            <TransformSourceSelectField
+              key={fieldName}
+              {...commonProps}
+              groupBy={sourceGroupBy || groupBy}
             />
           );
 

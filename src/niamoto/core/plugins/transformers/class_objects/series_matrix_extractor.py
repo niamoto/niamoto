@@ -58,10 +58,10 @@ class SeriesMatrixParams(BasePluginParams):
 
     source: str = Field(
         default="shape_stats",
-        description="Source table containing class_object data",
+        description="Transform source name (from transform.yml sources)",
         json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["raw_shape_stats", "shape_stats"],
+            "ui:widget": "transform-source-select",
+            # Will dynamically load sources from current group_by context
         },
     )
 

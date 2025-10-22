@@ -20,6 +20,7 @@ interface PluginConfig {
 interface PluginConfigPanelProps {
   selectedNode: Node | null
   availableSources: string[]
+  groupBy: string
   onConfigChange: (config: PluginConfig) => void
   onClose: () => void
 }
@@ -27,6 +28,7 @@ interface PluginConfigPanelProps {
 export function PluginConfigPanel({
   selectedNode,
   availableSources,
+  groupBy,
   onConfigChange,
   onClose
 }: PluginConfigPanelProps) {
@@ -103,6 +105,7 @@ export function PluginConfigPanel({
                 <JsonSchemaForm
                   pluginId={pluginId}
                   pluginType="transformer"
+                  groupBy={groupBy}
                   onChange={handleParamsChange}
                   showTitle={false}
                   className="border-0 shadow-none p-0"

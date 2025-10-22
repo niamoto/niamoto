@@ -137,6 +137,7 @@ export function TransformPage() {
                 <PluginCatalog compact onPluginDragStart={(plugin) => console.log('Dragging:', plugin)} />
                 <PipelineCanvas
                   sources={selectedGroup.sources}
+                  groupBy={selectedGroup.name}
                   onPipelineChange={(nodes, edges) => console.log('Pipeline changed:', { nodes, edges })}
                 />
               </div>

@@ -7,7 +7,7 @@ import asyncio
 import yaml
 import copy
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
 from pydantic import BaseModel
 
 from niamoto.core.services.transformer import TransformerService
@@ -487,3 +487,68 @@ async def get_transform_metrics():
         "last_run": latest_job["completed_at"],
         "job_id": latest_job["job_id"],
     }
+
+
+@router.get("/sources")
+async def get_transform_sources(
+    group_by: Optional[str] = Query(None, description="Filter sources by group_by"),
+) -> Dict[str, List[str]]:
+    """
+    Get available transform sources from transform.yml.
+
+    Transform sources are intermediate data files loaded via stats_loader
+    that are used by class_objects plugins.
+
+    Args:
+        group_by: Optional filter - return only sources for this specific group_by
+
+    Returns:
+        Dictionary with 'sources' key containing list of source names
+
+    Example:
+        GET /api/transform/sources?group_by=shapes
+        Returns: {"sources": ["raw_shape_stats", "shape_stats"]}
+    """
+    try:
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise HTTPException(status_code=500, detail="Working directory not found")
+
+        # Load transform.yml
+        transform_config_path = work_dir / "config" / "transform.yml"
+        if not transform_config_path.exists():
+            return {"sources": []}
+
+        with open(transform_config_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        # Handle both list format (root level) and dict format (with 'transforms' key)
+        if isinstance(transform_config, list):
+            transforms = transform_config
+        elif isinstance(transform_config, dict):
+            transforms = transform_config.get("transforms", [])
+        else:
+            transforms = []
+
+        sources = []
+
+        for transform in transforms:
+            transform_group = transform.get("group_by")
+
+            # If group_by filter specified, skip non-matching groups
+            if group_by and transform_group != group_by:
+                continue
+
+            # Extract source names
+            for source in transform.get("sources", []):
+                source_name = source.get("name")
+                if source_name:
+                    sources.append(source_name)
+
+        # Return sorted unique sources
+        return {"sources": sorted(list(set(sources)))}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error loading transform sources: {str(e)}"
+        )

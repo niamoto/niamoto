@@ -29,7 +29,8 @@
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
       "Bash(curl:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

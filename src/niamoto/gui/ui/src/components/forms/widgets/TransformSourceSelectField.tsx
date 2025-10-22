@@ -1,4 +1,4 @@
-// src/components/forms/widgets/EntitySelectField.tsx
+// src/components/forms/widgets/TransformSourceSelectField.tsx
 
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { FormDescription, FormItem, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
 
-interface EntitySelectFieldProps {
+interface TransformSourceSelectFieldProps {
   name: string;
   label?: string;
   description?: string;
@@ -17,84 +17,60 @@ interface EntitySelectFieldProps {
   disabled?: boolean;
   error?: string;
   className?: string;
-  kind?: 'dataset' | 'reference';  // Optional filter
-  groupBy?: string;
+  groupBy?: string;  // Optional: filter sources by group_by
 }
 
-interface EntityListResponse {
-  datasets: string[];
-  references: string[];
-  all: Array<{
-    name: string;
-    kind: string;
-    entity_type: string;
-  }>;
+interface TransformSourcesResponse {
+  sources: string[];
 }
 
-const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
+const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
   name,
   label,
   description,
   value,
   onChange,
-  placeholder = 'Select an entity...',
+  placeholder = 'Select a transform source...',
   required = false,
   disabled = false,
   error,
   className = '',
-  kind,
-  groupBy  // Reserved for future use: filter entities by group context
+  groupBy
 }) => {
-  const [entities, setEntities] = useState<string[]>([]);
+  const [sources, setSources] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Note: groupBy parameter is available for future enhancement
-  // to filter entities based on transform group context
-  void groupBy;
-
   useEffect(() => {
-    const fetchEntities = async () => {
+    const fetchSources = async () => {
       try {
         setLoading(true);
         setLoadError(null);
 
-        // Build URL with optional kind filter
-        const url = kind
-          ? `/api/entities/available?kind=${kind}`
-          : `/api/entities/available`;
+        // Build URL with optional group_by filter
+        const url = groupBy
+          ? `/api/transform/sources?group_by=${groupBy}`
+          : `/api/transform/sources`;
 
         const response = await fetch(url);
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch entities: ${response.statusText}`);
+          throw new Error(`Failed to fetch sources: ${response.statusText}`);
         }
 
-        const data: EntityListResponse = await response.json();
-
-        // Determine which list to use based on filter
-        let entityList: string[] = [];
-        if (kind === 'dataset') {
-          entityList = data.datasets;
-        } else if (kind === 'reference') {
-          entityList = data.references;
-        } else {
-          // No filter - combine all entities
-          entityList = [...data.datasets, ...data.references];
-        }
-
-        setEntities(entityList);
+        const data: TransformSourcesResponse = await response.json();
+        setSources(data.sources);
       } catch (err) {
-        console.error('Error fetching entities:', err);
-        setLoadError(err instanceof Error ? err.message : 'Failed to load entities');
-        setEntities([]);
+        console.error('Error fetching transform sources:', err);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load sources');
+        setSources([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchEntities();
-  }, [kind]);
+    fetchSources();
+  }, [groupBy]);
 
   return (
     <FormItem className={className}>
@@ -113,21 +89,21 @@ const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
           {loading ? (
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-muted-foreground">Loading entities...</span>
+              <span className="text-muted-foreground">Loading sources...</span>
             </div>
           ) : (
             <SelectValue placeholder={placeholder} />
           )}
         </SelectTrigger>
         <SelectContent>
-          {entities.length === 0 && !loading && (
+          {sources.length === 0 && !loading && (
             <div className="p-2 text-sm text-muted-foreground text-center">
-              {loadError ? 'Error loading entities' : 'No entities available'}
+              {loadError ? 'Error loading sources' : 'No sources available'}
             </div>
           )}
-          {entities.map((entityName) => (
-            <SelectItem key={entityName} value={entityName}>
-              {entityName}
+          {sources.map((sourceName) => (
+            <SelectItem key={sourceName} value={sourceName}>
+              {sourceName}
             </SelectItem>
           ))}
         </SelectContent>
@@ -142,4 +118,4 @@ const EntitySelectField: React.FC<EntitySelectFieldProps> = ({
   );
 };
 
-export default EntitySelectField;
+export default TransformSourceSelectField;

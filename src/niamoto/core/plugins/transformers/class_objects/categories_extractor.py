@@ -57,10 +57,10 @@ class ClassObjectCategoriesConfig(PluginConfig):
     )
     source: str = Field(
         default="shape_stats",
-        description="Source table containing shape statistics",
+        description="Transform source name (from transform.yml sources)",
         json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["shape_stats", "raw_shape_stats"],
+            "ui:widget": "transform-source-select",
+            # Will dynamically load sources from current group_by context
         },
     )
     params: CategoriesExtractorParams
