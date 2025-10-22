@@ -238,7 +238,7 @@ class Config:
                 "created_at": datetime.now().isoformat(),
                 "niamoto_version": __version__,
             },
-            "database": {"path": "db/niamoto.db"},
+            "database": {"path": "db/niamoto.duckdb"},
             "logs": {"path": "logs"},
             "exports": {
                 "web": "exports/web",
@@ -251,12 +251,18 @@ class Config:
     @staticmethod
     def _default_imports() -> Dict[str, Any]:
         """
-        Default content for import.yml (taxonomy, occurrences, etc.).
+        Default content for import.yml - EntityRegistry v2 format.
+
+        Note: This is not used when creating import.yml files.
+        The _write_import_yaml_with_comments() method writes the file directly
+        with inline comments for better user experience.
+
+        This method exists only for API compatibility when loading existing configs.
         """
         return {
-            "taxonomy": {"type": "csv", "path": "imports/taxonomy.csv"},
-            "plots": {"type": "csv", "path": "imports/plots.csv"},
-            "occurrences": {"type": "csv", "path": "imports/occurrences.csv"},
+            "version": "1.0",
+            "entities": {"datasets": {}, "references": {}},
+            "metadata": {},
         }
 
     @staticmethod
@@ -279,92 +285,202 @@ class Config:
 
     @staticmethod
     def _write_import_yaml_with_comments(file_path: str) -> None:
-        """Write import.yml with helpful comments."""
-        content = """# Niamoto Import Configuration
-# This file defines data sources for importing into Niamoto
+        """Write import.yml with EntityRegistry v2 format and helpful comments."""
+        content = """# Niamoto Import Configuration - EntityRegistry v2
+# This file defines your data entities using the flexible EntityRegistry system
+# Documentation: https://docs.niamoto.org/import-configuration
 
-# TAXONOMY CONFIGURATION
-# Import taxonomic reference data
-taxonomy:
-  type: csv                              # File type: csv
-  path: imports/taxonomy.csv             # Path to taxonomy file
-  # source: file                         # Options: 'file' or 'occurrence' (extract from occurrences)
-  # ranks: family,genus,species,infra    # When source is 'occurrence', specify ranks to extract
+version: '1.0'
 
-  # Optional: Enrich taxonomy with external API
-  # api_enrichment:
-  #   enabled: true
-  #   plugin: api_taxonomy_enricher
-  #   api_url: https://api.example.com/taxons
-  #   auth_method: api_key               # Options: 'api_key', 'basic', 'bearer'
-  #   auth_params:
-  #     key: your-api-key
-  #     location: header                 # Options: 'header' or 'query'
-  #     name: apiKey                     # Parameter name for the API key
-  #   query_field: full_name             # Field to use for API queries
-  #   rate_limit: 2.0                    # Requests per second
-  #   cache_results: true                # Cache API responses
-  #   response_mapping:                  # Map API response fields to database columns
-  #     conservation_status: status
-  #     endemic: is_endemic
+# =============================================================================
+# ENTITIES DEFINITION
+# =============================================================================
+# Define your data model with two types of entities:
+# - DATASETS: Observational/transactional data (occurrences, measurements, samples)
+# - REFERENCES: Master/reference data (taxonomy, geography, classifications)
 
-# PLOT CONFIGURATION
-# Import plot/site data
-plots:
-  type: csv                              # Options: 'csv' or 'vector'
-  path: imports/plots.csv                # Path to plots file
-  # identifier: id                       # Column containing plot ID
-  # locality_field: name                 # Column for plot name/locality
-  # location_field: geometry             # Column for spatial data (WKT or coordinates)
-  # format: csv                          # For vector type: 'shapefile', 'geopackage', 'geojson'
+entities:
 
-# OCCURRENCE CONFIGURATION
-# Import species occurrence data
-occurrences:
-  type: csv
-  path: imports/occurrences.csv
-  # identifier: id                       # Column for occurrence ID
-  # location_field: geometry             # Column for spatial data
-  # taxon_field: taxon_id                # Column linking to taxonomy
-  # plot_field: plot_id                  # Column linking to plots
+  # ---------------------------------------------------------------------------
+  # DATASETS
+  # ---------------------------------------------------------------------------
+  # Datasets contain observational data that reference master data
+  # Example use cases: species occurrences, environmental measurements, samples
 
-# SHAPE CONFIGURATION (Optional)
-# Import geographic boundaries and zones
-# shapes:
-#   - category: provinces                # Shape category identifier
-#     type: vector
-#     format: shapefile                  # Options: 'shapefile', 'geopackage', 'geojson'
-#     path: imports/shapes/provinces.shp
-#     name_field: name                   # Field containing shape names
-#     label: Provinces                   # Display label
-#     description: Administrative boundaries
+  datasets:
+    # Uncomment and customize the example below:
+    #
+    # my_occurrences:
+    #   description: Species occurrence observations
+    #
+    #   # Data source configuration
+    #   connector:
+    #     type: file                          # Source type: 'file' or 'database'
+    #     format: csv                         # File format: csv, excel, json, geojson
+    #     path: imports/occurrences.csv       # Relative or absolute path
+    #
+    #   # Schema definition
+    #   schema:
+    #     id_field: id                        # Primary key field name
+    #     fields:                             # List of fields to import
+    #       - name: taxon_id
+    #         type: integer
+    #         description: Reference to taxonomy
+    #       - name: plot_id
+    #         type: string
+    #         description: Reference to plot
+    #       - name: date_observed
+    #         type: date
+    #       - name: latitude
+    #         type: float
+    #       - name: longitude
+    #         type: float
+    #       - name: geometry
+    #         type: geometry
+    #         description: Point geometry (WKT or GeoJSON)
+    #
+    #   # Link to reference entities
+    #   links:
+    #     - entity: taxonomy                  # Reference entity name
+    #       field: taxon_id                   # Field in this dataset
+    #       target_field: id                  # Field in reference entity
+    #     - entity: plots
+    #       field: plot_id
+    #       target_field: plot_code
+    #
+    #   # Import options
+    #   options:
+    #     mode: replace                       # Import mode: replace, append, upsert
+    #     chunk_size: 10000                   # Number of rows per batch
+    #     geometry_field: geometry            # Name of geometry field (if spatial)
+
+  # ---------------------------------------------------------------------------
+  # REFERENCES
+  # ---------------------------------------------------------------------------
+  # References contain master data that datasets reference
+  # Example use cases: taxonomy, geographic regions, classifications
+
+  references:
+    # Uncomment and customize the examples below:
+
+    # Example 1: FLAT REFERENCE (simple list)
+    # my_taxonomy:
+    #   kind: flat                            # Reference type: flat, nested, spatial
+    #   description: Taxonomic reference data
+    #
+    #   connector:
+    #     type: file
+    #     format: csv
+    #     path: imports/taxonomy.csv
+    #
+    #   schema:
+    #     id_field: id
+    #     fields:
+    #       - name: full_name
+    #         type: string
+    #       - name: family
+    #         type: string
+    #       - name: genus
+    #         type: string
+    #       - name: species
+    #         type: string
+    #
+    #   options:
+    #     mode: replace
+
+    # Example 2: NESTED REFERENCE (hierarchical data)
+    # my_taxonomy_nested:
+    #   kind: nested                          # For hierarchical data
+    #   description: Hierarchical taxonomy
+    #
+    #   connector:
+    #     type: file
+    #     format: csv
+    #     path: imports/taxonomy.csv
+    #
+    #   schema:
+    #     id_field: id
+    #     fields:
+    #       - name: full_name
+    #         type: string
+    #       - name: rank
+    #         type: string
+    #       - name: parent_id
+    #         type: integer
+    #
+    #   # Hierarchy configuration
+    #   hierarchy:
+    #     parent_field: parent_id             # Field containing parent ID
+    #     rank_field: rank                    # Field containing hierarchy level
+    #     ranks: [family, genus, species]     # Hierarchy levels (top to bottom)
+    #
+    #   options:
+    #     mode: replace
+
+    # Example 3: SPATIAL REFERENCE (geographic features)
+    # my_shapes:
+    #   kind: spatial                         # For geographic data
+    #   description: Geographic reference features
+    #
+    #   connector:
+    #     type: file_multi_feature            # Special connector for multiple shapefiles
+    #     sources:
+    #       - name: Provinces
+    #         path: imports/shapes/provinces.gpkg
+    #         name_field: province_name
+    #       - name: EcoZones
+    #         path: imports/shapes/ecozones.shp
+    #         name_field: zone_name
+    #
+    #   schema:
+    #     id_field: id
+    #     fields:
+    #       - name: name
+    #         type: string
+    #       - name: location
+    #         type: geometry
+    #       - name: entity_type
+    #         type: string
+    #
+    #   options:
+    #     mode: replace
+
+# =============================================================================
+# METADATA (Optional)
+# =============================================================================
+# Add metadata about your import configuration
+
+metadata:
+  # project: My Biodiversity Project
+  # author: Your Name
+  # description: Import configuration for biodiversity monitoring data
+  # created: 2025-01-22
+  # version: 1.0
+
+# =============================================================================
+# QUICK START GUIDE
+# =============================================================================
 #
-#   - category: ecological_zones
-#     type: vector
-#     format: geopackage
-#     path: imports/shapes/eco_zones.gpkg
-#     name_field: zone_name
-#     label: Ecological Zones
-#     description: Ecological classification zones
-
-# LAYER CONFIGURATION (Optional)
-# Import additional spatial layers (rasters, vectors)
-# layers:
-#   - name: elevation
-#     type: raster
-#     path: imports/layers/elevation.tif
-#     description: Digital elevation model
+# 1. Define your entities:
+#    - Start with references (master data)
+#    - Then add datasets that link to references
 #
-#   - name: rainfall
-#     type: raster
-#     path: imports/layers/rainfall.tif
-#     description: Annual rainfall distribution
+# 2. Configure connectors:
+#    - Specify source type and location
+#    - Supported formats: CSV, Excel, JSON, GeoJSON, GeoPackage, Shapefile
 #
-#   - name: forest_cover
-#     type: vector
-#     format: shapefile
-#     path: imports/layers/forest.shp
-#     description: Forest coverage
+# 3. Define schema:
+#    - List fields to import with their types
+#    - Supported types: string, integer, float, date, datetime, boolean, geometry
+#
+# 4. Set up links:
+#    - Connect datasets to references via foreign keys
+#    - Ensures data integrity and enables advanced queries
+#
+# 5. Run import:
+#    niamoto import
+#
+# For more examples and documentation, visit: https://docs.niamoto.org
 
 """
         with open(file_path, "w", encoding="utf-8") as f:
@@ -372,117 +488,188 @@ occurrences:
 
     @staticmethod
     def _write_transform_yaml_with_comments(file_path: str) -> None:
-        """Write transform.yml with helpful comments."""
+        """Write transform.yml with EntityRegistry-aware comments."""
         content = """# Niamoto Transform Configuration
 # This file defines data transformations and statistical analyses
-# Each transformation group creates widgets for visualization
+# Documentation: https://docs.niamoto.org/transform-configuration
 
-# Transformations are defined as a list of groups
-# Each group processes data for a specific entity type (taxon, plot, shape)
+# =============================================================================
+# TRANSFORMATION GROUPS
+# =============================================================================
+# Each group processes data for a specific entity and generates widgets
+# Groups reference entities defined in import.yml (can be any custom entity)
 
-# EXAMPLE: Taxon transformations
-# - group_by: taxon                    # Entity type: 'taxon', 'plot', or 'shape'
-#   source:
-#     data: occurrences                # Main data source table
-#     grouping: taxons                 # Reference table for grouping
-#     relation:                        # How to relate data to reference
-#       plugin: nested_set             # Plugin for hierarchical data
-#       key: taxons_id.                # Foreign key field
-#       fields:                        # Additional fields for hierarchy
-#         parent: parent_id
-#         left: lft
-#         right: rght
+# ---------------------------------------------------------------------------
+# Example 1: Hierarchical Reference Entity (e.g., Taxonomy, Classifications)
+# ---------------------------------------------------------------------------
 #
-#   widgets_data:                      # Define widgets for visualization
-#     general_info:                    # Widget identifier
-#       plugin: field_aggregator       # Plugin to aggregate fields
-#       params:
+# - group_by: my_taxonomy              # Your reference entity name (from import.yml)
+#   sources:
+#     - name: obs_by_taxonomy          # Local source identifier
+#       data: my_occurrences           # Your dataset entity (from import.yml)
+#       grouping: my_taxonomy          # Entity to group by
+#       relation:
+#         plugin: nested_set           # For hierarchical data
+#         key: taxon_id                # Foreign key in dataset
+#         ref_key: id                  # Primary key in reference
 #         fields:
-#           - source: taxons           # Source table
-#             field: full_name         # Source field
-#             target: name             # Output field name
-#           - source: occurrences
-#             field: id
-#             target: count
-#             transformation: count    # Count occurrences
-#
-#     distribution_map:
-#       plugin: geospatial_extractor
-#       params:
-#         source: occurrences
-#         field: geo_pt                # Geometry field
-#         format: geojson              # Output format
-
-# EXAMPLE: Plot transformations
-# - group_by: plot
-#   source:
-#     data: plot_stats                 # Pre-calculated statistics
-#     grouping: plots                  # Reference table
-#     relation:
-#       plugin: stats_loader           # Load pre-calculated stats
-#       key: plot_id
+#           parent: parent_id          # Parent field
+#           left: lft                  # Left boundary
+#           right: rght                # Right boundary
 #
 #   widgets_data:
 #     general_info:
 #       plugin: field_aggregator
 #       params:
 #         fields:
-#           - source: plots
+#           - source: my_taxonomy      # Reference entity
+#             field: full_name
+#             target: name
+#           - source: my_taxonomy
+#             field: rank
+#             target: rank
+#           - source: obs_by_taxonomy  # Source name (defined above)
+#             field: id
+#             target: observations_count
+#             transformation: count
+#
+#     habitat_distribution:
+#       plugin: categorical_distribution
+#       params:
+#         source: obs_by_taxonomy
+#         field: habitat_type
+#         target: by_habitat
+
+# ---------------------------------------------------------------------------
+# Example 2: Flat Entity (e.g., Sites, Plots, Stations)
+# ---------------------------------------------------------------------------
+#
+# - group_by: my_sites                 # Your entity name (from import.yml)
+#   sources:
+#     - name: obs_by_site
+#       data: my_occurrences
+#       grouping: my_sites
+#       relation:
+#         plugin: direct_reference     # Simple foreign key
+#         key: site_id
+#         ref_key: site_code
+#
+#   widgets_data:
+#     general_info:
+#       plugin: field_aggregator
+#       params:
+#         fields:
+#           - source: my_sites
 #             field: name
-#             target: plot_name
-#           - source: plots
+#             target: site_name
+#           - source: my_sites
 #             field: elevation
 #             target: elevation
-#             units: m                 # Add units for display
+#             units: m
+#           - source: obs_by_site
+#             field: id
+#             target: species_count
+#             transformation: count_distinct
 #
-#     top_species:
-#       plugin: class_object_series_extractor
+#     statistics:
+#       plugin: statistical_summary
 #       params:
-#         source: plot_stats
-#         class_object: top10_species  # Extract top 10 species
-#         size_field:
-#           input: class_name
-#           output: species
-#         value_field:
-#           input: class_value
-#           output: counts
+#         source: obs_by_site
+#         field: diameter
+#         target: dbh_stats
+#         stats: [min, max, mean, median]
 
-# AVAILABLE PLUGINS:
-# Data extraction:
-# - field_aggregator: Combine fields from different sources
-# - direct_attribute: Extract single field value
-# - geospatial_extractor: Extract and format spatial data
-# - multi_column_extractor: Extract multiple columns
+# ---------------------------------------------------------------------------
+# Example 3: Spatial Reference Entity (e.g., Regions, Zones)
+# ---------------------------------------------------------------------------
+#
+# - group_by: my_regions               # Your spatial entity (from import.yml)
+#   sources:
+#     - name: obs_by_region
+#       data: my_occurrences
+#       grouping: my_regions
+#       relation:
+#         plugin: spatial              # Spatial join
+#         geometry_field: location
+#         ref_geometry_field: boundary
+#
+#   widgets_data:
+#     general_info:
+#       plugin: field_aggregator
+#       params:
+#         fields:
+#           - source: my_regions
+#             field: name
+#             target: region_name
+#           - source: my_regions
+#             field: area_km2
+#             target: area
+#           - source: obs_by_region
+#             field: id
+#             target: total_obs
+#             transformation: count
 
-# Statistical analysis:
-# - statistical_summary: Calculate statistics (min, max, mean, etc.)
-# - binned_distribution: Create histogram bins
-# - categorical_distribution: Count by categories
-# - top_ranking: Find top N items
-# - binary_counter: Count true/false values
+# =============================================================================
+# AVAILABLE TRANSFORMER PLUGINS
+# =============================================================================
 
-# Time series:
-# - time_series_analysis: Analyze temporal data (e.g., phenology)
+# --- DATA EXTRACTION ---
+# field_aggregator         : Combine and transform fields from multiple sources
+# direct_attribute         : Extract a single field value
+# geospatial_extractor     : Extract and format spatial data (WKT, GeoJSON, coordinates)
+# multi_column_extractor   : Extract multiple columns at once
 
-# Complex transformations:
-# - transform_chain: Chain multiple transformations
-# - class_object_series_extractor: Extract series from class objects
-# - custom_calculator: Apply custom formulas
+# --- STATISTICAL ANALYSIS ---
+# statistical_summary      : Calculate min, max, mean, median, std, percentiles
+# binned_distribution      : Create histogram bins (e.g., diameter classes)
+# categorical_distribution : Count occurrences by category
+# top_ranking              : Find top N items (supports hierarchical data)
+# binary_counter           : Count true/false, yes/no values
 
-# Shape-specific:
-# - shape_processor: Process and simplify geometries
-# - class_object_categories_mapper: Map categories from stats
+# --- TIME SERIES ---
+# time_series_analysis     : Analyze temporal patterns (phenology, seasonality)
 
-# Start with an empty list and add transformations as needed
+# --- AGGREGATION ---
+# database_aggregator      : Complex SQL aggregations
+# class_object_*           : Work with pre-computed class objects
+
+# --- GEOSPATIAL ---
+# shape_processor          : Simplify and process geometries
+# raster_stats             : Extract statistics from raster layers
+# vector_overlay           : Spatial overlay operations
+
+# --- ADVANCED ---
+# transform_chain          : Chain multiple transformations
+# custom_calculator        : Apply custom formulas and calculations
+# reference_resolver       : Resolve references between entities
+
+# =============================================================================
+# RELATION PLUGINS (for sources.relation)
+# =============================================================================
+# nested_set               : For hierarchical data (taxonomy, categories)
+# direct_reference         : Simple foreign key relationship
+# join_table               : Many-to-many via junction table
+# spatial                  : Spatial join (point-in-polygon, intersects)
+# stats_loader             : Load pre-computed statistics
+
+# =============================================================================
+# TIPS
+# =============================================================================
+# 1. Entity names (group_by, data, grouping) must match import.yml
+# 2. Source names are local to each group (can be reused across groups)
+# 3. Field references use source name, not entity name
+# 4. Use descriptive widget_ids - they become keys in exported JSON
+# 5. Start with empty list and add transformations as needed
 """
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
 
     @staticmethod
     def _write_export_yaml_with_comments(file_path: str) -> None:
-        """Write export.yml with helpful comments."""
+        """Write export.yml with EntityRegistry-aware comments."""
         content = """# Niamoto Export Configuration
 # This file defines how to export data and generate visualizations
+# Documentation: https://docs.niamoto.org/export-configuration
 
 exports:
 
@@ -519,9 +706,10 @@ exports:
   #       template: "index.html"         # Template file
   #       output_file: "index.html"      # Output file
   #
-  #   # Dynamic pages from data groups
+  #   # Dynamic pages from transformation groups
+  #   # Note: group_by must match a transformation group from transform.yml
   #   groups:
-  #     - group_by: taxon                # Entity type
+  #     - group_by: my_taxonomy          # Entity name (matches transform.yml)
   #       output_pattern: "taxon/{id}.html"
   #       index_output_pattern: "taxon/index.html"
   #
