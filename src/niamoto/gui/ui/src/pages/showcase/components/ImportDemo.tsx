@@ -122,10 +122,10 @@ export function ImportDemo({}: ImportDemoProps) {
 
         const result = await executeImportFromConfig(
           {
-            import_type: 'all',
+            // TODO: This showcase uses old API - will be replaced with EntityRegistry v2
             file_name: 'config/import.yml',
             field_mappings: {}
-          },
+          } as any,
           500, // pollInterval
           300000, // maxWaitTime
           (progress: number) => {

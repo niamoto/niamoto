@@ -217,10 +217,10 @@ export function PipelineSection() {
 
       const importJobResult = await executeImportFromConfig(
         {
-          import_type: 'all', // Import all types from config
+          // TODO: This showcase uses old API - will be replaced with EntityRegistry v2
           file_name: 'config/import.yml',
           field_mappings: {} // Will use mappings from config file
-        },
+        } as any,
         500, // pollInterval
         300000, // maxWaitTime
         (progress: number) => {

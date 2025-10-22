@@ -33,7 +33,7 @@ class ApiTestResponse(BaseModel):
 
 @router.post("/analyze")
 async def analyze_file(
-    file: UploadFile = File(...), import_type: str = Form(...)
+    file: UploadFile = File(...), entity_type: str = Form(...)
 ) -> Dict[str, Any]:
     """Analyze a file for import configuration."""
     try:
@@ -41,10 +41,12 @@ async def analyze_file(
         content = await file.read()
 
         # Basic analysis based on file type
-        # Check if it's a spatial file for shapes import
-        if import_type == "shapes" and file.filename.lower().endswith(
+        # Check if it's a spatial file for shapes/spatial reference import
+        is_spatial = entity_type == "reference" and file.filename.lower().endswith(
             (".zip", ".shp", ".geojson", ".gpkg")
-        ):
+        )
+
+        if is_spatial:
             result = await analyze_shape(content, file.filename)
         elif file.filename.endswith(".csv"):
             result = await analyze_csv(content, file.filename)
@@ -57,9 +59,10 @@ async def analyze_file(
         else:
             return {"error": f"Unsupported file type: {file.filename}"}
 
-        # Add import-type specific analysis
-        result["import_type"] = import_type
-        result["suggestions"] = get_field_suggestions(result, import_type)
+        # Add entity_type for compatibility
+        result["entity_type"] = entity_type
+        # Keep suggestions generic - specific field mapping done in frontend
+        result["suggestions"] = {}
 
         return result
 
