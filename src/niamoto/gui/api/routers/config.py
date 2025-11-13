@@ -8,6 +8,8 @@ import yaml
 import shutil
 from datetime import datetime
 
+from ..context import get_working_directory
+
 router = APIRouter()
 
 
@@ -29,7 +31,7 @@ class ConfigResponse(BaseModel):
 
 def ensure_config_dir():
     """Ensure the config directory exists."""
-    config_dir = Path.cwd() / "config"
+    config_dir = get_working_directory() / "config"
     config_dir.mkdir(exist_ok=True)
     return config_dir
 
@@ -40,7 +42,7 @@ def create_backup(config_path: Path) -> Optional[Path]:
         return None
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = Path.cwd() / "config" / "backups"
+    backup_dir = get_working_directory() / "config" / "backups"
     backup_dir.mkdir(exist_ok=True)
 
     backup_path = backup_dir / f"{config_path.stem}_{timestamp}.yml"
@@ -56,7 +58,7 @@ async def get_project_info() -> Dict[str, Any]:
     Returns:
         Project information including name, version, etc.
     """
-    config_path = Path.cwd() / "config" / "config.yml"
+    config_path = get_working_directory() / "config" / "config.yml"
 
     if not config_path.exists():
         # Return default project info
@@ -100,7 +102,7 @@ async def get_config(config_name: str):
         )
 
     # Check in config/ directory
-    config_path = Path.cwd() / "config" / f"{config_name}.yml"
+    config_path = get_working_directory() / "config" / f"{config_name}.yml"
 
     if not config_path.exists():
         # Return empty config structure based on type
@@ -148,7 +150,7 @@ async def update_config(config_name: str, update: ConfigUpdate) -> ConfigRespons
     # Ensure config directory exists
     ensure_config_dir()
 
-    config_path = Path.cwd() / "config" / f"{config_name}.yml"
+    config_path = get_working_directory() / "config" / f"{config_name}.yml"
 
     try:
         # Create backup if requested and file exists
@@ -295,7 +297,7 @@ async def list_backups(config_name: str) -> Dict[str, Any]:
     Returns:
         List of backup files with metadata
     """
-    backup_dir = Path.cwd() / "config" / "backups"
+    backup_dir = get_working_directory() / "config" / "backups"
 
     if not backup_dir.exists():
         return {"backups": []}
@@ -332,7 +334,7 @@ async def restore_backup(
     Returns:
         Success response
     """
-    backup_path = Path.cwd() / "config" / "backups" / backup_filename
+    backup_path = get_working_directory() / "config" / "backups" / backup_filename
 
     if not backup_path.exists():
         raise HTTPException(
@@ -346,7 +348,7 @@ async def restore_backup(
             detail=f"Backup file does not match configuration type: {config_name}",
         )
 
-    config_path = Path.cwd() / "config" / f"{config_name}.yml"
+    config_path = get_working_directory() / "config" / f"{config_name}.yml"
 
     try:
         # Create a backup of current config before restoring

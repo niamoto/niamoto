@@ -5,6 +5,7 @@ and database path in a consistent way across all API endpoints.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 import yaml
@@ -31,11 +32,23 @@ def set_working_directory(path: Path) -> None:
 def get_working_directory() -> Path:
     """Get the current working directory for the GUI.
 
+    Determines the working directory in the following order:
+    1. Directory set via set_working_directory() (when launched via 'niamoto gui')
+    2. NIAMOTO_HOME environment variable (for development mode)
+    3. Current working directory (fallback)
+
     Returns:
         Path to the Niamoto project directory
     """
     if _working_directory is not None:
         return _working_directory
+
+    # Check NIAMOTO_HOME environment variable
+    niamoto_home = os.environ.get("NIAMOTO_HOME")
+    if niamoto_home:
+        path = Path(niamoto_home)
+        logger.info(f"Using NIAMOTO_HOME: {path}")
+        return path
 
     # Fallback to current working directory
     cwd = Path.cwd()
