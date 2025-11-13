@@ -24,11 +24,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Database location**: Test instance database is at `test-instance/niamoto-nc/db/niamoto.duckdb`
 
 ### GUI Commands
+
+#### Development Mode (with Hot Reload) - RECOMMENDED
+- **Start dev environment**: `./scripts/dev_gui.sh test-instance/niamoto-nc`
+  - Launches both FastAPI backend (port 8080) and Vite frontend (port 5173) in parallel
+  - Full hot reload for both React components and Python code
+  - Access frontend at `http://127.0.0.1:5173` (use this URL for development)
+  - API docs at `http://127.0.0.1:8080/api/docs`
+  - Press Ctrl+C to stop both servers
+- **Alternative: Manual dual server setup**:
+  - Terminal 1: `python scripts/dev_api.py --instance test-instance/niamoto-nc`
+  - Terminal 2: `cd src/niamoto/gui/ui && npm run dev`
+  - Use frontend URL `http://127.0.0.1:5173` for development
+
+#### Production Mode (traditional workflow)
 - **Install GUI dependencies**: `cd src/niamoto/gui/ui && npm install`
-- **Run GUI development server**: `cd src/niamoto/gui/ui && npm run dev`
 - **Build GUI for production**: `cd src/niamoto/gui/ui && npm run build`
 - **Launch Niamoto GUI**: `niamoto gui` (options: `--port 8080`, `--host 127.0.0.1`, `--no-browser`, `--reload`)
-- **Access GUI**: Default at `http://127.0.0.1:8080`, API docs at `/api/docs`
+  - Serves the pre-built static files from `dist/`
+  - Access GUI at `http://127.0.0.1:8080`
+
+#### Instance Context Configuration
+The GUI needs to know which Niamoto instance to work with. Context is determined in this order:
+1. **CLI argument**: `python scripts/dev_api.py --instance /path/to/instance`
+2. **Environment variable**: `export NIAMOTO_HOME=/path/to/instance`
+3. **Current directory**: Falls back to `pwd` (with warning)
 
 ## Development Notes
 - A niamoto instance exists in the test-instance/niamoto-nc directory, where you can find source configuration files and execute niamoto commands
@@ -114,7 +134,7 @@ class MyPlugin(TransformerPlugin):
 - Always validate plugin configurations with Pydantic
 - Don't hardcode paths - use config system
 - Remember to register new plugins with @register decorator
-- When working on the graphical interface, you must build the GUI after each completed task, then run "niamoto gui" in @/Users/julienbarbe/Dev/Niamoto/Niamoto/test-instance/niamoto-gui
+- **GUI Development**: Use `./scripts/dev_gui.sh test-instance/niamoto-nc` for hot reload during development. Only build (`npm run build`) when preparing a release or testing production mode.
 
 ## Golden Rule
 **If you can explain it to a field ecologist or botanist in 2 minutes, it's the right solution.**

@@ -152,8 +152,8 @@ async def save_config(config: Dict[str, Any]):
     to the appropriate location in the Niamoto instance.
     """
     try:
-        # Get instance path from environment or config
-        instance_path = Path.cwd()  # Use current directory as default
+        # Get instance path from context (set via CLI or NIAMOTO_HOME)
+        instance_path = get_working_directory()
         config_dir = instance_path / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
 

@@ -12,6 +12,8 @@ import tempfile
 import zipfile
 import geopandas as gpd
 
+from ..context import get_working_directory
+
 router = APIRouter()
 
 
@@ -593,7 +595,7 @@ async def list_exports() -> Dict[str, Any]:
     """List all exported files organized by type."""
     try:
         # Get current working directory
-        cwd = Path.cwd()
+        cwd = get_working_directory()
         exports_dir = cwd / "exports"
 
         if not exports_dir.exists():
@@ -672,7 +674,7 @@ async def list_exports() -> Dict[str, Any]:
 async def read_export_file(file_path: str) -> Dict[str, Any]:
     """Read content of an exported file."""
     try:
-        cwd = Path.cwd()
+        cwd = get_working_directory()
         exports_dir = cwd / "exports"
 
         # Construct full path
@@ -730,7 +732,7 @@ async def read_export_file(file_path: str) -> Dict[str, Any]:
 async def get_exports_structure() -> Dict[str, Any]:
     """Get the directory structure of exports folder."""
     try:
-        cwd = Path.cwd()
+        cwd = get_working_directory()
         exports_dir = cwd / "exports"
 
         if not exports_dir.exists():

@@ -8,6 +8,7 @@ from sqlalchemy import inspect, text
 
 from niamoto.common.exceptions import DatabaseQueryError
 from ..utils.database import open_database
+from ..context import get_working_directory
 
 router = APIRouter()
 
@@ -66,26 +67,27 @@ def get_database_path() -> Optional[Path]:
     # First check config for database path
     import yaml
 
-    config_path = Path.cwd() / "config" / "config.yml"
+    work_dir = get_working_directory()
+    config_path = work_dir / "config" / "config.yml"
 
     if config_path.exists():
         try:
             with open(config_path, "r") as f:
                 config = yaml.safe_load(f) or {}
                 db_path_str = config.get("database", {}).get("path", "db/niamoto.db")
-                db_path = Path.cwd() / db_path_str
+                db_path = work_dir / db_path_str
                 if db_path.exists():
                     return db_path
         except Exception:
             pass
 
     candidates = [
-        Path.cwd() / "db" / "niamoto.duckdb",
-        Path.cwd() / "db" / "niamoto.db",
-        Path.cwd() / "niamoto.duckdb",
-        Path.cwd() / "niamoto.db",
-        Path.cwd() / "data" / "niamoto.duckdb",
-        Path.cwd() / "data" / "niamoto.db",
+        work_dir / "db" / "niamoto.duckdb",
+        work_dir / "db" / "niamoto.db",
+        work_dir / "niamoto.duckdb",
+        work_dir / "niamoto.db",
+        work_dir / "data" / "niamoto.duckdb",
+        work_dir / "data" / "niamoto.db",
     ]
 
     for candidate in candidates:
