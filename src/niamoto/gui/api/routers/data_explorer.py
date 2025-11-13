@@ -1,6 +1,6 @@
 """Data Explorer API endpoints for querying database tables."""
 
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text, inspect
@@ -9,6 +9,7 @@ import yaml
 from niamoto.common.database import Database
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.core.plugins.loaders.api_taxonomy_enricher import ApiTaxonomyEnricher
+from ..utils.database import open_database
 
 router = APIRouter()
 
@@ -88,35 +89,31 @@ async def list_tables():
             detail="Database not found. Please ensure the database is initialized.",
         )
 
-    db = Database(str(db_path))
-
     try:
-        # Get all table names
-        inspector = inspect(db.engine)
-        table_names = inspector.get_table_names()
+        with open_database(db_path, read_only=True) as db:
+            inspector = inspect(db.engine)
+            table_names = inspector.get_table_names()
 
-        tables = []
-        for table_name in table_names:
-            # Skip internal SQLite tables
-            if table_name.startswith("sqlite_"):
-                continue
+            tables = []
+            for table_name in table_names:
+                # Skip internal SQLite tables
+                if table_name.startswith("sqlite_"):
+                    continue
 
-            count = get_table_count(db, table_name)
-            columns = get_table_columns(db, table_name)
-            description = TABLE_DESCRIPTIONS.get(table_name, f"Table: {table_name}")
+                count = get_table_count(db, table_name)
+                columns = get_table_columns(db, table_name)
+                description = TABLE_DESCRIPTIONS.get(table_name, f"Table: {table_name}")
 
-            tables.append(
-                TableInfo(
-                    name=table_name,
-                    count=count,
-                    description=description,
-                    columns=columns,
+                tables.append(
+                    TableInfo(
+                        name=table_name,
+                        count=count,
+                        description=description,
+                        columns=columns,
+                    )
                 )
-            )
 
-        # Sort by count (descending) then name
         tables.sort(key=lambda t: (-t.count, t.name))
-
         return tables
 
     except Exception as e:
@@ -141,72 +138,61 @@ async def query_table(request: QueryRequest):
             detail="Database not found. Please ensure the database is initialized.",
         )
 
-    db = Database(str(db_path))
-
-    # Validate table exists
-    inspector = inspect(db.engine)
-    if request.table not in inspector.get_table_names():
-        raise HTTPException(
-            status_code=404, detail=f"Table '{request.table}' not found"
-        )
-
     try:
-        # Build query
-        columns = request.columns if request.columns else ["*"]
-        columns_str = ", ".join(columns)
+        with open_database(db_path, read_only=True) as db:
+            inspector = inspect(db.engine)
+            if request.table not in inspector.get_table_names():
+                raise HTTPException(
+                    status_code=404, detail=f"Table '{request.table}' not found"
+                )
 
-        query = f"SELECT {columns_str} FROM {request.table}"
+            columns = request.columns if request.columns else ["*"]
+            columns_str = ", ".join(columns)
 
-        if request.where:
-            # Basic sanitization - in production, use parameterized queries
-            # Remove "WHERE" prefix if user included it
-            where_clause = request.where.strip()
-            if where_clause.upper().startswith("WHERE "):
-                where_clause = where_clause[6:].strip()
-            query += f" WHERE {where_clause}"
+            query = f"SELECT {columns_str} FROM {request.table}"
 
-        if request.order_by:
-            query += f" ORDER BY {request.order_by}"
+            if request.where:
+                where_clause = request.where.strip()
+                if where_clause.upper().startswith("WHERE "):
+                    where_clause = where_clause[6:].strip()
+                query += f" WHERE {where_clause}"
 
-        # Get total count
-        count_query = f"SELECT COUNT(*) FROM {request.table}"
-        if request.where:
-            where_clause = request.where.strip()
-            if where_clause.upper().startswith("WHERE "):
-                where_clause = where_clause[6:].strip()
-            count_query += f" WHERE {where_clause}"
+            if request.order_by:
+                query += f" ORDER BY {request.order_by}"
 
-        with db.session() as session:
-            # Get total count
-            total_result = session.execute(text(count_query))
-            total_count = total_result.scalar() or 0
+            count_query = f"SELECT COUNT(*) FROM {request.table}"
+            if request.where:
+                where_clause = request.where.strip()
+                if where_clause.upper().startswith("WHERE "):
+                    where_clause = where_clause[6:].strip()
+                count_query += f" WHERE {where_clause}"
 
-            # Get paginated data
-            query += f" LIMIT {request.limit} OFFSET {request.offset}"
-            result = session.execute(text(query))
+            with db.session() as session:
+                total_result = session.execute(text(count_query))
+                total_count = total_result.scalar() or 0
 
-            # Get column names
-            column_names = list(result.keys())
+                query += f" LIMIT {request.limit} OFFSET {request.offset}"
+                result = session.execute(text(query))
 
-            # Fetch rows
-            rows = []
-            for row in result:
-                row_dict = {}
-                for idx, col_name in enumerate(column_names):
-                    value = row[idx]
-                    # Convert to JSON-serializable types
-                    if isinstance(value, (bytes, bytearray)):
-                        row_dict[col_name] = None  # Skip binary data
-                    else:
-                        row_dict[col_name] = value
-                rows.append(row_dict)
+                column_names = list(result.keys())
 
-            return QueryResponse(
-                columns=column_names,
-                rows=rows,
-                total_count=total_count,
-                page_count=len(rows),
-            )
+                rows = []
+                for row in result:
+                    row_dict = {}
+                    for idx, col_name in enumerate(column_names):
+                        value = row[idx]
+                        if isinstance(value, (bytes, bytearray)):
+                            row_dict[col_name] = None
+                        else:
+                            row_dict[col_name] = value
+                    rows.append(row_dict)
+
+        return QueryResponse(
+            columns=column_names,
+            rows=rows,
+            total_count=total_count,
+            page_count=len(rows),
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
@@ -226,17 +212,16 @@ async def get_table_columns_endpoint(table_name: str):
             detail="Database not found. Please ensure the database is initialized.",
         )
 
-    db = Database(str(db_path))
-
     try:
-        inspector = inspect(db.engine)
+        with open_database(db_path, read_only=True) as db:
+            inspector = inspect(db.engine)
 
-        if table_name not in inspector.get_table_names():
-            raise HTTPException(
-                status_code=404, detail=f"Table '{table_name}' not found"
-            )
+            if table_name not in inspector.get_table_names():
+                raise HTTPException(
+                    status_code=404, detail=f"Table '{table_name}' not found"
+                )
 
-        columns = inspector.get_columns(table_name)
+            columns = inspector.get_columns(table_name)
 
         return {
             "table": table_name,

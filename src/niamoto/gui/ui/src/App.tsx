@@ -23,7 +23,8 @@ const PipelineVisualDemo = lazy(() => import('@/pages/demos/PipelineVisualDemo')
 const WizardFormDemo = lazy(() => import('@/pages/demos/WizardFormDemo').then(m => ({ default: m.WizardFormDemo })))
 const GoalDrivenPageBuilder = lazy(() => import('@/pages/demos/GoalDrivenPageBuilder'))
 const Showcase = lazy(() => import('@/pages/showcase'))
-const EntityConfigPage = lazy(() => import('@/pages/entity-config').then(m => ({ default: m.EntityConfigPage })))
+// const EntityConfigPage = lazy(() => import('@/pages/entity-config').then(m => ({ default: m.EntityConfigPage })))
+const OnboardingWizard = lazy(() => import('@/pages/onboarding'))
 
 function App() {
   const { data: projectInfo } = useProjectInfo()
@@ -50,7 +51,7 @@ function App() {
             } />
             <Route path="setup/import" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <EntityConfigPage />
+                <OnboardingWizard />
               </Suspense>
             } />
             <Route path="setup/transform" element={<TransformPage />} />

@@ -1,18 +1,18 @@
 """Generic import API endpoints using entity registry and typed configurations."""
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form
 from pydantic import BaseModel
 import uuid
 from datetime import datetime
 
 from niamoto.common.config import Config
-from niamoto.common.database import Database
 from niamoto.common.exceptions import (
     ConfigurationError,
 )
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.imports.registry import EntityRegistry
+from ..utils.database import open_database
 
 router = APIRouter()
 
@@ -269,43 +269,39 @@ async def get_import_status() -> ImportStatusResponse:
 
     try:
         config = Config()
-        db = Database(config.database_path)
-        registry = EntityRegistry(db)
+        references: List[ImportStatus] = []
+        datasets: List[ImportStatus] = []
 
-        references = []
-        datasets = []
+        with open_database(config.database_path, read_only=True) as db:
+            registry = EntityRegistry(db)
 
-        # Get all registered entities from registry
-        for entity in registry.list_all():
-            row_count = 0
-            is_imported = False
+            for entity in registry.list_all():
+                row_count = 0
+                is_imported = False
 
-            if db.has_table(entity.table_name):
-                try:
-                    count_row = db.execute_sql(
-                        f"SELECT COUNT(*) FROM {entity.table_name}", fetch=True
-                    )
-                    row_count = count_row[0] if count_row else 0
-                    is_imported = row_count > 0
-                except Exception:
-                    pass
+                if db.has_table(entity.table_name):
+                    try:
+                        count_row = db.execute_sql(
+                            f"SELECT COUNT(*) FROM {entity.table_name}", fetch=True
+                        )
+                        row_count = count_row[0] if count_row else 0
+                        is_imported = row_count > 0
+                    except Exception:
+                        pass
 
-            status = ImportStatus(
-                entity_name=entity.name,
-                entity_type=entity.kind.value if entity.kind else "unknown",
-                is_imported=is_imported,
-                row_count=row_count,
-            )
+                status = ImportStatus(
+                    entity_name=entity.name,
+                    entity_type=entity.kind.value if entity.kind else "unknown",
+                    is_imported=is_imported,
+                    row_count=row_count,
+                )
 
-            if entity.kind.value == "REFERENCE":
-                references.append(status)
-            else:
-                datasets.append(status)
+                if entity.kind.value == "REFERENCE":
+                    references.append(status)
+                else:
+                    datasets.append(status)
 
-        return ImportStatusResponse(
-            references=references,
-            datasets=datasets,
-        )
+        return ImportStatusResponse(references=references, datasets=datasets)
 
     except Exception:
         # Return empty status on error
@@ -340,32 +336,37 @@ async def process_generic_import_all(
         generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 
-        # Count total entities
-        total_entities = 0
-        if generic_config.entities:
-            if generic_config.entities.references:
-                total_entities += len(generic_config.entities.references)
-            if generic_config.entities.datasets:
-                total_entities += len(generic_config.entities.datasets)
+        try:
+            # Count total entities
+            total_entities = 0
+            if generic_config.entities:
+                if generic_config.entities.references:
+                    total_entities += len(generic_config.entities.references)
+                if generic_config.entities.datasets:
+                    total_entities += len(generic_config.entities.datasets)
 
-        job["total_entities"] = total_entities
-        job["progress"] = 20
-        job["message"] = f"Importing {total_entities} entities..."
+            job["total_entities"] = total_entities
+            job["progress"] = 20
+            job["message"] = f"Importing {total_entities} entities..."
 
-        # Import all entities
-        result = await asyncio.to_thread(
-            importer.import_all,
-            generic_config,
-            reset_table=reset_table,
-        )
+            # Import all entities
+            result = await asyncio.to_thread(
+                importer.import_all,
+                generic_config,
+                reset_table=reset_table,
+            )
 
-        # Mark as completed
-        job["status"] = "completed"
-        job["completed_at"] = datetime.utcnow().isoformat()
-        job["progress"] = 100
-        job["processed_entities"] = total_entities
-        job["message"] = "Import completed successfully"
-        job["result"] = {"summary": result}
+            # Mark as completed
+            job["status"] = "completed"
+            job["completed_at"] = datetime.utcnow().isoformat()
+            job["progress"] = 100
+            job["processed_entities"] = total_entities
+            job["message"] = "Import completed successfully"
+            job["result"] = {"summary": result}
+
+        finally:
+            # Always close database connections
+            importer.close()
 
     except Exception as e:
         # Mark as failed
@@ -407,51 +408,56 @@ async def process_generic_import_entity(
         generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 
-        job["progress"] = 30
-        job["message"] = f"Importing {entity_name}..."
+        try:
+            job["progress"] = 30
+            job["message"] = f"Importing {entity_name}..."
 
-        # Import based on type
-        if entity_type == "reference":
-            if (
-                not generic_config.entities
-                or entity_name not in generic_config.entities.references
-            ):
-                raise ConfigurationError(
-                    config_key=f"entities.references.{entity_name}",
-                    message=f"Reference '{entity_name}' not found in configuration",
+            # Import based on type
+            if entity_type == "reference":
+                if (
+                    not generic_config.entities
+                    or entity_name not in generic_config.entities.references
+                ):
+                    raise ConfigurationError(
+                        config_key=f"entities.references.{entity_name}",
+                        message=f"Reference '{entity_name}' not found in configuration",
+                    )
+
+                ref_config = generic_config.entities.references[entity_name]
+                result = await asyncio.to_thread(
+                    importer.import_reference,
+                    entity_name,
+                    ref_config,
+                    reset_table=reset_table,
+                )
+            else:  # dataset
+                if (
+                    not generic_config.entities
+                    or entity_name not in generic_config.entities.datasets
+                ):
+                    raise ConfigurationError(
+                        config_key=f"entities.datasets.{entity_name}",
+                        message=f"Dataset '{entity_name}' not found in configuration",
+                    )
+
+                ds_config = generic_config.entities.datasets[entity_name]
+                result = await asyncio.to_thread(
+                    importer.import_dataset,
+                    entity_name,
+                    ds_config,
+                    reset_table=reset_table,
                 )
 
-            ref_config = generic_config.entities.references[entity_name]
-            result = await asyncio.to_thread(
-                importer.import_reference,
-                entity_name,
-                ref_config,
-                reset_table=reset_table,
-            )
-        else:  # dataset
-            if (
-                not generic_config.entities
-                or entity_name not in generic_config.entities.datasets
-            ):
-                raise ConfigurationError(
-                    config_key=f"entities.datasets.{entity_name}",
-                    message=f"Dataset '{entity_name}' not found in configuration",
-                )
+            # Mark as completed
+            job["status"] = "completed"
+            job["completed_at"] = datetime.utcnow().isoformat()
+            job["progress"] = 100
+            job["message"] = f"Import of {entity_name} completed successfully"
+            job["result"] = {"summary": result}
 
-            ds_config = generic_config.entities.datasets[entity_name]
-            result = await asyncio.to_thread(
-                importer.import_dataset,
-                entity_name,
-                ds_config,
-                reset_table=reset_table,
-            )
-
-        # Mark as completed
-        job["status"] = "completed"
-        job["completed_at"] = datetime.utcnow().isoformat()
-        job["progress"] = 100
-        job["message"] = f"Import of {entity_name} completed successfully"
-        job["result"] = {"summary": result}
+        finally:
+            # Always close database connections
+            importer.close()
 
     except Exception as e:
         # Mark as failed

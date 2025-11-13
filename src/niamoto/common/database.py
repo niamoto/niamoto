@@ -8,6 +8,7 @@ add instances to the database, and close sessions.
 from typing import TypeVar, Any, Optional, List, Dict
 import warnings
 from sqlalchemy import create_engine, exc, text, inspect
+from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import scoped_session, sessionmaker, Session
 
@@ -87,8 +88,12 @@ class Database:
                     self.engine = create_engine(self.connection_string, echo=False)
                 else:
                     # For DuckDB, use connect_args to set access_mode
+                    # Always use NullPool for DuckDB to avoid lock issues
                     self.connection_string = f"duckdb:///{db_path}"
-                    engine_kwargs: Dict[str, Any] = {"echo": False}
+                    engine_kwargs: Dict[str, Any] = {
+                        "echo": False,
+                        "poolclass": NullPool,
+                    }
                     if read_only:
                         # Pass access_mode as connect_args for DuckDB
                         engine_kwargs["connect_args"] = {"read_only": True}

@@ -6,7 +6,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 60000 // 60 seconds
+  timeout: 180000 // 180 seconds (3 minutes) - increased for large file analysis
 })
 
 // Request interceptor for error handling

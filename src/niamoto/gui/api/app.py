@@ -17,6 +17,7 @@ from .routers import (
     data_explorer,
     entities,
     deploy,
+    smart_config,
 )
 from .context import get_working_directory
 
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(data_explorer.router, prefix="/api/data", tags=["data-explorer"])
     app.include_router(entities.router, prefix="/api/entities", tags=["entities"])
     app.include_router(deploy.router, prefix="/api/deploy", tags=["deploy"])
+    app.include_router(smart_config.router, prefix="/api/smart", tags=["smart-config"])
     app.include_router(bootstrap.router, prefix="/api", tags=["bootstrap"])
 
     # Serve exported site from exports/web/ directory

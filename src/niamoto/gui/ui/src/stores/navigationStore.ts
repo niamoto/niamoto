@@ -42,17 +42,16 @@ interface NavigationState {
 // Navigation structure definition
 export const navigationSections: NavigationSection[] = [
   {
-    id: 'showcase',
-    label: 'Showcase',
-    icon: 'presentation',
+    id: 'home',
+    label: 'Home',
     defaultOpen: true,
     items: [
-      { id: 'showcase-demo', label: 'Niamoto Flow', path: '/showcase' }
+      { id: 'showcase', label: 'Niamoto Flow', path: '/showcase' }
     ]
   },
   {
-    id: 'pipeline',
-    label: 'Pipeline',
+    id: 'setup',
+    label: 'Setup',
     defaultOpen: false,
     items: [
       { id: 'import', label: 'Import Data', path: '/setup/import' },
@@ -83,7 +82,6 @@ export const navigationSections: NavigationSection[] = [
   {
     id: 'labs',
     label: 'Labs',
-    icon: 'flask-conical',
     defaultOpen: false,
     items: [
       { id: 'pipeline-editor', label: 'Flow Editor', path: '/setup/pipeline' },
