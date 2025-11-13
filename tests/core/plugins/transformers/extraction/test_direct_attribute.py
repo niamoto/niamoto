@@ -46,11 +46,12 @@ class TestDirectAttributeConfig:
         )
         assert config.params.max_value == 1000
 
-    def test_missing_source(self):
-        """Test configuration with missing source."""
-        with pytest.raises(ValueError) as exc_info:
-            DirectAttributeConfig(plugin="direct_attribute", params={"field": "area"})
-        assert "Field required" in str(exc_info.value)
+    def test_default_source(self):
+        """Test configuration uses default source when not provided."""
+        config = DirectAttributeConfig(
+            plugin="direct_attribute", params={"field": "area"}
+        )
+        assert config.params.source == "occurrences"  # Default value
 
     def test_missing_field(self):
         """Test configuration with missing field."""

@@ -1,6 +1,12 @@
 # Niamoto
 test-instance/
 
+# Database files (test artifacts)
+*.db
+*.duckdb
+*.sqlite
+*.sqlite3
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

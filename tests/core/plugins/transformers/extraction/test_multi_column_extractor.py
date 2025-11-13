@@ -46,17 +46,17 @@ class TestMultiColumnExtractorValidation:
         assert validated_config.params.source == "table_name"
         assert validated_config.params.columns == ["col1", "col2", "col3"]
 
-    def test_validate_config_missing_source(self, multi_column_extractor_plugin):
-        """Test configuration missing source field."""
+    def test_validate_config_default_source(self, multi_column_extractor_plugin):
+        """Test configuration uses default source when not provided."""
         config = {
             "plugin": "multi_column_extractor",
             "params": {
-                # "source": "table_name", # Missing source
+                # "source": "table_name", # Not provided - should use default
                 "columns": ["col1", "col2"],
             },
         }
-        with pytest.raises(ValueError, match="Field required"):
-            multi_column_extractor_plugin.validate_config(config)
+        validated = multi_column_extractor_plugin.validate_config(config)
+        assert validated.params.source == "occurrences"  # Default value
 
     def test_validate_config_missing_columns(self, multi_column_extractor_plugin):
         """Test configuration missing columns field."""

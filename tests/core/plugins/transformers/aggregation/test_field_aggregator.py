@@ -96,14 +96,14 @@ class TestFieldAggregator:
         assert len(config_model.params.fields) == 2
 
     def test_config_validation_missing_field_in_item(self):
-        """Test config validation fails if a required field (e.g., source) is missing within a field item."""
+        """Test config validation fails if a required field is missing within a field item."""
         invalid_config = {
             "plugin": "field_aggregator",
             "params": {
                 "fields": [
                     {
-                        # "source": "occurrences",  # Missing source
-                        "field": "value_col1",
+                        "source": "occurrences",
+                        # "field": "value_col1",  # Missing required field
                         "target": "total_value1",
                     }
                 ]
