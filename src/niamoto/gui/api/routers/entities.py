@@ -144,15 +144,9 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
     if not db_path or not db_path.exists():
         raise HTTPException(status_code=500, detail="Database not found")
 
-    # Validate group_by
-    valid_groups = ["taxon", "plot", "shape"]
-    if group_by not in valid_groups:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid group_by. Must be one of: {', '.join(valid_groups)}",
-        )
-
     # Map group_by to ID column name
+    # No hardcoded validation - dynamic tables from transforms allowed
+    # Will fail gracefully via OperationalError handler if table doesn't exist
     id_column = f"{group_by}_id"
 
     try:
@@ -219,15 +213,9 @@ async def get_entity_detail(group_by: str, entity_id: int):
     if not db_path or not db_path.exists():
         raise HTTPException(status_code=500, detail="Database not found")
 
-    # Validate group_by
-    valid_groups = ["taxon", "plot", "shape"]
-    if group_by not in valid_groups:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid group_by. Must be one of: {', '.join(valid_groups)}",
-        )
-
     # Map group_by to ID column name
+    # No hardcoded validation - dynamic tables from transforms allowed
+    # Will fail gracefully via OperationalError handler if table doesn't exist
     id_column = f"{group_by}_id"
 
     try:
