@@ -819,7 +819,7 @@ class TestTransformerServiceIntegration:
         mock.plugins_dir = "/tmp/plugins"
         return mock
 
-    def test_full_transformation_workflow(self, mock_db, real_config):
+    def test_full_transformation_workflow(self, mock_db, real_config, tmp_path):
         """Test complete transformation workflow."""
         # Mock result for reference table queries
         mock_ref_result = Mock()
@@ -882,7 +882,8 @@ class TestTransformerServiceIntegration:
                     ) as mock_db_class:
                         mock_db_class.return_value = mock_db
 
-                        service = TransformerService("test.db", real_config)
+                        db_path = str(tmp_path / "test.db")
+                        service = TransformerService(db_path, real_config)
                         result = service.transform_data(group_by="plots")
 
         # Verify results

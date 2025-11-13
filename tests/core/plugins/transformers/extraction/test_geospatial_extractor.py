@@ -59,18 +59,18 @@ class TestGeospatialExtractorValidation:
         # Should not raise an error
         geospatial_extractor_plugin.validate_config(config)
 
-    def test_validate_config_missing_source(self, geospatial_extractor_plugin):
-        """Test configuration missing source field."""
+    def test_validate_config_default_source(self, geospatial_extractor_plugin):
+        """Test configuration uses default source when not provided."""
         config = {
             "plugin": "geospatial_extractor",
             "params": {
-                # "source": "occurrences", # Missing source
+                # "source": "occurrences", # Not provided - should use default
                 "field": "geometry",
                 "format": "geojson",
             },
         }
-        with pytest.raises(ValueError, match="Field required"):
-            geospatial_extractor_plugin.validate_config(config)
+        validated = geospatial_extractor_plugin.validate_config(config)
+        assert validated.params.source == "occurrences"  # Default value
 
     def test_validate_config_missing_field(self, geospatial_extractor_plugin):
         """Test configuration missing field."""

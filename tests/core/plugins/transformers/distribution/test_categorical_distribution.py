@@ -55,12 +55,6 @@ class TestCategoricalDistribution:
         with pytest.raises(ValueError, match="Missing required field: field"):
             self.plugin.validate_config(config)
 
-    def test_invalid_config_missing_source(self):
-        """Test config validation fails with missing required source."""
-        config = {"params": {"field": "category_col"}}  # Missing 'source'
-        with pytest.raises(ValueError, match="Missing required field: source"):
-            self.plugin.validate_config(config)
-
     def test_invalid_config_categories_not_list(self):
         """Test config validation fails if categories is not a list."""
         config = {
