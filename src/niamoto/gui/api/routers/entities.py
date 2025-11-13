@@ -1,6 +1,6 @@
 """Entities API endpoints for accessing entity data with transformations and EntityRegistry."""
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -9,13 +9,13 @@ from sqlalchemy.exc import OperationalError
 import json
 import yaml
 
-from niamoto.common.database import Database
 from niamoto.common.config import Config
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.exceptions import PluginNotFoundError
 from niamoto.core.imports.registry import EntityRegistry
+from ..utils.database import open_database
 
 router = APIRouter()
 
@@ -86,11 +86,9 @@ async def get_available_entities(
         # Get config to access EntityRegistry
         config = Config()
 
-        # Initialize EntityRegistry with config
-        registry = EntityRegistry(config)
-
-        # Get all entities
-        all_entities = registry.list_all()
+        with open_database(config.database_path, read_only=True) as db:
+            registry = EntityRegistry(db)
+            all_entities = registry.list_all()
 
         datasets = []
         references = []
@@ -157,47 +155,43 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
     # Map group_by to ID column name
     id_column = f"{group_by}_id"
 
-    db = Database(db_path)
-
     try:
-        with db.session() as session:
-            # Query the transformed table to get entities with general_info
-            if limit is not None:
-                query = text(f"""
-                    SELECT {id_column} as id,
-                           json_extract(general_info, '$.name.value') as name
-                    FROM {group_by}
-                    WHERE general_info IS NOT NULL
-                    ORDER BY name
-                    LIMIT :limit
-                """)
-                result = session.execute(query, {"limit": limit})
-            else:
-                # No limit - return all entities
-                query = text(f"""
-                    SELECT {id_column} as id,
-                           json_extract(general_info, '$.name.value') as name
-                    FROM {group_by}
-                    WHERE general_info IS NOT NULL
-                    ORDER BY name
-                """)
-                result = session.execute(query)
+        with open_database(db_path, read_only=True) as db:
+            with db.session() as session:
+                if limit is not None:
+                    query = text(f"""
+                        SELECT {id_column} as id,
+                               json_extract(general_info, '$.name.value') as name
+                        FROM {group_by}
+                        WHERE general_info IS NOT NULL
+                        ORDER BY name
+                        LIMIT :limit
+                    """)
+                    result = session.execute(query, {"limit": limit})
+                else:
+                    query = text(f"""
+                        SELECT {id_column} as id,
+                               json_extract(general_info, '$.name.value') as name
+                        FROM {group_by}
+                        WHERE general_info IS NOT NULL
+                        ORDER BY name
+                    """)
+                    result = session.execute(query)
 
-            entities = []
+                entities = []
 
-            for row in result:
-                entities.append(
-                    EntitySummary(
-                        id=row.id,
-                        name=row.name or f"{group_by}_{row.id}",
-                        display_name=row.name or f"{group_by}_{row.id}",
+                for row in result:
+                    entities.append(
+                        EntitySummary(
+                            id=row.id,
+                            name=row.name or f"{group_by}_{row.id}",
+                            display_name=row.name or f"{group_by}_{row.id}",
+                        )
                     )
-                )
 
-            return entities
+                return entities
 
     except OperationalError as e:
-        # Table doesn't exist yet (database not initialized or no import done)
         if "no such table" in str(e).lower():
             return []
         raise HTTPException(
@@ -236,60 +230,54 @@ async def get_entity_detail(group_by: str, entity_id: int):
     # Map group_by to ID column name
     id_column = f"{group_by}_id"
 
-    db = Database(db_path)
-
     try:
-        with db.session() as session:
-            # First, get column names to know which JSON columns exist
-            columns_query = text(f"PRAGMA table_info({group_by})")
-            columns_result = session.execute(columns_query)
+        with open_database(db_path, read_only=True) as db:
+            with db.session() as session:
+                columns_query = text(f"PRAGMA table_info({group_by})")
+                columns_result = session.execute(columns_query)
 
-            # Get all column names except the ID column
-            json_columns = []
-            for col in columns_result:
-                col_name = col[1]  # column name is at index 1
-                col_type = col[2]  # column type is at index 2
-                if col_name != id_column and col_type == "JSON":
-                    json_columns.append(col_name)
+                json_columns = []
+                for col in columns_result:
+                    col_name = col[1]
+                    col_type = col[2]
+                    if col_name != id_column and col_type == "JSON":
+                        json_columns.append(col_name)
 
-            # Build query to select all columns
-            columns_str = ", ".join(
-                [id_column]
-                + ["json_extract(general_info, '$.name.value') as name"]
-                + json_columns
-            )
-            query = text(f"""
-                SELECT {columns_str}
-                FROM {group_by}
-                WHERE {id_column} = :entity_id
-            """)
-
-            result = session.execute(query, {"entity_id": entity_id}).fetchone()
-
-            if not result:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Entity {entity_id} not found in {group_by} table",
+                columns_str = ", ".join(
+                    [id_column]
+                    + ["json_extract(general_info, '$.name.value') as name"]
+                    + json_columns
                 )
+                query = text(f"""
+                    SELECT {columns_str}
+                    FROM {group_by}
+                    WHERE {id_column} = :entity_id
+                """)
 
-            # Build widgets_data from all JSON columns
-            widgets_data = {}
-            result_dict = result._mapping
+                result = session.execute(query, {"entity_id": entity_id}).fetchone()
 
-            for col_name in json_columns:
-                if col_name in result_dict and result_dict[col_name]:
-                    try:
-                        widgets_data[col_name] = json.loads(result_dict[col_name])
-                    except (json.JSONDecodeError, TypeError):
-                        # If it's already a dict or can't be parsed, use as is
-                        widgets_data[col_name] = result_dict[col_name]
+                if not result:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Entity {entity_id} not found in {group_by} table",
+                    )
 
-            return EntityDetail(
-                id=result_dict[id_column],
-                name=result_dict.get("name") or f"{group_by}_{entity_id}",
-                group_by=group_by,
-                widgets_data=widgets_data,
-            )
+                widgets_data = {}
+                result_dict = result._mapping
+
+                for col_name in json_columns:
+                    if col_name in result_dict and result_dict[col_name]:
+                        try:
+                            widgets_data[col_name] = json.loads(result_dict[col_name])
+                        except (json.JSONDecodeError, TypeError):
+                            widgets_data[col_name] = result_dict[col_name]
+
+                return EntityDetail(
+                    id=result_dict[id_column],
+                    name=result_dict.get("name") or f"{group_by}_{entity_id}",
+                    group_by=group_by,
+                    widgets_data=widgets_data,
+                )
 
     except HTTPException:
         raise
@@ -433,56 +421,49 @@ async def render_widget(group_by: str, entity_id: int, transform_key: str):
         if not db_path or not db_path.exists():
             return HTMLResponse(content="<p class='error'>Database not found</p>")
 
-        db = Database(db_path)
+        with open_database(db_path, read_only=True) as db:
+            plugin_instance = plugin_class(db=db)
 
-        # Instantiate the plugin with database
-        plugin_instance = plugin_class(db=db)
+            widget_params = widget_config.get("params", {})
 
-        # Get widget parameters from config
-        widget_params = widget_config.get("params", {})
+            validated_params = widget_params
+            if (
+                hasattr(plugin_instance, "param_schema")
+                and plugin_instance.param_schema
+            ):
+                try:
+                    validated_params = plugin_instance.param_schema.model_validate(
+                        widget_params
+                    )
+                except Exception as e:
+                    return HTMLResponse(
+                        content=f"<p class='error'>Invalid widget parameters: {str(e)}</p>"
+                    )
 
-        # Validate params using plugin's schema
-        validated_params = widget_params
-        if hasattr(plugin_instance, "param_schema") and plugin_instance.param_schema:
-            try:
-                validated_params = plugin_instance.param_schema.model_validate(
-                    widget_params
-                )
-            except Exception as e:
-                return HTMLResponse(
-                    content=f"<p class='error'>Invalid widget parameters: {str(e)}</p>"
-                )
+            widget_html = plugin_instance.render(transformation_data, validated_params)
 
-        # Render the widget with the transformation data
-        widget_html = plugin_instance.render(transformation_data, validated_params)
+            dependencies = (
+                plugin_instance.get_dependencies()
+                if hasattr(plugin_instance, "get_dependencies")
+                else set()
+            )
 
-        # Get widget dependencies (e.g., Plotly CDN)
-        dependencies = (
-            plugin_instance.get_dependencies()
-            if hasattr(plugin_instance, "get_dependencies")
-            else set()
-        )
+            cdn_dependencies = set()
+            for dep in dependencies:
+                if "plotly" in dep.lower():
+                    cdn_dependencies.add("https://cdn.plot.ly/plotly-3.0.0.min.js")
+                elif "topojson" in dep.lower():
+                    cdn_dependencies.add(
+                        "https://cdn.jsdelivr.net/npm/topojson@3.0.0/dist/topojson.min.js"
+                    )
+                else:
+                    cdn_dependencies.add(dep)
 
-        # Replace local paths with CDN
-        cdn_dependencies = set()
-        for dep in dependencies:
-            if "plotly" in dep.lower():
-                # Use public CDN instead of local file
-                cdn_dependencies.add("https://cdn.plot.ly/plotly-3.0.0.min.js")
-            elif "topojson" in dep.lower():
-                # Use public CDN for TopoJSON
-                cdn_dependencies.add(
-                    "https://cdn.jsdelivr.net/npm/topojson@3.0.0/dist/topojson.min.js"
-                )
-            else:
-                cdn_dependencies.add(dep)
+            dependency_scripts = "\n".join(
+                [f'<script src="{dep}"></script>' for dep in cdn_dependencies]
+            )
 
-        # Wrap the widget HTML in a complete HTML page with dependencies
-        dependency_scripts = "\n".join(
-            [f'<script src="{dep}"></script>' for dep in cdn_dependencies]
-        )
-
-        full_html = f"""<!DOCTYPE html>
+            full_html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">

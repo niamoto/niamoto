@@ -17,7 +17,7 @@ import {
   Package,
   FlaskConical,
   Presentation,
-  Workflow,
+  HomeIcon,
   Database
 } from 'lucide-react'
 import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
@@ -26,7 +26,7 @@ import niamotoLogo from '@/assets/niamoto_logo.png'
 
 // Icon mapping
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  'showcase-demo': Workflow,
+  showcase: Presentation,
   import: Upload,
   transform: Settings,
   export: Download,
@@ -35,12 +35,12 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   settings: Wrench,
   plugins: Package,
   docs: FileText,
-  'pipeline-editor': Layers
+  setup: Layers
 }
 
 const sectionIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  showcase: Presentation,
-  pipeline: Layers,
+  home: HomeIcon,
+  setup: Layers,
   data: Database,
   tools: Wrench,
   labs: FlaskConical

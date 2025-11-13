@@ -41,11 +41,11 @@ def init_environment(project_name: str, reset: bool, gui: bool) -> None:
         if project_name:
             # Check if directory already exists
             if os.path.exists(project_name):
-                raise CommandError(
-                    command="init",
-                    message=f"Directory '{project_name}' already exists",
-                    details={"directory": project_name},
+                print_error(
+                    f"Directory '{project_name}' already exists. "
+                    "Please choose a different name or remove the existing directory."
                 )
+                return
 
             # Create project directory
             os.makedirs(project_name)

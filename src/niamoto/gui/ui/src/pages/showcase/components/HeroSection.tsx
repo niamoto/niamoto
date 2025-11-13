@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowRight, GitBranch, ExternalLink } from 'lucide-react'
+import { GitBranch, ExternalLink } from 'lucide-react'
 import niamotoLogo from '@/assets/niamoto_logo.png'
 
 interface HeroSectionProps {
@@ -14,11 +14,6 @@ export function HeroSection({ configLoaded }: HeroSectionProps) {
   useEffect(() => {
     setShowLogo(true)
   }, [])
-
-  const scrollToNext = () => {
-    const nextSection = document.getElementById('architecture')
-    nextSection?.scrollIntoView({ behavior: 'smooth' })
-  }
 
   return (
     <div className="w-full flex flex-col items-center justify-center text-center space-y-8 animate-fadeIn">
@@ -63,14 +58,6 @@ export function HeroSection({ configLoaded }: HeroSectionProps) {
 
       {/* CTA Buttons */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <Button
-          size="lg"
-          onClick={scrollToNext}
-          className="group"
-        >
-          Découvrir la démo
-          <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-        </Button>
         <Button
           size="lg"
           variant="outline"

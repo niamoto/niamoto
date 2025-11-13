@@ -94,7 +94,10 @@ class EntityRegistry:
             sql += " WHERE kind = :kind"
             params["kind"] = kind.value
 
-        rows = self.db.execute_sql(sql, params, fetch_all=True)
+        try:
+            rows = self.db.execute_sql(sql, params, fetch_all=True)
+        except DatabaseQueryError:
+            return []
         if not rows:
             return []
 
@@ -122,6 +125,8 @@ class EntityRegistry:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """
+        if getattr(self.db, "read_only", False):
+            return
         self.db.execute_sql(create_entities)
 
     def _row_to_metadata(self, row: Any) -> EntityMetadata:

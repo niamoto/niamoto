@@ -38,6 +38,17 @@ class ImporterService:
         self.registry = EntityRegistry(self.db)
         self.engine = GenericImporter(self.db, self.registry)
 
+    def close(self) -> None:
+        """Close database connections and dispose of engine."""
+        try:
+            self.db.close_db_session()
+        except Exception:
+            pass
+        try:
+            self.db.engine.dispose()
+        except Exception:
+            pass
+
     @error_handler(log=True, raise_error=True)
     def import_reference(
         self,

@@ -30,7 +30,8 @@
       "Bash(xargs kill:*)",
       "Bash(curl:*)",
       "Bash(awk:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(python3:*)"
     ],
     "deny": []
   }
