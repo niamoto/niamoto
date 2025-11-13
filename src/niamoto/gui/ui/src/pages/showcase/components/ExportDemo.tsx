@@ -346,7 +346,7 @@ export function ExportDemo({}: ExportDemoProps) {
             <div className="pt-2 space-y-1 text-xs">
               <div className="flex items-center gap-2">
                 <Layers className="w-3 h-3" />
-                <span className="text-muted-foreground">Groupes: taxon, plot, shape</span>
+                <span className="text-muted-foreground">Groupes: dynamiques selon votre configuration</span>
               </div>
               <div className="flex items-center gap-2">
                 <Package className="w-3 h-3" />

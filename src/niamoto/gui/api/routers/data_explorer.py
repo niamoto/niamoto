@@ -43,16 +43,44 @@ class QueryResponse(BaseModel):
     page_count: int
 
 
-# Table descriptions
-TABLE_DESCRIPTIONS = {
-    "occurrences": "Species occurrence data with measurements and location",
-    "taxon_ref": "Taxonomic hierarchy and reference data",
-    "plot_ref": "Plot locations and metadata",
-    "shape_ref": "Geographic boundaries and shapes",
-    "taxon": "Transformed taxon data with widgets",
-    "plot": "Transformed plot data with widgets",
-    "shape": "Transformed shape data with widgets",
-}
+def get_table_description(table_name: str) -> str:
+    """
+    Generate a dynamic description for a table.
+
+    Detects table type (reference, dataset, generated) and provides
+    an appropriate description.
+    """
+    # Reference tables (end with _ref)
+    if table_name.endswith("_ref"):
+        base_name = table_name[:-4].replace("_", " ").title()
+        return f"{base_name} reference data"
+
+    # System/metadata tables
+    if table_name.startswith("niamoto_"):
+        return "Niamoto system metadata"
+
+    # Common dataset patterns
+    dataset_patterns = {
+        "occurrence": "occurrence data with measurements and location",
+        "observation": "observation data",
+        "plot": "plot data",
+        "site": "site data",
+        "sample": "sample data",
+    }
+
+    table_lower = table_name.lower()
+    for pattern, desc in dataset_patterns.items():
+        if pattern in table_lower:
+            return f"Dataset: {desc}"
+
+    # Likely a generated/transformed table
+    # Try to determine from name structure
+    if "_" not in table_name:
+        # Simple name like "taxon", "plot", "shape" - likely transformed
+        return f"Transformed {table_name} data with widgets"
+
+    # Default generic description
+    return f"Table: {table_name}"
 
 
 def get_table_count(db: Database, table_name: str) -> int:
@@ -102,7 +130,7 @@ async def list_tables():
 
                 count = get_table_count(db, table_name)
                 columns = get_table_columns(db, table_name)
-                description = TABLE_DESCRIPTIONS.get(table_name, f"Table: {table_name}")
+                description = get_table_description(table_name)
 
                 tables.append(
                     TableInfo(
