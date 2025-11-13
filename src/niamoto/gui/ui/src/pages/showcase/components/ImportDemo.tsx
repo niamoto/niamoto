@@ -63,11 +63,19 @@ export function ImportDemo({}: ImportDemoProps) {
   // Check for existing import result from pipeline store
   useEffect(() => {
     if (importResult && importResult.result?.metrics) {
+      // NOTE: Showcase uses specific entity names for display.
+      // For production, use EntityRegistry v2 to load entities dynamically.
       const newMetrics = {
         occurrences: importResult.result.metrics.occurrences || 0,
         taxonomy: importResult.result.metrics.taxonomy || 0,
         plots: importResult.result.metrics.plots || 0,
-        shapes: importResult.result.metrics.shapes || 0
+        shapes: importResult.result.metrics.shapes || 0,
+        // Capture any additional custom entities dynamically
+        ...Object.fromEntries(
+          Object.entries(importResult.result.metrics).filter(
+            ([key]) => !['occurrences', 'taxonomy', 'plots', 'shapes'].includes(key)
+          )
+        )
       }
       setTargetMetrics(newMetrics)
       setImportStarted(true)
@@ -175,7 +183,13 @@ export function ImportDemo({}: ImportDemoProps) {
             occurrences: result.result.metrics.occurrences || 0,
             taxonomy: result.result.metrics.taxonomy || 0,
             plots: result.result.metrics.plots || 0,
-            shapes: result.result.metrics.shapes || 0
+            shapes: result.result.metrics.shapes || 0,
+            // Capture any additional custom entities dynamically
+            ...Object.fromEntries(
+              Object.entries(result.result.metrics).filter(
+                ([key]) => !['occurrences', 'taxonomy', 'plots', 'shapes'].includes(key)
+              )
+            )
           }
           setTargetMetrics(newMetrics)
 
@@ -289,6 +303,8 @@ export function ImportDemo({}: ImportDemoProps) {
       </div>
 
       {/* Import Configuration Display */}
+      {/* NOTE: Tabs are hardcoded for showcase purposes.
+           For production apps, generate tabs dynamically from EntityRegistry v2. */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
