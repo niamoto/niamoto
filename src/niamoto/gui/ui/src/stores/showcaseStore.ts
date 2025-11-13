@@ -122,24 +122,58 @@ export const useShowcaseStore = create<ShowcaseState>((set, get) => ({
     set({ metricsLoading: true })
 
     try {
-      // Fetch statistics for all key tables
-      const [taxonRes, occurrencesRes, plotsRes, shapesRes] = await Promise.all([
-        fetch('/api/database/tables/taxon_ref/stats').then(r => r.ok ? r.json() : null),
-        fetch('/api/database/tables/occurrences/stats').then(r => r.ok ? r.json() : null),
-        fetch('/api/database/tables/plot_ref/stats').then(r => r.ok ? r.json() : null),
-        fetch('/api/database/tables/shape_ref/stats').then(r => r.ok ? r.json() : null)
-      ])
+      // First, get list of available tables dynamically
+      const tablesResponse = await fetch('/api/data/tables')
+      if (!tablesResponse.ok) {
+        throw new Error('Failed to fetch tables')
+      }
+
+      const tables = await tablesResponse.json()
+
+      // Build a map of table names for quick lookup
+      const tableMap = new Map(tables.map((t: any) => [t.name, t]))
+
+      // Define which tables we want to fetch stats for (with fallbacks)
+      const tablesToFetch = [
+        { key: 'taxon_ref', candidates: ['taxon_ref', 'taxonomy_ref', 'taxon', 'taxonomy'] },
+        { key: 'occurrences', candidates: ['occurrences', 'occurrence', 'observations', 'observation'] },
+        { key: 'plot_ref', candidates: ['plot_ref', 'plots_ref', 'plot', 'plots'] },
+        { key: 'shape_ref', candidates: ['shape_ref', 'shapes_ref', 'shape', 'shapes'] }
+      ]
+
+      // Find existing tables from candidates
+      const statsPromises: Promise<{ key: string; data: any }>[] = []
+
+      for (const { key, candidates } of tablesToFetch) {
+        const foundTable = candidates.find(c => tableMap.has(c))
+        if (foundTable) {
+          statsPromises.push(
+            fetch(`/api/database/tables/${foundTable}/stats`)
+              .then(r => r.ok ? r.json() : null)
+              .then(data => ({ key, data }))
+              .catch(() => ({ key, data: null }))
+          )
+        } else {
+          // Table doesn't exist, skip it
+          statsPromises.push(Promise.resolve({ key, data: null }))
+        }
+      }
+
+      const results = await Promise.all(statsPromises)
+
+      // Build metrics object from results
+      const metricsMap = new Map(results.map(r => [r.key, r.data]))
 
       const metrics = {
-        taxon_ref: taxonRes?.row_count || 0,
-        occurrences: occurrencesRes?.row_count || 0,
-        plot_ref: plotsRes?.row_count || 0,
-        shape_ref: shapesRes?.row_count || 0,
-        total_records: (taxonRes?.row_count || 0) +
-                       (occurrencesRes?.row_count || 0) +
-                       (plotsRes?.row_count || 0),
-        unique_species: taxonRes?.unique_counts?.full_name || 0,
-        unique_locations: plotsRes?.row_count || 0
+        taxon_ref: metricsMap.get('taxon_ref')?.row_count || 0,
+        occurrences: metricsMap.get('occurrences')?.row_count || 0,
+        plot_ref: metricsMap.get('plot_ref')?.row_count || 0,
+        shape_ref: metricsMap.get('shape_ref')?.row_count || 0,
+        total_records: (metricsMap.get('taxon_ref')?.row_count || 0) +
+                       (metricsMap.get('occurrences')?.row_count || 0) +
+                       (metricsMap.get('plot_ref')?.row_count || 0),
+        unique_species: metricsMap.get('taxon_ref')?.unique_counts?.full_name || 0,
+        unique_locations: metricsMap.get('plot_ref')?.row_count || 0
       }
 
       set({ importMetrics: metrics, metricsLoading: false })
