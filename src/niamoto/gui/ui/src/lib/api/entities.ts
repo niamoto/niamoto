@@ -1,25 +1,51 @@
 import { apiClient } from './client'
 
 export interface EntitySummary {
-  id: number
+  id: string  // Changed to string to preserve large integer precision
   name: string
   display_name?: string
 }
 
 export interface EntityDetail {
-  id: number
+  id: string  // Changed to string to preserve large integer precision
   name: string
   group_by: string
   widgets_data: Record<string, any>
 }
 
 export interface TransformationPreview {
-  entity_id: number
+  entity_id: string  // Changed to string to preserve large integer precision
   entity_name: string
   group_by: string
   transformation_key: string
   transformation_data: Record<string, any>
   widget_plugin?: string
+}
+
+export interface EntityInfo {
+  name: string
+  kind: string
+  entity_type: string
+}
+
+export interface EntityListResponse {
+  datasets: string[]
+  references: string[]
+  all: EntityInfo[]
+}
+
+/**
+ * Get available entities from EntityRegistry
+ */
+export async function getAvailableEntities(
+  kind?: 'dataset' | 'reference'
+): Promise<EntityListResponse> {
+  const params = kind ? { kind } : {}
+  const response = await apiClient.get<EntityListResponse>(
+    `/entities/available`,
+    { params }
+  )
+  return response.data
 }
 
 /**
@@ -42,7 +68,7 @@ export async function listEntities(
  */
 export async function getEntityDetail(
   groupBy: string,
-  entityId: number
+  entityId: string
 ): Promise<EntityDetail> {
   const response = await apiClient.get<EntityDetail>(
     `/entities/entity/${groupBy}/${entityId}`
@@ -55,7 +81,7 @@ export async function getEntityDetail(
  */
 export async function getTransformationPreview(
   groupBy: string,
-  entityId: number,
+  entityId: string,
   transformKey: string
 ): Promise<TransformationPreview> {
   const response = await apiClient.get<TransformationPreview>(

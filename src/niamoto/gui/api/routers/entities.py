@@ -23,7 +23,7 @@ router = APIRouter()
 class EntitySummary(BaseModel):
     """Summary information about an entity."""
 
-    id: int
+    id: str  # Changed to string to preserve large integer precision
     name: str
     display_name: Optional[str] = None
 
@@ -31,7 +31,7 @@ class EntitySummary(BaseModel):
 class EntityDetail(BaseModel):
     """Detailed entity information including widgets_data."""
 
-    id: int
+    id: str  # Changed to string to preserve large integer precision
     name: str
     group_by: str
     widgets_data: Dict[str, Any]
@@ -40,7 +40,7 @@ class EntityDetail(BaseModel):
 class TransformationPreview(BaseModel):
     """Preview of a specific transformation and its widget."""
 
-    entity_id: int
+    entity_id: str  # Changed to string to preserve large integer precision
     entity_name: str
     group_by: str
     transformation_key: str
@@ -88,7 +88,7 @@ async def get_available_entities(
 
         with open_database(config.database_path, read_only=True) as db:
             registry = EntityRegistry(db)
-            all_entities = registry.list_all()
+            all_entities = registry.list_entities()
 
         datasets = []
         references = []
@@ -96,17 +96,17 @@ async def get_available_entities(
 
         for entity in all_entities:
             entity_info = EntityInfo(
-                name=entity.name,
+                name=entity.table_name,  # Use table_name as the entity identifier
                 kind=entity.kind.value,
-                entity_type=getattr(entity, "entity_type", entity.kind.value),
+                entity_type=entity.table_name,  # Use table_name for entity_type as well
             )
 
             all_entity_info.append(entity_info)
 
             if entity.kind.value == "dataset":
-                datasets.append(entity.name)
+                datasets.append(entity.table_name)
             else:  # reference
-                references.append(entity.name)
+                references.append(entity.table_name)
 
         # Apply filter if requested
         if kind:
@@ -154,7 +154,7 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
             with db.session() as session:
                 if limit is not None:
                     query = text(f"""
-                        SELECT {id_column} as id,
+                        SELECT CAST({id_column} AS VARCHAR) as id,
                                json_extract(general_info, '$.name.value') as name
                         FROM {group_by}
                         WHERE general_info IS NOT NULL
@@ -164,7 +164,7 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
                     result = session.execute(query, {"limit": limit})
                 else:
                     query = text(f"""
-                        SELECT {id_column} as id,
+                        SELECT CAST({id_column} AS VARCHAR) as id,
                                json_extract(general_info, '$.name.value') as name
                         FROM {group_by}
                         WHERE general_info IS NOT NULL
@@ -198,13 +198,13 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
 
 
 @router.get("/entity/{group_by}/{entity_id}", response_model=EntityDetail)
-async def get_entity_detail(group_by: str, entity_id: int):
+async def get_entity_detail(group_by: str, entity_id: str):
     """
     Get detailed information about a specific entity including all widgets_data.
 
     Args:
         group_by: Entity type (taxon, plot, or shape)
-        entity_id: ID of the entity
+        entity_id: ID of the entity (as string to preserve large integer precision)
 
     Returns:
         Entity details with widgets_data
@@ -232,14 +232,14 @@ async def get_entity_detail(group_by: str, entity_id: int):
                         json_columns.append(col_name)
 
                 columns_str = ", ".join(
-                    [id_column]
+                    [f"CAST({id_column} AS VARCHAR) as id"]
                     + ["json_extract(general_info, '$.name.value') as name"]
                     + json_columns
                 )
                 query = text(f"""
                     SELECT {columns_str}
                     FROM {group_by}
-                    WHERE {id_column} = :entity_id
+                    WHERE CAST({id_column} AS VARCHAR) = :entity_id
                 """)
 
                 result = session.execute(query, {"entity_id": entity_id}).fetchone()
@@ -261,7 +261,9 @@ async def get_entity_detail(group_by: str, entity_id: int):
                             widgets_data[col_name] = result_dict[col_name]
 
                 return EntityDetail(
-                    id=result_dict[id_column],
+                    id=result_dict[
+                        "id"
+                    ],  # Use the aliased 'id' column instead of id_column
                     name=result_dict.get("name") or f"{group_by}_{entity_id}",
                     group_by=group_by,
                     widgets_data=widgets_data,
@@ -285,13 +287,13 @@ async def get_entity_detail(group_by: str, entity_id: int):
     "/transformation/{group_by}/{entity_id}/{transform_key}",
     response_model=TransformationPreview,
 )
-async def get_transformation_preview(group_by: str, entity_id: int, transform_key: str):
+async def get_transformation_preview(group_by: str, entity_id: str, transform_key: str):
     """
     Get preview of a specific transformation for an entity.
 
     Args:
         group_by: Entity type (taxon, plot, or shape)
-        entity_id: ID of the entity
+        entity_id: ID of the entity (as string to preserve large integer precision)
         transform_key: Key of the transformation (e.g., 'dbh_distribution')
 
     Returns:
@@ -325,13 +327,13 @@ async def get_transformation_preview(group_by: str, entity_id: int, transform_ke
 @router.get(
     "/render-widget/{group_by}/{entity_id}/{transform_key}", response_class=HTMLResponse
 )
-async def render_widget(group_by: str, entity_id: int, transform_key: str):
+async def render_widget(group_by: str, entity_id: str, transform_key: str):
     """
     Render a widget HTML for a specific transformation.
 
     Args:
         group_by: Entity type (taxon, plot, or shape)
-        entity_id: ID of the entity
+        entity_id: ID of the entity (as string to preserve large integer precision)
         transform_key: Key of the transformation (e.g., 'dbh_distribution')
 
     Returns:
