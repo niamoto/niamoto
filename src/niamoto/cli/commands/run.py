@@ -7,11 +7,11 @@ from typing import Optional
 import click
 
 from niamoto.common.utils.error_handler import error_handler
-from ..utils.console import print_success, print_info, print_error
+from ..utils.console import print_success, print_info, print_error, print_warning
 from .imports import import_all
 from .transform import process_transformations
 from .export import export_command
-from .initialize import reset_environment, get_config_dir
+from .initialize import reset_environment, get_config_dir, confirm_reset
 
 
 @click.command(name="run")
@@ -50,6 +50,11 @@ from .initialize import reset_environment, get_config_dir
     is_flag=True,
     help="Skip the automatic environment reset before running the pipeline.",
 )
+@click.option(
+    "--force-reset",
+    is_flag=True,
+    help="Force reset without confirmation prompt (DANGEROUS: deletes all data).",
+)
 @click.pass_context
 @error_handler(log=True, raise_error=True)
 def run_pipeline(
@@ -61,6 +66,7 @@ def run_pipeline(
     target: Optional[str],
     verbose: bool,
     no_reset: bool,
+    force_reset: bool,
 ) -> None:
     """
     Run the complete Niamoto data pipeline: import, transform, and export.
@@ -71,11 +77,17 @@ def run_pipeline(
     2. Transform: Calculate statistics via plugins (transform.yml)
     3. Export: Generate static sites with visualizations (export.yml)
 
+    ⚠️  WARNING: By default, this command RESETS your environment, which:
+        - Deletes the entire database
+        - Removes all generated exports
+        - Clears all logs
+        You will be prompted for confirmation unless --force-reset is used.
+
     You can skip specific phases using the --skip-* options.
 
     Examples:
-        niamoto run  # Run complete pipeline with reset
-        niamoto run --no-reset  # Run without resetting environment
+        niamoto run --no-reset  # RECOMMENDED: Run without resetting
+        niamoto run --force-reset  # Run with automatic reset (for scripts)
         niamoto run --skip-import  # Run only transform and export
         niamoto run --group taxon  # Process only taxon data
         niamoto run --target my_site  # Use specific export target
@@ -86,6 +98,15 @@ def run_pipeline(
         # Reset phase (unless skipped)
         if not no_reset:
             print_info("\n[bold]Phase 0: Reset Environment[/bold]")
+
+            # SECURITY: Require confirmation unless --force-reset is used
+            if not force_reset:
+                if not confirm_reset():
+                    print_warning(
+                        "Pipeline cancelled. Use --no-reset to skip reset phase."
+                    )
+                    return
+
             config_dir = get_config_dir()
             reset_environment(config_dir)
             print_info("Environment reset completed.")

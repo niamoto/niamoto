@@ -78,19 +78,24 @@ def test_successful_group_transform(runner):
     with mock.patch("niamoto.cli.commands.transform.Config") as mock_config:
         mock_config.return_value.database_path = "test.db"
 
-        with mock.patch(
-            "niamoto.cli.commands.transform.TransformerService"
-        ) as mock_service:
-            mock_service_instance = mock_service.return_value
-            mock_service_instance.transform_data.return_value = None
+        # Mock Database to prevent unclosed connection ResourceWarning
+        with mock.patch("niamoto.core.services.transformer.Database") as mock_db:
+            mock_db_instance = mock.Mock()
+            mock_db.return_value = mock_db_instance
 
-            result = runner.invoke(transform_commands, ["--group", "taxon"])
+            with mock.patch(
+                "niamoto.cli.commands.transform.TransformerService"
+            ) as mock_service:
+                mock_service_instance = mock_service.return_value
+                mock_service_instance.transform_data.return_value = None
 
-            assert result.exit_code == 0
-            assert "Processing transformations for group: taxon" in result.output
-            mock_service_instance.transform_data.assert_called_once_with(
-                group_by="taxon", csv_file=None, recreate_table=True
-            )
+                result = runner.invoke(transform_commands, ["--group", "taxon"])
+
+                assert result.exit_code == 0
+                assert "Processing transformations for group: taxon" in result.output
+                mock_service_instance.transform_data.assert_called_once_with(
+                    group_by="taxon", csv_file=None, recreate_table=True
+                )
 
 
 def test_successful_all_transform(runner):
