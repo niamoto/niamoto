@@ -58,9 +58,10 @@ export function TransformDemo({}: TransformDemoProps) {
   }>({})
 
   // Dynamic preview state
-  const [previewGroupBy, setPreviewGroupBy] = useState<string>('taxon')
+  const [availableGroupBy, setAvailableGroupBy] = useState<string[]>([])
+  const [previewGroupBy, setPreviewGroupBy] = useState<string>('')
   const [entities, setEntities] = useState<EntitySummary[]>([])
-  const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [entityDetail, setEntityDetail] = useState<EntityDetail | null>(null)
   const [selectedTransformKey, setSelectedTransformKey] = useState<string | null>(null)
   const [loadingEntities, setLoadingEntities] = useState(false)
@@ -77,6 +78,30 @@ export function TransformDemo({}: TransformDemoProps) {
     2000,
     transformStarted
   )
+
+  // Extract group_by values from transformConfig when it changes
+  useEffect(() => {
+    if (!transformConfig) return
+
+    const groupByValues: string[] = []
+
+    // transformConfig is an array of transform groups
+    if (Array.isArray(transformConfig)) {
+      transformConfig.forEach((group: any) => {
+        const groupBy = group.group_by
+        if (groupBy && !groupByValues.includes(groupBy)) {
+          groupByValues.push(groupBy)
+        }
+      })
+    }
+
+    setAvailableGroupBy(groupByValues)
+
+    // Auto-select first group_by as default
+    if (groupByValues.length > 0 && !previewGroupBy) {
+      setPreviewGroupBy(groupByValues[0])
+    }
+  }, [transformConfig])
 
   // Check for existing transform result from pipeline store
   useEffect(() => {
@@ -168,6 +193,8 @@ export function TransformDemo({}: TransformDemoProps) {
 
   // Load entities when group_by changes
   useEffect(() => {
+    if (!previewGroupBy) return // Wait for available entities to load first
+
     const loadEntityList = async () => {
       setLoadingEntities(true)
       try {
@@ -735,14 +762,20 @@ export function TransformDemo({}: TransformDemoProps) {
                 {/* Group By Selector */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Type d'entité</label>
-                  <Select value={previewGroupBy} onValueChange={setPreviewGroupBy}>
+                  <Select
+                    value={previewGroupBy}
+                    onValueChange={setPreviewGroupBy}
+                    disabled={availableGroupBy.length === 0}
+                  >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Sélectionner un type d'entité" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="taxon">Taxons</SelectItem>
-                      <SelectItem value="plot">Parcelles</SelectItem>
-                      <SelectItem value="shape">Zones</SelectItem>
+                      {availableGroupBy.map((groupBy) => (
+                        <SelectItem key={groupBy} value={groupBy}>
+                          {groupBy}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -754,8 +787,8 @@ export function TransformDemo({}: TransformDemoProps) {
                     {loadingEntities && <span className="ml-2 text-xs text-muted-foreground">(chargement...)</span>}
                   </label>
                   <Select
-                    value={selectedEntityId?.toString() || ''}
-                    onValueChange={(value) => setSelectedEntityId(parseInt(value))}
+                    value={selectedEntityId || ''}
+                    onValueChange={(value) => setSelectedEntityId(value)}
                     disabled={loadingEntities || !Array.isArray(entities) || entities.length === 0}
                   >
                     <SelectTrigger>
@@ -763,7 +796,7 @@ export function TransformDemo({}: TransformDemoProps) {
                     </SelectTrigger>
                     <SelectContent>
                       {Array.isArray(entities) && entities.map((entity) => (
-                        <SelectItem key={entity.id} value={entity.id.toString()}>
+                        <SelectItem key={entity.id} value={entity.id}>
                           {entity.display_name || entity.name}
                         </SelectItem>
                       ))}
