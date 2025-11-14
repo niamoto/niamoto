@@ -93,6 +93,18 @@ def pytest_sessionfinish(session, exitstatus):
                 except Exception as e:
                     print(f"Error cleaning up {db_file}: {e}")
 
+    # Clean up auxiliary database files (WAL and shared memory files)
+    aux_patterns = ["*.db-shm", "*.db-wal", "*.duckdb-shm", "*.duckdb-wal"]
+    for pattern in aux_patterns:
+        for aux_file in root_dir.glob(pattern):
+            # Only clean up files at the root, not in subdirectories
+            if aux_file.parent == root_dir:
+                try:
+                    print(f"Cleaning up test database auxiliary file: {aux_file}")
+                    aux_file.unlink()
+                except Exception as e:
+                    print(f"Error cleaning up {aux_file}: {e}")
+
     # Find and remove MagicMock files
     for item in root_dir.glob("**/*"):
         if is_magicmock_file(item.name):
