@@ -6,9 +6,9 @@ Ce guide vous accompagne pas à pas dans l'utilisation de l'interface graphique 
 
 ### Installation de Niamoto
 
-1. **Installer Python 3.10 ou supérieur**
+1. **Installer Python 3.11 ou supérieur**
    ```bash
-   python --version  # Devrait afficher Python 3.10+
+   python --version  # Devrait afficher Python 3.11+
    ```
 
 2. **Installer Niamoto avec les dépendances GUI**

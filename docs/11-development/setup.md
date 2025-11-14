@@ -4,7 +4,7 @@ This guide will help you set up your local development environment for contribut
 
 ## Prerequisites
 
-- Python 3.10 or higher
+- Python 3.11 or higher
 - [uv](https://github.com/astral-sh/uv) - A fast Python package installer
 - Git
 

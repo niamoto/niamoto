@@ -142,7 +142,7 @@ src/niamoto/gui/
 ## Configuration requise
 
 ### Python
-- Python 3.10+
+- Python 3.11+
 - FastAPI 0.115.0+
 - Uvicorn 0.34.0+
 - Pydantic (déjà dans Niamoto)
