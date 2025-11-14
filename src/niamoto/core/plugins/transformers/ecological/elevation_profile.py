@@ -10,6 +10,7 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 import os
+import logging
 import rasterio
 from rasterio.mask import mask
 import rasterio.features
@@ -342,7 +343,7 @@ class ElevationProfile(TransformerPlugin):
             }
 
         except Exception as e:
-            self.logger.error(f"Error calculating forest distribution: {str(e)}")
+            logging.error(f"Error calculating forest distribution: {str(e)}")
             return None
 
     def _get_base_directory(self) -> str:

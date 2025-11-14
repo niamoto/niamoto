@@ -658,9 +658,6 @@ class TestTransformIntegration:
     to convert to dict, or use attribute access (params.operation instead of params.get("operation")).
     """
 
-    @pytest.mark.xfail(
-        reason="Bug in code: params.get() called on Pydantic model instead of dict"
-    )
     def test_transform_coverage_without_overlay(self, plugin, simple_polygon_gdf):
         """Test transform with coverage operation and no overlay."""
         config = {
@@ -675,9 +672,6 @@ class TestTransformIntegration:
         assert "total_area" in result
         assert result["coverage_percentage"] == 100.0
 
-    @pytest.mark.xfail(
-        reason="Bug in code: params.get() called on Pydantic model instead of dict"
-    )
     def test_transform_with_temp_overlay_file(
         self, plugin, simple_polygon_gdf, temp_shapefile
     ):
@@ -694,9 +688,6 @@ class TestTransformIntegration:
         result = plugin.transform(simple_polygon_gdf, config)
         assert "stats" in result or "total_area" in result
 
-    @pytest.mark.xfail(
-        reason="Bug in code: params.get() called on Pydantic model instead of dict"
-    )
     def test_transform_crs_mismatch_handling(
         self, plugin, simple_polygon_gdf, overlay_polygon_gdf
     ):

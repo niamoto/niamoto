@@ -193,16 +193,17 @@ class VectorOverlay(TransformerPlugin):
         try:
             # Validate the configuration
             validated_config = self.validate_config(config)
-            params = validated_config.params
+            # Convert Pydantic model to dict for use in private methods
+            params = validated_config.params.model_dump()
 
             # 1. Prepare the main GeoDataFrame
             main_gdf = self._prepare_main_geodataframe(data, params)
 
             # 2. Determine the operation and execute
-            operation = params.get("operation", "intersection")
+            operation = params["operation"]
 
             # If it's a coverage operation without overlay_path, treat separately
-            if operation == "coverage" and "overlay_path" not in params:
+            if operation == "coverage" and params.get("overlay_path") is None:
                 return self._calculate_total_area(
                     main_gdf, params.get("area_unit", "ha")
                 )

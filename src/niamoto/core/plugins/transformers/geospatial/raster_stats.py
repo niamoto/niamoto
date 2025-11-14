@@ -157,7 +157,8 @@ class RasterStats(TransformerPlugin):
         try:
             # Validate the configuration
             validated_config = self.validate_config(config)
-            params = validated_config.params
+            # Convert Pydantic model to dict for use in private methods
+            params = validated_config.params.model_dump()
 
             # 1. Extract the geometry
             main_geom = self._extract_geometry(data, params)
@@ -306,7 +307,7 @@ class RasterStats(TransformerPlugin):
             Dictionary of calculated statistics
         """
         result = {}
-        stats = params.get("stats", ["min", "max", "mean"])
+        stats = params["stats"]
 
         # Basic statistics
         self._calculate_basic_stats(data, stats, result)
@@ -326,7 +327,7 @@ class RasterStats(TransformerPlugin):
             self._calculate_area(geometry, params, result)
 
         # Add units if specified
-        if "units" in params and params["units"]:
+        if params.get("units"):
             result["units"] = params["units"]
 
         # Add metadata
