@@ -378,7 +378,7 @@ class VectorOverlay(TransformerPlugin):
                 gdf_wgs84 = gdf
 
             # Calculate the centroid to determine the UTM zone
-            centroid = gdf_wgs84.unary_union.centroid
+            centroid = gdf_wgs84.union_all().centroid
 
             # Calculate the UTM zone number from the longitude
             # Formula: ((longitude + 180)/6) + 1 (gives a zone number between 1-60)

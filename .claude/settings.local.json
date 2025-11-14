@@ -31,7 +31,9 @@
       "Bash(curl:*)",
       "Bash(awk:*)",
       "Bash(npx tsc:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(sort:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

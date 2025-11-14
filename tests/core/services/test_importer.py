@@ -8,9 +8,10 @@ import pandas as pd
 import pytest
 
 from niamoto.common.exceptions import ValidationError, FileReadError
+from niamoto.common.database import Database
 from niamoto.core.services.importer import ImporterService
-from niamoto.core.imports.engine import ImportResult
-from niamoto.core.imports.registry import EntityKind
+from niamoto.core.imports.engine import ImportResult, GenericImporter
+from niamoto.core.imports.registry import EntityKind, EntityRegistry
 from niamoto.core.imports.config_models import (
     GenericImportConfig,
     ReferenceEntityConfig,
@@ -24,8 +25,10 @@ from niamoto.core.imports.config_models import (
 
 @pytest.fixture
 def mock_database():
+    """Mock Database with spec to catch invalid method calls."""
     with mock.patch("niamoto.core.services.importer.Database") as db_cls:
-        db_instance = mock.Mock()
+        # Use spec= to ensure only valid Database methods can be called
+        db_instance = mock.Mock(spec=Database)
         db_instance.engine = mock.Mock()
         db_instance.has_table = mock.Mock(return_value=False)
         db_cls.return_value = db_instance
@@ -34,15 +37,19 @@ def mock_database():
 
 @pytest.fixture
 def mock_registry():
+    """Mock EntityRegistry with spec to catch invalid method calls."""
     with mock.patch("niamoto.core.services.importer.EntityRegistry") as registry_cls:
-        registry = mock.Mock()
+        # Use spec= to ensure only valid EntityRegistry methods can be called
+        registry = mock.Mock(spec=EntityRegistry)
         registry_cls.return_value = registry
         yield registry
 
 
 @pytest.fixture
 def mock_engine(monkeypatch):
-    importer_mock = mock.Mock()
+    """Mock GenericImporter with spec to catch invalid method calls."""
+    # Use spec= to ensure only valid GenericImporter methods can be called
+    importer_mock = mock.Mock(spec=GenericImporter)
     monkeypatch.setattr(
         "niamoto.core.services.importer.GenericImporter",
         lambda db, registry: importer_mock,

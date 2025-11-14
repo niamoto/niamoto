@@ -276,4 +276,10 @@ filterwarnings = [
     "ignore:Could not infer format:UserWarning",
     # Pyogrio still imports the deprecated shapely.geos module
     "ignore:The 'shapely.geos' module is deprecated:DeprecationWarning:pyogrio",
+    # Pyproj deprecated scalar conversion - external library issue, will be fixed in NumPy 2.x
+    "ignore:Conversion of an array with ndim > 0 to a scalar is deprecated:DeprecationWarning:pyproj",
+    # Geopandas warnings for test cases with intentionally invalid/mismatched CRS
+    "ignore:Geometry is in a geographic CRS:UserWarning",
+    "ignore:CRS mismatch between the CRS:UserWarning",
+    "ignore:`keep_geom_type=True` in overlay resulted in:UserWarning:geopandas",
 ]

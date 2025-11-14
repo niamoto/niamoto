@@ -1,4 +1,19 @@
-"""Tests for the ExporterService class."""
+"""Tests for the ExporterService class.
+
+NOTE: These are primarily unit tests focusing on orchestration logic
+(configuration validation, error handling, plugin loading, etc.).
+They mock exporter plugins and verify service behavior.
+
+LIMITATION: These tests do NOT verify actual export file creation or content.
+They test that exporters are called with correct parameters, but not that
+exports produce correct output files or data.
+
+TODO: Add integration tests that:
+  - Use real exporter plugins with a test DuckDB database
+  - Verify actual exported files are created in temp directories
+  - Test end-to-end export pipeline with real YAML configs
+  - Validate exported file formats and content
+"""
 
 import os
 import tempfile
@@ -221,7 +236,12 @@ class TestExporterService(NiamotoTestCase):
     @patch("niamoto.core.services.exporter.PluginLoader")
     @patch("niamoto.core.services.exporter.PluginRegistry")
     def test_run_export_success(self, mock_registry, mock_loader, mock_db):
-        """Test successful export execution."""
+        """Test successful export execution.
+
+        NOTE: This is a unit test that verifies orchestration logic.
+        It mocks the exporter plugin and verifies the export method is called
+        with correct parameters. It does NOT test actual file creation.
+        """
         self.mock_config.get_exports_config.return_value = self.valid_export_config
 
         # Mock successful plugin execution
@@ -235,11 +255,16 @@ class TestExporterService(NiamotoTestCase):
         service = ExporterService(self.db_path, self.mock_config)
         service.run_export()
 
-        # Verify plugin was called correctly
+        # Verify orchestration: plugin was called with correct parameters
         mock_plugin_instance.export.assert_called_once()
         call_args = mock_plugin_instance.export.call_args
         self.assertEqual(call_args.kwargs["target_config"].name, "test_export")
         self.assertIsNone(call_args.kwargs["group_filter"])
+
+        # Minimal integration check: verify repository was passed
+        self.assertIsNotNone(
+            call_args.kwargs["repository"], "Repository should be passed to exporter"
+        )
 
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")

@@ -2,6 +2,31 @@
 
 This module provides a base test class with common setup and teardown methods
 for Niamoto tests.
+
+USAGE GUIDANCE:
+---------------
+This base class is LEGACY infrastructure for tests written in unittest style.
+It is NOT an anti-pattern - it provides useful functionality (NIAMOTO_TEST_MODE,
+mock cleanup) and the tests using it are high-quality tests that verify real
+behavior, not mock behavior.
+
+WHEN TO USE:
+- Existing tests that already inherit from NiamotoTestCase can continue to use it
+- No need to refactor working tests unless they have actual anti-patterns
+
+WHEN NOT TO USE (NEW TESTS):
+- NEW tests should use pytest fixtures directly instead of this class
+- Use pytest's built-in fixtures: tmp_path, monkeypatch, mocker (pytest-mock)
+- Use conftest.py for shared fixtures instead of inheritance
+
+MIGRATION STRATEGY (FUTURE):
+- Eventually migrate to pytest fixtures when touching old tests
+- Replace NiamotoTestCase with pytest fixtures in conftest.py:
+  @pytest.fixture(autouse=True)
+  def niamoto_test_mode():
+      os.environ["NIAMOTO_TEST_MODE"] = "1"
+      yield
+      os.environ.pop("NIAMOTO_TEST_MODE", None)
 """
 
 import os

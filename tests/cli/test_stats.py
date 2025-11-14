@@ -7,7 +7,6 @@ import csv
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from typing import Dict, Any, Optional, List
 
 import pytest
 from click.testing import CliRunner
@@ -21,7 +20,6 @@ from niamoto.cli.commands.stats import (
     show_data_exploration_suggestions,
     export_statistics,
 )
-from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.core.imports.registry import EntityKind
 from types import SimpleNamespace
 
@@ -30,6 +28,30 @@ from types import SimpleNamespace
 def runner():
     """Create a Click test runner."""
     return CliRunner()
+
+
+@pytest.fixture
+def test_registry(request):
+    """Create a test registry with automatic cleanup.
+
+    Usage in tests:
+        def test_something(test_registry):
+            registry = test_registry()  # or test_registry(mapping={...})
+            # Use registry...
+            # Cleanup happens automatically
+    """
+    dbs_to_close = []
+
+    def _make_registry(mapping=None, include_defaults=True):
+        registry, db = make_registry(mapping, include_defaults)
+        dbs_to_close.append(db)
+        return registry
+
+    yield _make_registry
+
+    # Cleanup all databases created during the test
+    for db in dbs_to_close:
+        db.engine.dispose()
 
 
 @pytest.fixture
@@ -59,10 +81,29 @@ def mock_database():
 
 @pytest.fixture
 def command_registry():
-    """Patch EntityRegistry to use the fake registry during CLI command tests."""
-    registry = make_registry()
+    """Create a real EntityRegistry with in-memory database for testing."""
+    from niamoto.common.database import Database
+    from niamoto.core.imports.registry import EntityRegistry
+
+    # Create in-memory database
+    db = Database(":memory:")
+    registry = EntityRegistry(db)
+
+    # Populate with default test data
+    for entry in DEFAULT_REGISTRY_ENTRIES:
+        registry.register_entity(
+            name=entry["name"],
+            kind=entry["kind"],
+            table_name=entry["table_name"],
+            config={},
+        )
+
+    # Patch EntityRegistry constructor to return our instance
     with patch("niamoto.cli.commands.stats.EntityRegistry", return_value=registry):
         yield registry
+
+    # Cleanup: Close database connection to prevent ResourceWarning
+    db.engine.dispose()
 
 
 @pytest.fixture
@@ -93,80 +134,50 @@ DEFAULT_REGISTRY_ENTRIES = [
         "name": "taxon_ref",
         "table_name": "taxon_ref",
         "kind": EntityKind.REFERENCE,
-        "aliases": ["taxonomy"],
     },
     {
         "name": "plot_ref",
         "table_name": "plot_ref",
         "kind": EntityKind.REFERENCE,
-        "aliases": ["plots"],
     },
     {
         "name": "shape_ref",
         "table_name": "shape_ref",
         "kind": EntityKind.REFERENCE,
-        "aliases": ["shapes"],
     },
     {
         "name": "occurrences",
         "table_name": "occurrences",
         "kind": EntityKind.DATASET,
-        "aliases": ["occurrence"],
     },
 ]
 
 
-class FakeRegistry:
-    """Minimal registry implementation for tests."""
-
-    def __init__(self, entries=None):
-        self._entities: Dict[str, SimpleNamespace] = {}
-        self._aliases: Dict[str, str] = {}
-        if entries:
-            for entry in entries:
-                self.register_entity(**entry)
-
-    def register_entity(
-        self,
-        name: str,
-        table_name: str,
-        kind: EntityKind = EntityKind.REFERENCE,
-        config: Optional[Dict[str, Any]] = None,
-        aliases: Optional[List[str]] = None,
-    ) -> None:
-        aliases = aliases or []
-        metadata = SimpleNamespace(
-            name=name,
-            table_name=table_name,
-            kind=kind,
-            config=config or {},
-            aliases=list(aliases),
-        )
-        self._entities[name] = metadata
-        for alias in aliases:
-            self._aliases[alias] = name
-
-    def get(self, name: str) -> SimpleNamespace:
-        if name in self._entities:
-            return self._entities[name]
-        if name in self._aliases:
-            return self._entities[self._aliases[name]]
-        raise DatabaseQueryError(
-            query="registry_lookup", message="missing", details={"name": name}
-        )
-
-    def list_entities(self, kind: Optional[EntityKind] = None):
-        values = list(self._entities.values())
-        if kind is not None:
-            values = [meta for meta in values if meta.kind == kind]
-        return values
-
-
 def make_registry(mapping=None, include_defaults: bool = True):
+    """Create a real EntityRegistry with in-memory database for testing.
+
+    FIXED: Replaced FakeRegistry (~40 lines) with real EntityRegistry.
+    This ensures tests match production behavior and reduces maintenance burden.
+
+    WARNING: Caller is responsible for closing the database connection.
+    Access via registry.db.close() to prevent ResourceWarning.
+
+    Returns:
+        tuple: (registry, db) - Both registry and database for proper cleanup
+    """
+    from niamoto.common.database import Database
+    from niamoto.core.imports.registry import EntityRegistry
+
+    # Create in-memory database
+    db = Database(":memory:")
+    registry = EntityRegistry(db)
+
+    # Add default entries
     entries = []
     if include_defaults:
         entries.extend(DEFAULT_REGISTRY_ENTRIES)
 
+    # Add custom mapping
     mapping = mapping or {}
     for name, table_name in mapping.items():
         kind = EntityKind.DATASET
@@ -174,7 +185,16 @@ def make_registry(mapping=None, include_defaults: bool = True):
             kind = EntityKind.REFERENCE
         entries.append({"name": name, "table_name": table_name, "kind": kind})
 
-    return FakeRegistry(entries)
+    # Populate registry
+    for entry in entries:
+        registry.register_entity(
+            name=entry["name"],
+            kind=entry["kind"],
+            table_name=entry["table_name"],
+            config={},
+        )
+
+    return registry, db
 
 
 class TestStatsCommand:
@@ -471,7 +491,9 @@ class TestStatsCommandEdgeCases:
 class TestGetGeneralStatistics:
     """Test the get_general_statistics function."""
 
-    def test_get_general_statistics_basic(self, mock_database, mock_inspector):
+    def test_get_general_statistics_basic(
+        self, mock_database, mock_inspector, test_registry
+    ):
         """Test getting basic general statistics."""
         # Mock responses
         mock_inspector.get_table_names.return_value = [
@@ -493,7 +515,7 @@ class TestGetGeneralStatistics:
             return Mock(scalar=Mock(return_value=0))
 
         mock_database.execute_sql.side_effect = execute_sql_side_effect
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_general_statistics(mock_database, registry)
 
@@ -503,7 +525,7 @@ class TestGetGeneralStatistics:
         assert stats["Dataset Occurrences"] == 5000
 
     def test_get_general_statistics_with_generated_tables(
-        self, mock_database, mock_inspector
+        self, mock_database, mock_inspector, test_registry
     ):
         """Test getting statistics including generated tables."""
         mock_inspector.get_table_names.return_value = [
@@ -525,7 +547,7 @@ class TestGetGeneralStatistics:
             return Mock(scalar=Mock(return_value=0))
 
         mock_database.execute_sql.side_effect = execute_sql_side_effect
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_general_statistics(mock_database, registry)
 
@@ -533,7 +555,9 @@ class TestGetGeneralStatistics:
         assert stats["Generated Tables"]["taxon"] == 800
         assert stats["Generated Tables"]["plot"] == 400
 
-    def test_get_general_statistics_detailed(self, mock_database, mock_inspector):
+    def test_get_general_statistics_detailed(
+        self, mock_database, mock_inspector, test_registry
+    ):
         """Test getting detailed general statistics."""
         mock_inspector.get_table_names.return_value = ["occurrences"]
 
@@ -571,7 +595,7 @@ class TestGetGeneralStatistics:
             return ["id"]
 
         mock_database.get_table_columns.side_effect = get_columns
-        registry = make_registry({"occurrences": "occurrences"})
+        registry = test_registry({"occurrences": "occurrences"})
 
         stats = get_general_statistics(mock_database, registry, detailed=True)
 
@@ -583,7 +607,9 @@ class TestGetGeneralStatistics:
         assert "Numerical Data" in stats
         assert "dbh" in stats["Numerical Data"]
 
-    def test_get_general_statistics_handles_errors(self, mock_database, mock_inspector):
+    def test_get_general_statistics_handles_errors(
+        self, mock_database, mock_inspector, test_registry
+    ):
         """Test that get_general_statistics handles database errors gracefully."""
         # First query succeeds, subsequent queries fail
         mock_inspector.get_table_names.return_value = ["taxon_ref"]
@@ -594,7 +620,7 @@ class TestGetGeneralStatistics:
             return Mock(scalar=Mock(return_value=0))
 
         mock_database.execute_sql.side_effect = execute_sql_side_effect
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_general_statistics(mock_database, registry)
 
@@ -602,12 +628,12 @@ class TestGetGeneralStatistics:
         assert stats["Reference Taxon"] == 0
 
     def test_get_general_statistics_table_list_fails(
-        self, mock_database, mock_inspector
+        self, mock_database, mock_inspector, test_registry
     ):
         """Test when the initial table list query fails."""
         # Table list query fails
         mock_inspector.get_table_names.side_effect = Exception("Cannot inspect")
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_general_statistics(mock_database, registry)
 
@@ -618,7 +644,9 @@ class TestGetGeneralStatistics:
 class TestGetGroupStatistics:
     """Test the get_group_statistics function."""
 
-    def test_get_group_statistics_taxon(self, mock_database, mock_inspector):
+    def test_get_group_statistics_taxon(
+        self, mock_database, mock_inspector, test_registry
+    ):
         """Test getting statistics for taxon group."""
         mock_inspector.get_table_names.return_value = ["taxon_ref"]
 
@@ -633,14 +661,16 @@ class TestGetGroupStatistics:
             if table == "taxon_ref"
             else ["id"]
         )
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_group_statistics(mock_database, registry, "taxon")
 
         assert stats["Total Count"] == 1000
         assert stats["Columns"] == 3
 
-    def test_get_group_statistics_taxon_detailed(self, mock_database, mock_inspector):
+    def test_get_group_statistics_taxon_detailed(
+        self, mock_database, mock_inspector, test_registry
+    ):
         """Test getting detailed statistics for taxon group."""
         mock_inspector.get_table_names.return_value = ["taxon_ref"]
 
@@ -662,7 +692,7 @@ class TestGetGroupStatistics:
             if table == "taxon_ref"
             else ["id"]
         )
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_group_statistics(mock_database, registry, "taxon", detailed=True)
 
@@ -671,7 +701,9 @@ class TestGetGroupStatistics:
         assert "Rank Distribution" in stats
         assert stats["Rank Distribution"]["species"] == 800
 
-    def test_get_group_statistics_shape_detailed(self, mock_database, mock_inspector):
+    def test_get_group_statistics_shape_detailed(
+        self, mock_database, mock_inspector, test_registry
+    ):
         """Test getting detailed statistics for shape group."""
         mock_inspector.get_table_names.return_value = ["shape_ref"]
 
@@ -691,17 +723,19 @@ class TestGetGroupStatistics:
         mock_database.get_table_columns.side_effect = (
             lambda table: ["id", "type", "name"] if table == "shape_ref" else ["id"]
         )
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_group_statistics(mock_database, registry, "shape", detailed=True)
 
         assert "Types" in stats
         assert stats["Types"]["Forest"] == 100
 
-    def test_get_group_statistics_error_handling(self, mock_database, mock_inspector):
+    def test_get_group_statistics_error_handling(
+        self, mock_database, mock_inspector, test_registry
+    ):
         """Test error handling in get_group_statistics."""
         mock_inspector.get_table_names.return_value = []
-        registry = make_registry()
+        registry = test_registry()
 
         stats = get_group_statistics(mock_database, registry, "invalid_group")
 
@@ -822,7 +856,9 @@ class TestDisplayFunctions:
 class TestShowDataExplorationSuggestions:
     """Test the show_data_exploration_suggestions function."""
 
-    def test_show_suggestions_basic(self, mock_database, mock_inspector, capsys):
+    def test_show_suggestions_basic(
+        self, mock_database, mock_inspector, capsys, test_registry
+    ):
         """Test showing basic data exploration suggestions."""
         mock_inspector.get_table_names.return_value = [
             "taxon_ref",
@@ -848,7 +884,7 @@ class TestShowDataExplorationSuggestions:
 
         mock_database.get_table_columns.side_effect = get_columns
 
-        registry = make_registry()
+        registry = test_registry()
 
         show_data_exploration_suggestions(mock_database, registry)
 
@@ -860,7 +896,7 @@ class TestShowDataExplorationSuggestions:
         assert "Reference Data Exploration" in captured.out
 
     def test_show_suggestions_with_generated_tables(
-        self, mock_database, mock_inspector, capsys
+        self, mock_database, mock_inspector, capsys, test_registry
     ):
         """Test showing suggestions with generated tables."""
         mock_inspector.get_table_names.return_value = [
@@ -880,7 +916,7 @@ class TestShowDataExplorationSuggestions:
 
         mock_database.execute_sql.side_effect = execute_sql_side_effect
         mock_database.get_table_columns.side_effect = lambda table: ["id"]
-        registry = make_registry()
+        registry = test_registry()
 
         show_data_exploration_suggestions(mock_database, registry)
 
@@ -889,11 +925,11 @@ class TestShowDataExplorationSuggestions:
         assert "generated from transforms" in captured.out
 
     def test_show_suggestions_error_handling(
-        self, mock_database, mock_inspector, capsys
+        self, mock_database, mock_inspector, capsys, test_registry
     ):
         """Test error handling in suggestions."""
         mock_inspector.get_table_names.side_effect = Exception("Database error")
-        registry = make_registry()
+        registry = test_registry()
 
         show_data_exploration_suggestions(mock_database, registry)
 
