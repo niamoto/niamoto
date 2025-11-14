@@ -43,6 +43,13 @@ class AutoConfigureResponse(BaseModel):
     warnings: List[str] = []
 
 
+class DetectRelationshipsRequest(BaseModel):
+    """Request for detecting relationships between files."""
+
+    source_file: str
+    target_files: List[str]
+
+
 class UploadedFileInfo(BaseModel):
     """Information about an uploaded file."""
 
@@ -376,28 +383,26 @@ async def detect_hierarchy(request: FileInfo) -> Dict[str, Any]:
 
 @router.post("/detect-relationships")
 async def detect_relationships(
-    source_file: str,
-    target_files: List[str],
-) -> List[Dict[str, Any]]:
+    request: DetectRelationshipsRequest,
+) -> Dict[str, Any]:
     """Detect relationships between a source file and target files.
 
     Args:
-        source_file: Path to source file (relative to imports/)
-        target_files: List of target file paths
+        request: Request containing source_file and target_files
 
     Returns:
-        List of detected relationships
+        Dictionary with detected relationships
     """
     try:
         work_dir = get_working_directory()
         if not work_dir:
             raise HTTPException(status_code=400, detail="Working directory not set")
 
-        source_path = work_dir / source_file
+        source_path = work_dir / request.source_file
 
         if not source_path.exists():
             raise HTTPException(
-                status_code=404, detail=f"Source file not found: {source_file}"
+                status_code=404, detail=f"Source file not found: {request.source_file}"
             )
 
         # Read source file
@@ -409,7 +414,7 @@ async def detect_relationships(
         # Check relationships with each target file
         all_relationships = []
 
-        for target_file in target_files:
+        for target_file in request.target_files:
             target_path = work_dir / target_file
 
             if not target_path.exists():
@@ -422,7 +427,7 @@ async def detect_relationships(
                 target_sample = [row for i, row in enumerate(reader) if i < 100]
 
             # Detect relationships (with entity names for semantic detection)
-            source_entity_name = Path(source_file).stem
+            source_entity_name = Path(request.source_file).stem
             target_entity_name = Path(target_file).stem
 
             relationships = ColumnDetector.detect_relationships(
@@ -438,7 +443,7 @@ async def detect_relationships(
                 rel["target_file"] = target_file
                 all_relationships.append(rel)
 
-        return all_relationships
+        return {"relationships": all_relationships}
 
     except HTTPException:
         raise

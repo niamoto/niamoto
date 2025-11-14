@@ -1,0 +1,4 @@
+plot_id,plot_name,elevation,location
+P001,Aoupinié Plot 1,450,"POINT(165.32 -21.18)"
+P002,Mont Panié Plot A,1200,"POINT(164.76 -20.58)"
+P003,Rivière Bleue Plot 3,250,"POINT(166.64 -22.10)"

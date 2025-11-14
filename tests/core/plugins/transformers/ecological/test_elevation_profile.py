@@ -527,9 +527,6 @@ class TestForestDistribution:
             assert result is not None
             assert all(area == 0 for area in result["forest_area"])
 
-    @pytest.mark.xfail(
-        reason="Bug in code: plugin tries to use self.logger but logger attribute doesn't exist"
-    )
     def test_calculate_forest_distribution_error_handling(self, plugin, simple_polygon):
         """Test forest distribution error handling."""
         elevation_data = np.arange(100, dtype=np.float32).reshape(10, 10)

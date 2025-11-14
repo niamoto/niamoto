@@ -620,7 +620,6 @@ class TestTransformIntegration:
     (params.raster_path) or convert to dict with params.model_dump().
     """
 
-    @pytest.mark.xfail(reason="Bug in code: params['key'] called on Pydantic model")
     def test_transform_basic(self, plugin, simple_polygon_gdf, temp_raster):
         """Test basic transform operation."""
         config = {
@@ -639,7 +638,6 @@ class TestTransformIntegration:
         assert "mean" in result
         assert "metadata" in result
 
-    @pytest.mark.xfail(reason="Bug in code: params['key'] called on Pydantic model")
     def test_transform_with_all_stats(self, plugin, simple_polygon_gdf, temp_raster):
         """Test transform with all statistics."""
         config = {
@@ -669,7 +667,6 @@ class TestTransformIntegration:
         )
         assert "histogram" in result
 
-    @pytest.mark.xfail(reason="Bug in code: params['key'] called on Pydantic model")
     def test_transform_with_scale_offset(self, plugin, simple_polygon_gdf, temp_raster):
         """Test transform with scale factor and offset."""
         config = {
@@ -689,7 +686,6 @@ class TestTransformIntegration:
         assert result["metadata"]["scale_factor"] == 2.0
         assert result["metadata"]["offset"] == 10.0
 
-    @pytest.mark.xfail(reason="Bug in code: params['key'] called on Pydantic model")
     def test_transform_multiband_raster(
         self, plugin, simple_polygon_gdf, temp_multiband_raster
     ):
@@ -708,7 +704,6 @@ class TestTransformIntegration:
         assert "min" in result
         assert result["metadata"]["band"] == 2
 
-    @pytest.mark.xfail(reason="Bug in code: params['key'] called on Pydantic model")
     def test_transform_with_nodata(
         self, plugin, simple_polygon_gdf, temp_raster_with_nodata
     ):
