@@ -648,10 +648,11 @@ class TestGetGroupStatistics:
             if "taxon_ref" in sql and "GROUP" not in sql:
                 return Mock(scalar=Mock(return_value=1000))
             if "GROUP BY rank_name" in sql:
+                # SQL uses "as value" alias, so mocks must return .value attribute
                 return [
-                    SimpleNamespace(rank="species", count=800),
-                    SimpleNamespace(rank="genus", count=150),
-                    SimpleNamespace(rank="family", count=50),
+                    SimpleNamespace(value="species", count=800),
+                    SimpleNamespace(value="genus", count=150),
+                    SimpleNamespace(value="family", count=50),
                 ]
             return Mock(scalar=Mock(return_value=0))
 
@@ -678,10 +679,11 @@ class TestGetGroupStatistics:
             if "shape_ref" in sql and "GROUP" not in sql:
                 return Mock(scalar=Mock(return_value=200))
             if "GROUP BY type" in sql:
+                # SQL uses "as value" alias, so mocks must return .value attribute
                 return [
-                    SimpleNamespace(type="Forest", count=100),
-                    SimpleNamespace(type="River", count=50),
-                    SimpleNamespace(type="Road", count=50),
+                    SimpleNamespace(value="Forest", count=100),
+                    SimpleNamespace(value="River", count=50),
+                    SimpleNamespace(value="Road", count=50),
                 ]
             return Mock(scalar=Mock(return_value=0))
 
@@ -694,7 +696,7 @@ class TestGetGroupStatistics:
         stats = get_group_statistics(mock_database, registry, "shape", detailed=True)
 
         assert "Types" in stats
-        assert ("Forest", 100) in stats["Types"]
+        assert stats["Types"]["Forest"] == 100
 
     def test_get_group_statistics_error_handling(self, mock_database, mock_inspector):
         """Test error handling in get_group_statistics."""
@@ -800,12 +802,12 @@ class TestDisplayFunctions:
         stats = {
             "Total Count": 200,
             "Columns": 5,
-            "Types": [
-                ("Forest", 100),
-                ("River", 50),
-                ("Road", 30),
-                ("Building", 20),
-            ],
+            "Types": {
+                "Forest": 100,
+                "River": 50,
+                "Road": 30,
+                "Building": 20,
+            },
         }
 
         display_group_statistics(stats, "shape", detailed=True)
