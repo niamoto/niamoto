@@ -4,51 +4,90 @@ Specifically handles data where distributions are represented as binary choices
 (e.g. forest/non-forest) or ternary choices.
 """
 
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Optional, Literal
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
 
 
 class GroupConfig(BaseModel):
     """Configuration for a binary/ternary group"""
 
-    label: str
-    field: str
-    classes: Optional[List[str]] = ["forest", "non_forest"]
-    class_mapping: Optional[Dict[str, str]] = None
+    label: str = Field(..., description="Label for this distribution group")
+    field: str = Field(..., description="Field name to match in class_object column")
+    classes: List[str] = Field(
+        default=["forest", "non_forest"], description="List of output class names"
+    )
+    class_mapping: Optional[Dict[str, str]] = Field(
+        default=None, description="Mapping from input class names to output class names"
+    )
+
+
+class ClassObjectBinaryParams(BasePluginParams):
+    """Parameters for binary class aggregator plugin"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Handle binary/ternary class distributions from class_value format",
+            "examples": [
+                {
+                    "source": "raw_shape_stats",
+                    "groups": [
+                        {
+                            "label": "emprise",
+                            "field": "cover_forest",
+                            "classes": ["forest", "non_forest"],
+                            "class_mapping": {
+                                "Forêt": "forest",
+                                "Hors-forêt": "non_forest",
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="",
+        description="Transform source name (from transform.yml sources)",
+        json_schema_extra={
+            "ui:widget": "transform-source-select",
+            # Will dynamically load sources from current group_by context
+        },
+    )
+
+    groups: List[GroupConfig] = Field(
+        default_factory=list,
+        min_length=1,
+        description="List of group configurations for binary/ternary distributions",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    @field_validator("groups")
+    @classmethod
+    def validate_groups(cls, v: List[GroupConfig]) -> List[GroupConfig]:
+        """Validate group configurations."""
+        if not v:
+            raise ValueError("At least one group must be specified")
+
+        # Check for duplicate labels
+        labels = [g.label for g in v]
+        if len(labels) != len(set(labels)):
+            raise ValueError("Group labels must be unique")
+
+        return v
 
 
 class ClassObjectBinaryConfig(PluginConfig):
     """Configuration for binary class aggregator plugin"""
 
-    plugin: str = "class_object_binary_aggregator"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "source": "raw_shape_stats",
-            "groups": [
-                {
-                    "label": "emprise",
-                    "field": "cover_forest",
-                    "classes": ["forest", "non_forest"],
-                    "class_mapping": {"Forêt": "forest", "Hors-forêt": "non_forest"},
-                },
-                {
-                    "label": "um",
-                    "field": "cover_forestum",
-                    "class_mapping": {"Forêt": "forest", "Hors-forêt": "non_forest"},
-                },
-                {
-                    "label": "num",
-                    "field": "cover_forestnum",
-                    "class_mapping": {"Forêt": "forest", "Hors-forêt": "non_forest"},
-                },
-            ],
-        }
-    )
+    plugin: Literal["class_object_binary_aggregator"] = "class_object_binary_aggregator"
+    params: ClassObjectBinaryParams
 
 
 @register("class_object_binary_aggregator", PluginType.TRANSFORMER)
@@ -57,79 +96,87 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
 
     config_model = ClassObjectBinaryConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration."""
-        validated_config = self.config_model(**config)
-        params = validated_config.params
-
-        # Validate that source is specified
-        if "source" not in params:
-            raise DataTransformError(
-                "source must be specified",
-                details={"config": config},
-            )
-
-        # Validate that at least one group is specified
-        groups = params.get("groups", [])
-        if not groups:
-            raise DataTransformError(
-                "At least one group must be specified",
-                details={"config": config},
-            )
-
-        # Validate each group configuration
-        for group in groups:
-            if not isinstance(group, dict):
-                raise DataTransformError(
-                    "Group configuration must be a dictionary",
-                    details={"config": group},
-                )
-
-            if "label" not in group:
-                raise DataTransformError(
-                    "Group must specify 'label'",
-                    details={"config": group},
-                )
-
-            if "field" not in group:
-                raise DataTransformError(
-                    "Group must specify 'field'",
-                    details={"config": group},
-                )
-
-        return validated_config
-
-    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Transform shape statistics data into binary/ternary distributions.
+    def __init__(self, db, registry=None):
+        """Initialize with database and optional EntityRegistry.
 
         Args:
-            data: DataFrame containing shape statistics in long format with columns:
-                - class_object: The type of data (e.g. cover_forest)
-                - class_name: The class name (e.g. Forêt, Hors-forêt)
-                - class_value: The value for this class
-            config: Configuration dictionary with:
-                - params.source: Source of the data
-                - params.groups: List of group configurations with:
-                    - label: Name of the distribution
-                    - field: Field name to match in class_object
-                    - classes: Optional list of class names (default: ["forest", "non_forest"])
-                    - class_mapping: Optional dict mapping input class names to output class names
+            db: Database instance
+            registry: EntityRegistry instance (created if not provided)
+        """
+        super().__init__(db)
+        self.registry = registry or EntityRegistry(db)
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via EntityRegistry.
+
+        Args:
+            logical_name: Entity name from config (e.g., "raw_shape_stats", "occurrences")
 
         Returns:
-            Dictionary with distributions for each group
+            Physical table name (e.g., "entity_raw_shape_stats", "entity_occurrences")
+            Falls back to logical_name if not found in registry (backward compatibility)
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            return metadata.table_name
+        except Exception:
+            # Fallback: assume it's already a physical table name
+            return logical_name
 
-        Example output:
-            {
-                "emprise": {
-                    "forest": 0.34,
-                    "non_forest": 0.66
-                },
-                "um": {
-                    "forest": 0.23,
-                    "non_forest": 0.77
-                }
-            }
+    def validate_config(self, config: Dict[str, Any]) -> ClassObjectBinaryConfig:
+        """Validate plugin configuration and return typed config."""
+        try:
+            # Check specific items that tests expect
+            params = config.get("params", {})
+
+            # Check for source
+            if not params.get("source"):
+                raise DataTransformError(
+                    "source must be specified", details={"config": config}
+                )
+
+            # Check for groups
+            if not params.get("groups"):
+                raise DataTransformError(
+                    "At least one group must be specified", details={"config": config}
+                )
+
+            # Check each group for required fields
+            for i, group in enumerate(params.get("groups", [])):
+                if "label" not in group:
+                    raise DataTransformError(
+                        "Group must specify 'label'",
+                        details={"config": config, "group_index": i},
+                    )
+                if "field" not in group:
+                    raise DataTransformError(
+                        "Group must specify 'field'",
+                        details={"config": config, "group_index": i},
+                    )
+
+            return self.config_model(**config)
+        except DataTransformError:
+            raise
+        except Exception as e:
+            raise DataTransformError(
+                f"Invalid configuration: {str(e)}", details={"config": config}
+            )
+
+    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Aggregate class-object statistics into binary or ternary distributions.
+
+        Parameters
+        ----------
+        data:
+            Long-format DataFrame containing ``class_object``, ``class_name`` and
+            ``class_value`` columns.
+        config:
+            Raw configuration mapping produced by the transformer service.
+
+        Returns
+        -------
+        dict[str, dict[str, float]]
+            Normalized values for each configured group.
         """
         try:
             # Validate configuration
@@ -154,9 +201,7 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
             results = {}
 
             # Process each group
-            for group_config in params["groups"]:
-                group = GroupConfig(**group_config)
-
+            for group in params.groups:
                 # Filter data for this field
                 field_data = data[data["class_object"] == group.field]
 

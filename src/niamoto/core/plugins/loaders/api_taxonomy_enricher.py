@@ -7,46 +7,91 @@ import requests
 import time
 import logging
 from typing import Dict, Any, Literal, List
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, ConfigDict
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 
 logger = logging.getLogger(__name__)
 
 
-class ApiTaxonomyEnricherConfig(PluginConfig):
-    """Configuration for API taxonomy enricher plugin"""
+class ApiTaxonomyEnricherParams(BasePluginParams):
+    """Parameters for API taxonomy enricher plugin"""
 
-    plugin: Literal["api_taxonomy_enricher"]
-    api_url: str = Field(..., description="Base URL for the API")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Enrich taxonomy data with information from external APIs",
+            "examples": [
+                {
+                    "api_url": "https://api.example.com/search",
+                    "query_field": "full_name",
+                    "query_param_name": "q",
+                    "response_mapping": {
+                        "common_name": "vernacularName",
+                        "description": "description",
+                    },
+                    "auth_method": "api_key",
+                    "auth_params": {
+                        "key": "$ENV:API_KEY",
+                        "location": "header",
+                        "name": "X-API-Key",
+                    },
+                }
+            ],
+        }
+    )
+
+    api_url: str = Field(
+        ..., description="Base URL for the API", json_schema_extra={"ui:widget": "text"}
+    )
     query_params: Dict[str, str] = Field(
-        default_factory=dict, description="Default query parameters"
+        default_factory=dict,
+        description="Default query parameters",
+        json_schema_extra={"ui:widget": "json"},
     )
     query_field: str = Field(
-        "full_name", description="Field in taxon data to use for query"
+        default="full_name",
+        description="Field in taxon data to use for query",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     query_param_name: str = Field(
-        "q", description="Name of the query parameter to use in the API request"
+        default="q",
+        description="Name of the query parameter to use in the API request",
+        json_schema_extra={"ui:widget": "text"},
     )
     response_mapping: Dict[str, str] = Field(
-        ..., description="Mapping between API response fields and extra_data fields"
+        ...,
+        description="Mapping between API response fields and extra_data fields",
+        json_schema_extra={"ui:widget": "json"},
     )
-    rate_limit: float = Field(1.0, description="Requests per second")
-    cache_results: bool = Field(True, description="Whether to cache API results")
+    rate_limit: float = Field(
+        default=1.0,
+        description="Requests per second",
+        json_schema_extra={"ui:widget": "number"},
+    )
+    cache_results: bool = Field(
+        default=True,
+        description="Whether to cache API results",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
 
     # Authentication options
     auth_method: Literal["none", "api_key", "basic", "oauth2", "bearer"] = Field(
-        "none", description="Authentication method to use"
+        default="none",
+        description="Authentication method to use",
+        json_schema_extra={"ui:widget": "select"},
     )
     auth_params: Dict[str, str] = Field(
-        default_factory=dict, description="Parameters for authentication"
+        default_factory=dict,
+        description="Parameters for authentication",
+        json_schema_extra={"ui:widget": "json"},
     )
 
     # Chained requests configuration
     chained_endpoints: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="Additional API endpoints to query using data from initial response",
+        json_schema_extra={"ui:widget": "array"},
     )
 
     @model_validator(mode="after")
@@ -118,6 +163,13 @@ class ApiTaxonomyEnricherConfig(PluginConfig):
         return self
 
 
+class ApiTaxonomyEnricherConfig(PluginConfig):
+    """Configuration for API taxonomy enricher plugin"""
+
+    plugin: Literal["api_taxonomy_enricher"] = "api_taxonomy_enricher"
+    params: ApiTaxonomyEnricherParams
+
+
 @register("api_taxonomy_enricher", PluginType.LOADER)
 class ApiTaxonomyEnricher(LoaderPlugin):
     """Plugin for enriching taxonomy data with information from external APIs"""
@@ -126,12 +178,17 @@ class ApiTaxonomyEnricher(LoaderPlugin):
     _cache = {}  # Simple in-memory cache
     _oauth_tokens = {}  # Cache for OAuth tokens
 
-    def __init__(self, db=None):
-        super().__init__(db)
+    def __init__(self, db=None, registry=None):
+        super().__init__(db, registry)
         self.log_messages = []  # Liste pour stocker les messages de log
 
     def validate_config(self, config: Dict[str, Any]) -> ApiTaxonomyEnricherConfig:
         """Validate plugin configuration."""
+        # Extract params if they exist in the config
+        if "params" not in config:
+            # For backward compatibility, build params from top-level fields
+            params = {k: v for k, v in config.items() if k != "plugin"}
+            config = {"plugin": "api_taxonomy_enricher", "params": params}
         return self.config_model(**config)
 
     def load_data(
@@ -148,9 +205,10 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             Dictionary containing the enriched taxon data
         """
         validated_config = self.validate_config(config)
+        params = validated_config.params
 
         # Extract query value from taxon data
-        query_field = validated_config.query_field
+        query_field = params.query_field
         query_value = taxon_data.get(query_field)
 
         if not query_value:
@@ -159,8 +217,8 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             return taxon_data
 
         # Check cache if enabled
-        cache_key = f"{query_value}_{validated_config.api_url}"
-        if validated_config.cache_results and cache_key in self._cache:
+        cache_key = f"{query_value}_{params.api_url}"
+        if params.cache_results and cache_key in self._cache:
             logger.debug(f"Using cached data for {query_value}")
             self.log_messages.append(
                 f"[blue]Using cached data for {query_value}[/blue]"
@@ -172,10 +230,10 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             return result
 
         # Prepare API request
-        url = validated_config.api_url
-        params = validated_config.query_params.copy()
+        url = params.api_url
+        api_params = params.query_params.copy()
         # Use configured query parameter name
-        params[validated_config.query_param_name] = query_value
+        api_params[params.query_param_name] = query_value
 
         # Prepare headers
         headers = {}
@@ -186,28 +244,24 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
         try:
             # Apply appropriate authentication
-            if validated_config.auth_method == "api_key":
+            if params.auth_method == "api_key":
                 self._setup_api_key_auth(
-                    validated_config.auth_params, headers, params, cookies
+                    params.auth_params, headers, api_params, cookies
                 )
 
-            elif validated_config.auth_method == "basic":
+            elif params.auth_method == "basic":
                 auth = (
-                    self._get_secure_value(
-                        validated_config.auth_params.get("username", "")
-                    ),
-                    self._get_secure_value(
-                        validated_config.auth_params.get("password", "")
-                    ),
+                    self._get_secure_value(params.auth_params.get("username", "")),
+                    self._get_secure_value(params.auth_params.get("password", "")),
                 )
 
-            elif validated_config.auth_method == "bearer":
+            elif params.auth_method == "bearer":
                 headers["Authorization"] = (
-                    f"Bearer {self._get_secure_value(validated_config.auth_params.get('token', ''))}"
+                    f"Bearer {self._get_secure_value(params.auth_params.get('token', ''))}"
                 )
 
-            elif validated_config.auth_method == "oauth2":
-                self._setup_oauth2_auth(validated_config.auth_params, headers)
+            elif params.auth_method == "oauth2":
+                self._setup_oauth2_auth(params.auth_params, headers)
 
             # Make API request with authentication
             logger.debug(f"Requesting API data for {query_value} from {url}")
@@ -217,9 +271,13 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             if cookies:
                 session = requests.Session()
                 session.cookies.update(cookies)
-                response = session.get(url, params=params, headers=headers, auth=auth)
+                response = session.get(
+                    url, params=api_params, headers=headers, auth=auth
+                )
             else:
-                response = requests.get(url, params=params, headers=headers, auth=auth)
+                response = requests.get(
+                    url, params=api_params, headers=headers, auth=auth
+                )
 
             response.raise_for_status()
             data = response.json()
@@ -232,22 +290,22 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             enriched_data = {}
 
             # First apply initial response mapping
-            if api_data and validated_config.response_mapping:
+            if api_data and params.response_mapping:
                 for (
                     target_field,
                     source_field,
-                ) in validated_config.response_mapping.items():
+                ) in params.response_mapping.items():
                     value = self._extract_nested_value(api_data, source_field)
                     if value is not None:
                         enriched_data[target_field] = value
 
                 # Process chained endpoints if configured
-                if validated_config.chained_endpoints:
+                if params.chained_endpoints:
                     # Use enriched_data for placeholders (it has the mapped fields like tropicos_id)
                     enriched_data = self._process_chained_requests(
                         enriched_data,  # Use mapped data for placeholders
-                        validated_config.chained_endpoints,
-                        validated_config,
+                        params.chained_endpoints,
+                        params,
                         headers,
                         cookies,
                         auth,
@@ -257,7 +315,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                     )
 
             # Cache results if enabled
-            if validated_config.cache_results and enriched_data:
+            if params.cache_results and enriched_data:
                 self._cache[cache_key] = enriched_data
 
             # Log success message
@@ -286,8 +344,8 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             return taxon_data
         finally:
             # Respect rate limit regardless of outcome
-            if validated_config.rate_limit > 0:
-                time.sleep(1.0 / validated_config.rate_limit)
+            if params.rate_limit > 0:
+                time.sleep(1.0 / params.rate_limit)
             else:
                 # Avoid division by zero if rate_limit is 0 or negative
                 pass
@@ -296,7 +354,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         self,
         auth_params: Dict[str, str],
         headers: Dict[str, str],
-        params: Dict[str, str],
+        api_params: Dict[str, str],
         cookies: Dict[str, str],
     ) -> None:
         """
@@ -305,7 +363,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         Args:
             auth_params: Authentication parameters
             headers: Headers dictionary to modify
-            params: Query parameters dictionary to modify
+            api_params: Query parameters dictionary to modify
             cookies: Cookies dictionary to modify
         """
         api_key = self._get_secure_value(auth_params.get("key", ""))
@@ -316,7 +374,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             headers[header_name] = api_key
         elif location == "query":
             param_name = auth_params.get("name", "api_key")
-            params[param_name] = api_key
+            api_params[param_name] = api_key
         elif location == "cookie":
             cookie_name = auth_params.get("name", "api_key")
             cookies[cookie_name] = api_key
@@ -552,7 +610,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         self,
         initial_data: Dict[str, Any],
         chain_config: List[Dict[str, Any]],
-        validated_config: ApiTaxonomyEnricherConfig,
+        params: ApiTaxonomyEnricherParams,
         headers: Dict[str, str],
         cookies: Dict[str, str],
         auth: Any,
@@ -563,7 +621,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         Args:
             initial_data: Data from the initial API response
             chain_config: List of chained endpoint configurations
-            validated_config: Validated configuration object
+            params: Parameters object
             headers: Headers to use for requests
             cookies: Cookies to use for requests
             auth: Authentication object
@@ -578,9 +636,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             try:
                 # Build URL from template
                 url_template = endpoint_config["url_template"]
-                url = self._build_url_from_template(
-                    url_template, enriched_data, validated_config
-                )
+                url = self._build_url_from_template(url_template, enriched_data, params)
 
                 if not url:
                     # Silently skip if URL cannot be built (e.g., missing tropicos_id)
@@ -589,16 +645,16 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                     continue
 
                 # Get query parameters if specified
-                params = endpoint_config.get("params", {})
+                endpoint_params = endpoint_config.get("params", {})
 
                 # Add authentication parameters if needed
                 if (
-                    validated_config.auth_method == "api_key"
-                    and validated_config.auth_params.get("location") == "query"
+                    params.auth_method == "api_key"
+                    and params.auth_params.get("location") == "query"
                 ):
-                    param_name = validated_config.auth_params.get("name", "api_key")
-                    params[param_name] = self._get_secure_value(
-                        validated_config.auth_params.get("key", "")
+                    param_name = params.auth_params.get("name", "api_key")
+                    endpoint_params[param_name] = self._get_secure_value(
+                        params.auth_params.get("key", "")
                     )
 
                 # Make the request
@@ -608,11 +664,11 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                     session = requests.Session()
                     session.cookies.update(cookies)
                     response = session.get(
-                        url, params=params, headers=headers, auth=auth
+                        url, params=endpoint_params, headers=headers, auth=auth
                     )
                 else:
                     response = requests.get(
-                        url, params=params, headers=headers, auth=auth
+                        url, params=endpoint_params, headers=headers, auth=auth
                     )
 
                 response.raise_for_status()
@@ -629,8 +685,8 @@ class ApiTaxonomyEnricher(LoaderPlugin):
                 )
 
                 # Respect rate limit
-                if validated_config.rate_limit > 0:
-                    time.sleep(1.0 / validated_config.rate_limit)
+                if params.rate_limit > 0:
+                    time.sleep(1.0 / params.rate_limit)
 
             except Exception as e:
                 # Log only at debug level - failures are expected for missing data
@@ -645,7 +701,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         return enriched_data
 
     def _build_url_from_template(
-        self, template: str, data: Dict[str, Any], config: ApiTaxonomyEnricherConfig
+        self, template: str, data: Dict[str, Any], params: ApiTaxonomyEnricherParams
     ) -> str:
         """
         Build URL from template by replacing placeholders with actual values.
@@ -653,7 +709,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
         Args:
             template: URL template with placeholders like {field_name}
             data: Data dictionary to extract values from
-            config: Configuration object for auth params
+            params: Parameters object for auth params
 
         Returns:
             Built URL or empty string if failed
@@ -669,8 +725,8 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             value = None
 
             # Special handling for auth parameters
-            if placeholder == "apikey" and config.auth_method == "api_key":
-                value = self._get_secure_value(config.auth_params.get("key", ""))
+            if placeholder == "apikey" and params.auth_method == "api_key":
+                value = self._get_secure_value(params.auth_params.get("key", ""))
             else:
                 # Extract value from data using dot notation
                 value = self._extract_nested_value(data, placeholder)

@@ -4,45 +4,95 @@ Calculates various fragmentation metrics to evaluate the state and connectivity
 of forest landscapes.
 """
 
-from typing import Dict, Any, List
-from pydantic import Field, field_validator
+from typing import Dict, Any, List, Literal
+from pydantic import Field, field_validator, ConfigDict, model_validator
 import pandas as pd
 import geopandas as gpd
 import os
 from shapely.geometry import Polygon, MultiPolygon
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
-class FragmentationConfig(PluginConfig):
-    """Configuration for the fragmentation analysis plugin"""
+class FragmentationParams(BasePluginParams):
+    """Typed parameters for forest fragmentation analysis plugin.
 
-    plugin: str = "fragmentation_analysis"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "forest_path": "",  # Path to the forest layer
-            "shape_field": "geometry",  # Field containing the main geometry
-            "metrics": ["patch_count", "meff", "edge_density", "largest_patch_index"],
-            "area_unit": "ha",  # Unit for area calculations: ha, km2 or m2
-            "edge_width": 100,  # Edge width in meters for edge metrics
-            "size_classes": [
-                1,
-                5,
-                10,
-                50,
-                100,
-                500,
-                1000,
-                float("inf"),
-            ],  # Patch size classes (ha)
+    This plugin calculates various fragmentation metrics to evaluate
+    the state and connectivity of forest landscapes.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Calculate forest fragmentation metrics",
+            "examples": [
+                {
+                    "forest_path": "imports/forest_cover.shp",
+                    "shape_field": "geometry",
+                    "metrics": ["patch_count", "meff", "edge_density"],
+                    "area_unit": "ha",
+                    "edge_width": 100,
+                }
+            ],
         }
     )
 
-    @field_validator("params")
+    forest_path: str = Field(
+        ...,
+        description="Path to the forest layer (shapefile, geopackage, etc.)",
+        json_schema_extra={
+            "ui:widget": "file-select",
+            "ui:accept": ".shp,.gpkg,.geojson",
+        },
+    )
+
+    shape_field: str = Field(
+        default="geometry",
+        description="Field containing the main geometry",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    metrics: List[str] = Field(
+        default=["patch_count", "meff", "edge_density", "largest_patch_index"],
+        description="List of fragmentation metrics to calculate",
+        json_schema_extra={
+            "ui:widget": "multiselect",
+            "ui:options": [
+                "patch_count",
+                "meff",
+                "edge_density",
+                "largest_patch_index",
+                "patch_density",
+                "core_area",
+                "connectivity_index",
+                "size_distribution",
+            ],
+        },
+    )
+
+    area_unit: str = Field(
+        default="ha",
+        description="Unit for area calculations",
+        json_schema_extra={"ui:widget": "select", "ui:options": ["ha", "km2", "m2"]},
+    )
+
+    edge_width: float = Field(
+        default=100.0,
+        description="Edge width in meters for edge metrics calculation",
+        json_schema_extra={"ui:widget": "number", "ui:min": 0},
+    )
+
+    size_classes: List[float] = Field(
+        default=[1, 5, 10, 50, 100, 500, 1000, float("inf")],
+        description="Patch size classes for size distribution analysis",
+        json_schema_extra={"ui:widget": "array"},
+    )
+
+    @field_validator("metrics")
+    @classmethod
     def validate_metrics(cls, v):
-        """Validates the fragmentation metrics."""
+        """Validate the fragmentation metrics."""
         valid_metrics = [
             "patch_count",
             "meff",
@@ -53,22 +103,34 @@ class FragmentationConfig(PluginConfig):
             "connectivity_index",
             "size_distribution",
         ]
-
-        if "metrics" in v:
-            for metric in v["metrics"]:
-                if metric not in valid_metrics:
-                    raise ValueError(
-                        f"Unsupported metric: {metric}. Valid: {valid_metrics}"
-                    )
-
-        # Validate the area unit
-        if "area_unit" in v:
-            if v["area_unit"] not in ["ha", "km2", "m2"]:
+        for metric in v:
+            if metric not in valid_metrics:
                 raise ValueError(
-                    f"Invalid area unit: {v['area_unit']}. Use 'ha', 'km2' or 'm2'"
+                    f"Unsupported metric: {metric}. Valid: {valid_metrics}"
                 )
-
         return v
+
+    @field_validator("area_unit")
+    @classmethod
+    def validate_area_unit(cls, v):
+        """Validate the area unit."""
+        if v not in ["ha", "km2", "m2"]:
+            raise ValueError(f"Invalid area unit: {v}. Use 'ha', 'km2' or 'm2'")
+        return v
+
+    @model_validator(mode="after")
+    def validate_forest_path(self):
+        """Validate that forest path is provided."""
+        if not self.forest_path.strip():
+            raise ValueError("forest_path is required")
+        return self
+
+
+class FragmentationConfig(PluginConfig):
+    """Configuration for the fragmentation analysis plugin"""
+
+    plugin: Literal["fragmentation_analysis"] = "fragmentation_analysis"
+    params: FragmentationParams
 
 
 @register("fragmentation_analysis", PluginType.TRANSFORMER)
@@ -87,20 +149,10 @@ class FragmentationAnalysis(TransformerPlugin):
 
     config_model = FragmentationConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validates the plugin configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> FragmentationConfig:
+        """Validate configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
-            params = validated_config.params
-
-            # Validate the path to the forest layer
-            if not params.get("forest_path"):
-                raise DataTransformError(
-                    "The path to the forest layer is required",
-                    details={"config": params},
-                )
-
-            return validated_config
+            return self.config_model(**config)
         except Exception as e:
             if isinstance(e, DataTransformError):
                 raise e
@@ -131,7 +183,7 @@ class FragmentationAnalysis(TransformerPlugin):
                     details={"data_type": type(data).__name__},
                 )
 
-            shape_field = params.get("shape_field", "geometry")
+            shape_field = getattr(params, "shape_field", "geometry")
             if shape_field not in data.columns and shape_field != "geometry":
                 geometry = data.geometry
             else:
@@ -144,7 +196,7 @@ class FragmentationAnalysis(TransformerPlugin):
             main_geom = geometry.iloc[0]
 
             # Get the area unit conversion factor
-            area_unit = params.get("area_unit", "ha")
+            area_unit = getattr(params, "area_unit", "ha")
             if area_unit == "ha":
                 area_factor = 0.0001  # m² to ha
             elif area_unit == "km2":
@@ -156,7 +208,7 @@ class FragmentationAnalysis(TransformerPlugin):
             landscape_area = main_geom.area * area_factor
 
             # Resolve the path to the forest layer
-            forest_path = params["forest_path"]
+            forest_path = params.forest_path
             if not os.path.isabs(forest_path):
                 base_dir = self._get_base_directory()
                 forest_path = os.path.join(base_dir, forest_path)
@@ -165,7 +217,7 @@ class FragmentationAnalysis(TransformerPlugin):
             forest_gdf = gpd.read_file(forest_path)
 
             if forest_gdf.empty:
-                return self._empty_results(params["metrics"], area_unit)
+                return self._empty_results(params.metrics, area_unit)
 
             # Ensure the CRS matches
             if data.crs != forest_gdf.crs:
@@ -178,14 +230,14 @@ class FragmentationAnalysis(TransformerPlugin):
                 )
             except Exception as clip_err:
                 self.logger.error(f"Error clipping the forest: {str(clip_err)}")
-                return self._empty_results(params["metrics"], area_unit)
+                return self._empty_results(params.metrics, area_unit)
 
             if forest_in_area.empty:
-                return self._empty_results(params["metrics"], area_unit)
+                return self._empty_results(params.metrics, area_unit)
 
             # Initialize the result
             result = {}
-            metrics = params["metrics"]
+            metrics = params.metrics
 
             # Calculate basic metrics
             # 1. Number of patches (patch_count)
@@ -225,8 +277,10 @@ class FragmentationAnalysis(TransformerPlugin):
                 # Calculate the size distribution
                 if len(patch_sizes) > 0:
                     # Define the size classes (in the chosen unit)
-                    size_classes = params.get(
-                        "size_classes", [1, 5, 10, 50, 100, 500, 1000, float("inf")]
+                    size_classes = getattr(
+                        params,
+                        "size_classes",
+                        [1, 5, 10, 50, 100, 500, 1000, float("inf")],
                     )
                     class_labels = []
 
@@ -353,7 +407,7 @@ class FragmentationAnalysis(TransformerPlugin):
 
             # 6. Core area
             if "core_area" in metrics:
-                edge_width = params.get("edge_width", 100)  # In meters
+                edge_width = getattr(params, "edge_width", 100)  # In meters
 
                 # Create negative buffers for each patch to get the core areas
                 core_areas = []

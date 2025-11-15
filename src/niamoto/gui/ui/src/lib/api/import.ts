@@ -1,17 +1,15 @@
 import axios from 'axios'
 
-// Estimate import duration based on type and data size
-function calculateEstimatedDuration(importType: string, dataSize: number): number {
+// Estimate import duration based on entity type and data size
+function calculateEstimatedDuration(entityType: string, dataSize: number): number {
   // Base durations in milliseconds per 1000 records
   // Adjusted for more realistic progress display
   const baseDurations: Record<string, number> = {
-    taxonomy: 8000,      // ~8s per 1000 taxa
-    occurrences: 10000,  // ~10s per 1000 occurrences
-    plots: 8000,         // ~8s per 1000 plots
-    shapes: 6000         // ~6s per 1000 features (actually fast)
+    reference: 8000,   // ~8s per 1000 reference records
+    dataset: 10000,    // ~10s per 1000 dataset records
   }
 
-  const baseTime = baseDurations[importType] || 8000
+  const baseTime = baseDurations[entityType] || 8000
   const estimatedTime = (dataSize / 1000) * baseTime
 
   // Minimum duration to show progress (at least 3 seconds)
@@ -32,16 +30,16 @@ export interface FileAnalysis {
 }
 
 export interface ImportRequest {
-  import_type: string
-  file_name: string
-  field_mappings: Record<string, string>
-  advanced_options?: Record<string, any>
+  entity_name: string
+  entity_type: 'reference' | 'dataset'  // 'reference' or 'dataset'
+  reset_table?: boolean
+  file?: File
 }
 
-export async function analyzeFile(file: File, importType: string): Promise<FileAnalysis> {
+export async function analyzeFile(file: File, entityType: string): Promise<FileAnalysis> {
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('import_type', importType)
+  formData.append('entity_type', entityType)
 
   const response = await axios.post<FileAnalysis>('/api/files/analyze', formData, {
     headers: {
@@ -52,17 +50,35 @@ export async function analyzeFile(file: File, importType: string): Promise<FileA
   return response.data
 }
 
-export async function executeImport(request: ImportRequest, file: File): Promise<any> {
+export async function executeImport(request: ImportRequest, file?: File): Promise<any> {
   const formData = new FormData()
-  formData.append('file', file)
-  formData.append('import_type', request.import_type)
-  formData.append('file_name', request.file_name)
-  formData.append('field_mappings', JSON.stringify(request.field_mappings))
-  if (request.advanced_options) {
-    formData.append('advanced_options', JSON.stringify(request.advanced_options))
+  formData.append('reset_table', String(request.reset_table || false))
+  const fileToUpload = file ?? request.file
+  if (fileToUpload) {
+    formData.append('file', fileToUpload)
   }
 
-  const response = await axios.post('/api/imports/execute', formData, {
+  let endpoint: string
+  if (request.entity_type === 'reference') {
+    endpoint = `/api/imports/execute/reference/${request.entity_name}`
+  } else {
+    endpoint = `/api/imports/execute/dataset/${request.entity_name}`
+  }
+
+  const response = await axios.post(endpoint, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+
+  return response.data
+}
+
+export async function executeImportAll(resetTable: boolean = false): Promise<any> {
+  const formData = new FormData()
+  formData.append('reset_table', String(resetTable))
+
+  const response = await axios.post('/api/imports/execute/all', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -76,9 +92,72 @@ export async function getImportStatus(jobId: string): Promise<any> {
   return response.data
 }
 
+export async function executeImportFromConfig(
+  request: ImportRequest,
+  pollInterval: number = 500,
+  maxWaitTime: number = 300000,
+  onProgress?: (progress: number) => void,
+  dataSize?: number,
+  onStatusUpdate?: (status: any) => void
+): Promise<any> {
+  try {
+    const response = await executeImport(request)
+    const jobId = response.job_id
+
+    // Use the same polling logic as executeImportAndWait
+    const startTime = Date.now()
+    const estimatedDuration = calculateEstimatedDuration(request.entity_type, dataSize || 1000)
+    let currentProgress = 0
+    let pollCount = 0
+    const maxPolls = Math.ceil(maxWaitTime / pollInterval)
+
+    while (pollCount < maxPolls) {
+      if (Date.now() - startTime > maxWaitTime) {
+        throw new Error('Import timed out')
+      }
+
+      const status = await getImportStatus(jobId)
+      onStatusUpdate?.(status)
+
+      if (onProgress) {
+        if (typeof status.progress === 'number') {
+          currentProgress = Math.max(currentProgress, status.progress)
+          onProgress(Math.round(Math.min(100, currentProgress)))
+        } else if (status.status === 'running') {
+          const elapsed = Date.now() - startTime
+          const rawProgress = (elapsed / estimatedDuration) * 100
+          const logProgress = Math.log(rawProgress + 1) / Math.log(101) * 95
+          currentProgress = Math.max(currentProgress, Math.min(95, logProgress))
+          onProgress(Math.round(currentProgress))
+        }
+      }
+
+      if (status.status === 'completed') {
+        onProgress?.(100)
+        return {
+          ...status,
+          count: status.processed_records || status.total_records || status.count || status.imported_count || status.result?.count || 0
+        }
+      } else if (status.status === 'failed') {
+        throw new Error(status.errors?.join(', ') || 'Import failed')
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
+      pollCount++
+    }
+
+    throw new Error('Import timed out')
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.detail || error.message)
+    }
+    throw error
+  }
+}
+
 export async function executeImportAndWait(
   request: ImportRequest,
-  file: File,
+  file?: File,
   pollInterval: number = 500, // Poll every 500ms for smoother progress
   maxWaitTime: number = 300000, // 5 minutes max
   onProgress?: (progress: number) => void,
@@ -93,8 +172,8 @@ export async function executeImportAndWait(
   let pollCount = 0
   let currentProgress = 0
 
-  // Estimate processing speed based on import type and data size
-  const estimatedDuration = calculateEstimatedDuration(request.import_type, dataSize || 1000)
+  // Estimate processing speed based on entity type and data size
+  const estimatedDuration = calculateEstimatedDuration(request.entity_type, dataSize || 1000)
 
   while (Date.now() - startTime < maxWaitTime) {
     const status = await getImportStatus(jobId)
@@ -131,4 +210,22 @@ export async function executeImportAndWait(
   }
 
   throw new Error('Import timed out')
+}
+
+export interface EntityInfo {
+  name: string
+  kind?: string
+  connector_type: string
+  path: string
+  links?: number
+}
+
+export interface EntitiesResponse {
+  references: EntityInfo[]
+  datasets: EntityInfo[]
+}
+
+export async function getEntities(): Promise<EntitiesResponse> {
+  const response = await axios.get<EntitiesResponse>('/api/imports/entities')
+  return response.data
 }

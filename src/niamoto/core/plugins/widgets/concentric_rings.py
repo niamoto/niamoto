@@ -2,10 +2,11 @@
 
 import logging
 import plotly.graph_objects as go
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 from typing import Dict, Any, Optional, List
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -15,30 +16,72 @@ from niamoto.core.plugins.widgets.plotly_utils import (
 logger = logging.getLogger(__name__)
 
 
-class ConcentricRingsParams(BaseModel):
+class ConcentricRingsParams(BasePluginParams):
     """Parameters for the Concentric Rings widget."""
 
-    title: Optional[str] = Field(None, description="Title of the chart.")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create concentric ring charts for displaying hierarchical forest cover data",
+            "examples": [
+                {
+                    "title": "Forest Cover Rings",
+                    "ring_order": ["um", "num", "emprise"],
+                    "ring_labels": {"um": "UM", "num": "NUM", "emprise": "Emprise"},
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        description="Title of the chart",
+        json_schema_extra={"ui:widget": "text"},
+    )
     description: Optional[str] = Field(
-        None, description="Description displayed below the title."
+        default=None,
+        description="Description displayed below the title",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     ring_order: List[str] = Field(
-        ["um", "num", "emprise"], description="Order of rings from inside to outside"
+        default=["um", "num", "emprise"],
+        description="Order of rings from inside to outside",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "text"},
     )
     ring_labels: Dict[str, str] = Field(
-        {"um": "UM", "num": "NUM", "emprise": "Emprise"},
+        default={"um": "UM", "num": "NUM", "emprise": "Emprise"},
         description="Display labels for each ring",
+        json_schema_extra={"ui:widget": "json"},
     )
     category_colors: Dict[str, Any] = Field(
-        {},
-        description="Colors for each category. Can be string or dict for ring-specific colors (e.g., {'forest': '#6B8E23', 'non_forest': {'um': '#color1', 'num': '#color2'}})",
+        default={},
+        description="Colors for each category. Can be string or dict for ring-specific colors",
+        json_schema_extra={"ui:widget": "json"},
     )
     default_colors: List[str] = Field(
-        ["#6B8E23", "#8B7355", "#C5A98B", "#F4E4BC"],
+        default=["#6B8E23", "#8B7355", "#C5A98B", "#F4E4BC"],
         description="Default colors to use if category_colors not specified",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "color"},
     )
-    border_width: float = Field(2.0, description="Width of borders between segments")
-    height: int = Field(500, description="Height of the chart in pixels")
+    border_width: float = Field(
+        default=2.0,
+        description="Width of borders between segments",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:min": 0,
+            "ui:max": 10,
+            "ui:step": 0.5,
+        },
+    )
+    height: int = Field(
+        default=500,
+        description="Height of the chart in pixels",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:min": 200,
+            "ui:max": 1000,
+            "ui:step": 50,
+        },
+    )
 
 
 @register("concentric_rings", PluginType.WIDGET)

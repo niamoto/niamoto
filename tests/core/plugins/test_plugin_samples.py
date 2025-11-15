@@ -133,10 +133,9 @@ class TestSampleLoaders(unittest.TestCase):
     def test_join_table_loader(self):
         """Test the join_table loader plugin."""
         try:
-            # Import the plugin
             from niamoto.core.plugins.loaders.join_table import JoinTableLoader
+            from niamoto.common.exceptions import DatabaseQueryError
 
-            # Create test config
             config = {
                 "plugin": "join_table",
                 "data": "test_table",
@@ -145,21 +144,32 @@ class TestSampleLoaders(unittest.TestCase):
                 "keys": {"source": "id_source", "reference": "id_reference"},
             }
 
-            # Mock database query result
             mock_result = pd.DataFrame({"id": [1, 2, 3], "extra_data": ["X", "Y", "Z"]})
-            self.db.execute_query.return_value = mock_result
 
-            # Create plugin instance
-            loader = JoinTableLoader(self.db)
+            self.db.has_table = MagicMock(return_value=True)
+            self.db.get_table_columns = MagicMock(
+                side_effect=lambda name: ["id", "value"]
+            )
+            self.db.engine = MagicMock()
+            mock_connection = MagicMock()
+            self.db.engine.connect.return_value.__enter__.return_value = mock_connection
 
-            # Validate config
-            loader.validate_config(config)
+            with (
+                patch(
+                    "niamoto.core.plugins.loaders.join_table.EntityRegistry"
+                ) as registry_cls,
+                patch("pandas.read_sql", return_value=mock_result) as mock_read_sql,
+            ):
+                registry_cls.return_value.get.side_effect = DatabaseQueryError(
+                    query="registry_lookup", message="missing"
+                )
 
-            # Load data
-            result = loader.load_data(1, config)
+                loader = JoinTableLoader(self.db)
+                loader.validate_config(config)
+                result = loader.load_data(1, config)
 
-            # Verify result
             self.assertIsInstance(result, pd.DataFrame)
+            mock_read_sql.assert_called_once()
 
         except ImportError:
             self.skipTest("join_table loader not available")
@@ -183,7 +193,6 @@ class TestSampleLoaders(unittest.TestCase):
             mock_result = pd.DataFrame(
                 {"id": [1, 2, 3], "geom": ["POINT(0 0)", "POINT(1 1)", "POINT(2 2)"]}
             )
-            self.db.execute_query.return_value = mock_result
 
             # Mock execute method to return a scalar
             self.db.execute = MagicMock()
@@ -197,8 +206,13 @@ class TestSampleLoaders(unittest.TestCase):
             # Validate config
             loader.validate_config(config)
 
-            # Load data
-            result = loader.load_data(1, config)
+            # Mock pd.read_sql to avoid text() issue with mock engine
+            with patch("pandas.read_sql", return_value=mock_result) as mock_read_sql:
+                # Load data
+                result = loader.load_data(1, config)
+
+                # Verify pd.read_sql was called
+                mock_read_sql.assert_called_once()
 
             # Verify result
             self.assertIsInstance(result, pd.DataFrame)

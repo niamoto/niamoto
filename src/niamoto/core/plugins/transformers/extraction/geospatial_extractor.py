@@ -2,7 +2,7 @@
 Plugin for extracting and formatting geospatial data.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Literal, Union
 import os
 
 import pandas as pd
@@ -11,90 +11,139 @@ from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 from shapely.wkb import loads as load_wkb
 from shapely.wkt import loads as load_wkt
-
-from niamoto.core.plugins.models import PluginConfig
+from pydantic import BaseModel, Field, ConfigDict
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
-from pydantic import field_validator
+from niamoto.common.exceptions import DatabaseQueryError
+from niamoto.core.imports.registry import EntityRegistry
+
+
+class HierarchyConfig(BaseModel):
+    """Configuration for hierarchical data extraction.
+
+    Supports both nested sets (lft/rght) and adjacency list (parent_field) models.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Configuration for extracting hierarchical data",
+            "examples": [
+                {
+                    "type_field": "plot_type",
+                    "leaf_type": "plot",
+                    "parent_field": "parent_id",
+                },
+                {
+                    "type_field": "plot_type",
+                    "leaf_type": "plot",
+                    "left_field": "lft",
+                    "right_field": "rght",
+                },
+            ],
+        }
+    )
+
+    type_field: Optional[str] = Field(
+        None, description="Field that contains the entity type (e.g., 'plot_type')"
+    )
+    leaf_type: Optional[str] = Field(
+        None, description="Value that identifies leaf entities (e.g., 'plot')"
+    )
+    parent_field: Optional[str] = Field(
+        None, description="Field for adjacency list parent reference (preferred)"
+    )
+    left_field: Optional[str] = Field(
+        None, description="Field for nested set left value (legacy)"
+    )
+    right_field: Optional[str] = Field(
+        None, description="Field for nested set right value (legacy)"
+    )
+
+
+class GeospatialExtractorParams(BasePluginParams):
+    """Parameters for geospatial data extraction.
+
+    This plugin extracts and formats geospatial data from various sources,
+    supporting multiple geometry formats and hierarchical data structures.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract and format geospatial data into GeoJSON",
+            "examples": [
+                {
+                    "source": "plots",
+                    "field": "geometry",
+                    "format": "geojson",
+                    "properties": ["name", "type", "area"],
+                },
+                {
+                    "source": "occurrences",
+                    "field": "location",
+                    "format": "geojson",
+                    "group_by_coordinates": True,
+                    "properties": ["species_name", "count"],
+                },
+                {
+                    "source": "hierarchical_plots",
+                    "field": "geometry",
+                    "extract_children": True,
+                    "hierarchy_config": {
+                        "type_field": "plot_type",
+                        "leaf_type": "subplot",
+                        "left_field": "lft",
+                        "right_field": "rght",
+                    },
+                },
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="occurrences",
+        description="Data source entity name",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
+        },
+    )
+    field: str = Field(
+        ...,
+        description="Field name containing geometry data",
+        json_schema_extra={"ui:widget": "field-select", "ui:depends": "source"},
+    )
+    format: Literal["geojson"] = Field(
+        default="geojson", description="Output format for geospatial data"
+    )
+    properties: List[str] = Field(
+        default_factory=list,
+        description="List of properties to include in the output features",
+        json_schema_extra={"ui:widget": "multi-field-select", "ui:depends": "source"},
+    )
+    group_by_coordinates: bool = Field(
+        default=False,
+        description="Group points with the same coordinates and add count property",
+    )
+    extract_children: bool = Field(
+        default=False,
+        description="Extract child entities instead of the main entity (for hierarchical data)",
+    )
+    children_properties: List[str] = Field(
+        default_factory=list,
+        description="Properties to include from children when extract_children is True",
+    )
+    hierarchy_config: HierarchyConfig = Field(
+        default_factory=lambda: HierarchyConfig(),
+        description="Configuration for hierarchical data extraction using nested sets",
+    )
 
 
 class GeospatialExtractorConfig(PluginConfig):
-    """Configuration for geospatial extractor plugin"""
+    """Complete configuration for geospatial extractor plugin."""
 
-    plugin: str = "geospatial_extractor"
-    params: Dict[str, Any] = {
-        "source": "",
-        "field": "",
-        "format": "geojson",  # default format
-        "properties": [],  # optional, empty by default
-        "group_by_coordinates": False,  # optional, group points with same coordinates
-        "extract_children": False,  # optional, extract child entities instead of aggregated geometry
-        "children_properties": [],  # optional, properties to include from children
-        "hierarchy_config": {  # optional, configuration for hierarchical extraction
-            "type_field": None,  # field that contains the entity type (e.g., "plot_type")
-            "leaf_type": None,  # value that identifies leaf entities (e.g., "plot")
-            "left_field": "lft",  # field for nested set left value
-            "right_field": "rght",  # field for nested set right value
-        },
-    }
-
-    @field_validator("params")
-    @classmethod
-    def validate_params(cls, v):
-        """Validate configuration parameters."""
-        # Ensure we have a dictionary
-        if not isinstance(v, dict):
-            v = {}
-
-        # Validate required fields
-        if not v.get("source"):
-            raise ValueError("Source is required")
-        if not v.get("field"):
-            raise ValueError("Field is required")
-
-        # Set default format if not provided
-        if "format" not in v:
-            v["format"] = "geojson"
-        elif v["format"] not in {"geojson"}:
-            raise ValueError("Format must be 'geojson'")
-
-        # Set empty properties list if not provided
-        if "properties" not in v:
-            v["properties"] = []
-
-        # Set default for group_by_coordinates if not provided
-        if "group_by_coordinates" not in v:
-            v["group_by_coordinates"] = False
-
-        # Set default for extract_children if not provided
-        if "extract_children" not in v:
-            v["extract_children"] = False
-
-        # Set default for children_properties if not provided
-        if "children_properties" not in v:
-            v["children_properties"] = []
-
-        # Set default for hierarchy_config if not provided
-        if "hierarchy_config" not in v:
-            v["hierarchy_config"] = {
-                "type_field": None,
-                "leaf_type": None,
-                "left_field": "lft",
-                "right_field": "rght",
-            }
-        else:
-            # Ensure all keys exist with defaults
-            hierarchy_config = v["hierarchy_config"]
-            if "type_field" not in hierarchy_config:
-                hierarchy_config["type_field"] = None
-            if "leaf_type" not in hierarchy_config:
-                hierarchy_config["leaf_type"] = None
-            if "left_field" not in hierarchy_config:
-                hierarchy_config["left_field"] = "lft"
-            if "right_field" not in hierarchy_config:
-                hierarchy_config["right_field"] = "rght"
-
-        return v
+    plugin: Literal["geospatial_extractor"] = "geospatial_extractor"
+    params: GeospatialExtractorParams
 
 
 @register("geospatial_extractor", PluginType.TRANSFORMER)
@@ -103,21 +152,17 @@ class GeospatialExtractor(TransformerPlugin):
 
     config_model = GeospatialExtractorConfig
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, registry=None):
+        super().__init__(db, registry)
         self.config = Config()
-        self.imports_config = self.config.get_imports_config
+        # Use registry from parent if provided, otherwise create new instance
+        if not self.registry:
+            self.registry = EntityRegistry(db)
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> GeospatialExtractorConfig:
+        """Validate configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
-            # Additional validation if needed
-            valid_formats = {"geojson"}
-            if validated_config.params.get("format") not in valid_formats:
-                raise ValueError(
-                    f"Invalid format: {validated_config.params.get('format')}. Valid options are: {valid_formats}"
-                )
+            return self.config_model(**config)
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -171,142 +216,224 @@ class GeospatialExtractor(TransformerPlugin):
     def _get_data_from_source(self, source: str, id_value: int = None) -> pd.DataFrame:
         """Get data from a source (table or import)."""
         try:
-            # D'abord vérifier si la source est dans import.yml
-            if source in self.imports_config:
-                import_config = self.imports_config[source]
-
-                # Construire le chemin complet du fichier
-                file_path = os.path.join(
-                    os.path.dirname(self.config.config_dir), import_config["path"]
-                )
-
-                # Charger les données selon le type
-                if import_config["type"] == "csv":
-                    df = pd.read_csv(file_path)
-                elif import_config["type"] == "vector":
-                    df = gpd.read_file(file_path)
-                else:
-                    raise ValueError(
-                        f"Unsupported import type: {import_config['type']}"
-                    )
-
-                # Si on a un id_value, filtrer les données
+            table_name = self._resolve_table_name(source)
+            if self.db.has_table(table_name):
                 if id_value is not None:
-                    identifier = import_config["identifier"]
-                    df = df[df[identifier] == id_value]
+                    query = f"SELECT * FROM {table_name} WHERE id = :id"
+                    params = {"id": id_value}
+                else:
+                    query = f"SELECT * FROM {table_name}"
+                    params = {}
+                return pd.read_sql(query, self.db.engine, params=params or None)
 
-                return df
-
-            # Sinon, c'est une table de la base
-            query = f"""
-                SELECT * FROM {source}
-            """
-            if id_value is not None:
-                query += f" WHERE id = {id_value}"
-
-            result = self.db.execute_select(query)
-            # Pour SQLAlchemy moderne, on utilise .keys() pour obtenir les noms de colonnes
-            df = pd.DataFrame(
-                result.fetchall(),
-                columns=result.keys(),
-            )
-            return df
-
+            # Fallback to connector configuration if available
+            try:
+                metadata = self.registry.get(source)
+                if metadata and hasattr(metadata, "config") and metadata.config:
+                    connector = metadata.config.get("connector", {})
+                    if connector:
+                        df = self._load_from_connector(connector, id_value)
+                        if df is not None:
+                            return df
+            except (DatabaseQueryError, AttributeError):
+                # Registry lookup failed or metadata is invalid, skip connector path
+                pass
         except Exception as e:
-            import traceback
+            raise ValueError(f"Error getting data from {source}: {str(e)}") from e
 
-            traceback.print_exc()
-            raise ValueError(f"Error getting data from {source}: {str(e)}")
+        # Final fallback: check if source exists in registry
+        try:
+            entity_info = self.registry.get(source)
+            if entity_info and hasattr(entity_info, "table_name"):
+                # Source exists in registry, try loading from its table
+                table_name = entity_info.table_name
+                try:
+                    query = f"SELECT * FROM {table_name} WHERE id = :id"
+                    df = pd.read_sql(query, self.db.engine, params={"id": id_value})
+                    if not df.empty:
+                        return df
+                except Exception as e:
+                    raise ValueError(
+                        f"Error loading from {table_name}: {str(e)}"
+                    ) from e
+        except (DatabaseQueryError, AttributeError):
+            # Registry lookup failed, proceed to final error
+            pass
+
+        raise ValueError(f"Unknown data source: {source}")
 
     def _get_children_from_source(
         self, source: str, parent_id: int, hierarchy_config: Dict[str, Any]
     ) -> pd.DataFrame:
-        """Get children data from a hierarchical source."""
+        """Get children data from a hierarchical source.
+
+        Supports both nested sets (lft/rght) and adjacency list (parent_field) models.
+        Auto-detects which model is available in the table.
+        """
         try:
             # Check if we have hierarchy configuration
             type_field = hierarchy_config.get("type_field")
             leaf_type = hierarchy_config.get("leaf_type")
-            left_field = hierarchy_config.get("left_field", "lft")
-            right_field = hierarchy_config.get("right_field", "rght")
+            parent_field = hierarchy_config.get("parent_field")
+            left_field = hierarchy_config.get("left_field")
+            right_field = hierarchy_config.get("right_field")
 
             # If no hierarchy config, just return the entity itself
             if not type_field or not leaf_type:
                 return self._get_data_from_source(source, parent_id)
 
-            # Build column list for parent query
-            columns = [left_field, right_field]
-            if type_field:
-                columns.append(type_field)
+            table_name = self._resolve_table_name(source)
 
-            # First get the parent's nested set values
-            parent_query = f"""
-                SELECT {", ".join(columns)}
-                FROM {source}
-                WHERE id = {parent_id}
-            """
-            result = self.db.execute_select(parent_query)
-            parent_row = result.fetchone()
+            # Determine which hierarchy model to use
+            # Priority: parent_field (adjacency list) > left/right (nested sets)
+            use_adjacency_list = parent_field is not None
+            use_nested_sets = left_field is not None and right_field is not None
 
-            if not parent_row:
+            # Auto-detect if not explicitly configured
+            if not use_adjacency_list and not use_nested_sets:
+                # Check which columns exist in the table
+                try:
+                    table_columns = self.db.get_table_columns(table_name)
+                    if "parent_id" in table_columns:
+                        use_adjacency_list = True
+                        parent_field = "parent_id"
+                    elif "lft" in table_columns and "rght" in table_columns:
+                        use_nested_sets = True
+                        left_field = "lft"
+                        right_field = "rght"
+                except Exception:
+                    # Fallback to legacy nested sets
+                    use_nested_sets = True
+                    left_field = "lft"
+                    right_field = "rght"
+
+            # Get parent entity type
+            type_query = f"SELECT {type_field} FROM {table_name} WHERE id = :id"
+            type_df = pd.read_sql(type_query, self.db.engine, params={"id": parent_id})
+
+            if type_df.empty:
                 return pd.DataFrame()
 
-            # Extract values
-            lft = parent_row[0]
-            rght = parent_row[1]
-            entity_type = parent_row[2] if len(parent_row) > 2 else None
+            entity_type = type_df.iloc[0][type_field]
 
             # If it's already a leaf entity, return itself
             if entity_type == leaf_type:
+                query = f"SELECT * FROM {table_name} WHERE id = :id"
+                return pd.read_sql(query, self.db.engine, params={"id": parent_id})
+
+            # Get all leaf descendants based on hierarchy model
+            if use_adjacency_list:
+                # Use recursive CTE for adjacency list
                 query = f"""
-                    SELECT * FROM {source}
-                    WHERE id = {parent_id}
+                    WITH RECURSIVE descendants AS (
+                        -- Base case: direct children
+                        SELECT * FROM {table_name}
+                        WHERE {parent_field} = :parent_id
+
+                        UNION ALL
+
+                        -- Recursive case: children of children
+                        SELECT t.*
+                        FROM {table_name} t
+                        INNER JOIN descendants d ON t.{parent_field} = d.id
+                    )
+                    SELECT * FROM descendants
+                    WHERE {type_field} = :leaf_type
+                    ORDER BY id
                 """
-                result = self.db.execute_select(query)
+                return pd.read_sql(
+                    query,
+                    self.db.engine,
+                    params={"parent_id": parent_id, "leaf_type": leaf_type},
+                )
             else:
-                # Get all leaf descendants
+                # Use nested sets query (legacy)
+                parent_query = f"""
+                    SELECT {left_field}, {right_field}
+                    FROM {table_name}
+                    WHERE id = :parent_id
+                """
+                parent_df = pd.read_sql(
+                    parent_query, self.db.engine, params={"parent_id": parent_id}
+                )
+
+                if parent_df.empty:
+                    return pd.DataFrame()
+
+                parent_row = parent_df.iloc[0]
+                lft = parent_row[left_field]
+                rght = parent_row[right_field]
+
                 query = f"""
-                    SELECT * FROM {source}
-                    WHERE {left_field} > {lft} AND {right_field} < {rght}
-                    AND {type_field} = '{leaf_type}'
+                    SELECT * FROM {table_name}
+                    WHERE {left_field} > :lft AND {right_field} < :rght
+                    AND {type_field} = :leaf_type
                     ORDER BY {left_field}
                 """
-                result = self.db.execute_select(query)
-
-            df = pd.DataFrame(
-                result.fetchall(),
-                columns=result.keys(),
-            )
-            return df
+                return pd.read_sql(
+                    query,
+                    self.db.engine,
+                    params={"lft": lft, "rght": rght, "leaf_type": leaf_type},
+                )
 
         except Exception as e:
-            import traceback
-
-            traceback.print_exc()
             raise ValueError(f"Error getting children from {source}: {str(e)}")
 
-    def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _load_from_connector(
+        self, connector: Dict[str, Any], id_value: Optional[int]
+    ) -> Optional[pd.DataFrame]:
+        if not connector:
+            return None
+        connector_type = connector.get("type")
+        path = connector.get("path")
+        if not connector_type or not path:
+            return None
+
+        base_dir = os.path.dirname(self.config.config_dir)
+        file_path = os.path.join(base_dir, path)
+
+        if connector_type in {"file", "duckdb_csv", "csv"}:
+            df = pd.read_csv(file_path)
+        elif connector_type == "vector":
+            df = gpd.read_file(file_path)
+        else:
+            raise ValueError(f"Unsupported connector type: {connector_type}")
+
+        identifier = connector.get("identifier")
+        if id_value is not None and identifier in df.columns:
+            df = df[df[identifier] == id_value]
+        return df
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via registry.
+
+        Falls back to the logical name if:
+        - Entity not found in registry (DatabaseQueryError)
+        - Registry returns invalid/missing metadata (AttributeError)
+        - Any other unexpected error occurs
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            if not metadata or not hasattr(metadata, "table_name"):
+                return logical_name
+            return metadata.table_name
+        except (DatabaseQueryError, AttributeError):
+            return logical_name
+
+    def transform(
+        self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Transform data according to configuration."""
         try:
-            # Make sure we have a params dictionary
-            if "params" not in config:
-                config["params"] = {}
-
-            # Get required parameters from config
-            params = config["params"]
-            if "source" in config:
-                params["source"] = config["source"]
-            if "field" in config:
-                params["field"] = config["field"]
-
-            validated_config = self.config_model(**config)
+            validated_config = self.validate_config(config)
             params = validated_config.params
-            source = params["source"]
-            field = params["field"]
-            format = params["format"]
-            properties = params["properties"]
-            group_by_coordinates = params.get("group_by_coordinates", False)
-            extract_children = params.get("extract_children", False)
-            hierarchy_config = params.get("hierarchy_config", {})
+            source = params.source
+            field = params.field
+            format_type = params.format
+            properties = params.properties
+            group_by_coordinates = params.group_by_coordinates
+            extract_children = params.extract_children
+            hierarchy_config = params.hierarchy_config
 
             # Get source data if different from occurrences
             # Exception: if source is "plots" but we already have aggregated data from nested_set,
@@ -317,7 +444,7 @@ class GeospatialExtractor(TransformerPlugin):
                 # If extract_children is True, get children instead of the entity itself
                 if extract_children:
                     data = self._get_children_from_source(
-                        source, group_id, hierarchy_config
+                        source, group_id, hierarchy_config.model_dump()
                     )
                 else:
                     data = self._get_data_from_source(source, group_id)
@@ -344,7 +471,7 @@ class GeospatialExtractor(TransformerPlugin):
                     gdf = gpd.GeoDataFrame(valid_data, geometry=valid_geometry)
 
                     # Convert to GeoJSON
-                    if format == "geojson":
+                    if format_type == "geojson":
                         if group_by_coordinates:
                             # Dictionary to store unique coordinates and their features
                             unique_features = {}

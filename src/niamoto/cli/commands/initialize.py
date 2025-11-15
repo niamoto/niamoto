@@ -21,9 +21,14 @@ from ...common.utils import error_handler
 @click.option(
     "--reset", is_flag=True, help="Reset the environment if it already exists."
 )
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Force reset without confirmation prompt (use with --reset, DANGEROUS).",
+)
 @click.option("--gui", is_flag=True, help="Launch the GUI after initialization.")
 @error_handler(log=True, raise_error=True)
-def init_environment(project_name: str, reset: bool, gui: bool) -> None:
+def init_environment(project_name: str, reset: bool, force: bool, gui: bool) -> None:
     """
     Initialize or reset the Niamoto environment, and display its status.
 
@@ -41,11 +46,11 @@ def init_environment(project_name: str, reset: bool, gui: bool) -> None:
         if project_name:
             # Check if directory already exists
             if os.path.exists(project_name):
-                raise CommandError(
-                    command="init",
-                    message=f"Directory '{project_name}' already exists",
-                    details={"directory": project_name},
+                print_error(
+                    f"Directory '{project_name}' already exists. "
+                    "Please choose a different name or remove the existing directory."
                 )
+                return
 
             # Create project directory
             os.makedirs(project_name)
@@ -66,9 +71,11 @@ def init_environment(project_name: str, reset: bool, gui: bool) -> None:
         environment_exists = os.path.exists(config_dir)
 
         if environment_exists and reset:
-            if not confirm_reset():
-                print_warning("Environment reset cancelled by user.")
-                return
+            # Skip confirmation if --force flag is used (for automation/CI)
+            if not force:
+                if not confirm_reset():
+                    print_warning("Environment reset cancelled by user.")
+                    return
             reset_environment(config_dir)
         elif not environment_exists:
             # Pass project name to initialization

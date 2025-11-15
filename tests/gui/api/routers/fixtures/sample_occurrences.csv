@@ -1,0 +1,11 @@
+id,id_taxonref,taxaname,family,genus,species,dbh,height,geo_pt
+1,101,Araucaria columnaris,Araucariaceae,Araucaria,columnaris,45.2,12.5,"POINT(166.45 -22.27)"
+2,101,Araucaria columnaris,Araucariaceae,Araucaria,columnaris,52.3,14.8,"POINT(166.46 -22.28)"
+3,102,Araucaria laubenfelsii,Araucariaceae,Araucaria,laubenfelsii,38.1,10.2,"POINT(166.47 -22.29)"
+4,201,Agathis lanceolata,Araucariaceae,Agathis,lanceolata,61.5,18.3,"POINT(166.48 -22.30)"
+5,201,Agathis lanceolata,Araucariaceae,Agathis,lanceolata,55.7,16.9,"POINT(166.49 -22.31)"
+6,301,Dacrydium guillauminii,Podocarpaceae,Dacrydium,guillauminii,28.4,8.5,"POINT(166.50 -22.32)"
+7,302,Retrophyllum comptonii,Podocarpaceae,Retrophyllum,comptonii,42.8,13.1,"POINT(166.51 -22.33)"
+8,303,Podocarpus polyspermus,Podocarpaceae,Podocarpus,polyspermus,35.6,11.4,"POINT(166.52 -22.34)"
+9,401,Nothofagus aequilateralis,Nothofagaceae,Nothofagus,aequilateralis,48.9,15.2,"POINT(166.53 -22.35)"
+10,401,Nothofagus aequilateralis,Nothofagaceae,Nothofagus,aequilateralis,51.2,16.1,"POINT(166.54 -22.36)"

@@ -1,7 +1,7 @@
 """Pydantic models for API validation."""
 
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ConfigSection(BaseModel):
@@ -37,12 +37,11 @@ class ExportConfig(ConfigSection):
 class NiamotoConfig(BaseModel):
     """Complete Niamoto configuration."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     import_config: ImportConfig = Field(alias="import")
     transform: Optional[Dict[str, Any]] = None
     export: Optional[ExportConfig] = None
-
-    class Config:
-        populate_by_name = True
 
 
 class ValidationResponse(BaseModel):

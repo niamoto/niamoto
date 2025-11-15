@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 class IndexGeneratorPlugin(ExporterPlugin):
     """Plugin for generating configurable index pages for groups."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, registry=None):
         """Initialize the plugin with database connection."""
-        super().__init__(db)
+        super().__init__(db, registry)
 
     def _get_nested_value(self, data: Dict[str, Any], path: str) -> Any:
         """
@@ -176,7 +176,11 @@ class IndexGeneratorPlugin(ExporterPlugin):
                         continue
 
                 # Extract display fields
-                processed_item = {id_column: item[id_column]}
+                # Convert ID to string to preserve precision in JSON/JavaScript
+                item_id = item[id_column]
+                processed_item = {
+                    id_column: str(item_id) if item_id is not None else None
+                }
 
                 for field in config.display_fields:
                     field_value = self._extract_field_value(item, field)

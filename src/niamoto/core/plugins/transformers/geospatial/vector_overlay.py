@@ -12,46 +12,95 @@ The results are formatted to be used directly in visualization widgets
 or for further analysis.
 """
 
-from typing import Dict, Any, List
-from pydantic import Field, field_validator
+from typing import Dict, Any, List, Literal, Optional
+from pydantic import Field, field_validator, ConfigDict, model_validator
 import pandas as pd
 import geopandas as gpd
 import os
 import logging
 from shapely.ops import unary_union
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
-class VectorOverlayConfig(PluginConfig):
-    """Configuration for the vector overlay analysis plugin"""
+class VectorOverlayParams(BasePluginParams):
+    """Typed parameters for vector overlay analysis plugin.
 
-    plugin: str = "vector_overlay"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "overlay_path": "",  # Path to the overlay layer
-            "shape_field": "geometry",  # Field containing the main geometry
-            "operation": "intersection",  # intersection, union, difference, clip, etc.
-            "attribute_field": None,  # Field to use for categorization
-            "where": None,  # SQL filter for the overlay layer
-            "area_unit": "ha",  # Unit of area: ha, km2 or m2
+    This plugin performs various overlay operations between a main geometry
+    and an external vector layer.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Perform vector overlay analysis operations",
+            "examples": [
+                {
+                    "overlay_path": "imports/protected_areas.shp",
+                    "shape_field": "geometry",
+                    "operation": "intersection",
+                    "area_unit": "ha",
+                }
+            ],
         }
     )
 
-    @field_validator("params")
-    def validate_params(cls, v):
-        """Validate the plugin parameters."""
-        # Overlay path is only required for operations other than 'coverage'
-        if v.get("operation") != "coverage" and (
-            "overlay_path" not in v or not v["overlay_path"]
-        ):
-            raise ValueError(
-                "The path to the overlay layer is required for operations other than 'coverage'"
-            )
+    overlay_path: Optional[str] = Field(
+        default=None,
+        description="Path to the overlay layer (required for most operations)",
+        json_schema_extra={
+            "ui:widget": "file-select",
+            "ui:accept": ".shp,.gpkg,.geojson",
+        },
+    )
 
-        # Validate the operation
+    shape_field: str = Field(
+        default="geometry",
+        description="Field containing the main geometry",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    operation: str = Field(
+        default="intersection",
+        description="Type of overlay operation to perform",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                "intersection",
+                "union",
+                "difference",
+                "symmetric_difference",
+                "clip",
+                "coverage",
+                "identity",
+                "aggregate",
+            ],
+        },
+    )
+
+    attribute_field: Optional[str] = Field(
+        default=None,
+        description="Field to use for categorization in aggregate operations",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+
+    where: Optional[str] = Field(
+        default=None,
+        description="SQL filter expression for the overlay layer",
+        json_schema_extra={"ui:widget": "textarea"},
+    )
+
+    area_unit: str = Field(
+        default="ha",
+        description="Unit of area calculation",
+        json_schema_extra={"ui:widget": "select", "ui:options": ["ha", "km2", "m2"]},
+    )
+
+    @field_validator("operation")
+    @classmethod
+    def validate_operation(cls, v):
+        """Validate the operation type."""
         valid_operations = [
             "intersection",
             "union",
@@ -62,23 +111,38 @@ class VectorOverlayConfig(PluginConfig):
             "identity",
             "aggregate",
         ]
-
-        if "operation" in v and v["operation"] not in valid_operations:
+        if v not in valid_operations:
             raise ValueError(
-                f"Unsupported operation: {v['operation']}. "
-                f"Valid options: {', '.join(valid_operations)}"
+                f"Unsupported operation: {v}. Valid options: {', '.join(valid_operations)}"
             )
-
-        # Validate the unit of area
-        if "area_unit" in v:
-            valid_units = ["ha", "km2", "m2"]
-            if v["area_unit"] not in valid_units:
-                raise ValueError(
-                    f"Invalid unit of area: {v['area_unit']}. "
-                    f"Valid options: {', '.join(valid_units)}"
-                )
-
         return v
+
+    @field_validator("area_unit")
+    @classmethod
+    def validate_area_unit(cls, v):
+        """Validate the area unit."""
+        valid_units = ["ha", "km2", "m2"]
+        if v not in valid_units:
+            raise ValueError(
+                f"Invalid area unit: {v}. Valid options: {', '.join(valid_units)}"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def validate_overlay_path_for_operation(self):
+        """Validate overlay path based on operation type."""
+        if self.operation != "coverage" and not self.overlay_path:
+            raise ValueError(
+                "overlay_path is required for operations other than 'coverage'"
+            )
+        return self
+
+
+class VectorOverlayConfig(PluginConfig):
+    """Configuration for the vector overlay analysis plugin"""
+
+    plugin: Literal["vector_overlay"] = "vector_overlay"
+    params: VectorOverlayParams
 
 
 @register("vector_overlay", PluginType.TRANSFORMER)
@@ -104,8 +168,8 @@ class VectorOverlay(TransformerPlugin):
         super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(__name__)
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate the plugin configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> VectorOverlayConfig:
+        """Validate configuration and return typed config."""
         try:
             return self.config_model(**config)
         except Exception as e:
@@ -129,16 +193,17 @@ class VectorOverlay(TransformerPlugin):
         try:
             # Validate the configuration
             validated_config = self.validate_config(config)
-            params = validated_config.params
+            # Convert Pydantic model to dict for use in private methods
+            params = validated_config.params.model_dump()
 
             # 1. Prepare the main GeoDataFrame
             main_gdf = self._prepare_main_geodataframe(data, params)
 
             # 2. Determine the operation and execute
-            operation = params.get("operation", "intersection")
+            operation = params["operation"]
 
             # If it's a coverage operation without overlay_path, treat separately
-            if operation == "coverage" and "overlay_path" not in params:
+            if operation == "coverage" and params.get("overlay_path") is None:
                 return self._calculate_total_area(
                     main_gdf, params.get("area_unit", "ha")
                 )
@@ -314,7 +379,7 @@ class VectorOverlay(TransformerPlugin):
                 gdf_wgs84 = gdf
 
             # Calculate the centroid to determine the UTM zone
-            centroid = gdf_wgs84.unary_union.centroid
+            centroid = gdf_wgs84.union_all().centroid
 
             # Calculate the UTM zone number from the longitude
             # Formula: ((longitude + 180)/6) + 1 (gives a zone number between 1-60)

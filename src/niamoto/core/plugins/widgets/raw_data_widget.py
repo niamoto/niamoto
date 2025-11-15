@@ -8,23 +8,57 @@ import logging
 from typing import List, Optional, Set
 
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 
 logger = logging.getLogger(__name__)
 
 
 # Pydantic model for Raw Data Widget parameters validation
-class RawDataWidgetParams(BaseModel):
-    title: Optional[str] = Field(None, description="Optional title for the widget.")
-    max_rows: int = Field(100, description="Maximum number of rows to display.")
-    columns: Optional[List[str]] = Field(
-        None, description="List of specific columns to display. Displays all if None."
+class RawDataWidgetParams(BasePluginParams):
+    """Parameters for the raw data display widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Display raw data in a simple HTML table format",
+            "examples": [
+                {
+                    "title": "Data Table",
+                    "max_rows": 100,
+                    "columns": ["name", "value", "date"],
+                    "sort_by": "date",
+                    "ascending": False,
+                }
+            ],
+        }
     )
-    sort_by: Optional[str] = Field(None, description="Column name to sort by.")
+
+    title: Optional[str] = Field(
+        None,
+        description="Optional title for the widget",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    max_rows: int = Field(
+        100,
+        description="Maximum number of rows to display",
+        json_schema_extra={"ui:widget": "number"},
+    )
+    columns: Optional[List[str]] = Field(
+        None,
+        description="List of specific columns to display. Displays all if None",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
+    )
+    sort_by: Optional[str] = Field(
+        None,
+        description="Column name to sort by",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
     ascending: bool = Field(
-        True, description="Sort direction (True for ascending, False for descending)."
+        True,
+        description="Sort direction (True for ascending, False for descending)",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
 
 

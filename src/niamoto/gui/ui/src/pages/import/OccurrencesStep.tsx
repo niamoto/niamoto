@@ -108,9 +108,9 @@ export function OccurrencesStep() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="upload" className="gap-2">
             {t('occurrences.steps.file')}
-            {occurrences.file && <CheckCircle className="w-4 h-4" />}
+            {(occurrences.file || occurrences.fileAnalysis?.fromConfig) && <CheckCircle className="w-4 h-4" />}
           </TabsTrigger>
-          <TabsTrigger value="mapping" disabled={!occurrences.file} className="gap-2">
+          <TabsTrigger value="mapping" disabled={!occurrences.file && !occurrences.fileAnalysis?.fromConfig} className="gap-2">
             {t('occurrences.steps.requiredFields')}
             {hasRequiredFields && <CheckCircle className="w-4 h-4" />}
           </TabsTrigger>
@@ -133,14 +133,102 @@ export function OccurrencesStep() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <FileUpload
-                onFileSelect={handleFileSelect}
-                acceptedFormats={['.csv']}
-                isAnalyzing={isAnalyzing}
-                maxSizeMB={100}
-              />
+              {!occurrences.file && !occurrences.fileAnalysis?.fromConfig ? (
+                <FileUpload
+                  onFileSelect={handleFileSelect}
+                  acceptedFormats={['.csv']}
+                  isAnalyzing={isAnalyzing}
+                  maxSizeMB={100}
+                />
+              ) : occurrences.fileAnalysis?.fromConfig ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20 flex-1">
+                      <Info className="w-4 h-4 text-blue-600" />
+                      <AlertDescription>
+                        <div className="space-y-1">
+                          <div>Configuration loaded from: <span className="font-medium">{occurrences.configPath || occurrences.fileAnalysis?.configInfo?.path}</span></div>
+                          <div className="text-xs text-muted-foreground">Please re-upload the file to continue or keep existing configuration</div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-2"
+                      onClick={() => {
+                        updateOccurrences({
+                          file: null,
+                          fileAnalysis: null,
+                          // Keep existing mappings to help with re-upload
+                          fieldMappings: occurrences.fieldMappings,
+                          taxonomyHierarchy: occurrences.taxonomyHierarchy
+                        })
+                      }}
+                    >
+                      {t('aggregations.plots.changeFile')}
+                    </Button>
+                  </div>
 
-              {occurrences.fileAnalysis && (
+                  {/* Show existing configuration */}
+                  <div className="space-y-3">
+                    <h3 className="font-medium text-sm">Current configuration:</h3>
+
+                    {/* Field mappings */}
+                    {Object.keys(occurrences.fieldMappings).length > 0 && (
+                      <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                        <div className="text-sm font-medium mb-2">Field mappings:</div>
+                        {Object.entries(occurrences.fieldMappings).map(([key, value]) => (
+                          <div key={key} className="flex justify-between text-sm">
+                            <span className="font-medium">{key}:</span>
+                            <span className="text-muted-foreground">{value as string}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Taxonomy hierarchy */}
+                    {occurrences.taxonomyHierarchy?.ranks?.length > 0 && (
+                      <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                        <div className="text-sm font-medium mb-2">Taxonomy hierarchy:</div>
+                        <div className="text-sm text-muted-foreground">
+                          Ranks: {occurrences.taxonomyHierarchy.ranks.join(' → ')}
+                        </div>
+                        {Object.keys(occurrences.taxonomyHierarchy.mappings).length > 0 && (
+                          <>
+                            <div className="text-sm font-medium mt-2">Mappings:</div>
+                            {Object.entries(occurrences.taxonomyHierarchy.mappings).map(([rank, column]) => (
+                              <div key={rank} className="flex justify-between text-sm">
+                                <span className="font-medium">{rank}:</span>
+                                <span className="text-muted-foreground">{column as string}</span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* API enrichment status */}
+                    {occurrences.apiEnrichment?.enabled && (
+                      <div className="rounded-lg border bg-muted/50 p-3">
+                        <div className="text-sm">
+                          <Globe className="w-4 h-4 inline mr-1" />
+                          API enrichment is <span className="font-medium text-green-600">enabled</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <FileUpload
+                  onFileSelect={handleFileSelect}
+                  acceptedFormats={['.csv']}
+                  isAnalyzing={isAnalyzing}
+                  maxSizeMB={100}
+                />
+              )}
+
+              {occurrences.fileAnalysis && !occurrences.fileAnalysis.fromConfig && (
                 <div className="mt-6 space-y-4">
                   <Alert>
                     <CheckCircle className="w-4 h-4" />
@@ -195,7 +283,7 @@ export function OccurrencesStep() {
           </Card>
 
           {/* Bouton Suivant */}
-          {occurrences.file && (
+          {(occurrences.file || occurrences.fileAnalysis?.fromConfig) && (
             <div className="flex justify-end">
               <Button
                 onClick={() => setActiveTab('mapping')}
@@ -224,12 +312,40 @@ export function OccurrencesStep() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {occurrences.fileAnalysis && (
+              {occurrences.fileAnalysis?.fromConfig ? (
+                <div className="space-y-3">
+                  <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+                    <Info className="w-4 h-4 text-blue-600" />
+                    <AlertDescription>
+                      Configuration loaded. Please re-upload the file in the first tab to modify mappings.
+                    </AlertDescription>
+                  </Alert>
+
+                  {Object.keys(occurrences.fieldMappings).length > 0 && (
+                    <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                      <div className="text-sm font-medium mb-2">Current field mappings:</div>
+                      {Object.entries(occurrences.fieldMappings).map(([key, value]) => (
+                        <div key={key} className="flex justify-between text-sm">
+                          <span className="font-medium">{key}:</span>
+                          <span className="text-muted-foreground">{value as string}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : occurrences.fileAnalysis ? (
                 <ColumnMapper
                   importType="occurrences"
                   fileAnalysis={occurrences.fileAnalysis}
                   onMappingComplete={handleMappingComplete}
                 />
+              ) : (
+                <Alert>
+                  <AlertCircle className="w-4 h-4" />
+                  <AlertDescription>
+                    Please upload a file first to configure field mappings.
+                  </AlertDescription>
+                </Alert>
               )}
             </CardContent>
           </Card>

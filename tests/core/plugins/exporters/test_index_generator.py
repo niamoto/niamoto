@@ -169,7 +169,8 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
         result = self.plugin._get_group_data("taxon", config)
 
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]["taxon_id"], 1)
+        # IDs are converted to strings to preserve precision in JSON/JavaScript
+        self.assertEqual(result[0]["taxon_id"], "1")
         self.assertEqual(result[0]["name"], "Species 1")
         self.assertEqual(result[0]["scientific_name"], "Scientific Name 1")
 
@@ -218,8 +219,9 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
 
         # Should only include Fabaceae items
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]["taxon_id"], 1)
-        self.assertEqual(result[1]["taxon_id"], 3)
+        # IDs are converted to strings to preserve precision in JSON/JavaScript
+        self.assertEqual(result[0]["taxon_id"], "1")
+        self.assertEqual(result[1]["taxon_id"], "3")
 
     def test_get_group_data_with_in_filter(self):
         """Test data retrieval with 'in' filter operator."""
@@ -252,8 +254,9 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
 
         # Should include forest and urban items
         self.assertEqual(len(result), 3)
+        # IDs are converted to strings to preserve precision in JSON/JavaScript
         shape_ids = [item["shape_id"] for item in result]
-        self.assertEqual(shape_ids, [1, 2, 3])
+        self.assertEqual(shape_ids, ["1", "2", "3"])
 
     def test_get_group_data_table_not_exists(self):
         """Test error handling when table doesn't exist."""

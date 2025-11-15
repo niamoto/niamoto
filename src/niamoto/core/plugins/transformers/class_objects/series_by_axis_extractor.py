@@ -3,11 +3,11 @@ Plugin for extracting multiple series by axis from class objects.
 Each series represents a different type (e.g. forest types) measured across a common axis (e.g. elevation).
 """
 
-from typing import Dict, Any
-from pydantic import BaseModel, Field
+from typing import Dict, Any, Literal
+from pydantic import BaseModel, Field, ConfigDict
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
@@ -21,26 +21,62 @@ class AxisConfig(BaseModel):
     sort: bool = Field(True, description="Sort axis values")
 
 
+class ClassObjectSeriesByAxisParams(BasePluginParams):
+    """Parameters for series by axis extractor plugin"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract multiple series by axis from class objects",
+            "examples": [
+                {
+                    "source": "shape_stats",
+                    "axis": {
+                        "field": "class_name",
+                        "output_field": "altitudes",
+                        "numeric": True,
+                        "sort": True,
+                    },
+                    "types": {
+                        "secondaire": "forest_secondary_elevation",
+                        "mature": "forest_mature_elevation",
+                        "coeur": "forest_core_elevation",
+                    },
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="shape_stats",
+        description="Transform source name (from transform.yml sources)",
+        json_schema_extra={
+            "ui:widget": "transform-source-select",
+            # Will dynamically load sources from current group_by context
+        },
+    )
+
+    axis: AxisConfig = Field(
+        default=AxisConfig(
+            field="class_name", output_field="altitudes", numeric=True, sort=True
+        ),
+        description="Configuration for the axis",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    types: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of output names to class_objects",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+
 class ClassObjectSeriesByAxisConfig(PluginConfig):
     """Configuration for series by axis extractor plugin"""
 
-    plugin: str = "class_object_series_by_axis_extractor"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "source": "shape_stats",
-            "axis": {
-                "field": "class_name",
-                "output_field": "altitudes",
-                "numeric": True,
-                "sort": True,
-            },
-            "types": {
-                "secondaire": "forest_secondary_elevation",
-                "mature": "forest_mature_elevation",
-                "coeur": "forest_core_elevation",
-            },
-        }
+    plugin: Literal["class_object_series_by_axis_extractor"] = (
+        "class_object_series_by_axis_extractor"
     )
+    params: ClassObjectSeriesByAxisParams
 
 
 @register("class_object_series_by_axis_extractor", PluginType.TRANSFORMER)
@@ -49,39 +85,37 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
 
     config_model = ClassObjectSeriesByAxisConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration"""
-        validated_config = self.config_model(**config)
+    def validate_config(self, config: Dict[str, Any]) -> ClassObjectSeriesByAxisConfig:
+        """Validate plugin configuration and return typed config."""
+        try:
+            validated_config = self.config_model(**config)
 
-        # Validate that at least one type is specified
-        types = validated_config.params.get("types", {})
-        if not types:
+            # Check for specific validation that tests expect
+            if not validated_config.params.types:
+                raise DataTransformError(
+                    "At least one type must be specified", details={"config": config}
+                )
+
+            return validated_config
+        except DataTransformError:
+            raise
+        except Exception as e:
             raise DataTransformError(
-                "At least one type must be specified",
-                details={"config": config},
+                f"Invalid configuration: {str(e)}", details={"config": config}
             )
 
-        return validated_config
-
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform shape statistics data into series by axis.
+        """Convert class-object statistics into parallel series indexed by a common axis.
 
-        Args:
-            data: DataFrame containing shape statistics
-            config: Configuration dictionary with:
-                - params.axis: Configuration for axis
-                - params.types: Mapping of output names to class_objects
+        The ``config`` argument is expected to contain an ``axis`` description and a
+        mapping of output series. Each entry associates an output name with the
+        ``class_object`` value to extract.
 
-        Returns:
-            Dictionary with axis values and series data
-
-        Example output:
-            {
-                "altitudes": [0, 200, 400, 600, 800],
-                "secondaire": [10, 15, 20, 15, 10],
-                "mature": [30, 40, 45, 40, 30],
-                "coeur": [20, 25, 30, 25, 20]
-            }
+        Returns
+        -------
+        dict
+            A dictionary whose keys include the configured axis output field along with a
+            series for each requested class object.
         """
         try:
             # Validate configuration
@@ -89,13 +123,13 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
             params = validated_config.params
 
             # Get axis configuration
-            axis_config = AxisConfig(**params["axis"])
+            axis_config = params.axis
 
             # Initialize result with the configured output field name
             result = {axis_config.output_field: []}
 
             # Get first type to extract axis values
-            first_type = next(iter(params["types"].values()))
+            first_type = next(iter(params.types.values()))
             axis_data = data[data["class_object"] == first_type].copy()
 
             if axis_data.empty:
@@ -127,7 +161,7 @@ class ClassObjectSeriesByAxisExtractor(TransformerPlugin):
             result[axis_config.output_field] = axis_data[axis_config.field].tolist()
 
             # Process each type
-            for output_name, class_object in params["types"].items():
+            for output_name, class_object in params.types.items():
                 # Get type data
                 type_data = data[data["class_object"] == class_object].copy()
 

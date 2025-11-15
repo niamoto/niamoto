@@ -115,7 +115,10 @@ class TestBinnedDistribution(unittest.TestCase):
         }
         with self.assertRaises(ValueError) as cm:
             self.plugin.transform(SAMPLE_DATA.copy(), invalid_config)
-        self.assertIn("Missing required field: field", str(cm.exception))
+        # Check for Pydantic validation error message
+        self.assertTrue(
+            "Field required" in str(cm.exception) or "field" in str(cm.exception)
+        )
 
     def test_invalid_config_non_ascending_bins(self):
         """Test transform raises ValueError for non-ascending bins."""
@@ -149,11 +152,10 @@ class TestBinnedDistribution(unittest.TestCase):
         }
         with self.assertRaises(ValueError) as cm:
             self.plugin.transform(SAMPLE_DATA.copy(), invalid_config)
-        # Check for Pydantic's validation message
+        # Check for Pydantic's validation error message
         self.assertTrue(
-            "number of labels must be equal to number of bins - 1" in str(cm.exception)
-            or "Invalid configuration: number of labels must be equal to number of bins - 1"
-            in str(cm.exception)
+            "number of labels" in str(cm.exception)
+            and "must equal number of bins minus 1" in str(cm.exception)
         )
 
     def test_transform_from_db_source(self):

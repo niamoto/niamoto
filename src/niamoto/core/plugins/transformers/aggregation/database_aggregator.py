@@ -8,87 +8,136 @@ group-by transformation patterns.
 
 import re
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+from typing import Dict, Any, List, Optional, Literal
+from datetime import datetime, UTC
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.common.exceptions import DataValidationError
 
 
 class QueryConfig(BaseModel):
     """Configuration for a single query."""
 
-    sql: Optional[str] = None
-    template: Optional[str] = None
-    template_params: Dict[str, Any] = Field(default_factory=dict)
-    description: Optional[str] = None
-    format: str = Field(default="scalar", pattern="^(scalar|table|series|single_row)$")
-    timeout: int = Field(default=30, ge=1, le=300)
+    sql: Optional[str] = Field(default=None, description="Direct SQL query")
+    template: Optional[str] = Field(default=None, description="Template name to use")
+    template_params: Dict[str, Any] = Field(
+        default_factory=dict, description="Parameters for template"
+    )
+    description: Optional[str] = Field(default=None, description="Query description")
+    format: Literal["scalar", "table", "series", "single_row"] = Field(
+        default="scalar", description="Output format for query results"
+    )
+    timeout: int = Field(
+        default=30, ge=1, le=300, description="Query timeout in seconds"
+    )
 
 
 class TemplateConfig(BaseModel):
     """Configuration for query templates."""
 
-    sql: str
-    params: List[str] = Field(default_factory=list)
-    description: Optional[str] = None
+    sql: str = Field(..., description="SQL template with {param} placeholders")
+    params: List[str] = Field(
+        default_factory=list, description="Required parameter names"
+    )
+    description: Optional[str] = Field(default=None, description="Template description")
 
 
 class ComputedFieldConfig(BaseModel):
     """Configuration for computed fields."""
 
-    expression: str
-    dependencies: List[str] = Field(default_factory=list)
-    description: Optional[str] = None
+    expression: str = Field(..., description="Python expression to compute value")
+    dependencies: List[str] = Field(
+        default_factory=list, description="Query keys this field depends on"
+    )
+    description: Optional[str] = Field(default=None, description="Field description")
+
+
+class ValidationConfig(BaseModel):
+    """Configuration for database validation."""
+
+    check_referential_integrity: bool = Field(
+        default=True, description="Check database integrity"
+    )
+    max_execution_time: int = Field(
+        default=30, ge=1, le=300, description="Maximum execution time"
+    )
+    required_tables: List[str] = Field(
+        default_factory=list, description="Required tables to check"
+    )
+
+
+class DatabaseAggregatorParams(BasePluginParams):
+    """Parameters for database aggregator plugin."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Execute SQL queries for complex cross-table aggregations",
+            "examples": [
+                {
+                    "queries": {
+                        "species_count": {
+                            "sql": "SELECT COUNT(*) FROM taxons WHERE rank_name = 'species'",
+                            "description": "Total number of species",
+                        },
+                        "occurrence_count": "SELECT COUNT(*) FROM occurrences",
+                    },
+                    "computed_fields": {
+                        "density": {
+                            "expression": "occurrence_count / species_count if species_count > 0 else 0",
+                            "dependencies": ["occurrence_count", "species_count"],
+                        }
+                    },
+                }
+            ],
+        }
+    )
+
+    queries: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="SQL queries to execute. Can be a string (SQL) or QueryConfig dict",
+        json_schema_extra={"ui:widget": "code", "ui:options": {"language": "sql"}},
+    )
+
+    templates: Dict[str, TemplateConfig] = Field(
+        default_factory=dict,
+        description="Reusable SQL templates with parameters",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    computed_fields: Dict[str, ComputedFieldConfig] = Field(
+        default_factory=dict,
+        description="Fields computed from query results using Python expressions",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    validation: ValidationConfig = Field(
+        default_factory=ValidationConfig, description="Database validation settings"
+    )
+
+    @field_validator("queries")
+    @classmethod
+    def validate_queries(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate query configurations."""
+        for query_name, query_config in v.items():
+            if isinstance(query_config, str):
+                # Convert simple string to QueryConfig format
+                v[query_name] = {"sql": query_config}
+            elif isinstance(query_config, dict):
+                # Validate as QueryConfig
+                QueryConfig(**query_config)
+        return v
 
 
 class DatabaseAggregatorConfig(PluginConfig):
     """Configuration schema for database aggregator plugin."""
 
-    plugin: str = "database_aggregator"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "queries": {},
-            "templates": {},
-            "computed_fields": {},
-            "validation": {
-                "check_referential_integrity": True,
-                "max_execution_time": 30,
-                "required_tables": [],
-            },
-        }
-    )
-
-    @field_validator("params")
-    @classmethod
-    def validate_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate parameters structure."""
-        queries = v.get("queries", {})
-        templates = v.get("templates", {})
-        computed_fields = v.get("computed_fields", {})
-
-        # Validate queries
-        for query_name, query_config in queries.items():
-            if isinstance(query_config, str):
-                # Convert simple string to QueryConfig
-                queries[query_name] = {"sql": query_config}
-            elif isinstance(query_config, dict):
-                QueryConfig(**query_config)
-
-        # Validate templates
-        for template_name, template_config in templates.items():
-            TemplateConfig(**template_config)
-
-        # Validate computed fields
-        for field_name, field_config in computed_fields.items():
-            ComputedFieldConfig(**field_config)
-
-        return v
+    plugin: Literal["database_aggregator"] = "database_aggregator"
+    params: DatabaseAggregatorParams
 
 
 @register("database_aggregator", PluginType.TRANSFORMER)
@@ -119,30 +168,30 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
         r"/\*",  # Block comments
     ]
 
-    def __init__(self, db: Optional[Any] = None) -> None:
-        super().__init__(db)
+    def __init__(self, db: Optional[Any] = None, registry=None) -> None:
+        super().__init__(db, registry)
         self.logger = logging.getLogger(__name__)
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> DatabaseAggregatorConfig:
+        """Validate configuration and return typed config."""
         try:
-            return self.config_model(**config).model_dump()
+            return self.config_model(**config)
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}") from e
 
     def transform(self, data: Any, config: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
         """Execute configured SQL queries and return aggregated results."""
         validated_config = self.validate_config(config)
-        params = validated_config["params"]
+        params = validated_config.params
 
         results = {}
-        queries = params.get("queries", {})
-        templates = params.get("templates", {})
-        computed_fields = params.get("computed_fields", {})
-        validation_config = params.get("validation", {})
+        queries = params.queries
+        templates = params.templates
+        computed_fields = params.computed_fields
+        validation_config = params.validation
 
         # Validate environment
-        if validation_config.get("check_referential_integrity", True):
+        if validation_config.check_referential_integrity:
             self._validate_database_state(validation_config)
 
         try:
@@ -175,14 +224,17 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
             # Calculate computed fields
             for field_name, field_config in computed_fields.items():
                 self.logger.info(f"Computing field: {field_name}")
-                computed_config = ComputedFieldConfig(**field_config)
+                if isinstance(field_config, ComputedFieldConfig):
+                    computed_config = field_config
+                else:
+                    computed_config = ComputedFieldConfig(**field_config)
                 results[field_name] = self._calculate_computed_field(
                     computed_config, results
                 )
 
             # Add metadata
             results["_metadata"] = {
-                "computed_at": datetime.utcnow().isoformat(),
+                "computed_at": datetime.now(UTC).isoformat(),
                 "plugin": "database_aggregator",
                 "total_queries": len(queries),
                 "total_computed_fields": len(computed_fields),
@@ -196,9 +248,9 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
                 "Database aggregation failed", [{"error": str(e)}]
             )
 
-    def _validate_database_state(self, validation_config: Dict[str, Any]) -> None:
+    def _validate_database_state(self, validation_config: ValidationConfig) -> None:
         """Validate database state before executing queries."""
-        required_tables = validation_config.get("required_tables", [])
+        required_tables = validation_config.required_tables
 
         if required_tables:
             with self.db.get_session() as session:
@@ -286,7 +338,7 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
             raise
 
     def _execute_template(
-        self, query_config: QueryConfig, templates: Dict[str, Any]
+        self, query_config: QueryConfig, templates: Dict[str, TemplateConfig]
     ) -> Any:
         """Execute a templated query."""
         template_name = query_config.template
@@ -385,7 +437,7 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
             "params": {
                 "queries": {
                     "species_count": {
-                        "sql": "SELECT COUNT(*) FROM taxon_ref WHERE rank_name = 'species'",
+                        "sql": "SELECT COUNT(*) FROM taxons WHERE rank_name = 'species'",
                         "description": "Total number of species",
                     },
                     "occurrence_count": {
@@ -421,7 +473,7 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
                 "validation": {
                     "check_referential_integrity": True,
                     "max_execution_time": 30,
-                    "required_tables": ["taxon_ref", "occurrences"],
+                    "required_tables": ["taxons", "occurrences"],
                 },
             },
         }

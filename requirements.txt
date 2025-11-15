@@ -46,6 +46,10 @@ cligj==0.7.2
     # via
     #   fiona
     #   rasterio
+duckdb==1.4.1
+    # via duckdb-engine
+duckdb-engine==0.17.0
+    # via niamoto (pyproject.toml)
 fastapi==0.115.14
     # via niamoto (pyproject.toml)
 fiona==1.10.1
@@ -75,6 +79,8 @@ itsdangerous==2.2.0
     # via flask
 jinja2==3.1.5
     # via flask
+joblib==1.5.2
+    # via scikit-learn
 loguru==0.7.2
     # via niamoto (pyproject.toml)
 mako==1.3.9
@@ -103,10 +109,13 @@ numpy==2.2.3
     #   pandas
     #   pyogrio
     #   rasterio
+    #   scikit-learn
+    #   scipy
     #   shapely
     #   topojson
 packaging==24.2
     # via
+    #   duckdb-engine
     #   geoalchemy2
     #   geopandas
     #   plotly
@@ -162,6 +171,10 @@ rjsmin==1.2.3
     # via niamoto (pyproject.toml)
 rtree==1.3.0
     # via niamoto (pyproject.toml)
+scikit-learn==1.7.2
+    # via niamoto (pyproject.toml)
+scipy==1.16.2
+    # via scikit-learn
 shapely==2.0.7
     # via
     #   niamoto (pyproject.toml)
@@ -175,17 +188,19 @@ sqlalchemy==2.0.38
     # via
     #   niamoto (pyproject.toml)
     #   alembic
+    #   duckdb-engine
     #   geoalchemy2
 starlette==0.46.2
     # via fastapi
 tabulate==0.9.0
     # via niamoto (pyproject.toml)
+threadpoolctl==3.6.0
+    # via scikit-learn
 topojson==1.9
     # via niamoto (pyproject.toml)
 typing-extensions==4.12.2
     # via
     #   alembic
-    #   anyio
     #   fastapi
     #   mypy
     #   pydantic

@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { configService } from '@/services/configService'
 
 export interface OccurrenceImportData {
   file: File | null
   fileAnalysis: any
+  configPath?: string
   fieldMappings: Record<string, string>
   taxonomyHierarchy: {
     ranks: string[]
@@ -31,6 +33,7 @@ export interface OccurrenceImportData {
 export interface PlotImportData {
   file: File | null
   fileAnalysis: any
+  configPath?: string
   fieldMappings: Record<string, string>
   linkField?: string
   occurrenceLinkField?: string
@@ -44,6 +47,7 @@ export interface PlotImportData {
 export interface ShapeImportData {
   file: File | null
   fileAnalysis: any
+  configPath?: string
   fieldMappings: Record<string, string>
   type: string
   properties: string[]
@@ -65,6 +69,8 @@ interface ImportContextType {
   removeShape: (index: number) => void
   setCurrentStep: (step: number) => void
   canProceed: () => boolean
+  configLoading: boolean
+  configError: string | null
 }
 
 const ImportContext = createContext<ImportContextType | undefined>(undefined)
@@ -92,6 +98,39 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
     }
   })
+
+  const [configLoading, setConfigLoading] = useState(true)
+  const [configError, setConfigError] = useState<string | null>(null)
+
+  // Load existing configuration on mount
+  useEffect(() => {
+    const loadExistingConfig = async () => {
+      try {
+        setConfigLoading(true)
+        const config = await configService.getImportConfig()
+
+        if (config && Object.keys(config).length > 0) {
+          // Parse config to state format
+          const parsedState = configService.parseImportConfigToState(config)
+
+          // Update state with existing configuration
+          setState(prev => ({
+            ...prev,
+            occurrences: parsedState.occurrences || prev.occurrences,
+            plots: parsedState.plots,
+            shapes: parsedState.shapes
+          }))
+        }
+      } catch (error) {
+        console.error('Failed to load existing configuration:', error)
+        setConfigError(error instanceof Error ? error.message : 'Failed to load configuration')
+      } finally {
+        setConfigLoading(false)
+      }
+    }
+
+    loadExistingConfig()
+  }, [])
 
   const updateOccurrences = (data: Partial<OccurrenceImportData>) => {
     setState(prev => ({
@@ -150,22 +189,39 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   }
 
   const canProceed = () => {
-    const { currentStep, occurrences } = state
+    const { currentStep, occurrences, shapes } = state
 
     switch (currentStep) {
       case 0: // Overview - always can proceed
         return true
 
       case 1: // Occurrences
+        // Check if we have a file OR a loaded configuration
+        const hasOccurrenceSource = occurrences.file || occurrences.fileAnalysis?.fromConfig
+
         return !!(
-          occurrences.file &&
+          hasOccurrenceSource &&
           occurrences.fieldMappings.taxon_id &&
           occurrences.fieldMappings.location &&
           occurrences.taxonomyHierarchy.ranks.length >= 2 &&
           Object.keys(occurrences.taxonomyHierarchy.mappings).length >= 2
         )
 
-      case 2: // Aggregation - always optional
+      case 2: // Aggregation
+        // Aggregation is optional, but if shapes are added, they must be valid
+        if (shapes && shapes.length > 0) {
+          // All shapes must have required fields mapped
+          return shapes.every(shape => {
+            // Shape must have a file OR a loaded configuration
+            const hasShapeSource = shape.file || shape.fileAnalysis?.fromConfig
+            if (!hasShapeSource) return false
+
+            // Shape must have required fields mapped (type and name)
+            const mappings = shape.fieldMappings || {}
+            return mappings.type && mappings.name
+          })
+        }
+        // If no shapes (and plots are optional), can proceed
         return true
 
       case 3: // Summary
@@ -185,7 +241,9 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       addShape,
       removeShape,
       setCurrentStep,
-      canProceed
+      canProceed,
+      configLoading,
+      configError
     }}>
       {children}
     </ImportContext.Provider>

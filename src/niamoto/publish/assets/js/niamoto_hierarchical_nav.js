@@ -46,6 +46,8 @@ class NiamotoHierarchicalNav {
             this.treeData = this.buildParentIdTree();
         } else if (this.params.groupByField) {
             this.treeData = this.buildGroupedTree();
+        } else if (this.params.flatMode) {
+            this.treeData = this.buildFlatTree();
         } else {
             console.error('No valid hierarchy configuration found. Need either nested set fields, parent_id_field, or group_by_field.');
             return;
@@ -180,6 +182,27 @@ class NiamotoHierarchicalNav {
         }
 
         return Array.from(groups.values());
+    }
+
+    buildFlatTree() {
+        const nameField = this.params.nameField;
+        const idField = this.params.idField;
+
+        const items = Array.isArray(this.items) ? [...this.items] : [];
+
+        // Sort by display name if available to keep list stable
+        items.sort((a, b) => {
+            const nameA = (a[nameField] || '').toString();
+            const nameB = (b[nameField] || '').toString();
+            return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+
+        return items.map(item => ({
+            ...item,
+            [idField]: item[idField],
+            children: [],
+            isLeaf: true
+        }));
     }
 
     renderTree() {

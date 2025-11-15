@@ -12,6 +12,8 @@ import tempfile
 import zipfile
 import geopandas as gpd
 
+from ..context import get_working_directory
+
 router = APIRouter()
 
 
@@ -33,7 +35,7 @@ class ApiTestResponse(BaseModel):
 
 @router.post("/analyze")
 async def analyze_file(
-    file: UploadFile = File(...), import_type: str = Form(...)
+    file: UploadFile = File(...), entity_type: str = Form(...)
 ) -> Dict[str, Any]:
     """Analyze a file for import configuration."""
     try:
@@ -41,10 +43,12 @@ async def analyze_file(
         content = await file.read()
 
         # Basic analysis based on file type
-        # Check if it's a spatial file for shapes import
-        if import_type == "shapes" and file.filename.lower().endswith(
+        # Check if it's a spatial file for shapes/spatial reference import
+        is_spatial = entity_type == "reference" and file.filename.lower().endswith(
             (".zip", ".shp", ".geojson", ".gpkg")
-        ):
+        )
+
+        if is_spatial:
             result = await analyze_shape(content, file.filename)
         elif file.filename.endswith(".csv"):
             result = await analyze_csv(content, file.filename)
@@ -57,9 +61,10 @@ async def analyze_file(
         else:
             return {"error": f"Unsupported file type: {file.filename}"}
 
-        # Add import-type specific analysis
-        result["import_type"] = import_type
-        result["suggestions"] = get_field_suggestions(result, import_type)
+        # Add entity_type for compatibility
+        result["entity_type"] = entity_type
+        # Keep suggestions generic - specific field mapping done in frontend
+        result["suggestions"] = {}
 
         return result
 
@@ -583,3 +588,199 @@ async def browse_files(path: str = ".") -> Dict[str, Any]:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/exports/list")
+async def list_exports() -> Dict[str, Any]:
+    """List all exported files organized by type."""
+    try:
+        # Get current working directory
+        cwd = get_working_directory()
+        exports_dir = cwd / "exports"
+
+        if not exports_dir.exists():
+            return {
+                "exists": False,
+                "path": str(exports_dir),
+                "web": [],
+                "api": [],
+                "dwc": [],
+            }
+
+        result = {
+            "exists": True,
+            "path": str(exports_dir),
+            "web": [],
+            "api": [],
+            "dwc": [],
+        }
+
+        # List web exports (HTML)
+        web_dir = exports_dir / "web"
+        if web_dir.exists():
+            for item in web_dir.rglob("*.html"):
+                rel_path = item.relative_to(exports_dir)
+                result["web"].append(
+                    {
+                        "name": item.name,
+                        "path": str(rel_path),
+                        "full_path": str(item),
+                        "size": item.stat().st_size,
+                        "modified": item.stat().st_mtime,
+                    }
+                )
+
+        # List API exports (JSON)
+        api_dir = exports_dir / "api"
+        if api_dir.exists():
+            for item in api_dir.rglob("*.json"):
+                rel_path = item.relative_to(exports_dir)
+                result["api"].append(
+                    {
+                        "name": item.name,
+                        "path": str(rel_path),
+                        "full_path": str(item),
+                        "size": item.stat().st_size,
+                        "modified": item.stat().st_mtime,
+                    }
+                )
+
+        # List Darwin Core exports
+        dwc_dir = exports_dir / "dwc"
+        if dwc_dir.exists():
+            for item in dwc_dir.rglob("*.json"):
+                rel_path = item.relative_to(exports_dir)
+                result["dwc"].append(
+                    {
+                        "name": item.name,
+                        "path": str(rel_path),
+                        "full_path": str(item),
+                        "size": item.stat().st_size,
+                        "modified": item.stat().st_mtime,
+                    }
+                )
+
+        # Sort by name
+        for key in ["web", "api", "dwc"]:
+            result[key].sort(key=lambda x: x["name"])
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing exports: {str(e)}")
+
+
+@router.get("/exports/read")
+async def read_export_file(file_path: str) -> Dict[str, Any]:
+    """Read content of an exported file."""
+    try:
+        cwd = get_working_directory()
+        exports_dir = cwd / "exports"
+
+        # Construct full path
+        full_path = exports_dir / file_path
+
+        # Security check: ensure the file is within exports directory
+        if not str(full_path.resolve()).startswith(str(exports_dir.resolve())):
+            raise HTTPException(
+                status_code=403, detail="Access denied: file outside exports directory"
+            )
+
+        # Check if file exists
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+        # Read file content
+        with open(full_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Parse JSON if it's a JSON file
+        if file_path.endswith(".json"):
+            try:
+                import json
+
+                parsed_content = json.loads(content)
+                return {
+                    "path": file_path,
+                    "content": content,
+                    "parsed": parsed_content,
+                    "size": full_path.stat().st_size,
+                }
+            except json.JSONDecodeError:
+                # If JSON parsing fails, return raw content
+                return {
+                    "path": file_path,
+                    "content": content,
+                    "size": full_path.stat().st_size,
+                    "error": "Invalid JSON format",
+                }
+
+        # For non-JSON files, return raw content
+        return {
+            "path": file_path,
+            "content": content,
+            "size": full_path.stat().st_size,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
+
+
+@router.get("/exports/structure")
+async def get_exports_structure() -> Dict[str, Any]:
+    """Get the directory structure of exports folder."""
+    try:
+        cwd = get_working_directory()
+        exports_dir = cwd / "exports"
+
+        if not exports_dir.exists():
+            return {"exists": False, "path": str(exports_dir), "tree": []}
+
+        def build_tree(
+            path: Path, max_depth: int = 3, current_depth: int = 0
+        ) -> List[Dict[str, Any]]:
+            """Recursively build directory tree."""
+            if current_depth >= max_depth:
+                return []
+
+            items = []
+            try:
+                for item in sorted(
+                    path.iterdir(), key=lambda x: (not x.is_dir(), x.name)
+                ):
+                    item_data = {
+                        "name": item.name,
+                        "type": "directory" if item.is_dir() else "file",
+                        "path": str(item.relative_to(exports_dir)),
+                    }
+
+                    if item.is_file():
+                        item_data["size"] = item.stat().st_size
+                        item_data["extension"] = item.suffix
+                    elif item.is_dir():
+                        # Count items in directory
+                        try:
+                            item_data["count"] = len(list(item.iterdir()))
+                            # Recursively build children
+                            children = build_tree(item, max_depth, current_depth + 1)
+                            if children:
+                                item_data["children"] = children
+                        except PermissionError:
+                            item_data["count"] = 0
+
+                    items.append(item_data)
+            except PermissionError:
+                pass
+
+            return items
+
+        tree = build_tree(exports_dir)
+
+        return {"exists": True, "path": str(exports_dir), "tree": tree}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting exports structure: {str(e)}"
+        )

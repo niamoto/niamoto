@@ -10,8 +10,9 @@ import pytest
 
 from niamoto.core.plugins.transformers.formats.niamoto_to_dwc_occurrence import (
     NiamotoDwCTransformer,
-    DwCMappingConfig,
+    NiamotoDwCConfig,
 )
+from niamoto.core.plugins.models import DwcTransformerParams
 from niamoto.common.exceptions import DataTransformError
 
 
@@ -125,25 +126,37 @@ class TestNiamotoDwCTransformer:
 
         result = transformer.validate_config(config)
 
-        assert result == config
-        assert result["occurrence_list_source"] == "occurrences"  # Default added
+        # Now result is a NiamotoDwCConfig object
+        assert isinstance(result, NiamotoDwCConfig)
+        assert result.params.mapping == config["mapping"]
+        assert result.params.occurrence_list_source == "occurrences"  # Default added
 
     def test_validate_config_invalid_type(self, transformer):
         """Test config validation with invalid type."""
-        with pytest.raises(ValueError, match="Configuration must be a dictionary"):
+        with pytest.raises(ValueError, match="Invalid configuration"):
             transformer.validate_config("not a dict")
 
     def test_validate_config_missing_mapping(self, transformer):
         """Test config validation without mapping section."""
-        with pytest.raises(
-            ValueError, match="Configuration must include a 'mapping' section"
-        ):
+        with pytest.raises(ValueError, match="Invalid configuration"):
             transformer.validate_config({})
 
     def test_validate_config_invalid_mapping_type(self, transformer):
         """Test config validation with invalid mapping type."""
-        with pytest.raises(ValueError, match="'mapping' must be a dictionary"):
+        with pytest.raises(ValueError, match="Invalid configuration"):
             transformer.validate_config({"mapping": "not a dict"})
+
+    def test_validate_config_accepts_params_instance(self, transformer):
+        """Test config validation when provided a params object directly."""
+        params = DwcTransformerParams(
+            occurrence_list_source="occurrences",
+            mapping={"scientificName": "@taxon.full_name"},
+        )
+
+        result = transformer.validate_config(params)
+
+        assert isinstance(result, NiamotoDwCConfig)
+        assert result.params.mapping == params.mapping
 
     def test_transform_no_taxon_id(self, transformer, sample_mapping_config):
         """Test transform when taxon data has no ID."""
@@ -236,9 +249,12 @@ class TestNiamotoDwCTransformer:
     def test_transform_with_pydantic_config(
         self, transformer, mock_db, sample_taxon_data, sample_mapping_config
     ):
-        """Test transform with Pydantic config object."""
-        # Create Pydantic config
-        config = DwCMappingConfig(**sample_mapping_config)
+        """Test transform with new format configuration."""
+        # Create config in the new format with params
+        config = {
+            "plugin": "niamoto_to_dwc_occurrence",
+            "params": sample_mapping_config,
+        }
 
         # Mock database
         mock_connection = Mock()
@@ -279,41 +295,51 @@ class TestNiamotoDwCTransformer:
         mock_context.__enter__.return_value = mock_connection
         mock_db.engine.connect.return_value = mock_context
 
-        result = transformer._fetch_occurrences_from_db(123)
+        result = transformer._fetch_occurrences_from_db(
+            123,
+            "occurrences",
+            "taxon_ref_id",
+            "entity_taxonomy",
+            "taxonomy_id",
+        )
 
         assert len(result) == 1
         assert result[0]["id"] == 1
         assert result[0]["taxon_ref_id"] == 123
         assert result[0]["family"] == "Araucariaceae"
 
-    def test_fetch_occurrences_from_db_fallback_query(self, transformer, mock_db):
-        """Test fetching occurrences with fallback query."""
+    def test_fetch_occurrences_from_db_empty_result(self, transformer, mock_db):
+        """Test fetching occurrences when no results found."""
         mock_connection = Mock()
-
-        # First query returns no results
-        mock_result1 = Mock()
-        mock_result1.fetchall.return_value = []
-
-        # Second query returns results
-        mock_result2 = Mock()
-        mock_result2.fetchall.return_value = [(2, 456, "Lauraceae", 200.0)]
-        mock_result2.keys.return_value = ["id", "id_taxonref", "family", "elevation"]
-
-        mock_connection.execute.side_effect = [mock_result1, mock_result2]
+        mock_result = Mock()
+        mock_result.fetchall.return_value = []
+        mock_connection.execute.return_value = mock_result
         mock_context = MagicMock()
         mock_context.__enter__.return_value = mock_connection
         mock_db.engine.connect.return_value = mock_context
 
-        result = transformer._fetch_occurrences_from_db(123)
+        result = transformer._fetch_occurrences_from_db(
+            123,
+            "occurrences",
+            "taxon_ref_id",
+            "entity_taxonomy",
+            "taxonomy_id",
+        )
 
-        assert len(result) == 1
-        assert result[0]["id"] == 2
+        assert len(result) == 0
+        assert result == []
 
     def test_fetch_occurrences_from_db_error(self, transformer, mock_db):
         """Test error handling in fetch_occurrences_from_db."""
         mock_db.engine.connect.side_effect = Exception("Connection failed")
 
-        result = transformer._fetch_occurrences_from_db(123)
+        result = transformer._fetch_occurrences_from_db(
+            123,
+            "occurrences",
+            "taxon_ref_id",
+            "entity_taxonomy",
+            "taxonomy_id",
+        )
 
         assert result == []
 
@@ -803,14 +829,29 @@ class TestGeneratorMethods:
 
     def test_count_occurrences(self, transformer, mock_db):
         """Test counting occurrences for current taxon."""
-        transformer._current_taxon = {"taxon_id": 123}
+        # Set up the transformer instance variables used by _count_occurrences
+        transformer._current_taxon = {"id": 123}  # Use "id" not "taxon_id"
+        transformer._taxon_id_field = "id"
+        transformer._occurrence_table = "dataset_occurrences"
+        transformer._taxon_id_column = "id_taxonref"
+        transformer._taxonomy_table = "entity_taxonomy"
+        transformer._taxonomy_external_id_column = "taxonomy_id"
+        transformer._taxonomy_entity = "taxonomy"
 
         # Mock fetch to return 3 occurrences
         with patch.object(
             transformer, "_fetch_occurrences_from_db", return_value=[{}, {}, {}]
-        ):
+        ) as mock_fetch:
             result = transformer._count_occurrences({}, {})
             assert result == 3
+            # Verify _fetch_occurrences_from_db was called with correct parameters
+            mock_fetch.assert_called_once_with(
+                123,
+                "dataset_occurrences",
+                "id_taxonref",
+                "entity_taxonomy",
+                "taxonomy_id",
+            )
 
     def test_count_occurrences_no_taxon_id(self, transformer):
         """Test counting occurrences when no taxon ID."""

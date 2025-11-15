@@ -9,8 +9,8 @@ import {
 import { Globe } from 'lucide-react';
 
 const languages = [
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
-  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'fr', name: 'FR', flag: '🇫🇷' },
+  { code: 'en', name: 'EN', flag: '🇬🇧' },
 ];
 
 export function LanguageSwitcher() {

@@ -412,8 +412,8 @@ class TestBarPlotWidget(NiamotoTestCase):
 
         result = self.widget.render(data, params)
 
-        self.assertIn("<p class='error'>", result)
-        self.assertIn("Unsupported data type", result)
+        self.assertIn("<p class='info'>", result)
+        self.assertIn("No data available for the bar plot", result)
 
     def test_render_plotly_exception(self):
         """Test handling of Plotly rendering exceptions."""

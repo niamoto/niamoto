@@ -3,13 +3,13 @@ Plugin for performing custom calculations on data from other transformers.
 Allows mathematical operations, ecological indices calculations and advanced statistical transformations.
 """
 
-from typing import Dict, Any
-from pydantic import Field, field_validator
+from typing import Dict, Any, List, Optional, Literal, Union
+from pydantic import Field, model_validator, ConfigDict
 import pandas as pd
 import numpy as np
 from enum import Enum
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
@@ -34,68 +34,301 @@ class Operation(str, Enum):
     ACTIVE_PERIODS = "active_periods"
 
 
-class CustomCalculatorConfig(PluginConfig):
-    """Configuration for the custom calculator plugin"""
+class WeightedSumValue(Dict[str, Any]):
+    """Value configuration for weighted sum operations."""
 
-    plugin: str = "custom_calculator"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "operation": "weighted_sum",  # Type of operation to perform
-            # Specific parameters for the operation
+    value: float = Field(..., description="Value to include in weighted sum")
+    weight: float = Field(default=1.0, description="Weight for this value")
+    max: Optional[float] = Field(
+        default=None, description="Maximum value for normalization"
+    )
+
+
+class CSRValues(Dict[str, Any]):
+    """CSR strategy values."""
+
+    competitive: float = Field(..., description="Competitive strategy value")
+    stress_tolerant: float = Field(..., description="Stress tolerant strategy value")
+    ruderal: float = Field(..., description="Ruderal strategy value")
+
+
+class CustomCalculatorParams(BasePluginParams):
+    """Typed parameters for custom calculator plugin.
+
+    This plugin performs custom mathematical calculations and ecological indices.
+    It supports various operations including array calculations, ecological indices,
+    normalization, and specialized forest analysis calculations.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Perform custom mathematical calculations and ecological indices",
+            "examples": [
+                {
+                    "operation": "shannon_entropy",
+                    "probabilities": [0.5, 0.3, 0.2],
+                    "normalize": True,
+                },
+                {
+                    "operation": "weighted_sum",
+                    "values": [
+                        {"value": 10, "weight": 0.6},
+                        {"value": 8, "weight": 0.4},
+                    ],
+                    "normalization": [0, 100],
+                },
+            ],
         }
     )
 
-    @field_validator("params")
-    def validate_params(cls, v):
-        """Validates the parameters according to the operation."""
-        if "operation" not in v:
-            raise ValueError("The 'operation' parameter is required")
+    operation: Literal[
+        "array_division",
+        "array_multiplication",
+        "normalize_array",
+        "weighted_sum",
+        "shannon_entropy",
+        "pielou_evenness",
+        "sum_array_slice",
+        "ratio_calculation",
+        "csr_strategy",
+        "resilience_score",
+        "biomass_by_strata",
+        "conformity_index",
+        "custom_formula",
+        "peak_detection",
+        "active_periods",
+    ] = Field(
+        ...,
+        description="Type of mathematical operation to perform",
+        json_schema_extra={"ui:widget": "select"},
+    )
 
-        try:
-            operation = Operation(v["operation"])
-        except ValueError:
-            valid_operations = ", ".join([op.value for op in Operation])
-            raise ValueError(
-                f"Unsupported operation: {v['operation']}. "
-                f"Valid operations: {valid_operations}"
-            )
+    # Array operations
+    numerator: Optional[Union[List[float], float]] = Field(
+        default=None,
+        description="Numerator value or array for division operations",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'array_division'",
+        },
+    )
 
-        # Specific validation according to the operation
-        if operation == Operation.ARRAY_DIVISION:
-            if "numerator" not in v:
-                raise ValueError(
-                    "The 'numerator' parameter is required for array_division"
-                )
-            if "denominator" not in v:
-                raise ValueError(
-                    "The 'denominator' parameter is required for array_division"
-                )
+    denominator: Optional[Union[List[float], float]] = Field(
+        default=None,
+        description="Denominator value or array for division operations",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'array_division'",
+        },
+    )
 
-        elif operation == Operation.WEIGHTED_SUM:
-            if "values" not in v:
-                raise ValueError("The 'values' parameter is required for weighted_sum")
-            if not isinstance(v["values"], list):
-                raise ValueError("The 'values' parameter must be a list")
+    array1: Optional[List[float]] = Field(
+        default=None,
+        description="First array for multiplication",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'array_multiplication'",
+        },
+    )
 
-        elif operation == Operation.SHANNON_ENTROPY:
-            if "probabilities" not in v:
-                raise ValueError(
-                    "The 'probabilities' parameter is required for shannon_entropy"
-                )
+    array2: Optional[List[float]] = Field(
+        default=None,
+        description="Second array for multiplication",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'array_multiplication'",
+        },
+    )
 
-        elif operation == Operation.PIELOU_EVENNESS:
-            if "shannon_entropy" not in v:
-                raise ValueError(
-                    "The 'shannon_entropy' parameter is required for pielou_evenness"
-                )
-            if "max_bins" not in v:
-                raise ValueError(
-                    "The 'max_bins' parameter is required for pielou_evenness"
-                )
+    scale_factor: float = Field(
+        default=1.0,
+        description="Scale factor to apply to results",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:condition": "operation === 'array_division' || operation === 'array_multiplication' || operation === 'ratio_calculation'",
+        },
+    )
 
-        # And so on for the other operations...
+    # Normalization
+    input: Optional[List[float]] = Field(
+        default=None,
+        description="Input array to normalize",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'normalize_array'",
+        },
+    )
 
-        return v
+    method: Optional[
+        Literal["minmax", "zscore", "percentage", "relative", "absolute"]
+    ] = Field(
+        default="minmax",
+        description="Normalization or comparison method",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:condition": "operation in ['normalize_array', 'conformity_index']",
+        },
+    )
+
+    # Weighted sum
+    values: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="List of values with weights for weighted sum",
+        json_schema_extra={
+            "ui:widget": "object-array",
+            "ui:condition": "operation === 'weighted_sum'",
+        },
+    )
+
+    normalization: Optional[List[float]] = Field(
+        default=None,
+        description="Normalization bounds [min, max]",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'weighted_sum'",
+        },
+    )
+
+    # Shannon entropy
+    probabilities: Optional[List[float]] = Field(
+        default=None,
+        description="Probability values for Shannon entropy calculation",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'shannon_entropy'",
+        },
+    )
+
+    normalize: bool = Field(
+        default=True,
+        description="Whether to normalize probabilities",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:condition": "operation === 'shannon_entropy'",
+        },
+    )
+
+    # Pielou evenness
+    shannon_entropy: Optional[float] = Field(
+        default=None,
+        description="Shannon entropy value for Pielou evenness",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:condition": "operation === 'pielou_evenness'",
+        },
+    )
+
+    max_bins: Optional[int] = Field(
+        default=None,
+        description="Maximum number of bins for Pielou evenness",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:condition": "operation === 'pielou_evenness'",
+        },
+    )
+
+    # Array slice
+    array: Optional[List[float]] = Field(
+        default=None,
+        description="Input array for slice operations",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:condition": "operation === 'sum_array_slice'",
+        },
+    )
+
+    start_index: Optional[int] = Field(
+        default=None,
+        description="Start index for array slice",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:condition": "operation === 'sum_array_slice'",
+        },
+    )
+
+    end_index: Optional[int] = Field(
+        default=None,
+        description="End index for array slice",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:condition": "operation === 'sum_array_slice'",
+        },
+    )
+
+    # Custom formula
+    formula: Optional[str] = Field(
+        default=None,
+        description="Mathematical formula to evaluate",
+        json_schema_extra={
+            "ui:widget": "textarea",
+            "ui:condition": "operation === 'custom_formula'",
+        },
+    )
+
+    variables: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Variables to use in formula (can be numbers, dictionaries, or other types)",
+        json_schema_extra={
+            "ui:widget": "object",
+            "ui:condition": "operation === 'custom_formula'",
+        },
+    )
+
+    @model_validator(mode="after")
+    def validate_operation_params(self):
+        """Validate operation-specific parameters."""
+        operation = self.operation
+
+        if operation == "array_division":
+            if not self.numerator:
+                raise ValueError("numerator is required for array_division")
+            if not self.denominator:
+                raise ValueError("denominator is required for array_division")
+
+        elif operation == "array_multiplication":
+            if not self.array1:
+                raise ValueError("array1 is required for array_multiplication")
+            if not self.array2:
+                raise ValueError("array2 is required for array_multiplication")
+
+        elif operation == "normalize_array":
+            if not self.input:
+                raise ValueError("input is required for normalize_array")
+
+        elif operation == "weighted_sum":
+            if not self.values:
+                raise ValueError("values is required for weighted_sum")
+
+        elif operation == "shannon_entropy":
+            if not self.probabilities:
+                raise ValueError("probabilities is required for shannon_entropy")
+
+        elif operation == "pielou_evenness":
+            if self.shannon_entropy is None:
+                raise ValueError("shannon_entropy is required for pielou_evenness")
+            if self.max_bins is None:
+                raise ValueError("max_bins is required for pielou_evenness")
+
+        elif operation == "sum_array_slice":
+            if not self.array:
+                raise ValueError("array is required for sum_array_slice")
+            if self.start_index is None:
+                raise ValueError("start_index is required for sum_array_slice")
+
+        elif operation == "custom_formula":
+            if not self.formula:
+                raise ValueError("formula is required for custom_formula")
+            if not self.variables:
+                raise ValueError("variables is required for custom_formula")
+
+        return self
+
+
+class CustomCalculatorConfig(PluginConfig):
+    """Configuration for custom calculator plugin"""
+
+    plugin: Literal["custom_calculator"] = "custom_calculator"
+    params: CustomCalculatorParams
 
 
 @register("custom_calculator", PluginType.TRANSFORMER)
@@ -115,16 +348,12 @@ class CustomCalculator(TransformerPlugin):
 
     config_model = CustomCalculatorConfig
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validates the plugin configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> CustomCalculatorConfig:
+        """Validate configuration and return typed config."""
         try:
             return self.config_model(**config)
         except Exception as e:
-            if isinstance(e, DataTransformError):
-                raise e
-            raise DataTransformError(
-                f"Invalid configuration: {str(e)}", details={"config": config}
-            )
+            raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -143,7 +372,7 @@ class CustomCalculator(TransformerPlugin):
             params = validated_config.params
 
             # Get the operation
-            operation = Operation(params["operation"])
+            operation = Operation(params.operation)
 
             # Execute the corresponding operation
             if operation == Operation.ARRAY_DIVISION:
@@ -204,7 +433,7 @@ class CustomCalculator(TransformerPlugin):
                 f"Error during custom calculation: {str(e)}", details={"config": config}
             )
 
-    def _array_multiplication(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _array_multiplication(self, params: CustomCalculatorParams) -> Dict[str, Any]:
         """
         Multiply two arrays element-wise.
 
@@ -218,9 +447,14 @@ class CustomCalculator(TransformerPlugin):
             Result of the multiplication
         """
         try:
+            # Convert params to dict if needed
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the arrays
-            array1 = np.array(params["array1"], dtype=float)
-            array2 = np.array(params["array2"], dtype=float)
+            array1 = np.array(params_dict["array1"], dtype=float)
+            array2 = np.array(params_dict["array2"], dtype=float)
 
             # Check the dimensions
             if array1.size != array2.size and array2.size != 1:
@@ -230,7 +464,7 @@ class CustomCalculator(TransformerPlugin):
                 )
 
             # Apply a scale factor if specified
-            scale_factor = params.get("scale_factor", 1.0)
+            scale_factor = params_dict.get("scale_factor", 1.0)
 
             # Perform the multiplication
             if array2.size == 1:
@@ -251,7 +485,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _normalize_array(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_array(self, params: Any) -> Dict[str, Any]:
         """
         Normalize an array according to different methods.
 
@@ -265,16 +499,21 @@ class CustomCalculator(TransformerPlugin):
             Normalized array
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the array
-            input_array = np.array(params["input"], dtype=float)
+            input_array = np.array(params_dict["input"], dtype=float)
 
             # Normalization method
-            method = params.get("method", "minmax")
+            method = params_dict.get("method", "minmax")
 
             if method == "minmax":
                 # Min-max normalization
-                min_value = params.get("min_value", input_array.min())
-                max_value = params.get("max_value", input_array.max())
+                min_value = params_dict.get("min_value", input_array.min())
+                max_value = params_dict.get("max_value", input_array.max())
 
                 # Avoid division by zero
                 if max_value == min_value:
@@ -338,7 +577,7 @@ class CustomCalculator(TransformerPlugin):
                 f"Error during normalization: {str(e)}", details={"params": params}
             )
 
-    def _weighted_sum(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _weighted_sum(self, params: Any) -> Dict[str, Any]:
         """
         Calculate a weighted sum of values.
 
@@ -351,8 +590,13 @@ class CustomCalculator(TransformerPlugin):
             Result of the weighted sum
         """
         try:
+            # Convert params to dict if needed
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the values and weights
-            values_config = params["values"]
+            values_config = params_dict["values"]
 
             if not isinstance(values_config, list):
                 raise DataTransformError(
@@ -395,7 +639,7 @@ class CustomCalculator(TransformerPlugin):
                 result = 0.0
 
             # Normalize the result if specified
-            normalization = params.get("normalization")
+            normalization = params_dict.get("normalization")
             if (
                 normalization
                 and isinstance(normalization, list)
@@ -418,7 +662,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _shannon_entropy(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _shannon_entropy(self, params: Any) -> Dict[str, Any]:
         """
         Calculate the Shannon entropy of a probability distribution.
 
@@ -431,11 +675,16 @@ class CustomCalculator(TransformerPlugin):
             Shannon entropy
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the probabilities
-            probabilities = np.array(params["probabilities"], dtype=float)
+            probabilities = np.array(params_dict["probabilities"], dtype=float)
 
             # Normalize if specified or if the sum is not 1
-            normalize = params.get("normalize", True)
+            normalize = params_dict.get("normalize", True)
             if normalize or abs(np.sum(probabilities) - 1.0) > 1e-6:
                 total = np.sum(probabilities)
                 if total > 0:
@@ -466,7 +715,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _pielou_evenness(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _pielou_evenness(self, params: Any) -> Dict[str, Any]:
         """
         Calculates the Pielou evenness index (J') from Shannon entropy.
 
@@ -479,9 +728,14 @@ class CustomCalculator(TransformerPlugin):
             Pielou evenness index
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the entropy and the number of classes
-            shannon_entropy = float(params["shannon_entropy"])
-            max_bins = int(params["max_bins"])
+            shannon_entropy = float(params_dict["shannon_entropy"])
+            max_bins = int(params_dict["max_bins"])
 
             # Calculate the maximum possible entropy
             max_entropy = np.log2(max_bins) if max_bins > 0 else 0
@@ -504,7 +758,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _sum_array_slice(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _sum_array_slice(self, params: Any) -> Dict[str, Any]:
         """
         Calculates the sum of an array slice.
 
@@ -519,12 +773,17 @@ class CustomCalculator(TransformerPlugin):
             Sum of the slice and ratio compared to the total
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the array
-            array = np.array(params["array"], dtype=float)
+            array = np.array(params_dict["array"], dtype=float)
 
             # Indices of the slice
-            start_index = int(params["start_index"])
-            end_index = int(params.get("end_index", len(array)))
+            start_index = int(params_dict["start_index"])
+            end_index = int(params_dict.get("end_index", len(array)))
 
             # Check the indices
             if start_index < 0 or start_index >= len(array):
@@ -543,14 +802,14 @@ class CustomCalculator(TransformerPlugin):
             slice_sum = np.sum(array[start_index:end_index])
 
             # Calculate the total according to the specified mode
-            total_mode = params.get("total", "sum")
+            total_mode = params_dict.get("total", "sum")
 
             if total_mode == "sum":
                 total = np.sum(array)
             elif total_mode == "len":
                 total = len(array)
             elif total_mode == "value":
-                total = float(params.get("total_value", np.sum(array)))
+                total = float(params_dict.get("total_value", np.sum(array)))
             else:
                 raise DataTransformError(
                     f"Unsupported total calculation mode: {total_mode}",
@@ -576,7 +835,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _ratio_calculation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _ratio_calculation(self, params: Any) -> Dict[str, Any]:
         """
         Calculates a ratio between two values.
 
@@ -590,12 +849,17 @@ class CustomCalculator(TransformerPlugin):
             Calculated ratio
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the values
-            numerator = float(params["numerator"])
-            denominator = float(params["denominator"])
+            numerator = float(params_dict["numerator"])
+            denominator = float(params_dict["denominator"])
 
             # Apply a scale factor if specified
-            scale_factor = float(params.get("scale_factor", 1.0))
+            scale_factor = float(params_dict.get("scale_factor", 1.0))
 
             # Calculate the ratio
             ratio = (numerator / denominator) * scale_factor if denominator != 0 else 0
@@ -631,11 +895,16 @@ class CustomCalculator(TransformerPlugin):
             CSR values and dominant strategy
         """
         try:
+            # Convert params to dict if needed
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the functional traits
-            wood_density = float(params["wood_density"])
-            leaf_thickness = float(params["leaf_thickness"])
-            leaf_sla = float(params["leaf_sla"])
-            substrate = params.get("substrate", "NUM")  # UM or NUM by default
+            wood_density = float(params_dict["wood_density"])
+            leaf_thickness = float(params_dict["leaf_thickness"])
+            leaf_sla = float(params_dict["leaf_sla"])
+            substrate = params_dict.get("substrate", "NUM")  # UM or NUM by default
 
             # Normalize the traits (simplification)
             norm_wd = min(1.0, wood_density / 1.0)  # 1.0 g/cm³ is a high value
@@ -707,7 +976,7 @@ class CustomCalculator(TransformerPlugin):
                 f"Error during CSR calculation: {str(e)}", details={"params": params}
             )
 
-    def _resilience_score(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _resilience_score(self, params: Any) -> Dict[str, Any]:
         """
         Calculates a resilience score based on CSR and other factors.
 
@@ -721,8 +990,13 @@ class CustomCalculator(TransformerPlugin):
             Resilience score
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the CSR values
-            csr_values = params["csr_values"]
+            csr_values = params_dict["csr_values"]
             if not isinstance(csr_values, dict):
                 raise DataTransformError(
                     "The 'csr_values' parameter must be a dictionary",
@@ -734,10 +1008,10 @@ class CustomCalculator(TransformerPlugin):
             r_value = float(csr_values.get("ruderal", 0))
 
             # Functional diversity (e.g. Shannon)
-            functional_diversity = float(params["functional_diversity"])
+            functional_diversity = float(params_dict["functional_diversity"])
 
             # Substrate type
-            substrate_type = params.get("substrate_type", "NUM")
+            substrate_type = params_dict.get("substrate_type", "NUM")
 
             # Weighting factors
             substrate_factor = 0.8 if substrate_type == "UM" else 1.0
@@ -788,7 +1062,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _array_division(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _array_division(self, params: Any) -> Dict[str, Any]:
         """
         Divide two arrays element-wise.
 
@@ -803,9 +1077,14 @@ class CustomCalculator(TransformerPlugin):
             Result of the division
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the arrays
-            numerator = np.array(params["numerator"], dtype=float)
-            denominator = np.array(params["denominator"], dtype=float)
+            numerator = np.array(params_dict["numerator"], dtype=float)
+            denominator = np.array(params_dict["denominator"], dtype=float)
 
             # Check dimensions
             if numerator.shape != denominator.shape:
@@ -818,8 +1097,8 @@ class CustomCalculator(TransformerPlugin):
                 )
 
             # Get the scale factor if specified
-            scale_factor = float(params.get("scale_factor", 1.0))
-            default_value = float(params.get("default_value", 0.0))
+            scale_factor = float(params_dict.get("scale_factor", 1.0))
+            default_value = float(params_dict.get("default_value", 0.0))
 
             # Perform the division with handling for division by zero
             with np.errstate(divide="ignore", invalid="ignore"):
@@ -864,9 +1143,14 @@ class CustomCalculator(TransformerPlugin):
             Biomass by strata and distribution statistics
         """
         try:
+            # Convert params to dict if needed
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the columns
-            height_column = params["height_column"]
-            dbh_column = params["dbh_column"]
+            height_column = params_dict["height_column"]
+            dbh_column = params_dict["dbh_column"]
 
             # Check if columns exist
             if height_column not in data.columns:
@@ -881,7 +1165,7 @@ class CustomCalculator(TransformerPlugin):
                 )
 
             # Get strata boundaries and names
-            strata_bounds = params["strata_bounds"]
+            strata_bounds = params_dict["strata_bounds"]
             if not isinstance(strata_bounds, list) or len(strata_bounds) < 2:
                 raise DataTransformError(
                     "Strata bounds must be a list with at least 2 elements",
@@ -889,7 +1173,7 @@ class CustomCalculator(TransformerPlugin):
                 )
 
             # Get strata names (optional)
-            strata_names = params.get("strata_names", None)
+            strata_names = params_dict.get("strata_names", None)
             if strata_names is None:
                 # Generate default names: S1, S2, etc.
                 strata_names = [f"S{i + 1}" for i in range(len(strata_bounds) - 1)]
@@ -903,7 +1187,7 @@ class CustomCalculator(TransformerPlugin):
                 )
 
             # Get wood density
-            wood_density_param = params.get("wood_density", 0.6)  # Default value
+            wood_density_param = params_dict.get("wood_density", 0.6)  # Default value
             if (
                 isinstance(wood_density_param, str)
                 and wood_density_param in data.columns
@@ -965,7 +1249,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _peak_detection(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _peak_detection(self, params: Any) -> Dict[str, Any]:
         """
         Detects peaks in a time series.
 
@@ -980,13 +1264,18 @@ class CustomCalculator(TransformerPlugin):
             Detected peaks and their properties
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the time series
-            time_series_data = params["time_series"]
+            time_series_data = params_dict.get("time_series")
 
             # Get detection parameters
-            threshold = params.get("threshold", None)
-            min_distance = int(params.get("min_distance", 1))
-            prominence = float(params.get("prominence", 0.0))
+            threshold = params_dict.get("threshold", None)
+            min_distance = int(params_dict.get("min_distance", 1))
+            prominence = float(params_dict.get("prominence", 0.0))
 
             # Check if time_series is a dictionary or a single array
             if isinstance(time_series_data, dict):
@@ -1082,7 +1371,7 @@ class CustomCalculator(TransformerPlugin):
             "max": float(np.max(time_series)),
         }
 
-    def _active_periods(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _active_periods(self, params: Any) -> Dict[str, Any]:
         """
         Detect active periods in time series.
 
@@ -1097,8 +1386,13 @@ class CustomCalculator(TransformerPlugin):
             Active periods for each time series
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the time series
-            time_series = params["time_series"]
+            time_series = params_dict.get("time_series")
             if not isinstance(time_series, dict):
                 raise DataTransformError(
                     "Time series must be a dictionary",
@@ -1106,9 +1400,9 @@ class CustomCalculator(TransformerPlugin):
                 )
 
             # Get parameters
-            threshold = float(params.get("threshold", 0.0))
-            min_duration = int(params.get("min_duration", 1))
-            labels = params.get("labels", None)
+            threshold = float(params_dict.get("threshold", 0.0))
+            min_duration = int(params_dict.get("min_duration", 1))
+            labels = params_dict.get("labels", None)
 
             # Generate default labels if not provided
             if labels is None:
@@ -1186,7 +1480,7 @@ class CustomCalculator(TransformerPlugin):
                 details={"params": params},
             )
 
-    def _custom_formula(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _custom_formula(self, params: Any) -> Dict[str, Any]:
         """
         Evaluates a custom mathematical formula with provided variables.
 
@@ -1200,10 +1494,15 @@ class CustomCalculator(TransformerPlugin):
             Result of the formula evaluation
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get the formula and variables
-            formula = params["formula"]
-            variables = params["variables"]
-            description = params.get("description", "Custom formula")
+            formula = params_dict.get("formula")
+            variables = params_dict.get("variables", {})
+            description = params_dict.get("description", "Custom formula")
 
             if not isinstance(formula, str):
                 raise DataTransformError(
@@ -1280,12 +1579,12 @@ class CustomCalculator(TransformerPlugin):
             raise DataTransformError(
                 f"Error during custom formula evaluation: {str(e)}",
                 details={
-                    "formula": params.get("formula"),
-                    "variables": params.get("variables"),
+                    "formula": params_dict.get("formula"),
+                    "variables": params_dict.get("variables"),
                 },
             )
 
-    def _conformity_index(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _conformity_index(self, params: Any) -> Dict[str, Any]:
         """
         Calculates a conformity index comparing observed values to reference values.
 
@@ -1300,9 +1599,14 @@ class CustomCalculator(TransformerPlugin):
             Conformity index and classification
         """
         try:
+            # Convert params to dict
+            params_dict = (
+                params.model_dump() if hasattr(params, "model_dump") else dict(params)
+            )
+
             # Get observed and reference values
-            observed = params["observed"]
-            reference = params["reference"]
+            observed = params_dict["observed"]
+            reference = params_dict["reference"]
 
             # Convert to numpy arrays if they're not already
             if not isinstance(observed, (list, np.ndarray)):
@@ -1326,8 +1630,8 @@ class CustomCalculator(TransformerPlugin):
                 )
 
             # Get tolerance and method
-            tolerance = float(params.get("tolerance", 10.0))  # Default 10%
-            method = params.get("method", "relative")
+            tolerance = float(params_dict.get("tolerance", 10.0))  # Default 10%
+            method = params_dict.get("method", "relative")
 
             # Calculate differences based on method
             if method == "absolute":
