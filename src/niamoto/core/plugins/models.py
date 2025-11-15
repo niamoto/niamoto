@@ -119,23 +119,46 @@ class StaticPageConfig(BaseModel):
 class HtmlExporterParams(BasePluginParams):
     """Parameters specific to the 'html_page_exporter'."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Generate static HTML website with templates and widgets",
+            "examples": [
+                {
+                    "template_dir": "templates",
+                    "output_dir": "site",
+                    "base_template": "_base.html",
+                    "include_default_assets": True,
+                }
+            ],
+        }
+    )
+
     template_dir: str = Field(
-        ..., description="Path to the project's Jinja2 template directory"
+        ...,
+        description="Path to the project's Jinja2 template directory",
+        json_schema_extra={"ui:widget": "directory-select"},
     )
     output_dir: str = Field(
-        ..., description="Directory where the static site will be generated"
+        ...,
+        description="Directory where the static site will be generated",
+        json_schema_extra={"ui:widget": "directory-select"},
     )
     base_template: str = Field(
-        "_base.html", description="Default base template for pages"
+        default="_base.html",
+        description="Default base template for pages",
+        json_schema_extra={"ui:widget": "text"},
     )
     copy_assets_from: List[str] = Field(
-        default_factory=list, description="List of user asset directories/files to copy"
+        default_factory=list,
+        description="List of user asset directories/files to copy",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "file-select"},
     )
     site: SiteConfig = Field(default_factory=SiteConfig)
     navigation: List[NavigationItem] = Field(default_factory=list)
     include_default_assets: bool = Field(
         default=True,
         description="Whether to automatically include Niamoto's default CSS/JS assets",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
 
 
@@ -221,6 +244,11 @@ class GroupConfigWeb(BaseModel):
 
     group_by: str
     data_source: Optional[str] = None
+    navigation_entity: Optional[str] = Field(
+        None,
+        description="Entity name to use for navigation data (e.g., 'taxonomy' for hierarchy). "
+        "If not specified, defaults to group_by value.",
+    )
     index_template: Optional[str] = None  # Template for the index page, optional
     page_template: Optional[str] = None  # Template for the detail page, optional
     output_pattern: str
@@ -333,8 +361,64 @@ class DwcMappingValue(BaseModel):
 class DwcTransformerParams(BasePluginParams):
     """Parameters specific to the 'niamoto_to_dwc_occurrence' transformer."""
 
-    occurrence_list_source: str
-    mapping: Dict[str, Union[str, DwcMappingValue]]  # Key is DwC term
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Transform Niamoto data to Darwin Core Occurrence format",
+            "examples": [
+                {
+                    "occurrence_list_source": "occurrences",
+                    "occurrence_table": "dataset_occurrences",
+                    "taxon_id_column": "id_taxonref",
+                    "taxon_id_field": "id",
+                    "mapping": {
+                        "occurrenceID": {"source": "occurrence_id"},
+                        "scientificName": {"source": "taxon_name"},
+                        "decimalLatitude": {"source": "latitude"},
+                        "decimalLongitude": {"source": "longitude"},
+                    },
+                }
+            ],
+        }
+    )
+
+    occurrence_list_source: str = Field(
+        ...,
+        description="Field containing the list of occurrences",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    occurrence_table: str = Field(
+        default="occurrences",
+        description="Logical entity name for the occurrence data",
+        json_schema_extra={"ui:widget": "entity-select"},
+    )
+    taxonomy_entity: str = Field(
+        default="taxonomy",
+        description="Logical name of the taxonomy entity used for joins",
+        json_schema_extra={"ui:widget": "entity-select"},
+    )
+    taxon_id_column: str = Field(
+        default="id_taxonref",
+        description="Column in occurrence table that links to taxon",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    taxon_id_field: str = Field(
+        default="id",
+        description="Field in taxon data containing the taxon ID",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    taxonomy_external_id_column: Optional[str] = Field(
+        default=None,
+        description=(
+            "Column in the taxonomy entity that stores the external identifier matching"
+            " the occurrences (defaults to derived metadata if available)"
+        ),
+        json_schema_extra={"ui:widget": "text"},
+    )
+    mapping: Dict[str, Union[str, DwcMappingValue]] = Field(
+        ...,
+        description="Mapping of DwC terms to data fields or generators",
+        json_schema_extra={"ui:widget": "json"},
+    )
 
 
 class GroupConfigDwc(BaseModel):

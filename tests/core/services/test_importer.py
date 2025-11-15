@@ -1,168 +1,220 @@
-import unittest
-from unittest.mock import Mock, patch
+"""Tests for the generic ImporterService."""
+
+from __future__ import annotations
+
+from unittest import mock
+
+import pandas as pd
+import pytest
+
+from niamoto.common.exceptions import ValidationError, FileReadError
+from niamoto.common.database import Database
 from niamoto.core.services.importer import ImporterService
-import os
-import tempfile
-from tests.common.base_test import NiamotoTestCase
+from niamoto.core.imports.engine import ImportResult, GenericImporter
+from niamoto.core.imports.registry import EntityKind, EntityRegistry
+from niamoto.core.imports.config_models import (
+    GenericImportConfig,
+    ReferenceEntityConfig,
+    DatasetEntityConfig,
+    ConnectorConfig,
+    ConnectorType,
+    EntitySchema,
+    EntitiesConfig,
+)
 
 
-class TestImporterService(NiamotoTestCase):
-    def setUp(self):
-        # Create a temporary directory for config to avoid creating at project root
-        self.temp_dir = tempfile.mkdtemp()
-        self.config_dir = os.path.join(self.temp_dir, "config")
+@pytest.fixture
+def mock_database():
+    """Mock Database with spec to catch invalid method calls."""
+    with mock.patch("niamoto.core.services.importer.Database") as db_cls:
+        # Use spec= to ensure only valid Database methods can be called
+        db_instance = mock.Mock(spec=Database)
+        db_instance.engine = mock.Mock()
+        db_instance.has_table = mock.Mock(return_value=False)
+        db_cls.return_value = db_instance
+        yield db_cls
 
-        # Create a mock database and set up the ImporterService
-        self.mock_db = Mock()
-        with (
-            patch(
-                "niamoto.core.services.importer.Database",
-                return_value=self.mock_db,
-                autospec=True,
-            ),
-            patch("niamoto.core.components.imports.taxons.Config") as mock_config,
-        ):
-            # Mock Config to prevent creating config directory at project root
-            mock_config.return_value.plugins_dir = self.config_dir
-            self.importer_service = ImporterService("mock_db_path")
 
-    def tearDown(self):
-        """Clean up test fixtures and stop all patches."""
-        from unittest import mock
-        import shutil
+@pytest.fixture
+def mock_registry():
+    """Mock EntityRegistry with spec to catch invalid method calls."""
+    with mock.patch("niamoto.core.services.importer.EntityRegistry") as registry_cls:
+        # Use spec= to ensure only valid EntityRegistry methods can be called
+        registry = mock.Mock(spec=EntityRegistry)
+        registry_cls.return_value = registry
+        yield registry
 
-        # Clean up temporary directory
-        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
 
-        # Stop all active patches to prevent MagicMock leaks
-        mock.patch.stopall()
+@pytest.fixture
+def mock_engine(monkeypatch):
+    """Mock GenericImporter with spec to catch invalid method calls."""
+    # Use spec= to ensure only valid GenericImporter methods can be called
+    importer_mock = mock.Mock(spec=GenericImporter)
+    monkeypatch.setattr(
+        "niamoto.core.services.importer.GenericImporter",
+        lambda db, registry: importer_mock,
+    )
+    return importer_mock
 
-    def test_init(self):
-        # Test the initialization of ImporterService
-        self.assertIsInstance(self.importer_service.db, Mock)
-        self.assertIsNotNone(self.importer_service.taxonomy_importer)
-        self.assertIsNotNone(self.importer_service.occurrence_importer)
-        self.assertIsNotNone(self.importer_service.plot_importer)
-        self.assertIsNotNone(self.importer_service.shape_importer)
 
-    @patch("pathlib.Path.exists")
-    @patch("niamoto.core.services.importer.TaxonomyImporter.import_taxonomy")
-    def test_import_taxonomy(
-        self,
-        mock_import_taxonomy,
-        mock_exists,
-    ):
-        # Test the import_taxonomy method
-        mock_exists.return_value = True
-        mock_import_taxonomy.return_value = (
-            "6 taxons extracted and imported from occurrences.csv."
+@pytest.fixture
+def service(mock_database, mock_registry, mock_engine):
+    return ImporterService("/tmp/test.db")
+
+
+def test_import_reference_creates_registry_entry(service, mock_engine, tmp_path):
+    """Test importing a reference entity (e.g., species taxonomy)."""
+    csv_path = tmp_path / "species.csv"
+    df = pd.DataFrame({"species_id": [1, 2], "name": ["Species A", "Species B"]})
+    df.to_csv(csv_path, index=False)
+
+    mock_engine.import_from_csv.return_value = ImportResult(
+        rows=2, table="entity_species"
+    )
+
+    config = ReferenceEntityConfig(
+        connector=ConnectorConfig(type=ConnectorType.FILE, path=str(csv_path)),
+        schema=EntitySchema(id_field="species_id", fields=[]),
+    )
+
+    msg = service.import_reference("species", config)
+
+    assert "Imported 2 records into entity_species" in msg
+    mock_engine.import_from_csv.assert_called_once()
+    kwargs = mock_engine.import_from_csv.call_args.kwargs
+    assert kwargs["entity_name"] == "species"
+    assert kwargs["table_name"] == "entity_species"
+    assert kwargs["kind"] is EntityKind.REFERENCE
+
+
+def test_import_dataset(service, mock_engine, tmp_path):
+    """Test importing a dataset entity (e.g., observations)."""
+    csv_path = tmp_path / "observations.csv"
+    pd.DataFrame({"occurrence_id": [1], "species_code": ["SP01"]}).to_csv(
+        csv_path, index=False
+    )
+
+    mock_engine.import_from_csv.return_value = ImportResult(
+        rows=1, table="dataset_observations"
+    )
+
+    config = DatasetEntityConfig(
+        connector=ConnectorConfig(type=ConnectorType.FILE, path=str(csv_path)),
+        schema=EntitySchema(id_field="occurrence_id", fields=[]),
+    )
+
+    msg = service.import_dataset("observations", config)
+
+    assert "Imported 1 records into dataset_observations" in msg
+    kwargs = mock_engine.import_from_csv.call_args.kwargs
+    assert kwargs["entity_name"] == "observations"
+    assert kwargs["kind"] is EntityKind.DATASET
+
+
+def test_import_reference_with_reset_table(service, mock_engine, tmp_path):
+    """Test importing a reference with table reset."""
+    csv_path = tmp_path / "sites.csv"
+    pd.DataFrame({"site_id": [1], "site_name": ["Site A"]}).to_csv(
+        csv_path, index=False
+    )
+
+    # Mock table exists
+    service.db.has_table = mock.Mock(return_value=True)
+    service.db.execute_sql = mock.Mock()
+
+    mock_engine.import_from_csv.return_value = ImportResult(
+        rows=1, table="entity_sites"
+    )
+
+    config = ReferenceEntityConfig(
+        connector=ConnectorConfig(type=ConnectorType.FILE, path=str(csv_path)),
+        schema=EntitySchema(id_field="site_id", fields=[]),
+    )
+
+    msg = service.import_reference("sites", config, reset_table=True)
+
+    # Verify table was dropped
+    service.db.execute_sql.assert_called_once_with("DROP TABLE IF EXISTS entity_sites")
+    assert "Imported 1 records" in msg
+
+
+def test_import_reference_missing_file(service, mock_engine, tmp_path):
+    """Test that importing from a non-existent file raises FileReadError."""
+    config = ReferenceEntityConfig(
+        connector=ConnectorConfig(
+            type=ConnectorType.FILE, path=str(tmp_path / "nonexistent.csv")
+        ),
+        schema=EntitySchema(id_field="id", fields=[]),
+    )
+
+    with pytest.raises(FileReadError):
+        service.import_reference("test", config)
+
+
+def test_import_all(service, mock_engine, tmp_path):
+    """Test importing all entities from a complete configuration."""
+    # Create test files
+    species_csv = tmp_path / "species.csv"
+    pd.DataFrame({"species_id": [1, 2]}).to_csv(species_csv, index=False)
+
+    obs_csv = tmp_path / "observations.csv"
+    pd.DataFrame({"occurrence_id": [1]}).to_csv(obs_csv, index=False)
+
+    # Mock engine returns
+    def mock_import(entity_name, **kwargs):
+        return ImportResult(
+            rows=2 if entity_name == "species" else 1, table=kwargs["table_name"]
         )
 
-        hierarchy_config = {
-            "levels": [
-                {"name": "family", "column": "tax_fam"},
-                {"name": "genus", "column": "tax_gen"},
-                {"name": "species", "column": "tax_sp_level"},
-            ],
-            "taxon_id_column": "idtax_individual_f",
-        }
+    mock_engine.import_from_csv.side_effect = mock_import
 
-        result = self.importer_service.import_taxonomy(
-            "occurrences.csv", hierarchy_config
+    # Create generic config
+    config = GenericImportConfig(
+        entities=EntitiesConfig(
+            references={
+                "species": ReferenceEntityConfig(
+                    connector=ConnectorConfig(
+                        type=ConnectorType.FILE, path=str(species_csv)
+                    ),
+                    schema=EntitySchema(id_field="species_id", fields=[]),
+                )
+            },
+            datasets={
+                "observations": DatasetEntityConfig(
+                    connector=ConnectorConfig(
+                        type=ConnectorType.FILE, path=str(obs_csv)
+                    ),
+                    schema=EntitySchema(id_field="occurrence_id", fields=[]),
+                )
+            },
         )
-        self.assertEqual(
-            result, "6 taxons extracted and imported from occurrences.csv."
-        )
+    )
 
-    @patch("pathlib.Path.exists")
-    @patch("niamoto.core.services.importer.TaxonomyImporter.import_taxonomy")
-    def test_import_taxonomy_with_api_config(
-        self,
-        mock_import_taxonomy,
-        mock_exists,
-    ):
-        # Test the import_taxonomy method with API configuration
-        mock_exists.return_value = True
-        mock_import_taxonomy.return_value = (
-            "6 taxons extracted and imported from occurrences.csv."
-        )
+    result = service.import_all(config)
 
-        hierarchy_config = {
-            "levels": [
-                {"name": "family", "column": "tax_fam"},
-                {"name": "genus", "column": "tax_gen"},
-            ],
-            "taxon_id_column": "idtax_individual_f",
-        }
-
-        api_config = {
-            "enabled": True,
-            "plugin": "test_api",
-        }
-
-        result = self.importer_service.import_taxonomy(
-            "occurrences.csv", hierarchy_config, api_config
-        )
-        self.assertEqual(
-            result, "6 taxons extracted and imported from occurrences.csv."
-        )
-        # Check that the taxonomy importer was called with correct arguments
-        # The path will be converted to absolute, so we check the other args
-        call_args = mock_import_taxonomy.call_args[0]
-        self.assertTrue(
-            call_args[0].endswith("occurrences.csv")
-        )  # Path ends with filename
-        self.assertEqual(call_args[1], hierarchy_config)
-        self.assertEqual(call_args[2], api_config)
-
-    @patch("pathlib.Path.exists")
-    @patch("niamoto.core.services.importer.OccurrenceImporter.import_valid_occurrences")
-    def test_import_occurrences(self, mock_import_valid_occurrences, mock_exists):
-        # Test the import_occurrences method
-        mock_exists.return_value = True
-        mock_import_valid_occurrences.return_value = "Occurrences import successful"
-
-        result = self.importer_service.import_occurrences(
-            "mock_file.csv", "taxon_id", "location"
-        )
-        self.assertEqual(result, "Occurrences import successful")
-
-    @patch("pathlib.Path.exists")
-    @patch("niamoto.core.components.imports.plots.PlotImporter.import_plots")
-    def test_import_plots(self, mock_plot_importer_import_plots, mock_exists):
-        # Test the import_plots method
-        mock_exists.return_value = True
-        mock_plot_importer_import_plots.return_value = "Plots import successful"
-
-        result = self.importer_service.import_plots(
-            "mock_file.gpkg", "plot_id", "location", locality_field="locality_name"
-        )
-        self.assertEqual(result, "Plots import successful")
-        mock_plot_importer_import_plots.assert_called_once_with(
-            "mock_file.gpkg",
-            "plot_id",
-            "location",
-            locality_field="locality_name",
-            link_field=None,
-            occurrence_link_field=None,
-            hierarchy_config=None,
-        )
-
-    @patch("niamoto.core.services.importer.ShapeImporter.import_from_config")
-    def test_import_shapes(self, mock_import_from_config):
-        # Test the import_shapes method
-        mock_import_from_config.return_value = "Shapes import successful"
-
-        shapes_config = [
-            {"name": "shape1", "file": "shape1.shp"},
-            {"name": "shape2", "file": "shape2.shp"},
-        ]
-        result = self.importer_service.import_shapes(shapes_config)
-
-        self.assertEqual(result, "Shapes import successful")
-        mock_import_from_config.assert_called_once_with(shapes_config)
+    assert "Import completed successfully" in result
+    assert "entity_species" in result
+    assert "dataset_observations" in result
+    assert mock_engine.import_from_csv.call_count == 2
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_import_reference_invalid_empty_name(service):
+    """Test that empty entity name raises ValidationError."""
+    config = ReferenceEntityConfig(
+        connector=ConnectorConfig(type=ConnectorType.FILE, path="/tmp/test.csv"),
+        schema=EntitySchema(id_field="id", fields=[]),
+    )
+
+    with pytest.raises(ValidationError, match="Entity name cannot be empty"):
+        service.import_reference("", config)
+
+
+def test_import_dataset_invalid_empty_name(service):
+    """Test that empty entity name raises ValidationError."""
+    config = DatasetEntityConfig(
+        connector=ConnectorConfig(type=ConnectorType.FILE, path="/tmp/test.csv"),
+        schema=EntitySchema(id_field="id", fields=[]),
+    )
+
+    with pytest.raises(ValidationError, match="Entity name cannot be empty"):
+        service.import_dataset("", config)

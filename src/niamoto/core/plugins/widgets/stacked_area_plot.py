@@ -3,10 +3,11 @@ from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
 import plotly.graph_objects as go
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
 from niamoto.core.plugins.base import PluginType, WidgetPlugin, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -16,46 +17,103 @@ from niamoto.core.plugins.widgets.plotly_utils import (
 logger = logging.getLogger(__name__)
 
 
-class StackedAreaPlotParams(BaseModel):
+class StackedAreaPlotParams(BasePluginParams):
     """Parameters for the Stacked Area Plot widget."""
 
-    title: Optional[str] = None
-    description: Optional[str] = None
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create stacked area charts showing cumulative data over time or categories",
+            "examples": [
+                {
+                    "x_field": "date",
+                    "y_fields": ["series1", "series2", "series3"],
+                    "title": "Stacked Area Chart",
+                    "fill_type": "tonexty",
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None, description="Chart title", json_schema_extra={"ui:widget": "text"}
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Chart description",
+        json_schema_extra={"ui:widget": "textarea"},
+    )
     x_field: str = Field(
-        ..., description="Field name for the X-axis (usually dates/categories)."
+        ...,
+        description="Field name for the X-axis (usually dates/categories)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     y_fields: List[str] = Field(
-        ..., description="List of field names for each area series."
+        ...,
+        description="List of field names for each area series",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     colors: Optional[List[str]] = Field(
-        None, description="Colors for each series (must match y_fields length)."
+        default=None,
+        description="Colors for each series (must match y_fields length)",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "color"},
     )
     fill_type: str = Field(
-        "tonexty", description="Fill type for areas: 'tonexty', 'tozeroy', etc."
+        default="tonexty",
+        description="Fill type for areas",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "tonexty", "label": "To next Y (stacked)"},
+                {"value": "tozeroy", "label": "To zero Y (overlapping)"},
+                {"value": "tonextx", "label": "To next X"},
+                {"value": "tozerox", "label": "To zero X"},
+            ],
+        },
     )
     axis_titles: Optional[Dict[str, str]] = Field(
-        None, description="Custom axis titles {'x': 'X Label', 'y': 'Y Label'}"
+        default=None,
+        description="Custom axis titles {'x': 'X Label', 'y': 'Y Label'}",
+        json_schema_extra={"ui:widget": "json"},
     )
     hover_template: Optional[str] = Field(
-        None, description="Custom hover template (Plotly format)."
+        default=None,
+        description="Custom hover template (Plotly format)",
+        json_schema_extra={"ui:widget": "text"},
     )
     log_x: Optional[bool] = Field(
-        False, description="Use logarithmic scale for X-axis."
+        default=False,
+        description="Use logarithmic scale for X-axis",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     log_y: Optional[bool] = Field(
-        False, description="Use logarithmic scale for Y-axis."
+        default=False,
+        description="Use logarithmic scale for Y-axis",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     # New fields for data transformation
     transform: Optional[str] = Field(
-        None,
-        description="Type of transformation to apply to data: 'extract_series', 'unpivot', 'pivot', etc.",
+        default=None,
+        description="Type of transformation to apply to data",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": None, "label": "None"},
+                {"value": "extract_series", "label": "Extract Series"},
+                {"value": "unpivot", "label": "Unpivot"},
+                {"value": "pivot", "label": "Pivot"},
+            ],
+        },
     )
     transform_params: Optional[Dict[str, Any]] = Field(
-        None, description="Parameters for the transformation"
+        default=None,
+        description="Parameters for the transformation",
+        json_schema_extra={"ui:widget": "json"},
     )
     # Fields for field mappings
     field_mapping: Optional[Dict[str, str]] = Field(
-        None, description="Mapping from data fields to expected column names"
+        default=None,
+        description="Mapping from data fields to expected column names",
+        json_schema_extra={"ui:widget": "json"},
     )
 
 

@@ -1,31 +1,70 @@
 """Plugin for mapping class object values to a nested category structure."""
 
-from typing import Dict, Any
+from typing import Dict, Any, Literal, Optional
 
 import pandas as pd
-from pydantic import BaseModel, ValidationError
-from niamoto.core.plugins.models import PluginConfig
+from pydantic import BaseModel, Field, ConfigDict, ValidationError
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, register, PluginType
 from niamoto.common.exceptions import DataTransformError
 
 
 # Specific model for the mapping within each category
 class CategoryMappingDetail(BaseModel):
-    class_object: str
-    mapping: Dict[str, str]
+    """Details for mapping a class object to categories."""
+
+    class_object: str = Field(..., description="Class object name to extract from data")
+    mapping: Dict[str, str] = Field(
+        ..., description="Mapping from subcategory names to class names"
+    )
 
 
 # Specific model for the 'params' structure
-class CategoriesMapperParams(BaseModel):
-    categories: Dict[str, CategoryMappingDetail]
-    source: str | None = None
+class CategoriesMapperParams(BasePluginParams):
+    """Parameters for categories mapper plugin."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Map class object values to a nested category structure",
+            "examples": [
+                {
+                    "source": "shape_stats",
+                    "categories": {
+                        "forest": {
+                            "class_object": "holdridge_forest",
+                            "mapping": {
+                                "sec": "Sec",
+                                "humide": "Humide",
+                                "tres_humide": "Très Humide",
+                            },
+                        }
+                    },
+                }
+            ],
+        }
+    )
+
+    categories: Dict[str, CategoryMappingDetail] = Field(
+        ...,
+        description="Categories with their class object mappings",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    source: Optional[str] = Field(
+        default=None,
+        description="Transform source name (from transform.yml sources)",
+        json_schema_extra={
+            "ui:widget": "transform-source-select",
+            # Will dynamically load sources from current group_by context
+        },
+    )
 
 
 # Updated Config model
 class ClassObjectCategoriesMapperConfig(PluginConfig):
     """Configuration for categories mapper plugin"""
 
-    plugin: str = "class_object_categories_mapper"
+    plugin: Literal["class_object_categories_mapper"] = "class_object_categories_mapper"
     params: CategoriesMapperParams
 
 

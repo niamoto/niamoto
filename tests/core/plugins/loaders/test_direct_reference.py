@@ -5,7 +5,7 @@ Tests for the DirectReferenceLoader plugin.
 import unittest
 from unittest.mock import patch, MagicMock
 import pandas as pd
-from niamoto.common.exceptions import DatabaseError
+from niamoto.common.exceptions import DatabaseError, DatabaseQueryError
 from pydantic import ValidationError
 
 from niamoto.core.plugins.loaders.direct_reference import DirectReferenceLoader
@@ -20,8 +20,20 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         super().setUp()
         # Mock the database connection (as expected by Plugin.__init__)
         self.mock_db = MagicMock()
-        # Mock the engine attribute as it's used in tests
         self.mock_db.engine = MagicMock()
+        self.mock_db.has_table = MagicMock(return_value=True)
+        self.mock_db.get_table_columns = MagicMock()
+
+        registry_patch = patch(
+            "niamoto.core.plugins.loaders.direct_reference.EntityRegistry"
+        )
+        self.mock_registry_cls = registry_patch.start()
+        self.addCleanup(registry_patch.stop)
+        self.mock_registry = self.mock_registry_cls.return_value
+        self.mock_registry.get.side_effect = DatabaseQueryError(
+            query="registry_lookup", message="missing"
+        )
+
         self.loader = DirectReferenceLoader(db=self.mock_db)
 
     def test_validate_config_success(self):
@@ -29,26 +41,30 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         # --- Arrange ---
         config = {
             "plugin": "direct_reference",
-            "data": "main_table",
-            "grouping": "ref_table",
-            "key": "ref_key",
+            "params": {
+                "data": "main_table",
+                "grouping": "ref_table",
+                "key": "ref_key",
+            },
         }
 
         # --- Act ---
         validated_config = self.loader.validate_config(config)
 
         # --- Assert ---
-        self.assertEqual(validated_config.data, "main_table")
-        self.assertEqual(validated_config.grouping, "ref_table")
-        self.assertEqual(validated_config.key, "ref_key")
+        self.assertEqual(validated_config.params.data, "main_table")
+        self.assertEqual(validated_config.params.grouping, "ref_table")
+        self.assertEqual(validated_config.params.key, "ref_key")
 
     def test_validate_config_missing_key(self):
         """Test validation failure when 'key' key is missing."""
         # --- Arrange ---
         config = {
             "plugin": "direct_reference",
-            "data": "main_table",
-            "grouping": "ref_table",
+            "params": {
+                "data": "main_table",
+                "grouping": "ref_table",
+            },
         }
 
         # --- Act & Assert ---
@@ -58,26 +74,35 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         except ValidationError:
             pass  # Expected exception
 
-    @patch.object(DirectReferenceLoader, "_get_table_columns")
-    @patch.object(DirectReferenceLoader, "_check_table_exists")
     @patch("pandas.read_sql")
-    def test_load_data_success(
-        self, mock_pd_read_sql, mock_check_exists, mock_get_cols
-    ):
+    def test_load_data_success(self, mock_pd_read_sql):
         """Test successful data loading with load_data."""
         # --- Arrange ---
         test_group_id = 101
         test_config = {
             "plugin": "direct_reference",
-            "data": "main_data_table",
-            "grouping": "ref_group_table",
-            "key": "ref_id",
+            "params": {
+                "data": "main_data_table",
+                "grouping": "ref_group_table",
+                "key": "ref_id",
+            },
         }
         expected_df = pd.DataFrame({"col1": [1, 2], "ref_id": [101, 101]})
 
         # Mock helper methods
-        mock_check_exists.return_value = True
-        mock_get_cols.return_value = ["col1", "col2", "ref_id"]
+        self.mock_db.has_table.reset_mock()
+        self.mock_db.get_table_columns.reset_mock()
+
+        self.mock_db.has_table.side_effect = lambda name: True
+
+        def columns_for(name):
+            if name == "main_data_table":
+                return ["col1", "col2", "ref_id"]
+            if name == "ref_group_table":
+                return ["id", "name"]
+            return []
+
+        self.mock_db.get_table_columns.side_effect = columns_for
 
         # Mock pandas read_sql for the final data query
         mock_pd_read_sql.return_value = expected_df
@@ -87,10 +112,17 @@ class TestDirectReferenceLoader(NiamotoTestCase):
 
         # --- Assert ---
         # Check mocks
-        self.assertEqual(mock_check_exists.call_count, 2)
-        mock_check_exists.assert_any_call("main_data_table")
-        mock_check_exists.assert_any_call("ref_group_table")
-        mock_get_cols.assert_called_once_with("main_data_table")
+        self.assertEqual(self.mock_db.has_table.call_count, 2)
+        self.mock_db.has_table.assert_any_call("main_data_table")
+        self.mock_db.has_table.assert_any_call("ref_group_table")
+        expected_column_calls = [
+            (("main_data_table",), {}),
+            (("ref_group_table",), {}),
+            (("main_data_table",), {}),
+        ]
+        self.assertEqual(
+            self.mock_db.get_table_columns.call_args_list, expected_column_calls
+        )
 
         # Check pd.read_sql call
         expected_query = """
@@ -117,9 +149,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         test_group_id = 101
         test_config = {
             "plugin": "direct_reference",
-            # "data": "main_data_table", # Missing
-            "grouping": "ref_group_table",
-            "key": "ref_id",
+            "params": {
+                # "data": "main_data_table", # Missing
+                "grouping": "ref_group_table",
+                "key": "ref_id",
+            },
         }
 
         with self.assertRaisesRegex(ValueError, "No main table specified"):
@@ -134,9 +168,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         test_group_id = 101
         test_config = {
             "plugin": "direct_reference",
-            "data": "main_data_table",
-            # "grouping": "ref_group_table", # Missing
-            "key": "ref_id",
+            "params": {
+                "data": "main_data_table",
+                # "grouping": "ref_group_table", # Missing
+                "key": "ref_id",
+            },
         }
 
         with self.assertRaisesRegex(ValueError, "No reference table specified"):
@@ -145,25 +181,27 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         # Ensure read_sql was not called
         mock_pd_read_sql.assert_not_called()
 
-    @patch.object(DirectReferenceLoader, "_get_table_columns")
-    @patch.object(DirectReferenceLoader, "_check_table_exists")
     @patch("pandas.read_sql")
-    def test_load_data_main_table_not_exists(
-        self, mock_pd_read_sql, mock_check_exists, mock_get_cols
-    ):
+    def test_load_data_main_table_not_exists(self, mock_pd_read_sql):
         """Test DatabaseError if main table does not exist."""
         # --- Arrange ---
         test_group_id = 101
         main_table_name = "non_existent_main_table"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": "ref_group_table",
-            "key": "ref_id",
+            "params": {
+                "data": main_table_name,
+                "grouping": "ref_group_table",
+                "key": "ref_id",
+            },
         }
 
         # Mock _check_table_exists to return False for the main table
-        mock_check_exists.return_value = False
+        self.mock_db.has_table.reset_mock()
+        self.mock_db.get_table_columns.reset_mock()
+        self.mock_db.has_table.side_effect = (
+            lambda name: False if name == main_table_name else True
+        )
 
         # --- Act & Assert ---
         with self.assertRaisesRegex(
@@ -172,16 +210,12 @@ class TestDirectReferenceLoader(NiamotoTestCase):
             self.loader.load_data(test_group_id, test_config)
 
         # Verify mocks
-        mock_check_exists.assert_called_once_with(main_table_name)
-        mock_get_cols.assert_not_called()  # Should fail before getting columns
+        self.mock_db.has_table.assert_any_call(main_table_name)
+        self.mock_db.get_table_columns.assert_not_called()
         mock_pd_read_sql.assert_not_called()  # Should fail before reading SQL
 
-    @patch.object(DirectReferenceLoader, "_get_table_columns")
-    @patch.object(DirectReferenceLoader, "_check_table_exists")
     @patch("pandas.read_sql")
-    def test_load_data_ref_table_not_exists(
-        self, mock_pd_read_sql, mock_check_exists, mock_get_cols
-    ):
+    def test_load_data_ref_table_not_exists(self, mock_pd_read_sql):
         """Test DatabaseError if reference table does not exist."""
         # --- Arrange ---
         test_group_id = 101
@@ -189,13 +223,28 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         ref_table_name = "non_existent_ref_table"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": ref_table_name,
-            "key": "ref_id",
+            "params": {
+                "data": main_table_name,
+                "grouping": ref_table_name,
+                "key": "ref_id",
+            },
         }
 
         # Mock _check_table_exists: True for main, False for ref
-        mock_check_exists.side_effect = lambda table_name: table_name == main_table_name
+        self.mock_db.has_table.reset_mock()
+        self.mock_db.get_table_columns.reset_mock()
+
+        def has_table(name):
+            if name == main_table_name:
+                return True
+            if name == ref_table_name:
+                return False
+            return True
+
+        self.mock_db.has_table.side_effect = has_table
+        self.mock_db.get_table_columns.side_effect = (
+            lambda name: ["col1", "col2", "ref_id"] if name == main_table_name else []
+        )
 
         # --- Act & Assert ---
         with self.assertRaisesRegex(
@@ -204,18 +253,17 @@ class TestDirectReferenceLoader(NiamotoTestCase):
             self.loader.load_data(test_group_id, test_config)
 
         # Verify mocks
-        self.assertEqual(mock_check_exists.call_count, 2)
-        mock_check_exists.assert_any_call(main_table_name)
-        mock_check_exists.assert_any_call(ref_table_name)
-        mock_get_cols.assert_not_called()  # Should fail before getting columns
+        self.assertEqual(self.mock_db.has_table.call_count, 2)
+        self.mock_db.has_table.assert_any_call(main_table_name)
+        self.mock_db.has_table.assert_any_call(ref_table_name)
+        self.assertEqual(
+            self.mock_db.get_table_columns.call_args_list,
+            [((main_table_name,), {})],
+        )
         mock_pd_read_sql.assert_not_called()  # Should fail before reading SQL
 
-    @patch.object(DirectReferenceLoader, "_get_table_columns")
-    @patch.object(DirectReferenceLoader, "_check_table_exists")
     @patch("pandas.read_sql")
-    def test_load_data_key_not_in_main_table(
-        self, mock_pd_read_sql, mock_check_exists, mock_get_cols
-    ):
+    def test_load_data_key_not_in_main_table(self, mock_pd_read_sql):
         """Test DatabaseError if key field is not in main table columns."""
         # --- Arrange ---
         test_group_id = 101
@@ -224,17 +272,27 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         key_field_name = "non_existent_key"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": ref_table_name,
-            "key": key_field_name,
+            "params": {
+                "data": main_table_name,
+                "grouping": ref_table_name,
+                "key": key_field_name,
+            },
         }
 
         # Mock table checks (both exist)
-        mock_check_exists.return_value = True
+        self.mock_db.has_table.reset_mock()
+        self.mock_db.get_table_columns.reset_mock()
 
-        # Mock get_table_columns to return columns *without* the key
-        main_table_columns = ["col1", "col2", "another_id"]
-        mock_get_cols.return_value = main_table_columns
+        self.mock_db.has_table.side_effect = lambda name: True
+
+        def columns_for(name):
+            if name == main_table_name:
+                return ["col1", "col2", "another_id"]
+            if name == ref_table_name:
+                return ["id", "name"]
+            return []
+
+        self.mock_db.get_table_columns.side_effect = columns_for
 
         # --- Act & Assert ---
         expected_error_msg = (
@@ -244,18 +302,17 @@ class TestDirectReferenceLoader(NiamotoTestCase):
             self.loader.load_data(test_group_id, test_config)
 
         # Verify mocks
-        self.assertEqual(mock_check_exists.call_count, 2)  # Checks main and ref
-        mock_check_exists.assert_any_call(main_table_name)
-        mock_check_exists.assert_any_call(ref_table_name)
-        mock_get_cols.assert_called_once_with(main_table_name)
+        self.assertEqual(self.mock_db.has_table.call_count, 2)
+        expected_calls = [
+            ((main_table_name,), {}),
+            ((ref_table_name,), {}),
+            ((main_table_name,), {}),
+        ]
+        self.assertEqual(self.mock_db.get_table_columns.call_args_list, expected_calls)
         mock_pd_read_sql.assert_not_called()  # Should fail before reading SQL
 
-    @patch.object(DirectReferenceLoader, "_get_table_columns")
-    @patch.object(DirectReferenceLoader, "_check_table_exists")
     @patch("pandas.read_sql")
-    def test_load_data_read_sql_error(
-        self, mock_pd_read_sql, mock_check_exists, mock_get_cols
-    ):
+    def test_load_data_read_sql_error(self, mock_pd_read_sql):
         """Test DatabaseError if pd.read_sql fails."""
         # --- Arrange ---
         test_group_id = 101
@@ -264,14 +321,26 @@ class TestDirectReferenceLoader(NiamotoTestCase):
         key_field_name = "ref_id"
         test_config = {
             "plugin": "direct_reference",
-            "data": main_table_name,
-            "grouping": ref_table_name,
-            "key": key_field_name,
+            "params": {
+                "data": main_table_name,
+                "grouping": ref_table_name,
+                "key": key_field_name,
+            },
         }
 
         # Mocks for successful checks
-        mock_check_exists.return_value = True
-        mock_get_cols.return_value = ["colA", "colB", key_field_name]
+        self.mock_db.has_table.reset_mock()
+        self.mock_db.get_table_columns.reset_mock()
+        self.mock_db.has_table.side_effect = lambda name: True
+
+        def columns_for(name):
+            if name == main_table_name:
+                return ["colA", "colB", key_field_name]
+            if name == ref_table_name:
+                return ["id", "name"]
+            return []
+
+        self.mock_db.get_table_columns.side_effect = columns_for
 
         # Mock pd.read_sql to raise DatabaseError
         mock_pd_read_sql.side_effect = DatabaseError("SQL query failed")
@@ -281,8 +350,13 @@ class TestDirectReferenceLoader(NiamotoTestCase):
             self.loader.load_data(test_group_id, test_config)
 
         # Verify mocks
-        self.assertEqual(mock_check_exists.call_count, 2)
-        mock_get_cols.assert_called_once_with(main_table_name)
+        self.assertEqual(self.mock_db.has_table.call_count, 2)
+        expected_calls = [
+            ((main_table_name,), {}),
+            ((ref_table_name,), {}),
+            ((main_table_name,), {}),
+        ]
+        self.assertEqual(self.mock_db.get_table_columns.call_args_list, expected_calls)
         mock_pd_read_sql.assert_called_once()  # Should be called this time
 
 

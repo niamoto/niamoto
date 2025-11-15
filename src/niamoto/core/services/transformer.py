@@ -2,7 +2,7 @@
 Service for transforming data based on YAML configuration.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 import logging
 import difflib
 import json
@@ -11,6 +11,8 @@ import pandas as pd
 from datetime import datetime
 from rich.console import Console
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql import quoted_name
+from pydantic import ValidationError as PydanticValidationError
 from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.exceptions import (
@@ -20,31 +22,42 @@ from niamoto.common.exceptions import (
     DatabaseWriteError,
     JSONEncodeError,
     DataTransformError,
+    DatabaseQueryError,
 )
 from niamoto.common.utils import error_handler
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
+from niamoto.core.imports.registry import EntityRegistry
 
 # Check if we're in CLI context for progress display
 try:
     from niamoto.cli.utils.progress import ProgressManager
     from niamoto.cli.utils.metrics import OperationMetrics, MetricsCollector
 
-    CLI_CONTEXT = True
+    CLI_DETECTED = True
 except ImportError:
-    CLI_CONTEXT = False
+    CLI_DETECTED = False
     ProgressManager = None
     OperationMetrics = None
     MetricsCollector = None
 
 logger = logging.getLogger(__name__)
 
+# Backward compatibility toggle expected by tests and legacy code
+CLI_CONTEXT = CLI_DETECTED
+
 
 class TransformerService:
     """Service for transforming data based on YAML configuration."""
 
-    def __init__(self, db_path: str, config: Config):
+    def __init__(
+        self,
+        db_path: str,
+        config: Config,
+        *,
+        enable_cli_integration: bool | None = None,
+    ):
         """
         Initialize the service.
 
@@ -57,6 +70,9 @@ class TransformerService:
         self.transforms_config = config.get_transforms_config()
         self.console = Console()
         self.transform_metrics = None  # Store metrics for CLI access
+        if enable_cli_integration is None:
+            enable_cli_integration = CLI_CONTEXT
+        self.use_cli_integration = bool(enable_cli_integration)
 
         # Initialize plugin loader and load plugins
         self.plugin_loader = PluginLoader()
@@ -65,12 +81,16 @@ class TransformerService:
         # Load project plugins if any exist
         self.plugin_loader.load_project_plugins(config.plugins_dir)
 
+        # Registry is used for entity lookups across transform/export
+        self.entity_registry = EntityRegistry(self.db)
+
     @error_handler(log=True, raise_error=True)
     def transform_data(
         self,
         group_by: Optional[str] = None,
         csv_file: Optional[str] = None,
         recreate_table: bool = True,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """
         Transform data according to the configuration.
@@ -88,7 +108,7 @@ class TransformerService:
             ProcessError: If the transformation fails
         """
         # Initialize metrics collection
-        if CLI_CONTEXT and OperationMetrics:
+        if self.use_cli_integration and OperationMetrics:
             self.transform_metrics = OperationMetrics("transform")
 
         # Initialize results collection
@@ -98,17 +118,17 @@ class TransformerService:
         configs = self._filter_configs(group_by)
 
         try:
-            if CLI_CONTEXT and ProgressManager:
+            if self.use_cli_integration and ProgressManager:
                 # Use unified progress manager when in CLI context
                 progress_manager = ProgressManager(self.console)
                 with progress_manager.progress_context() as pm:
                     results = self._process_configs_with_progress(
-                        configs, csv_file, recreate_table, pm
+                        configs, csv_file, recreate_table, pm, progress_callback
                     )
             else:
                 # Fallback to simple processing without progress bars
                 results = self._process_configs_simple(
-                    configs, csv_file, recreate_table
+                    configs, csv_file, recreate_table, progress_callback
                 )
         except Exception as e:
             if self.transform_metrics:
@@ -121,7 +141,12 @@ class TransformerService:
         return results
 
     def _process_configs_with_progress(
-        self, configs, csv_file, recreate_table, progress_manager
+        self,
+        configs,
+        csv_file,
+        recreate_table,
+        progress_manager,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     ):
         """Process configurations with progress display using ProgressManager only."""
         results = {}
@@ -185,7 +210,7 @@ class TransformerService:
                         # Load the transformation plugin
                         transformer = PluginRegistry.get_plugin(
                             widget_config["plugin"], PluginType.TRANSFORMER
-                        )(self.db)
+                        )(self.db, registry=self.entity_registry)
 
                         # Transform the data
                         config = {
@@ -218,6 +243,10 @@ class TransformerService:
                             # Plugins can access them via config['available_sources']
                             data_to_pass = group_data
 
+                        self._validate_plugin_configuration(
+                            transformer, config, widget_config["plugin"]
+                        )
+
                         widget_results = transformer.transform(data_to_pass, config)
 
                         # Save the results
@@ -244,6 +273,15 @@ class TransformerService:
 
                     # Update progress
                     progress_manager.update_task(task_name, advance=1)
+                    if progress_callback:
+                        progress_callback(
+                            {
+                                "group": group_by_name,
+                                "widget": widget_name,
+                                "processed": None,
+                                "total": None,
+                            }
+                        )
 
             # Update final widget count for this group
             if self.transform_metrics:
@@ -263,10 +301,27 @@ class TransformerService:
 
         return results
 
-    def _process_configs_simple(self, configs, csv_file, recreate_table):
+    def _process_configs_simple(
+        self,
+        configs,
+        csv_file,
+        recreate_table,
+        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ):
         """Process configurations without progress display (fallback)."""
         results = {}
         start_time = datetime.now()
+
+        total_ops = 0
+        try:
+            for group_config in configs:
+                group_ids = self._get_group_ids(group_config)
+                widgets_config = group_config.get("widgets_data", {})
+                total_ops += len(group_ids) * max(len(widgets_config), 1)
+        except Exception:
+            total_ops = 0
+
+        processed_ops = 0
 
         for group_config in configs:
             # Validate the configuration
@@ -299,7 +354,7 @@ class TransformerService:
                         # Load the transformation plugin
                         transformer = PluginRegistry.get_plugin(
                             widget_config["plugin"], PluginType.TRANSFORMER
-                        )(self.db)
+                        )(self.db, registry=self.entity_registry)
 
                         # Transform the data
                         config = {
@@ -332,6 +387,10 @@ class TransformerService:
                             # Plugins can access them via config['available_sources']
                             data_to_pass = group_data
 
+                        self._validate_plugin_configuration(
+                            transformer, config, widget_config["plugin"]
+                        )
+
                         widget_results = transformer.transform(data_to_pass, config)
 
                         # Save the results
@@ -359,6 +418,17 @@ class TransformerService:
                             and "No data found" in str(e)
                         ):
                             self.console.print(f"[yellow]⚠ {error_msg}[/yellow]")
+
+                    processed_ops += 1
+                    if progress_callback and total_ops:
+                        progress_callback(
+                            {
+                                "group": group_by_name,
+                                "widget": widget_name,
+                                "processed": processed_ops,
+                                "total": total_ops,
+                            }
+                        )
 
             # Update results with final metrics
             results[group_by_name]["widgets_generated"] = widgets_generated
@@ -435,6 +505,44 @@ class TransformerService:
 
         return filtered
 
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Return physical table name using the entity registry if available."""
+
+        try:
+            metadata = self.entity_registry.get(logical_name)
+            return metadata.table_name
+        except (DatabaseQueryError, AttributeError, KeyError) as exc:
+            logger.debug(
+                "Falling back to logical table name '%s' (registry lookup failed: %s)",
+                logical_name,
+                exc,
+            )
+            return logical_name
+
+    def _validate_plugin_configuration(
+        self, transformer: Any, config: Dict[str, Any], plugin_name: str
+    ) -> None:
+        """Validate plugin configuration before execution."""
+
+        try:
+            if hasattr(transformer, "validate_config"):
+                transformer.validate_config(config)
+                return
+
+            config_model = getattr(transformer, "config_model", None)
+            if config_model is not None:
+                config_model(**config)
+        except PydanticValidationError as exc:
+            raise DataTransformError(
+                f"Invalid parameters for transformer '{plugin_name}'",
+                details={"errors": exc.errors()},
+            ) from exc
+        except Exception as exc:
+            raise DataTransformError(
+                f"Invalid parameters for transformer '{plugin_name}'",
+                details={"error": str(exc)},
+            ) from exc
+
     def validate_configuration(self, config: Dict[str, Any]) -> None:
         """
         Validate transformation configuration.
@@ -507,19 +615,53 @@ class TransformerService:
             raise DataTransformError("No sources configured")
 
         grouping_table = sources[0]["grouping"]
+        resolved_table = self._resolve_table_name(grouping_table)
+
+        # Get the ID field name from entity metadata
+        id_field = "id"  # Default
+        try:
+            metadata = self.entity_registry.get(grouping_table)
+            id_field = metadata.config.get("schema", {}).get("id_field", "id")
+        except (DatabaseQueryError, AttributeError, KeyError) as exc:
+            logger.debug(
+                "Falling back to default id field for grouping '%s': %s",
+                grouping_table,
+                exc,
+            )
+
+        # Validate identifier names to prevent SQL injection
+        if not resolved_table.replace("_", "").replace(".", "").isalnum():
+            raise DataTransformError(
+                f"Invalid table name: {resolved_table}",
+                details={"table": resolved_table},
+            )
+        if not id_field.replace("_", "").isalnum():
+            raise DataTransformError(
+                f"Invalid field name: {id_field}",
+                details={"field": id_field},
+            )
+
+        quoted_table = str(quoted_name(resolved_table, quote=True))
+        quoted_column = str(quoted_name(id_field, quote=True))
 
         query = f"""
-            SELECT DISTINCT id
-            FROM {grouping_table}
-            ORDER BY id
+            SELECT DISTINCT {quoted_column}
+            FROM {quoted_table}
+            ORDER BY {quoted_column}
         """
 
         try:
-            result = self.db.execute_sql(query)
-            return [row[0] for row in result]
+            rows = self.db.execute_sql(query, fetch_all=True)
+            return [row[0] for row in rows]
         except Exception as e:
             raise DataTransformError(
-                "Failed to get group IDs", details={"error": str(e)}
+                "Failed to get group IDs",
+                details={
+                    "error": str(e),
+                    "table": resolved_table,
+                    "id_field": id_field,
+                    "query": query,
+                },
             ) from e
 
     def _get_group_data(
@@ -530,7 +672,7 @@ class TransformerService:
         Returns:
             Dict[str, pd.DataFrame]: Dictionary mapping source names to their data.
                 Each source name corresponds to a configured source.
-                The grouping table (e.g., 'taxon_ref', 'plot_ref') is always included.
+                The grouping table (e.g., 'taxonomy', 'plots', 'shapes') is always included.
         """
         if csv_file:
             # For CSV file, return with generic name
@@ -547,7 +689,7 @@ class TransformerService:
 
             try:
                 plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.LOADER)
-                loader = plugin_class(self.db)
+                loader = plugin_class(self.db, registry=self.entity_registry)
             except Exception as e:
                 raise DataTransformError(
                     f"Failed to get loader for source '{source_name}'",
@@ -555,39 +697,23 @@ class TransformerService:
                 ) from e
 
             # Load data for this source
+            # Resolve table names through entity registry before passing to loader
+            resolved_data = self._resolve_table_name(source_config["data"])
+            resolved_grouping = self._resolve_table_name(source_config["grouping"])
+
+            # Pass both logical and resolved names to allow plugins to use either
             data_sources[source_name] = loader.load_data(
                 group_id,
                 {
-                    "data": source_config["data"],
-                    "grouping": source_config["grouping"],
+                    "data": resolved_data,
+                    "grouping": resolved_grouping,
+                    "logical_data": source_config["data"],
+                    "logical_grouping": source_config[
+                        "grouping"
+                    ],  # Keep original logical name
                     **source_config["relation"],
                 },
             )
-
-        # Always include the grouping table (reference table) for backward compatibility
-        # This allows plugins to access taxon_ref, plot_ref, etc. directly
-        if sources:
-            grouping_table = sources[0]["grouping"]
-            if grouping_table not in data_sources:
-                # Load the reference table data directly
-                query = f"SELECT * FROM {grouping_table} WHERE id = {group_id}"
-                try:
-                    result = self.db.execute_sql(query)
-                    # Convert to DataFrame
-                    if result.returns_rows:
-                        columns = [col[0] for col in result.cursor.description]
-                        rows = result.fetchall()
-                        if rows:
-                            data_sources[grouping_table] = pd.DataFrame(
-                                rows, columns=columns
-                            )
-                        else:
-                            data_sources[grouping_table] = pd.DataFrame()
-                except Exception as e:
-                    # Log warning but don't fail - the reference table might not be needed
-                    logger.warning(
-                        f"Could not load reference table {grouping_table}: {e}"
-                    )
 
         return data_sources
 
@@ -606,14 +732,21 @@ class TransformerService:
                 """
                 self.db.execute_sql(drop_table_sql)
 
+            # Use 'id' as primary key to match the entity table's id field
+            # This allows transformations for all hierarchy levels (families, genera, species)
+            # not just those with external IDs (e.g., taxonomy_id)
             create_table_sql = f"""
             CREATE TABLE IF NOT EXISTS {group_by} (
-                {group_by}_id INTEGER PRIMARY KEY,
+                {group_by}_id BIGINT PRIMARY KEY,
                 {", ".join(columns)}
             )
             """
 
             self.db.execute_sql(create_table_sql)
+
+            # Create indexes on the dynamically created transform table
+            # Index the primary key and any common columns
+            self.db.create_indexes_for_table(group_by)
 
         except Exception as e:
             raise DataTransformError(

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { FileUpload } from '@/components/import-wizard/FileUpload'
+import { MultiFileUpload } from '@/components/import-wizard/MultiFileUpload'
 import { ColumnMapper } from '@/components/import-wizard/ColumnMapper'
 import { PlotHierarchyConfig } from './components/PlotHierarchyConfig'
 import { analyzeFile } from '@/lib/api/import'
@@ -14,7 +15,9 @@ import {
   Info,
   Plus,
   Trash2,
-  CheckCircle
+  CheckCircle,
+  Loader2,
+  AlertCircle
 } from 'lucide-react'
 
 export function AggregationStep() {
@@ -90,6 +93,23 @@ export function AggregationStep() {
     }
   }
 
+  const handleMultipleShapeFiles = async (files: File[]) => {
+    // Add shapes for each file
+    const currentShapesCount = shapes?.length || 0
+
+    // Create a shape entry for each file
+    for (let i = 0; i < files.length; i++) {
+      addShape()
+    }
+
+    // Process each file
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const index = currentShapesCount + i
+      await handleShapeFileSelect(file, index)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -115,7 +135,7 @@ export function AggregationStep() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!plots?.file ? (
+          {!plots?.file && !plots?.fileAnalysis?.fromConfig ? (
             <FileUpload
               onFileSelect={handlePlotFileSelect}
               acceptedFormats={['.csv']}
@@ -124,11 +144,25 @@ export function AggregationStep() {
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20 flex-1">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <AlertDescription>
-                    {t('common:file.loaded', { fileName: plots.file.name })}
-                  </AlertDescription>
+                <Alert className={plots?.fileAnalysis?.fromConfig ? "border-blue-200 bg-blue-50 dark:bg-blue-900/20 flex-1" : "border-green-200 bg-green-50 dark:bg-green-900/20 flex-1"}>
+                  {plots?.fileAnalysis?.fromConfig ? (
+                    <>
+                      <Info className="w-4 h-4 text-blue-600" />
+                      <AlertDescription>
+                        <div className="space-y-1">
+                          <div>Configuration loaded from: <span className="font-medium">{plots?.fileAnalysis?.configInfo?.path}</span></div>
+                          <div className="text-xs text-muted-foreground">Please re-upload the file to continue or keep existing configuration</div>
+                        </div>
+                      </AlertDescription>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <AlertDescription>
+                        {t('common:file.loaded', { fileName: plots.file?.name || 'Unknown' })}
+                      </AlertDescription>
+                    </>
+                  )}
                 </Alert>
                 <Button
                   variant="outline"
@@ -146,17 +180,49 @@ export function AggregationStep() {
                 </Button>
               </div>
 
-              {plots.fileAnalysis && (
-                <ColumnMapper
-                  importType="plots"
-                  fileAnalysis={{
-                    ...plots.fileAnalysis,
-                    occurrenceColumns: occurrences.fileAnalysis?.columns || []
-                  }}
-                  onMappingComplete={(mappings) => {
-                    updatePlots({ fieldMappings: mappings })
-                  }}
-                />
+              {(plots.fileAnalysis || plots.fieldMappings) && (
+                plots.fileAnalysis?.fromConfig ? (
+                  <div className="space-y-3">
+                    <h3 className="font-medium text-sm">Current field mappings:</h3>
+                    <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                      {Object.entries(plots.fieldMappings || {}).map(([key, value]) => (
+                        <div key={key} className="flex justify-between text-sm">
+                          <span className="font-medium">{key}:</span>
+                          <span className="text-muted-foreground">{value as string}</span>
+                        </div>
+                      ))}
+                      {plots.linkField && (
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium">link_field:</span>
+                          <span className="text-muted-foreground">{plots.linkField}</span>
+                        </div>
+                      )}
+                      {plots.occurrenceLinkField && (
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium">occurrence_link_field:</span>
+                          <span className="text-muted-foreground">{plots.occurrenceLinkField}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <ColumnMapper
+                    importType="plots"
+                    fileAnalysis={{
+                      ...plots.fileAnalysis,
+                      occurrenceColumns: occurrences.fileAnalysis?.columns || []
+                    }}
+                    onMappingComplete={(mappings) => {
+                      // Preserve link fields when updating mappings
+                      const fullMappings = {
+                        ...mappings,
+                        ...(plots.linkField && { link_field: plots.linkField }),
+                        ...(plots.occurrenceLinkField && { occurrence_link_field: plots.occurrenceLinkField })
+                      }
+                      updatePlots({ fieldMappings: fullMappings })
+                    }}
+                  />
+                )
               )}
             </div>
           )}
@@ -173,118 +239,230 @@ export function AggregationStep() {
       )}
 
       {/* Shapes configuration */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Map className="w-5 h-5" />
-              {t('aggregations.shapes.title')}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {t('aggregations.shapes.description')}
-            </p>
-          </div>
-          <Button onClick={addShape} size="sm" variant="outline">
-            <Plus className="w-4 h-4 mr-2" />
-            {t('aggregations.shapes.addShape')}
-          </Button>
-        </div>
-
-        {(!shapes || shapes.length === 0) && (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              {t('aggregations.shapes.noShapes')}
-            </CardContent>
-          </Card>
-        )}
-
-        {shapes?.map((shape, index) => (
-          <Card key={index}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">
-                  {t('aggregations.shapes.shapeNumber', { number: index + 1 })}
-                </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeShape(index)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Map className="w-5 h-5" />
+            {t('aggregations.shapes.title')}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            {t('aggregations.shapes.description')}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {(!shapes || shapes.length === 0) ? (
+            <>
+              <MultiFileUpload
+                onFilesSelect={handleMultipleShapeFiles}
+                acceptedFormats={['.shp', '.geojson', '.json', '.gpkg', '.zip']}
+                isAnalyzing={Object.values(isAnalyzing).some(v => v)}
+              />
+              <Alert>
+                <Info className="w-4 h-4" />
+                <AlertDescription>
+                  You can select multiple shape files at once. Each file will be processed as a separate shape layer.
+                </AlertDescription>
+              </Alert>
+            </>
+          ) : (
+            <div className="space-y-4">
+              {shapes.some(s => s.fileAnalysis && (!s.fieldMappings?.type || !s.fieldMappings?.name)) && (
+                <Alert className="mb-4">
+                  <AlertCircle className="w-4 h-4" />
+                  <AlertDescription>
+                    Some shapes are missing required field mappings (type and name). Please map these fields before proceeding.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-muted-foreground">
+                  {shapes.length} file{shapes.length > 1 ? 's' : ''} loaded
+                </p>
+                <div className="space-x-2">
+                  <Button
+                    onClick={() => {
+                      // Clear all shapes
+                      const count = shapes.length
+                      for (let i = 0; i < count; i++) {
+                        removeShape(0)
+                      }
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Clear All
+                  </Button>
+                  <Button onClick={addShape} size="sm" variant="outline">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add More
+                  </Button>
+                </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!shape.file ? (
-                <FileUpload
-                  onFileSelect={(file: File) => handleShapeFileSelect(file, index)}
-                  acceptedFormats={['.shp', '.geojson', '.json', '.gpkg', '.zip']}
-                  isAnalyzing={isAnalyzing[`shape-${index}`]}
-                />
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20 flex-1">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <AlertDescription>
-                        Fichier chargé : {shape.file.name}
-                      </AlertDescription>
-                    </Alert>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-2"
-                      onClick={() => updateShapes(index, {
-                        file: null,
-                        fileAnalysis: null,
-                        fieldMappings: {},
-                        type: ''
-                      })}
-                    >
-                      {t('aggregations.plots.changeFile')}
-                    </Button>
-                  </div>
+
+              {shapes.map((shape, index) => {
+                const hasRequiredFields = shape.fieldMappings?.type && shape.fieldMappings?.name
+                const isFromConfig = shape.fileAnalysis?.fromConfig
+
+                return (
+                  <Card key={index} className="relative">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {isFromConfig ? (
+                            <Info className="w-4 h-4 text-blue-600" />
+                          ) : hasRequiredFields ? (
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-orange-500" />
+                          )}
+                          <span className="font-medium text-sm">
+                            {isFromConfig ? (
+                              shape.fileAnalysis?.configInfo?.path || `Shape ${index + 1}`
+                            ) : (
+                              shape.file?.name || `Shape ${index + 1}`
+                            )}
+                          </span>
+                          {!hasRequiredFields && shape.fileAnalysis && !isFromConfig && (
+                            <span className="text-xs text-orange-500">(Missing required fields)</span>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeShape(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+
+                  {shape.file && !shape.fileAnalysis && isAnalyzing[`shape-${index}`] && (
+                    <CardContent>
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Analyzing...</span>
+                      </div>
+                    </CardContent>
+                  )}
 
                   {shape.fileAnalysis && (
-                    <ColumnMapper
-                      importType="shapes"
-                      fileAnalysis={shape.fileAnalysis}
-                      onMappingComplete={(mappings) => {
-                        // Only update if mappings have actually changed
-                        const currentMappings = shape.fieldMappings || {}
-                        const hasChanged = Object.keys(mappings).some(
-                          key => mappings[key] !== currentMappings[key]
-                        ) || Object.keys(currentMappings).some(
-                          key => mappings[key] !== currentMappings[key]
-                        )
+                    <CardContent className="space-y-4 pt-0">
+                      {shape.fileAnalysis.fromConfig ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <Alert className="border-blue-200 bg-blue-50/50 dark:bg-blue-900/20 flex-1">
+                              <Info className="w-4 h-4" />
+                              <AlertDescription>
+                                <div className="text-xs">
+                                  Configuration loaded. Re-upload the file to update or keep existing settings.
+                                </div>
+                              </AlertDescription>
+                            </Alert>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="ml-2"
+                              onClick={() => {
+                                // Reset the shape to allow re-upload
+                                updateShapes(index, {
+                                  file: null,
+                                  fileAnalysis: null,
+                                  // Keep existing mappings
+                                  fieldMappings: shape.fieldMappings,
+                                  properties: shape.properties
+                                })
+                              }}
+                            >
+                              Change File
+                            </Button>
+                          </div>
+                          <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+                            <div className="text-sm font-medium mb-2">Field mappings:</div>
+                            {Object.entries(shape.fieldMappings || {}).map(([key, value]) => (
+                              <div key={key} className="flex justify-between text-sm">
+                                <span className="font-medium">{key}:</span>
+                                <span className="text-muted-foreground">{value as string}</span>
+                              </div>
+                            ))}
+                            {shape.properties && shape.properties.length > 0 && (
+                              <>
+                                <div className="text-sm font-medium mt-3 mb-1">Properties:</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {shape.properties.join(', ')}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex justify-end mb-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Reset the shape to allow re-upload
+                                updateShapes(index, {
+                                  file: null,
+                                  fileAnalysis: null,
+                                  fieldMappings: {},
+                                  properties: []
+                                })
+                              }}
+                            >
+                              Change File
+                            </Button>
+                          </div>
+                          <ColumnMapper
+                            importType="shapes"
+                            fileAnalysis={shape.fileAnalysis}
+                            onMappingComplete={(mappings) => {
+                              const currentMappings = shape.fieldMappings || {}
+                              const hasChanged = Object.keys(mappings).some(
+                                key => mappings[key] !== currentMappings[key]
+                              ) || Object.keys(currentMappings).some(
+                                key => mappings[key] !== currentMappings[key]
+                              )
 
-                        if (hasChanged) {
-                          updateShapes(index, { fieldMappings: mappings })
-                        }
-                      }}
-                    />
+                              if (hasChanged) {
+                                updateShapes(index, { fieldMappings: mappings })
+                              }
+                            }}
+                          />
+                        </>
+                      )}
+
+                      {shape.fileAnalysis.summary && !shape.fileAnalysis.fromConfig && (
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">{t('aggregations.shapes.featureCount')}:</span>
+                            <span className="font-medium">{shape.fileAnalysis.summary.feature_count}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">{t('aggregations.shapes.crs')}:</span>
+                            <span className="font-medium">{shape.fileAnalysis.summary.crs}</span>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
                   )}
 
-                  {shape.fileAnalysis?.summary && (
-                    <Alert>
-                      <AlertDescription className="space-y-1">
-                        <div className="flex justify-between">
-                          <span>{t('aggregations.shapes.featureCount')}</span>
-                          <span className="font-medium">{shape.fileAnalysis.summary.feature_count}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>{t('aggregations.shapes.crs')}</span>
-                          <span className="font-medium">{shape.fileAnalysis.summary.crs}</span>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
+                  {!shape.file && !shape.fileAnalysis && (
+                    <CardContent>
+                      <FileUpload
+                        onFileSelect={(file: File) => handleShapeFileSelect(file, index)}
+                        acceptedFormats={['.shp', '.geojson', '.json', '.gpkg', '.zip']}
+                        isAnalyzing={isAnalyzing[`shape-${index}`]}
+                      />
+                    </CardContent>
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

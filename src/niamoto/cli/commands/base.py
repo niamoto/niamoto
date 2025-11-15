@@ -63,11 +63,7 @@ def get_version_from_pyproject() -> str:
             )
 
         try:
-            # Use appropriate TOML parser based on Python version
-            try:
-                import tomllib  # Python 3.11+
-            except ImportError:
-                import tomli as tomllib  # Python 3.10 and earlier
+            import tomllib  # Python 3.11+
 
             with pyproject_path.open("rb") as f:
                 pyproject_data = tomllib.load(f)

@@ -5,9 +5,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import topojson
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     get_plotly_dependencies,
     render_plotly_figure,
@@ -18,91 +19,193 @@ from niamoto.core.plugins.widgets.plotly_utils import (
 logger = logging.getLogger(__name__)
 
 
-class InteractiveMapParams(BaseModel):
+class InteractiveMapParams(BasePluginParams):
     """Parameters for the interactive map widget."""
 
-    title: Optional[str] = Field(None, description="Title to display above the map")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create interactive maps with scatter points, choropleth regions, and multi-layer support",
+            "examples": [
+                {
+                    "latitude_field": "latitude",
+                    "longitude_field": "longitude",
+                    "map_type": "scatter_map",
+                    "title": "Location Map",
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        description="Title to display above the map",
+        json_schema_extra={"ui:widget": "text"},
+    )
     description: Optional[str] = Field(
-        None, description="Description to display below the title"
+        default=None,
+        description="Description to display below the title",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     geojson_source: Optional[str] = Field(
-        None, description="Field containing GeoJSON geometry or reference."
+        default=None,
+        description="Field containing GeoJSON geometry or reference",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     latitude_field: Optional[str] = Field(
-        None, description="Field name for latitude (used if no GeoJSON)."
+        default=None,
+        description="Field name for latitude (used if no GeoJSON)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     longitude_field: Optional[str] = Field(
-        None, description="Field name for longitude (used if no GeoJSON)."
+        default=None,
+        description="Field name for longitude (used if no GeoJSON)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     location_field: Optional[str] = Field(
-        None,
-        description="Field for identifying locations (used in choropleth/scatter hover).",
+        default=None,
+        description="Field for identifying locations (used in choropleth/scatter hover)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     color_field: Optional[str] = Field(
-        None, description="Field to determine color (for choropleth or scatter points)."
+        default=None,
+        description="Field to determine color (for choropleth or scatter points)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     size_field: Optional[str] = Field(
-        None, description="Field to determine size (for scatter points)."
+        default=None,
+        description="Field to determine size (for scatter points)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     hover_name: Optional[str] = Field(
-        None, description="Field for primary hover label."
+        default=None,
+        description="Field for primary hover label",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     hover_data: Optional[List[str]] = Field(
-        None, description="Additional fields for hover tooltip."
+        default=None,
+        description="Additional fields for hover tooltip",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     map_type: str = Field(
-        default="scatter_map", description="'scatter_map' or 'choropleth_map'."
+        default="scatter_map",
+        description="Type of map visualization",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "scatter_map", "label": "Scatter Map (points)"},
+                {"value": "choropleth_map", "label": "Choropleth Map (regions)"},
+            ],
+        },
     )
     map_style: str = Field(
         default="carto-positron",
-        description="Map base style. Options without token: 'open-street-map', 'carto-positron', 'carto-darkmatter', 'carto-voyager', 'white-bg'. With Mapbox token: 'basic', 'streets', 'outdoors', 'light', 'dark', 'satellite', 'satellite-streets'.",
+        description="Map base style",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "open-street-map", "label": "OpenStreetMap"},
+                {"value": "carto-positron", "label": "Carto Positron (light)"},
+                {"value": "carto-darkmatter", "label": "Carto Dark Matter"},
+                {"value": "carto-voyager", "label": "Carto Voyager"},
+                {"value": "white-bg", "label": "White Background"},
+                {"value": "basic", "label": "Mapbox Basic (requires token)"},
+                {"value": "streets", "label": "Mapbox Streets (requires token)"},
+                {"value": "outdoors", "label": "Mapbox Outdoors (requires token)"},
+                {"value": "light", "label": "Mapbox Light (requires token)"},
+                {"value": "dark", "label": "Mapbox Dark (requires token)"},
+                {"value": "satellite", "label": "Mapbox Satellite (requires token)"},
+                {
+                    "value": "satellite-streets",
+                    "label": "Mapbox Satellite Streets (requires token)",
+                },
+            ],
+        },
     )
-    zoom: float = Field(default=9.0, description="Initial zoom level of the map")
+    zoom: float = Field(
+        default=9.0,
+        description="Initial zoom level of the map",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:min": 0,
+            "ui:max": 20,
+            "ui:step": 0.5,
+        },
+    )
     auto_zoom: bool = Field(
-        default=False, description="Automatically calculate zoom to fit all data points"
+        default=False,
+        description="Automatically calculate zoom to fit all data points",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     center_lat: Optional[float] = Field(
-        None, description="Initial map center latitude."
+        default=None,
+        description="Initial map center latitude",
+        json_schema_extra={"ui:widget": "number", "ui:min": -90, "ui:max": 90},
     )
     center_lon: Optional[float] = Field(
-        None, description="Initial map center longitude."
+        default=None,
+        description="Initial map center longitude",
+        json_schema_extra={"ui:widget": "number", "ui:min": -180, "ui:max": 180},
     )
     color_continuous_scale: Optional[str] = Field(
-        None, description="Plotly color scale name (e.g., 'Viridis', 'Plasma')."
+        default=None,
+        description="Plotly color scale name (e.g., 'Viridis', 'Plasma')",
+        json_schema_extra={"ui:widget": "text"},
     )
     color_discrete_map: Optional[Any] = Field(
-        None, description="Mapping for discrete colors."
+        default=None,
+        description="Mapping for discrete colors",
+        json_schema_extra={"ui:widget": "json"},
     )
     range_color: Optional[List[float]] = Field(
-        None, description="Min/max for color scale."
+        default=None,
+        description="Min/max for color scale",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "number"},
     )
     size_max: Optional[int] = Field(
-        default=15, description="Maximum marker size for scatter_map."
+        default=15,
+        description="Maximum marker size for scatter_map",
+        json_schema_extra={"ui:widget": "number", "ui:min": 1, "ui:max": 100},
     )
     opacity: Optional[float] = Field(
-        default=0.8, description="Marker/feature opacity (0 to 1)."
+        default=0.8,
+        description="Marker/feature opacity (0 to 1)",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:min": 0.0,
+            "ui:max": 1.0,
+            "ui:step": 0.1,
+        },
     )
     featureidkey: Optional[str] = Field(
-        None,
-        description="Key in GeoJSON features to link with location_field (e.g., 'properties.id').",
+        default=None,
+        description="Key in GeoJSON features to link with location_field (e.g., 'properties.id')",
+        json_schema_extra={"ui:widget": "text"},
     )
     layers: Optional[List[dict]] = Field(
-        None, description="List of layer configurations for multi-layer maps."
+        default=None,
+        description="List of layer configurations for multi-layer maps",
+        json_schema_extra={"ui:widget": "json"},
     )
     # Deprecated field for backward compatibility
     mapbox_style: Optional[str] = Field(
-        None, description="Deprecated: Use map_style instead."
+        default=None,
+        description="Deprecated: Use map_style instead",
+        json_schema_extra={"ui:widget": "text"},
     )
     show_attribution: bool = Field(
-        default=False, description="Whether to show map attribution"
+        default=False,
+        description="Whether to show map attribution",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     use_topojson: bool = Field(
         default=False,
-        description="Whether to optimize GeoJSON to TopoJSON format for reduced file size. Note: data already in TopoJSON format (from shape_processor) will not be re-optimized.",
+        description="Whether to optimize GeoJSON to TopoJSON format for reduced file size",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     mapbox_access_token: Optional[str] = Field(
-        None,
+        default=None,
         description="Mapbox access token for satellite and other premium map styles. Get one free at https://account.mapbox.com/",
+        json_schema_extra={"ui:widget": "text"},
     )
 
 
@@ -225,6 +328,10 @@ class InteractiveMapWidget(WidgetPlugin):
 
     def _process_geojson_or_topojson(self, data: dict) -> Optional[dict]:
         """Process GeoJSON or TopoJSON data for rendering."""
+        # Handle None or empty data silently
+        if not data or not isinstance(data, dict):
+            return None
+
         if data.get("type") == "Topology":
             try:
                 # Identify object name from TopoJSON
@@ -253,7 +360,8 @@ class InteractiveMapWidget(WidgetPlugin):
         elif data.get("type") == "FeatureCollection":
             return data
         else:
-            logger.warning(f"Unsupported data type: {data.get('type')}")
+            # Use debug level to avoid polluting output - this is expected for shapes without geometry
+            logger.debug(f"Unsupported or missing data type: {data.get('type')}")
         return None
 
     def _optimize_geojson_to_topojson(self, geojson_data: dict) -> Optional[dict]:

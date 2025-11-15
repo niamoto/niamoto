@@ -2,18 +2,15 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 
 export interface ImportStatus {
-  import_type: string
+  entity_name: string
+  entity_type: string  // 'reference' or 'dataset'
   is_imported: boolean
   row_count: number
-  dependencies_met: boolean
-  missing_dependencies: string[]
 }
 
 export interface ImportStatusResponse {
-  taxonomy: ImportStatus
-  occurrences: ImportStatus
-  plots: ImportStatus
-  shapes: ImportStatus
+  references: ImportStatus[]
+  datasets: ImportStatus[]
 }
 
 export function useImportStatus() {

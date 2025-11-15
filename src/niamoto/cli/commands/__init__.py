@@ -19,6 +19,7 @@ from .plugins import plugins
 from .run import run_pipeline
 from .stats import stats_command
 from .gui import gui
+from .optimize import optimize_command
 
 
 def create_cli() -> click.Group:
@@ -26,12 +27,13 @@ def create_cli() -> click.Group:
 
     This function initializes the Niamoto command-line interface (CLI)
     by registering the following command groups:
-        - `init`: Initializes or resets the environment.
-        - `import`: Imports raw data into the system.
-        - `transforms`: Transforms and aggregates raw data for analysis.
-        - `export`: Generates static content using processed data.
-        - `deploy`: Deploys generated content to supported platforms.
-        - `plugins`: Lists available plugins in the system.
+
+    - ``init``: Initializes or resets the environment.
+    - ``import``: Imports raw data into the system.
+    - ``transforms``: Transforms and aggregates raw data for analysis.
+    - ``export``: Generates static content using processed data.
+    - ``deploy``: Deploys generated content to supported platforms.
+    - ``plugins``: Lists available plugins in the system.
 
     Returns:
         click.Group: The root command group for the Niamoto CLI.
@@ -52,5 +54,6 @@ def create_cli() -> click.Group:
     cli.add_command(run_pipeline)
     cli.add_command(stats_command)
     cli.add_command(gui)
+    cli.add_command(optimize_command, name="optimize")
 
     return cli

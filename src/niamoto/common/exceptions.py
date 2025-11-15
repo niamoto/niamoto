@@ -191,6 +191,24 @@ class TransactionError(DatabaseError):
     """Exception raised for transaction-related errors."""
 
 
+class DatabaseLockError(DatabaseQueryError):
+    """Exception raised when the database is locked by another process."""
+
+    def __init__(
+        self,
+        message: str,
+        query: Optional[str] = None,
+        details: Optional[dict] = None,
+    ) -> None:
+        super().__init__(query or "", message, details)
+
+    def get_user_message(self) -> str:
+        """Return friendlier message without query context when absent."""
+        if self.query:
+            return super().get_user_message()
+        return str(self)
+
+
 # --- Data Import Exceptions ---
 
 

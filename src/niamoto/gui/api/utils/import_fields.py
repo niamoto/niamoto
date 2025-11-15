@@ -17,6 +17,7 @@ def get_import_method_info(method_name: str) -> Dict[str, Any]:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
             tmp_path = tmp.name
 
+        importer = None
         try:
             Database(tmp_path)
             importer = ImporterService(tmp_path)
@@ -46,6 +47,9 @@ def get_import_method_info(method_name: str) -> Dict[str, Any]:
 
             return params
         finally:
+            # Close database connections
+            if importer:
+                importer.close()
             # Clean up temporary database
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)

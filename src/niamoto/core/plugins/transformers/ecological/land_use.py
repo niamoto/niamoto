@@ -4,70 +4,105 @@ Integrates multiple vector layers to calculate the surface area of each land use
 category within a geographic area.
 """
 
-from typing import Dict, Any, List
-from pydantic import Field, field_validator
+from typing import Dict, Any, List, Literal
+from pydantic import Field, field_validator, ConfigDict
 import pandas as pd
 import geopandas as gpd
 import os
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DataTransformError
 
 
-class LayerConfig(Dict[str, Any]):
+class LayerConfig(BasePluginParams):
     """Configuration for a layer in the land use analysis"""
 
-    path: str
-    field: str
-    categories: List[str]
+    path: str = Field(
+        ...,
+        description="Path to the layer file",
+        json_schema_extra={"ui:widget": "file-select"},
+    )
+
+    field: str = Field(
+        default="",
+        description="Field containing the category values",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+
+    categories: List[str] = Field(
+        ...,
+        description="List of categories to analyze",
+        json_schema_extra={"ui:widget": "array"},
+    )
+
+
+class LandUseParams(BasePluginParams):
+    """Typed parameters for land use analysis plugin.
+
+    This plugin analyzes multiple vector layers to calculate the surface area
+    of each land use category within a geographic area.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Analyze land use from multiple vector layers",
+            "examples": [
+                {
+                    "layers": [
+                        {
+                            "path": "imports/substrates.shp",
+                            "field": "type",
+                            "categories": ["UM", "NUM"],
+                        }
+                    ],
+                    "shape_field": "geometry",
+                    "area_unit": "ha",
+                }
+            ],
+        }
+    )
+
+    layers: List[LayerConfig] = Field(
+        ...,
+        description="List of layers to analyze for land use",
+        json_schema_extra={"ui:widget": "array"},
+    )
+
+    shape_field: str = Field(
+        default="geometry",
+        description="Field containing the main geometry",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    area_unit: str = Field(
+        default="ha",
+        description="Unit of surface area calculation",
+        json_schema_extra={"ui:widget": "select", "ui:options": ["ha", "km2", "m2"]},
+    )
+
+    @field_validator("layers")
+    @classmethod
+    def validate_layers_not_empty(cls, v):
+        """Validate that layers list is not empty."""
+        if not v:
+            raise ValueError("The 'layers' parameter must be a non-empty list")
+        return v
+
+    @field_validator("area_unit")
+    @classmethod
+    def validate_area_unit(cls, v):
+        """Validate the area unit."""
+        if v not in ["ha", "km2", "m2"]:
+            raise ValueError(f"Invalid area unit: {v}. Use 'ha', 'km2' or 'm2'")
+        return v
 
 
 class LandUseConfig(PluginConfig):
     """Configuration for the land use analysis plugin"""
 
-    plugin: str = "land_use_analysis"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "layers": [
-                {
-                    "path": "",  # Path to the layer
-                    "field": "",  # Field containing the category
-                    "categories": [],  # List of categories to analyze
-                }
-            ],
-            "shape_field": "geometry",  # Field containing the main geometry
-            "area_unit": "ha",  # Unit of surface area: ha, km2 or m2
-        }
-    )
-
-    @field_validator("params")
-    def validate_layers(cls, v):
-        """Validate the layer configuration."""
-        if "layers" not in v:
-            raise ValueError("The 'layers' parameter is required")
-
-        if not isinstance(v["layers"], list) or len(v["layers"]) == 0:
-            raise ValueError("The 'layers' parameter must be a non-empty list")
-
-        for i, layer in enumerate(v["layers"]):
-            if not isinstance(layer, dict):
-                raise ValueError(f"Layer {i} must be a dictionary")
-
-            if "path" not in layer or not layer["path"]:
-                raise ValueError(f"The path is missing for layer {i}")
-
-            if "categories" not in layer or not isinstance(layer["categories"], list):
-                raise ValueError(f"The categories are missing or invalid for layer {i}")
-
-        # Validate the unit of surface area
-        if "area_unit" in v:
-            if v["area_unit"] not in ["ha", "km2", "m2"]:
-                raise ValueError(
-                    f"Invalid unit of surface area: {v['area_unit']}. Use 'ha', 'km2' or 'm2'"
-                )
-
-        return v
+    plugin: Literal["land_use_analysis"] = "land_use_analysis"
+    params: LandUseParams
 
 
 @register("land_use_analysis", PluginType.TRANSFORMER)
@@ -90,17 +125,15 @@ class LandUseAnalysis(TransformerPlugin):
     config_model = LandUseConfig
 
     def validate_config(self, config: Dict[str, Any]) -> LandUseConfig:
-        """Validate the plugin configuration."""
+        """Validate configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
-            return validated_config
+            return self.config_model(**config)
         except Exception as e:
             if isinstance(e, DataTransformError):
                 raise e
             raise DataTransformError(
-                f"Invalid configuration for {self.__class__.__name__}: {str(e)}",
-                details={"config": config, "error": str(e)},
-            ) from e
+                f"Invalid configuration: {str(e)}", details={"config": config}
+            )
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -160,10 +193,10 @@ class LandUseAnalysis(TransformerPlugin):
             base_dir = self._get_base_directory()
 
             # Process each layer
-            for layer_config in params["layers"]:
-                layer_path = layer_config["path"]
-                field = layer_config.get("field", "")
-                layer_categories = layer_config["categories"]
+            for layer_config in params.layers:
+                layer_path = layer_config.path
+                field = layer_config.field
+                layer_categories = layer_config.categories
 
                 # Resolve the relative path if necessary
                 if not os.path.isabs(layer_path):

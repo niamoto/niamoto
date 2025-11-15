@@ -1,6 +1,5 @@
 """Tests for the generic top_ranking plugin."""
 
-import pytest
 import pandas as pd
 from unittest.mock import MagicMock
 
@@ -135,6 +134,8 @@ class TestTopRankingGeneric:
             "params": {
                 "source": "occurrences",
                 "field": "taxon_ref_id",
+                "mode": "hierarchical",
+                "hierarchy_table": "taxon_ref",
                 "target_ranks": ["family"],
                 "count": 2,
             },
@@ -200,20 +201,22 @@ class TestTopRankingGeneric:
 
         validated = self.plugin.validate_config(config)
 
-        assert validated["params"]["aggregate_function"] == "count"
-        assert validated["params"]["mode"] == "direct"
+        assert validated.params.aggregate_function == "count"
+        assert validated.params.mode == "direct"
 
     def test_hierarchical_mode_missing_config(self):
-        """Test error when hierarchical mode lacks required config."""
+        """Test that hierarchical mode auto-sets hierarchy_table for unknown fields."""
         config = {
             "plugin": "top_ranking",
             "params": {
                 "source": "data",
-                "field": "field",
+                "field": "field",  # Unknown field, won't auto-set hierarchy_table
                 "mode": "hierarchical",
                 # Missing hierarchy_table and target_ranks
             },
         }
 
-        with pytest.raises(ValueError, match="hierarchy_table is required"):
-            self.plugin.validate_config(config)
+        validated = self.plugin.validate_config(config)
+        # Should work because hierarchy_table is optional and target_ranks defaults to empty
+        assert validated.params.mode == "hierarchical"
+        assert validated.params.hierarchy_table is None

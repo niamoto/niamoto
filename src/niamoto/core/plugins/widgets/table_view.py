@@ -2,55 +2,127 @@ import logging
 from typing import List, Optional, Set
 
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 
 logger = logging.getLogger(__name__)
 
 
 # Model for column configuration in the table view
 class TableColumn(BaseModel):
-    source: str  # Key in the data dictionary/DataFrame column name
-    label: Optional[str] = None  # Display header (defaults to source)
-    format: Optional[str] = (
-        None  # Formatting hint ('number', 'currency', 'date', '.2f')
+    """Model for column configuration in the table view."""
+
+    source: str = Field(
+        ...,
+        description="Key in the data dictionary/DataFrame column name",
+        json_schema_extra={"ui:widget": "field-select"},
     )
-    visible: bool = True  # Whether the column is initially visible
-    searchable: bool = True  # If the column should be included in search
-    sortable: bool = True  # If the column can be sorted
-    width: Optional[str] = None  # CSS width (e.g., '100px', '10%')
+    label: Optional[str] = Field(
+        default=None,
+        description="Display header (defaults to source)",
+        json_schema_extra={"ui:widget": "text"},
+    )
+    format: Optional[str] = Field(
+        default=None,
+        description="Formatting hint ('number', 'currency', 'date', '.2f')",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": ["number", "currency", "date", ".2f"],
+        },
+    )
+    visible: bool = Field(
+        default=True,
+        description="Whether the column is initially visible",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    searchable: bool = Field(
+        default=True,
+        description="If the column should be included in search",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    sortable: bool = Field(
+        default=True,
+        description="If the column can be sorted",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    width: Optional[str] = Field(
+        default=None,
+        description="CSS width (e.g., '100px', '10%')",
+        json_schema_extra={"ui:widget": "text"},
+    )
 
 
 # Pydantic model for Table View parameters validation
-class TableViewParams(BaseModel):
-    title: Optional[str] = Field(None, description="Optional title for the table.")
+class TableViewParams(BasePluginParams):
+    """Parameters for table view widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Display a pandas DataFrame as an HTML table with sorting and filtering options",
+            "examples": [
+                {
+                    "columns": ["species_name", "family", "height", "dbh"],
+                    "sort_by": ["height"],
+                    "ascending": [False],
+                    "max_rows": 50,
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        description="Optional title for the table.",
+        json_schema_extra={"ui:widget": "text"},
+    )
     description: Optional[str] = Field(
-        None, description="Optional description for the table."
+        default=None,
+        description="Optional description for the table.",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     columns: Optional[List[str]] = Field(
-        None, description="List of columns to display. If None, displays all."
+        default=None,
+        description="List of columns to display. If None, displays all.",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     sort_by: Optional[List[str]] = Field(
-        None, description="List of columns to sort by."
+        default=None,
+        description="List of columns to sort by.",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     ascending: Optional[List[bool]] = Field(
-        None,
+        default=None,
         description="List of sort directions (True/False) corresponding to sort_by columns.",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "checkbox"},
     )
     max_rows: int = Field(
-        100, description="Maximum number of rows to display in the table."
+        default=100,
+        description="Maximum number of rows to display in the table.",
+        json_schema_extra={"ui:widget": "number", "ui:min": 1},
     )
     # Configuration for pagination/scrolling could be added here
-    index: bool = Field(False, description="Whether to display the DataFrame index.")
+    index: bool = Field(
+        default=False,
+        description="Whether to display the DataFrame index.",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
     table_classes: str = Field(
-        "table table-striped table-hover table-sm",
+        default="table table-striped table-hover table-sm",
         description="CSS classes for the HTML table.",
+        json_schema_extra={"ui:widget": "text"},
     )
     escape: bool = Field(
-        True, description="Whether to escape HTML entities in the table cells."
+        default=True,
+        description="Whether to escape HTML entities in the table cells.",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
-    border: Optional[int] = Field(0, description="Border attribute for the HTML table.")
+    border: Optional[int] = Field(
+        default=0,
+        description="Border attribute for the HTML table.",
+        json_schema_extra={"ui:widget": "number", "ui:min": 0},
+    )
 
 
 @register("table_view", PluginType.WIDGET)

@@ -3,28 +3,66 @@ Plugin for extracting categorical values from shape statistics.
 Extracts values for ordered categories from a single field.
 """
 
-from typing import Dict, Any, List
-from pydantic import BaseModel, ValidationError
+from typing import Dict, Any, List, Literal
+from pydantic import Field, ConfigDict, ValidationError
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
 
 
-class CategoriesExtractorParams(BaseModel):
+class CategoriesExtractorParams(BasePluginParams):
     """Specific parameters for the Categories Extractor plugin."""
 
-    class_object: str
-    categories_order: List[str]  # Enforce list of strings
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Extract values for ordered categories from shape statistics",
+            "examples": [
+                {
+                    "class_object": "land_use",
+                    "categories_order": [
+                        "NUM",
+                        "UM",
+                        "Sec",
+                        "Humide",
+                        "Très Humide",
+                        "Réserve",
+                    ],
+                }
+            ],
+        }
+    )
+
+    class_object: str = Field(
+        ...,
+        description="Field name to match in class_object column",
+        json_schema_extra={"ui:widget": "text"},
+    )
+
+    categories_order: List[str] = Field(
+        ...,
+        min_length=1,
+        description="List of categories in desired order",
+        json_schema_extra={"ui:widget": "tags"},
+    )
 
 
 class ClassObjectCategoriesConfig(PluginConfig):
     """Configuration for categories extractor plugin"""
 
-    plugin: str = "class_object_categories_extractor"
-    source: str = "shape_stats"
-    # Use the specific params model instead of Dict[str, Any]
+    plugin: Literal["class_object_categories_extractor"] = (
+        "class_object_categories_extractor"
+    )
+    source: str = Field(
+        default="shape_stats",
+        description="Transform source name (from transform.yml sources)",
+        json_schema_extra={
+            "ui:widget": "transform-source-select",
+            # Will dynamically load sources from current group_by context
+        },
+    )
     params: CategoriesExtractorParams
 
 
@@ -33,6 +71,33 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
     """Plugin for extracting ordered categorical values"""
 
     config_model = ClassObjectCategoriesConfig
+
+    def __init__(self, db, registry=None):
+        """Initialize with database and optional EntityRegistry.
+
+        Args:
+            db: Database instance
+            registry: EntityRegistry instance (created if not provided)
+        """
+        super().__init__(db)
+        self.registry = registry or EntityRegistry(db)
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via EntityRegistry.
+
+        Args:
+            logical_name: Entity name from config (e.g., "shape_stats", "occurrences")
+
+        Returns:
+            Physical table name (e.g., "entity_shape_stats", "entity_occurrences")
+            Falls back to logical_name if not found in registry (backward compatibility)
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            return metadata.table_name
+        except Exception:
+            # Fallback: assume it's already a physical table name
+            return logical_name
 
     def validate_config(self, config: Dict[str, Any]) -> ClassObjectCategoriesConfig:
         """Validate plugin configuration using Pydantic model."""
@@ -57,26 +122,21 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
             )
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, List]:
-        """
-        Extract values for ordered categories from shape statistics data.
+        """Return ordered category/value pairs for a given class object.
 
-        Args:
-            data: DataFrame containing shape statistics in long format with columns:
-                - class_object: The type of data (e.g. land_use)
-                - class_name: The class name (e.g. NUM, UM, etc.)
-                - class_value: The value for this class
-            config: Configuration dictionary with:
-                - params.class_object: Field name to match in class_object
-                - params.categories_order: List of categories in desired order
+        Parameters
+        ----------
+        data:
+            Long-format DataFrame with ``class_object``, ``class_name`` and
+            ``class_value`` columns.
+        config:
+            Raw configuration describing the target ``class_object`` and the desired
+            category ordering.
 
-        Returns:
-            Dictionary with categories list and corresponding values
-
-        Example output:
-            {
-                "categories": ["NUM", "UM", "Sec", "Humide", "Très Humide", "Réserve", "PPE", "Concessions", "Forêt"],
-                "values": [720516.37, 220736.05, 245865.63, 564601.88, 130784.90, 14272.87, 94334.71, 121703.50, 321711.77]
-            }
+        Returns
+        -------
+        dict[str, list]
+            Lists of category labels and their associated values.
         """
         try:
             # Use validated config directly if passed or re-validate

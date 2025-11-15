@@ -3,9 +3,10 @@ from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
 import plotly.graph_objects as go
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -16,48 +17,112 @@ logger = logging.getLogger(__name__)
 
 
 # Pydantic model for Radial Gauge parameters validation
-class RadialGaugeParams(BaseModel):
-    title: Optional[str] = Field(None, description="Optional title for the gauge.")
+class RadialGaugeParams(BasePluginParams):
+    """Parameters for radial gauge widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create interactive radial gauge displays with customizable styling",
+            "examples": [
+                {
+                    "value_field": "meff.value",
+                    "max_value": 100,
+                    "unit": "%",
+                    "title": "Progress Gauge",
+                }
+            ],
+        }
+    )
+
+    title: Optional[str] = Field(
+        default=None,
+        description="Optional title for the gauge",
+        json_schema_extra={"ui:widget": "text"},
+    )
     description: Optional[str] = Field(
-        None, description="Optional description or subtitle."
+        default=None,
+        description="Optional description or subtitle",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     value_field: str = Field(
-        ..., description="Field name containing the current value."
+        ...,
+        description="Field name containing the current value (supports dot notation for nested data)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     min_value: Optional[float] = Field(
-        0, description="Minimum value of the gauge range."
+        default=0,
+        description="Minimum value of the gauge range",
+        json_schema_extra={"ui:widget": "number"},
     )
-    max_value: float = Field(..., description="Maximum value of the gauge range.")
+    max_value: float = Field(
+        ...,
+        description="Maximum value of the gauge range",
+        json_schema_extra={"ui:widget": "number"},
+    )
     unit: Optional[str] = Field(
-        None, description="Unit symbol (e.g., '%') to display next to the value."
+        default=None,
+        description="Unit symbol (e.g., '%') to display next to the value",
+        json_schema_extra={"ui:widget": "text"},
     )
     steps: Optional[List[dict]] = Field(
-        None,
+        default=None,
         description="List of dicts defining color steps, e.g., [{'range': [0, 50], 'color': 'red'}, ...]",
+        json_schema_extra={"ui:widget": "json"},
     )
     threshold: Optional[dict] = Field(
-        None,
+        default=None,
         description="Dict defining a threshold line, e.g., {'line': {'color': 'red', 'width': 4}, 'thickness': 0.75, 'value': 90}",
+        json_schema_extra={"ui:widget": "json"},
     )
     bar_color: Optional[str] = Field(
-        "cornflowerblue", description="Color of the gauge's value bar."
+        default="cornflowerblue",
+        description="Color of the gauge's value bar",
+        json_schema_extra={"ui:widget": "color"},
     )
     background_color: Optional[str] = Field(
-        "white", description="Background color of the gauge area."
+        default="white",
+        description="Background color of the gauge area",
+        json_schema_extra={"ui:widget": "color"},
     )
     gauge_shape: str = Field(
-        "angular", description="Shape of the gauge ('angular' or 'bullet')."
+        default="angular",
+        description="Shape of the gauge",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "angular", "label": "Angular (arc)"},
+                {"value": "bullet", "label": "Bullet (horizontal)"},
+            ],
+        },
     )
     style_mode: Optional[str] = Field(
-        "classic",
-        description="Style mode: 'classic' (with steps), 'minimal' (simple), 'gradient', or 'contextual'",
+        default="classic",
+        description="Style mode for the gauge appearance",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "classic", "label": "Classic (with steps)"},
+                {"value": "minimal", "label": "Minimal (simple)"},
+                {"value": "gradient", "label": "Gradient"},
+                {"value": "contextual", "label": "Contextual (color based on value)"},
+            ],
+        },
     )
-    show_axis: Optional[bool] = Field(True, description="Show axis labels and ticks")
+    show_axis: Optional[bool] = Field(
+        default=True,
+        description="Show axis labels and ticks",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
     value_format: Optional[str] = Field(
-        None,
+        default=None,
         description="Format string for the value (e.g., '.1f' for 1 decimal, '.0%' for percentage)",
+        json_schema_extra={"ui:widget": "text"},
     )
-    units: Optional[str] = Field(None, description="Deprecated: use 'unit' instead")
+    units: Optional[str] = Field(
+        default=None,
+        description="Deprecated: use 'unit' instead",
+        json_schema_extra={"ui:widget": "text"},
+    )
 
 
 @register("radial_gauge", PluginType.WIDGET)

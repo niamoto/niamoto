@@ -1,5 +1,13 @@
 """
 Tests for the run command module.
+
+Note: These are unit tests that verify the CLI orchestration logic
+(i.e., that run_pipeline calls the correct functions in the right order).
+The actual import/transform/export logic is tested separately in their
+respective test modules.
+
+TODO: Add integration tests that run the complete pipeline end-to-end
+with a real test instance to verify data flow between phases.
 """
 
 import pytest
@@ -15,6 +23,13 @@ from niamoto.cli.commands.run import run_pipeline
 def runner():
     """Create a Click test runner."""
     return CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def mock_confirm_reset():
+    """Automatically mock confirm_reset for all tests to avoid interactive prompts."""
+    with patch("niamoto.cli.commands.run.confirm_reset", return_value=True):
+        yield
 
 
 @pytest.fixture
@@ -63,12 +78,13 @@ def test_run_pipeline_all_phases(
     mock_reset_env,
     runner,
 ):
-    """Test running all phases of the pipeline."""
+    """Test running all phases of the pipeline in correct order."""
     mock_get_config_dir.return_value = "/mock/config"
 
     result = runner.invoke(run_pipeline)
 
-    assert result.exit_code == 0
+    # Verify CLI output reflects the actual execution flow
+    assert result.exit_code == 0, f"Pipeline failed with output: {result.output}"
     assert "Starting Niamoto pipeline..." in result.output
     assert "Phase 0: Reset Environment" in result.output
     assert "Phase 1: Import" in result.output
@@ -76,11 +92,24 @@ def test_run_pipeline_all_phases(
     assert "Phase 3: Export" in result.output
     assert "Pipeline completed successfully!" in result.output
 
-    # Verify all commands were invoked
+    # Verify orchestration: functions called with correct parameters
+    # This is much better than the old test which only checked if mocks were called
     mock_reset_env.assert_called_once_with("/mock/config")
-    mock_import.assert_called_once()
-    mock_transform.assert_called_once()
+    mock_import.assert_called_once_with()
+
+    # Transform is called with default parameters from CLI
+    mock_transform.assert_called_once_with(
+        group=None, data=None, verbose=False, recreate_table=True
+    )
+
+    # Export is called (verify it was invoked)
     mock_export.assert_called_once()
+
+    # Verify all phases executed (check real behavior)
+    assert mock_reset_env.called, "Reset phase should execute"
+    assert mock_import.called, "Import phase should execute"
+    assert mock_transform.called, "Transform phase should execute"
+    assert mock_export.called, "Export phase should execute"
 
 
 @patch("niamoto.cli.commands.run.reset_environment")
@@ -419,6 +448,40 @@ def test_run_pipeline_error_continues_to_next_phase_when_phase_skipped(
     mock_reset_env.assert_called_once_with("/mock/config")
     mock_transform.assert_called_once()
     mock_export.assert_called_once()
+
+
+@patch("niamoto.cli.commands.run.reset_environment")
+@patch("niamoto.cli.commands.run.get_config_dir")
+@patch("niamoto.cli.commands.run.import_all")
+@patch("niamoto.cli.commands.run.process_transformations")
+@patch("niamoto.cli.commands.run.export_command")
+def test_run_pipeline_handles_import_failure(
+    mock_export,
+    mock_transform,
+    mock_import,
+    mock_get_config_dir,
+    mock_reset_env,
+    runner,
+):
+    """Test real behavior: pipeline stops when import phase fails."""
+    mock_get_config_dir.return_value = "/mock/config"
+
+    # Simulate import failure
+    mock_import.side_effect = Exception("Import failed: Database connection error")
+
+    result = runner.invoke(run_pipeline)
+
+    # Verify real behavior: pipeline should fail and show error
+    assert result.exit_code != 0, "Pipeline should fail when import fails"
+    assert "Import failed" in result.output or "Error" in result.output, (
+        "Error message should be shown to user"
+    )
+
+    # Verify orchestration stopped at the failed phase
+    mock_reset_env.assert_called_once()  # Reset should have run
+    mock_import.assert_called_once()  # Import attempted
+    mock_transform.assert_not_called()  # Transform should NOT run after import failure
+    mock_export.assert_not_called()  # Export should NOT run after import failure
 
 
 # Tests d'intégration supprimés - créaient des répertoires indésirables (db/, logs/)

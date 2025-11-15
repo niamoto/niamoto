@@ -2,37 +2,64 @@
 Plugin for aggregating fields from different sources.
 """
 
-from typing import Dict, Any, Union
-from pydantic import BaseModel, field_validator, Field
-import os
+from typing import Dict, Any, Union, List, Optional, Literal
+from pydantic import BaseModel, field_validator, Field, ConfigDict
 
 import pandas as pd
-import geopandas as gpd
 
 from niamoto.core.plugins.models import PluginConfig
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError
 from niamoto.common.config import Config
+from niamoto.core.imports.registry import EntityRegistry
 
 
 class FieldConfig(BaseModel):
-    """Field configuration."""
+    """Configuration for a single field mapping.
 
-    source: str
-    field: str
-    target: str
-    transformation: str = "direct"
-    units: str = ""
-    labels: Dict[str, str] = {}
+    This model defines how to extract and transform a field from a source.
+    """
 
-    @field_validator("transformation")
-    def validate_transformation(cls, v):
-        """Validate transformation."""
-        if v not in ["direct", "count", "sum"]:
-            raise ValueError(f"Invalid transformation: {v}")
-        return v
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "source": "occurrences",
+                "field": "full_name",
+                "target": "name",
+                "transformation": "direct",
+                "units": "",
+                "format": "text",
+            }
+        }
+    )
+
+    source: str = Field(
+        default="occurrences",
+        description="Data source entity name",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
+        },
+    )
+    field: str = Field(
+        ..., description="Field name to extract (supports dot notation for JSON fields)"
+    )
+    target: str = Field(..., description="Target field name in output")
+    transformation: Literal["direct", "count", "sum"] = Field(
+        default="direct", description="Type of transformation to apply"
+    )
+    units: str = Field(
+        default="", description="Units for the field value (e.g., 'ha', 'm', 'km²')"
+    )
+    labels: Dict[str, str] = Field(
+        default_factory=dict, description="Value mappings for field labels"
+    )
+    format: Optional[Literal["boolean", "url", "text", "number"]] = Field(
+        None, description="Output format type for UI rendering"
+    )
 
     @field_validator("labels")
+    @classmethod
     def validate_labels(cls, v):
         """Convert list of labels to dictionary if needed."""
         if isinstance(v, list):
@@ -40,26 +67,28 @@ class FieldConfig(BaseModel):
         return v
 
 
+class FieldAggregatorParams(BaseModel):
+    """Parameters for field aggregator plugin.
+
+    This model validates the complete parameter set for the field aggregator.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Aggregate multiple fields from different sources into a unified output"
+        }
+    )
+
+    fields: List[FieldConfig] = Field(
+        ..., min_length=1, description="List of field configurations to process"
+    )
+
+
 class FieldAggregatorConfig(PluginConfig):
-    """Field aggregator configuration."""
+    """Complete configuration for field aggregator plugin."""
 
-    plugin: str = "field_aggregator"
-    params: Dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("params")
-    @classmethod
-    def validate_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate params configuration."""
-        if not isinstance(v, dict):
-            raise ValueError("params must be a dictionary")
-
-        if "fields" not in v:
-            raise ValueError("Missing required field: fields")
-
-        if not isinstance(v["fields"], list):
-            raise ValueError("fields must be a list")
-
-        return v
+    plugin: Literal["field_aggregator"] = "field_aggregator"
+    params: FieldAggregatorParams
 
 
 @register("field_aggregator", PluginType.TRANSFORMER)
@@ -67,21 +96,20 @@ class FieldAggregator(TransformerPlugin):
     """Field aggregator transformer."""
 
     config_model = FieldAggregatorConfig
+    param_schema = FieldAggregatorParams
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, registry=None):
+        super().__init__(db, registry)
         self.config = Config()
-        self.imports_config = self.config.get_imports_config
+        # Use registry from parent if provided, otherwise create new instance
+        if self.registry is None:
+            self.registry = EntityRegistry(db)
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate configuration."""
+    def validate_config(self, config: Dict[str, Any]) -> FieldAggregatorConfig:
+        """Validate configuration and return validated config."""
         try:
             # Validate config using pydantic model
-            validated_config = self.config_model(**config)
-
-            # Validate each field config
-            for field_config in validated_config.params["fields"]:
-                FieldConfig.model_validate(field_config)
+            return self.config_model(**config)
         except Exception as e:
             raise ValueError(f"Invalid configuration: {str(e)}")
 
@@ -96,19 +124,20 @@ class FieldAggregator(TransformerPlugin):
             if "." in field:
                 json_field, json_key = field.split(".", 1)
                 query = f"""
-                    SELECT {json_field} FROM {table} WHERE id = {id_value}
+                    SELECT {json_field} FROM {table} WHERE id = :id_value
                 """
-                result = self.db.execute_select(query).fetchone()
+                # Use fetch_one which properly handles connection lifecycle
+                row = self.db.fetch_one(query, {"id_value": id_value})
 
-                if result and result[0] is not None:
+                if row and row.get(json_field) is not None:
                     # Parse the JSON and extract the requested key
                     import json
 
                     try:
                         json_data = (
-                            json.loads(result[0])
-                            if isinstance(result[0], str)
-                            else result[0]
+                            json.loads(row[json_field])
+                            if isinstance(row[json_field], str)
+                            else row[json_field]
                         )
                         # Return the value from the JSON if it exists, otherwise None
                         return (
@@ -123,45 +152,26 @@ class FieldAggregator(TransformerPlugin):
             else:
                 # Regular field access
                 query = f"""
-                    SELECT {field} FROM {table} WHERE id = {id_value}
+                    SELECT {field} FROM {table} WHERE id = :id_value
                 """
-                result = self.db.execute_select(query).fetchone()
-                return str(result[0]) if result and result[0] is not None else None
+                # Use fetch_one which properly handles connection lifecycle
+                row = self.db.fetch_one(query, {"id_value": id_value})
+                return str(row[field]) if row and row.get(field) is not None else None
         except Exception as e:
             raise DatabaseError(f"Error getting field {field} from {table}") from e
 
     def _get_field_value(self, source: str, field: str, id_value: int) -> Any:
-        """Get a field value from a source (table or import)."""
+        """Get a field value from a source using registry."""
         try:
-            # D'abord vérifier si la source est dans import.yml
-            if source in self.imports_config:
-                import_config = self.imports_config[source]
-
-                # Construire le chemin complet du fichier
-                file_path = os.path.join(
-                    os.path.dirname(self.config.config_dir), import_config["path"]
+            # Try to resolve the source table name from registry
+            entity_info = self.registry.get(source)
+            if entity_info:
+                # Source exists in registry, use its table name
+                return self._get_field_from_table(
+                    entity_info.table_name, field, id_value
                 )
 
-                # Charger les données selon le type
-                if import_config["type"] == "csv":
-                    df = pd.read_csv(file_path)
-                elif import_config["type"] == "vector":
-                    df = gpd.read_file(file_path)
-                else:
-                    raise ValueError(
-                        f"Unsupported import type: {import_config['type']}"
-                    )
-
-                # Récupérer la valeur en utilisant l'identifiant spécifié
-                identifier = import_config["identifier"]
-
-                row = df[df[identifier] == id_value]
-                if not row.empty:
-                    value = str(row[field].iloc[0])
-                    return value
-                else:
-                    return None
-
+            # Fallback: try using source as direct table name
             return self._get_field_from_table(source, field, id_value)
 
         except Exception as e:
@@ -171,14 +181,10 @@ class FieldAggregator(TransformerPlugin):
         self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Transform data according to configuration."""
-        self.validate_config(config)
-        validated_config = self.config_model(**config)
+        validated_config = self.validate_config(config)
         result = {}
 
-        for field_config in validated_config.params["fields"]:
-            # Validate field config using pydantic
-            field = FieldConfig.model_validate(field_config)
-
+        for field in validated_config.params.fields:
             # Determine if we should use DataFrame or DB/import source
             source_data = None
 
@@ -247,17 +253,10 @@ class FieldAggregator(TransformerPlugin):
                             # Empty DataFrame - return None
                             value = None
                     else:  # DB, import, etc.
-                        # Check if it's a JSON field access (contains dot notation)
-                        if "." in field.field:
-                            # Use _get_field_from_table for JSON field extraction
-                            value = self._get_field_from_table(
-                                field.source, field.field, config.get("group_id")
-                            )
-                        else:
-                            # Use _get_field_value for regular fields
-                            value = self._get_field_value(
-                                field.source, field.field, config.get("group_id")
-                            )
+                        # Always use _get_field_value which handles registry resolution
+                        value = self._get_field_value(
+                            field.source, field.field, config.get("group_id")
+                        )
                 except (KeyError, IndexError, TypeError):
                     # Handle potential errors during DataFrame access or dict navigation
                     value = None  # Default to None on error

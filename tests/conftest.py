@@ -64,7 +64,7 @@ def is_magicmock_file(name):
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Clean up MagicMock files and mock_db_path after test session."""
+    """Clean up MagicMock files, mock_db_path, and database test artifacts after test session."""
     # Get the root directory of the project
     root_dir = Path(__file__).parent.parent
 
@@ -80,6 +80,30 @@ def pytest_sessionfinish(session, exitstatus):
                 shutil.rmtree(mock_db_path)
         except Exception as e:
             print(f"Error cleaning up mock_db_path: {e}")
+
+    # Clean up any database files created at project root (test artifacts)
+    db_patterns = ["*.db", "*.duckdb", "*.sqlite", "*.sqlite3"]
+    for pattern in db_patterns:
+        for db_file in root_dir.glob(pattern):
+            # Only clean up files at the root, not in subdirectories
+            if db_file.parent == root_dir:
+                try:
+                    print(f"Cleaning up test database artifact: {db_file}")
+                    db_file.unlink()
+                except Exception as e:
+                    print(f"Error cleaning up {db_file}: {e}")
+
+    # Clean up auxiliary database files (WAL and shared memory files)
+    aux_patterns = ["*.db-shm", "*.db-wal", "*.duckdb-shm", "*.duckdb-wal"]
+    for pattern in aux_patterns:
+        for aux_file in root_dir.glob(pattern):
+            # Only clean up files at the root, not in subdirectories
+            if aux_file.parent == root_dir:
+                try:
+                    print(f"Cleaning up test database auxiliary file: {aux_file}")
+                    aux_file.unlink()
+                except Exception as e:
+                    print(f"Error cleaning up {aux_file}: {e}")
 
     # Find and remove MagicMock files
     for item in root_dir.glob("**/*"):

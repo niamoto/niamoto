@@ -3,9 +3,10 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import pandas as pd
 import plotly.express as px
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
 
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
+from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
     apply_plotly_defaults,
     get_plotly_dependencies,
@@ -16,50 +17,108 @@ logger = logging.getLogger(__name__)
 
 
 # Pydantic model for Line Plot parameters validation
-class LinePlotParams(BaseModel):
+class LinePlotParams(BasePluginParams):
+    """Parameters for line plot widget."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Create interactive line charts with multiple series support",
+            "examples": [
+                {
+                    "x_axis": "date",
+                    "y_axis": "value",
+                    "title": "Time Series Plot",
+                    "line_shape": "linear",
+                }
+            ],
+        }
+    )
+
     title: Optional[str] = Field(
-        None, description="Optional title for the widget container."
+        default=None,
+        description="Optional title for the widget container",
+        json_schema_extra={"ui:widget": "text"},
     )
     description: Optional[str] = Field(
-        None, description="Optional description for the widget container."
+        default=None,
+        description="Optional description for the widget container",
+        json_schema_extra={"ui:widget": "textarea"},
     )
     x_axis: str = Field(
-        ..., description="Field name for the X-axis (often time or a sequence)."
+        ...,
+        description="Field name for the X-axis (often time or a sequence)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     y_axis: Union[str, List[str]] = Field(
-        ..., description="Field name(s) for the Y-axis (values)."
+        ...,
+        description="Field name(s) for the Y-axis (values)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     color_field: Optional[str] = Field(
-        None, description="Field name for color grouping (creates multiple lines)."
+        default=None,
+        description="Field name for color grouping (creates multiple lines)",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     line_group: Optional[str] = Field(
-        None, description="Field to group data points into lines without coloring."
+        default=None,
+        description="Field to group data points into lines without coloring",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     markers: Union[bool, str] = Field(
-        False,
-        description="Show markers on lines (True, False, or field name for marker symbols).",
+        default=False,
+        description="Show markers on lines (True, False, or field name for marker symbols)",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     line_shape: Optional[str] = Field(
-        "linear",
-        description="Shape of lines: 'linear', 'spline', 'hv', 'vh', 'hvh', 'vhv'.",
+        default="linear",
+        description="Shape of lines",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "linear", "label": "Linear"},
+                {"value": "spline", "label": "Spline (smooth curves)"},
+                {"value": "hv", "label": "Horizontal then vertical"},
+                {"value": "vh", "label": "Vertical then horizontal"},
+                {"value": "hvh", "label": "Horizontal-vertical-horizontal"},
+                {"value": "vhv", "label": "Vertical-horizontal-vertical"},
+            ],
+        },
     )
     hover_name: Optional[str] = Field(
-        None, description="Field for primary hover label."
+        default=None,
+        description="Field for primary hover label",
+        json_schema_extra={"ui:widget": "field-select"},
     )
     hover_data: Optional[List[str]] = Field(
-        None, description="Additional fields for hover tooltip."
+        default=None,
+        description="Additional fields for hover tooltip",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
     )
     color_discrete_map: Optional[Any] = Field(
-        None, description="Mapping for discrete colors."
+        default=None,
+        description="Mapping for discrete colors",
+        json_schema_extra={"ui:widget": "json"},
     )
     color_continuous_scale: Optional[str] = Field(
-        None, description="Plotly color scale name (if color_field is numeric)."
+        default=None,
+        description="Plotly color scale name (if color_field is numeric)",
+        json_schema_extra={"ui:widget": "text"},
     )
-    range_y: Optional[List[float]] = Field(None, description="Y-axis range [min, max].")
+    range_y: Optional[List[float]] = Field(
+        default=None,
+        description="Y-axis range [min, max]",
+        json_schema_extra={"ui:widget": "array", "ui:item-widget": "number"},
+    )
     labels: Optional[Any] = Field(
-        None, description="Mapping for axis/legend labels {'x_axis': 'X Label', ...}"
+        default=None,
+        description="Mapping for axis/legend labels {'x_axis': 'X Label', ...}",
+        json_schema_extra={"ui:widget": "json"},
     )
-    log_y: bool = Field(False, description="Use logarithmic scale for Y-axis.")
+    log_y: bool = Field(
+        default=False,
+        description="Use logarithmic scale for Y-axis",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
 
 
 @register("line_plot", PluginType.WIDGET)

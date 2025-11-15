@@ -132,13 +132,16 @@ def export_command(
         _display_output_links(results)
 
     except ConfigurationError as e:
-        print_error(f"Configuration error: {e}")
+        if not getattr(e, "_handled", False):
+            print_error(f"Configuration error: {e}")
         raise
     except ProcessError as e:
-        print_error(f"Export failed: {e}")
+        if not getattr(e, "_handled", False):
+            print_error(f"Export failed: {e}")
         raise
     except Exception as e:
-        print_error(f"Unexpected error: {e}")
+        if not getattr(e, "_handled", False):
+            print_error(f"Unexpected error: {e}")
         raise
 
 

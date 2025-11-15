@@ -3,45 +3,85 @@ Plugin for aggregating field values from shape statistics.
 Supports single fields, ranges (min/max), and multiple fields.
 """
 
-from typing import Dict, Any, List, Union, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Union, Optional, Literal
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.imports.registry import EntityRegistry
 from niamoto.common.exceptions import DataTransformError
 
 
 class FieldConfig(BaseModel):
     """Configuration for a field"""
 
+    source: Optional[str] = (
+        None  # Optional source, will use parent source if not specified
+    )
     class_object: Union[str, List[str]]  # Can be string or list for ranges
     target: str
     units: str = ""
     format: Optional[str] = None  # "range" for min/max fields
 
 
+class FieldAggregatorParams(BasePluginParams):
+    """Parameters for field aggregator plugin"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "description": "Aggregate field values from shape statistics",
+            "examples": [
+                {
+                    "source": "shape_stats",
+                    "fields": [
+                        {
+                            "class_object": "land_area_ha",
+                            "target": "land_area_ha",
+                            "units": "ha",
+                        },
+                        {
+                            "class_object": ["rainfall_min", "rainfall_max"],
+                            "target": "rainfall",
+                            "units": "mm/an",
+                            "format": "range",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+
+    source: str = Field(
+        default="shape_stats",
+        description="Transform source name (from transform.yml sources)",
+        json_schema_extra={
+            "ui:widget": "transform-source-select",
+            # Will dynamically load sources from current group_by context
+        },
+    )
+
+    fields: List[FieldConfig] = Field(
+        ...,
+        min_length=1,
+        description="List of field configurations",
+        json_schema_extra={"ui:widget": "json"},
+    )
+
+    @field_validator("fields")
+    @classmethod
+    def validate_fields(cls, v: List[FieldConfig]) -> List[FieldConfig]:
+        """Validate field configurations."""
+        if not v:
+            raise ValueError("At least one field must be specified")
+        return v
+
+
 class ClassObjectFieldAggregatorConfig(PluginConfig):
     """Configuration for field aggregator plugin"""
 
-    plugin: str = "class_object_field_aggregator"
-    params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "fields": [
-                {
-                    "class_object": "land_area_ha",
-                    "target": "land_area_ha",
-                    "units": "ha",
-                },
-                {
-                    "class_object": ["rainfall_min", "rainfall_max"],
-                    "target": "rainfall",
-                    "units": "mm/an",
-                    "format": "range",
-                },
-            ]
-        }
-    )
+    plugin: Literal["class_object_field_aggregator"] = "class_object_field_aggregator"
+    params: FieldAggregatorParams
 
 
 @register("class_object_field_aggregator", PluginType.TRANSFORMER)
@@ -49,6 +89,33 @@ class ClassObjectFieldAggregator(TransformerPlugin):
     """Plugin for aggregating fields from class objects"""
 
     config_model = ClassObjectFieldAggregatorConfig
+
+    def __init__(self, db, registry=None):
+        """Initialize with database and optional EntityRegistry.
+
+        Args:
+            db: Database instance
+            registry: EntityRegistry instance (created if not provided)
+        """
+        super().__init__(db)
+        self.registry = registry or EntityRegistry(db)
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via EntityRegistry.
+
+        Args:
+            logical_name: Entity name from config (e.g., "shape_stats", "occurrences")
+
+        Returns:
+            Physical table name (e.g., "entity_shape_stats", "entity_occurrences")
+            Falls back to logical_name if not found in registry (backward compatibility)
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            return metadata.table_name
+        except Exception:
+            # Fallback: assume it's already a physical table name
+            return logical_name
 
     def _get_field_value(self, field: FieldConfig, data: pd.DataFrame) -> Any:
         """Get field value from data"""
@@ -115,21 +182,16 @@ class ClassObjectFieldAggregator(TransformerPlugin):
                     },
                 )
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate plugin configuration."""
-        validated_config = self.config_model(**config)
-        params = validated_config.params
-
-        # Validate fields configuration
-        fields = params.get("fields", [])
-        if not fields:
+    def validate_config(
+        self, config: Dict[str, Any]
+    ) -> ClassObjectFieldAggregatorConfig:
+        """Validate plugin configuration and return typed config."""
+        try:
+            return self.config_model(**config)
+        except Exception as e:
             raise DataTransformError(
-                "At least one field must be specified", details={"config": config}
+                f"Invalid configuration: {str(e)}", details={"config": config}
             )
-
-        # Field validation is now handled by Pydantic model
-
-        return validated_config
 
     def transform(
         self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]], config: Dict[str, Any]
@@ -138,29 +200,25 @@ class ClassObjectFieldAggregator(TransformerPlugin):
         Transform shape statistics data into field aggregations.
 
         Args:
-            data: DataFrame containing shape statistics
-            config: Configuration dictionary with:
-                - params.fields: List of field configurations with:
-                    - class_object: Field name or list of fields for ranges
-                    - target: Name for output
-                    - units: Optional units for output
-                    - format: Optional format for output (range)
-                - params.source: Optional source name (handled by TransformerService)
+            data: DataFrame (or mapping of DataFrames) containing the statistics
+                to aggregate.
+            config: Dictionary whose ``params`` entry declares the field
+                transformations. Each field definition may specify ``class_object``
+                (string or pair of strings when ``format`` is ``"range"``),
+                ``target`` (output key), optional ``units`` and optional
+                ``format``. An optional ``source`` can override the top-level
+                source for individual fields.
 
         Returns:
-            Dictionary with aggregated fields
+            dict[str, Any]: Aggregated fields keyed by their target names.
 
-        Example output:
+        Example
+        -------
+        .. code-block:: json
+
             {
-                "land_area_ha": {
-                    "value": 1000,
-                    "units": "ha"
-                },
-                "rainfall": {
-                    "min": 1000,
-                    "max": 2000,
-                    "units": "mm/an"
-                }
+              "land_area_ha": {"value": 1000, "units": "ha"},
+              "rainfall": {"min": 1000, "max": 2000, "units": "mm/an"}
             }
         """
         try:
@@ -172,17 +230,19 @@ class ClassObjectFieldAggregator(TransformerPlugin):
             results = {}
 
             # Process each field
-            for field_config in params["fields"]:
-                field = FieldConfig(**field_config)
+            for field in params.fields:
+                # Determine which source to use
+                # Priority: field.source -> params.source -> first available
+                source_name = field.source if field.source else params.source
 
-                # Use the data passed by TransformerService
-                # (already selected based on params.source)
                 if isinstance(data, dict):
-                    # This should not happen with the new logic
-                    # TransformerService should pass a single DataFrame
-                    source_data = list(data.values())[0] if data else pd.DataFrame()
+                    # Multiple data sources available
+                    source_data = data.get(source_name, pd.DataFrame())
+                    if source_data.empty and data:
+                        # Fallback to first available data if source not found
+                        source_data = list(data.values())[0]
                 else:
-                    # Expected case: single DataFrame
+                    # Single DataFrame case
                     source_data = data
 
                 # Get field data

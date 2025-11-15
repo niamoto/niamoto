@@ -2,13 +2,59 @@
 Plugin for creating categorical distributions.
 """
 
-from typing import Dict, Any
-from pydantic import field_validator, Field
+from typing import Dict, Any, List, Union
+from pydantic import BaseModel, field_validator, Field, ValidationInfo
 
 import pandas as pd
 
 from niamoto.core.plugins.models import PluginConfig
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.imports.registry import EntityRegistry
+
+
+class CategoricalDistributionParams(BaseModel):
+    """Parameters for categorical distribution plugin"""
+
+    source: str = Field(
+        default="occurrences",
+        description="Data source entity name",
+        json_schema_extra={
+            "ui:widget": "entity-select",
+            # No filter - allow all entities (datasets + references)
+        },
+    )
+    field: str = Field(
+        ...,
+        description="Field name containing categorical data",
+        json_schema_extra={"ui:widget": "text", "ui:placeholder": "category_field"},
+    )
+    categories: List[Union[int, float, str]] = Field(
+        default_factory=list,
+        description="List of category values to include in distribution",
+        json_schema_extra={"ui:widget": "array", "ui:items": {"ui:widget": "text"}},
+    )
+    labels: List[str] = Field(
+        default_factory=list,
+        description="Optional labels for categories (must match categories length if provided)",
+        json_schema_extra={"ui:widget": "array", "ui:items": {"ui:widget": "text"}},
+    )
+    include_percentages: bool = Field(
+        default=False,
+        description="Whether to include percentage values in output",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+
+    @field_validator("labels")
+    @classmethod
+    def validate_labels_length(cls, v: List[str], info: ValidationInfo) -> List[str]:
+        """Validate that labels length matches categories length if both are provided."""
+        if v:  # Only validate if labels are provided (non-empty list)
+            categories = info.data.get("categories", [])
+            if categories and len(v) != len(categories):
+                raise ValueError(
+                    f"number of labels ({len(v)}) must equal number of categories ({len(categories)})"
+                )
+        return v
 
 
 class CategoricalDistributionConfig(PluginConfig):
@@ -16,39 +62,11 @@ class CategoricalDistributionConfig(PluginConfig):
 
     plugin: str = "categorical_distribution"
     params: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "source": "",
-            "field": None,
-            "categories": [],
-            "labels": [],
-            "include_percentages": False,
-        }
+        default_factory=lambda: CategoricalDistributionParams(
+            source="occurrences", field="category_field"
+        ).model_dump(),
+        description="Plugin parameters",
     )
-
-    @field_validator("params")
-    @classmethod
-    def validate_params(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate params configuration."""
-        if not isinstance(v, dict):
-            raise ValueError("params must be a dictionary")
-
-        required_fields = ["source", "field"]
-        for field in required_fields:
-            if field not in v:
-                raise ValueError(f"Missing required field: {field}")
-
-        if "categories" in v and not isinstance(v["categories"], list):
-            raise ValueError("categories must be a list")
-
-        if "labels" in v:
-            if not isinstance(v["labels"], list):
-                raise ValueError("labels must be a list")
-            if "categories" in v and len(v["labels"]) != len(v["categories"]):
-                raise ValueError(
-                    "number of labels must be equal to number of categories"
-                )
-
-        return v
 
 
 @register("categorical_distribution", PluginType.TRANSFORMER)
@@ -57,22 +75,90 @@ class CategoricalDistribution(TransformerPlugin):
 
     config_model = CategoricalDistributionConfig
 
+    def __init__(self, db, registry=None):
+        """Initialize with database and optional EntityRegistry.
+
+        Args:
+            db: Database instance
+            registry: EntityRegistry instance (created if not provided)
+        """
+        super().__init__(db)
+        self.registry = registry or EntityRegistry(db)
+
+    def _resolve_table_name(self, logical_name: str) -> str:
+        """Resolve logical entity name to physical table name via EntityRegistry.
+
+        Args:
+            logical_name: Entity name from config (e.g., "occurrences", "shapes")
+
+        Returns:
+            Physical table name (e.g., "entity_occurrences", "entity_shapes")
+            Falls back to logical_name if not found in registry (backward compatibility)
+        """
+        try:
+            metadata = self.registry.get(logical_name)
+            return metadata.table_name
+        except Exception:
+            # Fallback: assume it's already a physical table name
+            return logical_name
+
+    def _validate_params(self, params: Dict[str, Any]) -> CategoricalDistributionParams:
+        """Validate params as CategoricalDistributionParams."""
+        try:
+            return CategoricalDistributionParams(**params)
+        except Exception as e:
+            # Convert Pydantic errors to more readable messages for backward compatibility
+            error_str = str(e)
+
+            # Handle missing field errors (check more specifically)
+            if "source\n  Field required" in error_str:
+                raise ValueError("Missing required field: source")
+            elif "field\n  Field required" in error_str:
+                raise ValueError("Missing required field: field")
+
+            # Handle type errors
+            elif (
+                "categories" in error_str
+                and "Input should be a valid list" in error_str
+            ):
+                raise ValueError("categories must be a list")
+            elif "labels" in error_str and "Input should be a valid list" in error_str:
+                raise ValueError("labels must be a list")
+
+            # Handle validation errors
+            elif (
+                "number of labels" in error_str
+                and "must equal number of categories" in error_str
+            ):
+                raise ValueError(
+                    "number of labels must be equal to number of categories"
+                )
+
+            # Default fallback
+            raise ValueError(f"Invalid configuration: {str(e)}")
+
     def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate configuration."""
         try:
-            return self.config_model(**config).model_dump()
+            validated = self.config_model(**config)
+            # Also validate the params specifically
+            self._validate_params(validated.params)
+            return validated.model_dump()
         except Exception as e:
-            raise ValueError(f"Invalid configuration: {str(e)}")
+            if "Invalid configuration:" not in str(e):
+                raise ValueError(f"Invalid configuration: {str(e)}")
+            raise
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """Transform data according to configuration."""
         try:
             validated_config = self.validate_config(config)
+            params = self._validate_params(validated_config["params"])
 
             # Get source data if different from occurrences
-            if validated_config["params"]["source"] != "occurrences":
+            if params.source != "occurrences":
                 result = self.db.execute_select(f"""
-                    SELECT * FROM {validated_config["params"]["source"]}
+                    SELECT * FROM {params.source}
                 """)
                 data = pd.DataFrame(
                     result.fetchall(),
@@ -80,19 +166,17 @@ class CategoricalDistribution(TransformerPlugin):
                 )
 
             # Get field data
-            if validated_config["params"]["field"] is not None:
-                field_data = data[validated_config["params"]["field"]]
+            if params.field is not None:
+                field_data = data[params.field]
             else:
                 field_data = data
 
             # Remove any None values
             field_data = field_data.dropna()
 
-            categories = validated_config["params"].get("categories", [])
-            labels = validated_config["params"].get("labels", [])
-            include_percentages = validated_config["params"].get(
-                "include_percentages", False
-            )
+            categories = params.categories
+            labels = params.labels
+            include_percentages = params.include_percentages
 
             if field_data.empty:
                 if not categories and labels:
@@ -101,7 +185,7 @@ class CategoricalDistribution(TransformerPlugin):
                     categories = []
 
                 if not labels:
-                    labels = categories
+                    labels = [str(cat) for cat in categories]
 
                 result = {
                     "categories": categories,
@@ -122,7 +206,7 @@ class CategoricalDistribution(TransformerPlugin):
             result = {
                 "categories": categories,
                 "counts": counts,
-                "labels": validated_config["params"].get("labels", categories),
+                "labels": labels if labels else [str(cat) for cat in categories],
             }
 
             if include_percentages:

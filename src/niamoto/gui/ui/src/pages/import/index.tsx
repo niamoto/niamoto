@@ -5,7 +5,6 @@ import { Overview } from './Overview'
 import { OccurrencesStep } from './OccurrencesStep'
 import { AggregationStep } from './AggregationStep'
 import { SummaryStep } from './SummaryStep'
-import { ImportButton } from './ImportButton'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
@@ -120,7 +119,9 @@ function ImportContent() {
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
-            <ImportButton />
+            <Button disabled>
+              Import
+            </Button>
           )}
         </div>
       </div>

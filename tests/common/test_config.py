@@ -36,7 +36,7 @@ class TestConfig(NiamotoTestCase):
         # In test mode, files are not created but config should still work
         config = Config(config_dir=self.config_dir, create_default=True)
         # Check that config has default values
-        self.assertEqual(config.database_path, "db/niamoto.db")
+        self.assertEqual(config.database_path, "db/niamoto.duckdb")
         self.assertEqual(config.logs_path, "logs")
 
     def test_init_with_custom_dir(self):
@@ -49,7 +49,7 @@ class TestConfig(NiamotoTestCase):
     def test_database_path(self):
         """Test getting database path."""
         config = Config(config_dir=self.config_dir, create_default=True)
-        self.assertEqual(config.database_path, "db/niamoto.db")
+        self.assertEqual(config.database_path, "db/niamoto.duckdb")
 
     def test_logs_path(self):
         """Test getting logs path."""
@@ -64,14 +64,81 @@ class TestConfig(NiamotoTestCase):
         self.assertEqual(exports["api"], "exports/api")
 
     def test_get_imports_config(self):
-        """Test getting imports configuration."""
-        config = Config(config_dir=self.config_dir, create_default=True)
+        """Test getting imports configuration with new schema."""
+        # Create config dir with new schema format
+        os.makedirs(self.config_dir, exist_ok=True)
+
+        # Create import.yml with new entities schema (dict format, not list)
+        import_config = {
+            "entities": {
+                "references": {
+                    "taxonomy": {
+                        "connector": {
+                            "type": "file",
+                            "format": "csv",
+                            "path": "imports/taxonomy.csv",
+                        },
+                        "schema": {"id_field": "id", "fields": []},
+                    },
+                    "plots": {
+                        "connector": {
+                            "type": "file",
+                            "format": "csv",
+                            "path": "imports/plots.csv",
+                        },
+                        "schema": {"id_field": "id", "fields": []},
+                    },
+                },
+                "datasets": {
+                    "occurrences": {
+                        "connector": {
+                            "type": "file",
+                            "format": "csv",
+                            "path": "imports/occurrences.csv",
+                        },
+                        "schema": {"id_field": "id", "fields": []},
+                    }
+                },
+            }
+        }
+
+        # Write all required config files
+        with open(os.path.join(self.config_dir, "config.yml"), "w") as f:
+            yaml.dump(Config._default_config(), f)
+        with open(os.path.join(self.config_dir, "import.yml"), "w") as f:
+            yaml.dump(import_config, f)
+        with open(os.path.join(self.config_dir, "transform.yml"), "w") as f:
+            yaml.dump(Config._default_transforms(), f)
+        with open(os.path.join(self.config_dir, "export.yml"), "w") as f:
+            yaml.dump(Config._default_exports(), f)
+
+        config = Config(config_dir=self.config_dir, create_default=False)
         imports = config.get_imports_config
-        self.assertIn("taxonomy", imports)
-        self.assertIn("occurrences", imports)
-        self.assertIn("plots", imports)
-        self.assertEqual(imports["taxonomy"]["type"], "csv")
-        self.assertEqual(imports["taxonomy"]["path"], "imports/taxonomy.csv")
+
+        # get_imports_config returns a GenericImportConfig Pydantic model
+        # Verify it has entities attribute
+        self.assertTrue(hasattr(imports, "entities"))
+
+        # Check structure of references (dict with entity names as keys)
+        references = imports.entities.references
+        self.assertIsInstance(references, dict)
+        self.assertEqual(len(references), 2)
+        self.assertIn("taxonomy", references)
+        self.assertIn("plots", references)
+
+        # Check that references contain proper connector configs
+        self.assertEqual(references["taxonomy"].connector.type.value, "file")
+        self.assertEqual(references["taxonomy"].connector.format, "csv")
+        self.assertIsNotNone(references["taxonomy"].entity_schema)
+
+        # Check structure of datasets (dict with entity names as keys)
+        datasets = imports.entities.datasets
+        self.assertIsInstance(datasets, dict)
+        self.assertEqual(len(datasets), 1)
+        self.assertIn("occurrences", datasets)
+        self.assertEqual(datasets["occurrences"].connector.type.value, "file")
+        self.assertEqual(datasets["occurrences"].connector.format, "csv")
+        self.assertIsNotNone(datasets["occurrences"].entity_schema)
 
     def test_get_transforms_config(self):
         """Test getting transforms configuration."""

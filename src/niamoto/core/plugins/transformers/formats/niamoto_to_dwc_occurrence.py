@@ -9,94 +9,138 @@ which is widely used for biodiversity data exchange.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Literal
 import re
 
-from pydantic import BaseModel
-
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
+from niamoto.core.plugins.models import DwcTransformerParams, PluginConfig
 from niamoto.common.exceptions import DataTransformError
 
 logger = logging.getLogger(__name__)
 
 
-class DwCMappingConfig(BaseModel):
-    """Configuration for Darwin Core mapping."""
+class NiamotoDwCConfig(PluginConfig):
+    """Configuration for Darwin Core transformer plugin."""
 
-    occurrence_list_source: str = "occurrences"
-    mapping: Dict[str, Union[str, Dict[str, Any]]]
+    plugin: Literal["niamoto_to_dwc_occurrence"] = "niamoto_to_dwc_occurrence"
+    params: DwcTransformerParams
 
 
 @register("niamoto_to_dwc_occurrence", PluginType.TRANSFORMER)
 class NiamotoDwCTransformer(TransformerPlugin):
     """Transform Niamoto data to Darwin Core Occurrence format."""
 
-    # We'll handle validation manually in the transform method
+    config_model = NiamotoDwCConfig
 
-    def __init__(self, db: Any):
+    def __init__(self, db: Any, registry=None):
         """Initialize the transformer."""
-        super().__init__(db)
+        super().__init__(db, registry)
         self._current_taxon = None
         self._occurrence_index = 0
+        # Store config parameters for use in generators
+        self._occurrence_table: Optional[str] = None
+        self._taxon_id_column = "id_taxonref"
+        self._taxon_id_field = "id"
+        self._taxonomy_table: Optional[str] = None
+        self._taxonomy_external_id_column: Optional[str] = None
+        self._taxonomy_entity: Optional[str] = None
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_config(self, config: Dict[str, Any]) -> NiamotoDwCConfig:
         """
-        Validate the configuration for this transformer.
+        Validate the configuration using Pydantic model.
 
         Args:
             config: Configuration dictionary to validate
 
         Returns:
-            Validated configuration
+            Validated NiamotoDwCConfig instance
 
         Raises:
             ValueError: If configuration is invalid
         """
-        if not isinstance(config, dict):
-            raise ValueError("Configuration must be a dictionary")
+        try:
+            # Accept already validated configs (handle potential duplicate class definitions)
+            if hasattr(config, "plugin") and hasattr(config, "params"):
+                if getattr(config, "plugin") == "niamoto_to_dwc_occurrence":
+                    return self.config_model.model_validate(config)
 
-        if "mapping" not in config:
-            raise ValueError("Configuration must include a 'mapping' section")
+            # Accept direct params objects coming from the typed UI flow (or any BaseModel with mapping)
+            if hasattr(config, "model_dump"):
+                dumped = config.model_dump()
+                if "mapping" in dumped:
+                    config = {
+                        "plugin": "niamoto_to_dwc_occurrence",
+                        "params": config,
+                    }
 
-        if not isinstance(config["mapping"], dict):
-            raise ValueError("'mapping' must be a dictionary")
-
-        # Validate that occurrence_list_source is present
-        if "occurrence_list_source" not in config:
-            config["occurrence_list_source"] = "occurrences"  # default value
-
-        return config
+            # Handle both old format (direct params) and new format (with params key)
+            if (
+                isinstance(config, dict)
+                and "params" not in config
+                and "mapping" in config
+            ):
+                # Old format: wrap in params for compatibility
+                config = {
+                    "plugin": "niamoto_to_dwc_occurrence",
+                    "params": {
+                        "occurrence_list_source": config.get(
+                            "occurrence_list_source", "occurrences"
+                        ),
+                        "mapping": config["mapping"],
+                    },
+                }
+            return self.config_model.model_validate(config)
+        except Exception as e:
+            raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(
-        self, data: Dict[str, Any], params: Union[DwCMappingConfig, Dict[str, Any]]
+        self, data: Dict[str, Any], config: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Transform Niamoto taxon data to Darwin Core occurrences.
 
         Args:
             data: Niamoto taxon data with occurrences
-            params: Configuration with mapping rules (can be dict or validated model)
+            config: Configuration dictionary with params
 
         Returns:
             List of Darwin Core formatted occurrences
         """
         try:
+            # Validate config and get typed parameters
+            validated_config = self.validate_config(config)
+            params = validated_config.params
+
             # Store current taxon data for reference in mapping
             self._current_taxon = data
 
-            if hasattr(params, "mapping"):
-                mapping = params.mapping
-            else:
-                mapping = params.get("mapping", {})
+            # Get mapping and database config from typed params
+            mapping = params.mapping
+            self._occurrence_table = self._resolve_entity_table(params.occurrence_table)
+            self._taxonomy_entity = params.taxonomy_entity
+            self._taxonomy_table = self._resolve_entity_table(params.taxonomy_entity)
+            self._taxon_id_column = params.taxon_id_column
+            self._taxon_id_field = params.taxon_id_field
+            self._taxonomy_external_id_column = (
+                self._resolve_taxonomy_external_id_column(
+                    params.taxonomy_external_id_column
+                )
+            )
 
-            # Get taxon ID (field is called 'taxon_id' in the taxon table)
-            taxon_id = data.get("taxon_id") or data.get("id")
+            # Get taxon ID from configured field
+            taxon_id = data.get(self._taxon_id_field)
             if not taxon_id:
-                logger.warning("Taxon data missing 'taxon_id' or 'id' field")
+                logger.warning(f"Taxon data missing '{self._taxon_id_field}' field")
                 return []
 
             # Fetch occurrences from database for this taxon
-            occurrences = self._fetch_occurrences_from_db(taxon_id)
+            occurrences = self._fetch_occurrences_from_db(
+                taxon_id,
+                self._occurrence_table,
+                self._taxon_id_column,
+                self._taxonomy_table,
+                self._taxonomy_external_id_column,
+            )
             if not occurrences:
                 logger.debug(f"No occurrences found for taxon {taxon_id}, skipping")
                 return []
@@ -118,34 +162,44 @@ class NiamotoDwCTransformer(TransformerPlugin):
         except Exception as e:
             raise DataTransformError(f"Darwin Core transformation failed: {str(e)}")
 
-    def _fetch_occurrences_from_db(self, taxon_id: int) -> List[Dict[str, Any]]:
-        """Fetch occurrences for a taxon from the database."""
+    def _fetch_occurrences_from_db(
+        self,
+        taxon_id: int,
+        occurrence_table: str,
+        taxon_id_column: str,
+        taxonomy_table: str,
+        taxonomy_external_id_column: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch occurrences for a taxon from the database.
+
+        Args:
+            taxon_id: The taxon ID value to search for (taxon.taxon_id)
+            occurrence_table: Name of the table containing occurrence data
+            taxon_id_column: Name of the column that links to the taxon (usually id_taxonref)
+
+        Returns:
+            List of occurrence records as dictionaries
+        """
         try:
             from sqlalchemy import text
 
-            # The correct relationship is:
-            # taxon.taxon_id (1-1667) -> taxon_ref.id (1-1667) -> occurrences.taxon_ref_id (179-1667)
-            # AND taxon_ref.taxon_id (1598-16871) -> occurrences.id_taxonref (1598-16871)
-
-            # First try: get occurrences using taxon_ref_id (the correct foreign key)
-            query = text("""
-                SELECT o.* FROM occurrences o
-                WHERE o.taxon_ref_id = :taxon_id
-            """)
+            # The taxon_id from the taxon table corresponds to entity_taxonomy.id
+            # But occurrences link via entity_taxonomy.taxonomy_id
+            # So we need to join entity_taxonomy to get the taxonomy_id first
+            query = text(
+                f"""
+                SELECT o.*
+                FROM "{occurrence_table}" o
+                JOIN "{taxonomy_table}" t
+                  ON o."{taxon_id_column}" = t."{taxonomy_external_id_column}"
+                WHERE t.id = :taxon_id
+            """
+            )
 
             with self.db.engine.connect() as connection:
                 result = connection.execute(query, {"taxon_id": taxon_id})
                 rows = result.fetchall()
-
-                if not rows:
-                    # Second try: get taxon_ref.taxon_id and use that for id_taxonref
-                    query2 = text("""
-                        SELECT o.* FROM occurrences o
-                        JOIN taxon_ref tr ON o.id_taxonref = tr.taxon_id
-                        WHERE tr.id = :taxon_id
-                    """)
-                    result = connection.execute(query2, {"taxon_id": taxon_id})
-                    rows = result.fetchall()
 
                 if not rows:
                     return []
@@ -158,13 +212,70 @@ class NiamotoDwCTransformer(TransformerPlugin):
                     occurrences.append(occurrence_dict)
 
                 logger.info(
-                    f"Found {len(occurrences)} occurrences for taxon {taxon_id}"
+                    "Found %s occurrences for taxon %s in %s.%s (via %s.%s)",
+                    len(occurrences),
+                    taxon_id,
+                    occurrence_table,
+                    taxon_id_column,
+                    taxonomy_table,
+                    taxonomy_external_id_column,
                 )
                 return occurrences
 
         except Exception as e:
-            logger.error(f"Error fetching occurrences for taxon {taxon_id}: {str(e)}")
+            logger.error(
+                "Error fetching occurrences for taxon %s from %s.%s: %s",
+                taxon_id,
+                occurrence_table,
+                taxon_id_column,
+                str(e),
+            )
             return []
+
+    def _resolve_entity_table(self, logical_name: str) -> str:
+        """Resolve a logical entity name to the physical table name."""
+
+        if self.registry:
+            try:
+                return self.resolve_entity_table(logical_name)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to resolve entity '%s' via registry (%s); using provided value",
+                    logical_name,
+                    exc,
+                )
+        return logical_name
+
+    def _resolve_taxonomy_external_id_column(
+        self, explicit_column: Optional[str]
+    ) -> str:
+        """Determine which column to use as the taxonomy external identifier."""
+
+        if explicit_column:
+            return explicit_column
+
+        if self.registry and self._taxonomy_entity:
+            try:
+                metadata = self.registry.get(self._taxonomy_entity)
+                derived_config = metadata.config.get("derived", {})
+                external_column = derived_config.get("external_id_field")
+                if external_column:
+                    return external_column
+
+                # Fallback to conventional naming if metadata is missing
+                candidate = f"{metadata.name}_id"
+                if candidate in self.db.get_table_columns(metadata.table_name):
+                    return candidate
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.debug(
+                    "Unable to infer external id column for entity '%s': %s",
+                    self._taxonomy_entity,
+                    exc,
+                )
+
+        # Last resort: assume <entity>_id naming convention
+        entity_name = self._taxonomy_entity or "taxonomy"
+        return f"{entity_name}_id"
 
     def _map_occurrence(
         self, occurrence: Dict[str, Any], mapping: Dict[str, Any]
@@ -185,22 +296,23 @@ class NiamotoDwCTransformer(TransformerPlugin):
 
         return dwc_record
 
-    def _resolve_mapping(
-        self, occurrence: Dict[str, Any], mapping_config: Union[str, Dict[str, Any]]
-    ) -> Any:
+    def _resolve_mapping(self, occurrence: Dict[str, Any], mapping_config: Any) -> Any:
         """Resolve a mapping configuration to a value."""
-        # Handle DwcMappingValue objects (Pydantic models)
-        if hasattr(mapping_config, "generator") or hasattr(mapping_config, "source"):
-            if hasattr(mapping_config, "generator") and mapping_config.generator:
+        # Import here to avoid circular imports
+        from niamoto.core.plugins.models import DwcMappingValue
+
+        # Handle DwcMappingValue objects from Pydantic models
+        if isinstance(mapping_config, DwcMappingValue):
+            if mapping_config.generator:
                 return self._apply_generator(
                     occurrence,
                     mapping_config.generator,
-                    mapping_config.params if hasattr(mapping_config, "params") else {},
+                    mapping_config.params,
                 )
-            elif hasattr(mapping_config, "source") and mapping_config.source:
+            elif mapping_config.source:
                 return self._resolve_reference(occurrence, mapping_config.source)
 
-        if isinstance(mapping_config, str):
+        elif isinstance(mapping_config, str):
             # Simple string value or reference
             if mapping_config.startswith("@"):
                 return self._resolve_reference(occurrence, mapping_config)
@@ -209,7 +321,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
                 return mapping_config
 
         elif isinstance(mapping_config, dict):
-            # Complex mapping with generator or source
+            # Legacy dict format (shouldn't happen with Pydantic validation, but kept for safety)
             if "generator" in mapping_config:
                 return self._apply_generator(
                     occurrence,
@@ -651,13 +763,30 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self, occurrence: Dict[str, Any], params: Dict[str, Any]
     ) -> int:
         """Count occurrences for the current taxon (for index generation)."""
-        # Get taxon ID from the current taxon data
-        taxon_id = self._current_taxon.get("taxon_id") or self._current_taxon.get("id")
+        # Get taxon ID from the current taxon data using configured field
+        taxon_id = self._current_taxon.get(self._taxon_id_field)
         if not taxon_id:
             return 0
 
-        # Fetch occurrences count from database
-        occurrences = self._fetch_occurrences_from_db(taxon_id)
+        occurrence_table = self._occurrence_table or self._resolve_entity_table(
+            "occurrences"
+        )
+        taxonomy_table = self._taxonomy_table or self._resolve_entity_table(
+            self._taxonomy_entity or "taxonomy"
+        )
+        taxonomy_external_id = (
+            self._taxonomy_external_id_column
+            or self._resolve_taxonomy_external_id_column(None)
+        )
+
+        # Fetch occurrences count from database using configured table and column
+        occurrences = self._fetch_occurrences_from_db(
+            taxon_id,
+            occurrence_table,
+            self._taxon_id_column,
+            taxonomy_table,
+            taxonomy_external_id,
+        )
         return len(occurrences)
 
     def _current_date(self, occurrence: Dict[str, Any], params: Dict[str, Any]) -> str:
