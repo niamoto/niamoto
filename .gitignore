@@ -124,3 +124,8 @@ tailwindcss-windows-x64.exe
 # Node/npm files (if any remain)
 node_modules/
 package-lock.json
+
+# Claude Code configuration files (local only)
+CLAUDE.md
+AGENTS.md
+.claude/
