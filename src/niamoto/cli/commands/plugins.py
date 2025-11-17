@@ -52,7 +52,7 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
         project_path = None
         try:
             niamoto_home = Config.get_niamoto_home()
-            project_path = Path(niamoto_home).parent
+            project_path = Path(niamoto_home)
         except Exception:
             # Not in a project directory, that's ok - will load system and user plugins only
             pass
