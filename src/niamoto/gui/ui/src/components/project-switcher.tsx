@@ -27,11 +27,15 @@ export function ProjectSwitcher() {
 
   const [switching, setSwitching] = useState(false);
 
-  // Get display name from path
+  // Get display name from path (cross-platform)
   const getProjectName = (path: string | null) => {
     if (!path) return t('project.none_selected', 'No project');
-    const parts = path.split('/');
-    return parts[parts.length - 1];
+    // Normalize backslashes to forward slashes and trim trailing slashes
+    const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '');
+    // Split and filter out empty segments
+    const parts = normalized.split('/').filter(segment => segment.length > 0);
+    // Return last non-empty segment or fallback
+    return parts.length > 0 ? parts[parts.length - 1] : t('project.none_selected', 'No project');
   };
 
   const handleSwitchProject = async (path: string) => {
