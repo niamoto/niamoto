@@ -186,7 +186,7 @@ export default function GoalDrivenPageBuilder() {
   // Real data preview state
   const [previewGroupBy, setPreviewGroupBy] = useState<'taxon' | 'plot' | 'shape'>('taxon')
   const [entities, setEntities] = useState<EntitySummary[]>([])
-  const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [entityDetail, setEntityDetail] = useState<EntityDetail | null>(null)
   const [loadingEntities, setLoadingEntities] = useState(false)
   const [loadingEntityDetail, setLoadingEntityDetail] = useState(false)
@@ -710,8 +710,8 @@ export default function GoalDrivenPageBuilder() {
                     <div className="space-y-2">
                       <Label>Entité</Label>
                       <Select
-                        value={selectedEntityId?.toString() || ''}
-                        onValueChange={(value) => setSelectedEntityId(parseInt(value))}
+                        value={selectedEntityId || ''}
+                        onValueChange={(value) => setSelectedEntityId(value)}
                         disabled={loadingEntities || entities.length === 0}
                       >
                         <SelectTrigger>
@@ -719,7 +719,7 @@ export default function GoalDrivenPageBuilder() {
                         </SelectTrigger>
                         <SelectContent>
                           {entities.map((entity) => (
-                            <SelectItem key={entity.id} value={entity.id.toString()}>
+                            <SelectItem key={entity.id} value={entity.id}>
                               {entity.display_name || entity.name}
                             </SelectItem>
                           ))}

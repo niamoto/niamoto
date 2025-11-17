@@ -77,18 +77,20 @@ class TestExporterService(NiamotoTestCase):
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")
     @patch("niamoto.core.services.exporter.PluginRegistry")
-    def test_init_valid_config(self, mock_registry, mock_loader, mock_db):
+    @patch("niamoto.core.services.exporter.Config.get_niamoto_home")
+    def test_init_valid_config(
+        self, mock_get_home, mock_registry, mock_loader, mock_db
+    ):
         """Test initialization with valid configuration."""
         self.mock_config.get_exports_config.return_value = self.valid_export_config
+        mock_get_home.return_value = self.test_dir
 
         service = ExporterService(self.db_path, self.mock_config)
 
         # Verify initialization
         mock_db.assert_called_once_with(self.db_path)
-        mock_loader.return_value.load_core_plugins.assert_called_once()
-        mock_loader.return_value.load_project_plugins.assert_called_once_with(
-            self.mock_config.plugins_dir
-        )
+        # Verify cascade loading was called (new unified method)
+        mock_loader.return_value.load_plugins_with_cascade.assert_called_once()
         self.assertIsNotNone(service.validated_config)
         self.assertEqual(len(service.validated_config.exports), 1)
 
@@ -468,12 +470,14 @@ class TestExporterService(NiamotoTestCase):
 
     @patch("niamoto.core.services.exporter.Database")
     @patch("niamoto.core.services.exporter.PluginLoader")
-    def test_plugin_loader_error(self, mock_loader, mock_db):
+    @patch("niamoto.core.services.exporter.Config.get_niamoto_home")
+    def test_plugin_loader_error(self, mock_get_home, mock_loader, mock_db):
         """Test when plugin loader fails."""
         self.mock_config.get_exports_config.return_value = self.valid_export_config
+        mock_get_home.return_value = self.test_dir
 
-        # Make plugin loader fail
-        mock_loader.return_value.load_core_plugins.side_effect = Exception(
+        # Make plugin loader fail with cascade method
+        mock_loader.return_value.load_plugins_with_cascade.side_effect = Exception(
             "Plugin load error"
         )
 

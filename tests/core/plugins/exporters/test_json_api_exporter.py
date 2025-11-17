@@ -104,7 +104,9 @@ class TestJsonApiExporter:
         from niamoto.core.plugins.plugin_loader import PluginLoader
 
         loader = PluginLoader()
-        loader.load_core_plugins()
+        loader.load_plugins_with_cascade(
+            project_path=None
+        )  # Load system and user plugins
 
         # Check that the plugin is registered and retrievable
         plugin_class = PluginRegistry.get_plugin(

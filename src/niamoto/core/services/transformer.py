@@ -74,12 +74,16 @@ class TransformerService:
             enable_cli_integration = CLI_CONTEXT
         self.use_cli_integration = bool(enable_cli_integration)
 
-        # Initialize plugin loader and load plugins
+        # Initialize plugin loader and load plugins with cascade resolution
         self.plugin_loader = PluginLoader()
-        self.plugin_loader.load_core_plugins()
 
-        # Load project plugins if any exist
-        self.plugin_loader.load_project_plugins(config.plugins_dir)
+        # Get project path for cascade resolution
+        from pathlib import Path
+
+        project_path = Path(Config.get_niamoto_home())
+
+        # Load all plugins (system, user, project) using cascade resolution
+        self.plugin_loader.load_plugins_with_cascade(project_path)
 
         # Registry is used for entity lookups across transform/export
         self.entity_registry = EntityRegistry(self.db)

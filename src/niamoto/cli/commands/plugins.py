@@ -45,18 +45,31 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
     console = default_console or Console()
 
     try:
-        # Load plugins first
+        # Load plugins with cascade resolution
         loader = PluginLoader()
-        loader.load_core_plugins()
 
-        # Try to load project plugins if we're in a niamoto project
+        # Try to determine project path if we're in a niamoto project
+        project_path = None
         try:
-            config = Config(Path.cwd() / "config")
-            if config.plugins_dir and Path(config.plugins_dir).exists():
-                loader.load_project_plugins(config.plugins_dir)
+            niamoto_home = Config.get_niamoto_home()
+            project_path = Path(niamoto_home)
         except Exception:
-            # Not in a project directory or no project plugins, that's ok
+            # Not in a project directory, that's ok - will load system and user plugins only
             pass
+
+        loader.load_plugins_with_cascade(project_path)
+
+        # Display header with project context
+        if verbose:
+            console.print("\n" + "=" * 60)
+            if project_path:
+                console.print(
+                    f"[bold]Plugins loaded for project:[/bold] {project_path}"
+                )
+            else:
+                console.print("[bold]Plugins loaded[/bold] (system and user only)")
+            console.print("=" * 60 + "\n")
+
         # Get all plugins from the registry
         all_plugins = {}
 
@@ -84,9 +97,9 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
             return
 
         if format == "simple":
-            _display_simple(console, plugins_dict, verbose)
+            _display_simple(console, plugins_dict, verbose, loader)
         else:
-            _display_table(console, plugins_dict, verbose)
+            _display_table(console, plugins_dict, verbose, loader)
 
         # Display summary
         total = len(plugins_dict)
@@ -102,12 +115,33 @@ def plugins(type: Optional[str], format: str, verbose: bool) -> None:
             + "[/dim]"
         )
 
+        # Show scope summary in verbose mode
+        if verbose:
+            by_scope = {"project": 0, "user": 0, "system": 0}
+            for name in plugins_dict.keys():
+                plugin_info = loader.plugin_info_by_name.get(name)
+                if plugin_info:
+                    by_scope[plugin_info.scope] = by_scope.get(plugin_info.scope, 0) + 1
+
+            if any(by_scope.values()):
+                console.print(
+                    "[dim]By scope: "
+                    + ", ".join(
+                        f"{scope}: {count}"
+                        for scope, count in by_scope.items()
+                        if count > 0
+                    )
+                    + "[/dim]"
+                )
+
     except Exception as e:
         console.print(f"[red]Error listing plugins: {e}[/red]")
         raise click.ClickException(str(e))
 
 
-def _display_table(console: Console, plugins: dict, verbose: bool) -> None:
+def _display_table(
+    console: Console, plugins: dict, verbose: bool, loader: PluginLoader
+) -> None:
     """Display plugins in a rich table format."""
     table = Table(title="Available Niamoto Plugins", show_lines=True)
 
@@ -116,8 +150,9 @@ def _display_table(console: Console, plugins: dict, verbose: bool) -> None:
     table.add_column("Type", style="magenta")
     table.add_column("Description", style="white")
     if verbose:
+        table.add_column("Scope", style="yellow")
+        table.add_column("Priority", style="blue")
         table.add_column("Module", style="dim")
-        table.add_column("Class", style="dim")
         table.add_column("Has Schema", style="green")
 
     # Sort plugins by type then name
@@ -134,8 +169,12 @@ def _display_table(console: Console, plugins: dict, verbose: bool) -> None:
         ]
 
         if verbose:
+            # Get cascade information from plugin_info_by_name
+            plugin_info = loader.plugin_info_by_name.get(name)
+            scope = plugin_info.scope if plugin_info else "unknown"
+            priority = str(plugin_info.priority) if plugin_info else "?"
+
             module = plugin_class.__module__
-            class_name = plugin_class.__name__
             has_schema = (
                 "✓"
                 if (
@@ -144,14 +183,16 @@ def _display_table(console: Console, plugins: dict, verbose: bool) -> None:
                 )
                 else "[red]✗[/red]"
             )
-            row.extend([module, class_name, has_schema])
+            row.extend([scope, priority, module, has_schema])
 
         table.add_row(*row)
 
     console.print(table)
 
 
-def _display_simple(console: Console, plugins: dict, verbose: bool) -> None:
+def _display_simple(
+    console: Console, plugins: dict, verbose: bool, loader: PluginLoader
+) -> None:
     """Display plugins in a simple text format."""
     # Group by type
     by_type = {}
@@ -171,11 +212,26 @@ def _display_simple(console: Console, plugins: dict, verbose: bool) -> None:
             console.print(f"  [cyan]{name}[/cyan] - {description}")
 
             if verbose:
+                # Get cascade information
+                plugin_info = loader.plugin_info_by_name.get(name)
+
+                if plugin_info:
+                    console.print(f"    ├─ [yellow]Scope:[/yellow] {plugin_info.scope}")
+                    console.print(
+                        f"    ├─ [blue]Priority:[/blue] {plugin_info.priority}"
+                    )
+                    console.print(f"    ├─ [dim]Path:[/dim] {plugin_info.path}")
+
                 module = plugin_class.__module__
-                console.print(f"    [dim]Module: {module}[/dim]")
-                console.print(f"    [dim]Class: {plugin_class.__name__}[/dim]")
-                if hasattr(plugin_class, "param_schema"):
-                    console.print("    [dim]Has parameter schema: ✓[/dim]")
+                console.print(f"    ├─ [dim]Module:[/dim] {module}")
+                console.print(f"    └─ [dim]Class:[/dim] {plugin_class.__name__}")
+
+                if hasattr(plugin_class, "param_schema") or hasattr(
+                    plugin_class, "config_model"
+                ):
+                    console.print(
+                        "       [green]✓[/green] [dim]Has parameter schema[/dim]"
+                    )
 
 
 def _get_description(plugin_class) -> str:

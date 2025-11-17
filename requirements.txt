@@ -2,8 +2,8 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 affine==3.0b1
     # via rasterio
-alembic==1.14.1
-    # via niamoto (pyproject.toml)
+annotated-doc==0.0.4
+    # via fastapi
 annotated-types==0.7.0
     # via pydantic
 anyio==4.9.0
@@ -16,8 +16,6 @@ attrs==25.1.0
     #   affine
     #   fiona
     #   rasterio
-blinker==1.9.0
-    # via flask
 certifi==2025.1.31
     # via
     #   fiona
@@ -29,13 +27,12 @@ certifi==2025.1.31
     #   requests
 charset-normalizer==3.4.1
     # via requests
-click==8.1.8
+click==8.3.1
     # via
     #   niamoto (pyproject.toml)
     #   click-plugins
     #   cligj
     #   fiona
-    #   flask
     #   rasterio
     #   uvicorn
 click-plugins==1.1.1
@@ -46,17 +43,15 @@ cligj==0.7.2
     # via
     #   fiona
     #   rasterio
-duckdb==1.4.1
-    # via duckdb-engine
+duckdb==1.4.2
+    # via
+    #   niamoto (pyproject.toml)
+    #   duckdb-engine
 duckdb-engine==0.17.0
     # via niamoto (pyproject.toml)
-fastapi==0.115.14
+fastapi==0.121.2
     # via niamoto (pyproject.toml)
 fiona==1.10.1
-    # via niamoto (pyproject.toml)
-flask==3.1.0
-    # via niamoto (pyproject.toml)
-geoalchemy2==0.17.0
     # via niamoto (pyproject.toml)
 geopandas==1.0.1
     # via niamoto (pyproject.toml)
@@ -75,25 +70,16 @@ idna==3.10
     #   anyio
     #   httpx
     #   requests
-itsdangerous==2.2.0
-    # via flask
 jinja2==3.1.5
-    # via flask
+    # via niamoto (pyproject.toml)
 joblib==1.5.2
     # via scikit-learn
-loguru==0.7.2
-    # via niamoto (pyproject.toml)
-mako==1.3.9
-    # via alembic
 markdown-it-py==3.0.0
     # via
     #   niamoto (pyproject.toml)
     #   rich
 markupsafe==3.0.2
-    # via
-    #   jinja2
-    #   mako
-    #   werkzeug
+    # via jinja2
 mdurl==0.1.2
     # via markdown-it-py
 mypy==1.15.0
@@ -116,7 +102,6 @@ numpy==2.2.3
 packaging==24.2
     # via
     #   duckdb-engine
-    #   geoalchemy2
     #   geopandas
     #   plotly
     #   pyogrio
@@ -125,19 +110,15 @@ pandas==2.2.3
     # via
     #   niamoto (pyproject.toml)
     #   geopandas
-plotly==6.0.1
+plotly==6.4.0
     # via niamoto (pyproject.toml)
-prompt-toolkit==3.0.50
+pyarrow==22.0.0
     # via niamoto (pyproject.toml)
-psutil==7.0.0
-    # via niamoto (pyproject.toml)
-pyarrow==19.0.1
-    # via niamoto (pyproject.toml)
-pydantic==2.11.0a2
+pydantic==2.12.4
     # via
     #   niamoto (pyproject.toml)
     #   fastapi
-pydantic-core==2.29.0
+pydantic-core==2.41.5
     # via pydantic
 pygments==2.19.1
     # via rich
@@ -157,19 +138,15 @@ python-multipart==0.0.20
     # via niamoto (pyproject.toml)
 pytz==2025.1
     # via pandas
-pyyaml==6.0.2
+pyyaml==6.0.3
     # via
     #   niamoto (pyproject.toml)
     #   uvicorn
 rasterio==1.4.3
     # via niamoto (pyproject.toml)
-requests==2.32.3
+requests==2.32.5
     # via niamoto (pyproject.toml)
-rich==13.9.4
-    # via niamoto (pyproject.toml)
-rjsmin==1.2.3
-    # via niamoto (pyproject.toml)
-rtree==1.3.0
+rich==14.2.0
     # via niamoto (pyproject.toml)
 scikit-learn==1.7.2
     # via niamoto (pyproject.toml)
@@ -184,41 +161,35 @@ six==1.17.0
     # via python-dateutil
 sniffio==1.3.1
     # via anyio
-sqlalchemy==2.0.38
+sqlalchemy==2.0.44
     # via
     #   niamoto (pyproject.toml)
-    #   alembic
     #   duckdb-engine
-    #   geoalchemy2
 starlette==0.46.2
     # via fastapi
-tabulate==0.9.0
-    # via niamoto (pyproject.toml)
 threadpoolctl==3.6.0
     # via scikit-learn
 topojson==1.9
     # via niamoto (pyproject.toml)
-typing-extensions==4.12.2
+typing-extensions==4.15.0
     # via
-    #   alembic
     #   fastapi
     #   mypy
     #   pydantic
     #   pydantic-core
     #   sqlalchemy
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via pydantic
 tzdata==2025.1
     # via pandas
 urllib3==2.3.0
     # via requests
-uvicorn==0.35.0
+uvicorn==0.38.0
     # via niamoto (pyproject.toml)
 uvloop==0.21.0
     # via uvicorn
 watchfiles==1.1.0
     # via uvicorn
-wcwidth==0.2.13
-    # via prompt-toolkit
 websockets==15.0.1
     # via uvicorn
-werkzeug==3.1.3
-    # via flask

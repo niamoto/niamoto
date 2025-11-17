@@ -10,9 +10,11 @@ import shutil
 import yaml
 import json
 import sys
+from niamoto.common.bundle import is_frozen
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
+# Add src to path for imports (only needed in development)
+if not is_frozen():
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
 from niamoto.core.imports.auto_detector import AutoDetector
 from niamoto.core.imports.bootstrap import DataBootstrap
@@ -198,12 +200,9 @@ async def get_sample_data():
     This endpoint returns information about sample datasets that can be
     used to test the bootstrap functionality.
     """
-    sample_dir = (
-        Path(__file__).parent.parent.parent.parent.parent.parent
-        / "test-instance"
-        / "niamoto-og"
-        / "imports"
-    )
+    from niamoto.common.bundle import get_base_path
+
+    sample_dir = get_base_path() / "test-instance" / "niamoto-og" / "imports"
 
     if not sample_dir.exists():
         return {"available": False, "message": "No sample data found"}

@@ -149,22 +149,20 @@ class TopRankingParams(BasePluginParams):
     )
 
     @model_validator(mode="after")
-    def validate_aggregate_field_requirement(
-        cls, values: "TopRankingParams"
-    ) -> "TopRankingParams":
+    def validate_aggregate_field_requirement(self) -> "TopRankingParams":
         """Ensure aggregate_field is provided and valid when required."""
 
-        agg_func = values.aggregate_function
+        agg_func = self.aggregate_function
         if agg_func in {"sum", "avg"}:
-            if not values.aggregate_field:
+            if not self.aggregate_field:
                 msg = "aggregate_field is required when aggregate_function is 'sum' or 'avg'"
                 raise ValueError(msg)
 
-            if not cls._is_safe_identifier(values.aggregate_field):
+            if not self._is_safe_identifier(self.aggregate_field):
                 msg = "aggregate_field must be an alphanumeric column name (letters, numbers, underscore)"
                 raise ValueError(msg)
 
-        return values
+        return self
 
     @staticmethod
     def _is_safe_identifier(identifier: str) -> bool:

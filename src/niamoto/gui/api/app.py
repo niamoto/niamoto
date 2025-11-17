@@ -10,6 +10,7 @@ from .routers import (
     config,
     database,
     files,
+    health,
     imports,
     plugins,
     transform,
@@ -22,6 +23,7 @@ from .routers import (
 from .context import get_working_directory
 
 # Get the path to the built React app
+# Works in both source and frozen (PyInstaller) modes
 UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
 
 
@@ -45,6 +47,7 @@ def create_app() -> FastAPI:
     )
 
     # Include API routers FIRST (before static files)
+    app.include_router(health.router)  # Health check endpoint for Tauri
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(database.router, prefix="/api/database", tags=["database"])
     app.include_router(files.router, prefix="/api/files", tags=["files"])
