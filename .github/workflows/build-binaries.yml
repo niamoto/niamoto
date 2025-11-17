@@ -122,7 +122,9 @@ jobs:
       - name: Prepare artifact (Windows)
         if: matrix.platform == 'windows'
         run: |
-          Compress-Archive -Path dist\${{ matrix.binary_name }} -DestinationPath ${{ matrix.asset_name }}.zip
+          Push-Location dist
+          Compress-Archive -Path ${{ matrix.binary_name }} -DestinationPath ..\${{ matrix.asset_name }}.zip
+          Pop-Location
 
       - name: Upload artifact (Unix)
         if: matrix.platform != 'windows'
