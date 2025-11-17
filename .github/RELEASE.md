@@ -49,8 +49,7 @@ Once the tag is pushed, GitHub Actions will automatically:
 
 1. ✅ Build React UI
 2. ✅ Build binaries for all platforms:
-   - macOS Apple Silicon (arm64)
-   - macOS Intel (x86_64)
+   - macOS Apple Silicon (arm64) - works on Intel Macs via Rosetta 2
    - Linux x86_64
    - Windows x86_64
 3. ✅ Create GitHub Release with all binaries
@@ -63,18 +62,19 @@ Visit: https://github.com/niamoto/niamoto/actions
 The build takes approximately:
 - React UI: ~2-3 minutes
 - Each binary: ~5-10 minutes
-- **Total: ~15-20 minutes**
+- **Total: ~10-15 minutes**
 
 ## 📦 What Gets Released
 
-Each release includes 4 binaries:
+Each release includes 3 binaries:
 
 | File | Platform | Size |
 |------|----------|------|
-| `niamoto-macos-arm64.tar.gz` | macOS M1/M2/M3/M4 | ~50-60 MB |
-| `niamoto-macos-x86_64.tar.gz` | macOS Intel | ~50-60 MB |
+| `niamoto-macos-arm64.tar.gz` | macOS (all Macs via Rosetta 2) | ~50-60 MB |
 | `niamoto-linux-x86_64.tar.gz` | Linux x86_64 | ~50-60 MB |
 | `niamoto-windows-x86_64.zip` | Windows 10/11 | ~50-60 MB |
+
+**Note:** The macOS binary is arm64 only. Intel Macs will run it automatically via Rosetta 2.
 
 **Uncompressed binaries are ~130-140 MB each**
 
@@ -210,10 +210,12 @@ Examples:
 
 The workflow builds on:
 
-- **macOS-14**: Latest Apple Silicon runner (arm64)
-- **macOS-13**: Latest Intel runner (x86_64)
+- **macOS-14**: Latest Apple Silicon runner (arm64) - Intel Macs use Rosetta 2
 - **ubuntu-22.04**: Ubuntu 22.04 LTS (glibc 2.35)
 - **windows-latest**: Windows Server 2022
+
+**Note:** macOS Intel builds were removed to save GitHub Actions minutes (10x multiplier).
+Intel Macs can run arm64 binaries seamlessly via Rosetta 2.
 
 ## 🔄 Updating the Workflow
 
