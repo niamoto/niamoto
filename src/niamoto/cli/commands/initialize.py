@@ -62,9 +62,11 @@ def init_environment(
       - transform.yml
       - export.yml
     """
+    # Save original directory to restore on exit
+    original_dir = Path.cwd()
+
     try:
         # Determine target directory
-        original_dir = Path.cwd()
         project_created = False
 
         if path and project_name:
@@ -161,6 +163,9 @@ def init_environment(
         raise CommandError(
             command="init", message="Initialization failed", details={"error": str(e)}
         )
+    finally:
+        # Always restore the original working directory
+        os.chdir(original_dir)
 
 
 def confirm_reset() -> bool:
