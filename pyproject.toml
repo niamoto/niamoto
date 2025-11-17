@@ -36,13 +36,7 @@ dependencies = [
     # ---------------------
     # SQLAlchemy - Comprehensive database toolkit for Python.
     # Documentation: https://www.sqlalchemy.org/
-    "sqlalchemy[mypy]==2.0.38",
-    # alembic - Database migration tool for SQLAlchemy.
-    # Documentation: https://alembic.sqlalchemy.org/en/latest/
-    "alembic>=1.12.1",
-    # geoalchemy2 - Extensions to SQLAlchemy for working with spatial databases.
-    # Documentation: https://geoalchemy-2.readthedocs.io/
-    "geoalchemy2>=0.17.0",
+    "sqlalchemy[mypy]>=2.0.44",
     # ---------------------
     # Geospatial libraries
     # ---------------------
@@ -69,63 +63,49 @@ dependencies = [
     "pandas>=2.2.1",
     # pyarrow - Python bindings for Apache Arrow. required by pandas.
     # Documentation: https://arrow.apache.org/docs/python/
-    "pyarrow>=19.0.0",
+    "pyarrow>=22.0.0",
     # numpy - Fundamental package for scientific computing in Python.
     # Documentation: https://numpy.org/
-    "numpy==2.2.3",
+    "numpy>=2.2.3,<3",
     # ---------------------------
     # Command Line Interface (CLI)
     # ---------------------------
     # click - Create beautiful command line interfaces in a composable way.
     # Documentation: https://click.palletsprojects.com/en/8.0.x/
-    "click>=8.1.7",
+    "click>=8.3.0",
     # rich - Python library for rich text and beautiful formatting in the terminal.
-    "rich>=13.7.1",
-    # tabulate - Pretty-print tabular data within Python.
-    # Documentation: https://pypi.org/project/tabulate/
-    "tabulate>=0.9.0",
+    "rich>=14.2.0",
     # pyyaml - YAML parser and emitter for Python.
     # Documentation: https://pyyaml.org/wiki/PyYAMLDocumentation
-    "pyyaml>=6.0.1",
+    "pyyaml>=6.0.3",
     # pydantic - Data validation and settings management using Python type hinting.
     # Documentation: https://pydantic-docs.helpmanual.io/
-    "pydantic>=2.10.6",
-    # flask - Lightweight WSGI web application framework.
-    # Documentation: https://flask.palletsprojects.com/
-    "flask>=3.0.0",
-    # loguru - Simplified logging library with a focus on ease of use.
-    # Documentation: https://loguru.readthedocs.io/
-    "loguru>=0.7.2",
+    "pydantic>=2.12.0",
     # pyproj - Python interface to PROJ (cartographic projections and coordinate transformations library).
     "pyproj>=3.7",
-    # rjsmin - JavaScript minifier written in Python.
-    "rjsmin>=1.2.2",
-    # prompt-toolkit - Library for building powerful interactive command line applications in Python.
-    "prompt-toolkit>=3.0.43",
-    # rtree - Library for spatial indexing and querying in Python.
-    # Documentation: https://rtree.readthedocs.io/
-    "rtree>=1.3.0",
     # requests - HTTP library for Python.
-    "requests>=2.32.3",
+    "requests>=2.32.5",
     # markdown-it-py - Markdown parser for Python.
-    "markdown-it-py>=3.0.0",
+    "markdown-it-py>=3.0.0,<4.0.0",
+    # jinja2 - Template engine for Python (used by exporters and API)
+    # Documentation: https://jinja.palletsprojects.com/
+    "jinja2>=3.1.0",
     # ---------------------
     # Visualization libraries
     # ---------------------
     # Plotly - Interactive graphing library
     # Documentation: https://plotly.com/python/
     # Note: Scattermap was introduced in 5.24.0
-    "plotly>=5.24.0", # Minimum version for Scattermap support
-    "psutil>=7.0.0",
+    "plotly>=6.4.0", # Minimum version for Scattermap support
     # ---------------------
     # GUI libraries
     # ---------------------
     # FastAPI - Modern, fast web framework for building APIs
     # Documentation: https://fastapi.tiangolo.com/
-    "fastapi>=0.115.0",
+    "fastapi>=0.121.0",
     # Uvicorn - Lightning-fast ASGI server
     # Documentation: https://www.uvicorn.org/
-    "uvicorn[standard]>=0.34.0",
+    "uvicorn[standard]>=0.38.0",
     # python-multipart - Required for file uploads in FastAPI
     # Documentation: https://github.com/andrew-d/python-multipart
     "python-multipart>=0.0.6",
@@ -135,6 +115,10 @@ dependencies = [
     # scikit-learn - Machine learning library for Python
     # Documentation: https://scikit-learn.org/
     "scikit-learn>=1.7.2",
+    # duckdb - DuckDB is an in-process SQL OLAP database management system
+    # Documentation: https://duckdb.org/
+    "duckdb>=1.4.2",
+    # duckdb-engine - SQLAlchemy driver for DuckDB
     "duckdb-engine>=0.17.0",
 ]
 
@@ -197,7 +181,7 @@ dev = [
 
     # mypy - Optional static type checker for Python, aiming to combine the benefits of dynamic and static typing.
     # Documentation: http://mypy-lang.org/
-    "mypy>=1.7.0",
+    "mypy>=1.18.0",
 
     # ----------------------------
     # Development Utilities
@@ -242,13 +226,13 @@ dev = [
 [dependency-groups]
 dev = [
     "bump2version>=1.0.1",
-    "pre-commit>=4.1.0",
-    "pytest>=8.4.1",
-    "pytest-cov>=6.2.1",
+    "pre-commit>=4.4.0",
+    "pytest>=8.4.1,<9.0.0",
+    "pytest-cov>=7.0.0",
     "pytest-httpx>=0.35.0",
-    "pytest-mock>=3.14.1",
+    "pytest-mock>=3.15.0",
     "requests-mock>=1.12.1",
-    "tox>=4.26.0",
+    "tox>=4.32.0",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -145,7 +145,7 @@ async def upload_files(
 
         return {
             "success": len(uploaded_files) > 0 or len(existing_files) > 0,
-            "uploaded_files": [f.dict() for f in uploaded_files],
+            "uploaded_files": [f.model_dump() for f in uploaded_files],
             "uploaded_count": len(uploaded_files),
             "existing_files": existing_files,  # List of files that already exist
             "existing_count": len(existing_files),

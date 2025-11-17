@@ -159,15 +159,12 @@ class GenericImporter:
         Returns:
             ImportResult with rows count and table name
 
-        Raises:
-            ValueError: If database is not DuckDB
+        Note:
+            This method works with both SQLite and DuckDB backends using standard SQL CTEs.
         """
-        if not self.db.is_duckdb:
-            raise ValueError("Derived references require DuckDB backend")
-
         from niamoto.core.imports.hierarchy_builder import HierarchyBuilder
 
-        # 1. Build hierarchy from source (DuckDB-native)
+        # 1. Build hierarchy from source using SQL CTEs
         builder = HierarchyBuilder(self.db)
         hierarchy_df = builder.build_from_dataset(
             source_table, extraction_config, entity_name
@@ -206,7 +203,7 @@ class GenericImporter:
             )
             return ImportResult(rows=0, table=table_name)
 
-        # 2. Write to database (DuckDB CTAS)
+        # 2. Write to database (SQLAlchemy via pandas.to_sql)
         # Drop existing
         self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
 
@@ -214,7 +211,7 @@ class GenericImporter:
         if "extra_data" not in hierarchy_df.columns:
             hierarchy_df["extra_data"] = None
 
-        # Create from DataFrame via DuckDB
+        # Create from DataFrame (works with both SQLite and DuckDB)
         hierarchy_df.to_sql(
             table_name, self.db.engine, if_exists="replace", index=False
         )

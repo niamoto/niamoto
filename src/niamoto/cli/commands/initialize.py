@@ -4,6 +4,7 @@ Handles database initialization, configuration files and environment setup.
 """
 
 import os
+from pathlib import Path
 import click
 import subprocess
 import sys
@@ -19,6 +20,14 @@ from ...common.utils import error_handler
 @click.command(name="init")
 @click.argument("project_name", required=False)
 @click.option(
+    "--path",
+    type=click.Path(),
+    help="Absolute path where to create the project (alternative to project_name).",
+)
+@click.option(
+    "--template", type=str, help="Template to use for initialization (future feature)."
+)
+@click.option(
     "--reset", is_flag=True, help="Reset the environment if it already exists."
 )
 @click.option(
@@ -28,12 +37,24 @@ from ...common.utils import error_handler
 )
 @click.option("--gui", is_flag=True, help="Launch the GUI after initialization.")
 @error_handler(log=True, raise_error=True)
-def init_environment(project_name: str, reset: bool, force: bool, gui: bool) -> None:
+def init_environment(
+    project_name: str, path: str, template: str, reset: bool, force: bool, gui: bool
+) -> None:
     """
     Initialize or reset the Niamoto environment, and display its status.
 
     Args:
-        project_name: Optional name for the project. If provided, creates a new directory.
+        project_name: Optional name for the project (creates in current directory).
+        path: Absolute path where to create the project.
+        template: Template to use for initialization.
+        reset: Reset the environment if it already exists.
+        force: Force reset without confirmation.
+        gui: Launch the GUI after initialization.
+
+    Examples:
+        niamoto init                          # Initialize in current directory
+        niamoto init my-project               # Create ./my-project/ and initialize
+        niamoto init --path /absolute/path    # Initialize at specific location
 
     Handles:
       - config.yml (database, logs, outputs)
@@ -42,10 +63,41 @@ def init_environment(project_name: str, reset: bool, force: bool, gui: bool) -> 
       - export.yml
     """
     try:
-        # Handle project directory creation
-        if project_name:
+        # Determine target directory
+        original_dir = Path.cwd()
+        project_created = False
+
+        if path and project_name:
+            print_error("Cannot use both --path and project_name. Choose one.")
+            return
+
+        if path:
+            # Use absolute path provided
+            target_path = Path(path).resolve()
+
             # Check if directory already exists
-            if os.path.exists(project_name):
+            if target_path.exists():
+                if not reset:
+                    print_error(
+                        f"Directory '{target_path}' already exists. "
+                        "Use --reset to reinitialize, or choose a different path."
+                    )
+                    return
+            else:
+                # Create directory
+                target_path.mkdir(parents=True, exist_ok=True)
+                project_created = True
+                print_success(f"Created project directory: {target_path}")
+
+            # Change to target directory
+            os.chdir(target_path)
+            project_display_name = target_path.name
+
+        elif project_name:
+            # Create in current directory (original behavior)
+            target_path = original_dir / project_name
+
+            if target_path.exists():
                 print_error(
                     f"Directory '{project_name}' already exists. "
                     "Please choose a different name or remove the existing directory."
@@ -53,15 +105,22 @@ def init_environment(project_name: str, reset: bool, force: bool, gui: bool) -> 
                 return
 
             # Create project directory
-            os.makedirs(project_name)
-            os.chdir(project_name)
+            target_path.mkdir(parents=True, exist_ok=True)
+            os.chdir(target_path)
+            project_created = True
+            project_display_name = project_name
             print_success(f"Created project directory: {project_name}")
+
         else:
+            # Initialize in current directory (original behavior)
+            target_path = original_dir
+            project_display_name = target_path.name
+
             # Check if current directory has a Niamoto instance
-            config_dir_check = os.path.join(os.getcwd(), "config")
-            if os.path.exists(config_dir_check) and not reset:
+            config_dir_check = target_path / "config"
+            if config_dir_check.exists() and not reset:
                 if not click.confirm(
-                    f"Initialize a Niamoto instance in the current directory '{os.path.basename(os.getcwd())}'?",
+                    f"Initialize a Niamoto instance in the current directory '{project_display_name}'?",
                     default=True,
                 ):
                     print_warning("Initialization cancelled.")
@@ -78,19 +137,21 @@ def init_environment(project_name: str, reset: bool, force: bool, gui: bool) -> 
                     return
             reset_environment(config_dir)
         elif not environment_exists:
-            # Pass project name to initialization
-            project_display_name = project_name or os.path.basename(os.getcwd())
-            initialize_environment(config_dir, project_display_name)
+            # Pass project name and template to initialization
+            initialize_environment(config_dir, project_display_name, template)
 
         display_environment_status(config_dir)
 
         # If we created a new directory, show how to navigate to it
-        if project_name:
+        if project_created and path:
+            print_info("\nProject created at:")
+            print_info(f"  {target_path}")
+        elif project_created and project_name:
             print_info("\nTo start working with your project, run:")
             print_info(f"  cd {project_name}")
 
-        # Launch GUI if --gui is specified or if project_name is provided
-        if gui or project_name:
+        # Launch GUI if --gui is specified or if a project was created
+        if gui or project_created:
             print_info("\nLaunching configuration interface...")
             launch_gui()
         else:
@@ -137,16 +198,24 @@ def get_config_dir() -> str:
 
 
 @error_handler(log=True, raise_error=True)
-def initialize_environment(config_dir: str, project_name: str) -> None:
+def initialize_environment(
+    config_dir: str, project_name: str, template: str = None
+) -> None:
     """
     Initialize the Niamoto environment.
 
     Args:
         config_dir (str): Path to the configuration directory.
         project_name (str): Name of the project.
+        template (str, optional): Template to use for initialization (future feature).
     """
     try:
         os.makedirs(config_dir, exist_ok=True)
+
+        # TODO: Implement template support
+        if template:
+            print_info(f"Using template: {template} (template support coming soon)")
+
         environment = Environment(config_dir, project_name=project_name)
         environment.initialize()
         print_success("Environment initialized successfully.")

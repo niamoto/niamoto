@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { ProjectSwitcher } from '@/components/project-switcher'
+import { useRuntimeMode } from '@/hooks/useRuntimeMode'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +22,7 @@ interface TopBarProps {
 export function TopBar({ className }: TopBarProps) {
   const { t } = useTranslation()
   const { setCommandPaletteOpen, sidebarMode, setSidebarMode } = useNavigationStore()
+  const { features } = useRuntimeMode()
 
   return (
     <header
@@ -68,6 +71,13 @@ export function TopBar({ className }: TopBarProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-2">
+        {/* Project switcher (desktop mode only) */}
+        {features.project_switching && (
+          <div className="hidden md:block">
+            <ProjectSwitcher />
+          </div>
+        )}
+
         {/* Language switcher */}
         <div className="hidden md:block">
           <LanguageSwitcher />

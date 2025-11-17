@@ -140,23 +140,24 @@ class TestTransformerService:
             with patch(
                 "niamoto.core.services.transformer.EntityRegistry"
             ) as mock_registry:
-                registry_instance = Mock()
-                registry_instance.get.side_effect = DatabaseQueryError(
-                    query="registry_lookup", message="missing"
-                )
-                mock_registry.return_value = registry_instance
-                service = TransformerService("mock_db_path", mock_config)
+                with patch(
+                    "niamoto.core.services.transformer.Config.get_niamoto_home"
+                ) as mock_get_home:
+                    mock_get_home.return_value = "/mock/home"
+                    registry_instance = Mock()
+                    registry_instance.get.side_effect = DatabaseQueryError(
+                        query="registry_lookup", message="missing"
+                    )
+                    mock_registry.return_value = registry_instance
+                    service = TransformerService("mock_db_path", mock_config)
 
             assert service.db == mock_db
             assert service.config == mock_config
             assert service.transforms_config == mock_config.get_transforms_config()
             assert service.transform_metrics is None
 
-            # Verify plugin loader was initialized and plugins loaded
-            mock_plugin_loader.load_core_plugins.assert_called_once()
-            mock_plugin_loader.load_project_plugins.assert_called_once_with(
-                "/mock/plugins"
-            )
+            # Verify plugin loader was initialized and cascade loading was called
+            mock_plugin_loader.load_plugins_with_cascade.assert_called_once()
             mock_registry.assert_called_once_with(mock_db)
 
     def test_filter_configs_no_group(self, transformer_service):

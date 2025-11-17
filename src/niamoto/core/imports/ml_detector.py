@@ -108,12 +108,10 @@ class MLColumnDetector:
             return None
 
         if model_path is None:
-            # Default model location
-            model_path = (
-                Path(__file__).parent.parent.parent.parent
-                / "models"
-                / "column_detector.pkl"
-            )
+            # Default model location - works in both source and frozen modes
+            from niamoto.common.bundle import get_resource_path
+
+            model_path = get_resource_path("models/column_detector.pkl")
 
         if model_path.exists():
             try:
