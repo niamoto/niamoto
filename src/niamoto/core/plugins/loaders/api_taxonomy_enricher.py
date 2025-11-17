@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Any, Literal, List
 from pydantic import Field, model_validator, ConfigDict
 
+from niamoto.common.utils.emoji import emoji
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
 
@@ -320,7 +321,7 @@ class ApiTaxonomyEnricher(LoaderPlugin):
 
             # Log success message
             self.log_messages.append(
-                f"[green][✓] Data successfully retrieved for {query_value}[/green]"
+                f"[green][{emoji('✓', '[OK]')}] Data successfully retrieved for {query_value}[/green]"
             )
 
             # Return taxon data with enrichment
@@ -332,14 +333,14 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             error_msg = f"API request failed for {query_value}: {str(e)}"
             logger.error(error_msg)
             self.log_messages.append(
-                f"[bold red]✗ API request failed for {query_value}: {str(e)}[/bold red]"
+                f"[bold red]{emoji('✗', '[X]')} API request failed for {query_value}: {str(e)}[/bold red]"
             )
             return taxon_data
         except Exception as e:
             error_msg = f"Failed to process API data for {query_value}: {str(e)}"
             logger.error(error_msg)
             self.log_messages.append(
-                f"[bold red]✗ Failed to process API data for {query_value}: {str(e)}[/bold red]"
+                f"[bold red]{emoji('✗', '[X]')} Failed to process API data for {query_value}: {str(e)}[/bold red]"
             )
             return taxon_data
         finally:

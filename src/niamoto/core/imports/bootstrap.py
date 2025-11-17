@@ -9,6 +9,7 @@ import yaml
 import shutil
 from datetime import datetime
 
+from niamoto.common.utils.emoji import emoji
 from .auto_detector import AutoDetector
 
 
@@ -53,7 +54,7 @@ class DataBootstrap:
 
         # Step 1: Analyze data
         if interactive:
-            print("🔍 Step 1: Analyzing data files...")
+            print(f"{emoji('🔍', '[@]')} Step 1: Analyzing data files...")
 
         analysis = self.detector.analyze_directory(data_dir)
         results["analysis"] = analysis
@@ -77,7 +78,7 @@ class DataBootstrap:
 
         # Step 3: Generate configurations
         if interactive:
-            print("\n⚙️  Step 2: Generating configuration files...")
+            print(f"\n{emoji('⚙️', '[#]')}  Step 2: Generating configuration files...")
 
         configs = self._generate_all_configs(analysis["config"])
         results["configs"] = configs
@@ -94,7 +95,9 @@ class DataBootstrap:
             output_dir = data_dir.parent / "config"
 
         if interactive:
-            print(f"\n💾 Step 3: Saving configurations to {output_dir}...")
+            print(
+                f"\n{emoji('💾', '[DB]')} Step 3: Saving configurations to {output_dir}..."
+            )
 
         saved_files = self._save_configurations(configs, output_dir)
         results["saved_files"] = saved_files
@@ -106,7 +109,7 @@ class DataBootstrap:
         if self.instance_path:
             if interactive:
                 print(
-                    f"\n🏗️  Step 4: Creating instance structure at {self.instance_path}..."
+                    f"\n{emoji('🏗️', '[+]')}  Step 4: Creating instance structure at {self.instance_path}..."
                 )
 
             self._create_instance_structure(self.instance_path, data_dir, output_dir)
@@ -130,14 +133,14 @@ class DataBootstrap:
         """Display analysis summary to user."""
         summary = analysis["summary"]
 
-        print("\n✅ Analysis complete!")
+        print(f"\n{emoji('✅', '[OK]')} Analysis complete!")
         print(
             f"   Found {summary['total_files']} files with {summary['total_records']:,} total records"
         )
         print(f"   Confidence: {analysis['confidence'] * 100:.0f}%")
 
         if analysis["validation"]["warnings"]:
-            print("\n⚠️  Warnings:")
+            print(f"\n{emoji('⚠', '[!]')}  Warnings:")
             for warning in analysis["validation"]["warnings"]:
                 print(f"   - {warning}")
 
@@ -297,7 +300,7 @@ class DataBootstrap:
                 yaml.dump(content, f, default_flow_style=False, sort_keys=False)
 
             saved_files.append(str(file_path))
-            print(f"   ✓ Saved {filename}")
+            print(f"   {emoji('✓', '[OK]')} Saved {filename}")
 
         return saved_files
 
@@ -352,30 +355,35 @@ Original data files are in: {data_dir}
         with open(instance_path / "README.md", "w") as f:
             f.write(readme_content)
 
-        print("   ✓ Created instance structure")
-        print("   ✓ Created README.md")
+        print(f"   {emoji('✓', '[OK]')} Created instance structure")
+        print(f"   {emoji('✓', '[OK]')} Created README.md")
 
     def _display_completion_message(self, results: Dict[str, Any]) -> None:
         """Display completion message with next steps."""
-        print("\n" + "🎉 " * 20)
+        celebration = emoji("🎉", "[*]")
+        print("\n" + f"{celebration} " * 20)
         print("BOOTSTRAP COMPLETE!")
-        print("🎉 " * 20)
+        print(f"{celebration} " * 20)
 
-        print("\n📁 Configuration files saved:")
+        print(f"\n{emoji('📁', '[F]')} Configuration files saved:")
         for file_path in results.get("saved_files", []):
             print(f"   • {file_path}")
 
         if results.get("instance_created"):
-            print(f"\n🏗️  Instance created at: {results['steps'][-1]['path']}")
+            print(
+                f"\n{emoji('🏗️', '[+]')}  Instance created at: {results['steps'][-1]['path']}"
+            )
 
-        print("\n🚀 Next steps:")
+        print(f"\n{emoji('🚀', '>>')} Next steps:")
         print("   1. Review and adjust the generated configurations if needed")
         print("   2. Run: niamoto import")
         print("   3. Run: niamoto transform")
         print("   4. Run: niamoto export")
         print("   5. View your site at: http://localhost:8000")
 
-        print("\n💡 Tip: Use 'niamoto gui' to manage your instance visually")
+        print(
+            f"\n{emoji('💡', '[*]')} Tip: Use 'niamoto gui' to manage your instance visually"
+        )
 
 
 def bootstrap_from_directory(

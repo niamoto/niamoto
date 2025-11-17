@@ -11,6 +11,7 @@ from typing import Any, Callable, TypeVar, Optional
 
 from rich.console import Console
 
+from niamoto.common.utils.emoji import emoji
 from niamoto.common.exceptions import (
     NiamotoError,
     DatabaseError,
@@ -171,12 +172,12 @@ def handle_error(
         if is_lock_error:
             # Extract just the main message without technical details
             main_message = error_message.split("Query:")[0].strip()
-            console.print(f"[yellow]⚠ {main_message}[/yellow]")
+            console.print(f"[yellow]{emoji('⚠', '[!]')} {main_message}[/yellow]")
         # For DataTransformError, use a more contextual message
         elif isinstance(error, DataTransformError):
-            console.print(f"[yellow]⚠ {error_message}[/yellow]")
+            console.print(f"[yellow]{emoji('⚠', '[!]')} {error_message}[/yellow]")
         else:
-            console.print(f"[red]✗ {error_message}[/red]")
+            console.print(f"[red]{emoji('✗', '[X]')} {error_message}[/red]")
 
     # Re-raise if requested, but avoid cascade
     if raise_error:

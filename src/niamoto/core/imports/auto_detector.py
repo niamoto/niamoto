@@ -6,6 +6,7 @@ This module orchestrates the profiling and generates suggested configurations.
 from pathlib import Path
 from typing import List, Dict, Any
 import yaml
+from niamoto.common.utils.emoji import emoji
 from .profiler import DataProfiler, DatasetProfile
 
 
@@ -34,10 +35,10 @@ class AutoDetector:
                 profile = self.profiler.profile(file_path)
                 profiles.append(profile)
                 print(
-                    f"✓ Analyzed {file_path.name}: {profile.detected_type} ({profile.record_count} records)"
+                    f"{emoji('✓', '[OK]')} Analyzed {file_path.name}: {profile.detected_type} ({profile.record_count} records)"
                 )
             except Exception as e:
-                print(f"✗ Failed to analyze {file_path.name}: {e}")
+                print(f"{emoji('✗', '[X]')} Failed to analyze {file_path.name}: {e}")
 
         # Generate configuration from profiles
         config = self._generate_config(profiles)

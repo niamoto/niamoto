@@ -15,6 +15,7 @@ from rich.progress import (
     TaskID,
     ProgressColumn,
 )
+from niamoto.common.utils.emoji import emoji
 
 
 class ProgressManager:
@@ -101,7 +102,8 @@ class ProgressManager:
         # Update description to include real-time duration
         if description:
             # If description contains completed status, keep it as is
-            if "[✓]" in description and "completed" in description:
+            checkmark = emoji("✓", "[OK]")
+            if f"[{checkmark}]" in description and "completed" in description:
                 final_description = description
             else:
                 # Add real-time duration to ongoing task
@@ -145,12 +147,11 @@ class ProgressManager:
             elapsed_str = ""
 
         # Update the description to show completion with final time
-        if success_message and "[✓]" in success_message:
+        checkmark = emoji("✓", "[OK]")
+        if success_message and f"[{checkmark}]" in success_message:
             final_description = f"[green]{success_message}{elapsed_str}[/green]"
         else:
-            final_description = (
-                f"[green][✓] {success_message or 'completed'}{elapsed_str}[/green]"
-            )
+            final_description = f"[green][{checkmark}] {success_message or 'completed'}{elapsed_str}[/green]"
         self._current_progress.update(task_id, description=final_description)
 
         # Set final completion state to keep bar at 100%
@@ -161,12 +162,12 @@ class ProgressManager:
     def add_error(self, message: str) -> None:
         """Record an error."""
         self._stats["errors"] += 1
-        self.console.print(f"❌ {message}", style="bold red")
+        self.console.print(f"{emoji('❌', '[X]')} {message}", style="bold red")
 
     def add_warning(self, message: str) -> None:
         """Record a warning."""
         self._stats["warnings"] += 1
-        self.console.print(f"⚠️  {message}", style="yellow")
+        self.console.print(f"{emoji('⚠', '[!]')}  {message}", style="yellow")
 
     def show_summary(
         self,
@@ -179,7 +180,9 @@ class ProgressManager:
 
         duration = datetime.now() - self._start_time
 
-        self.console.print(f"\n📊 {operation_name} Summary:", style="bold blue")
+        self.console.print(
+            f"\n{emoji('📊', '[=]')} {operation_name} Summary:", style="bold blue"
+        )
         self.console.print(f"   Duration: {self._format_duration(duration)}")
         self.console.print(
             f"   Operations completed: {self._stats['operations_completed']}"
@@ -202,8 +205,12 @@ class ProgressManager:
             for key, value in additional_stats.items():
                 self.console.print(f"   {key}: {value}")
 
+        checkmark = emoji("✓", "[OK]")
+        warning = emoji("⚠", "[!]")
         status = (
-            "[✓] Success" if self._stats["errors"] == 0 else "⚠️  Completed with errors"
+            f"[{checkmark}] Success"
+            if self._stats["errors"] == 0
+            else f"{warning}  Completed with errors"
         )
         style = "green" if self._stats["errors"] == 0 else "yellow"
         self.console.print(f"\n{status}", style=f"bold {style}")
@@ -251,32 +258,34 @@ class OperationTracker:
 
     def start_operation(self, message: str) -> None:
         """Start an operation."""
-        self.console.print(f"🚀 {message}", style="blue")
+        self.console.print(f"{emoji('🚀', '>>')} {message}", style="blue")
 
     def complete_operation(self, message: str) -> None:
         """Complete an operation successfully."""
         self.operations += 1
-        self.console.print(f"[✓] {message}", style="green")
+        self.console.print(f"[{emoji('✓', '[OK]')}] {message}", style="green")
 
     def error(self, message: str) -> None:
         """Record an error."""
         self.errors += 1
-        self.console.print(f"[✗] {message}", style="bold red")
+        self.console.print(f"[{emoji('✗', '[X]')}] {message}", style="bold red")
 
     def warning(self, message: str) -> None:
         """Record a warning."""
         self.warnings += 1
-        self.console.print(f"⚠️  {message}", style="yellow")
+        self.console.print(f"{emoji('⚠', '[!]')}  {message}", style="yellow")
 
     def info(self, message: str) -> None:
         """Show info message."""
-        self.console.print(f"ℹ️  {message}", style="blue")
+        self.console.print(f"{emoji('ℹ', '[i]')}  {message}", style="blue")
 
     def show_summary(self, operation_name: str = "Operation") -> None:
         """Show operation summary."""
         duration = datetime.now() - self.start_time
 
-        self.console.print(f"\n📊 {operation_name} Summary:", style="bold blue")
+        self.console.print(
+            f"\n{emoji('📊', '[=]')} {operation_name} Summary:", style="bold blue"
+        )
         self.console.print(f"   Duration: {self._format_duration(duration)}")
         self.console.print(f"   Operations: {self.operations}")
 
@@ -286,7 +295,13 @@ class OperationTracker:
         if self.warnings > 0:
             self.console.print(f"   Warnings: {self.warnings}", style="yellow")
 
-        status = "[✓] Success" if self.errors == 0 else "⚠️  Completed with errors"
+        checkmark = emoji("✓", "[OK]")
+        warning = emoji("⚠", "[!]")
+        status = (
+            f"[{checkmark}] Success"
+            if self.errors == 0
+            else f"{warning}  Completed with errors"
+        )
         style = "green" if self.errors == 0 else "yellow"
         self.console.print(f"\n{status}", style=f"bold {style}")
 

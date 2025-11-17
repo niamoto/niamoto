@@ -9,6 +9,7 @@ import click
 from niamoto.common.config import Config
 from niamoto.core.services.importer import ImporterService
 from niamoto.common.progress import set_progress_mode
+from niamoto.common.utils.emoji import emoji
 from ..utils.console import (
     print_error,
     print_info,
@@ -70,7 +71,7 @@ def import_run(reset_table: bool = False) -> None:
         duration = (end_time - start_time).total_seconds()
 
         print_success(f"\n{result}")
-        print_info(f"\n⏱️  Total duration: {duration:.2f}s")
+        print_info(f"\n{emoji('⏱️', '[T]')}  Total duration: {duration:.2f}s")
 
     except ConfigurationError as e:
         print_error(
@@ -229,7 +230,7 @@ def import_list() -> None:
 
         # List datasets
         if generic_config.entities.datasets:
-            print_info("\n📊 Datasets:")
+            print_info(f"\n{emoji('📊', '[=]')} Datasets:")
             for name, ds_config in generic_config.entities.datasets.items():
                 path = ds_config.connector.path if ds_config.connector else "N/A"
                 links = len(ds_config.links) if ds_config.links else 0

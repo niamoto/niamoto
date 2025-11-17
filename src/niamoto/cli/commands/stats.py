@@ -14,6 +14,7 @@ from niamoto.common.config import Config
 from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseError, DatabaseQueryError
 from niamoto.common.utils.error_handler import error_handler
+from niamoto.common.utils.emoji import emoji
 from niamoto.core.imports.registry import EntityRegistry, EntityKind, EntityMetadata
 from sqlalchemy import inspect
 
@@ -786,7 +787,9 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
     """Show suggested queries and exploration tips based on the current schema."""
 
     console = Console()
-    console.print("\n[bold cyan]🔍 Data Exploration Suggestions[/bold cyan]")
+    console.print(
+        f"\n[bold cyan]{emoji('🔍', '[@]')} Data Exploration Suggestions[/bold cyan]"
+    )
     console.print(
         "Based on your database schema, here are some useful queries and exploration ideas:"
     )
@@ -806,7 +809,9 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         columns = db.get_table_columns(occ_table)
         occ_config = occ_entity.config if occ_entity else {}
 
-        console.print(f"\n[green]📊 {label} Data Exploration:[/green]")
+        console.print(
+            f"\n[green]{emoji('📊', '[=]')} {label} Data Exploration:[/green]"
+        )
         console.print(f"  • Your {label.lower()} table has {len(columns)} columns")
         console.print(
             "  • View all columns: [yellow]niamoto stats --group occurrence --detailed[/yellow]"
@@ -867,7 +872,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
     elif dataset_entities:
         label = _format_entity_label(dataset_entities[0].name)
         console.print(
-            f"\n[green]📊 {label} Data Exploration:[/green]\n  • Table not yet available in the current schema"
+            f"\n[green]{emoji('📊', '[=]')} {label} Data Exploration:[/green]\n  • Table not yet available in the current schema"
         )
 
     available_refs = [
@@ -890,7 +895,9 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
     # Detect generated tables by exclusion
     generated_tables = _detect_generated_tables(db, registry, all_tables)
     if generated_tables:
-        console.print("\n[green]🔄 Generated Analysis Tables:[/green]")
+        console.print(
+            f"\n[green]{emoji('🔄', '[>]')} Generated Analysis Tables:[/green]"
+        )
         for table in generated_tables:
             try:
                 quoted_table = _quote_identifier(table)
@@ -901,7 +908,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
             console.print(f"  • {table}: {count:,} records (generated from transforms)")
             console.print(f"    [yellow]SELECT * FROM {table} LIMIT 5[/yellow]")
 
-    console.print("\n[green]🚀 Advanced Exploration Ideas:[/green]")
+    console.print(f"\n[green]{emoji('🚀', '>>')} Advanced Exploration Ideas:[/green]")
 
     if occ_entity and occ_entity.table_name in all_tables:
         # Try to find taxon reference entity
@@ -928,7 +935,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
                 )
             )
 
-    console.print("\n[green]⚙️ Configuration Exploration:[/green]")
+    console.print(f"\n[green]{emoji('⚙️', '[#]')} Configuration Exploration:[/green]")
     console.print(
         "  • View your transform configuration: [yellow]cat config/transform.yml[/yellow]"
     )

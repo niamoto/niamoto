@@ -28,6 +28,7 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.common.config import Config
+from niamoto.common.utils.emoji import emoji
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, WidgetPlugin, register
 from niamoto.core.plugins.models import (
     TargetConfig,
@@ -954,7 +955,7 @@ class HtmlPageExporter(ExporterPlugin):
                     duration = time.time() - start_time
                     group_progress.update(
                         detail_task,
-                        description=f"[green][✓] {group_by_key} detail pages completed • {duration:.1f}s[/green]",
+                        description=f"[green][{emoji('✓', '[OK]')}] {group_by_key} detail pages completed • {duration:.1f}s[/green]",
                     )
 
                     # End item loop for this group
@@ -1061,7 +1062,7 @@ class HtmlPageExporter(ExporterPlugin):
             if results:
                 # Convert to list of dicts and cache
                 data_list = [dict(row) for row in results]
-                # ✅ FIX: Use consistent cache_key for both storage and retrieval
+                # FIX: Use consistent cache_key for both storage and retrieval
                 self._navigation_cache[cache_key] = data_list
                 logger.debug(
                     f"Loaded {len(data_list)} items from '{referential_data_source}'"

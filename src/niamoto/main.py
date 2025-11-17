@@ -10,6 +10,7 @@ from rich.console import Console
 from niamoto.cli import cli as create_cli
 from niamoto.common.exceptions import LoggingError, NiamotoError
 from niamoto.common.utils import error_handler, setup_global_exception_handler
+from niamoto.common.utils.emoji import emoji
 from niamoto.common.utils.logging_utils import setup_logging
 
 console = Console()
@@ -65,7 +66,7 @@ def main() -> None:
             error_msg = f"An unexpected error occurred: {str(e)}"
 
         # Afficher l'erreur en rouge
-        console.print(f"[red]✗ {error_msg}[/red]")
+        console.print(f"[red]{emoji('✗', '[X]')} {error_msg}[/red]")
 
         # Dans un environnement de développement, afficher la stack trace complète
         if "--debug" in sys.argv:

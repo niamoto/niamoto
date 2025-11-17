@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import re
+from niamoto.common.utils.emoji import emoji
 
 
 @dataclass
@@ -297,7 +298,7 @@ class MetricsFormatter:
 
         # Duration
         lines.append(
-            f"⏱️  Duration: {MetricsFormatter.format_duration(metrics.duration)}"
+            f"{emoji('⏱', '[T]')}  Duration: {MetricsFormatter.format_duration(metrics.duration)}"
         )
 
         # Data imported section - only show if we have data
@@ -353,7 +354,7 @@ class MetricsFormatter:
 
         # Only add the section header if we have data to show
         if data_items:
-            lines.append("📊 Data Imported:")
+            lines.append(f"{emoji('📊', '[=]')} Data Imported:")
             lines.extend(data_items)
 
             # Totals
@@ -364,17 +365,21 @@ class MetricsFormatter:
             )
             if total_success > 0:
                 lines.append(
-                    f"✅ Success: {MetricsFormatter.format_number(total_success)} records imported"
+                    f"{emoji('✅', '[OK]')} Success: {MetricsFormatter.format_number(total_success)} records imported"
                 )
         else:
             # Fallback if no specific data was parsed
-            lines.append("📊 Import completed (metrics unavailable)")
+            lines.append(f"{emoji('📊', '[=]')} Import completed (metrics unavailable)")
 
         # Errors and warnings
         if metrics.errors:
-            lines.append(f"❌ Errors: {len(metrics.errors)} issues encountered")
+            lines.append(
+                f"{emoji('❌', '[X]')} Errors: {len(metrics.errors)} issues encountered"
+            )
         if metrics.warnings:
-            lines.append(f"⚠️  Warnings: {len(metrics.warnings)} warnings")
+            lines.append(
+                f"{emoji('⚠', '[!]')}  Warnings: {len(metrics.warnings)} warnings"
+            )
 
         return lines
 
@@ -385,11 +390,11 @@ class MetricsFormatter:
 
         # Duration
         lines.append(
-            f"⏱️  Duration: {MetricsFormatter.format_duration(metrics.duration)}"
+            f"{emoji('⏱', '[T]')}  Duration: {MetricsFormatter.format_duration(metrics.duration)}"
         )
 
         # Groups processed
-        lines.append("🔄 Groups Processed:")
+        lines.append(f"{emoji('🔄', '[>]')} Groups Processed:")
 
         # Process each group
         group_metrics: Dict[str, Dict[str, int]] = {}
@@ -415,7 +420,9 @@ class MetricsFormatter:
         # Totals
         if "total_widgets_generated" in metrics.metrics:
             total_widgets = metrics.metrics["total_widgets_generated"]
-            lines.append(f"📊 Total Widgets: {total_widgets} widgets generated")
+            lines.append(
+                f"{emoji('📊', '[=]')} Total Widgets: {total_widgets} widgets generated"
+            )
 
         # Performance
         if (
@@ -426,13 +433,19 @@ class MetricsFormatter:
                 metrics.metrics["total_items_processed"]
                 / metrics.duration.total_seconds()
             )
-            lines.append(f"⚡ Performance: {items_per_second:.0f} items/second")
+            lines.append(
+                f"{emoji('⚡', '[~]')} Performance: {items_per_second:.0f} items/second"
+            )
 
         # Errors and warnings
         if metrics.errors:
-            lines.append(f"❌ Errors: {len(metrics.errors)} issues encountered")
+            lines.append(
+                f"{emoji('❌', '[X]')} Errors: {len(metrics.errors)} issues encountered"
+            )
         if metrics.warnings:
-            lines.append(f"⚠️  Warnings: {len(metrics.warnings)} warnings")
+            lines.append(
+                f"{emoji('⚠', '[!]')}  Warnings: {len(metrics.warnings)} warnings"
+            )
 
         return lines
 
@@ -443,11 +456,11 @@ class MetricsFormatter:
 
         # Duration
         lines.append(
-            f"⏱️  Duration: {MetricsFormatter.format_duration(metrics.duration)}"
+            f"{emoji('⏱', '[T]')}  Duration: {MetricsFormatter.format_duration(metrics.duration)}"
         )
 
         # Targets
-        lines.append("🎯 Targets:")
+        lines.append(f"{emoji('🎯', '[*]')} Targets:")
 
         # Process each target
         target_metrics: Dict[str, Dict[str, int]] = {}
@@ -476,7 +489,7 @@ class MetricsFormatter:
         if "total_files_generated" in metrics.metrics:
             total_files = metrics.metrics["total_files_generated"]
             lines.append(
-                f"📁 Total: {MetricsFormatter.format_number(total_files)} files generated"
+                f"{emoji('📁', '[+]')} Total: {MetricsFormatter.format_number(total_files)} files generated"
             )
 
         # Success rate
@@ -489,7 +502,7 @@ class MetricsFormatter:
                 metrics.metrics["successful_targets"] / metrics.metrics["targets_count"]
             ) * 100
             lines.append(
-                f"📈 Success Rate: {success_rate:.0f}% targets completed successfully"
+                f"{emoji('📈', '[%]')} Success Rate: {success_rate:.0f}% targets completed successfully"
             )
 
         return lines

@@ -25,6 +25,7 @@ from niamoto.common.exceptions import (
     DatabaseQueryError,
 )
 from niamoto.common.utils import error_handler
+from niamoto.common.utils.emoji import emoji
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
@@ -421,7 +422,9 @@ class TransformerService:
                             isinstance(e, DataTransformError)
                             and "No data found" in str(e)
                         ):
-                            self.console.print(f"[yellow]⚠ {error_msg}[/yellow]")
+                            self.console.print(
+                                f"[yellow]{emoji('⚠', '[!]')} {error_msg}[/yellow]"
+                            )
 
                     processed_ops += 1
                     if progress_callback and total_ops:

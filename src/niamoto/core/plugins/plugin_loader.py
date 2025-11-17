@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Set, Dict, Any, List, Optional
 from dataclasses import dataclass
 
+from niamoto.common.utils.emoji import emoji
 from .base import PluginType
 from .exceptions import PluginLoadError
 from .registry import PluginRegistry
@@ -108,7 +109,7 @@ class PluginLoader:
 
             # Log scanning paths
             for location in locations:
-                status = "✓" if location.exists else "✗"
+                status = emoji("✓", "[OK]") if location.exists else emoji("✗", "[X]")
                 logger.info(
                     f"{status} Scanning {location.scope} plugins: {location.path} (priority: {location.priority})"
                 )
@@ -132,7 +133,7 @@ class PluginLoader:
                         # Skip this lower-priority version
                         previous = discovered_plugins[plugin_name]
                         logger.warning(
-                            f"⚠️  Skipping '{plugin_name}' from {location.scope} ({location.path}) "
+                            f"{emoji('⚠', '[!]')}  Skipping '{plugin_name}' from {location.scope} ({location.path}) "
                             f"- already loaded from {previous.scope} (priority {previous.priority})"
                         )
                         continue
@@ -149,11 +150,13 @@ class PluginLoader:
                     # Actually load and register the plugin
                     self._load_and_register_plugin(plugin_info)
                     logger.info(
-                        f"  ✓ Loaded '{plugin_name}' from {plugin_info.scope} "
+                        f"  {emoji('✓', '[OK]')} Loaded '{plugin_name}' from {plugin_info.scope} "
                         f"(priority: {plugin_info.priority})"
                     )
                 except Exception as e:
-                    logger.error(f"  ✗ Failed to load '{plugin_name}': {str(e)}")
+                    logger.error(
+                        f"  {emoji('✗', '[X]')} Failed to load '{plugin_name}': {str(e)}"
+                    )
 
             # Summary
             logger.info("")
@@ -231,7 +234,7 @@ class PluginLoader:
                         e, PluginRegistrationError
                     ) and "already registered" in str(e):
                         logger.warning(
-                            f"⚠️  Skipping '{file.stem}' from {location.scope} ({file}) "
+                            f"{emoji('⚠', '[!]')}  Skipping '{file.stem}' from {location.scope} ({file}) "
                             f"- plugin name already registered from higher-priority scope"
                         )
                     else:

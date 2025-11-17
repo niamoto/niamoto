@@ -7,6 +7,7 @@ from typing import Optional
 import click
 
 from niamoto.common.utils.error_handler import error_handler
+from niamoto.common.utils.emoji import emoji
 from ..utils.console import print_success, print_info, print_error, print_warning
 from .imports import import_all
 from .transform import process_transformations
@@ -77,7 +78,7 @@ def run_pipeline(
     2. Transform: Calculate statistics via plugins (transform.yml)
     3. Export: Generate static sites with visualizations (export.yml)
 
-    ⚠️  WARNING: By default, this command RESETS your environment, which:
+    {warning}  WARNING: By default, this command RESETS your environment, which:
         - Deletes the entire database
         - Removes all generated exports
         - Clears all logs
@@ -91,8 +92,8 @@ def run_pipeline(
         niamoto run --skip-import  # Run only transform and export
         niamoto run --group taxon  # Process only taxon data
         niamoto run --target my_site  # Use specific export target
-    """
-    print_info("\n🌱 Starting Niamoto pipeline...")
+    """.format(warning=emoji("⚠", "[!]"))
+    print_info(f"\n{emoji('🌱', '[*]')} Starting Niamoto pipeline...")
 
     try:
         # Reset phase (unless skipped)
@@ -141,8 +142,8 @@ def run_pipeline(
         else:
             print_info("\n[dim]Skipping export phase[/dim]")
 
-        print_success("\n✨ Pipeline completed successfully!")
+        print_success(f"\n{emoji('✨', '[*]')} Pipeline completed successfully!")
 
     except Exception as e:
-        print_error(f"\n❌ Pipeline failed: {str(e)}")
+        print_error(f"\n{emoji('❌', '[X]')} Pipeline failed: {str(e)}")
         raise

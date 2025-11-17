@@ -21,6 +21,7 @@ from niamoto.common.exceptions import (
     TransactionError,
 )
 from niamoto.common.utils import error_handler
+from niamoto.common.utils.emoji import emoji
 
 import logging
 
@@ -542,7 +543,7 @@ class Database:
                 )
 
                 raise DatabaseLockError(
-                    message=f"💾 Database is locked by {app_name}. Close it to perform write operations.",
+                    message=f"{emoji('💾', '[DB]')} Database is locked by {app_name}. Close it to perform write operations.",
                     query=sql,
                     details={
                         "suggestion": "Close the other application or wait for it to finish."
@@ -852,8 +853,8 @@ class Database:
 
                 raise DatabaseLockError(
                     message=(
-                        "💾 Database is locked by {app}. Try read-only mode or close the other application."
-                    ).format(app=app_name),
+                        "{emoji_db} Database is locked by {app}. Try read-only mode or close the other application."
+                    ).format(emoji_db=emoji("💾", "[DB]"), app=app_name),
                     query=query,
                 )
 
