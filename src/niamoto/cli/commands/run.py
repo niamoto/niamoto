@@ -69,8 +69,7 @@ def run_pipeline(
     no_reset: bool,
     force_reset: bool,
 ) -> None:
-    """
-    Run the complete Niamoto data pipeline: import, transform, and export.
+    """Run the complete Niamoto data pipeline: import, transform, and export.
 
     This command executes all phases of the Niamoto pipeline in sequence:
     0. Reset: Clean environment (unless --no-reset is used)
@@ -78,7 +77,7 @@ def run_pipeline(
     2. Transform: Calculate statistics via plugins (transform.yml)
     3. Export: Generate static sites with visualizations (export.yml)
 
-    {warning}  WARNING: By default, this command RESETS your environment, which:
+    WARNING: By default, this command RESETS your environment, which:
         - Deletes the entire database
         - Removes all generated exports
         - Clears all logs
@@ -92,7 +91,7 @@ def run_pipeline(
         niamoto run --skip-import  # Run only transform and export
         niamoto run --group taxon  # Process only taxon data
         niamoto run --target my_site  # Use specific export target
-    """.format(warning=emoji("⚠", "[!]"))
+    """
     print_info(f"\n{emoji('🌱', '[*]')} Starting Niamoto pipeline...")
 
     try:

@@ -812,9 +812,9 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         console.print(
             f"\n[green]{emoji('📊', '[=]')} {label} Data Exploration:[/green]"
         )
-        console.print(f"  • Your {label.lower()} table has {len(columns)} columns")
+        console.print(f"  - Your {label.lower()} table has {len(columns)} columns")
         console.print(
-            "  • View all columns: [yellow]niamoto stats --group occurrence --detailed[/yellow]"
+            "  - View all columns: [yellow]niamoto stats --group occurrence --detailed[/yellow]"
         )
 
         # Family column detection with role support
@@ -827,7 +827,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
 
         if family_col:
             console.print(
-                "  • Top families: [yellow]SELECT {col}, COUNT(*) FROM {table} "
+                "  - Top families: [yellow]SELECT {col}, COUNT(*) FROM {table} "
                 "GROUP BY {col} ORDER BY COUNT(*) DESC LIMIT 10[/yellow]".format(
                     col=family_col, table=occ_table
                 )
@@ -843,7 +843,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
 
         if elev_col:
             console.print(
-                "  • Elevation distribution: [yellow]SELECT MIN({col}), MAX({col}), "
+                "  - Elevation distribution: [yellow]SELECT MIN({col}), MAX({col}), "
                 "AVG({col}) FROM {table}[/yellow]".format(col=elev_col, table=occ_table)
             )
 
@@ -862,9 +862,9 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         ]
         numerical_cols = [col for col in numerical_candidates if col in columns]
         if numerical_cols:
-            console.print(f"  • Found numerical data: {', '.join(numerical_cols)}")
+            console.print(f"  - Found numerical data: {', '.join(numerical_cols)}")
             console.print(
-                "  • Explore ranges: [yellow]SELECT MIN({col}), MAX({col}) FROM {table}[/yellow]".format(
+                "  - Explore ranges: [yellow]SELECT MIN({col}), MAX({col}) FROM {table}[/yellow]".format(
                     col=numerical_cols[0], table=occ_table
                 )
             )
@@ -872,7 +872,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
     elif dataset_entities:
         label = _format_entity_label(dataset_entities[0].name)
         console.print(
-            f"\n[green]{emoji('📊', '[=]')} {label} Data Exploration:[/green]\n  • Table not yet available in the current schema"
+            f"\n[green]{emoji('📊', '[=]')} {label} Data Exploration:[/green]\n  - Table not yet available in the current schema"
         )
 
     available_refs = [
@@ -887,7 +887,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
                 count = result.scalar() if result is not None else 0
             except Exception:
                 count = 0
-            console.print(f"  • {entity.table_name}: {count:,} records")
+            console.print(f"  - {entity.table_name}: {count:,} records")
             console.print(
                 f"    [yellow]SELECT * FROM {entity.table_name} LIMIT 5[/yellow]"
             )
@@ -905,7 +905,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
                 count = result.scalar() if result is not None else 0
             except Exception:
                 count = 0
-            console.print(f"  • {table}: {count:,} records (generated from transforms)")
+            console.print(f"  - {table}: {count:,} records (generated from transforms)")
             console.print(f"    [yellow]SELECT * FROM {table} LIMIT 5[/yellow]")
 
     console.print(f"\n[green]{emoji('🚀', '>>')} Advanced Exploration Ideas:[/green]")
@@ -914,7 +914,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         # Try to find taxon reference entity
         taxon_entity = _get_entity_for_group("taxon", registry)
         if taxon_entity and taxon_entity.table_name in all_tables:
-            console.print("  • Join occurrences with taxonomy:")
+            console.print("  - Join occurrences with taxonomy:")
             console.print(
                 "    [yellow]SELECT tr.full_name, COUNT(*) FROM {occ} o "
                 "JOIN {tax} tr ON o.taxon_ref_id = tr.id GROUP BY tr.full_name[/yellow]".format(
@@ -926,7 +926,7 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
         # Try to find plot reference entity
         plot_entity = _get_entity_for_group("plot", registry)
         if plot_entity and plot_entity.table_name in all_tables:
-            console.print("  • Plot-based analysis:")
+            console.print("  - Plot-based analysis:")
             console.print(
                 "    [yellow]SELECT pr.locality, COUNT(*) FROM {occ} o JOIN {plot} pr "
                 "ON o.plot_ref_id = pr.id GROUP BY pr.locality[/yellow]".format(
@@ -937,20 +937,20 @@ def show_data_exploration_suggestions(db: Database, registry: EntityRegistry) ->
 
     console.print(f"\n[green]{emoji('⚙️', '[#]')} Configuration Exploration:[/green]")
     console.print(
-        "  • View your transform configuration: [yellow]cat config/transform.yml[/yellow]"
+        "  - View your transform configuration: [yellow]cat config/transform.yml[/yellow]"
     )
     console.print(
-        "  • View your export configuration: [yellow]cat config/export.yml[/yellow]"
+        "  - View your export configuration: [yellow]cat config/export.yml[/yellow]"
     )
-    console.print("  • Re-run transformations: [yellow]niamoto transform[/yellow]")
-    console.print("  • Generate web pages: [yellow]niamoto export web_pages[/yellow]")
+    console.print("  - Re-run transformations: [yellow]niamoto transform[/yellow]")
+    console.print("  - Generate web pages: [yellow]niamoto export web_pages[/yellow]")
 
     console.print("\n[green]📤 Export Your Analysis:[/green]")
     console.print(
-        "  • Export current stats to JSON: [yellow]niamoto stats --export stats.json[/yellow]"
+        "  - Export current stats to JSON: [yellow]niamoto stats --export stats.json[/yellow]"
     )
     console.print(
-        "  • Export detailed stats: [yellow]niamoto stats --detailed --export detailed_stats.csv[/yellow]"
+        "  - Export detailed stats: [yellow]niamoto stats --detailed --export detailed_stats.csv[/yellow]"
     )
 
 
