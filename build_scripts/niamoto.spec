@@ -40,17 +40,17 @@ for pattern in patterns:
 # CRITICAL: Also include models directory if it exists
 models_dir = ROOT_DIR / 'models'
 if models_dir.exists():
-    print(f"✓ Including ML models from {models_dir}")
+    print(f"[OK] Including ML models from {models_dir}")
     for file in models_dir.rglob('*'):
         if file.is_file():
             datas.append((str(file), 'models'))
 else:
-    print(f"⚠ No models directory found at {models_dir}")
+    print(f"[WARN] No models directory found at {models_dir}")
 
 # CRITICAL: Include React build (src/niamoto/gui/ui/dist)
 ui_dist = NIAMOTO_SRC / 'gui' / 'ui' / 'dist'
 if ui_dist.exists():
-    print(f"✓ Including React build from {ui_dist}")
+    print(f"[OK] Including React build from {ui_dist}")
     for file in ui_dist.rglob('*'):
         if file.is_file():
             # Map to niamoto/gui/ui/dist/... for bundle.py to find
@@ -59,7 +59,7 @@ if ui_dist.exists():
             datas.append((str(file), str(dest_path.parent)))
     print(f"  Added {len([d for d in datas if 'gui/ui/dist' in str(d[0])])} files from React build")
 else:
-    print(f"⚠ WARNING: React build not found at {ui_dist}")
+    print(f"[WARN] React build not found at {ui_dist}")
     print("  Run 'cd gui/ui && npm run build' before building with PyInstaller")
 
 # Hidden imports - modules that PyInstaller might miss
