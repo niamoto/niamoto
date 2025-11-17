@@ -22,7 +22,7 @@ from ...common.utils import error_handler
 @click.option(
     "--path",
     type=click.Path(),
-    help="Absolute path where to create the project (alternative to project_name).",
+    help="Path where to create the project (can be relative or absolute, will be resolved to absolute path). Alternative to project_name.",
 )
 @click.option(
     "--template", type=str, help="Template to use for initialization (future feature)."
@@ -79,11 +79,21 @@ def init_environment(
 
             # Check if directory already exists
             if target_path.exists():
+                # Check if it's an initialized Niamoto environment
+                config_check = target_path / "config"
+                is_niamoto_env = config_check.exists()
+
                 if not reset:
-                    print_error(
-                        f"Directory '{target_path}' already exists. "
-                        "Use --reset to reinitialize, or choose a different path."
-                    )
+                    if is_niamoto_env:
+                        print_error(
+                            f"Niamoto environment already exists at '{target_path}'. "
+                            "Use --reset to reinitialize."
+                        )
+                    else:
+                        print_error(
+                            f"Directory '{target_path}' already exists and is not empty. "
+                            "Please choose a different path or remove/empty the directory."
+                        )
                     return
             else:
                 # Create directory
