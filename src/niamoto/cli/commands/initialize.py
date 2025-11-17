@@ -17,6 +17,16 @@ from ...common.exceptions import CommandError, EnvironmentSetupError
 from ...common.utils import error_handler
 
 
+def is_directory_empty(path: Path) -> bool:
+    """Check if a directory exists and is empty."""
+    if not path.exists():
+        return True
+    if path.is_file():
+        return False
+    # Directory exists, check if it has any contents
+    return not any(path.iterdir())
+
+
 @click.command(name="init")
 @click.argument("project_name", required=False)
 @click.option(
@@ -77,8 +87,8 @@ def init_environment(
             # Use absolute path provided
             target_path = Path(path).resolve()
 
-            # Check if directory already exists
-            if target_path.exists():
+            # Check if directory already exists and is not empty
+            if target_path.exists() and not is_directory_empty(target_path):
                 # Check if it's an initialized Niamoto environment
                 config_check = target_path / "config"
                 is_niamoto_env = config_check.exists()
@@ -109,10 +119,10 @@ def init_environment(
             # Create in current directory (original behavior)
             target_path = original_dir / project_name
 
-            if target_path.exists():
+            if target_path.exists() and not is_directory_empty(target_path):
                 print_error(
-                    f"Directory '{project_name}' already exists. "
-                    "Please choose a different name or remove the existing directory."
+                    f"Directory '{project_name}' already exists and is not empty. "
+                    "Please choose a different name or remove/empty the directory."
                 )
                 return
 
