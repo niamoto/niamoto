@@ -226,7 +226,7 @@ def import_list() -> None:
             for name, ref_config in generic_config.entities.references.items():
                 kind = ref_config.kind or "generic"
                 path = ref_config.connector.path if ref_config.connector else "N/A"
-                print_info(f"  • {name} ({kind}) - {path}")
+                print_info(f"  - {name} ({kind}) - {path}")
 
         # List datasets
         if generic_config.entities.datasets:
@@ -234,7 +234,7 @@ def import_list() -> None:
             for name, ds_config in generic_config.entities.datasets.items():
                 path = ds_config.connector.path if ds_config.connector else "N/A"
                 links = len(ds_config.links) if ds_config.links else 0
-                print_info(f"  • {name} - {path} ({links} links)")
+                print_info(f"  - {name} - {path} ({links} links)")
 
     except ConfigurationError as e:
         print_error(

@@ -210,7 +210,7 @@ def display_next_steps() -> None:
         {
             "title": "Run the pipeline",
             "commands": [
-                "niamoto run               # Import → Transform → Export",
+                "niamoto run               # Import -> Transform -> Export",
             ],
         },
     ]
@@ -270,7 +270,7 @@ def display_next_steps() -> None:
     ]
 
     for group in command_groups:
-        console.print(f"  [cyan]• {group['name']}:[/cyan] {group['commands']}")
+        console.print(f"  [cyan]- {group['name']}:[/cyan] {group['commands']}")
 
     console.print("\n[dim]Run 'niamoto <command> --help' for detailed usage[/dim]")
 

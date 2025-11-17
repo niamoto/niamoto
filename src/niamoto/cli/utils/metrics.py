@@ -414,7 +414,7 @@ class MetricsFormatter:
             items = group_data.get("items", 0)
             widgets = group_data.get("widgets", 0)
             lines.append(
-                f"   • {group_name.capitalize()}: {MetricsFormatter.format_number(items)} items → {widgets} widgets generated"
+                f"   - {group_name.capitalize()}: {MetricsFormatter.format_number(items)} items -> {widgets} widgets generated"
             )
 
         # Totals
