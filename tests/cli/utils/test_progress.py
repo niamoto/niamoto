@@ -10,6 +10,7 @@ from niamoto.cli.utils.progress import (
     create_simple_progress,
     OperationTracker,
 )
+from niamoto.common.utils.emoji import emoji
 
 
 class TestProgressManager:
@@ -185,7 +186,9 @@ class TestProgressManager:
             manager.add_warning("Test warning message")
 
         assert manager._stats["warnings"] == 1
-        mock_console.print.assert_called_with("⚠️  Test warning message", style="yellow")
+        mock_console.print.assert_called_with(
+            f"{emoji('⚠', '[!]')}  Test warning message", style="yellow"
+        )
 
     @patch("niamoto.cli.utils.progress.datetime")
     def test_show_summary_basic(self, mock_datetime):
@@ -208,7 +211,9 @@ class TestProgressManager:
         mock_console.print.assert_any_call("   Duration: 45s")
         mock_console.print.assert_any_call("   Operations completed: 3")
         mock_console.print.assert_any_call("   Total operations: 5")
-        mock_console.print.assert_any_call("\n[✓] Success", style="bold green")
+        mock_console.print.assert_any_call(
+            f"\n[{emoji('✓', '[OK]')}] Success", style="bold green"
+        )
 
     @patch("niamoto.cli.utils.progress.datetime")
     def test_show_summary_with_errors_warnings(self, mock_datetime):
@@ -229,7 +234,7 @@ class TestProgressManager:
         mock_console.print.assert_any_call("   Errors: 2", style="red")
         mock_console.print.assert_any_call("   Warnings: 1", style="yellow")
         mock_console.print.assert_any_call(
-            "\n⚠️  Completed with errors", style="bold yellow"
+            f"\n{emoji('⚠', '[!]')}  Completed with errors", style="bold yellow"
         )
 
     @patch("niamoto.cli.utils.progress.datetime")
@@ -336,7 +341,7 @@ class TestOperationTracker:
 
         assert tracker.operations == 1
         mock_console.print.assert_called_once_with(
-            "[✓] Operation completed successfully", style="green"
+            f"[{emoji('✓', '[OK]')}] Operation completed successfully", style="green"
         )
 
     def test_error(self):
@@ -348,7 +353,7 @@ class TestOperationTracker:
 
         assert tracker.errors == 1
         mock_console.print.assert_called_once_with(
-            "[✗] An error occurred", style="bold red"
+            f"[{emoji('✗', '[X]')}] An error occurred", style="bold red"
         )
 
     def test_warning(self):
@@ -360,7 +365,7 @@ class TestOperationTracker:
 
         assert tracker.warnings == 1
         mock_console.print.assert_called_once_with(
-            "⚠️  A warning occurred", style="yellow"
+            f"{emoji('⚠', '[!]')}  A warning occurred", style="yellow"
         )
 
     def test_info(self):
@@ -370,7 +375,7 @@ class TestOperationTracker:
 
         tracker.info("Information message")
         mock_console.print.assert_called_once_with(
-            "ℹ️  Information message", style="blue"
+            f"{emoji('ℹ', '[i]')}  Information message", style="blue"
         )
 
     @patch("niamoto.cli.utils.progress.datetime")
@@ -391,7 +396,9 @@ class TestOperationTracker:
         )
         mock_console.print.assert_any_call("   Duration: 45s")
         mock_console.print.assert_any_call("   Operations: 5")
-        mock_console.print.assert_any_call("\n[✓] Success", style="bold green")
+        mock_console.print.assert_any_call(
+            f"\n[{emoji('✓', '[OK]')}] Success", style="bold green"
+        )
 
     @patch("niamoto.cli.utils.progress.datetime")
     def test_show_summary_with_errors_warnings(self, mock_datetime):
@@ -413,7 +420,7 @@ class TestOperationTracker:
         mock_console.print.assert_any_call("   Errors: 1", style="red")
         mock_console.print.assert_any_call("   Warnings: 2", style="yellow")
         mock_console.print.assert_any_call(
-            "\n⚠️  Completed with errors", style="bold yellow"
+            f"\n{emoji('⚠', '[!]')}  Completed with errors", style="bold yellow"
         )
 
     def test_format_duration_seconds(self):

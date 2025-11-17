@@ -34,6 +34,7 @@ from rich.progress import Progress
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
+from niamoto.common.utils.emoji import emoji
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, register
 from niamoto.core.plugins.models import TargetConfig, BasePluginParams
 from niamoto.core.plugins.registry import PluginRegistry
@@ -372,7 +373,7 @@ class JsonApiExporter(ExporterPlugin):
         duration = time.time() - start_time
         progress.update(
             task,
-            description=f"[green][✓] {group_name} export completed • {duration:.1f}s[/green]",
+            description=f"[green][{emoji('✓', '[OK]')}] {group_name} export completed • {duration:.1f}s[/green]",
         )
 
         return generated_items

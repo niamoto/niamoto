@@ -16,6 +16,7 @@ from rich import box
 
 from niamoto.common.exceptions import VersionError, CommandError
 from niamoto.common.utils import error_handler
+from niamoto.common.utils.emoji import emoji
 
 # ASCII art banner for CLI
 # NIAMOTO_ASCII_ART = """
@@ -188,7 +189,7 @@ def display_next_steps() -> None:
     console = Console()
 
     # Quick Start section
-    console.print("\n[bold yellow]🚀 Quick Start:[/bold yellow]\n")
+    console.print(f"\n[bold yellow]{emoji('🚀', '>>')} Quick Start:[/bold yellow]\n")
 
     quick_start_steps = [
         {
@@ -220,21 +221,23 @@ def display_next_steps() -> None:
             console.print(f"[green]   $ {cmd}[/green]")
 
     # Common Workflows section
-    console.print("\n[bold yellow]📋 Common Workflows:[/bold yellow]\n")
+    console.print(
+        f"\n[bold yellow]{emoji('📋', '[]')} Common Workflows:[/bold yellow]\n"
+    )
 
     workflows = [
         {
-            "icon": "📊",
+            "icon": emoji("📊", "[=]"),
             "title": "Check your data",
             "command": "niamoto stats             # Overview of your database",
         },
         {
-            "icon": "🔄",
+            "icon": emoji("🔄", "[>]"),
             "title": "Update your site",
             "command": "niamoto transform && niamoto export  # Recalculate and regenerate",
         },
         {
-            "icon": "🚀",
+            "icon": emoji("🚀", ">>"),
             "title": "Deploy your site",
             "command": "niamoto deploy github --repo <url>   # Deploy to GitHub Pages",
         },
@@ -245,7 +248,7 @@ def display_next_steps() -> None:
         console.print(f"[green]   $ {workflow['command']}[/green]")
 
     # All Commands reference
-    console.print("\n[bold yellow]📖 All Commands:[/bold yellow]\n")
+    console.print(f"\n[bold yellow]{emoji('📖', '[?]')} All Commands:[/bold yellow]\n")
 
     command_groups = [
         {
@@ -272,10 +275,14 @@ def display_next_steps() -> None:
     console.print("\n[dim]Run 'niamoto <command> --help' for detailed usage[/dim]")
 
     # Learn More section
-    console.print("\n[bold yellow]💡 Learn More:[/bold yellow]")
-    console.print("  📖 Documentation: [link]https://niamoto.readthedocs.io/[/link]")
-    console.print("  ❓ Help: niamoto <command> --help")
-    console.print("  🐛 Issues: [link]https://github.com/niamoto/niamoto/issues[/link]")
+    console.print(f"\n[bold yellow]{emoji('💡', '[*]')} Learn More:[/bold yellow]")
+    console.print(
+        f"  {emoji('📖', '?')} Documentation: [link]https://niamoto.readthedocs.io/[/link]"
+    )
+    console.print(f"  {emoji('❓', '?')} Help: niamoto <command> --help")
+    console.print(
+        f"  {emoji('🐛', '!')} Issues: [link]https://github.com/niamoto/niamoto/issues[/link]"
+    )
 
 
 @error_handler(log=True, raise_error=True)

@@ -10,6 +10,7 @@ from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.cli.utils.console import console as default_console
 from niamoto.common.config import Config
+from niamoto.common.utils.emoji import emoji
 from pathlib import Path
 
 
@@ -176,12 +177,12 @@ def _display_table(
 
             module = plugin_class.__module__
             has_schema = (
-                "✓"
+                emoji("✓", "[OK]")
                 if (
                     hasattr(plugin_class, "param_schema")
                     or hasattr(plugin_class, "config_model")
                 )
-                else "[red]✗[/red]"
+                else f"[red]{emoji('✗', '[X]')}[/red]"
             )
             row.extend([scope, priority, module, has_schema])
 
@@ -230,7 +231,7 @@ def _display_simple(
                     plugin_class, "config_model"
                 ):
                     console.print(
-                        "       [green]✓[/green] [dim]Has parameter schema[/dim]"
+                        f"       [green]{emoji('✓', '[OK]')}[/green] [dim]Has parameter schema[/dim]"
                     )
 
 

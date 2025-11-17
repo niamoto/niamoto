@@ -33,6 +33,7 @@ from niamoto.cli.utils.console import (
     format_number,
     console,
 )
+from niamoto.common.utils.emoji import emoji
 
 
 @pytest.fixture
@@ -46,28 +47,36 @@ def test_print_success(mock_console):
     """Test success message printing."""
     message = "Operation successful"
     print_success(message)
-    mock_console.print.assert_called_once_with(f"[✓] {message}", style="green")
+    mock_console.print.assert_called_once_with(
+        f"[{emoji('✓', '[OK]')}] {message}", style="green"
+    )
 
 
 def test_print_error(mock_console):
     """Test error message printing."""
     message = "An error occurred"
     print_error(message)
-    mock_console.print.assert_called_once_with(f"[✗] {message}", style="bold red")
+    mock_console.print.assert_called_once_with(
+        f"[{emoji('✗', '[X]')}] {message}", style="bold red"
+    )
 
 
 def test_print_warning(mock_console):
     """Test warning message printing."""
     message = "Warning message"
     print_warning(message)
-    mock_console.print.assert_called_once_with(f"⚠️  {message}", style="yellow")
+    mock_console.print.assert_called_once_with(
+        f"{emoji('⚠', '[!]')}  {message}", style="yellow"
+    )
 
 
 def test_print_info(mock_console):
     """Test info message printing."""
     message = "Information message"
     print_info(message)
-    mock_console.print.assert_called_once_with(f"ℹ️  {message}", style="blue")
+    mock_console.print.assert_called_once_with(
+        f"{emoji('ℹ', '[i]')}  {message}", style="blue"
+    )
 
 
 def test_print_table_empty_data(mock_console):
@@ -116,7 +125,9 @@ class TestPrintFunctions:
         """Test success message printing with icon."""
         message = "Operation successful"
         print_success(message, icon=True)
-        mock_console.print.assert_called_once_with(f"[✓] {message}", style="green")
+        mock_console.print.assert_called_once_with(
+            f"[{emoji('✓', '[OK]')}] {message}", style="green"
+        )
 
     def test_print_success_without_icon(self, mock_console):
         """Test success message printing without icon."""
@@ -138,7 +149,9 @@ class TestPrintFunctions:
         """Test error message printing with icon."""
         message = "An error occurred"
         print_error(message, icon=True)
-        mock_console.print.assert_called_once_with(f"[✗] {message}", style="bold red")
+        mock_console.print.assert_called_once_with(
+            f"[{emoji('✗', '[X]')}] {message}", style="bold red"
+        )
 
     def test_print_error_without_icon(self, mock_console):
         """Test error message printing without icon."""
@@ -155,7 +168,9 @@ class TestPrintFunctions:
         """Test warning message printing with icon."""
         message = "Warning message"
         print_warning(message, icon=True)
-        mock_console.print.assert_called_once_with(f"⚠️  {message}", style="yellow")
+        mock_console.print.assert_called_once_with(
+            f"{emoji('⚠', '[!]')}  {message}", style="yellow"
+        )
 
     def test_print_warning_without_icon(self, mock_console):
         """Test warning message printing without icon."""
@@ -172,7 +187,9 @@ class TestPrintFunctions:
         """Test info message printing with icon."""
         message = "Information message"
         print_info(message, icon=True)
-        mock_console.print.assert_called_once_with(f"ℹ️  {message}", style="blue")
+        mock_console.print.assert_called_once_with(
+            f"{emoji('ℹ', '[i]')}  {message}", style="blue"
+        )
 
     def test_print_info_without_icon(self, mock_console):
         """Test info message printing without icon."""
@@ -234,7 +251,7 @@ class TestOperationMessages:
         operation = "import"
         print_operation_complete(operation)
         mock_console.print.assert_called_once_with(
-            f"[✓] {operation} completed", style="green"
+            f"[{emoji('✓', '[OK]')}] {operation} completed", style="green"
         )
 
     def test_print_operation_complete_with_details(self, mock_console):
@@ -243,7 +260,7 @@ class TestOperationMessages:
         details = "100 records processed"
         print_operation_complete(operation, details)
         mock_console.print.assert_called_once_with(
-            f"[✓] {operation} completed - {details}", style="green"
+            f"[{emoji('✓', '[OK]')}] {operation} completed - {details}", style="green"
         )
 
 
@@ -271,19 +288,25 @@ class TestFileAndStatsMessages:
         """Test duration printing for seconds."""
         seconds = 45.6
         print_duration(seconds)
-        mock_console.print.assert_called_once_with("⏱️  Duration: 45.6s", style="dim")
+        mock_console.print.assert_called_once_with(
+            f"{emoji('⏱', '[T]')}  Duration: 45.6s", style="dim"
+        )
 
     def test_print_duration_minutes(self, mock_console):
         """Test duration printing for minutes."""
         seconds = 125.7  # 2 minutes 5 seconds
         print_duration(seconds)
-        mock_console.print.assert_called_once_with("⏱️  Duration: 2m 5s", style="dim")
+        mock_console.print.assert_called_once_with(
+            f"{emoji('⏱', '[T]')}  Duration: 2m 5s", style="dim"
+        )
 
     def test_print_duration_hours(self, mock_console):
         """Test duration printing for hours."""
         seconds = 3725.3  # 1 hour 2 minutes
         print_duration(seconds)
-        mock_console.print.assert_called_once_with("⏱️  Duration: 1h 2m", style="dim")
+        mock_console.print.assert_called_once_with(
+            f"{emoji('⏱', '[T]')}  Duration: 1h 2m", style="dim"
+        )
 
     def test_print_stats(self, mock_console):
         """Test statistics printing."""
@@ -318,7 +341,7 @@ class TestStepMessages:
         step_name = "Data loading"
         print_step_complete(step_name)
         mock_console.print.assert_called_once_with(
-            f"[✓] {step_name} completed", style="green"
+            f"[{emoji('✓', '[OK]')}] {step_name} completed", style="green"
         )
 
     def test_print_step_complete_with_count(self, mock_console):
@@ -327,7 +350,7 @@ class TestStepMessages:
         count = 1500
         print_step_complete(step_name, count=count)
         mock_console.print.assert_called_once_with(
-            f"[✓] {step_name} completed • 1,500 items", style="green"
+            f"[{emoji('✓', '[OK]')}] {step_name} completed • 1,500 items", style="green"
         )
 
     def test_print_step_complete_with_duration_seconds(self, mock_console):
@@ -336,7 +359,7 @@ class TestStepMessages:
         duration = 45.6
         print_step_complete(step_name, duration=duration)
         mock_console.print.assert_called_once_with(
-            f"[✓] {step_name} completed • 45.6s", style="green"
+            f"[{emoji('✓', '[OK]')}] {step_name} completed • 45.6s", style="green"
         )
 
     def test_print_step_complete_with_duration_minutes(self, mock_console):
@@ -345,7 +368,7 @@ class TestStepMessages:
         duration = 125.7  # 2 minutes 5 seconds
         print_step_complete(step_name, duration=duration)
         mock_console.print.assert_called_once_with(
-            f"[✓] {step_name} completed • 2m 5s", style="green"
+            f"[{emoji('✓', '[OK]')}] {step_name} completed • 2m 5s", style="green"
         )
 
     def test_print_step_complete_with_count_and_duration(self, mock_console):
@@ -355,7 +378,8 @@ class TestStepMessages:
         duration = 45.6
         print_step_complete(step_name, count=count, duration=duration)
         mock_console.print.assert_called_once_with(
-            f"[✓] {step_name} completed • 1,500 items • 45.6s", style="green"
+            f"[{emoji('✓', '[OK]')}] {step_name} completed • 1,500 items • 45.6s",
+            style="green",
         )
 
     def test_print_step_progress(self, mock_console):
@@ -451,7 +475,7 @@ class TestImportAndFileMessages:
         data_type = "records"
 
         print_import_result(file_path, count, data_type)
-        expected = f"[✓] 500 records imported from {file_path}"
+        expected = f"[{emoji('✓', '[OK]')}] 500 records imported from {file_path}"
         mock_console.print.assert_called_once_with(expected, style="green")
 
     def test_print_import_result_with_details(self, mock_console):
@@ -462,7 +486,9 @@ class TestImportAndFileMessages:
         details = "All records valid"
 
         print_import_result(file_path, count, data_type, details)
-        expected = f"[✓] 500 records imported from {file_path}. {details}"
+        expected = (
+            f"[{emoji('✓', '[OK]')}] 500 records imported from {file_path}. {details}"
+        )
         mock_console.print.assert_called_once_with(expected, style="green")
 
     def test_print_file_processed_default_action(self, mock_console):

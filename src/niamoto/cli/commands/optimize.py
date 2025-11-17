@@ -9,6 +9,7 @@ from rich.table import Table
 
 from niamoto.common.config import Config
 from niamoto.common.database import Database
+from niamoto.common.utils.emoji import emoji
 
 console = Console()
 
@@ -68,7 +69,7 @@ def optimize_command(db_path: str = None, show_stats: bool = False):
         db.optimize_database()
 
         console.print(
-            "\n[green]✓[/green] Database optimization completed successfully!"
+            f"\n[green]{emoji('✓', '[OK]')}[/green] Database optimization completed successfully!"
         )
 
         # Show statistics if requested
@@ -93,19 +94,29 @@ def optimize_command(db_path: str = None, show_stats: bool = False):
             console.print("\n[cyan]Performance Tips:[/cyan]")
 
             if stats.get("journal_mode") == "wal":
-                console.print("✓ WAL mode enabled - better concurrency")
+                console.print(
+                    f"{emoji('✓', '[OK]')} WAL mode enabled - better concurrency"
+                )
             else:
-                console.print("⚠ Consider enabling WAL mode for better concurrency")
+                console.print(
+                    f"{emoji('⚠', '[!]')} Consider enabling WAL mode for better concurrency"
+                )
 
             if abs(stats.get("cache_size", 0)) >= 32000:
-                console.print("✓ Large cache configured - better performance")
+                console.print(
+                    f"{emoji('✓', '[OK]')} Large cache configured - better performance"
+                )
             else:
-                console.print("⚠ Consider increasing cache size for better performance")
+                console.print(
+                    f"{emoji('⚠', '[!]')} Consider increasing cache size for better performance"
+                )
 
             if stats.get("index_count", 0) > stats.get("table_count", 0):
-                console.print("✓ Tables appear to be well-indexed")
+                console.print(f"{emoji('✓', '[OK]')} Tables appear to be well-indexed")
             else:
-                console.print("⚠ Some tables may benefit from additional indexes")
+                console.print(
+                    f"{emoji('⚠', '[!]')} Some tables may benefit from additional indexes"
+                )
 
     except Exception as e:
         console.print(f"\n[red]Error during optimization:[/red] {str(e)}")

@@ -3,38 +3,11 @@ Console output utilities for the Niamoto CLI.
 Provides consistent formatting for different types of messages with unified icons.
 """
 
-import os
-import platform
 from rich.console import Console
 from typing import Any, Optional, List, Dict
+from niamoto.common.utils.emoji import emoji
 
 console = Console()
-
-
-# Detect if we're on Windows and if emoji support might be limited
-def _should_use_emojis() -> bool:
-    """Determine if emojis should be used based on platform and terminal capabilities."""
-    # Check environment variable override
-    emoji_env = os.getenv("NIAMOTO_USE_EMOJIS", "").lower()
-    if emoji_env in ("1", "true", "yes", "on"):
-        return True
-    elif emoji_env in ("0", "false", "no", "off"):
-        return False
-
-    # Auto-detect based on platform
-    if platform.system() == "Windows":
-        # Check if we're in a modern terminal that supports emojis
-        try:
-            # Test emoji rendering capability
-            test_console = Console(file=None, legacy_windows=False)
-            return not test_console.legacy_windows
-        except Exception:
-            return False
-    return True
-
-
-# Global setting for emoji usage
-USE_EMOJIS = _should_use_emojis()
 
 
 def print_success(message: str, icon: bool = True) -> None:
@@ -43,7 +16,7 @@ def print_success(message: str, icon: bool = True) -> None:
     if not message or not message.strip():
         return
     if icon:
-        prefix = "[✓] " if USE_EMOJIS else "[✓] "
+        prefix = f"[{emoji('✓', '[OK]')}] "
     else:
         prefix = ""
     console.print(f"{prefix}{message}", style="green")
@@ -55,7 +28,7 @@ def print_error(message: str, icon: bool = True) -> None:
     if not message or not message.strip():
         return
     if icon:
-        prefix = "[✗] " if USE_EMOJIS else "[✗] "
+        prefix = f"[{emoji('✗', '[X]')}] "
     else:
         prefix = ""
     console.print(f"{prefix}{message}", style="bold red")
@@ -67,7 +40,7 @@ def print_warning(message: str, icon: bool = True) -> None:
     if not message or not message.strip():
         return
     if icon:
-        prefix = "⚠️  " if USE_EMOJIS else "[!] "
+        prefix = f"{emoji('⚠', '[!]')}  "
     else:
         prefix = ""
     console.print(f"{prefix}{message}", style="yellow")
@@ -80,7 +53,7 @@ def print_info(message: str, icon: bool = True) -> None:
         console.print(message, style="blue")
     else:
         if icon:
-            prefix = "ℹ️  " if USE_EMOJIS else "[i] "
+            prefix = f"{emoji('ℹ', '[i]')}  "
         else:
             prefix = ""
         console.print(f"{prefix}{message}", style="blue")
@@ -88,37 +61,37 @@ def print_info(message: str, icon: bool = True) -> None:
 
 def print_start(message: str) -> None:
     """Print a start message with icon."""
-    prefix = "🌱 " if USE_EMOJIS else "[*] "
+    prefix = f"{emoji('🌱', '[*]')} "
     console.print(f"{prefix}{message}", style="bold blue")
 
 
 def print_processing(message: str) -> None:
     """Print a processing message with icon."""
-    prefix = "⚡ " if USE_EMOJIS else "[~] "
+    prefix = f"{emoji('⚡', '[~]')} "
     console.print(f"{prefix}{message}", style="cyan")
 
 
 def print_section(title: str) -> None:
     """Print a section header."""
-    prefix = "📋 " if USE_EMOJIS else "[#] "
+    prefix = f"{emoji('📋', '[#]')} "
     console.print(f"\n{prefix}{title}", style="bold magenta")
 
 
 def print_summary_header(title: str) -> None:
     """Print a summary section header."""
-    prefix = "📊 " if USE_EMOJIS else "[=] "
+    prefix = f"{emoji('📊', '[=]')} "
     console.print(f"\n{prefix}{title}", style="bold blue")
 
 
 def print_operation_start(operation: str) -> None:
     """Print operation start message."""
-    prefix = "🔄 " if USE_EMOJIS else "[>] "
+    prefix = f"{emoji('🔄', '[>]')} "
     console.print(f"{prefix}Starting {operation}...", style="blue")
 
 
 def print_operation_complete(operation: str, details: Optional[str] = None) -> None:
     """Print operation completion message."""
-    prefix = "[✓] " if USE_EMOJIS else "[✓] "
+    prefix = f"[{emoji('✓', '[OK]')}] "
     message = f"{prefix}{operation} completed"
     if details:
         message += f" - {details}"
@@ -127,7 +100,7 @@ def print_operation_complete(operation: str, details: Optional[str] = None) -> N
 
 def print_files_processed(count: int, file_type: str = "files") -> None:
     """Print files processed message."""
-    prefix = "📁 " if USE_EMOJIS else "[+] "
+    prefix = f"{emoji('📁', '[+]')} "
     console.print(f"{prefix}Processed {count} {file_type}", style="cyan")
 
 
@@ -144,13 +117,13 @@ def print_duration(seconds: float) -> None:
         minutes = int((seconds % 3600) // 60)
         duration_str = f"{hours}h {minutes}m"
 
-    prefix = "⏱️  " if USE_EMOJIS else "[T] "
+    prefix = f"{emoji('⏱', '[T]')}  "
     console.print(f"{prefix}Duration: {duration_str}", style="dim")
 
 
 def print_stats(stats: Dict[str, Any]) -> None:
     """Print statistics in a formatted way."""
-    prefix = "📈 " if USE_EMOJIS else "[%] "
+    prefix = f"{emoji('📈', '[%]')} "
     console.print(f"{prefix}Statistics:", style="bold cyan")
     for key, value in stats.items():
         if isinstance(value, (int, float)):
@@ -161,7 +134,7 @@ def print_stats(stats: Dict[str, Any]) -> None:
 
 def print_metrics_summary(operation_name: str, metrics_lines: List[str]) -> None:
     """Print a formatted metrics summary."""
-    prefix = "📊 " if USE_EMOJIS else "[=] "
+    prefix = f"{emoji('📊', '[=]')} "
     console.print(f"\n{prefix}{operation_name} Summary:", style="bold blue")
     for line in metrics_lines:
         # Skip empty lines or lines that only contain emojis/icons
@@ -170,13 +143,13 @@ def print_metrics_summary(operation_name: str, metrics_lines: List[str]) -> None
             and line.strip()
             and line.strip()
             not in [
-                "✅",
-                "❌",
-                "⚠️",
-                "📊",
-                "🎯",
-                "📁",
-                "📈",
+                emoji("✅", "[OK]"),
+                emoji("❌", "[X]"),
+                emoji("⚠️", "[!]"),
+                emoji("📊", "[=]"),
+                emoji("🎯", "[*]"),
+                emoji("📁", "[F]"),
+                emoji("📈", "[%]"),
                 "[✓]",
                 "[✗]",
                 "[!]",
@@ -217,14 +190,14 @@ def print_operation_metrics(metrics: Any, operation_type: str) -> None:
 
 def print_step_header(step_name: str) -> None:
     """Print a step header for sub-operations."""
-    console.print(f"📋 {step_name}...", style="bold cyan")
+    console.print(f"{emoji('📋', '[#]')} {step_name}...", style="bold cyan")
 
 
 def print_step_complete(
     step_name: str, count: Optional[int] = None, duration: Optional[float] = None
 ) -> None:
     """Print step completion message."""
-    message = f"[✓] {step_name} completed"
+    message = f"[{emoji('✓', '[OK]')}] {step_name} completed"
     if count is not None:
         message += f" • {count:,} items"
     if duration is not None:
@@ -300,7 +273,7 @@ def print_import_result(
     file_path: str, count: int, data_type: str, details: Optional[str] = None
 ) -> None:
     """Print import result with file path and count."""
-    message = f"[✓] {count:,} {data_type} imported from {file_path}"
+    message = f"[{emoji('✓', '[OK]')}] {count:,} {data_type} imported from {file_path}"
     if details:
         message += f". {details}"
     console.print(message, style="green")
@@ -308,7 +281,10 @@ def print_import_result(
 
 def print_file_processed(file_path: str, count: int, action: str = "processed") -> None:
     """Print file processing result."""
-    console.print(f"📁 {count:,} features {action} from {file_path}", style="cyan")
+    console.print(
+        f"{emoji('📁', '[+]')} {count:,} features {action} from {file_path}",
+        style="cyan",
+    )
 
 
 def format_file_size(size_bytes: int) -> str:
