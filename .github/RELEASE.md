@@ -4,28 +4,46 @@ This document explains how to create a new Niamoto release with cross-platform b
 
 ## 🚀 Quick Release
 
-### 1. Update Version
+### 1. Update Version (Automated with bump2version)
 
-Update the version in `src/niamoto/__version__.py`:
-
-```python
-__version__ = "0.7.5"  # New version
-```
-
-### 2. Commit and Tag
+**Recommended approach** - Updates all files automatically:
 
 ```bash
-# Commit version bump
-git add src/niamoto/__version__.py
-git commit -m "chore: bump version to 0.7.5"
+# Patch version (0.7.4 → 0.7.5)
+uv run bump2version patch
 
-# Create and push tag
-git tag v0.7.5
-git push origin main
-git push origin v0.7.5
+# Minor version (0.7.5 → 0.8.0)
+uv run bump2version minor
+
+# Major version (0.8.0 → 1.0.0)
+uv run bump2version major
 ```
 
-### 3. Automated Build
+This automatically:
+- ✅ Updates version in `pyproject.toml`, `docs/conf.py`, `src/niamoto/__version__.py`
+- ✅ Creates a commit: "Bump version: X.X.X → Y.Y.Y"
+- ✅ Creates a git tag `vY.Y.Y`
+
+### 2. Push Release
+
+```bash
+# Push commit and tag
+git push && git push origin v0.7.5
+```
+
+### 3. Publish to PyPI
+
+```bash
+# Build and publish to PyPI
+bash scripts/publish.sh
+```
+
+The script will:
+- ✅ Build React UI if needed
+- ✅ Create wheel (with GUI) and sdist (without GUI)
+- ✅ Publish to PyPI using token from `scripts/.env` or interactive auth
+
+### 4. Automated Binary Build
 
 Once the tag is pushed, GitHub Actions will automatically:
 
@@ -38,7 +56,7 @@ Once the tag is pushed, GitHub Actions will automatically:
 3. ✅ Create GitHub Release with all binaries
 4. ✅ Generate release notes
 
-### 4. Monitor Progress
+### 5. Monitor Progress
 
 Visit: https://github.com/niamoto/niamoto/actions
 
@@ -59,6 +77,65 @@ Each release includes 4 binaries:
 | `niamoto-windows-x86_64.zip` | Windows 10/11 | ~50-60 MB |
 
 **Uncompressed binaries are ~130-140 MB each**
+
+## 🏷️ Managing Git Tags
+
+### Move/Recreate a Tag
+
+If you need to move a tag to a different commit (e.g., after fixing a build issue):
+
+```bash
+# Delete local tag
+git tag -d v0.7.5
+
+# Delete remote tag
+git push origin :refs/tags/v0.7.5
+
+# Create new tag at current commit
+git tag v0.7.5
+
+# Push new tag
+git push origin v0.7.5
+```
+
+**⚠️ Warning**: Only recreate tags for unreleased versions or if critical issue. Released tags should generally not be moved.
+
+### List All Tags
+
+```bash
+# List all tags
+git tag -l
+
+# List tags with pattern
+git tag -l "v0.7.*"
+
+# Show tag details
+git show v0.7.5
+```
+
+### Delete a Tag
+
+```bash
+# Delete local tag
+git tag -d v0.7.5
+
+# Delete remote tag
+git push origin --delete v0.7.5
+# or
+git push origin :refs/tags/v0.7.5
+```
+
+### Tag a Specific Commit
+
+```bash
+# Tag a specific commit
+git tag v0.7.5 <commit-hash>
+git push origin v0.7.5
+
+# Tag with annotation
+git tag -a v0.7.5 -m "Release version 0.7.5"
+git push origin v0.7.5
+```
 
 ## 🔧 Manual Trigger
 
