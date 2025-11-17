@@ -684,28 +684,40 @@ class Database:
         Run database optimization routines.
 
         This method can be called periodically to maintain optimal performance:
-        - Applies PRAGMA optimizations for existing databases
-        - Reanalyzes the database for query optimization
-        - Creates any missing indexes
-        - Runs VACUUM to reclaim space (if not in WAL mode)
+        - For SQLite: Applies PRAGMA optimizations, ANALYZE, and VACUUM
+        - For DuckDB: Runs CHECKPOINT and VACUUM to compact the database
+        - Creates any missing indexes (SQLite only, DuckDB doesn't support index reflection)
         """
         try:
-            # First, apply PRAGMA optimizations (important for existing databases)
-            self._apply_sqlite_optimizations()
+            if self.is_sqlite:
+                # SQLite optimization path
+                self._apply_sqlite_optimizations()
 
-            with self.engine.connect() as connection:
-                # Run ANALYZE to update statistics
-                connection.execute(text("ANALYZE"))
-                logger.info("Database statistics updated")
+                with self.engine.connect() as connection:
+                    # Run ANALYZE to update statistics
+                    connection.execute(text("ANALYZE"))
+                    logger.info("Database statistics updated")
 
-                # Run PRAGMA optimize
-                connection.execute(text("PRAGMA optimize"))
-                logger.info("Query optimizer updated")
+                    # Run PRAGMA optimize
+                    connection.execute(text("PRAGMA optimize"))
+                    logger.info("Query optimizer updated")
 
-                connection.commit()
+                    connection.commit()
 
-            # Recreate any missing indexes
-            self._create_missing_indexes()
+                # Recreate any missing indexes
+                self._create_missing_indexes()
+            else:
+                # DuckDB optimization path
+                with self.engine.connect() as connection:
+                    logger.info("Running DuckDB CHECKPOINT...")
+                    connection.execute(text("CHECKPOINT"))
+                    logger.info("CHECKPOINT completed")
+
+                    logger.info("Running DuckDB VACUUM to compact database...")
+                    connection.execute(text("VACUUM"))
+                    logger.info("VACUUM completed - database compacted")
+
+                    connection.commit()
 
             logger.info("Database optimization completed successfully")
 

@@ -43,7 +43,8 @@ MANIFEST
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
+# Keep our build spec file
+!build_scripts/niamoto.spec
 
 # Installer logs
 pip-log.txt
@@ -129,3 +130,8 @@ package-lock.json
 CLAUDE.md
 AGENTS.md
 .claude/
+
+# Tauri Desktop App
+src-tauri/target/
+src-tauri/gen/
+src-tauri/bin/niamoto*

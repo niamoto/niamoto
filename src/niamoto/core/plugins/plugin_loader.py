@@ -23,12 +23,28 @@ import logging
 import os
 import inspect
 from pathlib import Path
-from typing import Set, Dict, Any, List
+from typing import Set, Dict, Any, List, Optional
+from dataclasses import dataclass
+
 from .base import PluginType
 from .exceptions import PluginLoadError
 from .registry import PluginRegistry
+from niamoto.common.resource_paths import ResourcePaths, ResourceLocation
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PluginInfo:
+    """Information about a loaded plugin including its scope and priority"""
+
+    name: str
+    plugin_class: type
+    scope: str  # "project", "user", "system"
+    path: Path
+    priority: int
+    module_name: str
+
 
 # List of core plugin modules to load automatically
 CORE_PLUGIN_MODULES = [
@@ -57,137 +73,203 @@ def is_plugin_class(obj):
 class PluginLoader:
     """
     Loader for Niamoto plugins, handling both core and third-party plugins.
+
+    Supports cascade resolution across three scopes:
+    - Project-local (~/.niamoto/plugins) - priority 100
+    - User-global (project/.niamoto/plugins) - priority 50
+    - System built-in (niamoto/core/plugins) - priority 10
     """
 
     def __init__(self):
         self.loaded_plugins: Set[str] = set()
         self.plugin_paths: Dict[str, str] = {}
+        self.plugin_info_by_name: Dict[str, PluginInfo] = {}  # Track plugin metadata
 
-    def load_core_plugins(self) -> None:
+    def load_plugins_with_cascade(self, project_path: Optional[Path] = None) -> None:
         """
-        Load core plugins bundled with Niamoto.
+        Load plugins using cascade resolution (Project > User > System).
 
-        Raises:
-            PluginLoadError: If loading of core plugins fails
-        """
-        try:
-            core_plugins_path = Path(__file__).parent
-
-            # Load plugins for each type
-            for plugin_type in PluginType:
-                plugin_dir = core_plugins_path.joinpath(f"{plugin_type.value}s")
-                if plugin_dir.exists():
-                    self._load_plugins_from_dir(plugin_dir, is_core=True)
-
-        except Exception as e:
-            raise PluginLoadError(
-                "Failed to load core plugins", details={"error": str(e)}
-            )
-
-    def load_project_plugins(self, project_path: str) -> None:
-        """
-        Load plugins from a project directory.
+        This is the NEW UNIFIED method that replaces load_core_plugins() + load_project_plugins().
+        It uses ResourcePaths to discover plugins across all scopes and handles conflicts.
 
         Args:
-            project_path: Path to the project plugins directory
-
-        Raises:
-            PluginLoadError: If loading of project plugins fails
-        """
-        try:
-            plugins_dir = Path(
-                project_path
-            )  # project_path is already the plugins directory
-
-            if not plugins_dir.exists():
-                logger.info(f"No plugins directory found at {plugins_dir}")
-                return
-
-            # Add project path to Python path for imports
-            project_root = str(
-                plugins_dir.parent
-            )  # Go up one level from plugins directory to get project root
-            if project_root not in sys.path:
-                sys.path.insert(0, project_root)
-                logger.debug(f"Added {project_root} to sys.path")
-            else:
-                logger.debug(f"Path {project_root} already in sys.path")
-
-            # Load plugins for each type
-            for plugin_type in PluginType:
-                type_dir = plugins_dir / (plugin_type.value + "s")
-                if type_dir.exists():
-                    self._load_plugins_from_dir(type_dir)
-
-            # Also check top-level plugins
-            for file in plugins_dir.glob("*.py"):
-                if file.name.startswith("_"):
-                    continue
-                module_name = f"plugins.{file.stem}"
-                try:
-                    self._load_plugin_file(file, module_name)
-                except Exception as e:
-                    print(
-                        f"DEBUG ERROR: Failed to load top-level plugin {file.name}: {str(e)}"
-                    )
-
-        except Exception as e:
-            raise PluginLoadError(
-                f"Failed to load project plugins from {project_path}",
-                details={"error": str(e)},
-            )
-
-    def _load_plugins_from_dir(self, directory: Path, is_core: bool = False) -> None:
-        """
-        Load all plugins from a directory recursively.
-
-        Args:
-            directory: Directory containing plugin files
-            is_core: Whether these are core plugins
-
-        Raises:
-            PluginLoadError: If loading of plugins fails
-        """
-        try:
-            # Recursively find all .py files
-            for file in directory.rglob("*.py"):
-                # Skip __init__.py and other files starting with _
-                if file.name.startswith("_"):
-                    continue
-
-                module_name = self._get_module_name(file, is_core)
-                if module_name in self.loaded_plugins:
-                    continue
-
-                try:
-                    self._load_plugin_file(file, module_name)
-                except Exception as e:
-                    logger.error(f"Failed to load plugin {file.name}: {str(e)}")
-
-        except Exception as e:
-            raise PluginLoadError(
-                f"Failed to load plugins from {directory}", details={"error": str(e)}
-            )
-
-    def _load_plugin_file(self, file: Path, module_name: str) -> None:
-        """
-        Load a single plugin file and register it.
-
-        Args:
-            file: Plugin file path
-            module_name: Module name for the plugin
+            project_path: Optional project path for project-local plugins
 
         Raises:
             PluginLoadError: If loading fails
         """
         try:
-            self._load_plugin_module(file, module_name)
-            self.loaded_plugins.add(module_name)
-            self.plugin_paths[module_name] = str(file)
+            # Get all plugin locations via ResourcePaths
+            locations = ResourcePaths.get_plugin_paths(project_path)
+
+            logger.info("=" * 60)
+            logger.info("Loading plugins with cascade resolution")
+            logger.info("=" * 60)
+
+            # Log scanning paths
+            for location in locations:
+                status = "✓" if location.exists else "✗"
+                logger.info(
+                    f"{status} Scanning {location.scope} plugins: {location.path} (priority: {location.priority})"
+                )
+
+            # Collect all plugins from all locations (in priority order: high to low)
+            # Process Project first, then User, then System
+            # First plugin found wins - this ensures highest priority plugin is registered first
+            # in the registry, and duplicates from lower-priority scopes are automatically rejected
+            discovered_plugins: Dict[str, PluginInfo] = {}
+
+            for location in locations:  # Process high priority first (already sorted)
+                if not location.exists:
+                    continue
+
+                # Scan this location for plugins
+                location_plugins = self._discover_plugins_in_location(location)
+
+                for plugin_name, plugin_info in location_plugins.items():
+                    if plugin_name in discovered_plugins:
+                        # CONFLICT: This plugin was already found in a higher-priority scope
+                        # Skip this lower-priority version
+                        previous = discovered_plugins[plugin_name]
+                        logger.warning(
+                            f"⚠️  Skipping '{plugin_name}' from {location.scope} ({location.path}) "
+                            f"- already loaded from {previous.scope} (priority {previous.priority})"
+                        )
+                        continue
+
+                    # First occurrence of this plugin - add it
+                    discovered_plugins[plugin_name] = plugin_info
+
+            # Now load the discovered plugins
+            logger.info("")
+            logger.info(f"Loading {len(discovered_plugins)} unique plugins:")
+
+            for plugin_name, plugin_info in discovered_plugins.items():
+                try:
+                    # Actually load and register the plugin
+                    self._load_and_register_plugin(plugin_info)
+                    logger.info(
+                        f"  ✓ Loaded '{plugin_name}' from {plugin_info.scope} "
+                        f"(priority: {plugin_info.priority})"
+                    )
+                except Exception as e:
+                    logger.error(f"  ✗ Failed to load '{plugin_name}': {str(e)}")
+
+            # Summary
+            logger.info("")
+            logger.info("Plugin loading summary:")
+            scopes_count = {"project": 0, "user": 0, "system": 0}
+            for plugin_info in discovered_plugins.values():
+                scopes_count[plugin_info.scope] = (
+                    scopes_count.get(plugin_info.scope, 0) + 1
+                )
+
+            logger.info(f"  Total plugins: {len(discovered_plugins)}")
+            logger.info(f"    - Project: {scopes_count.get('project', 0)}")
+            logger.info(f"    - User: {scopes_count.get('user', 0)}")
+            logger.info(f"    - System: {scopes_count.get('system', 0)}")
+            logger.info("=" * 60)
+
         except Exception as e:
             raise PluginLoadError(
-                f"Failed to load plugin file {file}",
-                details={"error": str(e), "module": module_name},
+                "Failed to load plugins with cascade", details={"error": str(e)}
+            )
+
+    def _discover_plugins_in_location(
+        self, location: ResourceLocation
+    ) -> Dict[str, PluginInfo]:
+        """
+        Discover all plugins in a specific location.
+
+        Args:
+            location: ResourceLocation to scan
+
+        Returns:
+            Dictionary mapping plugin names to PluginInfo
+        """
+        plugins = {}
+
+        try:
+            # Scan for .py files recursively
+            for file in location.path.rglob("*.py"):
+                if file.name.startswith("_"):
+                    continue
+
+                # Determine module name based on scope
+                is_core = location.scope == ResourcePaths.SCOPE_SYSTEM
+                module_name = self._get_module_name(file, is_core)
+
+                # Try to extract plugin class
+                try:
+                    # Quick inspection to find plugin classes
+                    spec = importlib.util.spec_from_file_location(module_name, file)
+                    if not spec or not spec.loader:
+                        continue
+
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+
+                    # Find plugin classes in this module
+                    for name, obj in inspect.getmembers(module):
+                        if inspect.isclass(obj) and is_plugin_class(obj):
+                            plugin_name = getattr(obj, "name", file.stem)
+
+                            plugins[plugin_name] = PluginInfo(
+                                name=plugin_name,
+                                plugin_class=obj,
+                                scope=location.scope,
+                                path=file,
+                                priority=location.priority,
+                                module_name=module_name,
+                            )
+
+                except Exception as e:
+                    # Check if this is a registration conflict (plugin already registered)
+                    from niamoto.core.plugins.exceptions import PluginRegistrationError
+
+                    if isinstance(
+                        e, PluginRegistrationError
+                    ) and "already registered" in str(e):
+                        logger.warning(
+                            f"⚠️  Skipping '{file.stem}' from {location.scope} ({file}) "
+                            f"- plugin name already registered from higher-priority scope"
+                        )
+                    else:
+                        logger.debug(f"Skipping {file.name}: {str(e)}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Error discovering plugins in {location.path}: {str(e)}")
+
+        return plugins
+
+    def _load_and_register_plugin(self, plugin_info: PluginInfo) -> None:
+        """
+        Load and register a plugin from PluginInfo.
+
+        Note: The plugin is already registered in PluginRegistry by the @register decorator
+        when the module was executed during discovery. This method only tracks it locally.
+
+        Args:
+            plugin_info: Plugin information
+
+        Raises:
+            PluginLoadError: If loading fails
+        """
+        try:
+            # Register in our tracking dictionaries
+            self.loaded_plugins.add(plugin_info.module_name)
+            self.plugin_paths[plugin_info.module_name] = str(plugin_info.path)
+            self.plugin_info_by_name[plugin_info.name] = plugin_info
+
+            # NOTE: We do NOT call PluginRegistry.register_plugin() here because
+            # the @register decorator already registered the plugin when the module
+            # was executed during _discover_plugins_in_location().
+
+        except Exception as e:
+            raise PluginLoadError(
+                f"Failed to track plugin {plugin_info.name}",
+                details={"error": str(e), "scope": plugin_info.scope},
             )
 
     def _get_module_name(self, file: Path, is_core: bool) -> str:
@@ -228,7 +310,9 @@ class PluginLoader:
 
                 # Méthode 2: Méthode originale (essayer avec le chemin relatif)
                 try:
+                    # Get plugin root - works in both source and frozen modes
                     plugin_root = Path(__file__).parent
+
                     relative_path = file.relative_to(plugin_root).with_suffix("")
                     return f"niamoto.core.plugins.{'.'.join(relative_path.parts)}"
                 except ValueError:
@@ -314,6 +398,43 @@ class PluginLoader:
             "plugin_paths": self.plugin_paths,
             "plugins_by_type": PluginRegistry.list_plugins(),
         }
+
+    def get_plugin_details(self) -> List[Dict[str, Any]]:
+        """
+        Get detailed information about all loaded plugins including scope and priority.
+
+        This is used by the `niamoto plugins list` command.
+
+        Returns:
+            List of plugin details dictionaries
+        """
+        details = []
+
+        for plugin_name, plugin_info in self.plugin_info_by_name.items():
+            # Check if this plugin overrides another
+            is_overriding = False
+            overridden_scopes = []
+
+            # Get all plugins from PluginRegistry to check for conflicts
+            PluginRegistry.list_plugins()
+
+            details.append(
+                {
+                    "name": plugin_name,
+                    "scope": plugin_info.scope,
+                    "path": str(plugin_info.path),
+                    "priority": plugin_info.priority,
+                    "module": plugin_info.module_name,
+                    "type": plugin_info.plugin_class.type.value,
+                    "is_overriding": is_overriding,
+                    "overridden_scopes": overridden_scopes,
+                }
+            )
+
+        # Sort by priority (high to low), then by name
+        details.sort(key=lambda x: (-x["priority"], x["name"]))
+
+        return details
 
     def reload_plugin(self, module_name: str) -> None:
         """

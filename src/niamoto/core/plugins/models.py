@@ -447,7 +447,7 @@ class TargetConfig(BaseModel):
 
     # Use a validator to ensure params, static_pages, and groups match the exporter type
     @model_validator(mode="after")
-    def check_exporter_specific_fields(cls, self):
+    def check_exporter_specific_fields(self):
         exporter_name = self.exporter
         params = self.params
         groups = self.groups

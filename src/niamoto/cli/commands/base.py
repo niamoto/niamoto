@@ -6,7 +6,6 @@ It defines the custom formatted CLI interface and shared command functionality.
 """
 
 from typing import List
-from pathlib import Path
 from importlib import metadata
 import click
 from rich.console import Console
@@ -55,7 +54,15 @@ def get_version_from_pyproject() -> str:
         return metadata.version("niamoto")
     except metadata.PackageNotFoundError:
         # Fallback to pyproject.toml for development mode
-        pyproject_path = Path(__file__).resolve().parents[4] / "pyproject.toml"
+        from niamoto.common.bundle import get_base_path, is_frozen
+
+        if is_frozen():
+            # In PyInstaller bundle, read from __version__.py
+            from niamoto.__version__ import __version__
+
+            return __version__
+
+        pyproject_path = get_base_path() / "pyproject.toml"
         if not pyproject_path.exists():
             raise VersionError(
                 message="Version information not found - package not installed and pyproject.toml not found",
