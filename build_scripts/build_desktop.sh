@@ -42,7 +42,11 @@ echo -e "${GREEN}✓ Python 3 found${NC}"
 # Check PyInstaller
 if ! command -v pyinstaller &> /dev/null; then
     echo -e "${YELLOW}⚠ PyInstaller not found. Installing...${NC}"
-    uv pip install pyinstaller
+    if command -v uv &> /dev/null; then
+        uv pip install pyinstaller
+    else
+        python3 -m pip install pyinstaller
+    fi
 fi
 echo -e "${GREEN}✓ PyInstaller found${NC}"
 
@@ -66,7 +70,7 @@ echo ""
 echo -e "${BLUE}🐍 Step 2: Building Python bundle with PyInstaller...${NC}"
 echo "This may take several minutes..."
 
-uv run pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+pyinstaller build_scripts/niamoto.spec --clean --noconfirm
 
 if [ ! -f "dist/niamoto" ] && [ ! -f "dist/niamoto.exe" ]; then
     echo -e "${RED}❌ PyInstaller build failed${NC}"
