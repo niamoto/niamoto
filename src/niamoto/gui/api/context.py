@@ -4,6 +4,7 @@ This module provides utilities to access the Niamoto working directory
 and database path in a consistent way across all API endpoints.
 """
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -119,3 +120,47 @@ def get_config_path(config_file: str) -> Path:
 
     # Otherwise, prepend "config/"
     return work_dir / "config" / config_file
+
+
+def reload_project_from_desktop_config() -> Optional[Path]:
+    """Reload the current project from Tauri desktop config.
+
+    This reads ~/.niamoto/desktop-config.json to get the current project
+    and updates the global working directory.
+
+    Returns:
+        The new project path if successfully loaded, None otherwise
+    """
+    global _working_directory
+
+    # Get path to desktop config
+    home = Path.home()
+    desktop_config_path = home / ".niamoto" / "desktop-config.json"
+
+    if not desktop_config_path.exists():
+        logger.warning(f"Desktop config not found at {desktop_config_path}")
+        return None
+
+    try:
+        with open(desktop_config_path, "r") as f:
+            config = json.load(f)
+
+        current_project = config.get("current_project")
+        if not current_project:
+            logger.warning("No current_project in desktop config")
+            _working_directory = None
+            return None
+
+        project_path = Path(current_project)
+        if not project_path.exists():
+            logger.error(f"Project path does not exist: {project_path}")
+            return None
+
+        # Update the global working directory
+        _working_directory = project_path
+        logger.info(f"Reloaded project from desktop config: {project_path}")
+        return project_path
+
+    except Exception as e:
+        logger.error(f"Error reading desktop config: {e}")
+        return None

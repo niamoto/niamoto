@@ -68,10 +68,16 @@ class ExporterService:
                 f"Failed to validate export configuration: {e}", details=str(e)
             ) from e
 
-        # Initialize plugin loader and load plugins
+        # Initialize plugin loader and load plugins with cascade resolution
         self.plugin_loader = PluginLoader()
-        self.plugin_loader.load_core_plugins()
-        self.plugin_loader.load_project_plugins(config.plugins_dir)
+
+        # Get project path for cascade resolution
+        from pathlib import Path
+
+        project_path = Path(Config.get_niamoto_home())
+
+        # Load all plugins (system, user, project) using cascade resolution
+        self.plugin_loader.load_plugins_with_cascade(project_path)
 
         # Get registry instance (already populated by PluginLoader)
         self.plugin_registry = PluginRegistry()

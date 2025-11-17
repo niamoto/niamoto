@@ -1,0 +1,287 @@
+name: Build Cross-Platform Binaries
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggered on version tags like v0.7.4
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-react:
+    name: Build React UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: src/niamoto/gui/ui/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd src/niamoto/gui/ui
+          npm ci
+
+      - name: Build React
+        run: |
+          cd src/niamoto/gui/ui
+          npm run build
+
+      - name: Upload React build
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-build
+          path: src/niamoto/gui/ui/dist/
+          retention-days: 1
+
+  build-binaries:
+    name: Build ${{ matrix.name }}
+    needs: build-react
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon (M1/M2/M3/M4)
+          - os: macos-14
+            name: macOS-arm64
+            platform: macos
+            arch: arm64
+            binary_name: niamoto
+            asset_name: niamoto-macos-arm64
+
+          # macOS Intel
+          - os: macos-13
+            name: macOS-x86_64
+            platform: macos
+            arch: x86_64
+            binary_name: niamoto
+            asset_name: niamoto-macos-x86_64
+
+          # Linux x86_64
+          - os: ubuntu-22.04
+            name: Linux-x86_64
+            platform: linux
+            arch: x86_64
+            binary_name: niamoto
+            asset_name: niamoto-linux-x86_64
+
+          # Windows x86_64
+          - os: windows-latest
+            name: Windows-x86_64
+            platform: windows
+            arch: x86_64
+            binary_name: niamoto.exe
+            asset_name: niamoto-windows-x86_64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download React build
+        uses: actions/download-artifact@v4
+        with:
+          name: react-build
+          path: src/niamoto/gui/ui/dist/
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -e .
+
+      - name: Build binary with PyInstaller
+        run: |
+          pyinstaller build_scripts/niamoto.spec --clean --noconfirm
+
+      - name: Verify binary (Unix)
+        if: matrix.platform != 'windows'
+        run: |
+          ls -lh dist/
+          file dist/${{ matrix.binary_name }}
+          ./dist/${{ matrix.binary_name }} --help
+
+      - name: Verify binary (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          dir dist\
+          dist\${{ matrix.binary_name }} --help
+
+      - name: Prepare artifact (Unix)
+        if: matrix.platform != 'windows'
+        run: |
+          chmod +x dist/${{ matrix.binary_name }}
+          tar -czf ${{ matrix.asset_name }}.tar.gz -C dist ${{ matrix.binary_name }}
+
+      - name: Prepare artifact (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          Push-Location dist
+          Compress-Archive -Path ${{ matrix.binary_name }} -DestinationPath ..\${{ matrix.asset_name }}.zip
+          Pop-Location
+
+      - name: Upload artifact (Unix)
+        if: matrix.platform != 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}.tar.gz
+          retention-days: 7
+
+      - name: Upload artifact (Windows)
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}.zip
+          retention-days: 7
+
+      - name: Upload raw binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}-raw
+          path: dist/${{ matrix.binary_name }}
+          retention-days: 7
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Display structure
+        run: ls -R artifacts/
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release Notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          # Niamoto v${{ steps.get_version.outputs.VERSION }}
+
+          ## 📦 Download Instructions
+
+          Download the appropriate binary for your platform:
+
+          ### macOS
+          - **Apple Silicon (M1/M2/M3/M4)**: `niamoto-macos-arm64.tar.gz`
+          - **Intel**: `niamoto-macos-x86_64.tar.gz`
+
+          ```bash
+          # Extract and make executable
+          tar -xzf niamoto-macos-*.tar.gz
+          chmod +x niamoto
+
+          # Run
+          ./niamoto gui --instance my-project/
+          ```
+
+          ### Linux
+          - **x86_64**: `niamoto-linux-x86_64.tar.gz`
+
+          ```bash
+          # Extract and make executable
+          tar -xzf niamoto-linux-x86_64.tar.gz
+          chmod +x niamoto
+
+          # Run
+          ./niamoto gui --instance my-project/
+          ```
+
+          ### Windows
+          - **x86_64**: `niamoto-windows-x86_64.zip`
+
+          ```powershell
+          # Extract and run
+          Expand-Archive niamoto-windows-x86_64.zip
+          .\niamoto.exe gui --instance my-project\
+          ```
+
+          ## ✨ No Python Required!
+
+          These are standalone binaries with everything included:
+          - Python runtime
+          - All dependencies (FastAPI, DuckDB, pandas, etc.)
+          - React UI
+          - ML models
+
+          ## 📊 Binary Sizes
+
+          Approximately **130-140 MB** per binary (compressed: ~50-60 MB)
+
+          ## 🔧 Quick Start
+
+          1. Download the binary for your platform
+          2. Extract the archive
+          3. Run `./niamoto gui --instance <your-project-path>`
+          4. Open http://localhost:8080 in your browser
+
+          ## 📚 Documentation
+
+          Full documentation at https://github.com/niamoto/niamoto
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Niamoto v${{ steps.get_version.outputs.VERSION }}
+          body_path: release_notes.md
+          files: |
+            artifacts/niamoto-macos-arm64/*.tar.gz
+            artifacts/niamoto-macos-x86_64/*.tar.gz
+            artifacts/niamoto-linux-x86_64/*.tar.gz
+            artifacts/niamoto-windows-x86_64/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-summary:
+    name: Build Summary
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Display summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Binaries built successfully:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Size | Archive |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          for dir in artifacts/niamoto-*-raw; do
+            platform=$(basename "$dir" | sed 's/-raw$//')
+            if [ -f "$dir/niamoto" ]; then
+              size=$(du -h "$dir/niamoto" | cut -f1)
+              echo "| $platform | $size | Available |" >> $GITHUB_STEP_SUMMARY
+            elif [ -f "$dir/niamoto.exe" ]; then
+              size=$(du -h "$dir/niamoto.exe" | cut -f1)
+              echo "| $platform | $size | Available |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done

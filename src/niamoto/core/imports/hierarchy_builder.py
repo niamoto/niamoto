@@ -1,8 +1,11 @@
 """HierarchyBuilder: Extract and build hierarchical references from source datasets.
 
-This module provides DuckDB-native hierarchy extraction using CTEs for optimal
-performance. It supports taxonomy, spatial hierarchies, and any nested structure
-defined through configuration.
+This module provides SQL-based hierarchy extraction using CTEs (Common Table Expressions)
+for optimal performance. It supports both SQLite and DuckDB backends, working with
+taxonomy, spatial hierarchies, and any nested structure defined through configuration.
+
+The implementation uses standard SQL features (WITH, DISTINCT, UNION ALL) that are
+compatible with both SQLite (3.8.3+) and DuckDB.
 """
 
 from __future__ import annotations
@@ -18,20 +21,23 @@ from niamoto.core.imports.config_models import HierarchyLevel, ExtractionConfig
 
 
 class HierarchyBuilder:
-    """Extract and build hierarchical reference from source dataset using DuckDB CTEs."""
+    """Extract and build hierarchical reference from source dataset using SQL CTEs.
+
+    This class works with both SQLite and DuckDB backends, using standard SQL features
+    that are compatible with both database engines (CTEs, DISTINCT, UNION ALL).
+
+    Performance characteristics:
+    - SQLite: Better for small-medium datasets (<100k rows), lower memory overhead
+    - DuckDB: Better for large datasets (>1M rows), columnar storage optimizations
+    """
 
     def __init__(self, db: Database):
         """Initialize HierarchyBuilder.
 
         Args:
-            db: Database instance (must be DuckDB)
-
-        Raises:
-            ValueError: If database is not DuckDB
+            db: Database instance (SQLite or DuckDB)
         """
         self.db = db
-        if not db.is_duckdb:
-            raise ValueError("HierarchyBuilder requires DuckDB backend")
 
     def build_from_dataset(
         self,
@@ -39,10 +45,10 @@ class HierarchyBuilder:
         extraction_config: ExtractionConfig,
         entity_name: str,
     ) -> pd.DataFrame:
-        """Extract unique hierarchical data from source table using DuckDB SQL.
+        """Extract unique hierarchical data from source table using SQL CTEs.
 
         Strategy:
-        1. Extract unique level combinations via DISTINCT + GROUP BY (DuckDB native)
+        1. Extract unique level combinations via DISTINCT + GROUP BY (standard SQL)
         2. Generate stable IDs (hash or sequence)
         3. Build parent-child via self-joins on level prefixes
         4. Return structured DataFrame ready for insertion
@@ -68,7 +74,7 @@ class HierarchyBuilder:
         """
         levels = extraction_config.levels
 
-        # 1. Build SQL for extracting unique combinations (DuckDB CTEs)
+        # 1. Build SQL for extracting unique combinations (SQL CTEs)
         extract_sql = self._build_extraction_cte(
             source_table, extraction_config, entity_name
         )
@@ -109,7 +115,7 @@ class HierarchyBuilder:
     def _build_extraction_cte(
         self, source_table: str, config: ExtractionConfig, entity_name: str
     ) -> str:
-        """Build DuckDB CTE for extracting unique hierarchical combinations.
+        """Build SQL CTE for extracting unique hierarchical combinations.
 
         Args:
             source_table: Source table name
@@ -143,7 +149,7 @@ class HierarchyBuilder:
         # Handle incomplete rows
         where_clause = ""
         if config.incomplete_rows == "error":
-            # DuckDB will fail on NULL constraint - require ALL levels
+            # Database will fail on NULL constraint - require ALL levels
             null_checks = " AND ".join([f'"{lv.column}" IS NOT NULL' for lv in levels])
             where_clause = f"WHERE {null_checks}"
         # Note: "skip" is handled per-level in UNION clauses below
@@ -418,11 +424,12 @@ class HierarchyBuilder:
 
         if strategy == "hash":
             # MD5 hash of full_path (deterministic across runs)
-            # Using 16 hex digits (64 bits) to reduce collision probability
-            # With 64 bits, ~5 billion entries needed for 50% collision risk vs 65k with 32 bits
-            # Convert to signed int64 for database compatibility
+            # Using 8 hex digits (32 bits) for reasonable collision probability
+            # With 32 bits: ~65k entries for 50% collision risk (Birthday paradox)
+            # Max ID: 4,294,967,295 (~4.3 billion, 10 digits vs 19 digits with 64-bit)
+            # This is sufficient for typical Niamoto use cases (<10k taxa)
             new_ids = [
-                int(hashlib.md5(path.encode()).hexdigest()[:16], 16) % (2**63)
+                int(hashlib.md5(path.encode()).hexdigest()[:8], 16)
                 for path in df["full_path"]
             ]
 

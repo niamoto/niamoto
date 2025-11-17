@@ -238,7 +238,7 @@ class Config:
                 "created_at": datetime.now().isoformat(),
                 "niamoto_version": __version__,
             },
-            "database": {"path": "db/niamoto.duckdb"},
+            "database": {"path": "db/niamoto.db"},
             "logs": {"path": "logs"},
             "exports": {
                 "web": "exports/web",
