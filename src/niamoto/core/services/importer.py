@@ -374,6 +374,10 @@ class ImporterService:
                     result = self.import_reference(ref_name, ref_config, reset_table)
                     results.append(f"  [Direct Ref] {result}")
 
+            if getattr(self.db, "is_duckdb", False):
+                logger.info("Running DuckDB checkpoint after import phases")
+                self.db.optimize_database()
+
             summary = "\n".join(results) if results else "No entities imported"
             return f"Import completed successfully:\n{summary}"
 

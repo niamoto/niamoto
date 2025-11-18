@@ -24,113 +24,111 @@ import pandas as pd
 import numpy as np
 import json
 from datetime import datetime
-from sqlalchemy.exc import SQLAlchemyError
 
 from niamoto.core.services.transformer import TransformerService
-from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.common.exceptions import (
     ConfigurationError,
     ValidationError,
-    DatabaseWriteError,
     DataTransformError,
 )
 
 
+@pytest.fixture
+def mock_db():
+    """Create a mock database used across tests."""
+    mock = Mock()
+    mock.execute_sql = Mock()
+    mock.engine = Mock()
+    return mock
+
+
+@pytest.fixture
+def mock_config():
+    """Create a mock configuration for orchestration testing."""
+    mock = Mock()
+    mock.get_transforms_config.return_value = [
+        {
+            "group_by": "plots",
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "plot_ref",
+                    "relation": {
+                        "plugin": "direct_reference",
+                        "key": "plot_ref_id",
+                    },
+                }
+            ],
+            "widgets_data": {
+                "species_count": {
+                    "plugin": "count_transformer",
+                    "field": "species",
+                    "params": {"distinct": True},
+                },
+                "stats": {
+                    "plugin": "statistics_transformer",
+                    "field": "height",
+                    "params": {},
+                },
+            },
+        },
+        {
+            "group_by": "taxa",
+            "sources": [
+                {
+                    "name": "observations",
+                    "data": "observations",
+                    "grouping": "taxon_ref",
+                    "relation": {"plugin": "taxon_loader", "key": "taxon_id"},
+                }
+            ],
+            "widgets_data": {
+                "distribution": {
+                    "plugin": "distribution_transformer",
+                    "params": {"bins": 10},
+                }
+            },
+        },
+    ]
+    mock.plugins_dir = "/mock/plugins"
+    return mock
+
+
+@pytest.fixture
+def mock_plugin_loader():
+    """Create a mock plugin loader."""
+    with patch("niamoto.core.services.transformer.PluginLoader") as mock:
+        loader_instance = Mock()
+        mock.return_value = loader_instance
+        yield loader_instance
+
+
+@pytest.fixture
+def transformer_service(mock_db, mock_config, mock_plugin_loader):
+    """Create a TransformerService instance with mocked dependencies."""
+    with patch("niamoto.core.services.transformer.Database") as mock_db_class:
+        with patch("niamoto.core.services.transformer.EntityRegistry") as mock_registry:
+            mock_db_class.return_value = mock_db
+            registry_instance = Mock()
+            registry_instance.get.side_effect = DatabaseQueryError(
+                query="registry_lookup", message="missing"
+            )
+            mock_registry.return_value = registry_instance
+            service = TransformerService("mock_db_path", mock_config)
+            return service
+
+
+@pytest.fixture(autouse=True)
+def mock_to_sql():
+    """Stub pandas to_sql to avoid real database writes."""
+    with patch("pandas.DataFrame.to_sql") as mock:
+        yield mock
+
+
 class TestTransformerService:
     """Test suite for TransformerService class."""
-
-    @pytest.fixture
-    def mock_db(self):
-        """Create a mock database with spec to catch invalid method calls."""
-        mock = Mock(spec=Database)
-        mock.execute_sql = Mock()
-        return mock
-
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock configuration for orchestration testing.
-
-        NOTE: This mock config provides test data for orchestration tests.
-        It's acceptable test infrastructure because:
-        1. Tests verify service behavior (plugin loading, validation, errors)
-        2. Not testing the mock itself - testing how service processes this config
-        3. Alternative (real YAML files) would add complexity without benefit
-
-        For integration tests with real configs, see TODO in module docstring.
-        """
-        mock = Mock()
-        mock.get_transforms_config.return_value = [
-            {
-                "group_by": "plots",
-                "sources": [
-                    {
-                        "name": "occurrences",
-                        "data": "occurrences",
-                        "grouping": "plot_ref",
-                        "relation": {
-                            "plugin": "direct_reference",
-                            "key": "plot_ref_id",
-                        },
-                    }
-                ],
-                "widgets_data": {
-                    "species_count": {
-                        "plugin": "count_transformer",
-                        "field": "species",
-                        "params": {"distinct": True},
-                    },
-                    "stats": {
-                        "plugin": "statistics_transformer",
-                        "field": "height",
-                        "params": {},
-                    },
-                },
-            },
-            {
-                "group_by": "taxa",
-                "sources": [
-                    {
-                        "name": "observations",
-                        "data": "observations",
-                        "grouping": "taxon_ref",
-                        "relation": {"plugin": "taxon_loader", "key": "taxon_id"},
-                    }
-                ],
-                "widgets_data": {
-                    "distribution": {
-                        "plugin": "distribution_transformer",
-                        "params": {"bins": 10},
-                    }
-                },
-            },
-        ]
-        mock.plugins_dir = "/mock/plugins"
-        return mock
-
-    @pytest.fixture
-    def mock_plugin_loader(self):
-        """Create a mock plugin loader."""
-        with patch("niamoto.core.services.transformer.PluginLoader") as mock:
-            loader_instance = Mock()
-            mock.return_value = loader_instance
-            yield loader_instance
-
-    @pytest.fixture
-    def transformer_service(self, mock_db, mock_config, mock_plugin_loader):
-        """Create a TransformerService instance with mocked dependencies."""
-        with patch("niamoto.core.services.transformer.Database") as mock_db_class:
-            with patch(
-                "niamoto.core.services.transformer.EntityRegistry"
-            ) as mock_registry:
-                mock_db_class.return_value = mock_db
-                registry_instance = Mock()
-                registry_instance.get.side_effect = DatabaseQueryError(
-                    query="registry_lookup", message="missing"
-                )
-                mock_registry.return_value = registry_instance
-                service = TransformerService("mock_db_path", mock_config)
-                return service
 
     def test_initialization(self, mock_db, mock_config, mock_plugin_loader):
         """Test TransformerService initialization."""
@@ -541,36 +539,23 @@ class TestTransformerService:
 
         transformer_service._save_widget_results("plots", 1, results)
 
-        # Verify SQL execution
-        mock_db.execute_sql.assert_called_once()
-        sql, params = mock_db.execute_sql.call_args[0]
-
-        # Check SQL structure
-        assert "INSERT INTO plots" in sql
-        assert "ON CONFLICT (plots_id)" in sql
-        assert "DO UPDATE SET" in sql
-
-        # Check parameters
-        assert params["plots_id"] == 1
-        assert params["int_value"] == "42"
-        assert params["float_value"] == "3.14"
-        assert params["str_value"] == "test"
-        # JSON values should be serialized
-        assert json.loads(params["dict_value"]) == {"key": "value", "count": 10}
-        assert json.loads(params["list_value"]) == [1, 2, 3]
-        assert params["none_value"] is None
-        # Numpy scalars should be converted to Python types
-        assert isinstance(params["numpy_int"], int) and params["numpy_int"] == 100
+        buffer = transformer_service._table_buffers["plots"][1]
+        assert buffer["int_value"] == "42"
+        assert buffer["float_value"] == "3.14"
+        assert buffer["str_value"] == "test"
+        assert json.loads(buffer["dict_value"]) == {"key": "value", "count": 10}
+        assert json.loads(buffer["list_value"]) == [1, 2, 3]
+        assert buffer["none_value"] is None
+        assert isinstance(buffer["numpy_int"], int) and buffer["numpy_int"] == 100
         assert (
-            isinstance(params["numpy_float"], float)
-            and abs(params["numpy_float"] - 2.718) < 0.0001
+            isinstance(buffer["numpy_float"], float)
+            and abs(buffer["numpy_float"] - 2.718) < 0.0001
         )
         assert (
-            isinstance(params["numpy_scalar"], float)
-            and abs(params["numpy_scalar"] - 1.5) < 0.0001
+            isinstance(buffer["numpy_scalar"], float)
+            and abs(buffer["numpy_scalar"] - 1.5) < 0.0001
         )
-        # Regular array should be JSON serialized
-        assert json.loads(params["numpy_array"]) == [1, 2, 3]
+        assert json.loads(buffer["numpy_array"]) == [1, 2, 3]
 
     def test_save_widget_results_no_results(self, transformer_service):
         """Test _save_widget_results with no results."""
@@ -578,17 +563,6 @@ class TestTransformerService:
             transformer_service._save_widget_results("plots", 1, {})
 
         assert "No results to save" in str(exc_info.value)
-
-    def test_save_widget_results_database_error(self, transformer_service, mock_db):
-        """Test _save_widget_results with database error."""
-        mock_db.execute_sql.side_effect = SQLAlchemyError("Database error")
-
-        results = {"test": "value"}
-
-        with pytest.raises(DatabaseWriteError) as exc_info:
-            transformer_service._save_widget_results("plots", 1, results)
-
-        assert "Failed to save results for group 1" in str(exc_info.value)
 
     def test_save_widget_results_json_encode_error(self, transformer_service, mock_db):
         """Test _save_widget_results with JSON encoding error."""
@@ -604,6 +578,35 @@ class TestTransformerService:
             transformer_service._save_widget_results("plots", 1, results)
 
         assert "Failed to encode results for group 1" in str(exc_info.value)
+        assert "plots" not in transformer_service._table_buffers
+
+    def test_flush_group_table_recreate_mode(
+        self, transformer_service, mock_db, mock_to_sql
+    ):
+        """Flushing with recreate_table writes via pandas only."""
+        transformer_service._table_buffers = {"plots": {1: {"widget": "value"}}}
+
+        transformer_service._flush_group_table("plots", recreate_table=True)
+
+        mock_to_sql.assert_called_once()
+        mock_db.execute_sql.assert_not_called()
+        assert "plots" not in transformer_service._table_buffers
+
+    def test_flush_group_table_upsert_mode(
+        self, transformer_service, mock_db, mock_to_sql
+    ):
+        """Flushing without recreation performs staging upsert."""
+        transformer_service._table_buffers = {"plots": {1: {"widget": "value"}}}
+
+        transformer_service._flush_group_table("plots", recreate_table=False)
+
+        mock_to_sql.assert_called_once()
+        assert mock_db.execute_sql.call_count == 2
+        insert_sql = mock_db.execute_sql.call_args_list[0][0][0]
+        drop_sql = mock_db.execute_sql.call_args_list[1][0][0]
+        assert "INSERT INTO plots" in insert_sql
+        assert "DROP TABLE IF EXISTS plots__staging" in drop_sql
+        assert "plots" not in transformer_service._table_buffers
 
     @patch("niamoto.core.services.transformer.CLI_CONTEXT", False)
     def test_transform_data_simple_mode(self, transformer_service, mock_db):
@@ -718,6 +721,39 @@ class TestTransformerService:
             result["plots"]["widgets_generated"] == 0
         )  # No widgets successfully generated
 
+    def test_transform_data_flush_on_error(self, transformer_service, mock_to_sql):
+        """Ensure buffered rows are flushed even when an error bubbles up."""
+
+        def failing_process(*args, **kwargs):
+            transformer_service._table_buffers["plots"] = {1: {"widget": "value"}}
+            transformer_service._table_flush_modes["plots"] = True
+            raise RuntimeError("boom")
+
+        with (
+            patch.object(
+                transformer_service,
+                "_process_configs_simple",
+                side_effect=failing_process,
+            ),
+            patch.object(
+                transformer_service,
+                "_process_configs_with_progress",
+                side_effect=failing_process,
+            ),
+            patch.object(transformer_service, "_get_group_ids", return_value=[1]),
+            patch.object(
+                transformer_service,
+                "_get_group_data",
+                return_value={"occurrences": pd.DataFrame()},
+            ),
+        ):
+            with pytest.raises(RuntimeError):
+                transformer_service.use_cli_integration = False
+                transformer_service.transform_data(group_by="plots")
+
+        mock_to_sql.assert_called()
+        assert transformer_service._table_buffers == {}
+
     def test_transform_data_no_config_found(self, transformer_service):
         """Test transform_data when no configuration is found."""
         transformer_service.transforms_config = None
@@ -764,9 +800,9 @@ class TestTransformerService:
 
         transformer_service._save_widget_results("plots", 1, results)
 
-        # Verify the data was properly converted
-        sql, params = mock_db.execute_sql.call_args[0]
-        nested_data = json.loads(params["nested_numpy"])
+        nested_data = json.loads(
+            transformer_service._table_buffers["plots"][1]["nested_numpy"]
+        )
 
         assert nested_data["array"] == [[1, 2], [3, 4]]
         assert nested_data["scalar"] == 1.5
@@ -816,13 +852,6 @@ class TestTransformerServiceIntegration:
     They test more complex workflows but still mock transformers and database.
     True integration tests would use a real DuckDB database and real plugins.
     """
-
-    @pytest.fixture
-    def mock_db(self):
-        """Create a mock database with spec to catch invalid method calls."""
-        mock = Mock(spec=Database)
-        mock.execute_sql = Mock()
-        return mock
 
     @pytest.fixture
     def real_config(self):

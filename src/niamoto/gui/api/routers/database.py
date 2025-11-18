@@ -74,7 +74,9 @@ def get_database_path() -> Optional[Path]:
         try:
             with open(config_path, "r") as f:
                 config = yaml.safe_load(f) or {}
-                db_path_str = config.get("database", {}).get("path", "db/niamoto.db")
+                db_path_str = config.get("database", {}).get(
+                    "path", "db/niamoto.duckdb"
+                )
                 db_path = work_dir / db_path_str
                 if db_path.exists():
                     return db_path

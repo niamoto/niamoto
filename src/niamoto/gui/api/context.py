@@ -58,16 +58,14 @@ def get_working_directory() -> Path:
 
 
 def get_database_path() -> Optional[Path]:
-    """Get the path to the SQLite database.
+    """Return the analytics database path (DuckDB by default).
 
-    Searches for the database in the following order:
-    1. Path specified in config/config.yml
-    2. db/niamoto.db in working directory
-    3. niamoto.db in working directory
-    4. data/niamoto.db in working directory
-
-    Returns:
-        Path to the database file, or None if not found
+    Search order:
+    1. Path specified in config/config.yml (defaults to db/niamoto.duckdb)
+    2. db/niamoto.duckdb
+    3. niamoto.duckdb
+    4. data/niamoto.duckdb
+    5. Legacy SQLite fallbacks (db/niamoto.db, niamoto.db, data/niamoto.db)
     """
     work_dir = get_working_directory()
 
@@ -78,7 +76,9 @@ def get_database_path() -> Optional[Path]:
         try:
             with open(config_path, "r") as f:
                 config = yaml.safe_load(f) or {}
-                db_path_str = config.get("database", {}).get("path", "db/niamoto.db")
+                db_path_str = config.get("database", {}).get(
+                    "path", "db/niamoto.duckdb"
+                )
                 db_path = work_dir / db_path_str
                 if db_path.exists():
                     logger.debug(f"Database found from config: {db_path}")
@@ -88,6 +88,9 @@ def get_database_path() -> Optional[Path]:
 
     # Fallback to common locations
     common_paths = [
+        work_dir / "db" / "niamoto.duckdb",
+        work_dir / "niamoto.duckdb",
+        work_dir / "data" / "niamoto.duckdb",
         work_dir / "db" / "niamoto.db",
         work_dir / "niamoto.db",
         work_dir / "data" / "niamoto.db",

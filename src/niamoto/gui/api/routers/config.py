@@ -112,7 +112,7 @@ async def get_config(config_name: str):
             "export": {"exports": [], "static_pages": []},
             "config": {
                 "project": {"name": "niamoto-project", "version": "1.0.0"},
-                "database": {"path": "db/niamoto.db"},
+                "database": {"path": "db/niamoto.duckdb"},
             },
         }
         return default_configs.get(config_name, {})
