@@ -73,7 +73,14 @@ hiddenimports = [
 
     # Data processing
     'pandas',
+    'pandas._libs',
+    'pandas._libs.tslibs',
     'numpy',
+    'numpy.core',
+    'numpy.core._multiarray_umath',
+    'numpy.random',
+    'numpy.random._common',
+    'numpy.random._generator',
 
     # Geospatial (if used)
     'geopandas',
@@ -182,9 +189,15 @@ exe = EXE(
     name='niamoto',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,  # Strip debug symbols to reduce size
+    strip=False,  # Don't strip - causes issues with numpy/pandas on Linux and DLL issues on Windows
     upx=True,  # Compress with UPX
-    upx_exclude=[],
+    upx_exclude=[
+        # Exclude Python DLL and critical libraries from UPX to avoid corruption
+        'python*.dll',
+        'vcruntime*.dll',
+        'msvcp*.dll',
+        'api-ms-win-*.dll',
+    ],
     runtime_tmpdir=None,
     console=True,  # Keep console for debugging
     disable_windowed_traceback=False,
