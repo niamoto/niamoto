@@ -25,7 +25,7 @@ The global configuration file contains system-level settings.
 
 ```yaml
 database:
-  path: db/niamoto.db
+  path: db/niamoto.duckdb
 logs:
   path: logs
 exports:
@@ -38,7 +38,7 @@ plugins:
 
 | Section    | Option  | Description                          | Required | Default         |
 | ---------- | ------- | ------------------------------------ | -------- | --------------- |
-| `database` | `path`  | Path to SQLite database file         | Yes      | `db/niamoto.db` |
+| `database` | `path`  | Path to DuckDB database file         | Yes      | `db/niamoto.duckdb` |
 | `logs`     | `path`  | Directory for log files              | Yes      | `logs`          |
 | `exports`  | `web`   | Root directory for generated website | Yes      | `exports`       |
 | `exports`  | `api`   | Directory for API JSON files         | Yes      | `exports/api`   |

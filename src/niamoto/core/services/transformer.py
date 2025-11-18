@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from rich.console import Console
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import quoted_name
 from pydantic import ValidationError as PydanticValidationError
 from niamoto.common.config import Config
@@ -19,8 +18,6 @@ from niamoto.common.exceptions import (
     ConfigurationError,
     ProcessError,
     ValidationError,
-    DatabaseWriteError,
-    JSONEncodeError,
     DataTransformError,
     DatabaseQueryError,
 )
@@ -74,6 +71,8 @@ class TransformerService:
         if enable_cli_integration is None:
             enable_cli_integration = CLI_CONTEXT
         self.use_cli_integration = bool(enable_cli_integration)
+        self._table_buffers: Dict[str, Dict[int, Dict[str, Any]]] = {}
+        self._table_flush_modes: Dict[str, bool] = {}
 
         # Initialize plugin loader and load plugins with cascade resolution
         self.plugin_loader = PluginLoader()
@@ -112,6 +111,8 @@ class TransformerService:
             ConfigurationError: If the configuration is invalid
             ProcessError: If the transformation fails
         """
+        self._table_buffers = {}
+        self._table_flush_modes = {}
         # Initialize metrics collection
         if self.use_cli_integration and OperationMetrics:
             self.transform_metrics = OperationMetrics("transform")
@@ -140,8 +141,16 @@ class TransformerService:
                 self.transform_metrics.add_error(str(e))
             raise
         finally:
-            if self.transform_metrics:
-                self.transform_metrics.finish()
+            try:
+                for group_name in list(self._table_buffers.keys()):
+                    recreate = self._table_flush_modes.get(group_name, True)
+                    self._flush_group_table(group_name, recreate)
+                if getattr(self.db, "is_duckdb", False):
+                    logger.info("Running DuckDB checkpoint after transformations")
+                    self.db.optimize_database()
+            finally:
+                if self.transform_metrics:
+                    self.transform_metrics.finish()
 
         return results
 
@@ -287,6 +296,7 @@ class TransformerService:
                                 "total": None,
                             }
                         )
+            self._flush_group_table(group_by_name, recreate_table)
 
             # Update final widget count for this group
             if self.transform_metrics:
@@ -436,6 +446,7 @@ class TransformerService:
                                 "total": total_ops,
                             }
                         )
+            self._flush_group_table(group_by_name, recreate_table)
 
             # Update results with final metrics
             results[group_by_name]["widgets_generated"] = widgets_generated
@@ -754,6 +765,7 @@ class TransformerService:
             # Create indexes on the dynamically created transform table
             # Index the primary key and any common columns
             self.db.create_indexes_for_table(group_by)
+            self._table_flush_modes[group_by] = recreate_table
 
         except Exception as e:
             raise DataTransformError(
@@ -764,20 +776,7 @@ class TransformerService:
     def _save_widget_results(
         self, group_by: str, group_id: int, results: Dict[str, Any]
     ) -> None:
-        """Save widget results to database.
-
-        Args:
-            group_by (str): Name of the table to save results into.
-            group_id (int): Identifier of the group.
-            results (Dict[str, Any]): Dictionary mapping column names to their values.
-
-        Raises:
-            ValidationError: If input data is invalid.
-            DatabaseWriteError: If a database error occurs.
-            DataTransformError: If data serialization fails.
-            ProcessError: For unexpected errors.
-        """
-        # Validate input data
+        """Buffer widget results for bulk persistence."""
         if not results:
             raise ValidationError(
                 "results",
@@ -786,8 +785,6 @@ class TransformerService:
             )
 
         columns = list(results.keys())
-
-        # Verify columns and values match
         if not columns:
             raise ValidationError(
                 "results",
@@ -795,87 +792,111 @@ class TransformerService:
                 details={"group_by": group_by, "group_id": group_id},
             )
 
+        buffer = self._table_buffers.setdefault(group_by, {})
+        row = buffer.setdefault(group_id, {})
+
         try:
-            # Prepare params dictionary
-            params = {}
-            params[f"{group_by}_id"] = group_id
 
-            # Process each column and convert values to JSON strings
+            def convert_numpy(obj):
+                if isinstance(obj, np.integer):
+                    return int(obj)
+                if isinstance(obj, np.floating):
+                    return float(obj)
+                if isinstance(obj, np.bool_):
+                    return bool(obj)
+                if isinstance(obj, bool):
+                    return obj
+                if isinstance(obj, np.ndarray):
+                    return [convert_numpy(x) for x in obj.tolist()]
+                if isinstance(obj, list):
+                    return [convert_numpy(x) for x in obj]
+                if isinstance(obj, dict):
+                    return {k: convert_numpy(v) for k, v in obj.items()}
+                return obj
+
+            pending_updates: Dict[str, Any] = {}
             for col in columns:
+                val = results[col]
                 try:
-                    val = results[col]
-                    # Convert complex types to JSON
                     if isinstance(val, (dict, list)):
-
-                        def convert_numpy(obj):
-                            if isinstance(obj, np.integer):
-                                return int(obj)
-                            elif isinstance(obj, np.floating):
-                                return float(obj)
-                            elif isinstance(obj, np.bool_):
-                                return bool(obj)
-                            elif isinstance(obj, bool):
-                                return obj
-                            elif isinstance(obj, np.ndarray):
-                                return [convert_numpy(x) for x in obj.tolist()]
-                            elif isinstance(obj, list):
-                                return [convert_numpy(x) for x in obj]
-                            elif isinstance(obj, dict):
-                                return {k: convert_numpy(v) for k, v in obj.items()}
-                            return obj
-
-                        # Convert to Python native types
                         converted = convert_numpy(val)
-                        # Serialize to JSON string
-                        params[col] = json.dumps(converted, ensure_ascii=False)
+                        pending_updates[col] = json.dumps(converted, ensure_ascii=False)
+                    elif val is None:
+                        pending_updates[col] = None
+                    elif hasattr(val, "dtype") and np.issubdtype(val.dtype, np.number):
+                        pending_updates[col] = val.item()
                     else:
-                        # Handle primitive types
-                        if val is None:
-                            params[col] = None
-                        elif hasattr(val, "dtype") and np.issubdtype(
-                            val.dtype, np.number
-                        ):
-                            params[col] = val.item()
-                        else:
-                            params[col] = str(val)
-                except Exception as e:
-                    raise JSONEncodeError(f"Failed to encode {col}: {str(e)}") from e
+                        pending_updates[col] = str(val)
+                except Exception as exc:
+                    raise DataTransformError(
+                        f"Failed to encode results for group {group_id}: {str(exc)}",
+                        details={"group_id": group_id, "error": str(exc)},
+                    ) from exc
+            row.update(pending_updates)
 
-            # Build column names string
-            col_names = f"{group_by}_id, " + ", ".join(columns)
-
-            # Build placeholders using named parameters
-            placeholders = f":{group_by}_id, " + ", ".join(
-                [f":{col}" for col in columns]
-            )
-
-            # Build update clause
-            update_clause = ", ".join([f"{col} = excluded.{col}" for col in columns])
-
-            # Construct SQL with named parameters
-            sql = f"""
-                INSERT INTO {group_by} ({col_names})
-                VALUES ({placeholders})
-                ON CONFLICT ({group_by}_id)
-                DO UPDATE SET {update_clause}
-            """
-
-            # Execute SQL with parameters
-            self.db.execute_sql(sql, params)
-
-        except SQLAlchemyError as e:
-            raise DatabaseWriteError(
-                table_name=group_by,
-                message=f"Failed to save results for group {group_id}: {str(e)}",
-                details={"group_id": group_id, "columns": columns, "error": str(e)},
-            ) from e
-        except JSONEncodeError as e:
-            raise DataTransformError(
-                f"Failed to encode results for group {group_id}: {str(e)}",
-                details={"group_id": group_id, "error": str(e)},
-            ) from e
+        except DataTransformError:
+            if group_id in buffer and not buffer[group_id]:
+                buffer.pop(group_id, None)
+            if group_by in self._table_buffers and not self._table_buffers[group_by]:
+                self._table_buffers.pop(group_by, None)
+            raise
         except Exception as e:
             raise ProcessError(
-                f"Unexpected error while saving results for group {group_id}: {str(e)}",
+                f"Unexpected error while buffering results for group {group_id}: {str(e)}",
                 details={"group_by": group_by, "group_id": group_id, "error": str(e)},
             ) from e
+
+    def _flush_group_table(self, group_by: str, recreate_table: bool) -> None:
+        """Flush buffered rows into the database using batch operations."""
+        buffer = self._table_buffers.pop(group_by, None)
+        if not buffer:
+            return
+        self._table_flush_modes.pop(group_by, None)
+
+        id_column = f"{group_by}_id"
+        rows: List[Dict[str, Any]] = []
+        for entity_id, values in buffer.items():
+            row = {id_column: entity_id}
+            row.update(values)
+            rows.append(row)
+
+        if not rows:
+            return
+
+        df = pd.DataFrame(rows)
+        if df.empty:
+            return
+
+        ordered_columns = [id_column] + [col for col in df.columns if col != id_column]
+        df = df[ordered_columns]
+
+        if recreate_table:
+            df.to_sql(group_by, self.db.engine, if_exists="append", index=False)
+            return
+
+        staging_table = f"{group_by}__staging"
+        df.to_sql(staging_table, self.db.engine, if_exists="replace", index=False)
+
+        non_id_columns = [col for col in ordered_columns if col != id_column]
+        columns_sql = ", ".join(ordered_columns)
+        if non_id_columns:
+            update_clause = ", ".join(
+                f"{col} = excluded.{col}" for col in non_id_columns
+            )
+            insert_sql = f"""
+                INSERT INTO {group_by} ({columns_sql})
+                SELECT {columns_sql} FROM {staging_table}
+                ON CONFLICT ({id_column})
+                DO UPDATE SET {update_clause}
+            """
+        else:
+            insert_sql = f"""
+                INSERT INTO {group_by} ({id_column})
+                SELECT {id_column} FROM {staging_table}
+                ON CONFLICT ({id_column}) DO NOTHING
+            """
+
+        try:
+            self.db.execute_sql(insert_sql)
+        finally:
+            self.db.execute_sql(f"DROP TABLE IF EXISTS {staging_table}")

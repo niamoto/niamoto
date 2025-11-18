@@ -425,10 +425,15 @@ class GenericImporter:
         """
 
         try:
-            return pd.read_csv(path, encoding="utf-8", nrows=nrows)
+            return pd.read_csv(path, encoding="utf-8", nrows=nrows, low_memory=False)
         except (pd.errors.EmptyDataError, pd.errors.ParserError):
             return pd.read_csv(
-                path, sep=";", decimal=",", encoding="utf-8", nrows=nrows
+                path,
+                sep=";",
+                decimal=",",
+                encoding="utf-8",
+                nrows=nrows,
+                low_memory=False,
             )
 
     def _ensure_dataframe_structure(

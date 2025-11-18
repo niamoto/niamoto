@@ -140,10 +140,29 @@ a = Analysis(
         # Exclude heavy unused packages
         'matplotlib',
         'scipy',
+        # Machine Learning (optional, handled by HAS_SKLEARN flag in code)
+        'sklearn',
+        'sklearn.ensemble',
+        'sklearn.preprocessing',
+        'sklearn.tree',
+        'sklearn.model_selection',
+        'sklearn.metrics',
+        # Testing frameworks
         'pytest',
+        'pytest_mock',
+        'hypothesis',
+        'unittest',
+        '_pytest',
+        # Documentation
         'sphinx',
+        'docutils',
+        # Interactive Python
         'IPython',
+        'ipykernel',
         'jupyter',
+        'jupyter_client',
+        'jupyter_core',
+        'notebook',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -163,7 +182,7 @@ exe = EXE(
     name='niamoto',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,  # Strip debug symbols to reduce size
     upx=True,  # Compress with UPX
     upx_exclude=[],
     runtime_tmpdir=None,

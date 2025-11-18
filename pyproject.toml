@@ -61,9 +61,6 @@ dependencies = [
     # pandas - Essential library for data manipulation and analysis.
     # Documentation: https://pandas.pydata.org/
     "pandas>=2.2.1",
-    # pyarrow - Python bindings for Apache Arrow. required by pandas.
-    # Documentation: https://arrow.apache.org/docs/python/
-    "pyarrow>=22.0.0",
     # numpy - Fundamental package for scientific computing in Python.
     # Documentation: https://numpy.org/
     "numpy>=2.2.3,<3",

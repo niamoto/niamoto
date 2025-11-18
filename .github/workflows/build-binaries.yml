@@ -219,10 +219,6 @@ jobs:
           - React UI
           - ML models
 
-          ## 📊 Binary Sizes
-
-          Approximately **130-140 MB** per binary (compressed: ~50-60 MB)
-
           ## 🔧 Quick Start
 
           1. Download the binary for your platform

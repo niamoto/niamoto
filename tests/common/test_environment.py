@@ -17,7 +17,9 @@ class TestEnvironment(NiamotoTestCase):
 
         # Create a mock with necessary attributes
         self.mock_config = MagicMock()
-        self.mock_config.database_path = os.path.join(self.test_dir, "db", "niamoto.db")
+        self.mock_config.database_path = os.path.join(
+            self.test_dir, "db", "niamoto.duckdb"
+        )
         self.mock_config.logs_path = os.path.join(self.test_dir, "logs")
         self.mock_config.data_sources = {
             "source1": {"path": os.path.join(self.test_dir, "data", "source1.csv")},

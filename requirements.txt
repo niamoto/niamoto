@@ -112,8 +112,6 @@ pandas==2.2.3
     #   geopandas
 plotly==6.4.0
     # via niamoto (pyproject.toml)
-pyarrow==22.0.0
-    # via niamoto (pyproject.toml)
 pydantic==2.12.4
     # via
     #   niamoto (pyproject.toml)

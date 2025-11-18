@@ -100,17 +100,15 @@ class TestGetDatabasePath:
 
     def test_get_database_path_from_config(self, tmp_path):
         """Test finding database path from config.yml."""
-        # Create config
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         db_dir = tmp_path / "db"
         db_dir.mkdir()
 
         config_file = config_dir / "config.yml"
-        config_file.write_text(yaml.dump({"database": {"path": "db/niamoto.db"}}))
+        config_file.write_text(yaml.dump({"database": {"path": "db/niamoto.duckdb"}}))
 
-        # Create database file
-        db_file = db_dir / "niamoto.db"
+        db_file = db_dir / "niamoto.duckdb"
         db_file.write_text("fake db")
 
         context.set_working_directory(tmp_path)
@@ -125,7 +123,7 @@ class TestGetDatabasePath:
         config_dir.mkdir()
 
         # Create database in different location
-        db_file = tmp_path / "absolute" / "path" / "niamoto.db"
+        db_file = tmp_path / "absolute" / "path" / "niamoto.duckdb"
         db_file.parent.mkdir(parents=True)
         db_file.write_text("fake db")
 
@@ -137,10 +135,50 @@ class TestGetDatabasePath:
 
         assert result == db_file
 
-    def test_get_database_path_fallback_db_niamoto_db(self, tmp_path):
-        """Test fallback to db/niamoto.db."""
+    def test_get_database_path_fallback_db_duckdb(self, tmp_path):
+        """Test fallback to db/niamoto.duckdb."""
         db_dir = tmp_path / "db"
         db_dir.mkdir()
+        db_file = db_dir / "niamoto.duckdb"
+        db_file.write_text("fake db")
+
+        context.set_working_directory(tmp_path)
+        result = context.get_database_path()
+
+        assert result == db_file
+
+    def test_get_database_path_fallback_duckdb_root(self, tmp_path):
+        """Test fallback to niamoto.duckdb in root."""
+        db_file = tmp_path / "niamoto.duckdb"
+        db_file.write_text("fake db")
+
+        context.set_working_directory(tmp_path)
+        result = context.get_database_path()
+
+        assert result == db_file
+
+    def test_get_database_path_fallback_data_duckdb(self, tmp_path):
+        """Test fallback to data/niamoto.duckdb."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        db_file = data_dir / "niamoto.duckdb"
+        db_file.write_text("fake db")
+
+        context.set_working_directory(tmp_path)
+        result = context.get_database_path()
+
+        assert result == db_file
+
+    def test_get_database_path_legacy_sqlite_config(self, tmp_path):
+        """Ensure legacy sqlite paths still work when configured."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        db_dir = tmp_path / "db"
+        db_dir.mkdir()
+
+        config_file = config_dir / "config.yml"
+        config_file.write_text(yaml.dump({"database": {"path": "db/niamoto.db"}}))
+
         db_file = db_dir / "niamoto.db"
         db_file.write_text("fake db")
 
@@ -149,21 +187,11 @@ class TestGetDatabasePath:
 
         assert result == db_file
 
-    def test_get_database_path_fallback_niamoto_db(self, tmp_path):
-        """Test fallback to niamoto.db in root."""
-        db_file = tmp_path / "niamoto.db"
-        db_file.write_text("fake db")
-
-        context.set_working_directory(tmp_path)
-        result = context.get_database_path()
-
-        assert result == db_file
-
-    def test_get_database_path_fallback_data_niamoto_db(self, tmp_path):
-        """Test fallback to data/niamoto.db."""
-        data_dir = tmp_path / "data"
-        data_dir.mkdir()
-        db_file = data_dir / "niamoto.db"
+    def test_get_database_path_legacy_sqlite_fallback(self, tmp_path):
+        """Ensure sqlite fallback works when DuckDB files are absent."""
+        db_dir = tmp_path / "db"
+        db_dir.mkdir()
+        db_file = db_dir / "niamoto.db"
         db_file.write_text("fake db")
 
         context.set_working_directory(tmp_path)
@@ -189,7 +217,7 @@ class TestGetDatabasePath:
         # Create fallback database
         db_dir = tmp_path / "db"
         db_dir.mkdir()
-        db_file = db_dir / "niamoto.db"
+        db_file = db_dir / "niamoto.duckdb"
         db_file.write_text("fake db")
 
         context.set_working_directory(tmp_path)
@@ -209,13 +237,13 @@ class TestGetDatabasePath:
         # Create fallback database
         db_dir = tmp_path / "db"
         db_dir.mkdir()
-        db_file = db_dir / "niamoto.db"
+        db_file = db_dir / "niamoto.duckdb"
         db_file.write_text("fake db")
 
         context.set_working_directory(tmp_path)
         result = context.get_database_path()
 
-        # Should use default path from config (db/niamoto.db)
+        # Should use default path from config (db/niamoto.duckdb)
         assert result == db_file
 
     def test_get_database_path_empty_config(self, tmp_path):
@@ -229,7 +257,7 @@ class TestGetDatabasePath:
         # Create fallback database
         db_dir = tmp_path / "db"
         db_dir.mkdir()
-        db_file = db_dir / "niamoto.db"
+        db_file = db_dir / "niamoto.duckdb"
         db_file.write_text("fake db")
 
         context.set_working_directory(tmp_path)
