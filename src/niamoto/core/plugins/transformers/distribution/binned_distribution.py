@@ -163,23 +163,18 @@ class BinnedDistribution(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
-        """Transform data according to configuration."""
+        """Transform data according to configuration.
+
+        Note: The service layer is responsible for loading the correct data source.
+        This transformer is a pure function that only transforms the provided data.
+        """
         try:
             # Validate config and get typed parameters
             validated_config = self.config_model(**config)
             # Convert to typed params for easier access and type safety
             params = BinnedDistributionParams(**validated_config.params)
 
-            # Get source data if different from occurrences
-            if params.source != "occurrences":
-                result = self.db.execute_select(f"""
-                    SELECT * FROM {params.source}
-                """)
-                data = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-
+            # Service has already loaded the correct source - just use the data
             # Get field data
             field_data = data[params.field]
 

@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from pydantic import Field, ConfigDict
 
-from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
+from niamoto.common.utils.data_access import convert_to_dataframe
 from niamoto.core.plugins.base import PluginType, WidgetPlugin, register
 from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
@@ -127,6 +127,68 @@ class StackedAreaPlotWidget(WidgetPlugin):
         """Return the set of CSS/JS dependencies."""
         return get_plotly_dependencies()
 
+    @staticmethod
+    def _apply_transform(data: Any, transform_type: str, params: Dict[str, Any]) -> Any:
+        """Apply data transformation specific to stacked_area_plot widget.
+
+        Args:
+            data: Input data to transform
+            transform_type: Type of transformation to apply
+            params: Parameters for the transformation
+
+        Returns:
+            Transformed data (usually a DataFrame)
+        """
+        # Transformation for normalized stacked areas (100%)
+        if transform_type == "stacked_area_normalized":
+            x_field = params.get("x_field", "x")
+            y_fields = params.get("y_fields", [])
+
+            if (
+                isinstance(data, dict)
+                and x_field in data
+                and all(field in data for field in y_fields)
+            ):
+                x_values = data[x_field]
+
+                # Create DataFrame with x and all series
+                df_data = {x_field: x_values}
+                for field in y_fields:
+                    df_data[field] = data[field]
+
+                df = pd.DataFrame(df_data)
+
+                # Calculate total for each x point for normalization
+                df["total"] = df[y_fields].sum(axis=1)
+
+                # Convert to percentages (0-100%)
+                for field in y_fields:
+                    df[field] = (df[field] / df["total"] * 100).fillna(0)
+
+                # Remove total column
+                df = df.drop("total", axis=1)
+                return df
+
+        # Transformation for simple series to DataFrame
+        elif transform_type == "simple_series_to_df":
+            x_field = params.get("x_field", "x")
+            y_field = params.get("y_field", "y")
+            series_name = params.get("series_name", "series")
+
+            if isinstance(data, dict) and x_field in data and y_field in data:
+                x_values = data[x_field]
+                y_values = data[y_field]
+
+                if len(x_values) == len(y_values):
+                    # Convert to percentages if requested
+                    if params.get("convert_to_percentage", False):
+                        y_values = [v * 100 for v in y_values]
+
+                    return pd.DataFrame({x_field: x_values, series_name: y_values})
+
+        # No transformation or unrecognized type
+        return data
+
     def render(self, data: Optional[Any], params: StackedAreaPlotParams) -> str:
         """Generate the HTML for the stacked area plot."""
 
@@ -134,7 +196,9 @@ class StackedAreaPlotWidget(WidgetPlugin):
 
         # 1. Apply transformation if specified
         if params.transform:
-            data = transform_data(data, params.transform, params.transform_params)
+            data = self._apply_transform(
+                data, params.transform, params.transform_params or {}
+            )
 
         # 2. Create a DataFrame if needed
         df = None
