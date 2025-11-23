@@ -133,25 +133,18 @@ class StatisticalSummary(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform data according to configuration."""
+        """Transform data according to configuration.
+
+        Note: The service layer is responsible for loading the correct data source.
+        This transformer is a pure function that only transforms the provided data.
+        """
         try:
             # Validate config and get typed parameters
             validated_config = self.config_model(**config)
             # Convert to typed params for easier access
             params = StatisticalSummaryParams(**validated_config.params)
 
-            # Get source data if different from occurrences
-            if params.source != "occurrences":
-                # Resolve logical entity name to physical table name
-                table_name = self._resolve_table_name(params.source)
-                result = self.db.execute_select(f"""
-                    SELECT * FROM {table_name}
-                """)
-                data = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-
+            # Service has already loaded the correct source - just use the data
             # Get field data
             field_data = data[params.field]
 

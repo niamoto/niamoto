@@ -246,6 +246,26 @@ class TransformerService:
                         # 3. Otherwise, pass all sources to the plugin
                         source_requested = widget_config.get("params", {}).get("source")
 
+                        # If a source is requested but not available in group_data, load it
+                        if source_requested and source_requested not in group_data:
+                            try:
+                                # Special case: if source matches group_by name, load the reference entity
+                                if source_requested == group_by_name:
+                                    group_data[source_requested] = (
+                                        self._load_reference_entity(
+                                            group_by_name, group_id
+                                        )
+                                    )
+                                else:
+                                    group_data[source_requested] = (
+                                        self._load_additional_source(source_requested)
+                                    )
+                            except Exception as e:
+                                raise DataTransformError(
+                                    f"Failed to load requested source '{source_requested}'",
+                                    details={"error": str(e), "widget": widget_name},
+                                ) from e
+
                         if source_requested and source_requested in group_data:
                             # Plugin explicitly requests a specific source
                             data_to_pass = group_data[source_requested]
@@ -390,6 +410,26 @@ class TransformerService:
                         # 2. If only one source exists, pass it directly
                         # 3. Otherwise, pass all sources to the plugin
                         source_requested = widget_config.get("params", {}).get("source")
+
+                        # If a source is requested but not available in group_data, load it
+                        if source_requested and source_requested not in group_data:
+                            try:
+                                # Special case: if source matches group_by name, load the reference entity
+                                if source_requested == group_by_name:
+                                    group_data[source_requested] = (
+                                        self._load_reference_entity(
+                                            group_by_name, group_id
+                                        )
+                                    )
+                                else:
+                                    group_data[source_requested] = (
+                                        self._load_additional_source(source_requested)
+                                    )
+                            except Exception as e:
+                                raise DataTransformError(
+                                    f"Failed to load requested source '{source_requested}'",
+                                    details={"error": str(e), "widget": widget_name},
+                                ) from e
 
                         if source_requested and source_requested in group_data:
                             # Plugin explicitly requests a specific source
@@ -679,6 +719,129 @@ class TransformerService:
                     "table": resolved_table,
                     "id_field": id_field,
                     "query": query,
+                },
+            ) from e
+
+    def _load_reference_entity(self, entity_name: str, entity_id: int) -> pd.DataFrame:
+        """Load a single reference entity record (e.g., a specific shape, plot, or taxon).
+
+        This method is called when a widget requests the grouping entity itself as a source.
+        For example, when processing shapes and a widget needs shape data (name, type, etc.),
+        this loads the specific shape record from the entity table.
+
+        Args:
+            entity_name: The logical entity name (e.g., 'shapes', 'plots', 'taxonomy')
+            entity_id: The ID of the specific entity to load
+
+        Returns:
+            pd.DataFrame: Single-row DataFrame with the entity data
+
+        Raises:
+            DataTransformError: If the entity cannot be loaded
+        """
+        try:
+            # Resolve logical entity name to physical table name
+            table_name = self._resolve_table_name(entity_name)
+
+            # Get the ID field name from entity metadata
+            id_field = "id"  # Default
+            try:
+                metadata = self.entity_registry.get(entity_name)
+                id_field = metadata.config.get("schema", {}).get("id_field", "id")
+            except (DatabaseQueryError, AttributeError, KeyError) as exc:
+                logger.debug(
+                    "Falling back to default id field for entity '%s': %s",
+                    entity_name,
+                    exc,
+                )
+
+            # Validate identifier names to prevent SQL injection
+            if not table_name.replace("_", "").replace(".", "").isalnum():
+                raise DataTransformError(
+                    f"Invalid table name: {table_name}",
+                    details={"table": table_name},
+                )
+            if not id_field.replace("_", "").isalnum():
+                raise DataTransformError(
+                    f"Invalid field name: {id_field}",
+                    details={"field": id_field},
+                )
+
+            # Use quoted names for safe SQL
+            quoted_table = str(quoted_name(table_name, quote=True))
+            quoted_id_field = str(quoted_name(id_field, quote=True))
+
+            # Load the specific entity record using fetch_all
+            # We use fetch_all which properly manages session lifecycle
+            sql_query = (
+                f"SELECT * FROM {quoted_table} WHERE {quoted_id_field} = :entity_id"
+            )
+            rows = self.db.fetch_all(sql_query, {"entity_id": entity_id})
+
+            if not rows:
+                raise DataTransformError(
+                    f"Entity not found: {entity_name} with {id_field}={entity_id}",
+                    details={
+                        "entity": entity_name,
+                        "table": table_name,
+                        "id_field": id_field,
+                        "id": entity_id,
+                    },
+                )
+
+            # Convert list of dicts to DataFrame
+            df = pd.DataFrame(rows)
+
+            return df
+
+        except DataTransformError:
+            raise
+        except Exception as e:
+            raise DataTransformError(
+                f"Failed to load reference entity '{entity_name}' with id {entity_id}",
+                details={
+                    "error": str(e),
+                    "entity": entity_name,
+                    "table": table_name if "table_name" in locals() else entity_name,
+                    "id": entity_id,
+                },
+            ) from e
+
+    def _load_additional_source(self, source_name: str) -> pd.DataFrame:
+        """Load an additional data source that wasn't in the original config.
+
+        This method is called when a transformer requests a source that wasn't
+        preloaded in group_data. It loads the entire table as a DataFrame.
+
+        Args:
+            source_name: The logical entity name or table name to load
+
+        Returns:
+            pd.DataFrame: The loaded data
+
+        Raises:
+            DataTransformError: If the source cannot be loaded
+        """
+        try:
+            # Resolve logical entity name to physical table name
+            table_name = self._resolve_table_name(source_name)
+
+            # Load entire table as DataFrame using fetch_all
+            # We use fetch_all which properly manages session lifecycle
+            sql_query = f"SELECT * FROM {table_name}"
+            rows = self.db.fetch_all(sql_query)
+
+            # Convert list of dicts to DataFrame
+            df = pd.DataFrame(rows)
+
+            return df
+
+        except Exception as e:
+            raise DataTransformError(
+                f"Failed to load additional source '{source_name}'",
+                details={
+                    "error": str(e),
+                    "table": table_name if "table_name" in locals() else source_name,
                 },
             ) from e
 

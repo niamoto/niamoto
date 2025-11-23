@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 from pydantic import Field, ConfigDict
 
-from niamoto.common.utils.data_access import convert_to_dataframe, transform_data
+from niamoto.common.utils.data_access import convert_to_dataframe
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
@@ -324,6 +324,247 @@ class BarPlotWidget(WidgetPlugin):
         """Return the set of CSS/JS dependencies."""
         return get_plotly_dependencies()
 
+    @staticmethod
+    def _apply_transform(data: Any, transform_type: str, params: Dict[str, Any]) -> Any:
+        """Apply data transformation specific to bar_plot widget.
+
+        Args:
+            data: Input data to transform
+            transform_type: Type of transformation to apply
+            params: Parameters for the transformation
+
+        Returns:
+            Transformed data (usually a DataFrame)
+        """
+        # Transformation for histograms (bins/counts)
+        if transform_type == "bins_to_df":
+            bin_field = params.get("bin_field", "bins")
+            count_field = params.get("count_field", "counts")
+            x_field = params.get("x_field", "bin")
+            y_field = params.get("y_field", "count")
+            use_percentages = params.get("use_percentages", False)
+            percentage_field = params.get("percentage_field", "percentages")
+
+            if isinstance(data, dict) and bin_field in data and count_field in data:
+                bins = data[bin_field]
+                counts = data[count_field]
+
+                # Use percentages if available and requested
+                if use_percentages and percentage_field in data:
+                    values = data[percentage_field]
+                else:
+                    values = counts
+
+                # Make sure lengths match - typically we have one more bin than count
+                if len(bins) == len(values) + 1:
+                    bins = bins[:-1]  # Remove the last bin
+
+                if len(bins) == len(values):
+                    # Create bin labels for better display
+                    bin_labels = []
+                    for i in range(len(bins)):
+                        if i < len(bins) - 1:
+                            next_bin = (
+                                bins[i + 1]
+                                if i + 1 < len(bins)
+                                else bins[i] + (bins[i] - bins[i - 1] if i > 0 else 10)
+                            )
+                            bin_labels.append(f"{bins[i]}-{next_bin}")
+                        else:
+                            bin_labels.append(f"{bins[i]}+")
+
+                    return pd.DataFrame(
+                        {
+                            x_field: bin_labels,
+                            y_field: values,
+                            "bin_value": bins,  # Keep original bin values for sorting
+                        }
+                    )
+
+        # Transformation for monthly/phenology data
+        elif transform_type == "monthly_data":
+            labels_field = params.get("labels_field", "labels")
+            data_field = params.get("data_field", "month_data")
+            series_name = params.get("series_name")
+            melt = params.get("melt", False)
+
+            if isinstance(data, dict) and labels_field in data and data_field in data:
+                labels = data[labels_field]
+                month_data = data[data_field]
+
+                if isinstance(month_data, dict):
+                    if series_name and series_name in month_data:
+                        return pd.DataFrame(
+                            {"labels": labels, series_name: month_data[series_name]}
+                        )
+                    else:
+                        df = pd.DataFrame({"labels": labels})
+                        for series, values in month_data.items():
+                            if len(values) == len(labels):
+                                df[series] = values
+
+                        if melt and len(df.columns) > 1:
+                            return pd.melt(
+                                df,
+                                id_vars=["labels"],
+                                var_name="series",
+                                value_name="value",
+                            )
+                        return df
+
+        # Transformation for categorical data with labels
+        elif transform_type == "category_with_labels":
+            category_field = params.get("category_field", "categories")
+            count_field = params.get("count_field", "counts")
+            label_field = params.get("label_field", "labels")
+            percentage_field = params.get("percentage_field", "percentages")
+            use_percentages = params.get("use_percentages", True)
+            x_field = params.get("x_field", "category_label")
+            y_field = params.get("y_field", "value")
+
+            if (
+                isinstance(data, dict)
+                and category_field in data
+                and label_field in data
+            ):
+                result = []
+                categories = data[category_field]
+                labels = data[label_field]
+
+                if len(categories) == len(labels):
+                    if use_percentages and percentage_field in data:
+                        values = data[percentage_field]
+                    elif count_field in data:
+                        values = data[count_field]
+                    else:
+                        return data
+
+                    if len(values) == len(categories):
+                        for i in range(len(categories)):
+                            result.append(
+                                {
+                                    x_field: labels[i],
+                                    y_field: values[i],
+                                    "category": categories[i],
+                                }
+                            )
+                        return pd.DataFrame(result)
+
+        # Transformation for nested dictionaries (Holdridge)
+        elif transform_type == "nested_dict_to_long":
+            primary_keys = params.get("primary_keys", [])
+            category_field = params.get("category_field", "category")
+            value_field = params.get("value_field", "value")
+            type_field = params.get("type_field", "type")
+
+            if isinstance(data, dict) and all(key in data for key in primary_keys):
+                rows = []
+                for primary_key in primary_keys:
+                    primary_dict = data[primary_key]
+                    if isinstance(primary_dict, dict):
+                        for category, value in primary_dict.items():
+                            rows.append(
+                                {
+                                    category_field: category,
+                                    value_field: value,
+                                    type_field: primary_key,
+                                }
+                            )
+                if rows:
+                    return pd.DataFrame(rows)
+
+        # Transformation for pyramid charts (negative/positive values)
+        elif transform_type == "pyramid_chart":
+            class_field = params.get("class_field", "class_name")
+            series_field = params.get("series_field", "series")
+            left_series = params.get("left_series")
+            right_series = params.get("right_series")
+            left_label = params.get("left_label", "Left")
+            right_label = params.get("right_label", "Right")
+            class_suffix = params.get("class_suffix", "")
+            value_field = params.get("value_field", "value")
+            type_field = params.get("type_field", "type")
+            class_label = params.get("class_label", "class")
+
+            if isinstance(data, dict) and class_field in data and series_field in data:
+                classes = data[class_field]
+                series_data = data[series_field]
+
+                if (
+                    isinstance(series_data, dict)
+                    and left_series in series_data
+                    and right_series in series_data
+                ):
+                    left_values = series_data[left_series]
+                    right_values = series_data[right_series]
+
+                    if len(classes) == len(left_values) == len(right_values):
+                        rows = []
+                        for i, cls in enumerate(classes):
+                            rows.append(
+                                {
+                                    class_label: f"{cls}{class_suffix}",
+                                    type_field: left_label,
+                                    value_field: -abs(left_values[i]),
+                                }
+                            )
+                            rows.append(
+                                {
+                                    class_label: f"{cls}{class_suffix}",
+                                    type_field: right_label,
+                                    value_field: abs(right_values[i]),
+                                }
+                            )
+                        return pd.DataFrame(rows)
+
+        # Transformation for subset/complement stacked data
+        elif transform_type == "subset_complement_stacked":
+            data_field = params.get("data_field", None)
+            classes_field = params.get("classes_field", "classes")
+            subset_field = params.get("subset_field", "subset")
+            complement_field = params.get("complement_field", "complement")
+            class_label = params.get("class_label", "class")
+            subset_label = params.get("subset_label", "Subset")
+            complement_label = params.get("complement_label", "Complement")
+            value_field = params.get("value_field", "value")
+            type_field = params.get("type_field", "type")
+            class_suffix = params.get("class_suffix", "")
+
+            if data_field and isinstance(data, dict) and data_field in data:
+                data = data[data_field]
+
+            if (
+                isinstance(data, dict)
+                and classes_field in data
+                and subset_field in data
+                and complement_field in data
+            ):
+                classes = data[classes_field]
+                subset = data[subset_field]
+                complement = data[complement_field]
+
+                if len(classes) == len(subset) == len(complement):
+                    rows = []
+                    for i, cls in enumerate(classes):
+                        rows.append(
+                            {
+                                class_label: f"{cls}{class_suffix}",
+                                type_field: subset_label,
+                                value_field: subset[i],
+                            }
+                        )
+                        rows.append(
+                            {
+                                class_label: f"{cls}{class_suffix}",
+                                type_field: complement_label,
+                                value_field: complement[i],
+                            }
+                        )
+                    return pd.DataFrame(rows)
+
+        # No transformation or unrecognized type
+        return data
+
     def render(self, data: Optional[Any], params: BarPlotParams) -> str:
         """Generate the HTML for the bar plot."""
 
@@ -331,7 +572,9 @@ class BarPlotWidget(WidgetPlugin):
 
         # 1. Apply transformation if specified
         if params.transform:
-            data = transform_data(data, params.transform, params.transform_params or {})
+            data = self._apply_transform(
+                data, params.transform, params.transform_params or {}
+            )
 
         # 2. Convert data to DataFrame using our generic utility
         processed_data = convert_to_dataframe(

@@ -125,23 +125,17 @@ class BinaryCounter(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform data according to configuration."""
+        """Transform data according to configuration.
+
+        Note: The service layer is responsible for loading the correct data source.
+        This transformer is a pure function that only transforms the provided data.
+        """
         try:
             # Validate configuration
             validated_config = self.validate_config(config)
             params = validated_config.params
 
-            # Get source data if different from occurrences
-            if params.source != "occurrences":
-                # Resolve logical entity name to physical table name
-                table_name = self._resolve_table_name(params.source)
-                sql_query = f"SELECT * FROM {table_name}"
-                result = self.db.execute_select(sql_query)
-                data = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-
+            # Service has already loaded the correct source - just use the data
             true_count = 0
             false_count = 0
             total_count = 0
