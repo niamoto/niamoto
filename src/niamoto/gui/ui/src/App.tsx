@@ -2,8 +2,6 @@ import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { TransformPage } from '@/pages/transform'
-import { ExportPage } from '@/pages/export'
-import { VisualizePage } from '@/pages/visualize'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { ThemeProvider } from '@/hooks/use-theme'
 import './App.css'
@@ -15,16 +13,17 @@ const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.S
 const Plugins = lazy(() => import('@/pages/plugins').then(m => ({ default: m.Plugins })))
 const ApiDocs = lazy(() => import('@/pages/api-docs').then(m => ({ default: m.ApiDocs })))
 const ConfigEditor = lazy(() => import('@/pages/config-editor').then(m => ({ default: m.ConfigEditor })))
-const Bootstrap = lazy(() => import('@/components/pipeline/Bootstrap').then(m => ({ default: m.Bootstrap })))
-
-// Demo pages for transform/export interface options
-const EntityCentricDemo = lazy(() => import('@/pages/demos/EntityCentricDemo').then(m => ({ default: m.EntityCentricDemo })))
-const PipelineVisualDemo = lazy(() => import('@/pages/demos/PipelineVisualDemo').then(m => ({ default: m.PipelineVisualDemo })))
-const WizardFormDemo = lazy(() => import('@/pages/demos/WizardFormDemo').then(m => ({ default: m.WizardFormDemo })))
-const GoalDrivenPageBuilder = lazy(() => import('@/pages/demos/GoalDrivenPageBuilder'))
 const Showcase = lazy(() => import('@/pages/showcase'))
-// const EntityConfigPage = lazy(() => import('@/pages/entity-config').then(m => ({ default: m.EntityConfigPage })))
 const OnboardingWizard = lazy(() => import('@/pages/onboarding'))
+const FlowPage = lazy(() => import('@/pages/flow'))
+
+// Legacy pages (moved to _legacy/)
+const ExportPage = lazy(() => import('@/pages/_legacy/export').then(m => ({ default: m.ExportPage })))
+const VisualizePage = lazy(() => import('@/pages/_legacy/visualize').then(m => ({ default: m.VisualizePage })))
+const EntityCentricDemo = lazy(() => import('@/pages/_legacy/demos/EntityCentricDemo').then(m => ({ default: m.EntityCentricDemo })))
+const PipelineVisualDemo = lazy(() => import('@/pages/_legacy/demos/PipelineVisualDemo').then(m => ({ default: m.PipelineVisualDemo })))
+const WizardFormDemo = lazy(() => import('@/pages/_legacy/demos/WizardFormDemo').then(m => ({ default: m.WizardFormDemo })))
+const GoalDrivenPageBuilder = lazy(() => import('@/pages/_legacy/demos/GoalDrivenPageBuilder'))
 
 function App() {
   const { data: projectInfo } = useProjectInfo()
@@ -43,20 +42,13 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="showcase" replace />} />
-            <Route path="setup/bootstrap" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Bootstrap />
-              </Suspense>
-            } />
+            <Route index element={<Navigate to="flow" replace />} />
             <Route path="setup/import" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <OnboardingWizard />
               </Suspense>
             } />
             <Route path="setup/transform" element={<TransformPage />} />
-            <Route path="setup/export" element={<ExportPage />} />
-            <Route path="setup/visualize" element={<VisualizePage />} />
             <Route path="data/explorer" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <DataExplorer />
@@ -96,23 +88,40 @@ function App() {
               </Suspense>
             } />
 
-            {/* Demo pages for transform/export interface options */}
-            <Route path="demos/entity-centric" element={
+            {/* Niamoto Flow - unified configuration interface */}
+            <Route path="flow" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <FlowPage />
+              </Suspense>
+            } />
+
+            {/* Legacy pages - archived but still accessible */}
+            <Route path="legacy/export" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <ExportPage />
+              </Suspense>
+            } />
+            <Route path="legacy/visualize" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <VisualizePage />
+              </Suspense>
+            } />
+            <Route path="legacy/demos/entity-centric" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <EntityCentricDemo />
               </Suspense>
             } />
-            <Route path="demos/pipeline-visual" element={
+            <Route path="legacy/demos/pipeline-visual" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <PipelineVisualDemo />
               </Suspense>
             } />
-            <Route path="demos/wizard-form" element={
+            <Route path="legacy/demos/wizard-form" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <WizardFormDemo />
               </Suspense>
             } />
-            <Route path="demos/goal-driven" element={
+            <Route path="legacy/demos/goal-driven" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <GoalDrivenPageBuilder />
               </Suspense>

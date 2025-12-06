@@ -9,9 +9,9 @@
 #   ./scripts/dev_gui.sh [instance-path]
 #
 # Examples:
-#   ./scripts/dev_gui.sh test-instance/niamoto-nc
-#   ./scripts/dev_gui.sh /absolute/path/to/instance
-#   ./scripts/dev_gui.sh  # Uses current directory or NIAMOTO_HOME
+#   ./scripts/dev/dev_gui.sh test-instance/niamoto-nc
+#   ./scripts/dev/dev_gui.sh /absolute/path/to/instance
+#   ./scripts/dev/dev_gui.sh  # Uses current directory or NIAMOTO_HOME
 #
 # Requirements:
 #   - Python with niamoto installed
@@ -30,7 +30,7 @@ NC='\033[0m' # No Color
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Function to print colored output
 print_info() {
@@ -131,7 +131,7 @@ echo ""
 
 # Start backend (FastAPI)
 print_info "Starting FastAPI backend on port 8080..."
-python "$SCRIPT_DIR/dev_api.py" --instance "$INSTANCE_PATH" --port 8080 > /tmp/niamoto-backend.log 2>&1 &
+uv run python "$SCRIPT_DIR/dev_api.py" --instance "$INSTANCE_PATH" --port 8080 > /tmp/niamoto-backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait a bit for backend to start

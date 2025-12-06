@@ -95,6 +95,17 @@ class StatisticalSummary(TransformerPlugin):
 
     config_model = StatisticalSummaryConfig
 
+    # Output structure for pattern matching
+    output_structure = {
+        "min": "float",
+        "mean": "float",
+        "max": "float",
+        "median": "float",
+        "std": "float",
+        "units": "str",
+        "max_value": "float",
+    }
+
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
 

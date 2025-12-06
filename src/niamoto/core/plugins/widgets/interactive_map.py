@@ -215,6 +215,14 @@ class InteractiveMapWidget(WidgetPlugin):
 
     param_schema = InteractiveMapParams
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {
+            "type": "str",
+            "features": "list",
+        },  # GeoJSON FeatureCollection from geospatial_extractor
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies."""
         # Get Plotly from centralized dependency

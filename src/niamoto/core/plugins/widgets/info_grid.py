@@ -145,6 +145,12 @@ class InfoGridWidget(WidgetPlugin):
 
     param_schema = InfoGridParams
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {"*": "dict"},  # field_aggregator - dynamic keys with {value, units} structure
+        {"name": "dict", "rank": "dict"},  # Partial field_aggregator structure
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Currently relies on framework (e.g., Bootstrap)."""
         # If specific icons (like Font Awesome) are used via params.icon,

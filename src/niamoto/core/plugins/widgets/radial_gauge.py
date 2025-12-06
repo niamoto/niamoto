@@ -131,6 +131,32 @@ class RadialGaugeWidget(WidgetPlugin):
 
     param_schema = RadialGaugeParams
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {
+            "min": "float",
+            "mean": "float",
+            "max": "float",
+            "units": "str",
+            "max_value": "float",
+        },  # statistical_summary (full)
+        {
+            "max": "float",
+            "units": "str",
+            "max_value": "float",
+        },  # statistical_summary (partial - only max)
+        {
+            "mean": "float",
+            "units": "str",
+            "max_value": "float",
+        },  # statistical_summary (partial - only mean)
+        {"value": "float"},  # Simple value structure
+        {
+            "meff": "dict",
+            "value": "float",
+        },  # Nested value (e.g., fragmentation.meff.value)
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
         return get_plotly_dependencies()

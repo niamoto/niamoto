@@ -1,20 +1,24 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-interface NavigationSection {
+export interface NavigationSection {
   id: string
   label: string
   icon?: string
+  badge?: { type: 'status' | 'count'; value: string | number }
   items: NavigationItem[]
   defaultOpen?: boolean
+  dynamic?: boolean // Items are loaded dynamically
 }
 
-interface NavigationItem {
+export interface NavigationItem {
   id: string
   label: string
-  path: string
+  path?: string
+  panel?: string // Panel to show in flow page
   icon?: string
   badge?: string | number
+  action?: string // Special action like 'add'
 }
 
 interface NavigationState {
@@ -37,59 +41,65 @@ interface NavigationState {
   // Breadcrumb
   breadcrumbs: { label: string; path?: string }[]
   setBreadcrumbs: (breadcrumbs: { label: string; path?: string }[]) => void
+
+  // Active panel (for flow page internal navigation)
+  activePanel: string | null
+  setActivePanel: (panel: string | null) => void
 }
 
-// Navigation structure definition
+// Static navigation structure
+// Note: 'groups' section items are loaded dynamically from useReferences()
 export const navigationSections: NavigationSection[] = [
   {
-    id: 'home',
-    label: 'Home',
-    defaultOpen: true,
-    items: [
-      { id: 'showcase', label: 'Niamoto Flow', path: '/showcase' }
-    ]
-  },
-  {
-    id: 'setup',
-    label: 'Setup',
-    defaultOpen: false,
-    items: [
-      { id: 'import', label: 'Import Data', path: '/setup/import' },
-      { id: 'transform', label: 'Transform', path: '/setup/transform' },
-      { id: 'export', label: 'Export Site', path: '/setup/export' }
-    ]
-  },
-  {
     id: 'data',
-    label: 'Data',
-    defaultOpen: false,
+    label: 'Données',
+    defaultOpen: true,
+    badge: { type: 'status', value: 'Importé' },
     items: [
-      { id: 'explorer', label: 'Data Explorer', path: '/data/explorer' },
-      { id: 'preview', label: 'Live Preview', path: '/data/preview' }
+      { id: 'data-overview', label: 'Vue d\'ensemble', path: '/flow', panel: 'data' },
+    ]
+  },
+  {
+    id: 'groups',
+    label: 'Groupes',
+    defaultOpen: true,
+    dynamic: true, // Items loaded from useReferences()
+    items: [] // Will be populated dynamically
+  },
+  {
+    id: 'site',
+    label: 'Site',
+    defaultOpen: true,
+    badge: { type: 'count', value: '0 pages' },
+    items: [
+      { id: 'site-structure', label: 'Structure', path: '/flow', panel: 'site-structure' },
+      { id: 'site-pages', label: 'Pages', path: '/flow', panel: 'site-pages' },
+      { id: 'site-theme', label: 'Thème', path: '/flow', panel: 'site-theme' },
     ]
   },
   {
     id: 'tools',
-    label: 'Tools',
+    label: 'Outils',
     defaultOpen: false,
     items: [
-      { id: 'settings', label: 'Settings', path: '/tools/settings' },
+      { id: 'data-explorer', label: 'Data Explorer', path: '/data/explorer' },
+      { id: 'live-preview', label: 'Live Preview', path: '/data/preview' },
+      { id: 'showcase', label: 'Showcase', path: '/showcase' },
+      { id: 'settings', label: 'Paramètres', path: '/tools/settings' },
       { id: 'config-editor', label: 'Config Editor', path: '/tools/config-editor' },
       { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
-      { id: 'docs', label: 'API Documentation', path: '/tools/docs' }
+      { id: 'docs', label: 'Documentation', path: '/tools/docs' }
     ]
   },
   {
-    id: 'labs',
-    label: 'Labs',
+    id: 'legacy',
+    label: 'Legacy',
     defaultOpen: false,
     items: [
-      { id: 'pipeline-editor', label: 'Flow Editor', path: '/setup/pipeline' },
-      { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap' },
-      { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric' },
-      { id: 'demo-pipeline', label: 'Pipeline Visual', path: '/demos/pipeline-visual' },
-      { id: 'demo-wizard', label: 'Wizard & Forms', path: '/demos/wizard-form'},
-      { id: 'demo-goal-driven', label: 'Goal-Driven Builder', path: '/demos/goal-driven'}
+      { id: 'demo-entity', label: 'Demo Entity', path: '/legacy/demos/entity-centric' },
+      { id: 'demo-pipeline', label: 'Demo Pipeline', path: '/legacy/demos/pipeline-visual' },
+      { id: 'demo-wizard', label: 'Demo Wizard', path: '/legacy/demos/wizard-form' },
+      { id: 'demo-goal', label: 'Demo Goal', path: '/legacy/demos/goal-driven' },
     ]
   }
 ]
@@ -105,6 +115,7 @@ export const useNavigationStore = create<NavigationState>()(
         .map(s => s.id),
       commandPaletteOpen: false,
       breadcrumbs: [],
+      activePanel: null,
 
       // Sidebar actions
       toggleSidebar: () => set((state) => ({
@@ -138,7 +149,10 @@ export const useNavigationStore = create<NavigationState>()(
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
 
       // Breadcrumbs
-      setBreadcrumbs: (breadcrumbs) => set({ breadcrumbs })
+      setBreadcrumbs: (breadcrumbs) => set({ breadcrumbs }),
+
+      // Active panel
+      setActivePanel: (panel) => set({ activePanel: panel })
     }),
     {
       name: 'navigation-storage',

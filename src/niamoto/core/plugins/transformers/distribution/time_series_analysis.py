@@ -128,6 +128,9 @@ class TimeSeriesAnalysis(TransformerPlugin):
 
     config_model = TimeSeriesAnalysisConfig
 
+    # Output structure for pattern matching
+    output_structure = {"month_data": "dict", "labels": "list"}
+
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
 

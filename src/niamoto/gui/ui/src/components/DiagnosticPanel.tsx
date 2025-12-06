@@ -22,7 +22,7 @@ export function DiagnosticPanel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/bootstrap/diagnostic')
+    fetch('/api/health/diagnostic')
       .then((res) => res.json())
       .then((data) => {
         setDiagnostic(data);

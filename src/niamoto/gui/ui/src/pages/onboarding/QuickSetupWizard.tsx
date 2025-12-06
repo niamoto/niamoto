@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -27,6 +27,7 @@ const STEPS = [
 
 export default function QuickSetupWizard() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [wizardState, setWizardState] = useState<WizardState>({
     step: 0,
     scannedFiles: [],
@@ -53,11 +54,22 @@ export default function QuickSetupWizard() {
     }
   }
 
-  const handleComplete = () => {
-    // TODO: Navigate to transform/export configuration once implemented
-    // For now, redirect to transform page as placeholder
-    navigate('/setup/transform')
-  }
+  const handleComplete = useCallback(() => {
+    // Check if we need to return to smart-setup
+    const returnTo = searchParams.get('return_to')
+    if (returnTo) {
+      // Get first entity name from autoConfigResult
+      const datasets = wizardState.autoConfigResult?.entities?.datasets || {}
+      const entityNames = Object.keys(datasets)
+      const firstEntity = entityNames[0] || ''
+      const decodedUrl = decodeURIComponent(returnTo)
+      const separator = decodedUrl.includes('?') ? '&' : '?'
+      navigate(`${decodedUrl}${separator}entity=${encodeURIComponent(firstEntity)}`)
+    } else {
+      // Default behavior: go to transform page
+      navigate('/setup/transform')
+    }
+  }, [navigate, searchParams, wizardState.autoConfigResult])
 
   return (
     <div className="container mx-auto p-6 max-w-5xl">

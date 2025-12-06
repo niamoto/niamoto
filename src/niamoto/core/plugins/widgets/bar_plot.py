@@ -320,6 +320,42 @@ class BarPlotWidget(WidgetPlugin):
 
     param_schema = BarPlotParams  # Correct name for validation
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {"bins": "list", "counts": "list"},  # binned_distribution (minimal)
+        {
+            "bins": "list",
+            "counts": "list",
+            "percentages": "list",
+        },  # binned_distribution (with percentages)
+        {
+            "bins": "list",
+            "counts": "list",
+            "labels": "list",
+        },  # binned_distribution (with labels)
+        {
+            "bins": "list",
+            "counts": "list",
+            "labels": "list",
+            "percentages": "list",
+        },  # binned_distribution (complete)
+        {"categories": "list", "values": "list"},  # categorical data
+        {"categories": "list", "counts": "list"},  # categorical counts
+        {
+            "categories": "list",
+            "counts": "list",
+            "labels": "list",
+        },  # categorical_distribution (with labels)
+        {
+            "categories": "list",
+            "counts": "list",
+            "labels": "list",
+            "percentages": "list",
+        },  # categorical_distribution (complete)
+        {"tops": "list", "counts": "list"},  # top_ranking
+        {"labels": "list", "values": "list"},  # generic labeled data
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies."""
         return get_plotly_dependencies()

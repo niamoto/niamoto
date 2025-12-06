@@ -35,7 +35,7 @@ def run_command(cmd):
 
 def main() -> int:
     """Generate requirements files."""
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).parent.parent.parent
     venv_path = project_root / ".venv"
 
     if not venv_path.exists():

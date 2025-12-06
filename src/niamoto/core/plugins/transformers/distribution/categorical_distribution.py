@@ -75,6 +75,14 @@ class CategoricalDistribution(TransformerPlugin):
 
     config_model = CategoricalDistributionConfig
 
+    # Output structure for pattern matching
+    output_structure = {
+        "categories": "list",
+        "counts": "list",
+        "labels": "list",
+        "percentages": "list",
+    }
+
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
 

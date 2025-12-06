@@ -204,6 +204,9 @@ class TopRanking(TransformerPlugin):
 
     config_model = TopRankingConfig
 
+    # Output structure for pattern matching
+    output_structure = {"tops": "list", "counts": "list"}
+
     def __init__(self, db, registry=None):
         """Initialize with optional registry."""
         super().__init__(db, registry)

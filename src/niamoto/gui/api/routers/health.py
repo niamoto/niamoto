@@ -3,7 +3,11 @@
 import os
 from fastapi import APIRouter, HTTPException
 
-from niamoto.gui.api.context import reload_project_from_desktop_config
+from niamoto.gui.api.context import (
+    reload_project_from_desktop_config,
+    get_working_directory,
+    get_database_path,
+)
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 
@@ -67,4 +71,49 @@ async def reload_project():
     return {
         "success": True,
         "project": str(project_path),
+    }
+
+
+@router.get("/diagnostic")
+async def get_diagnostic():
+    """
+    Get diagnostic information about the Niamoto GUI context.
+
+    This endpoint returns information about the working directory,
+    database path, and configuration files.
+    """
+    work_dir = get_working_directory()
+    db_path = get_database_path()
+
+    # Check for configuration files
+    config_dir = work_dir / "config"
+    config_files = {}
+    for config_file in ["config.yml", "import.yml", "transform.yml", "export.yml"]:
+        file_path = config_dir / config_file
+        config_files[config_file] = {
+            "exists": file_path.exists(),
+            "path": str(file_path),
+        }
+
+    # Check database tables if database exists
+    db_tables = []
+    if db_path and db_path.exists():
+        try:
+            from sqlalchemy import create_engine, inspect
+
+            engine = create_engine(f"sqlite:///{db_path}")
+            inspector = inspect(engine)
+            db_tables = inspector.get_table_names()
+            engine.dispose()
+        except Exception as e:
+            db_tables = [f"Error reading tables: {str(e)}"]
+
+    return {
+        "working_directory": str(work_dir),
+        "database": {
+            "path": str(db_path) if db_path else None,
+            "exists": db_path.exists() if db_path else False,
+            "tables": db_tables,
+        },
+        "config_files": config_files,
     }
