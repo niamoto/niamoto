@@ -11,7 +11,7 @@ Exporters, Widgets), and the registration decorator.
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Optional, List, TYPE_CHECKING
+from typing import Any, Optional, List, Dict, TYPE_CHECKING
 
 # Import pandas for type hinting in LoaderPlugin, but avoid runtime dependency if possible
 # Or use 'Any' if pandas might not always be present where this base is imported.
@@ -116,6 +116,10 @@ class TransformerPlugin(Plugin, ABC):
     type = PluginType.TRANSFORMER
     # Concrete transformers should define: config_model = MyTransformerConfig
 
+    # Pattern matching: Declare output data structure
+    # Example: {"bins": "list", "counts": "list", "percentages": "list"}
+    output_structure: Optional[Dict[str, str]] = None
+
     @abstractmethod
     def transform(self, data: Any, params: "BaseModel") -> Any:
         """
@@ -161,6 +165,10 @@ class WidgetPlugin(Plugin, ABC):
 
     type = PluginType.WIDGET
     # Concrete widgets should define: config_model = MyWidgetParams
+
+    # Pattern matching: Declare compatible input data structures
+    # Example: [{"bins": "list", "counts": "list"}, {"categories": "list", "values": "list"}]
+    compatible_structures: Optional[List[Dict[str, str]]] = None
 
     def get_dependencies(self) -> List[str]:
         """

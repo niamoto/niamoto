@@ -1,49 +1,83 @@
-import { NavLink, useLocation } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { cn } from '@/lib/utils'
 import {
-  Upload,
-  Settings,
-  Download,
+  Database,
+  FileSpreadsheet,
+  Leaf,
+  MapPin,
+  Map,
+  Plus,
+  FolderTree,
+  FileText,
+  Palette,
   Search,
   Eye,
-  Wrench,
-  FileText,
+  Settings,
+  Puzzle,
+  BookOpen,
+  Layers,
+  Archive,
   ChevronRight,
   ChevronDown,
   Menu,
-  Layers,
-  Package,
-  FlaskConical,
-  Presentation,
-  HomeIcon,
-  Database
+  ExternalLink,
+  type LucideIcon
 } from 'lucide-react'
-import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
+import { useNavigationStore, navigationSections, type NavigationSection, type NavigationItem } from '@/stores/navigationStore'
+import { useReferences } from '@/hooks/useReferences'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import niamotoLogo from '@/assets/niamoto_logo.png'
 
-// Icon mapping
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  showcase: Presentation,
-  import: Upload,
-  transform: Settings,
-  export: Download,
-  explorer: Search,
-  preview: Eye,
-  settings: Wrench,
-  plugins: Package,
-  docs: FileText,
-  setup: Layers
+// Icon mapping for sections
+const sectionIconMap: Record<string, LucideIcon> = {
+  data: Database,
+  groups: Layers,
+  site: FolderTree,
+  tools: Settings,
+  legacy: Archive
 }
 
-const sectionIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  home: HomeIcon,
-  setup: Layers,
-  data: Database,
-  tools: Wrench,
-  labs: FlaskConical
+// Icon mapping for items
+const itemIconMap: Record<string, LucideIcon> = {
+  // Data
+  'data-overview': FileSpreadsheet,
+  // Groups - dynamic based on reference kind
+  taxons: Leaf,
+  plots: MapPin,
+  shapes: Map,
+  'add-group': Plus,
+  // Site
+  'site-structure': FolderTree,
+  'site-pages': FileText,
+  'site-theme': Palette,
+  // Tools
+  'data-explorer': Search,
+  'live-preview': Eye,
+  showcase: Layers,
+  settings: Settings,
+  'config-editor': FileText,
+  plugins: Puzzle,
+  docs: BookOpen,
+  // Legacy
+  'demo-entity': Archive,
+  'demo-pipeline': Archive,
+  'demo-wizard': Archive,
+  'demo-goal': Archive
+}
+
+// Get icon for a reference kind
+function getReferenceIcon(kind: string): LucideIcon {
+  switch (kind) {
+    case 'hierarchical':
+      return Leaf
+    case 'spatial':
+      return Map
+    default:
+      return MapPin
+  }
 }
 
 interface NavigationSidebarProps {
@@ -52,19 +86,80 @@ interface NavigationSidebarProps {
 
 export function NavigationSidebar({ className }: NavigationSidebarProps) {
   const location = useLocation()
-  const { t } = useTranslation()
+  const navigate = useNavigate()
   const {
     sidebarMode,
     expandedSections,
     toggleSection,
-    toggleSidebar
+    toggleSidebar,
+    activePanel,
+    setActivePanel
   } = useNavigationStore()
+
+  // Fetch references dynamically for groups section
+  const { data: referencesData } = useReferences()
+  const references = referencesData?.references ?? []
+
+  // Build navigation sections with dynamic groups
+  const sections = useMemo(() => {
+    return navigationSections.map(section => {
+      if (section.id === 'groups' && section.dynamic) {
+        // Build group items from references
+        const groupItems: NavigationItem[] = references.map(ref => ({
+          id: ref.name,
+          label: ref.name,
+          path: '/flow',
+          panel: `group-${ref.name}`,
+          badge: ref.entity_count,
+          icon: ref.kind
+        }))
+
+        // Add "Ajouter un groupe" action
+        groupItems.push({
+          id: 'add-group',
+          label: 'Ajouter un groupe',
+          action: 'add'
+        })
+
+        return {
+          ...section,
+          badge: { type: 'count' as const, value: references.length },
+          items: groupItems
+        }
+      }
+      return section
+    })
+  }, [references])
 
   if (sidebarMode === 'hidden') {
     return null
   }
 
   const isCompact = sidebarMode === 'compact'
+
+  const handleItemClick = (item: NavigationItem, e: React.MouseEvent) => {
+    if (item.action === 'add') {
+      e.preventDefault()
+      // TODO: Open add group dialog
+      console.log('Add group clicked')
+      return
+    }
+
+    if (item.panel) {
+      e.preventDefault()
+      setActivePanel(item.panel)
+      if (item.path && location.pathname !== item.path) {
+        navigate(item.path)
+      }
+    }
+  }
+
+  const isItemActive = (item: NavigationItem) => {
+    if (item.panel) {
+      return activePanel === item.panel
+    }
+    return location.pathname === item.path
+  }
 
   return (
     <div
@@ -75,144 +170,224 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
       )}
     >
       {/* Header */}
-      <div className="flex h-16 items-center justify-between border-b px-4">
+      <div className="flex h-14 items-center justify-between border-b px-3">
         {!isCompact && (
           <div className="flex items-center gap-2">
             <img
               src={niamotoLogo}
-              alt={t('app.logo')}
-              className="h-10 w-10 object-contain"
+              alt="Niamoto"
+              className="h-8 w-8 object-contain"
             />
-            <h1 className="text-lg font-bold text-primary">
-              {t('app.title', 'Niamoto')}
-            </h1>
+            <span className="text-lg font-bold text-primary">Niamoto</span>
           </div>
         )}
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
-          className={cn(isCompact && 'mx-auto')}
+          className={cn('h-8 w-8', isCompact && 'mx-auto')}
         >
           <Menu className="h-4 w-4" />
         </Button>
       </div>
 
       {/* Navigation Content */}
-      <div className="flex-1 overflow-y-auto py-4">
-        <nav className="space-y-2 px-2">
-          {navigationSections.map((section) => {
-            const SectionIcon = sectionIconMap[section.id] || Layers
-            const isExpanded = expandedSections.includes(section.id)
-
-            return (
-              <Collapsible.Root
-                key={section.id}
-                open={!isCompact && isExpanded}
-                onOpenChange={() => !isCompact && toggleSection(section.id)}
-              >
-                {/* Section Header */}
-                <Collapsible.Trigger asChild>
-                  <button
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                      'hover:bg-accent hover:text-accent-foreground',
-                      isCompact && 'justify-center'
-                    )}
-                    title={isCompact ? section.label : undefined}
-                  >
-                    <SectionIcon className="h-4 w-4 shrink-0" />
-                    {!isCompact && (
-                      <>
-                        <span className="flex-1 text-left">
-                          {t(`navigation.sections.${section.id}`, section.label)}
-                        </span>
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </>
-                    )}
-                  </button>
-                </Collapsible.Trigger>
-
-                {/* Section Items */}
-                {!isCompact && (
-                  <Collapsible.Content className="mt-1 space-y-1">
-                    {section.items.map((item) => {
-                      const ItemIcon = iconMap[item.id] || FileText
-                      const isActive = location.pathname === item.path
-
-                      return (
-                        <NavLink
-                          key={item.id}
-                          to={item.path}
-                          className={cn(
-                            'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-                            'hover:bg-accent hover:text-accent-foreground',
-                            isActive && 'bg-accent text-accent-foreground font-medium',
-                            'ml-4' // Indent for hierarchy
-                          )}
-                        >
-                          <ItemIcon className="h-4 w-4 shrink-0" />
-                          <span className="flex-1">
-                            {t(`navigation.${item.id}`, item.label)}
-                          </span>
-                          {item.badge && (
-                            <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-                              {item.badge}
-                            </span>
-                          )}
-                        </NavLink>
-                      )
-                    })}
-                  </Collapsible.Content>
-                )}
-
-                {/* Compact mode - show items as icons */}
-                {isCompact && (
-                  <div className="mt-1 space-y-1">
-                    {section.items.map((item) => {
-                      const ItemIcon = iconMap[item.id] || FileText
-                      const isActive = location.pathname === item.path
-
-                      return (
-                        <NavLink
-                          key={item.id}
-                          to={item.path}
-                          className={cn(
-                            'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                            'hover:bg-accent hover:text-accent-foreground',
-                            isActive && 'bg-accent text-accent-foreground',
-                            'mx-auto'
-                          )}
-                          title={item.label}
-                        >
-                          <ItemIcon className="h-4 w-4" />
-                        </NavLink>
-                      )
-                    })}
-                  </div>
-                )}
-              </Collapsible.Root>
-            )
-          })}
+      <div className="flex-1 overflow-y-auto py-2">
+        <nav className="space-y-1 px-2">
+          {sections.map((section) => (
+            <SectionComponent
+              key={section.id}
+              section={section}
+              isCompact={isCompact}
+              isExpanded={expandedSections.includes(section.id)}
+              onToggle={() => toggleSection(section.id)}
+              onItemClick={handleItemClick}
+              isItemActive={isItemActive}
+            />
+          ))}
         </nav>
       </div>
 
-      {/* Footer */}
-      <div className="border-t p-4">
+      {/* Footer with Preview Button */}
+      <div className="border-t p-3">
         {!isCompact ? (
-          <div className="text-xs text-muted-foreground">
-            {t('app.description', 'Ecological Data Platform')}
-          </div>
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2"
+            onClick={() => {
+              // TODO: Open preview in new tab
+              window.open('/preview', '_blank')
+            }}
+          >
+            <Eye className="h-4 w-4" />
+            Prévisualiser le site
+            <ExternalLink className="ml-auto h-3 w-3 opacity-50" />
+          </Button>
         ) : (
-          <div className="flex justify-center">
-            <span className="text-xs text-muted-foreground">v1.0</span>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="mx-auto flex"
+            title="Prévisualiser le site"
+            onClick={() => window.open('/preview', '_blank')}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
         )}
       </div>
     </div>
+  )
+}
+
+// Section component for cleaner code
+function SectionComponent({
+  section,
+  isCompact,
+  isExpanded,
+  onToggle,
+  onItemClick,
+  isItemActive
+}: {
+  section: NavigationSection
+  isCompact: boolean
+  isExpanded: boolean
+  onToggle: () => void
+  onItemClick: (item: NavigationItem, e: React.MouseEvent) => void
+  isItemActive: (item: NavigationItem) => boolean
+}) {
+  const SectionIcon = sectionIconMap[section.id] || Layers
+
+  return (
+    <Collapsible.Root
+      open={!isCompact && isExpanded}
+      onOpenChange={() => !isCompact && onToggle()}
+    >
+      {/* Section Header */}
+      <Collapsible.Trigger asChild>
+        <button
+          className={cn(
+            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors',
+            'hover:bg-accent/50 hover:text-foreground',
+            isCompact && 'justify-center'
+          )}
+          title={isCompact ? section.label : undefined}
+        >
+          <SectionIcon className="h-3.5 w-3.5 shrink-0" />
+          {!isCompact && (
+            <>
+              <span className="flex-1 text-left">{section.label}</span>
+              {section.badge && (
+                <Badge
+                  variant={section.badge.type === 'status' ? 'secondary' : 'outline'}
+                  className="h-5 px-1.5 text-[10px] font-normal"
+                >
+                  {section.badge.value}
+                </Badge>
+              )}
+              {isExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 opacity-50" />
+              )}
+            </>
+          )}
+        </button>
+      </Collapsible.Trigger>
+
+      {/* Section Items */}
+      {!isCompact && (
+        <Collapsible.Content className="mt-0.5 space-y-0.5">
+          {section.items.map((item) => (
+            <ItemComponent
+              key={item.id}
+              item={item}
+              isActive={isItemActive(item)}
+              onClick={onItemClick}
+            />
+          ))}
+        </Collapsible.Content>
+      )}
+
+      {/* Compact mode - show items as icons */}
+      {isCompact && isExpanded && (
+        <div className="mt-1 space-y-1">
+          {section.items.slice(0, 3).map((item) => {
+            const ItemIcon = item.icon
+              ? getReferenceIcon(item.icon)
+              : itemIconMap[item.id] || FileText
+            const isActive = isItemActive(item)
+
+            return (
+              <NavLink
+                key={item.id}
+                to={item.path || '#'}
+                onClick={(e) => onItemClick(item, e)}
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-md transition-colors',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  isActive && 'bg-accent text-accent-foreground',
+                  'mx-auto'
+                )}
+                title={item.label}
+              >
+                <ItemIcon className="h-4 w-4" />
+              </NavLink>
+            )
+          })}
+        </div>
+      )}
+    </Collapsible.Root>
+  )
+}
+
+// Item component
+function ItemComponent({
+  item,
+  isActive,
+  onClick
+}: {
+  item: NavigationItem
+  isActive: boolean
+  onClick: (item: NavigationItem, e: React.MouseEvent) => void
+}) {
+  const ItemIcon = item.icon
+    ? getReferenceIcon(item.icon)
+    : itemIconMap[item.id] || FileText
+
+  if (item.action) {
+    return (
+      <button
+        onClick={(e) => onClick(item, e)}
+        className={cn(
+          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+          'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+          'ml-2'
+        )}
+      >
+        <ItemIcon className="h-4 w-4 shrink-0 opacity-70" />
+        <span className="flex-1 text-left">{item.label}</span>
+      </button>
+    )
+  }
+
+  return (
+    <NavLink
+      to={item.path || '#'}
+      onClick={(e) => onClick(item, e)}
+      className={cn(
+        'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+        'hover:bg-accent hover:text-accent-foreground',
+        isActive && 'bg-accent text-accent-foreground font-medium',
+        'ml-2'
+      )}
+    >
+      <ItemIcon className="h-4 w-4 shrink-0" />
+      <span className="flex-1">{item.label}</span>
+      {item.badge !== undefined && (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {item.badge}
+        </span>
+      )}
+    </NavLink>
   )
 }

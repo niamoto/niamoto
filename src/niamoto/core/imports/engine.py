@@ -26,6 +26,8 @@ from niamoto.core.imports.config_models import (
     HierarchyConfig,
     MultiFeatureSource,
 )
+from niamoto.core.imports.data_analyzer import DataAnalyzer
+from niamoto.core.imports.transformer_suggester import TransformerSuggester
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,8 @@ class GenericImporter:
     def __init__(self, db: Database, registry: EntityRegistry) -> None:
         self.db = db
         self.registry = registry
+        self.data_analyzer = DataAnalyzer()
+        self.transformer_suggester = TransformerSuggester()
 
     def import_from_csv(
         self,
@@ -91,8 +95,8 @@ class GenericImporter:
             )
             self.db.execute_sql(alter_sql)
 
-            # Read minimal dataframe just for metadata extraction
-            df = self._read_csv(csv_path, nrows=100)
+            # Read full dataframe for analysis (needed for accurate profiling)
+            df = self._read_csv(csv_path)
             # Add extra_data to df for metadata purposes (column exists in DB now)
             df["extra_data"] = None
         else:
@@ -110,12 +114,31 @@ class GenericImporter:
 
             df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
 
+        # Analyze dataset for transformer suggestions
+        semantic_profile = None
+        try:
+            semantic_profile = self._analyze_for_transformers(
+                df=df,
+                csv_path=csv_path,
+                entity_name=entity_name,
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate transformer suggestions for '{entity_name}': {e}",
+                exc_info=True,
+            )
+
         metadata = self._build_metadata(
             df,
             primary_key=primary_key,
             source_path=str(csv_path),
             extra_config=extra_config,
         )
+
+        # Add semantic profile to metadata
+        if semantic_profile:
+            metadata["semantic_profile"] = semantic_profile
+
         self.registry.register_entity(
             name=entity_name,
             kind=kind,
@@ -125,8 +148,6 @@ class GenericImporter:
 
         # Get actual row count from the table (not from the sample df for DuckDB)
         if self.db.is_duckdb:
-            import pandas as pd
-
             count_df = pd.read_sql(
                 f"SELECT COUNT(*) as count FROM {quoted_table}", self.db.engine
             )
@@ -484,6 +505,87 @@ class GenericImporter:
             metadata.update(extra_config)
 
         return metadata
+
+    def _analyze_for_transformers(
+        self,
+        df: pd.DataFrame,
+        csv_path: Path,
+        entity_name: str,
+    ) -> Dict[str, object]:
+        """
+        Analyze dataset and generate transformer suggestions.
+
+        Args:
+            df: DataFrame with the data
+            csv_path: Path to the CSV file (for profiler)
+            entity_name: Name of the entity
+
+        Returns:
+            Dictionary with semantic profile including transformer suggestions
+        """
+        from niamoto.core.imports.profiler import DataProfiler
+
+        logger.info(f"Analyzing dataset '{entity_name}' for transformer suggestions...")
+
+        # 1. Profile with DataProfiler (existing component)
+        profiler = DataProfiler(ml_detector=None)
+        dataset_profile = profiler.profile(csv_path)
+
+        # 2. Enrich each column with DataAnalyzer
+        enriched_profiles = []
+        for col_profile in dataset_profile.columns:
+            if col_profile.name in df.columns:
+                try:
+                    enriched = self.data_analyzer.enrich_profile(
+                        col_profile, df[col_profile.name]
+                    )
+                    enriched_profiles.append(enriched)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to enrich profile for column '{col_profile.name}': {e}"
+                    )
+                    continue
+
+        # 3. Generate transformer suggestions
+        suggestions = self.transformer_suggester.suggest_for_dataset(
+            enriched_profiles, entity_name
+        )
+
+        # 4. Build semantic profile structure
+        semantic_profile = {
+            "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            "columns": [
+                {
+                    "name": ep.name,
+                    "data_category": ep.data_category.value,
+                    "field_purpose": ep.field_purpose.value,
+                    "cardinality": ep.cardinality,
+                    "suggested_bins": ep.suggested_bins,
+                    "suggested_labels": ep.suggested_labels,
+                    "value_range": ep.value_range,
+                }
+                for ep in enriched_profiles
+            ],
+            "transformer_suggestions": {
+                col_name: [
+                    {
+                        "transformer": s.transformer_name,
+                        "confidence": s.confidence,
+                        "reason": s.reason,
+                        "config": s.pre_filled_config,
+                    }
+                    for s in suggestions_list
+                ]
+                for col_name, suggestions_list in suggestions.items()
+            },
+        }
+
+        logger.info(
+            f"Generated suggestions for {len(suggestions)} columns "
+            f"({sum(len(s) for s in suggestions.values())} total suggestions)"
+        )
+
+        return semantic_profile
 
     @staticmethod
     def _dtype_to_string(dtype: pd.api.types.ExtensionDtype) -> str:

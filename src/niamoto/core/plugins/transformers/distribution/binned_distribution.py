@@ -125,6 +125,14 @@ class BinnedDistribution(TransformerPlugin):
 
     config_model = BinnedDistributionConfig
 
+    # Pattern matching: Declare output data structure
+    output_structure = {
+        "bins": "list",
+        "counts": "list",
+        "labels": "list",  # optional
+        "percentages": "list",  # optional
+    }
+
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
 

@@ -98,6 +98,13 @@ class FieldAggregator(TransformerPlugin):
     config_model = FieldAggregatorConfig
     param_schema = FieldAggregatorParams
 
+    # Output structure for pattern matching (dynamic dict with field values)
+    # Structure: {"field_name": {"value": any, "units": str}, ...}
+    # Example: {"name": {"value": "Species"}, "count": {"value": 42, "units": "items"}}
+    output_structure = {
+        "*": "dict"  # Dynamic keys, each containing a dict with "value" and optionally "units"
+    }
+
     def __init__(self, db, registry=None):
         super().__init__(db, registry)
         self.config = Config()

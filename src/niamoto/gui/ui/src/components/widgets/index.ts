@@ -1,0 +1,1 @@
+export { WidgetMiniature } from './WidgetMiniature'

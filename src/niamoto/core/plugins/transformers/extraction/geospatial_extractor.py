@@ -152,6 +152,9 @@ class GeospatialExtractor(TransformerPlugin):
 
     config_model = GeospatialExtractorConfig
 
+    # Output structure for pattern matching (GeoJSON FeatureCollection)
+    output_structure = {"type": "str", "features": "list"}
+
     def __init__(self, db, registry=None):
         super().__init__(db, registry)
         self.config = Config()

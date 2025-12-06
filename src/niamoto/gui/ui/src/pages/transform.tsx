@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Settings, Play, Save, AlertCircle } from 'lucide-react'
+import { Settings, Play, Save, AlertCircle, Sparkles } from 'lucide-react'
 import { GroupManager, type Group } from '@/components/transform/GroupManager'
 import { SourceSelector } from '@/components/transform/SourceSelector'
 import { PluginCatalog } from '@/components/transform/PluginCatalog'
 import { PipelineCanvas } from '@/components/transform/PipelineCanvas'
+import { TransformerSuggestions } from '@/components/suggestions'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import type { TransformerConfig } from '@/types/suggestions'
 
 export function TransformPage() {
   const { t } = useTranslation()
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
-  const [activeTab, setActiveTab] = useState('groups')
+  const [activeTab, setActiveTab] = useState('suggestions')
 
   const handleGroupSelect = (group: Group) => {
     setSelectedGroup(group)
@@ -26,6 +28,12 @@ export function TransformPage() {
         sources,
       })
     }
+  }
+
+  const handleApplySuggestions = (configs: TransformerConfig[]) => {
+    console.log('Applying suggestions:', configs)
+    // TODO: Integrate with transform config
+    // This will add the suggested transformers to the current group's pipeline
   }
 
   return (
@@ -65,7 +73,11 @@ export function TransformPage() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="suggestions">
+            <Sparkles className="mr-1 h-4 w-4" />
+            {t('transform.tabs.suggestions', 'Suggestions')}
+          </TabsTrigger>
           <TabsTrigger value="groups">
             {t('transform.tabs.groups', 'Groups')}
             {selectedGroup && <span className="ml-2 text-xs">✓</span>}
@@ -83,6 +95,11 @@ export function TransformPage() {
             {t('transform.tabs.preview', 'Preview')}
           </TabsTrigger>
         </TabsList>
+
+        {/* Suggestions Tab */}
+        <TabsContent value="suggestions" className="mt-6">
+          <TransformerSuggestions onApply={handleApplySuggestions} />
+        </TabsContent>
 
         {/* Groups Tab */}
         <TabsContent value="groups" className="mt-6">

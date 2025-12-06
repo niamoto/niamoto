@@ -1,7 +1,7 @@
 """Configuration management API endpoints for reading and updating YAML configs."""
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Union
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel
 import yaml
@@ -16,7 +16,9 @@ router = APIRouter()
 class ConfigUpdate(BaseModel):
     """Request body for updating configuration."""
 
-    content: Dict[str, Any]
+    content: Union[
+        Dict[str, Any], List[Any]
+    ]  # Accept both dict and list for transform.yml
     backup: bool = True
 
 
@@ -25,7 +27,7 @@ class ConfigResponse(BaseModel):
 
     success: bool
     message: str
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[Union[Dict[str, Any], List[Any]]] = None
     backup_path: Optional[str] = None
 
 
@@ -80,6 +82,137 @@ async def get_project_info() -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail=f"Error reading project info: {str(e)}"
         )
+
+
+# =============================================================================
+# References Discovery Endpoint (MUST be before /{config_name} route)
+# =============================================================================
+
+
+class ReferenceInfo(BaseModel):
+    """Information about a reference entity from import.yml."""
+
+    name: str
+    table_name: str  # Actual table name from EntityRegistry
+    kind: str  # "hierarchical" | "flat" | "spatial"
+    description: Optional[str] = None
+    schema_fields: List[Dict[str, Any]] = []
+    entity_count: Optional[int] = None
+
+
+class ReferencesResponse(BaseModel):
+    """Response for listing references."""
+
+    references: List[ReferenceInfo]
+    total: int
+
+
+@router.get("/references", response_model=ReferencesResponse)
+async def get_references():
+    """
+    List all reference entities discovered from import.yml.
+
+    This endpoint dynamically discovers references (group_by targets)
+    from the import configuration. No hardcoded entity names.
+
+    Returns:
+        List of references with their kind, schema, and entity count.
+    """
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        return ReferencesResponse(references=[], total=0)
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        references = []
+        entities = import_config.get("entities") or {}
+        refs_section = entities.get("references") or {}
+
+        # Early return if no references configured
+        if not refs_section:
+            return ReferencesResponse(references=[], total=0)
+
+        # Try to get entity info from database (table names and counts)
+        db_path = get_working_directory() / "db" / "niamoto.duckdb"
+        entity_counts = {}
+        table_name_map = {}
+
+        if db_path.exists():
+            try:
+                from niamoto.common.database import Database
+                from niamoto.core.imports.registry import EntityRegistry
+
+                db = Database(str(db_path), read_only=True)
+                try:
+                    # Get table names from EntityRegistry (if table exists)
+                    if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                        registry = EntityRegistry(db)
+                        for entity in registry.list_entities():
+                            table_name_map[entity.name] = entity.table_name
+
+                    # Get counts for each reference
+                    for ref_name in refs_section.keys():
+                        actual_table = table_name_map.get(
+                            ref_name, f"reference_{ref_name}"
+                        )
+                        if db.has_table(actual_table):
+                            import pandas as pd
+
+                            result = pd.read_sql(
+                                f"SELECT COUNT(*) as cnt FROM {actual_table}",
+                                db.engine,
+                            )
+                            entity_counts[ref_name] = int(result.iloc[0]["cnt"])
+                finally:
+                    db.close_db_session()
+            except Exception:
+                pass  # Continue without counts if DB access fails
+
+        for ref_name, ref_config in refs_section.items():
+            if not isinstance(ref_config, dict):
+                continue
+
+            kind = ref_config.get("kind", "flat")
+            description = ref_config.get("description")
+
+            # Get actual table name from registry, fallback to convention
+            actual_table_name = table_name_map.get(ref_name, f"reference_{ref_name}")
+
+            # Extract schema fields
+            schema = ref_config.get("schema", {})
+            schema_fields = schema.get("fields", [])
+            if isinstance(schema_fields, dict):
+                # Convert dict format to list format
+                schema_fields = [
+                    {"name": k, **v} if isinstance(v, dict) else {"name": k, "type": v}
+                    for k, v in schema_fields.items()
+                ]
+
+            references.append(
+                ReferenceInfo(
+                    name=ref_name,
+                    table_name=actual_table_name,
+                    kind=kind,
+                    description=description,
+                    schema_fields=schema_fields,
+                    entity_count=entity_counts.get(ref_name),
+                )
+            )
+
+        return ReferencesResponse(references=references, total=len(references))
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error reading references: {str(e)}"
+        )
+
+
+# =============================================================================
+# Configuration CRUD Endpoints
+# =============================================================================
 
 
 @router.get("/{config_name}")

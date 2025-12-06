@@ -149,6 +149,18 @@ class DonutChartWidget(WidgetPlugin):
 
     param_schema = DonutChartParams
 
+    # Pattern matching: Declare compatible input data structures
+    compatible_structures = [
+        {
+            "um": "int",
+            "num": "int",
+            "um_percent": "float",
+            "num_percent": "float",
+        },  # binary_counter
+        {"categories": "list", "values": "list"},  # Generic category/value data
+        {"labels": "list", "percentages": "list"},  # Generic label/percentage data
+    ]
+
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies. Plotly is handled centrally."""
         return get_plotly_dependencies()

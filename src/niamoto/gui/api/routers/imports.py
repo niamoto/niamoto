@@ -207,13 +207,128 @@ async def list_import_jobs(
     return {"total": total, "limit": limit, "offset": offset, "jobs": jobs}
 
 
+class DeleteEntityRequest(BaseModel):
+    """Request to delete an entity."""
+
+    delete_table: bool = False  # Also drop the database table
+
+
+@router.delete("/entities/{entity_type}/{entity_name}")
+async def delete_entity(
+    entity_type: str, entity_name: str, delete_table: bool = False
+) -> Dict[str, Any]:
+    """
+    Delete an entity from import.yml configuration.
+
+    Args:
+        entity_type: Type of entity ('dataset' or 'reference')
+        entity_name: Name of the entity to delete
+        delete_table: If True, also drop the associated database table
+
+    Returns:
+        Success message
+    """
+    import yaml
+    from ..context import get_working_directory
+
+    if entity_type not in ["dataset", "reference"]:
+        raise HTTPException(
+            status_code=400,
+            detail="entity_type must be 'dataset' or 'reference'",
+        )
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not set")
+
+    config_path = work_dir / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        # Read current config
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities", {})
+        section_key = "datasets" if entity_type == "dataset" else "references"
+        section = entities.get(section_key, {})
+
+        if entity_name not in section:
+            raise HTTPException(
+                status_code=404,
+                detail=f"{entity_type.capitalize()} '{entity_name}' not found in configuration",
+            )
+
+        # Remove entity from config
+        del section[entity_name]
+        entities[section_key] = section
+        import_config["entities"] = entities
+
+        # Write updated config
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                import_config,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+
+        # Optionally drop the database table
+        table_dropped = False
+        if delete_table:
+            try:
+                config = Config()
+                with open_database(config.database_path) as db:
+                    # Try different table naming conventions
+                    table_names = [
+                        entity_name,
+                        f"reference_{entity_name}",
+                        f"dataset_{entity_name}",
+                    ]
+                    for table_name in table_names:
+                        if db.has_table(table_name):
+                            db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+                            table_dropped = True
+                            break
+            except Exception as e:
+                # Log but don't fail - config was already updated
+                print(f"Warning: Could not drop table: {e}")
+
+        return {
+            "success": True,
+            "message": f"{entity_type.capitalize()} '{entity_name}' deleted successfully",
+            "table_dropped": table_dropped,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting entity: {str(e)}")
+
+
 @router.get("/entities")
 async def list_entities() -> Dict[str, Any]:
-    """List all entities defined in import.yml configuration."""
+    """List all entities defined in import.yml configuration with their actual table names."""
 
     try:
         config = Config()
         generic_config = config.get_imports_config
+
+        # Get table names from EntityRegistry if available
+        table_name_map: Dict[str, str] = {}
+        try:
+            if config.database_path.exists():
+                with open_database(config.database_path, read_only=True) as db:
+                    # Check if registry table exists before querying
+                    if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                        registry = EntityRegistry(db)
+                        for entity in registry.list_entities():
+                            table_name_map[entity.name] = entity.table_name
+        except Exception:
+            pass  # Continue without registry data
 
         references = []
         datasets = []
@@ -222,9 +337,12 @@ async def list_entities() -> Dict[str, Any]:
             # List references
             if generic_config.entities.references:
                 for name, ref_config in generic_config.entities.references.items():
+                    # Get actual table name from registry, fallback to convention
+                    table_name = table_name_map.get(name, f"reference_{name}")
                     references.append(
                         {
                             "name": name,
+                            "table_name": table_name,
                             "kind": ref_config.kind or "generic",
                             "connector_type": ref_config.connector.type
                             if ref_config.connector
@@ -238,9 +356,12 @@ async def list_entities() -> Dict[str, Any]:
             # List datasets
             if generic_config.entities.datasets:
                 for name, ds_config in generic_config.entities.datasets.items():
+                    # Get actual table name from registry, fallback to convention
+                    table_name = table_name_map.get(name, f"dataset_{name}")
                     datasets.append(
                         {
                             "name": name,
+                            "table_name": table_name,
                             "connector_type": ds_config.connector.type
                             if ds_config.connector
                             else "N/A",
@@ -256,11 +377,12 @@ async def list_entities() -> Dict[str, Any]:
             "datasets": datasets,
         }
 
-    except ConfigurationError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Configuration error: {e.message}. Details: {e.details}",
-        )
+    except ConfigurationError:
+        # No import.yml or empty config - return empty lists
+        return {
+            "references": [],
+            "datasets": [],
+        }
 
 
 @router.get("/status", response_model=ImportStatusResponse)

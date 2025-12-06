@@ -48,5 +48,5 @@ repos:
     hooks:
     -   id: generate-requirements
         name: Generate Requirements Files
-        entry: python scripts/generate_requirements.py
+        entry: python scripts/build/generate_requirements.py
         language: python
