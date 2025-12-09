@@ -29,9 +29,9 @@ export function ImportStepCard({
     <Card className={cn(
       "relative overflow-hidden transition-all duration-300",
       isRunning && "ring-2 ring-primary ring-offset-2",
-      isCompleted && "border-green-200 bg-green-50/50 dark:bg-green-900/10",
-      isFailed && "border-red-200 bg-red-50/50 dark:bg-red-900/10",
-      variant === 'success' && !status && "border-green-200 bg-green-50/50 dark:bg-green-900/10"
+      isCompleted && "border-success/50 bg-success/5 dark:bg-success/10",
+      isFailed && "border-destructive/50 bg-destructive/5 dark:bg-destructive/10",
+      variant === 'success' && !status && "border-success/50 bg-success/5 dark:bg-success/10"
     )}>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -41,16 +41,16 @@ export function ImportStepCard({
             <Loader2 className="w-4 h-4 animate-spin text-primary ml-1" />
           )}
           {status && isCompleted && (
-            <Check className="w-4 h-4 text-green-600 ml-1" />
+            <Check className="w-4 h-4 text-success ml-1" />
           )}
           {status && isFailed && (
-            <AlertCircle className="w-4 h-4 text-red-600 ml-1" />
+            <AlertCircle className="w-4 h-4 text-destructive ml-1" />
           )}
           {variant === 'success' && !status && (
             <Badge variant="secondary" className="ml-auto">Auto-extraite</Badge>
           )}
           {status?.count !== undefined && isCompleted && (
-            <Badge variant="outline" className="ml-auto bg-green-100 text-green-700 border-green-300">
+            <Badge variant="outline" className="ml-auto bg-success/15 text-success border-success/30">
               {status.count.toLocaleString()}
             </Badge>
           )}

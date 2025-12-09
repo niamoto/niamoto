@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { TransformPage } from '@/pages/transform'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
-import { ThemeProvider } from '@/hooks/use-theme'
+import { ThemeProvider } from '@/components/theme'
 import './App.css'
 
 // Lazy load pages

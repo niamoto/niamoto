@@ -326,7 +326,7 @@ export function WidgetPreviewPanel({ template, className }: WidgetPreviewPanelPr
           {/* Main badge: What this template does */}
           <Badge
             variant="outline"
-            className="text-xs border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400"
+            className="text-xs border-success/50 bg-success/10 text-success"
           >
             {transformerLabel}
           </Badge>
@@ -345,7 +345,7 @@ export function WidgetPreviewPanel({ template, className }: WidgetPreviewPanelPr
 
           {/* CSV source indicator */}
           {template.source === 'class_object' && (
-            <Badge variant="outline" className="text-xs border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-400">
+            <Badge variant="outline" className="text-xs border-data-source-secondary/50 bg-data-source-secondary/10 text-data-source-secondary">
               CSV pré-calculé
             </Badge>
           )}
@@ -384,7 +384,7 @@ export function WidgetPreviewPanel({ template, className }: WidgetPreviewPanelPr
 
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
-              <AlertTriangle className="h-10 w-10 text-amber-500 mb-2" />
+              <AlertTriangle className="h-10 w-10 text-warning mb-2" />
               <span className="text-sm text-muted-foreground">{error}</span>
               <Button
                 variant="outline"
@@ -441,7 +441,7 @@ export function WidgetPreviewPanel({ template, className }: WidgetPreviewPanelPr
                   <code>{yamlPreviews.transform}</code>
                 </pre>
                 <div className="absolute top-1 right-1">
-                  <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-500 border-amber-500/30">
+                  <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/30">
                     Transformation
                   </Badge>
                 </div>
@@ -454,7 +454,7 @@ export function WidgetPreviewPanel({ template, className }: WidgetPreviewPanelPr
                   <code>{yamlPreviews.export}</code>
                 </pre>
                 <div className="absolute top-1 right-1">
-                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500 border-emerald-500/30">
+                  <Badge variant="outline" className="text-[10px] bg-success/10 text-success border-success/30">
                     Widget
                   </Badge>
                 </div>

@@ -143,8 +143,8 @@ export function OccurrencesStep() {
               ) : occurrences.fileAnalysis?.fromConfig ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20 flex-1">
-                      <Info className="w-4 h-4 text-blue-600" />
+                    <Alert className="border-info/30 bg-info/10 flex-1">
+                      <Info className="w-4 h-4 text-info" />
                       <AlertDescription>
                         <div className="space-y-1">
                           <div>Configuration loaded from: <span className="font-medium">{occurrences.configPath || occurrences.fileAnalysis?.configInfo?.path}</span></div>
@@ -314,8 +314,8 @@ export function OccurrencesStep() {
             <CardContent>
               {occurrences.fileAnalysis?.fromConfig ? (
                 <div className="space-y-3">
-                  <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
-                    <Info className="w-4 h-4 text-blue-600" />
+                  <Alert className="border-info/30 bg-info/10">
+                    <Info className="w-4 h-4 text-info" />
                     <AlertDescription>
                       Configuration loaded. Please re-upload the file in the first tab to modify mappings.
                     </AlertDescription>
@@ -365,8 +365,8 @@ export function OccurrencesStep() {
         </TabsContent>
 
         <TabsContent value="taxonomy" className="space-y-4">
-          <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
-            <TreePine className="w-4 h-4 text-green-600" />
+          <Alert className="border-success/30 bg-success/10">
+            <TreePine className="w-4 h-4 text-success" />
             <AlertTitle>{t('occurrences.taxonomy.title')}</AlertTitle>
             <AlertDescription>
               {t('occurrences.taxonomy.description')}
@@ -422,8 +422,8 @@ export function OccurrencesStep() {
         </TabsContent>
 
         <TabsContent value="enrichment" className="space-y-4">
-          <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
-            <Globe className="w-4 h-4 text-blue-600" />
+          <Alert className="border-info/30 bg-info/10">
+            <Globe className="w-4 h-4 text-info" />
             <AlertTitle>{t('occurrences.enrichment.title')}</AlertTitle>
             <AlertDescription>
               {t('occurrences.enrichment.description')}
@@ -446,7 +446,7 @@ export function OccurrencesStep() {
       </Tabs>
 
       {/* Status summary */}
-      <Card className={hasRequiredFields && hasTaxonomyMapping ? 'border-green-500' : ''}>
+      <Card className={hasRequiredFields && hasTaxonomyMapping ? 'border-success' : ''}>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             {t('occurrences.status.configurationStatus', { defaultValue: 'État de configuration' })}

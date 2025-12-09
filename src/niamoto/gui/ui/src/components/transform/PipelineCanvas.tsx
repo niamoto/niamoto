@@ -62,7 +62,7 @@ function PluginNode({ data, selected }: NodeProps) {
     <Card className={cn(
       'min-w-[200px] transition-all',
       selected && 'ring-2 ring-primary shadow-lg',
-      isConfigured && 'border-green-500 bg-green-50/50 dark:bg-green-950/20'
+      isConfigured && 'border-success bg-success/10 dark:bg-success/15'
     )}>
       <div className="p-3">
         <div className="flex items-center gap-2 mb-2">
@@ -75,7 +75,7 @@ function PluginNode({ data, selected }: NodeProps) {
             <div className="flex items-center gap-2">
               <div className="font-medium text-sm">{data.label}</div>
               {isConfigured && (
-                <Settings className="h-3 w-3 text-green-500" />
+                <Settings className="h-3 w-3 text-success" />
               )}
             </div>
             {plugin && (
@@ -84,11 +84,11 @@ function PluginNode({ data, selected }: NodeProps) {
               </Badge>
             )}
             {isConfigured && data.config.widgetName ? (
-              <div className="mt-2 rounded bg-green-100 dark:bg-green-900/30 px-2 py-1">
-                <div className="text-xs font-medium text-green-700 dark:text-green-300">
+              <div className="mt-2 rounded bg-success/15 px-2 py-1">
+                <div className="text-xs font-medium text-success">
                   📊 Widget Output
                 </div>
-                <div className="text-sm font-semibold text-green-800 dark:text-green-200">
+                <div className="text-sm font-semibold text-success">
                   {data.config.widgetName}
                 </div>
               </div>
@@ -148,11 +148,11 @@ function PluginNode({ data, selected }: NodeProps) {
 function SourceNode({ data, selected }: NodeProps) {
   return (
     <Card className={cn(
-      'min-w-[150px] bg-blue-50 dark:bg-blue-950/20 border-blue-200',
-      selected && 'ring-2 ring-blue-500 shadow-lg'
+      'min-w-[150px] bg-data-source-primary/10 border-data-source-primary/50',
+      selected && 'ring-2 ring-data-source-primary shadow-lg'
     )}>
       <div className="p-3">
-        <div className="font-medium text-sm text-blue-700 dark:text-blue-300">
+        <div className="font-medium text-sm text-data-source-primary">
           {data.label}
         </div>
         <Badge variant="secondary" className="text-xs mt-1">
@@ -163,7 +163,7 @@ function SourceNode({ data, selected }: NodeProps) {
         <Handle
           type="source"
           position={Position.Right}
-          className="!w-3 !h-3 !bg-blue-500 !border-2 !border-background"
+          className="!w-3 !h-3 !bg-data-source-primary !border-2 !border-background"
         />
       </div>
     </Card>

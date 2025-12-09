@@ -224,7 +224,7 @@ export function DataPanel() {
                         className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2"
                       >
                         <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <CheckCircle2 className="h-4 w-4 text-success" />
                           <span className="font-medium">{ds.name}</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
@@ -249,7 +249,7 @@ export function DataPanel() {
                         className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2"
                       >
                         <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <CheckCircle2 className="h-4 w-4 text-success" />
                           <span className="font-medium">{ref.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -364,7 +364,7 @@ export function DataPanel() {
 
           {/* Complete Phase */}
           {phase === 'complete' && (
-            <div className="flex items-center gap-2 rounded-md bg-green-50 p-4 text-green-700 dark:bg-green-950/20 dark:text-green-400">
+            <div className="flex items-center gap-2 rounded-md bg-success/10 p-4 text-success">
               <CheckCircle2 className="h-5 w-5" />
               <span className="font-medium">Import termine avec succes !</span>
             </div>

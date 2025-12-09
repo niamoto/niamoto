@@ -372,7 +372,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
           {/* Success message */}
           {saveResult && (
-            <div className="bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm animate-in fade-in slide-in-from-bottom-2">
+            <div className="bg-success text-success-foreground px-4 py-2 rounded-lg shadow-lg text-sm animate-in fade-in slide-in-from-bottom-2">
               {saveResult.added > 0 && <span>{saveResult.added} widget{saveResult.added > 1 ? 's' : ''} ajouté{saveResult.added > 1 ? 's' : ''}</span>}
               {saveResult.added > 0 && saveResult.updated > 0 && <span>, </span>}
               {saveResult.updated > 0 && <span>{saveResult.updated} mis à jour</span>}

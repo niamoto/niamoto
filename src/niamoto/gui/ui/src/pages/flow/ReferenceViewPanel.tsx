@@ -88,7 +88,7 @@ export function ReferenceViewPanel({
           )}
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Network className="h-6 w-6 text-green-500" />
+              <Network className="h-6 w-6 text-success" />
               {referenceName}
               {kind && (
                 <Badge variant="secondary" className="ml-2">
@@ -121,7 +121,7 @@ export function ReferenceViewPanel({
                 <AlertDialogDescription>
                   Cette action supprimera la reference de la configuration import.yml.
                   {kind === 'hierarchical' && (
-                    <span className="mt-2 block text-amber-600">
+                    <span className="mt-2 block text-warning">
                       Attention : les datasets lies a cette reference pourraient ne plus fonctionner.
                     </span>
                   )}

@@ -61,9 +61,9 @@ export default function AutoConfigureStep({
 
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 0.8) {
-      return <Badge className="bg-green-500">High confidence: {Math.round(confidence * 100)}%</Badge>
+      return <Badge className="bg-success text-success-foreground">High confidence: {Math.round(confidence * 100)}%</Badge>
     } else if (confidence >= 0.6) {
-      return <Badge className="bg-yellow-500">Medium confidence: {Math.round(confidence * 100)}%</Badge>
+      return <Badge className="bg-warning text-warning-foreground">Medium confidence: {Math.round(confidence * 100)}%</Badge>
     } else {
       return <Badge variant="destructive">Low confidence: {Math.round(confidence * 100)}%</Badge>
     }
@@ -82,11 +82,11 @@ export default function AutoConfigureStep({
         </p>
         <div className="mt-6 space-y-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <CheckCircle2 className="w-4 h-4 text-success" />
             Detecting columns and types
           </div>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <CheckCircle2 className="w-4 h-4 text-success" />
             Finding hierarchical structures
           </div>
           <div className="flex items-center gap-2">
@@ -126,8 +126,8 @@ export default function AutoConfigureStep({
     <div className="space-y-6">
       {/* Success header */}
       <div className="text-center pb-4 border-b">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
-          <CheckCircle2 className="w-8 h-8 text-green-500" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-success/10 mb-4">
+          <CheckCircle2 className="w-8 h-8 text-success" />
         </div>
         <h2 className="text-2xl font-bold mb-2">Configuration Generated!</h2>
         <p className="text-muted-foreground">
@@ -157,7 +157,7 @@ export default function AutoConfigureStep({
         {/* Datasets */}
         <div className="border rounded-lg p-4">
           <h3 className="font-semibold flex items-center gap-2 mb-3">
-            <Database className="w-5 h-5 text-blue-500" />
+            <Database className="w-5 h-5 text-data-source-primary" />
             Datasets ({datasetCount})
           </h3>
           <div className="space-y-2">
@@ -174,16 +174,16 @@ export default function AutoConfigureStep({
                   )}
                   {config.links && config.links.length > 0 && (
                     <div className="mt-2 space-y-1">
-                      <div className="flex items-center gap-1 text-green-600 font-medium">
+                      <div className="flex items-center gap-1 text-success font-medium">
                         <Network className="w-3 h-3" />
                         {config.links.length} link(s) detected:
                       </div>
                       {config.links.map((link: any, idx: number) => (
-                        <div key={idx} className="pl-4 text-xs bg-green-50 dark:bg-green-950/20 rounded p-1.5">
+                        <div key={idx} className="pl-4 text-xs bg-success/10 rounded p-1.5">
                           <div className="flex items-center gap-1 flex-wrap">
-                            <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">{link.field}</span>
+                            <span className="font-mono bg-data-source-primary/20 px-1 rounded">{link.field}</span>
                             <ChevronRight className="w-3 h-3" />
-                            <span className="font-mono bg-green-100 dark:bg-green-900 px-1 rounded">
+                            <span className="font-mono bg-success/20 px-1 rounded">
                               {link.entity}.{link.target_field}
                             </span>
                             {link.confidence && (
@@ -210,7 +210,7 @@ export default function AutoConfigureStep({
         {/* References */}
         <div className="border rounded-lg p-4">
           <h3 className="font-semibold flex items-center gap-2 mb-3">
-            <Network className="w-5 h-5 text-green-500" />
+            <Network className="w-5 h-5 text-success" />
             References ({referenceCount})
           </h3>
           <div className="space-y-2">
@@ -221,14 +221,14 @@ export default function AutoConfigureStep({
                   {config.kind && <Badge variant="outline">{config.kind}</Badge>}
 
                   {config.connector?.type === 'derived' && (
-                    <div className="text-blue-600">
+                    <div className="text-info">
                       Derived from: {config.connector.source}
                     </div>
                   )}
 
                   {config.connector?.type === 'file_multi_feature' && (
                     <div className="space-y-1">
-                      <div className="text-purple-600">Multi-source shapes:</div>
+                      <div className="text-data-source-secondary">Multi-source shapes:</div>
                       {config.connector.sources?.map((source: any, idx: number) => (
                         <div key={idx} className="pl-2 text-xs">
                           • {source.name} ({source.name_field})
@@ -253,16 +253,16 @@ export default function AutoConfigureStep({
                   {/* Show which datasets reference this */}
                   {result.entities.referenced_by && result.entities.referenced_by[name] && (
                     <div className="mt-2 pt-2 border-t">
-                      <div className="flex items-center gap-1 text-blue-600 font-medium mb-1">
+                      <div className="flex items-center gap-1 text-info font-medium mb-1">
                         <TrendingUp className="w-3 h-3" />
                         Referenced by:
                       </div>
                       {result.entities.referenced_by[name].map((ref: any, idx: number) => (
-                        <div key={idx} className="pl-4 text-xs bg-blue-50 dark:bg-blue-950/20 rounded p-1.5 mt-1">
+                        <div key={idx} className="pl-4 text-xs bg-info/10 rounded p-1.5 mt-1">
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className="font-medium">{ref.from}</span>
                             <span className="text-muted-foreground">via</span>
-                            <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">{ref.field}</span>
+                            <span className="font-mono bg-info/20 px-1 rounded">{ref.field}</span>
                             <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
                               {Math.round(ref.confidence * 100)}%
                             </Badge>
@@ -282,7 +282,7 @@ export default function AutoConfigureStep({
       {layerCount > 0 && (
         <div className="border rounded-lg p-4">
           <h3 className="font-semibold flex items-center gap-2 mb-3">
-            <Map className="w-5 h-5 text-purple-500" />
+            <Map className="w-5 h-5 text-data-source-secondary" />
             Metadata Layers ({layerCount})
           </h3>
           <div className="grid grid-cols-2 gap-2">
@@ -310,15 +310,15 @@ export default function AutoConfigureStep({
         </h3>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <div className="text-2xl font-bold text-blue-500">{datasetCount}</div>
+            <div className="text-2xl font-bold text-data-source-primary">{datasetCount}</div>
             <div className="text-sm text-muted-foreground">Datasets</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-green-500">{referenceCount}</div>
+            <div className="text-2xl font-bold text-success">{referenceCount}</div>
             <div className="text-sm text-muted-foreground">References</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-purple-500">{layerCount}</div>
+            <div className="text-2xl font-bold text-data-source-secondary">{layerCount}</div>
             <div className="text-sm text-muted-foreground">Layers</div>
           </div>
         </div>

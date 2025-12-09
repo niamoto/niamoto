@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ThemeSwitcher } from '@/components/theme'
 
 export function Settings() {
   const { t } = useTranslation()
@@ -157,20 +158,19 @@ export function Settings() {
                 {t('settings.theme_settings_desc', 'Customize the appearance of your interface')}
               </CardDescription>
             </CardHeader>
+            <CardContent>
+              <ThemeSwitcher columns={2} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.display_options', 'Display Options')}</CardTitle>
+              <CardDescription>
+                {t('settings.display_options_desc', 'Additional display preferences')}
+              </CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>{t('settings.color_theme', 'Color Theme')}</Label>
-                <Select defaultValue="system">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">{t('settings.light', 'Light')}</SelectItem>
-                    <SelectItem value="dark">{t('settings.dark', 'Dark')}</SelectItem>
-                    <SelectItem value="system">{t('settings.system', 'System')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>{t('settings.compact_mode', 'Compact Mode')}</Label>

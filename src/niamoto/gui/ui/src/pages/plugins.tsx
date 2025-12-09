@@ -90,15 +90,15 @@ export function Plugins() {
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'transformer':
-        return 'bg-blue-500/10 text-blue-500'
+        return 'bg-info/10 text-info'
       case 'widget':
-        return 'bg-green-500/10 text-green-500'
+        return 'bg-success/10 text-success'
       case 'exporter':
-        return 'bg-purple-500/10 text-purple-500'
+        return 'bg-data-source-secondary/10 text-data-source-secondary'
       case 'loader':
-        return 'bg-orange-500/10 text-orange-500'
+        return 'bg-warning/10 text-warning'
       default:
-        return 'bg-gray-500/10 text-gray-500'
+        return 'bg-muted text-muted-foreground'
     }
   }
 
