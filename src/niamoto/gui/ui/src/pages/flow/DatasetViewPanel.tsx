@@ -84,7 +84,7 @@ export function DatasetViewPanel({
           )}
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
-              <Database className="h-6 w-6 text-blue-500" />
+              <Database className="h-6 w-6 text-data-source-primary" />
               {datasetName}
             </h1>
             <p className="text-muted-foreground">

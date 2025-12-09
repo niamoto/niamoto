@@ -58,8 +58,8 @@ export const FieldGroup = memo(function FieldGroup({
             className={cn(
               'text-xs',
               group.source === 'class_object'
-                ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-300'
-                : 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
+                ? 'border-data-source-secondary/50 bg-data-source-secondary/10 text-data-source-secondary'
+                : 'border-data-source-primary/50 bg-data-source-primary/10 text-data-source-primary'
             )}
           >
             {group.source === 'class_object' ? 'CSV' : 'Occurrences'}
@@ -67,7 +67,7 @@ export const FieldGroup = memo(function FieldGroup({
 
           {/* Recommended indicator */}
           {group.hasRecommended && (
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            <Sparkles className="h-3.5 w-3.5 text-warning" />
           )}
         </div>
 

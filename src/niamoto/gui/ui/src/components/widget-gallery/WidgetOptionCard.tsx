@@ -41,7 +41,7 @@ export const WidgetOptionCard = memo(function WidgetOptionCard({
         'group relative rounded-lg border transition-all duration-200 overflow-hidden cursor-pointer',
         'hover:shadow-md hover:shadow-black/5 dark:hover:shadow-black/20',
         selected
-          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-1 ring-emerald-500/50'
+          ? 'border-success bg-success/10 dark:bg-success/15 ring-1 ring-success/50'
           : 'border-border/60 bg-card hover:border-border',
         isPrimary && !selected && 'border-primary/30 bg-primary/5'
       )}
@@ -50,7 +50,7 @@ export const WidgetOptionCard = memo(function WidgetOptionCard({
       {/* Primary indicator */}
       {isPrimary && (
         <div className="absolute top-1.5 left-1.5 z-10">
-          <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-medium">
+          <div className="flex items-center gap-1 bg-warning/20 text-warning px-1.5 py-0.5 rounded text-[10px] font-medium">
             <Star className="h-2.5 w-2.5 fill-current" />
             Top
           </div>

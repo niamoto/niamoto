@@ -345,9 +345,9 @@ function ValidationStepContent({ result }: { result: UploadValidationResponse })
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 rounded-md bg-green-500/10 p-3">
-        <Check className="h-5 w-5 text-green-600" />
-        <span className="font-medium text-green-700 dark:text-green-400">Fichier valide</span>
+      <div className="flex items-center gap-2 rounded-md bg-success/10 p-3">
+        <Check className="h-5 w-5 text-success" />
+        <span className="font-medium text-success">Fichier valide</span>
       </div>
 
       {/* File Info */}

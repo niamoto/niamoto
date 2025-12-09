@@ -144,10 +144,10 @@ export function AggregationStep() {
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Alert className={plots?.fileAnalysis?.fromConfig ? "border-blue-200 bg-blue-50 dark:bg-blue-900/20 flex-1" : "border-green-200 bg-green-50 dark:bg-green-900/20 flex-1"}>
+                <Alert className={plots?.fileAnalysis?.fromConfig ? "border-info/30 bg-info/10 flex-1" : "border-success/30 bg-success/10 flex-1"}>
                   {plots?.fileAnalysis?.fromConfig ? (
                     <>
-                      <Info className="w-4 h-4 text-blue-600" />
+                      <Info className="w-4 h-4 text-info" />
                       <AlertDescription>
                         <div className="space-y-1">
                           <div>Configuration loaded from: <span className="font-medium">{plots?.fileAnalysis?.configInfo?.path}</span></div>
@@ -157,7 +157,7 @@ export function AggregationStep() {
                     </>
                   ) : (
                     <>
-                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <CheckCircle className="w-4 h-4 text-success" />
                       <AlertDescription>
                         {t('common:file.loaded', { fileName: plots.file?.name || 'Unknown' })}
                       </AlertDescription>
@@ -350,8 +350,8 @@ export function AggregationStep() {
                       {shape.fileAnalysis.fromConfig ? (
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <Alert className="border-blue-200 bg-blue-50/50 dark:bg-blue-900/20 flex-1">
-                              <Info className="w-4 h-4" />
+                            <Alert className="border-info/30 bg-info/10 flex-1">
+                              <Info className="w-4 h-4 text-info" />
                               <AlertDescription>
                                 <div className="text-xs">
                                   Configuration loaded. Re-upload the file to update or keep existing settings.

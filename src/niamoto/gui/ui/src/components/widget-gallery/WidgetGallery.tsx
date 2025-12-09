@@ -186,8 +186,8 @@ export function WidgetGallery({
                   'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
                   isActive
                     ? info.isClassObject
-                      ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-400 shadow-sm'
-                      : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400 shadow-sm'
+                      ? 'bg-data-source-secondary/15 text-data-source-secondary dark:bg-data-source-secondary/20 shadow-sm'
+                      : 'bg-data-source-primary/15 text-data-source-primary dark:bg-data-source-primary/20 shadow-sm'
                     : 'bg-background hover:bg-muted border'
                 )}
               >
