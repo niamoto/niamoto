@@ -276,3 +276,189 @@
     font-family: var(--font-mono);
   }
 }
+
+/* ============================================
+   INTERACTIVE BUTTON EFFECTS
+   ============================================ */
+
+.btn-interactive {
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.btn-interactive:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+.btn-interactive:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* ============================================
+   NATIVE DESKTOP FEEL
+   ============================================ */
+
+/* Transparent background for vibrancy effect on macOS */
+[data-platform="macos"] {
+  html {
+    background: transparent !important;
+  }
+}
+
+/* Default non-selectable behavior for desktop feel */
+[data-platform="macos"],
+[data-platform="windows"],
+[data-platform="linux"] {
+  body {
+    user-select: none;
+    cursor: default;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Disable overscroll bounce (native apps don't have this) */
+  html, body {
+    overscroll-behavior: none;
+  }
+}
+
+/* Allow text selection in content areas */
+.selectable,
+input,
+textarea,
+[contenteditable],
+pre,
+code,
+.prose,
+[data-slot="card-content"] {
+  user-select: text;
+  cursor: text;
+}
+
+/* Explicit pointer cursor on interactive elements */
+button,
+a,
+[role="button"],
+.cursor-pointer,
+[data-slot="dropdown-menu-trigger"],
+[data-slot="dropdown-menu-item"] {
+  cursor: pointer;
+}
+
+/* Titlebar drag region */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+/* Exclude interactive elements from drag region */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] .no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Platform-specific titlebar heights */
+[data-platform="macos"] {
+  --titlebar-height: 28px;
+}
+
+[data-platform="windows"] {
+  --titlebar-height: 32px;
+}
+
+[data-platform="linux"] {
+  --titlebar-height: 32px;
+}
+
+/* Focus outline for keyboard navigation (native feel) */
+[data-platform="macos"] :focus-visible,
+[data-platform="windows"] :focus-visible,
+[data-platform="linux"] :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Remove focus outline from contenteditable/editor areas */
+[data-platform="macos"] [contenteditable]:focus-visible,
+[data-platform="macos"] .tiptap:focus-visible,
+[data-platform="macos"] .ProseMirror:focus-visible,
+[data-platform="windows"] [contenteditable]:focus-visible,
+[data-platform="windows"] .tiptap:focus-visible,
+[data-platform="windows"] .ProseMirror:focus-visible,
+[data-platform="linux"] [contenteditable]:focus-visible,
+[data-platform="linux"] .tiptap:focus-visible,
+[data-platform="linux"] .ProseMirror:focus-visible {
+  outline: none;
+}
+
+/* ============================================
+   CUSTOM SCROLLBARS
+   ============================================ */
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  opacity: 0.3;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+  opacity: 0.5;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Thin scrollbars variant */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) transparent;
+}
+
+/* Dark mode adjustments */
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 0.35);
+}
+
+.dark * {
+  scrollbar-color: oklch(1 0 0 / 0.2) transparent;
+}

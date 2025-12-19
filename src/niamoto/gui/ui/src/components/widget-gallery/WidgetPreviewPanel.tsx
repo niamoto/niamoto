@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   FileCode,
   FileOutput,
+  FolderTree,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -53,6 +54,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 }
 
 const CATEGORY_ICONS: Record<WidgetCategory, React.ElementType> = {
+  navigation: FolderTree,
   info: Info,
   map: Map,
   chart: BarChart3,
@@ -63,18 +65,24 @@ const CATEGORY_ICONS: Record<WidgetCategory, React.ElementType> = {
 
 interface WidgetPreviewPanelProps {
   template: TemplateSuggestion | null
+  groupBy?: string  // Reference name for correct data filtering
   className?: string
 }
 
-export function WidgetPreviewPanel({ template, className }: WidgetPreviewPanelProps) {
+export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPreviewPanelProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshCounter, setRefreshCounter] = useState(0)
 
-  // Build preview URL
-  const previewUrl = template
-    ? `/api/templates/preview/${template.template_id}`
-    : null
+  // Build preview URL with optional group_by parameter
+  const previewUrl = useMemo(() => {
+    if (!template) return null
+    const baseUrl = `/api/templates/preview/${template.template_id}`
+    if (groupBy) {
+      return `${baseUrl}?group_by=${encodeURIComponent(groupBy)}`
+    }
+    return baseUrl
+  }, [template, groupBy])
 
   // Unique key for iframe: template_id + refresh counter
   // This ensures single load on template change, and reload on manual refresh

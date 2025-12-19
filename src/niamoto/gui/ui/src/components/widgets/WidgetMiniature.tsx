@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 
 interface WidgetMiniatureProps {
   templateId: string
+  groupBy?: string  // Reference name for correct data filtering
   className?: string
   onClick?: () => void
   /** Size variant */
@@ -28,6 +29,7 @@ const IFRAME_HEIGHT = 300
 
 export function WidgetMiniature({
   templateId,
+  groupBy,
   className,
   onClick,
   size = 'md',
@@ -101,7 +103,7 @@ export function WidgetMiniature({
       {/* Iframe - only render when visible */}
       {isVisible && (
         <iframe
-          src={`/api/templates/preview/${templateId}`}
+          src={`/api/templates/preview/${templateId}${groupBy ? `?group_by=${encodeURIComponent(groupBy)}` : ''}`}
           className="pointer-events-none origin-top-left"
           style={{
             width: IFRAME_WIDTH,

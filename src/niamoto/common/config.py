@@ -784,7 +784,7 @@ exports:
         """
         Get the database path from config.yml.
         Returns:
-            str: database path
+            str: database path (resolved to absolute path)
         """
         path = self.config.get("database", {}).get("path")
         if not path:
@@ -793,6 +793,10 @@ exports:
                 message="Database path not configured",
                 details={"config": self.config.get("database", {})},
             )
+        # Resolve relative paths against NIAMOTO_HOME (project root)
+        if not os.path.isabs(path):
+            project_root = os.path.dirname(self.config_dir)
+            path = os.path.join(project_root, path)
         return path
 
     @property

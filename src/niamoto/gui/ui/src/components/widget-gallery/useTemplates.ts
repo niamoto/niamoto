@@ -207,20 +207,92 @@ export function useSaveConfig(): UseSaveConfigReturn {
 }
 
 /**
- * Selection management hook
+ * Fetch configured widgets from transform.yml
+ * Returns the template_ids that are already saved in configuration
  */
-export function useTemplateSelection(initialSuggestions: TemplateSuggestion[] = []) {
+interface ConfiguredWidgetsResponse {
+  configured_ids: string[]
+  has_config: boolean
+}
+
+interface UseConfiguredWidgetsReturn {
+  configuredIds: string[]
+  hasConfig: boolean
+  loading: boolean
+  error: string | null
+  refetch: () => void
+}
+
+export function useConfiguredWidgets(groupBy: string): UseConfiguredWidgetsReturn {
+  const [data, setData] = useState<ConfiguredWidgetsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchConfigured = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`${API_BASE}/${groupBy}/configured`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch configured widgets: ${response.statusText}`)
+      }
+      const result: ConfiguredWidgetsResponse = await response.json()
+      setData(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      setData({ configured_ids: [], has_config: false })
+    } finally {
+      setLoading(false)
+    }
+  }, [groupBy])
+
+  useEffect(() => {
+    fetchConfigured()
+  }, [fetchConfigured])
+
+  return {
+    configuredIds: data?.configured_ids || [],
+    hasConfig: data?.has_config || false,
+    loading,
+    error,
+    refetch: fetchConfigured
+  }
+}
+
+/**
+ * Selection management hook
+ *
+ * @param initialSuggestions - List of suggestions to select from
+ * @param existingIds - Optional Set of template IDs already configured (from transform.yml)
+ *                      If provided and non-empty, these will be pre-selected instead of auto-selection
+ */
+export function useTemplateSelection(
+  initialSuggestions: TemplateSuggestion[] = [],
+  existingIds?: Set<string>
+) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  // Auto-select high-confidence suggestions on initial load
+  // Select based on existing config or auto-select high-confidence suggestions
   useEffect(() => {
-    const autoSelected = new Set(
-      initialSuggestions
-        .filter(s => s.confidence >= 0.7 || s.is_recommended)
-        .map(s => s.template_id)
-    )
-    setSelected(autoSelected)
-  }, [initialSuggestions])
+    if (existingIds && existingIds.size > 0) {
+      // Mode édition: use existing configured IDs
+      // Only select IDs that are also in the suggestions list
+      const validExisting = new Set(
+        Array.from(existingIds).filter(id =>
+          initialSuggestions.some(s => s.template_id === id)
+        )
+      )
+      setSelected(validExisting)
+    } else {
+      // Mode création: auto-select high-confidence suggestions
+      const autoSelected = new Set(
+        initialSuggestions
+          .filter(s => s.confidence >= 0.7 || s.is_recommended)
+          .map(s => s.template_id)
+      )
+      setSelected(autoSelected)
+    }
+  }, [initialSuggestions, existingIds])
 
   const toggle = useCallback((templateId: string) => {
     setSelected(prev => {

@@ -210,6 +210,13 @@ class DataAnalyzer:
                 # High cardinality integers are likely IDs
                 if col_profile.unique_ratio > 0.8:
                     return DataCategory.CATEGORICAL_HIGH_CARD
+
+                # Very few unique values (< 10) = likely categorical codes
+                # Example: holdridge (1, 2, 3) = "Sec", "Humide", "Très humide"
+                unique_count = len(unique_values)
+                if unique_count <= 10:
+                    return DataCategory.CATEGORICAL
+
                 # Low cardinality integers are discrete numeric
                 return DataCategory.NUMERIC_DISCRETE
 

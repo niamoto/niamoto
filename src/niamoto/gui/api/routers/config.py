@@ -89,6 +89,20 @@ async def get_project_info() -> Dict[str, Any]:
 # =============================================================================
 
 
+class HierarchyFields(BaseModel):
+    """Detected hierarchy fields in a reference table."""
+
+    has_nested_set: bool = False  # lft/rght columns present
+    has_parent: bool = False  # parent_id column present
+    has_level: bool = False  # level column present
+    lft_field: Optional[str] = None
+    rght_field: Optional[str] = None
+    parent_id_field: Optional[str] = None
+    level_field: Optional[str] = None
+    id_field: Optional[str] = None  # Detected primary key
+    name_field: Optional[str] = None  # Detected display name field
+
+
 class ReferenceInfo(BaseModel):
     """Information about a reference entity from import.yml."""
 
@@ -98,6 +112,10 @@ class ReferenceInfo(BaseModel):
     description: Optional[str] = None
     schema_fields: List[Dict[str, Any]] = []
     entity_count: Optional[int] = None
+    is_hierarchical: bool = (
+        False  # True if has hierarchy structure (lft/rght or parent_id)
+    )
+    hierarchy_fields: Optional[HierarchyFields] = None  # Detected hierarchy columns
 
 
 class ReferencesResponse(BaseModel):
@@ -191,6 +209,83 @@ async def get_references():
                     for k, v in schema_fields.items()
                 ]
 
+            # Detect hierarchy fields from actual table columns
+            hierarchy_fields = None
+            is_hierarchical = False
+
+            if db_path and db_path.exists():
+                try:
+                    from niamoto.common.database import Database
+
+                    db = Database(str(db_path), read_only=True)
+                    try:
+                        if db.has_table(actual_table_name):
+                            # Get column names from the table
+                            columns_df = pd.read_sql(
+                                f"SELECT * FROM {actual_table_name} LIMIT 0",
+                                db.engine,
+                            )
+                            columns = set(columns_df.columns.tolist())
+
+                            # Detect hierarchy structure
+                            has_nested_set = "lft" in columns and "rght" in columns
+                            has_parent = "parent_id" in columns
+                            has_level = "level" in columns
+
+                            is_hierarchical = has_nested_set or (
+                                has_parent and has_level
+                            )
+
+                            # Detect ID field
+                            id_candidates = [f"id_{ref_name}", f"{ref_name}_id", "id"]
+                            id_field = next(
+                                (c for c in id_candidates if c in columns), None
+                            )
+                            if not id_field:
+                                # Fallback: first column containing 'id'
+                                id_field = next(
+                                    (c for c in columns if "id" in c.lower()), "id"
+                                )
+
+                            # Detect name field
+                            name_candidates = [
+                                "full_name",
+                                "name",
+                                "plot",
+                                "label",
+                                "title",
+                                ref_name,
+                            ]
+                            name_field = next(
+                                (c for c in name_candidates if c in columns), None
+                            )
+                            if not name_field:
+                                # Fallback: first string column that's not id
+                                name_field = next(
+                                    (
+                                        c
+                                        for c in columns
+                                        if c != id_field and "name" in c.lower()
+                                    ),
+                                    id_field,
+                                )
+
+                            hierarchy_fields = HierarchyFields(
+                                has_nested_set=has_nested_set,
+                                has_parent=has_parent,
+                                has_level=has_level,
+                                lft_field="lft" if has_nested_set else None,
+                                rght_field="rght" if has_nested_set else None,
+                                parent_id_field="parent_id" if has_parent else None,
+                                level_field="level" if has_level else None,
+                                id_field=id_field,
+                                name_field=name_field,
+                            )
+                    finally:
+                        db.close_db_session()
+                except Exception:
+                    pass  # Continue without hierarchy detection if DB access fails
+
             references.append(
                 ReferenceInfo(
                     name=ref_name,
@@ -199,6 +294,8 @@ async def get_references():
                     description=description,
                     schema_fields=schema_fields,
                     entity_count=entity_counts.get(ref_name),
+                    is_hierarchical=is_hierarchical,
+                    hierarchy_fields=hierarchy_fields,
                 )
             )
 

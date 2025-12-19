@@ -13,6 +13,7 @@ export {
   useSuggestions,
   useTemplates,
   useTemplateSelection,
+  useConfiguredWidgets,
   useGenerateConfig,
   useSaveConfig,
 } from './useTemplates'

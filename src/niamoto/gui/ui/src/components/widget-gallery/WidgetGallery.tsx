@@ -12,7 +12,6 @@ import {
   FileSpreadsheet,
   ChevronDown,
   ChevronRight,
-  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -27,6 +26,7 @@ type SourceFilter = string
 interface WidgetGalleryProps {
   suggestions: TemplateSuggestion[]
   selectedIds: Set<string>
+  groupBy?: string  // Reference name for correct data filtering
   onSelect: (templateId: string) => void
   onPreview: (template: TemplateSuggestion) => void
   onSelectAll: () => void
@@ -37,6 +37,7 @@ interface WidgetGalleryProps {
 export function WidgetGallery({
   suggestions,
   selectedIds,
+  groupBy,
   onSelect,
   onPreview,
   onSelectAll,
@@ -120,23 +121,6 @@ export function WidgetGallery({
       setAllExpanded(true)
     }
   }, [allExpanded, groupedSuggestions])
-
-  // Select best widget for a field
-  const handleSelectBestForField = useCallback((field: string) => {
-    const group = groupedSuggestions.find(g => g.field === field)
-    if (group && group.primarySuggestion) {
-      onSelect(group.primarySuggestion.template_id)
-    }
-  }, [groupedSuggestions, onSelect])
-
-  // Select best widget for each field
-  const handleSelectBestForAll = useCallback(() => {
-    groupedSuggestions.forEach(group => {
-      if (group.primarySuggestion && !selectedIds.has(group.primarySuggestion.template_id)) {
-        onSelect(group.primarySuggestion.template_id)
-      }
-    })
-  }, [groupedSuggestions, selectedIds, onSelect])
 
   const filteredSelectedCount = filteredSuggestions.filter(s => selectedIds.has(s.template_id)).length
 
@@ -229,7 +213,7 @@ export function WidgetGallery({
           </button>
 
           {/* Individual categories */}
-          {(['info', 'map', 'chart', 'gauge', 'donut'] as WidgetCategory[]).map((category) => {
+          {(['navigation', 'info', 'map', 'chart', 'gauge', 'donut'] as WidgetCategory[]).map((category) => {
             const count = categoryCounts[category] || 0
             if (count === 0) return null
 
@@ -271,17 +255,6 @@ export function WidgetGallery({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {/* Bulk action: Select best for each field */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSelectBestForAll}
-            className="h-8 text-xs"
-          >
-            <Zap className="h-3.5 w-3.5 mr-1.5" />
-            Meilleur par champ
-          </Button>
-          <div className="w-px h-4 bg-border mx-1" />
           <Button
             variant="ghost"
             size="sm"
@@ -345,9 +318,9 @@ export function WidgetGallery({
                 key={group.field}
                 group={group}
                 selectedIds={selectedIds}
+                groupBy={groupBy}
                 onSelect={onSelect}
                 onPreview={onPreview}
-                onSelectBest={() => handleSelectBestForField(group.field)}
                 isExpanded={expandedFields.has(group.field)}
                 onToggleExpand={() => toggleFieldExpansion(group.field)}
               />

@@ -9,7 +9,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Database, LayoutGrid, Settings2, Package, Loader2, AlertCircle, Sparkles, Save, Plus, GripVertical } from 'lucide-react'
+import { Database, LayoutGrid, Package, Loader2, AlertCircle, Sparkles, Save, Plus, GripVertical, Layout } from 'lucide-react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,12 +20,14 @@ import {
   WidgetPreviewPanel,
   useSuggestions,
   useTemplateSelection,
+  useConfiguredWidgets,
   useGenerateConfig,
   useSaveConfig,
   type TemplateSuggestion,
 } from '@/components/widget-gallery'
 import { useSources, useRemoveSource } from '@/hooks/useSources'
 import { SourcesList, AddSourceDialog } from '@/components/sources'
+import { LayoutEditor } from '@/components/layout-editor'
 
 interface GroupPanelProps {
   reference: ReferenceInfo
@@ -90,7 +92,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
               value="layout"
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
-              <Settings2 className="mr-2 h-4 w-4" />
+              <Layout className="mr-2 h-4 w-4" />
               Mise en page
             </TabsTrigger>
           </TabsList>
@@ -232,14 +234,20 @@ function SourcesTab({ reference }: { reference: ReferenceInfo }) {
 }
 
 function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
+  // Fetch configured widgets from transform.yml
+  const { configuredIds, hasConfig, loading: configLoading } = useConfiguredWidgets(reference.name)
+
+  // Convert to Set for useTemplateSelection
+  const existingIds = useMemo(() => new Set(configuredIds), [configuredIds])
+
   // Fetch widget suggestions for this reference
   const { suggestions, columnsAnalyzed, loading, error, refetch } = useSuggestions(
     reference.name,
     'occurrences'
   )
 
-  // Selection management with auto-select high confidence
-  const selection = useTemplateSelection(suggestions)
+  // Selection management: use existing config if available, otherwise auto-select
+  const selection = useTemplateSelection(suggestions, hasConfig ? existingIds : undefined)
 
   // Preview state
   const [previewTemplate, setPreviewTemplate] = useState<TemplateSuggestion | null>(null)
@@ -291,8 +299,8 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
     }
   }
 
-  // Loading state
-  if (loading) {
+  // Loading state - wait for both config and suggestions
+  if (loading || configLoading) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -344,6 +352,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
             <WidgetGallery
               suggestions={suggestions}
               selectedIds={selection.selectedSet}
+              groupBy={reference.name}
               onSelect={selection.toggle}
               onPreview={setPreviewTemplate}
               onSelectAll={() => selection.selectAll(suggestions.map(s => s.template_id))}
@@ -362,7 +371,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
         {/* Preview panel - right side */}
         <Panel defaultSize={50} minSize={30} maxSize={70}>
           <div className="h-full rounded-lg border bg-card overflow-hidden">
-            <WidgetPreviewPanel key={previewKey} template={previewTemplate} />
+            <WidgetPreviewPanel key={previewKey} template={previewTemplate} groupBy={reference.name} />
           </div>
         </Panel>
       </PanelGroup>
@@ -413,22 +422,8 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
 
 function LayoutTab({ reference }: { reference: ReferenceInfo }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-medium">Mise en page</h2>
-        <p className="text-sm text-muted-foreground">
-          Organisez la disposition des widgets pour "{reference.name}".
-        </p>
-      </div>
-
-      {/* Placeholder for layout editor */}
-      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-8">
-        <Settings2 className="mb-4 h-12 w-12 text-muted-foreground" />
-        <h3 className="mb-2 font-medium">Éditeur de mise en page</h3>
-        <p className="text-center text-sm text-muted-foreground">
-          L'éditeur de disposition des widgets sera disponible dans une prochaine version.
-        </p>
-      </div>
+    <div className="h-[calc(100vh-280px)]">
+      <LayoutEditor groupBy={reference.name} />
     </div>
   )
 }

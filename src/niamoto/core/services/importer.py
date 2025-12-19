@@ -37,6 +37,8 @@ class ImporterService:
         self.db = Database(db_path)
         self.registry = EntityRegistry(self.db)
         self.engine = GenericImporter(self.db, self.registry)
+        # Derive project root from database path (db_path is in project/db/)
+        self.project_root = Path(db_path).parent.parent
 
     def close(self) -> None:
         """Close database connections and dispose of engine."""
@@ -48,6 +50,20 @@ class ImporterService:
             self.db.engine.dispose()
         except Exception:
             pass
+
+    def _resolve_path(self, path: str) -> Path:
+        """Resolve a path relative to project root.
+
+        Args:
+            path: Absolute or relative path
+
+        Returns:
+            Resolved absolute path
+        """
+        p = Path(path)
+        if p.is_absolute():
+            return p
+        return (self.project_root / p).resolve()
 
     @error_handler(log=True, raise_error=True)
     def import_reference(
@@ -132,11 +148,19 @@ class ImporterService:
                     f"Importing multi-feature reference '{name}' from {len(config.connector.sources)} sources"
                 )
 
+                # Resolve paths for all sources relative to project root
+                resolved_sources = []
+                for source in config.connector.sources:
+                    resolved_path = self._resolve_path(source.path)
+                    # Create a copy of source with resolved path
+                    source_copy = source.model_copy(update={"path": str(resolved_path)})
+                    resolved_sources.append(source_copy)
+
                 # Import via multi-feature engine
                 result = self.engine.import_multi_feature(
                     entity_name=name,
                     table_name=table_name,
-                    sources=config.connector.sources,
+                    sources=resolved_sources,
                     kind=kind,
                     id_field=config.schema.id_field if config.schema else None,
                 )
@@ -151,7 +175,7 @@ class ImporterService:
                         "connector.path", "Connector path must be specified"
                     )
 
-                source_path = Path(config.connector.path).resolve()
+                source_path = self._resolve_path(config.connector.path)
                 if not source_path.exists():
                     raise FileReadError(
                         str(source_path),
@@ -215,7 +239,7 @@ class ImporterService:
         if not config.connector or not config.connector.path:
             raise ValidationError("connector.path", "Connector path must be specified")
 
-        source_path = Path(config.connector.path).resolve()
+        source_path = self._resolve_path(config.connector.path)
         if not source_path.exists():
             raise FileReadError(
                 str(source_path),
