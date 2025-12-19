@@ -280,7 +280,8 @@ async def delete_entity(
         table_dropped = False
         if delete_table:
             try:
-                config = Config()
+                config_dir = str(work_dir / "config")
+                config = Config(config_dir=config_dir, create_default=False)
                 with open_database(config.database_path) as db:
                     # Try different table naming conventions
                     table_names = [
@@ -312,15 +313,23 @@ async def delete_entity(
 @router.get("/entities")
 async def list_entities() -> Dict[str, Any]:
     """List all entities defined in import.yml configuration with their actual table names."""
+    from pathlib import Path
+    from ..context import get_working_directory
 
     try:
-        config = Config()
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise HTTPException(status_code=500, detail="Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         generic_config = config.get_imports_config
 
         # Get table names from EntityRegistry if available
         table_name_map: Dict[str, str] = {}
         try:
-            if config.database_path.exists():
+            db_path = Path(config.database_path)
+            if db_path.exists():
                 with open_database(config.database_path, read_only=True) as db:
                     # Check if registry table exists before querying
                     if db.has_table(EntityRegistry.ENTITIES_TABLE):
@@ -388,9 +397,15 @@ async def list_entities() -> Dict[str, Any]:
 @router.get("/status", response_model=ImportStatusResponse)
 async def get_import_status() -> ImportStatusResponse:
     """Check which entities have been imported and their row counts."""
+    from ..context import get_working_directory
 
     try:
-        config = Config()
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise HTTPException(status_code=500, detail="Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         references: List[ImportStatus] = []
         datasets: List[ImportStatus] = []
 
@@ -440,6 +455,7 @@ async def process_generic_import_all(
     """Process generic import of all entities in background."""
     import asyncio
     from niamoto.common.progress import set_progress_mode
+    from ..context import get_working_directory
 
     # Disable progress bars in API mode
     set_progress_mode(use_progress_bar=False)
@@ -453,8 +469,13 @@ async def process_generic_import_all(
         job["progress"] = 10
         job["message"] = "Loading configuration..."
 
-        # Get config and create importer
-        config = Config()
+        # Get config and create importer using working directory
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise ValueError("Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 
@@ -512,6 +533,7 @@ async def process_generic_import_entity(
     """Process generic import of a single entity in background."""
     import asyncio
     from niamoto.common.progress import set_progress_mode
+    from ..context import get_working_directory
 
     # Disable progress bars in API mode
     set_progress_mode(use_progress_bar=False)
@@ -525,8 +547,13 @@ async def process_generic_import_entity(
         job["progress"] = 10
         job["message"] = f"Loading configuration for {entity_name}..."
 
-        # Get config and create importer
-        config = Config()
+        # Get config and create importer using working directory
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise ValueError("Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
         generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 

@@ -83,8 +83,13 @@ async def get_available_entities(
         EntityListResponse with entities grouped by kind
     """
     try:
-        # Get config to access EntityRegistry
-        config = Config()
+        # Get config to access EntityRegistry using working directory
+        work_dir = get_working_directory()
+        if not work_dir:
+            raise HTTPException(status_code=500, detail="Working directory not set")
+
+        config_dir = str(work_dir / "config")
+        config = Config(config_dir=config_dir, create_default=False)
 
         with open_database(config.database_path, read_only=True) as db:
             registry = EntityRegistry(db)

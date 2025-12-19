@@ -105,24 +105,62 @@ class RemoveSourceResponse(BaseModel):
 
 
 def _load_transform_config(work_dir: Path) -> dict[str, Any]:
-    """Load transform.yml configuration."""
+    """Load transform.yml configuration.
+
+    Converts the list-based YAML format to internal dict format:
+    YAML: [{"group_by": "taxons", "sources": [...]}]
+    Internal: {"groups": {"taxons": {"sources": [...]}}}
+    """
     transform_path = work_dir / "config" / "transform.yml"
     if not transform_path.exists():
         return {"groups": {}}
 
     with open(transform_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {"groups": {}}
+        raw_config = yaml.safe_load(f)
+
+    if raw_config is None:
+        return {"groups": {}}
+
+    # If it's already a dict with "groups", return as-is
+    if isinstance(raw_config, dict) and "groups" in raw_config:
+        return raw_config
+
+    # Convert list format to dict format
+    if isinstance(raw_config, list):
+        groups = {}
+        for item in raw_config:
+            if isinstance(item, dict) and "group_by" in item:
+                group_name = item["group_by"]
+                # Copy all keys except "group_by"
+                group_config = {k: v for k, v in item.items() if k != "group_by"}
+                groups[group_name] = group_config
+        return {"groups": groups}
+
+    return {"groups": {}}
 
 
 def _save_transform_config(work_dir: Path, config: dict[str, Any]) -> None:
-    """Save transform.yml configuration."""
+    """Save transform.yml configuration.
+
+    Converts internal dict format back to list-based YAML format:
+    Internal: {"groups": {"taxons": {"sources": [...]}}}
+    YAML: [{"group_by": "taxons", "sources": [...]}]
+    """
     config_dir = work_dir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
+
+    # Convert dict format to list format for YAML
+    yaml_config = []
+    if "groups" in config:
+        for group_name, group_config in config["groups"].items():
+            item = {"group_by": group_name}
+            item.update(group_config)
+            yaml_config.append(item)
 
     transform_path = config_dir / "transform.yml"
     with open(transform_path, "w", encoding="utf-8") as f:
         yaml.dump(
-            config,
+            yaml_config,
             f,
             default_flow_style=False,
             sort_keys=False,
@@ -248,17 +286,8 @@ async def get_group_sources(reference_name: str):
     work_dir = Path(work_dir)
     config = _load_transform_config(work_dir)
 
-    # Get group config - transform.yml is a list of groups with 'group_by' key
-    group_config = {}
-    if isinstance(config, list):
-        for group in config:
-            if group.get("group_by") == reference_name:
-                group_config = group
-                break
-    elif isinstance(config, dict):
-        # Fallback for dict format with 'groups' key
-        group_config = config.get("groups", {}).get(reference_name, {})
-
+    # Get group config (now always normalized to dict format with 'groups' key)
+    group_config = config.get("groups", {}).get(reference_name, {})
     sources_config = group_config.get("sources", [])
 
     # Filter to only CSV sources (exclude occurrences)
@@ -402,18 +431,17 @@ async def remove_source_config(
 
     work_dir = Path(work_dir)
 
-    # Load existing config
+    # Load existing config (now always normalized to dict format with 'groups' key)
     config = _load_transform_config(work_dir)
 
-    # Find and remove source - transform.yml is a list of groups with 'group_by' key
-    group_config = {}
-    if isinstance(config, list):
-        for group in config:
-            if group.get("group_by") == reference_name:
-                group_config = group
-                break
-    elif isinstance(config, dict):
-        group_config = config.get("groups", {}).get(reference_name, {})
+    # Find group config
+    groups = config.get("groups", {})
+    if reference_name not in groups:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Group '{reference_name}' not found in configuration",
+        )
+    group_config = groups[reference_name]
 
     sources = group_config.get("sources", [])
 
@@ -458,17 +486,9 @@ async def analyze_existing_source(
 
     work_dir = Path(work_dir)
 
-    # Get source config - transform.yml is a list of groups with 'group_by' key
+    # Get source config (now always normalized to dict format with 'groups' key)
     config = _load_transform_config(work_dir)
-    group_config = {}
-    if isinstance(config, list):
-        for group in config:
-            if group.get("group_by") == reference_name:
-                group_config = group
-                break
-    elif isinstance(config, dict):
-        group_config = config.get("groups", {}).get(reference_name, {})
-
+    group_config = config.get("groups", {}).get(reference_name, {})
     sources = group_config.get("sources", [])
 
     # Find source
