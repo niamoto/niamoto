@@ -6,12 +6,12 @@ import {
   FolderOpen,
   Check,
   Loader2,
-  Leaf,
   Database,
   FileText,
   FolderTree,
   Settings,
 } from 'lucide-react';
+import niamotoLogo from '@/assets/niamoto_logo.png';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -142,11 +142,13 @@ export default function ProjectCreationWizard({
       <div className="w-full max-w-xl">
         {/* Header */}
         <div className="mb-8 text-center">
-          <div className="mb-4 flex items-center justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20">
-              <Leaf className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-            </div>
-          </div>
+          <div className="mb-6 flex items-center justify-center">
+          <img
+            src={niamotoLogo}
+            alt="Niamoto"
+            className="h-32 w-auto object-contain"
+          />
+        </div>
           <h1 className="text-2xl font-bold">
             {t('wizard.title', 'Create New Project')}
           </h1>
