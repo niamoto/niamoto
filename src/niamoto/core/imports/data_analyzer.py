@@ -211,10 +211,22 @@ class DataAnalyzer:
                 if col_profile.unique_ratio > 0.8:
                     return DataCategory.CATEGORICAL_HIGH_CARD
 
-                # Very few unique values (< 10) = likely categorical codes
-                # Example: holdridge (1, 2, 3) = "Sec", "Humide", "Très humide"
+                # Check if column name or semantic type suggests a count/measurement
+                name_lower = col_profile.name.lower()
+                semantic = (col_profile.semantic_type or "").lower()
+                is_count_like = (
+                    any(
+                        term in name_lower
+                        for term in ["count", "total", "sum", "number", "nb_", "num_"]
+                    )
+                    or "count" in semantic
+                    or "statistic" in semantic
+                )
+
+                # Very few unique values (≤ 10) = likely categorical codes
+                # UNLESS the name/semantic suggests it's a count/measurement
                 unique_count = len(unique_values)
-                if unique_count <= 10:
+                if unique_count <= 10 and not is_count_like:
                     return DataCategory.CATEGORICAL
 
                 # Low cardinality integers are discrete numeric
