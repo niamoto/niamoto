@@ -1,0 +1,171 @@
+# Niamoto Transform Configuration
+# This file defines data transformations and statistical analyses
+# Documentation: https://docs.niamoto.org/transform-configuration
+
+# =============================================================================
+# TRANSFORMATION GROUPS
+# =============================================================================
+# Each group processes data for a specific entity and generates widgets
+# Groups reference entities defined in import.yml (can be any custom entity)
+
+# ---------------------------------------------------------------------------
+# Example 1: Hierarchical Reference Entity (e.g., Taxonomy, Classifications)
+# ---------------------------------------------------------------------------
+#
+# - group_by: my_taxonomy              # Your reference entity name (from import.yml)
+#   sources:
+#     - name: obs_by_taxonomy          # Local source identifier
+#       data: my_occurrences           # Your dataset entity (from import.yml)
+#       grouping: my_taxonomy          # Entity to group by
+#       relation:
+#         plugin: nested_set           # For hierarchical data
+#         key: taxon_id                # Foreign key in dataset
+#         ref_key: id                  # Primary key in reference
+#         fields:
+#           parent: parent_id          # Parent field
+#           left: lft                  # Left boundary
+#           right: rght                # Right boundary
+#
+#   widgets_data:
+#     general_info:
+#       plugin: field_aggregator
+#       params:
+#         fields:
+#           - source: my_taxonomy      # Reference entity
+#             field: full_name
+#             target: name
+#           - source: my_taxonomy
+#             field: rank
+#             target: rank
+#           - source: obs_by_taxonomy  # Source name (defined above)
+#             field: id
+#             target: observations_count
+#             transformation: count
+#
+#     habitat_distribution:
+#       plugin: categorical_distribution
+#       params:
+#         source: obs_by_taxonomy
+#         field: habitat_type
+#         target: by_habitat
+
+# ---------------------------------------------------------------------------
+# Example 2: Flat Entity (e.g., Sites, Plots, Stations)
+# ---------------------------------------------------------------------------
+#
+# - group_by: my_sites                 # Your entity name (from import.yml)
+#   sources:
+#     - name: obs_by_site
+#       data: my_occurrences
+#       grouping: my_sites
+#       relation:
+#         plugin: direct_reference     # Simple foreign key
+#         key: site_id
+#         ref_key: site_code
+#
+#   widgets_data:
+#     general_info:
+#       plugin: field_aggregator
+#       params:
+#         fields:
+#           - source: my_sites
+#             field: name
+#             target: site_name
+#           - source: my_sites
+#             field: elevation
+#             target: elevation
+#             units: m
+#           - source: obs_by_site
+#             field: id
+#             target: species_count
+#             transformation: count_distinct
+#
+#     statistics:
+#       plugin: statistical_summary
+#       params:
+#         source: obs_by_site
+#         field: diameter
+#         target: dbh_stats
+#         stats: [min, max, mean, median]
+
+# ---------------------------------------------------------------------------
+# Example 3: Spatial Reference Entity (e.g., Regions, Zones)
+# ---------------------------------------------------------------------------
+#
+# - group_by: my_regions               # Your spatial entity (from import.yml)
+#   sources:
+#     - name: obs_by_region
+#       data: my_occurrences
+#       grouping: my_regions
+#       relation:
+#         plugin: spatial              # Spatial join
+#         geometry_field: location
+#         ref_geometry_field: boundary
+#
+#   widgets_data:
+#     general_info:
+#       plugin: field_aggregator
+#       params:
+#         fields:
+#           - source: my_regions
+#             field: name
+#             target: region_name
+#           - source: my_regions
+#             field: area_km2
+#             target: area
+#           - source: obs_by_region
+#             field: id
+#             target: total_obs
+#             transformation: count
+
+# =============================================================================
+# AVAILABLE TRANSFORMER PLUGINS
+# =============================================================================
+
+# --- DATA EXTRACTION ---
+# field_aggregator         : Combine and transform fields from multiple sources
+# direct_attribute         : Extract a single field value
+# geospatial_extractor     : Extract and format spatial data (WKT, GeoJSON, coordinates)
+# multi_column_extractor   : Extract multiple columns at once
+
+# --- STATISTICAL ANALYSIS ---
+# statistical_summary      : Calculate min, max, mean, median, std, percentiles
+# binned_distribution      : Create histogram bins (e.g., diameter classes)
+# categorical_distribution : Count occurrences by category
+# top_ranking              : Find top N items (supports hierarchical data)
+# binary_counter           : Count true/false, yes/no values
+
+# --- TIME SERIES ---
+# time_series_analysis     : Analyze temporal patterns (phenology, seasonality)
+
+# --- AGGREGATION ---
+# database_aggregator      : Complex SQL aggregations
+# class_object_*           : Work with pre-computed class objects
+
+# --- GEOSPATIAL ---
+# shape_processor          : Simplify and process geometries
+# raster_stats             : Extract statistics from raster layers
+# vector_overlay           : Spatial overlay operations
+
+# --- ADVANCED ---
+# transform_chain          : Chain multiple transformations
+# custom_calculator        : Apply custom formulas and calculations
+# reference_resolver       : Resolve references between entities
+
+# =============================================================================
+# RELATION PLUGINS (for sources.relation)
+# =============================================================================
+# nested_set               : For hierarchical data (taxonomy, categories)
+# direct_reference         : Simple foreign key relationship
+# join_table               : Many-to-many via junction table
+# spatial                  : Spatial join (point-in-polygon, intersects)
+# stats_loader             : Load pre-computed statistics
+
+# =============================================================================
+# TIPS
+# =============================================================================
+# 1. Entity names (group_by, data, grouping) must match import.yml
+# 2. Source names are local to each group (can be reused across groups)
+# 3. Field references use source name, not entity name
+# 4. Use descriptive widget_ids - they become keys in exported JSON
+# 5. Start with empty list and add transformations as needed

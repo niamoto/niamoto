@@ -5,13 +5,20 @@ import { NavigationSidebar } from './NavigationSidebar'
 import { TopBar } from './TopBar'
 import { BreadcrumbNav } from './BreadcrumbNav'
 import { CommandPalette } from './CommandPalette'
+import { DesktopTitlebar } from './DesktopTitlebar'
 import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
+import { useRuntimeMode } from '@/hooks/useRuntimeMode'
+import { usePlatform } from '@/hooks/usePlatform'
 import { cn } from '@/lib/utils'
 
 export function MainLayout() {
   const location = useLocation()
   const { t } = useTranslation()
   const { setBreadcrumbs } = useNavigationStore()
+  const { isDesktop } = useRuntimeMode()
+
+  // Initialize platform detection (sets data-platform attribute on html)
+  usePlatform()
 
   // Update breadcrumbs based on current route
   useEffect(() => {
@@ -64,27 +71,32 @@ export function MainLayout() {
   }, [])
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <NavigationSidebar />
+    <div className="flex h-screen flex-col overflow-hidden">
+      {/* Desktop titlebar (only in Tauri desktop mode) */}
+      {isDesktop && <DesktopTitlebar />}
 
-      {/* Main content area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <TopBar />
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <NavigationSidebar />
 
-        {/* Breadcrumb navigation */}
-        <BreadcrumbNav />
+        {/* Main content area */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Top bar */}
+          <TopBar />
 
-        {/* Page content */}
-        <main
-          className={cn(
-            'flex-1 overflow-auto bg-background',
-            'transition-all duration-200'
-          )}
-        >
-          <Outlet />
-        </main>
+          {/* Breadcrumb navigation */}
+          <BreadcrumbNav />
+
+          {/* Page content */}
+          <main
+            className={cn(
+              'flex-1 overflow-auto bg-background',
+              'transition-all duration-200'
+            )}
+          >
+            <Outlet />
+          </main>
+        </div>
       </div>
 
       {/* Command Palette (hidden by default) */}

@@ -85,7 +85,6 @@ export const navigationSections: NavigationSection[] = [
       { id: 'data-explorer', label: 'Data Explorer', path: '/data/explorer' },
       { id: 'live-preview', label: 'Live Preview', path: '/data/preview' },
       { id: 'showcase', label: 'Showcase', path: '/showcase' },
-      { id: 'settings', label: 'Paramètres', path: '/tools/settings' },
       { id: 'config-editor', label: 'Config Editor', path: '/tools/config-editor' },
       { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
       { id: 'docs', label: 'Documentation', path: '/tools/docs' }

@@ -5,6 +5,14 @@ use std::thread;
 use std::time::Duration;
 use tauri::{Manager, State};
 
+#[cfg(target_os = "macos")]
+use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+
+#[cfg(target_os = "macos")]
+use cocoa::base::id;
+#[cfg(target_os = "macos")]
+use objc::{msg_send, sel, sel_impl};
+
 mod config;
 mod commands;
 
@@ -217,11 +225,37 @@ pub fn run() {
             commands::browse_project_folder,
             commands::validate_project,
             commands::get_niamoto_home,
+            commands::get_app_settings,
+            commands::set_app_settings,
+            commands::create_project,
+            commands::browse_folder,
         ])
         .setup(|app| {
             println!("Starting Niamoto Desktop Application...");
 
             let window = app.get_webview_window("main").unwrap();
+
+            // Apply vibrancy effect and rounded corners on macOS
+            #[cfg(target_os = "macos")]
+            {
+                // Apply vibrancy effect
+                apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, Some(10.0))
+                    .expect("Failed to apply vibrancy effect");
+
+                // Apply rounded corners via with_webview
+                let _ = window.with_webview(|webview| {
+                    unsafe {
+                        let ns_window: id = webview.ns_window() as id;
+                        let content_view: id = msg_send![ns_window, contentView];
+                        let _: () = msg_send![content_view, setWantsLayer: true];
+                        let layer: id = msg_send![content_view, layer];
+                        let _: () = msg_send![layer, setCornerRadius: 10.0_f64];
+                        let _: () = msg_send![layer, setMasksToBounds: true];
+                    }
+                });
+
+                println!("✓ Applied macOS vibrancy with rounded corners");
+            }
 
             let app_handle = app.handle().clone();
 

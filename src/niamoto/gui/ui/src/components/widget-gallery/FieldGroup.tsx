@@ -2,10 +2,9 @@
  * FieldGroup - Collapsible group of widget suggestions for a data field
  */
 import { memo } from 'react'
-import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -17,9 +16,9 @@ import type { FieldGroup as FieldGroupType, TemplateSuggestion } from './types'
 interface FieldGroupProps {
   group: FieldGroupType
   selectedIds: Set<string>
+  groupBy?: string  // Reference name for correct data filtering
   onSelect: (templateId: string) => void
   onPreview: (template: TemplateSuggestion) => void
-  onSelectBest: () => void
   isExpanded: boolean
   onToggleExpand: () => void
 }
@@ -27,9 +26,9 @@ interface FieldGroupProps {
 export const FieldGroup = memo(function FieldGroup({
   group,
   selectedIds,
+  groupBy,
   onSelect,
   onPreview,
-  onSelectBest,
   isExpanded,
   onToggleExpand,
 }: FieldGroupProps) {
@@ -65,10 +64,6 @@ export const FieldGroup = memo(function FieldGroup({
             {group.source === 'class_object' ? 'CSV' : 'Occurrences'}
           </Badge>
 
-          {/* Recommended indicator */}
-          {group.hasRecommended && (
-            <Sparkles className="h-3.5 w-3.5 text-warning" />
-          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -88,22 +83,6 @@ export const FieldGroup = memo(function FieldGroup({
 
       <CollapsibleContent>
         <div className="pt-3 pl-7 pr-2 pb-2">
-          {/* Quick action - Select best */}
-          {selectedCount === 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-3 text-xs h-7"
-              onClick={(e) => {
-                e.stopPropagation()
-                onSelectBest()
-              }}
-            >
-              <Sparkles className="h-3 w-3 mr-1" />
-              Selectionner le meilleur
-            </Button>
-          )}
-
           {/* Widget options grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
             {group.suggestions.map((suggestion, idx) => (
@@ -112,6 +91,7 @@ export const FieldGroup = memo(function FieldGroup({
                 suggestion={suggestion}
                 selected={selectedIds.has(suggestion.template_id)}
                 isPrimary={idx === 0}
+                groupBy={groupBy}
                 onSelect={() => onSelect(suggestion.template_id)}
                 onPreview={() => onPreview(suggestion)}
               />

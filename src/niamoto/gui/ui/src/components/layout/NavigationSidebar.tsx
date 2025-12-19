@@ -57,7 +57,6 @@ const itemIconMap: Record<string, LucideIcon> = {
   'data-explorer': Search,
   'live-preview': Eye,
   showcase: Layers,
-  settings: Settings,
   'config-editor': FileText,
   plugins: Puzzle,
   docs: BookOpen,
@@ -208,31 +207,58 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
         </nav>
       </div>
 
-      {/* Footer with Preview Button */}
-      <div className="border-t p-3">
+      {/* Footer with Settings and Preview */}
+      <div className="border-t p-3 space-y-2">
         {!isCompact ? (
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() => {
-              // TODO: Open preview in new tab
-              window.open('/preview', '_blank')
-            }}
-          >
-            <Eye className="h-4 w-4" />
-            Prévisualiser le site
-            <ExternalLink className="ml-auto h-3 w-3 opacity-50" />
-          </Button>
+          <>
+            <NavLink
+              to="/tools/settings"
+              className={({ isActive }) =>
+                cn(
+                  'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  isActive && 'bg-accent text-accent-foreground font-medium'
+                )
+              }
+            >
+              <Settings className="h-4 w-4" />
+              Paramètres
+            </NavLink>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() => window.open('/preview', '_blank')}
+            >
+              <Eye className="h-4 w-4" />
+              Prévisualiser le site
+              <ExternalLink className="ml-auto h-3 w-3 opacity-50" />
+            </Button>
+          </>
         ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="mx-auto flex"
-            title="Prévisualiser le site"
-            onClick={() => window.open('/preview', '_blank')}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
+          <>
+            <NavLink
+              to="/tools/settings"
+              className={({ isActive }) =>
+                cn(
+                  'flex h-8 w-8 items-center justify-center rounded-md transition-colors mx-auto',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  isActive && 'bg-accent text-accent-foreground'
+                )
+              }
+              title="Paramètres"
+            >
+              <Settings className="h-4 w-4" />
+            </NavLink>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mx-auto flex"
+              title="Prévisualiser le site"
+              onClick={() => window.open('/preview', '_blank')}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          </>
         )}
       </div>
     </div>

@@ -248,8 +248,17 @@ async def get_group_sources(reference_name: str):
     work_dir = Path(work_dir)
     config = _load_transform_config(work_dir)
 
-    # Get group config
-    group_config = config.get("groups", {}).get(reference_name, {})
+    # Get group config - transform.yml is a list of groups with 'group_by' key
+    group_config = {}
+    if isinstance(config, list):
+        for group in config:
+            if group.get("group_by") == reference_name:
+                group_config = group
+                break
+    elif isinstance(config, dict):
+        # Fallback for dict format with 'groups' key
+        group_config = config.get("groups", {}).get(reference_name, {})
+
     sources_config = group_config.get("sources", [])
 
     # Filter to only CSV sources (exclude occurrences)
@@ -396,8 +405,16 @@ async def remove_source_config(
     # Load existing config
     config = _load_transform_config(work_dir)
 
-    # Find and remove source
-    group_config = config.get("groups", {}).get(reference_name, {})
+    # Find and remove source - transform.yml is a list of groups with 'group_by' key
+    group_config = {}
+    if isinstance(config, list):
+        for group in config:
+            if group.get("group_by") == reference_name:
+                group_config = group
+                break
+    elif isinstance(config, dict):
+        group_config = config.get("groups", {}).get(reference_name, {})
+
     sources = group_config.get("sources", [])
 
     original_count = len(sources)
@@ -441,9 +458,17 @@ async def analyze_existing_source(
 
     work_dir = Path(work_dir)
 
-    # Get source config
+    # Get source config - transform.yml is a list of groups with 'group_by' key
     config = _load_transform_config(work_dir)
-    group_config = config.get("groups", {}).get(reference_name, {})
+    group_config = {}
+    if isinstance(config, list):
+        for group in config:
+            if group.get("group_by") == reference_name:
+                group_config = group
+                break
+    elif isinstance(config, dict):
+        group_config = config.get("groups", {}).get(reference_name, {})
+
     sources = group_config.get("sources", [])
 
     # Find source

@@ -641,8 +641,10 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
                     filepath, analysis, csv_analyses
                 )
             elif entity_type == "reference":
+                # Pass relation info if this reference is linked to other entities
+                relation_info = referenced_by.get(entity_name)
                 references[entity_name] = _build_simple_reference_config(
-                    filepath, analysis
+                    filepath, analysis, relation_info
                 )
             elif entity_type == "dataset":
                 datasets_to_create[entity_name] = (filepath, analysis)
@@ -849,18 +851,26 @@ def _build_hierarchy_reference_config(
 
 
 def _build_simple_reference_config(
-    filepath: str, analysis: Dict[str, Any]
+    filepath: str,
+    analysis: Dict[str, Any],
+    relation_info: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Build configuration for a simple reference (e.g., plots, sites).
 
     Args:
         filepath: Path to file
         analysis: Analysis results
+        relation_info: Optional list of relationship info from referenced_by
+                      Each entry has: from (source entity), field (FK column), confidence
 
     Returns:
         Reference configuration
     """
     id_column = analysis["id_columns"][0] if analysis["id_columns"] else "id"
+
+    # Detect the name column for this reference (for FK matching)
+    name_columns = analysis.get("name_columns", [])
+    name_column = name_columns[0] if name_columns else None
 
     config = {
         "connector": {
@@ -882,6 +892,21 @@ def _build_simple_reference_config(
                 "type": "geometry",
             }
         )
+
+    # Add relation info if detected (how this reference links to occurrences)
+    if relation_info:
+        # Find the best relation (highest confidence from occurrences)
+        best_relation = max(relation_info, key=lambda r: r.get("confidence", 0))
+
+        # Determine the reference_key (column in this reference that matches)
+        # Priority: name column, then id column
+        reference_key = name_column or id_column
+
+        config["relation"] = {
+            "dataset": best_relation["from"],  # e.g., "occurrences"
+            "foreign_key": best_relation["field"],  # e.g., "plot_name"
+            "reference_key": reference_key,  # e.g., "plot" or "id_plot"
+        }
 
     return config
 

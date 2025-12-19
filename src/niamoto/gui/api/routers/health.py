@@ -1,7 +1,7 @@
 """Health check endpoint for Tauri desktop app."""
 
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from niamoto.gui.api.context import (
     reload_project_from_desktop_config,
@@ -55,22 +55,15 @@ async def reload_project():
     working directory without restarting the entire application.
 
     Returns:
-        - project: The newly loaded project path
+        - project: The newly loaded project path (null if no project selected)
         - success: Whether the reload was successful
-
-    Raises:
-        HTTPException: If the project cannot be reloaded
     """
     project_path = reload_project_from_desktop_config()
 
-    if project_path is None:
-        raise HTTPException(
-            status_code=500, detail="Failed to reload project from desktop config"
-        )
-
+    # It's valid to have no project selected (Welcome Screen case)
     return {
         "success": True,
-        "project": str(project_path),
+        "project": str(project_path) if project_path else None,
     }
 
 

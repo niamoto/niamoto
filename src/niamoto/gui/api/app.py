@@ -18,8 +18,9 @@ from .routers import (
     entities,
     deploy,
     smart_config,
+    site,
 )
-from .routes import transformer_suggestions, templates, sources
+from .routes import transformer_suggestions, templates, sources, layout
 from .context import get_working_directory
 
 # Get the path to the built React app
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(entities.router, prefix="/api/entities", tags=["entities"])
     app.include_router(deploy.router, prefix="/api/deploy", tags=["deploy"])
     app.include_router(smart_config.router, prefix="/api/smart", tags=["smart-config"])
+    app.include_router(site.router, prefix="/api/site", tags=["site"])
     app.include_router(
         transformer_suggestions.router
     )  # Already has /api/transformer-suggestions prefix
@@ -66,6 +68,7 @@ def create_app() -> FastAPI:
         templates.router, prefix="/api"
     )  # Templates API for Smart Setup V2
     app.include_router(sources.router, prefix="/api")  # Pre-calculated sources API
+    app.include_router(layout.router, prefix="/api")  # Layout editor API
 
     # Serve exported site from exports/web/ directory
     work_dir = get_working_directory()

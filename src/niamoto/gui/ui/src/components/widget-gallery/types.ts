@@ -2,7 +2,7 @@
  * Types for Widget Gallery - Template-based widget configuration
  */
 
-export type WidgetCategory = 'info' | 'map' | 'chart' | 'gauge' | 'donut' | 'table'
+export type WidgetCategory = 'navigation' | 'info' | 'map' | 'chart' | 'gauge' | 'donut' | 'table'
 
 export interface TemplateInfo {
   id: string
@@ -58,6 +58,7 @@ export interface GenerateConfigResponse {
 
 // Category display info
 export const CATEGORY_INFO: Record<WidgetCategory, { label: string; color: string; bgColor: string }> = {
+  navigation: { label: 'Navigation', color: 'text-violet-600', bgColor: 'bg-violet-50 dark:bg-violet-950/30' },
   info: { label: 'Information', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/30' },
   map: { label: 'Carte', color: 'text-emerald-600', bgColor: 'bg-emerald-50 dark:bg-emerald-950/30' },
   chart: { label: 'Graphique', color: 'text-amber-600', bgColor: 'bg-amber-50 dark:bg-amber-950/30' },
@@ -82,6 +83,11 @@ export interface PluginInfo {
 }
 
 export const PLUGIN_INFO: Record<string, PluginInfo> = {
+  // Navigation widget
+  hierarchical_nav_widget: {
+    label: 'Navigation',
+    description: 'Navigation hiérarchique ou liste pour la référence',
+  },
   // Transformers
   top_ranking: {
     label: 'Top X',

@@ -13,6 +13,21 @@ pub struct AppConfig {
 
     /// Last updated timestamp (ISO 8601 format)
     pub last_updated: String,
+
+    /// Whether to auto-load the last project on startup
+    #[serde(default = "default_auto_load")]
+    pub auto_load_last_project: bool,
+}
+
+/// Default value for auto_load_last_project
+fn default_auto_load() -> bool {
+    true
+}
+
+/// Application settings exposed to the frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppSettings {
+    pub auto_load_last_project: bool,
 }
 
 /// Entry for a recent project
@@ -177,7 +192,24 @@ impl Default for AppConfig {
             current_project: None,
             recent_projects: Vec::new(),
             last_updated: chrono::Utc::now().to_rfc3339(),
+            auto_load_last_project: true,
         }
+    }
+}
+
+impl AppConfig {
+    /// Get the application settings
+    pub fn get_settings(&self) -> AppSettings {
+        AppSettings {
+            auto_load_last_project: self.auto_load_last_project,
+        }
+    }
+
+    /// Update the application settings
+    pub fn set_settings(&mut self, settings: AppSettings) -> Result<(), String> {
+        self.auto_load_last_project = settings.auto_load_last_project;
+        self.last_updated = chrono::Utc::now().to_rfc3339();
+        self.save()
     }
 }
 

@@ -135,6 +135,11 @@ class WidgetGenerator:
         "donut_chart": {"type": "donut", "category": "donut", "icon": "PieChart"},
         "interactive_map": {"type": "map", "category": "map", "icon": "Map"},
         "info_grid": {"type": "info", "category": "info", "icon": "Info"},
+        "hierarchical_nav_widget": {
+            "type": "navigation",
+            "category": "navigation",
+            "icon": "FolderTree",
+        },
     }
 
     # Default fallback for unknown widgets
@@ -720,3 +725,78 @@ class WidgetGenerator:
             base_confidence += 0.05
 
         return min(1.0, max(0.3, base_confidence))
+
+    @staticmethod
+    def generate_navigation_suggestion(
+        reference_name: str,
+        is_hierarchical: bool,
+        hierarchy_fields: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate a navigation widget suggestion for a reference.
+
+        The hierarchical_nav_widget adapts its behavior based on the reference type:
+        - Hierarchical (taxons): Uses nested set (lft/rght) for tree navigation
+        - Flat (plots): Simple list navigation without hierarchy
+
+        Args:
+            reference_name: Name of the reference (e.g., 'taxons', 'plots')
+            is_hierarchical: Whether the reference has hierarchy structure
+            hierarchy_fields: Dict with detected hierarchy fields (from HierarchyFields)
+
+        Returns:
+            Dict in TemplateSuggestion format for the navigation widget
+        """
+        # Default field values
+        fields = hierarchy_fields or {}
+        id_field = fields.get("id_field", "id")
+        name_field = fields.get("name_field", "name")
+
+        # Build widget config based on hierarchy type
+        widget_config: Dict[str, Any] = {
+            "referential_data": reference_name,
+            "id_field": id_field,
+            "name_field": name_field,
+            "base_url": f"{{{{ depth }}}}{reference_name}/",
+            "show_search": True,
+        }
+
+        # Add hierarchy-specific fields if available
+        if is_hierarchical:
+            if fields.get("has_nested_set"):
+                widget_config["lft_field"] = fields.get("lft_field", "lft")
+                widget_config["rght_field"] = fields.get("rght_field", "rght")
+            if fields.get("has_level"):
+                widget_config["level_field"] = fields.get("level_field", "level")
+            if fields.get("has_parent"):
+                widget_config["parent_id_field"] = fields.get(
+                    "parent_id_field", "parent_id"
+                )
+
+        # Generate human-readable name
+        ref_label = reference_name.replace("_", " ").title()
+        if is_hierarchical:
+            name = f"Navigation {ref_label}"
+            description = (
+                f"Arborescence hiérarchique de navigation pour {reference_name}"
+            )
+        else:
+            name = f"Liste {ref_label}"
+            description = f"Liste de navigation pour {reference_name}"
+
+        return {
+            "template_id": f"{reference_name}_hierarchical_nav_widget",
+            "name": name,
+            "description": description,
+            "plugin": "hierarchical_nav_widget",
+            "category": "navigation",
+            "icon": "FolderTree",
+            "confidence": 0.95,  # High confidence - always applicable
+            "source": "auto",
+            "source_name": reference_name,
+            "matched_column": reference_name,  # The reference itself
+            "match_reason": f"Widget de navigation pour la référence '{reference_name}'",
+            "is_recommended": True,
+            "config": widget_config,
+            "alternatives": [],
+        }

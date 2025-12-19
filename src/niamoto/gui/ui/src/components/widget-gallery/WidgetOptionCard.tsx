@@ -2,7 +2,7 @@
  * WidgetOptionCard - Compact widget card for grouped gallery view
  */
 import { memo } from 'react'
-import { Check, Star } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { WidgetMiniature } from '@/components/widgets'
@@ -13,6 +13,7 @@ interface WidgetOptionCardProps {
   suggestion: TemplateSuggestion
   selected: boolean
   isPrimary: boolean
+  groupBy?: string  // Reference name for correct data filtering
   onSelect: () => void
   onPreview: () => void
 }
@@ -21,6 +22,7 @@ export const WidgetOptionCard = memo(function WidgetOptionCard({
   suggestion,
   selected,
   isPrimary,
+  groupBy,
   onSelect,
   onPreview,
 }: WidgetOptionCardProps) {
@@ -47,16 +49,6 @@ export const WidgetOptionCard = memo(function WidgetOptionCard({
       )}
       onClick={onPreview}
     >
-      {/* Primary indicator */}
-      {isPrimary && (
-        <div className="absolute top-1.5 left-1.5 z-10">
-          <div className="flex items-center gap-1 bg-warning/20 text-warning px-1.5 py-0.5 rounded text-[10px] font-medium">
-            <Star className="h-2.5 w-2.5 fill-current" />
-            Top
-          </div>
-        </div>
-      )}
-
       {/* Selection checkbox */}
       <button
         onClick={(e) => {
@@ -78,6 +70,7 @@ export const WidgetOptionCard = memo(function WidgetOptionCard({
       <div className="p-2">
         <WidgetMiniature
           templateId={suggestion.template_id}
+          groupBy={groupBy}
           size="sm"
           className="w-full transition-transform duration-200 group-hover:scale-[1.02]"
           onClick={onPreview}
