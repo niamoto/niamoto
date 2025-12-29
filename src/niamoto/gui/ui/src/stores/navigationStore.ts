@@ -48,15 +48,18 @@ interface NavigationState {
 }
 
 // Static navigation structure
+// Note: 'data' section has dynamic items for datasets and references
 // Note: 'groups' section items are loaded dynamically from useReferences()
 export const navigationSections: NavigationSection[] = [
   {
     id: 'data',
     label: 'Données',
     defaultOpen: true,
-    badge: { type: 'status', value: 'Importé' },
+    dynamic: true, // Datasets and references loaded dynamically
     items: [
-      { id: 'data-overview', label: 'Vue d\'ensemble', path: '/flow', panel: 'data' },
+      { id: 'import', label: 'Import', path: '/flow', panel: 'import' },
+      { id: 'dashboard', label: 'Dashboard', path: '/flow', panel: 'dashboard' },
+      // Dynamic items (datasets, references) will be added here
     ]
   },
   {
@@ -88,17 +91,6 @@ export const navigationSections: NavigationSection[] = [
       { id: 'config-editor', label: 'Config Editor', path: '/tools/config-editor' },
       { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
       { id: 'docs', label: 'Documentation', path: '/tools/docs' }
-    ]
-  },
-  {
-    id: 'legacy',
-    label: 'Legacy',
-    defaultOpen: false,
-    items: [
-      { id: 'demo-entity', label: 'Demo Entity', path: '/legacy/demos/entity-centric' },
-      { id: 'demo-pipeline', label: 'Demo Pipeline', path: '/legacy/demos/pipeline-visual' },
-      { id: 'demo-wizard', label: 'Demo Wizard', path: '/legacy/demos/wizard-form' },
-      { id: 'demo-goal', label: 'Demo Goal', path: '/legacy/demos/goal-driven' },
     ]
   }
 ]

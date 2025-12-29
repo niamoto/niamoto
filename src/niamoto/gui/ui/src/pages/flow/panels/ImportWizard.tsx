@@ -1,35 +1,27 @@
 /**
- * Data Panel - Import workflow for Flow
+ * ImportWizard - Dedicated import workflow panel
  *
- * Features:
- * - Current import status (datasets & references with counts)
- * - Re-import from existing files
- * - Upload new files with drag & drop
- * - Auto-configure with review (Config/YAML tabs)
- * - Import execution with progress
+ * Steps:
+ * 1. Select files (existing or upload new)
+ * 2. Auto-configure with review (Config/YAML tabs)
+ * 3. Execute import with progress
  */
 
 import { useState, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Upload,
   CheckCircle2,
-  Loader2,
-  RefreshCw,
-  Database,
   AlertCircle,
   Sparkles,
   ArrowLeft,
   ChevronRight,
-  BarChart3,
   Settings2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getEntities } from '@/lib/api/import'
 import { autoConfigureEntities, type AutoConfigureResponse } from '@/lib/api/smart-config'
 import { apiClient } from '@/lib/api/client'
 import {
@@ -39,41 +31,26 @@ import {
   YamlPreview,
   ImportProgress,
 } from '@/components/sources'
-import { ImportDashboard } from '@/components/sources/dashboard'
+import { useNavigationStore } from '@/stores/navigationStore'
 
 type ImportPhase =
   | 'idle'
   | 'uploading'
   | 'configuring'
   | 'reviewing'
-  | 'editing'  // Editing existing configuration
+  | 'editing'
   | 'importing'
   | 'complete'
-  | 'dashboard'
   | 'error'
 
-export function DataPanel() {
+export function ImportWizard() {
   const queryClient = useQueryClient()
+  const { setActivePanel } = useNavigationStore()
 
-  // Fetch current entities status
-  const {
-    data: entities,
-    isLoading: entitiesLoading,
-    refetch: refetchEntities,
-  } = useQuery({
-    queryKey: ['entities'],
-    queryFn: getEntities,
-    staleTime: 10000,
-  })
-
-  // Local state
   const [phase, setPhase] = useState<ImportPhase>('idle')
   const [error, setError] = useState<string | null>(null)
   const [configResult, setConfigResult] = useState<AutoConfigureResponse | null>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
-
-  const hasData =
-    (entities?.datasets?.length ?? 0) > 0 || (entities?.references?.length ?? 0) > 0
 
   // Handle files ready from upload
   const handleFilesReady = useCallback(
@@ -130,27 +107,16 @@ export function DataPanel() {
   const handleImportComplete = useCallback(async () => {
     setPhase('complete')
 
-    // Refresh entities list
-    await refetchEntities()
+    // Refresh all data queries
+    queryClient.invalidateQueries({ queryKey: ['entities'] })
     queryClient.invalidateQueries({ queryKey: ['references'] })
+    queryClient.invalidateQueries({ queryKey: ['datasets'] })
 
     // Transition to dashboard after short delay
     setTimeout(() => {
-      setPhase('dashboard')
+      setActivePanel('dashboard')
     }, 1500)
-  }, [refetchEntities, queryClient])
-
-  // Close dashboard and return to idle
-  const closeDashboard = () => {
-    setPhase('idle')
-    setConfigResult(null)
-    setFilePaths([])
-  }
-
-  // Open dashboard from current state
-  const openDashboard = () => {
-    setPhase('dashboard')
-  }
+  }, [queryClient, setActivePanel])
 
   // Handle import error
   const handleImportError = useCallback((errMsg: string) => {
@@ -172,7 +138,6 @@ export function DataPanel() {
     setError(null)
 
     try {
-      // Load import.yml
       const response = await apiClient.get('/config/import')
       const importConfig = response.data
 
@@ -195,12 +160,11 @@ export function DataPanel() {
               detectedColumns[name] = analysisResponse.data.columns
             }
           } catch {
-            // Ignore analysis errors, columns will just be empty
+            // Ignore analysis errors
           }
         }
       }
 
-      // Convert to AutoConfigureResponse format
       const configResponse: AutoConfigureResponse = {
         success: true,
         entities: {
@@ -230,11 +194,10 @@ export function DataPanel() {
     }
   }
 
-  // Handle entity reclassification (move between datasets and references)
+  // Handle entity reclassification
   const handleReclassify = useCallback(
     (updatedEntities: AutoConfigureResponse['entities']) => {
       if (!configResult) return
-
       setConfigResult({
         ...configResult,
         entities: updatedEntities,
@@ -243,149 +206,19 @@ export function DataPanel() {
     [configResult]
   )
 
-  const isProcessing = ['uploading', 'configuring', 'importing', 'dashboard', 'editing'].includes(phase)
+  const isProcessing = ['uploading', 'configuring', 'importing', 'editing'].includes(phase)
 
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Donnees</h1>
-        <p className="text-muted-foreground">Importez vos donnees et gerez les sources.</p>
+        <h1 className="text-2xl font-bold">Import de donnees</h1>
+        <p className="text-muted-foreground">
+          Importez vos fichiers de donnees et configurez les entites.
+        </p>
       </div>
 
-      {/* Current Status or Dashboard */}
-      {phase === 'dashboard' ? (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3 className="h-4 w-4" />
-                Dashboard des donnees
-              </CardTitle>
-              <Button variant="outline" size="sm" onClick={closeDashboard}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Retour
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ImportDashboard onReimport={resetToIdle} />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Database className="h-4 w-4" />
-                Etat actuel
-              </CardTitle>
-              <div className="flex items-center gap-1">
-                {hasData && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={loadExistingConfig}
-                      title="Modifier la configuration"
-                    >
-                      <Settings2 className="mr-2 h-4 w-4" />
-                      Modifier
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={openDashboard}
-                      title="Voir le dashboard"
-                    >
-                      <BarChart3 className="mr-2 h-4 w-4" />
-                      Dashboard
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => refetchEntities()}
-                  disabled={entitiesLoading}
-                >
-                  <RefreshCw className={`h-4 w-4 ${entitiesLoading ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {entitiesLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : !hasData ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                Aucune donnee importee. Commencez par ajouter des fichiers ci-dessous.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {/* Datasets */}
-                {entities?.datasets && entities.datasets.length > 0 && (
-                  <div>
-                    <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
-                      Datasets
-                    </p>
-                    <div className="space-y-1">
-                      {entities.datasets.map((ds) => (
-                        <div
-                          key={ds.name}
-                          className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-success" />
-                            <span className="font-medium">{ds.name}</span>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {ds.connector_type}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* References */}
-                {entities?.references && entities.references.length > 0 && (
-                  <div>
-                    <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
-                      References
-                    </p>
-                    <div className="space-y-1">
-                      {entities.references.map((ref) => (
-                        <div
-                          key={ref.name}
-                          className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-success" />
-                            <span className="font-medium">{ref.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {ref.kind && (
-                              <Badge variant="secondary" className="text-xs">
-                                {ref.kind}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Import Section - Hidden when dashboard is shown */}
-      {phase !== 'dashboard' && (
+      {/* Import Card */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -398,15 +231,11 @@ export function DataPanel() {
                   ? 'Import en cours'
                   : phase === 'complete'
                     ? 'Import termine'
-                    : hasData
-                      ? 'Mettre a jour les donnees'
-                      : 'Ajouter des donnees'}
+                    : 'Ajouter des donnees'}
           </CardTitle>
           {phase === 'idle' && (
             <CardDescription>
-              {hasData
-                ? 'Ajoutez de nouveaux fichiers ou reimportez les fichiers existants.'
-                : 'Glissez-deposez vos fichiers pour commencer.'}
+              Glissez-deposez vos fichiers pour commencer l'import.
             </CardDescription>
           )}
         </CardHeader>
@@ -433,7 +262,7 @@ export function DataPanel() {
             <AutoConfigDisplay result={null} isLoading={true} />
           )}
 
-          {/* Reviewing Phase - Tabs Config/YAML */}
+          {/* Reviewing Phase */}
           {phase === 'reviewing' && configResult && (
             <div className="space-y-4">
               <Tabs defaultValue="config" className="w-full">
@@ -456,7 +285,6 @@ export function DataPanel() {
                 </TabsContent>
               </Tabs>
 
-              {/* Actions */}
               <div className="flex items-center justify-between border-t pt-4">
                 <Button variant="outline" onClick={resetToIdle}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
@@ -471,13 +299,13 @@ export function DataPanel() {
             </div>
           )}
 
-          {/* Editing Phase - Edit existing configuration */}
+          {/* Editing Phase */}
           {phase === 'editing' && configResult && (
             <div className="space-y-4">
               <Alert>
                 <Settings2 className="h-4 w-4" />
                 <AlertDescription>
-                  Modification de la configuration existante. Les changements seront appliques lors de la sauvegarde.
+                  Modification de la configuration existante.
                 </AlertDescription>
               </Alert>
 
@@ -501,7 +329,6 @@ export function DataPanel() {
                 </TabsContent>
               </Tabs>
 
-              {/* Actions */}
               <div className="flex items-center justify-between border-t pt-4">
                 <Button variant="outline" onClick={resetToIdle}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
@@ -534,16 +361,14 @@ export function DataPanel() {
             </div>
           )}
 
-          {/* Idle Phase - Show existing files + upload zone */}
+          {/* Idle Phase */}
           {phase === 'idle' && (
             <div className="space-y-6">
-              {/* Existing files for re-import */}
               <ExistingFilesSection
                 onFilesSelected={handleExistingFilesSelected}
                 disabled={isProcessing}
               />
 
-              {/* Separator */}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
@@ -553,7 +378,6 @@ export function DataPanel() {
                 </div>
               </div>
 
-              {/* Upload new files */}
               <div>
                 <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
                   <Upload className="h-4 w-4" />
@@ -570,10 +394,19 @@ export function DataPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit existing config button */}
+      {phase === 'idle' && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={loadExistingConfig}>
+            <Settings2 className="mr-2 h-4 w-4" />
+            Modifier la configuration existante
+          </Button>
+        </div>
       )}
 
       {/* Help Section */}
-      {!hasData && phase === 'idle' && (
+      {phase === 'idle' && (
         <div className="rounded-lg bg-muted/50 p-4">
           <h3 className="mb-2 font-medium">Comment ca marche ?</h3>
           <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">

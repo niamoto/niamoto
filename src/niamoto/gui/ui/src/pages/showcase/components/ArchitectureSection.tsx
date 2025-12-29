@@ -13,7 +13,7 @@ import {
   ArrowRight,
   Loader2
 } from 'lucide-react'
-import { useShowcaseStore } from '@/stores/showcaseStore'
+import { useShowcaseStore } from '../showcaseStore'
 
 interface ArchitectureSectionProps {}
 

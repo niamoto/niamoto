@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useShowcaseStore } from '@/stores/showcaseStore'
+import { useShowcaseStore } from './showcaseStore'
 import { OverviewSection } from './components/OverviewSection'
 import { PipelineFullSection } from './components/PipelineFullSection'
 import { IntegrationSection } from './components/IntegrationSection'

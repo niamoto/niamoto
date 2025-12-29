@@ -39,6 +39,7 @@ class AutoConfigureResponse(BaseModel):
 
     success: bool
     entities: Dict[str, Any]
+    detected_columns: Dict[str, List[str]] = {}  # Entity name -> columns
     confidence: float
     warnings: List[str] = []
 
@@ -748,9 +749,16 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
         if metadata:
             result_entities["metadata"] = metadata
 
+        # Build detected_columns mapping for form dropdowns
+        detected_columns: Dict[str, List[str]] = {}
+        for filepath, analysis in csv_analyses.items():
+            entity_name = Path(filepath).stem
+            detected_columns[entity_name] = analysis.get("columns", [])
+
         return AutoConfigureResponse(
             success=True,
             entities=result_entities,
+            detected_columns=detected_columns,
             confidence=overall_confidence,
             warnings=warnings,
         )

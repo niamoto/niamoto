@@ -19,6 +19,8 @@ from .routers import (
     deploy,
     smart_config,
     site,
+    stats,
+    enrichment,
 )
 from .routes import transformer_suggestions, templates, sources, layout
 from .context import get_working_directory
@@ -61,6 +63,8 @@ def create_app() -> FastAPI:
     app.include_router(deploy.router, prefix="/api/deploy", tags=["deploy"])
     app.include_router(smart_config.router, prefix="/api/smart", tags=["smart-config"])
     app.include_router(site.router, prefix="/api/site", tags=["site"])
+    app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
+    app.include_router(enrichment.router, prefix="/api/enrichment", tags=["enrichment"])
     app.include_router(
         transformer_suggestions.router
     )  # Already has /api/transformer-suggestions prefix
