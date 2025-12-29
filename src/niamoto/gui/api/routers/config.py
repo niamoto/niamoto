@@ -308,6 +308,258 @@ async def get_references():
 
 
 # =============================================================================
+# Datasets Discovery Endpoint
+# =============================================================================
+
+
+class DatasetInfo(BaseModel):
+    """Information about a dataset entity from import.yml."""
+
+    name: str
+    table_name: str  # Actual table name from EntityRegistry
+    description: Optional[str] = None
+    schema_fields: List[Dict[str, Any]] = []
+    entity_count: Optional[int] = None
+
+
+class DatasetsResponse(BaseModel):
+    """Response for listing datasets."""
+
+    datasets: List[DatasetInfo]
+    total: int
+
+
+@router.get("/references/{reference_name}/config")
+async def get_reference_config(reference_name: str):
+    """Get full configuration for a specific reference from import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        refs_section = entities.get("references") or {}
+
+        if reference_name not in refs_section:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Reference '{reference_name}' not found in import.yml",
+            )
+
+        return {"name": reference_name, "config": refs_section[reference_name]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading config: {str(e)}")
+
+
+@router.put("/references/{reference_name}/config")
+async def update_reference_config(
+    reference_name: str, config: Dict[str, Any] = Body(...)
+):
+    """Update configuration for a specific reference in import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        refs_section = entities.get("references") or {}
+
+        if reference_name not in refs_section:
+            raise HTTPException(
+                status_code=404, detail=f"Reference '{reference_name}' not found"
+            )
+
+        # Backup before modifying
+        create_backup(config_path)
+
+        # Update the reference config
+        refs_section[reference_name] = config
+        import_config["entities"]["references"] = refs_section
+
+        # Write back
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": f"Reference '{reference_name}' configuration updated",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating config: {str(e)}")
+
+
+@router.get("/datasets/{dataset_name}/config")
+async def get_dataset_config(dataset_name: str):
+    """Get full configuration for a specific dataset from import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        datasets_section = entities.get("datasets") or {}
+
+        if dataset_name not in datasets_section:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Dataset '{dataset_name}' not found in import.yml",
+            )
+
+        return {"name": dataset_name, "config": datasets_section[dataset_name]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading config: {str(e)}")
+
+
+@router.put("/datasets/{dataset_name}/config")
+async def update_dataset_config(dataset_name: str, config: Dict[str, Any] = Body(...)):
+    """Update configuration for a specific dataset in import.yml."""
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        entities = import_config.get("entities") or {}
+        datasets_section = entities.get("datasets") or {}
+
+        if dataset_name not in datasets_section:
+            raise HTTPException(
+                status_code=404, detail=f"Dataset '{dataset_name}' not found"
+            )
+
+        # Backup before modifying
+        create_backup(config_path)
+
+        # Update the dataset config
+        datasets_section[dataset_name] = config
+        import_config["entities"]["datasets"] = datasets_section
+
+        # Write back
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": f"Dataset '{dataset_name}' configuration updated",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating config: {str(e)}")
+
+
+@router.get("/datasets", response_model=DatasetsResponse)
+async def get_datasets():
+    """
+    List all dataset entities discovered from import.yml.
+
+    Returns:
+        List of datasets with their schema and entity count.
+    """
+    config_path = get_working_directory() / "config" / "import.yml"
+
+    if not config_path.exists():
+        return DatasetsResponse(datasets=[], total=0)
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        datasets = []
+        entities = import_config.get("entities") or {}
+        datasets_section = entities.get("datasets") or {}
+
+        if not datasets_section:
+            return DatasetsResponse(datasets=[], total=0)
+
+        # Get entity info from database
+        db_path = get_working_directory() / "db" / "niamoto.duckdb"
+        entity_counts = {}
+        table_name_map = {}
+
+        if db_path.exists():
+            try:
+                from niamoto.common.database import Database
+                from niamoto.core.imports.registry import EntityRegistry
+                import pandas as pd
+
+                db = Database(str(db_path), read_only=True)
+                try:
+                    if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                        registry = EntityRegistry(db)
+                        for entity in registry.list_entities():
+                            table_name_map[entity.name] = entity.table_name
+
+                    for ds_name in datasets_section.keys():
+                        actual_table = table_name_map.get(ds_name, f"dataset_{ds_name}")
+                        if db.has_table(actual_table):
+                            result = pd.read_sql(
+                                f"SELECT COUNT(*) as cnt FROM {actual_table}",
+                                db.engine,
+                            )
+                            entity_counts[ds_name] = int(result.iloc[0]["cnt"])
+                finally:
+                    db.close_db_session()
+            except Exception:
+                pass
+
+        for ds_name, ds_config in datasets_section.items():
+            if not isinstance(ds_config, dict):
+                continue
+
+            description = ds_config.get("description")
+            actual_table_name = table_name_map.get(ds_name, f"dataset_{ds_name}")
+
+            schema = ds_config.get("schema", {})
+            schema_fields = schema.get("fields", [])
+            if isinstance(schema_fields, dict):
+                schema_fields = [
+                    {"name": k, **v} if isinstance(v, dict) else {"name": k, "type": v}
+                    for k, v in schema_fields.items()
+                ]
+
+            datasets.append(
+                DatasetInfo(
+                    name=ds_name,
+                    table_name=actual_table_name,
+                    description=description,
+                    schema_fields=schema_fields,
+                    entity_count=entity_counts.get(ds_name),
+                )
+            )
+
+        return DatasetsResponse(datasets=datasets, total=len(datasets))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading datasets: {str(e)}")
+
+
+# =============================================================================
 # Configuration CRUD Endpoints
 # =============================================================================
 

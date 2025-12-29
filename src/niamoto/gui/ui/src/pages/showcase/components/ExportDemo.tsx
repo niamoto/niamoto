@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useShowcaseStore } from '@/stores/showcaseStore'
-import { usePipelineStore } from '@/stores/pipelineStore'
+import { useShowcaseStore } from '../showcaseStore'
+import { usePipelineStore } from '../pipelineStore'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
 import {
   Globe,

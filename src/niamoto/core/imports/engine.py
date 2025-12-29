@@ -16,7 +16,7 @@ import logging
 
 import pandas as pd
 import geopandas as gpd
-from sqlalchemy.sql import quoted_name
+from sqlalchemy.sql import quoted_name, text
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseQueryError
@@ -113,6 +113,9 @@ class GenericImporter:
                 df["extra_data"] = None
 
             df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
+
+        # Convert WKT geometry columns to native GEOMETRY for spatial queries
+        self._convert_wkt_columns_to_geometry(table_name, df.columns.tolist())
 
         # Analyze dataset for transformer suggestions
         semantic_profile = None
@@ -389,6 +392,9 @@ class GenericImporter:
         primary_key = id_field or "id"
         df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
 
+        # Convert WKT location to native GEOMETRY for spatial queries
+        self._add_native_geometry_column(table_name, "location", "geometry")
+
         # Build metadata
         metadata = self._build_metadata(
             df,
@@ -414,6 +420,66 @@ class GenericImporter:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
+    # WKT column patterns to detect and convert to native GEOMETRY
+    WKT_COLUMN_PATTERNS = ["geo_pt", "geo", "wkt", "geometry", "geom", "the_geom"]
+
+    def _convert_wkt_columns_to_geometry(self, table_name: str, columns: list) -> None:
+        """Detect WKT columns and convert them to native GEOMETRY.
+
+        Args:
+            table_name: Name of the table
+            columns: List of column names to check
+        """
+        for col in columns:
+            col_lower = col.lower()
+            # Check if column name matches WKT patterns
+            for pattern in self.WKT_COLUMN_PATTERNS:
+                if col_lower == pattern or col_lower.startswith(f"{pattern}_"):
+                    # Create geometry column name (geo_pt -> geo_pt_geom)
+                    geom_col = f"{col}_geom"
+                    self._add_native_geometry_column(table_name, col, geom_col)
+                    break
+
+    def _add_native_geometry_column(
+        self, table_name: str, wkt_column: str, geometry_column: str
+    ) -> None:
+        """Add a native GEOMETRY column converted from WKT text.
+
+        This enables fast spatial queries with proper index support.
+
+        Args:
+            table_name: Name of the table
+            wkt_column: Name of the column containing WKT text
+            geometry_column: Name of the new GEOMETRY column to create
+        """
+        try:
+            with self.db.engine.connect() as conn:
+                # Add GEOMETRY column
+                conn.execute(
+                    text(
+                        f"ALTER TABLE {table_name} ADD COLUMN {geometry_column} GEOMETRY"
+                    )
+                )
+
+                # Populate from WKT (only for non-null values)
+                conn.execute(
+                    text(
+                        f"""
+                        UPDATE {table_name}
+                        SET {geometry_column} = ST_GeomFromText({wkt_column})
+                        WHERE {wkt_column} IS NOT NULL
+                    """
+                    )
+                )
+
+                conn.commit()
+                logger.info(
+                    f"Added native GEOMETRY column '{geometry_column}' to {table_name}"
+                )
+        except Exception as e:
+            # Don't fail the import if geometry conversion fails
+            logger.warning(f"Could not add native geometry column to {table_name}: {e}")
+
     def _resolve_entity_name(self, table_name: str) -> str:
         """Return the logical entity name for a physical table name."""
 

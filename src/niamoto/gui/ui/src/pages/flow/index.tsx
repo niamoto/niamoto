@@ -12,53 +12,62 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useReferences } from '@/hooks/useReferences'
+import { useDatasets } from '@/hooks/useDatasets'
 import { getEntities } from '@/lib/api/import'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { DataPanel } from './DataPanel'
-import { DatasetViewPanel } from './DatasetViewPanel'
+import { ImportWizard } from './panels/ImportWizard'
+import { DataDashboard } from './panels/DataDashboard'
+import { DatasetDetailPanel } from './panels/DatasetDetailPanel'
+import { ReferenceDetailPanel } from './panels/ReferenceDetailPanel'
 import { ReferenceViewPanel } from './ReferenceViewPanel'
 import { GroupPanel } from './GroupPanel'
 import { SitePanel } from './SitePanel'
 
 export default function FlowPage() {
   const { data: referencesData } = useReferences()
+  const { data: datasetsData } = useDatasets()
   const references = referencesData?.references ?? []
+  const datasets = datasetsData?.datasets ?? []
 
-  // Fetch entities (datasets)
+  // Fetch entities (legacy - for DatasetViewPanel compatibility)
   const { data: entities } = useQuery({
     queryKey: ['entities'],
     queryFn: getEntities,
     staleTime: 30000,
   })
-
-  const datasets = entities?.datasets ?? []
+  const legacyDatasets = entities?.datasets ?? []
 
   // Get active panel from navigation store
   const { activePanel, setActivePanel } = useNavigationStore()
 
-  // Set default panel if none selected
+  // Check if we have any data
+  const hasData = datasets.length > 0 || references.length > 0
+
+  // Set default panel based on data availability
   useEffect(() => {
     if (!activePanel) {
-      setActivePanel('data')
+      // If no data, show import wizard; otherwise show dashboard
+      setActivePanel(hasData ? 'dashboard' : 'import')
     }
-  }, [activePanel, setActivePanel])
+  }, [activePanel, setActivePanel, hasData])
 
   // Parse panel type and name
   const parsedPanel = parsePanel(activePanel)
 
-  // Get current reference if on group panel
+  // Get current entities based on panel type
   const currentReference =
-    parsedPanel.type === 'group'
+    (parsedPanel.type === 'group' || parsedPanel.type === 'reference')
       ? references.find((r) => r.name === parsedPanel.name)
       : undefined
 
-  // Get current dataset if on dataset panel
   const currentDataset =
     parsedPanel.type === 'dataset'
-      ? datasets.find((d) => d.name === parsedPanel.name)
+      ? datasets.find((d) => d.name === parsedPanel.name) ||
+        legacyDatasets.find((d) => d.name === parsedPanel.name)
       : undefined
 
-  // Get current reference for reference-view panel
+  // Legacy reference-view support
   const currentReferenceView =
     parsedPanel.type === 'reference-view'
       ? references.find((r) => r.name === parsedPanel.name)
@@ -66,31 +75,47 @@ export default function FlowPage() {
 
   return (
     <div className="h-full overflow-auto">
-      {/* Data overview panel */}
+      {/* Import wizard panel */}
+      {parsedPanel.type === 'import' && <ImportWizard />}
+
+      {/* Dashboard panel */}
+      {parsedPanel.type === 'dashboard' && <DataDashboard />}
+
+      {/* Legacy data overview panel */}
       {parsedPanel.type === 'data' && <DataPanel />}
 
-      {/* Dataset detail panel */}
+      {/* Dataset detail panel (new) */}
       {parsedPanel.type === 'dataset' && currentDataset && (
-        <DatasetViewPanel
+        <DatasetDetailPanel
           datasetName={currentDataset.name}
           tableName={currentDataset.table_name}
-          connectorType={currentDataset.connector_type}
-          path={currentDataset.path}
-          onBack={() => setActivePanel('data')}
+          entityCount={'entity_count' in currentDataset ? currentDataset.entity_count : undefined}
+          onBack={() => setActivePanel('dashboard')}
         />
       )}
 
-      {/* Reference detail panel */}
+      {/* Reference detail panel with enrichment (new) */}
+      {parsedPanel.type === 'reference' && currentReference && (
+        <ReferenceDetailPanel
+          referenceName={currentReference.name}
+          tableName={currentReference.table_name}
+          kind={currentReference.kind}
+          entityCount={currentReference.entity_count}
+          onBack={() => setActivePanel('dashboard')}
+        />
+      )}
+
+      {/* Legacy reference view panel */}
       {parsedPanel.type === 'reference-view' && currentReferenceView && (
         <ReferenceViewPanel
           referenceName={currentReferenceView.name}
           tableName={currentReferenceView.table_name}
           kind={currentReferenceView.kind}
-          onBack={() => setActivePanel('data')}
+          onBack={() => setActivePanel('dashboard')}
         />
       )}
 
-      {/* Group configuration panel */}
+      {/* Group configuration panel (widgets) */}
       {parsedPanel.type === 'group' && currentReference && (
         <GroupPanel reference={currentReference} />
       )}
@@ -108,7 +133,7 @@ export default function FlowPage() {
 
       {/* Fallback for unknown panel */}
       {parsedPanel.type === 'unknown' && (
-        <DataPanel />
+        <DataDashboard />
       )}
     </div>
   )
@@ -116,20 +141,22 @@ export default function FlowPage() {
 
 // Parse panel string to type and optional name
 function parsePanel(panel: string | null): {
-  type: 'data' | 'dataset' | 'reference-view' | 'group' | 'site-structure' | 'site-pages' | 'site-theme' | 'unknown'
+  type: 'import' | 'dashboard' | 'data' | 'dataset' | 'reference' | 'reference-view' | 'group' | 'site-structure' | 'site-pages' | 'site-theme' | 'unknown'
   name?: string
 } {
   if (!panel) {
-    return { type: 'data' }
+    return { type: 'dashboard' }
   }
 
   // Direct types
+  if (panel === 'import') return { type: 'import' }
+  if (panel === 'dashboard') return { type: 'dashboard' }
   if (panel === 'data') return { type: 'data' }
   if (panel === 'site-structure') return { type: 'site-structure' }
   if (panel === 'site-pages') return { type: 'site-pages' }
   if (panel === 'site-theme') return { type: 'site-theme' }
 
-  // Prefixed types: group-{name}, dataset-{name}, reference-view-{name}
+  // Prefixed types: group-{name}, dataset-{name}, reference-{name}, reference-view-{name}
   if (panel.startsWith('group-')) {
     return { type: 'group', name: panel.substring(6) }
   }
@@ -138,6 +165,9 @@ function parsePanel(panel: string | null): {
   }
   if (panel.startsWith('reference-view-')) {
     return { type: 'reference-view', name: panel.substring(15) }
+  }
+  if (panel.startsWith('reference-')) {
+    return { type: 'reference', name: panel.substring(10) }
   }
 
   return { type: 'unknown' }

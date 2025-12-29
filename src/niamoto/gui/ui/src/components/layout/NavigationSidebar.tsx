@@ -23,10 +23,14 @@ import {
   ChevronDown,
   Menu,
   ExternalLink,
+  Upload,
+  LayoutDashboard,
+  Table2,
   type LucideIcon
 } from 'lucide-react'
 import { useNavigationStore, navigationSections, type NavigationSection, type NavigationItem } from '@/stores/navigationStore'
 import { useReferences } from '@/hooks/useReferences'
+import { useDatasets } from '@/hooks/useDatasets'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import niamotoLogo from '@/assets/niamoto_logo.png'
@@ -42,8 +46,12 @@ const sectionIconMap: Record<string, LucideIcon> = {
 
 // Icon mapping for items
 const itemIconMap: Record<string, LucideIcon> = {
-  // Data
+  // Data - static items
+  import: Upload,
+  dashboard: LayoutDashboard,
   'data-overview': FileSpreadsheet,
+  // Data - dynamic items (datasets)
+  occurrences: Table2,
   // Groups - dynamic based on reference kind
   taxons: Leaf,
   plots: MapPin,
@@ -95,15 +103,62 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
     setActivePanel
   } = useNavigationStore()
 
-  // Fetch references dynamically for groups section
+  // Fetch datasets and references dynamically
+  const { data: datasetsData } = useDatasets()
   const { data: referencesData } = useReferences()
+  const datasets = datasetsData?.datasets ?? []
   const references = referencesData?.references ?? []
 
-  // Build navigation sections with dynamic groups
+  // Build navigation sections with dynamic items
   const sections = useMemo(() => {
     return navigationSections.map(section => {
+      // Data section: add datasets and references dynamically
+      if (section.id === 'data' && section.dynamic) {
+        const dataItems: NavigationItem[] = [
+          // Static items first
+          { id: 'import', label: 'Import', path: '/flow', panel: 'import' },
+          { id: 'dashboard', label: 'Dashboard', path: '/flow', panel: 'dashboard' },
+        ]
+
+        // Add datasets
+        if (datasets.length > 0) {
+          datasets.forEach(ds => {
+            dataItems.push({
+              id: `dataset-${ds.name}`,
+              label: ds.name,
+              path: '/flow',
+              panel: `dataset-${ds.name}`,
+              badge: ds.entity_count,
+            })
+          })
+        }
+
+        // Add references
+        if (references.length > 0) {
+          references.forEach(ref => {
+            dataItems.push({
+              id: `ref-${ref.name}`,
+              label: ref.name,
+              path: '/flow',
+              panel: `reference-${ref.name}`,
+              badge: ref.entity_count,
+              icon: ref.kind,
+            })
+          })
+        }
+
+        const totalEntities = datasets.length + references.length
+        return {
+          ...section,
+          badge: totalEntities > 0
+            ? { type: 'count' as const, value: totalEntities }
+            : { type: 'status' as const, value: 'Vide' },
+          items: dataItems
+        }
+      }
+
+      // Groups section: references for widget configuration
       if (section.id === 'groups' && section.dynamic) {
-        // Build group items from references
         const groupItems: NavigationItem[] = references.map(ref => ({
           id: ref.name,
           label: ref.name,
@@ -113,7 +168,6 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
           icon: ref.kind
         }))
 
-        // Add "Ajouter un groupe" action
         groupItems.push({
           id: 'add-group',
           label: 'Ajouter un groupe',
@@ -126,9 +180,10 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
           items: groupItems
         }
       }
+
       return section
     })
-  }, [references])
+  }, [datasets, references])
 
   if (sidebarMode === 'hidden') {
     return null

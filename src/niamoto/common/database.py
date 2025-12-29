@@ -7,7 +7,7 @@ add instances to the database, and close sessions.
 
 from typing import TypeVar, Any, Optional, List, Dict
 import warnings
-from sqlalchemy import create_engine, exc, text, inspect
+from sqlalchemy import create_engine, event, exc, text, inspect
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import scoped_session, sessionmaker, Session
@@ -100,6 +100,12 @@ class Database:
                         engine_kwargs["connect_args"] = {"read_only": True}
                         logger.info(f"Opening DuckDB in read-only mode: {db_path}")
                     self.engine = create_engine(self.connection_string, **engine_kwargs)
+
+                    # Register event listener to load spatial extension on every connection
+                    # This is necessary because NullPool creates new connections each time
+                    event.listen(
+                        self.engine, "connect", Database._load_duckdb_spatial_extension
+                    )
 
             connection_str = str(self.connection_string)
             self.is_duckdb = connection_str.startswith("duckdb")
@@ -194,6 +200,26 @@ class Database:
                 logger.debug("DuckDB initialization skipped (database locked)")
             else:
                 logger.warning(f"DuckDB initialization warning: {e}")
+
+    @staticmethod
+    def _load_duckdb_spatial_extension(dbapi_connection, connection_record) -> None:
+        """Event listener to load spatial extension on each new DuckDB connection.
+
+        This is called automatically by SQLAlchemy's event system when a new
+        connection is created. With NullPool, every connect() creates a fresh
+        connection, so we must load the extension each time.
+
+        Args:
+            dbapi_connection: The raw DBAPI connection (duckdb.Connection)
+            connection_record: SQLAlchemy connection record (unused)
+        """
+        try:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("LOAD spatial")
+            cursor.close()
+        except Exception as e:
+            # Log but don't fail - some operations don't need spatial
+            logger.debug(f"Could not load spatial extension: {e}")
 
     def _create_missing_indexes(self) -> None:
         """

@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useShowcaseStore } from '@/stores/showcaseStore'
-import { usePipelineStore } from '@/stores/pipelineStore'
+import { useShowcaseStore } from '../showcaseStore'
+import { usePipelineStore } from '../pipelineStore'
 import {
   MapPin,
   Trees,
