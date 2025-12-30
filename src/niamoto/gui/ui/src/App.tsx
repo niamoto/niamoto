@@ -8,14 +8,31 @@ import './App.css'
 
 // Lazy load pages
 const WelcomeScreen = lazy(() => import('@/pages/welcome'))
-const DataExplorer = lazy(() => import('@/pages/data-explorer').then(m => ({ default: m.DataExplorer })))
-const LivePreview = lazy(() => import('@/pages/live-preview').then(m => ({ default: m.LivePreview })))
-const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.Settings })))
-const Plugins = lazy(() => import('@/pages/plugins').then(m => ({ default: m.Plugins })))
-const ApiDocs = lazy(() => import('@/pages/api-docs').then(m => ({ default: m.ApiDocs })))
-const ConfigEditor = lazy(() => import('@/pages/config-editor').then(m => ({ default: m.ConfigEditor })))
 const Showcase = lazy(() => import('@/pages/showcase'))
-const FlowPage = lazy(() => import('@/pages/flow'))
+
+// Sources pages
+const SourcesPage = lazy(() => import('@/pages/sources'))
+const ImportPage = lazy(() => import('@/pages/sources/import'))
+const DatasetPage = lazy(() => import('@/pages/sources/dataset/[name]'))
+const ReferencePage = lazy(() => import('@/pages/sources/reference/[name]'))
+
+// Groups pages
+const GroupsPage = lazy(() => import('@/pages/groups'))
+const GroupDetailPage = lazy(() => import('@/pages/groups/[name]'))
+
+// Site pages
+const SiteIndexPage = lazy(() => import('@/pages/site'))
+const SiteStructurePage = lazy(() => import('@/pages/site/structure'))
+const SitePagesPage = lazy(() => import('@/pages/site/pages'))
+const SiteThemePage = lazy(() => import('@/pages/site/theme'))
+
+// Tools pages
+const DataExplorer = lazy(() => import('@/pages/tools/explorer').then(m => ({ default: m.DataExplorer })))
+const LivePreview = lazy(() => import('@/pages/tools/preview').then(m => ({ default: m.LivePreview })))
+const Settings = lazy(() => import('@/pages/tools/settings').then(m => ({ default: m.Settings })))
+const Plugins = lazy(() => import('@/pages/tools/plugins').then(m => ({ default: m.Plugins })))
+const ApiDocs = lazy(() => import('@/pages/tools/docs/index').then(m => ({ default: m.ApiDocs })))
+const ConfigEditor = lazy(() => import('@/pages/tools/config-editor').then(m => ({ default: m.ConfigEditor })))
 
 // Check if running in Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
@@ -132,13 +149,71 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="flow" replace />} />
-            <Route path="data/explorer" element={
+            <Route index element={<Navigate to="/sources" replace />} />
+
+            {/* Sources - Import & Data */}
+            <Route path="sources" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <SourcesPage />
+              </Suspense>
+            } />
+            <Route path="sources/import" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <ImportPage />
+              </Suspense>
+            } />
+            <Route path="sources/dataset/:name" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <DatasetPage />
+              </Suspense>
+            } />
+            <Route path="sources/reference/:name" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <ReferencePage />
+              </Suspense>
+            } />
+
+            {/* Groups - Widget configuration */}
+            <Route path="groups" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <GroupsPage />
+              </Suspense>
+            } />
+            <Route path="groups/:name" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <GroupDetailPage />
+              </Suspense>
+            } />
+
+            {/* Site - Static site configuration */}
+            <Route path="site" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <SiteIndexPage />
+              </Suspense>
+            } />
+            <Route path="site/structure" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <SiteStructurePage />
+              </Suspense>
+            } />
+            <Route path="site/pages" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <SitePagesPage />
+              </Suspense>
+            } />
+            <Route path="site/theme" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <SiteThemePage />
+              </Suspense>
+            } />
+
+            {/* Tools */}
+            <Route path="tools/explorer" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <DataExplorer />
               </Suspense>
             } />
-            <Route path="data/preview" element={
+            <Route path="tools/preview" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <LivePreview />
               </Suspense>
@@ -164,17 +239,10 @@ function App() {
               </Suspense>
             } />
 
-            {/* Showcase page */}
+            {/* Showcase */}
             <Route path="showcase" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <Showcase />
-              </Suspense>
-            } />
-
-            {/* Niamoto Flow - unified configuration interface */}
-            <Route path="flow" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <FlowPage />
               </Suspense>
             } />
           </Route>

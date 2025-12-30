@@ -1,4 +1,4 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useMemo } from 'react'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { cn } from '@/lib/utils'
@@ -8,7 +8,6 @@ import {
   Leaf,
   MapPin,
   Map,
-  Plus,
   FolderTree,
   FileText,
   Palette,
@@ -37,7 +36,7 @@ import niamotoLogo from '@/assets/niamoto_logo.png'
 
 // Icon mapping for sections
 const sectionIconMap: Record<string, LucideIcon> = {
-  data: Database,
+  sources: Database,
   groups: Layers,
   site: FolderTree,
   tools: Settings,
@@ -46,17 +45,17 @@ const sectionIconMap: Record<string, LucideIcon> = {
 
 // Icon mapping for items
 const itemIconMap: Record<string, LucideIcon> = {
-  // Data - static items
+  // Sources - static items
   import: Upload,
   dashboard: LayoutDashboard,
   'data-overview': FileSpreadsheet,
-  // Data - dynamic items (datasets)
+  // Sources - dynamic items (datasets)
   occurrences: Table2,
-  // Groups - dynamic based on reference kind
+  // Groups
+  'groups-index': Layers,
   taxons: Leaf,
   plots: MapPin,
   shapes: Map,
-  'add-group': Plus,
   // Site
   'site-structure': FolderTree,
   'site-pages': FileText,
@@ -93,14 +92,11 @@ interface NavigationSidebarProps {
 
 export function NavigationSidebar({ className }: NavigationSidebarProps) {
   const location = useLocation()
-  const navigate = useNavigate()
   const {
     sidebarMode,
     expandedSections,
     toggleSection,
     toggleSidebar,
-    activePanel,
-    setActivePanel
   } = useNavigationStore()
 
   // Fetch datasets and references dynamically
@@ -112,22 +108,21 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
   // Build navigation sections with dynamic items
   const sections = useMemo(() => {
     return navigationSections.map(section => {
-      // Data section: add datasets and references dynamically
-      if (section.id === 'data' && section.dynamic) {
-        const dataItems: NavigationItem[] = [
+      // Sources section: add datasets and references dynamically
+      if (section.id === 'sources' && section.dynamic) {
+        const sourceItems: NavigationItem[] = [
           // Static items first
-          { id: 'import', label: 'Import', path: '/flow', panel: 'import' },
-          { id: 'dashboard', label: 'Dashboard', path: '/flow', panel: 'dashboard' },
+          { id: 'dashboard', label: 'Dashboard', path: '/sources' },
+          { id: 'import', label: 'Import', path: '/sources/import' },
         ]
 
         // Add datasets
         if (datasets.length > 0) {
           datasets.forEach(ds => {
-            dataItems.push({
+            sourceItems.push({
               id: `dataset-${ds.name}`,
               label: ds.name,
-              path: '/flow',
-              panel: `dataset-${ds.name}`,
+              path: `/sources/dataset/${ds.name}`,
               badge: ds.entity_count,
             })
           })
@@ -136,11 +131,10 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
         // Add references
         if (references.length > 0) {
           references.forEach(ref => {
-            dataItems.push({
+            sourceItems.push({
               id: `ref-${ref.name}`,
               label: ref.name,
-              path: '/flow',
-              panel: `reference-${ref.name}`,
+              path: `/sources/reference/${ref.name}`,
               badge: ref.entity_count,
               icon: ref.kind,
             })
@@ -153,25 +147,24 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
           badge: totalEntities > 0
             ? { type: 'count' as const, value: totalEntities }
             : { type: 'status' as const, value: 'Vide' },
-          items: dataItems
+          items: sourceItems
         }
       }
 
       // Groups section: references for widget configuration
       if (section.id === 'groups' && section.dynamic) {
-        const groupItems: NavigationItem[] = references.map(ref => ({
-          id: ref.name,
-          label: ref.name,
-          path: '/flow',
-          panel: `group-${ref.name}`,
-          badge: ref.entity_count,
-          icon: ref.kind
-        }))
+        const groupItems: NavigationItem[] = [
+          { id: 'groups-index', label: 'Vue d\'ensemble', path: '/groups' },
+        ]
 
-        groupItems.push({
-          id: 'add-group',
-          label: 'Ajouter un groupe',
-          action: 'add'
+        references.forEach(ref => {
+          groupItems.push({
+            id: `group-${ref.name}`,
+            label: ref.name,
+            path: `/groups/${ref.name}`,
+            badge: ref.entity_count,
+            icon: ref.kind
+          })
         })
 
         return {
@@ -198,20 +191,12 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
       console.log('Add group clicked')
       return
     }
-
-    if (item.panel) {
-      e.preventDefault()
-      setActivePanel(item.panel)
-      if (item.path && location.pathname !== item.path) {
-        navigate(item.path)
-      }
-    }
+    // Navigation is handled by NavLink, no need for manual navigation
   }
 
   const isItemActive = (item: NavigationItem) => {
-    if (item.panel) {
-      return activePanel === item.panel
-    }
+    if (!item.path) return false
+    // Exact match only - no parent highlighting
     return location.pathname === item.path
   }
 
