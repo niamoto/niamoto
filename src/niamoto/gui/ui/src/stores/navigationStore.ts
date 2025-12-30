@@ -48,18 +48,20 @@ interface NavigationState {
 }
 
 // Static navigation structure
-// Note: 'data' section has dynamic items for datasets and references
+// Note: 'sources' section has dynamic items for datasets and references
 // Note: 'groups' section items are loaded dynamically from useReferences()
 export const navigationSections: NavigationSection[] = [
   {
-    id: 'data',
-    label: 'Données',
+    id: 'sources',
+    label: 'Sources',
     defaultOpen: true,
     dynamic: true, // Datasets and references loaded dynamically
     items: [
-      { id: 'import', label: 'Import', path: '/flow', panel: 'import' },
-      { id: 'dashboard', label: 'Dashboard', path: '/flow', panel: 'dashboard' },
+      { id: 'dashboard', label: 'Dashboard', path: '/sources' },
+      { id: 'import', label: 'Import', path: '/sources/import' },
       // Dynamic items (datasets, references) will be added here
+      // Pattern: { id: 'dataset-{name}', label: '{name}', path: '/sources/dataset/{name}' }
+      // Pattern: { id: 'reference-{name}', label: '{name}', path: '/sources/reference/{name}' }
     ]
   },
   {
@@ -67,7 +69,11 @@ export const navigationSections: NavigationSection[] = [
     label: 'Groupes',
     defaultOpen: true,
     dynamic: true, // Items loaded from useReferences()
-    items: [] // Will be populated dynamically
+    items: [
+      { id: 'groups-index', label: 'Vue d\'ensemble', path: '/groups' },
+      // Dynamic items will be added here
+      // Pattern: { id: 'group-{name}', label: '{name}', path: '/groups/{name}' }
+    ]
   },
   {
     id: 'site',
@@ -75,9 +81,9 @@ export const navigationSections: NavigationSection[] = [
     defaultOpen: true,
     badge: { type: 'count', value: '0 pages' },
     items: [
-      { id: 'site-structure', label: 'Structure', path: '/flow', panel: 'site-structure' },
-      { id: 'site-pages', label: 'Pages', path: '/flow', panel: 'site-pages' },
-      { id: 'site-theme', label: 'Thème', path: '/flow', panel: 'site-theme' },
+      { id: 'site-structure', label: 'Structure', path: '/site/structure' },
+      { id: 'site-pages', label: 'Pages', path: '/site/pages' },
+      { id: 'site-theme', label: 'Thème', path: '/site/theme' },
     ]
   },
   {
@@ -85,8 +91,8 @@ export const navigationSections: NavigationSection[] = [
     label: 'Outils',
     defaultOpen: false,
     items: [
-      { id: 'data-explorer', label: 'Data Explorer', path: '/data/explorer' },
-      { id: 'live-preview', label: 'Live Preview', path: '/data/preview' },
+      { id: 'data-explorer', label: 'Data Explorer', path: '/tools/explorer' },
+      { id: 'live-preview', label: 'Live Preview', path: '/tools/preview' },
       { id: 'showcase', label: 'Showcase', path: '/showcase' },
       { id: 'config-editor', label: 'Config Editor', path: '/tools/config-editor' },
       { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },

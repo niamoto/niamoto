@@ -79,25 +79,30 @@ export function ReferenceDetailPanel({
   const [enrichmentConfig, setEnrichmentConfig] = useState<EnrichmentConfig | null>(null)
   const [enrichmentLoading, setEnrichmentLoading] = useState(true)
 
+  // Reset to overview tab when reference changes
   useEffect(() => {
-    async function checkEnrichment() {
-      setEnrichmentLoading(true)
-      try {
-        // Try to load enrichment config for this reference
-        const response = await apiClient.get(`/enrichment/config/${referenceName}`)
-        if (response.data && response.data.enabled) {
-          setEnrichmentConfig(response.data)
-        } else {
-          setEnrichmentConfig(null)
-        }
-      } catch {
-        // No enrichment configured or endpoint doesn't exist yet
+    setActiveTab('overview')
+  }, [referenceName])
+
+  // Function to reload enrichment config (called after config changes)
+  const reloadEnrichmentConfig = async () => {
+    setEnrichmentLoading(true)
+    try {
+      const response = await apiClient.get(`/enrichment/config/${referenceName}`)
+      if (response.data && response.data.enabled) {
+        setEnrichmentConfig(response.data)
+      } else {
         setEnrichmentConfig(null)
-      } finally {
-        setEnrichmentLoading(false)
       }
+    } catch {
+      setEnrichmentConfig(null)
+    } finally {
+      setEnrichmentLoading(false)
     }
-    checkEnrichment()
+  }
+
+  useEffect(() => {
+    reloadEnrichmentConfig()
   }, [referenceName])
 
   const hasEnrichment = enrichmentConfig !== null && enrichmentConfig.enabled
@@ -318,7 +323,7 @@ export function ReferenceDetailPanel({
 
           {/* Configuration Tab */}
           <TabsContent value="config" className="space-y-6">
-            <ReferenceConfigEditor referenceName={referenceName} />
+            <ReferenceConfigEditor referenceName={referenceName} onSaved={reloadEnrichmentConfig} />
           </TabsContent>
         </Tabs>
       </div>

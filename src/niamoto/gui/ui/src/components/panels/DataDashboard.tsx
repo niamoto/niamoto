@@ -10,16 +10,16 @@
  * - Geographic coverage analysis
  */
 
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Upload, Database, ArrowRight } from 'lucide-react'
 import { ImportDashboard } from '@/components/sources/dashboard'
-import { useNavigationStore } from '@/stores/navigationStore'
 import { useDatasets } from '@/hooks/useDatasets'
 import { useReferences } from '@/hooks/useReferences'
 
 export function DataDashboard() {
-  const { setActivePanel } = useNavigationStore()
+  const navigate = useNavigate()
   const { data: datasetsData } = useDatasets()
   const { data: referencesData } = useReferences()
 
@@ -28,15 +28,15 @@ export function DataDashboard() {
   const hasData = datasets.length > 0 || references.length > 0
 
   const handleExploreEntity = (name: string) => {
-    setActivePanel(`dataset-${name}`)
+    navigate(`/sources/dataset/${name}`)
   }
 
   const handleEnrich = (refName: string) => {
-    setActivePanel(`reference-${refName}`)
+    navigate(`/sources/reference/${refName}`)
   }
 
   const handleImport = () => {
-    setActivePanel('import')
+    navigate('/sources/import')
   }
 
   // Empty state when no data

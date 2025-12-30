@@ -21,8 +21,11 @@ from .routers import (
     site,
     stats,
     enrichment,
+    transformer_suggestions,
+    templates,
+    sources,
+    layout,
 )
-from .routes import transformer_suggestions, templates, sources, layout
 from .context import get_working_directory
 
 # Get the path to the built React app
