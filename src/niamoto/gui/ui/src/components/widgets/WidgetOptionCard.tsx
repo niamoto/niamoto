@@ -5,7 +5,7 @@ import { memo } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { WidgetMiniature } from '@/components/widgets'
+import { WidgetMiniature } from './WidgetMiniature'
 import type { TemplateSuggestion } from './types'
 import { CATEGORY_INFO } from './types'
 

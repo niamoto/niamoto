@@ -1,0 +1,5 @@
+export { DiagnosticPanel } from './DiagnosticPanel'
+export { FileUpload } from './FileUpload'
+export { LanguageSwitcher } from './LanguageSwitcher'
+export { ProjectSwitcher } from './ProjectSwitcher'
+export { ScrollbarProvider } from './ScrollbarProvider'

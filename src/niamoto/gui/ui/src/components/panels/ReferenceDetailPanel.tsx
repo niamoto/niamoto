@@ -41,7 +41,7 @@ import {
 } from 'lucide-react'
 import { TableBrowser, TableStats } from '@/components/data'
 import { ReferenceConfigEditor } from '@/components/config'
-import { EnrichmentTab } from '@/components/enrichment'
+import { EnrichmentTab } from '@/components/config'
 import { deleteEntity } from '@/lib/api/import'
 import { apiClient } from '@/lib/api/client'
 

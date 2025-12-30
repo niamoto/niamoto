@@ -3,8 +3,7 @@ import { Command, Search, Bell, User, HelpCircle, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
-import { LanguageSwitcher } from '@/components/language-switcher'
-import { ProjectSwitcher } from '@/components/project-switcher'
+import { LanguageSwitcher, ProjectSwitcher } from '@/components/common'
 import { useRuntimeMode } from '@/hooks/useRuntimeMode'
 import {
   DropdownMenu,

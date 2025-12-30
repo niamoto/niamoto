@@ -3,7 +3,7 @@
  * Route: /sources/import
  */
 
-import { ImportWizard } from '@/components/panels/ImportWizard'
+import { ImportWizard } from '@/components/sources'
 
 export default function ImportPage() {
   return (
