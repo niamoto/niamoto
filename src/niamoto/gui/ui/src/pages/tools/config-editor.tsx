@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { FileCode2, History, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { YamlEditor } from '@/components/editors/YamlEditor'
+import { YamlEditor } from '@/components/data'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

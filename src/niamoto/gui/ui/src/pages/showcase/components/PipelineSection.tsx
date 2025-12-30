@@ -28,7 +28,7 @@ import { executeExportAndWait } from '@/lib/api/export'
 import { toast } from 'sonner'
 import { PipelineMetrics } from './PipelineMetrics'
 import yaml from 'js-yaml'
-import { YamlEditor } from '@/components/editors/YamlEditor'
+import { YamlEditor } from '@/components/data'
 import { useConfig } from '@/hooks/useConfig'
 import type { ConfigType } from '@/hooks/useConfig'
 

@@ -3,6 +3,7 @@
  */
 
 // Import workflow
+export { ImportWizard } from './ImportWizard'
 export { FileUploadZone } from './FileUploadZone'
 export { ExistingFilesSection } from './ExistingFilesSection'
 export { AutoConfigDisplay } from './AutoConfigDisplay'

@@ -24,7 +24,7 @@ import {
   useGenerateConfig,
   useSaveConfig,
   type TemplateSuggestion,
-} from '@/components/widget-gallery'
+} from '@/components/widgets'
 import { useSources, useRemoveSource } from '@/hooks/useSources'
 import { SourcesList, AddSourceDialog } from '@/components/sources'
 import { LayoutEditor } from '@/components/layout-editor'

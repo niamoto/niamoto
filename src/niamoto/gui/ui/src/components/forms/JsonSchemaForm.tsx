@@ -7,20 +7,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Info } from 'lucide-react';
 
-// Import our specialized widgets
-import TextField from './widgets/TextField';
-import NumberField from './widgets/NumberField';
-import SelectField from './widgets/SelectField';
-import CheckboxField from './widgets/CheckboxField';
-import FieldSelectField from './widgets/FieldSelectField';
-import EntitySelectField from './widgets/EntitySelectField';
-import TransformSourceSelectField from './widgets/TransformSourceSelectField';
-import ArrayField from './widgets/ArrayField';
-import JsonField from './widgets/JsonField';
-import ColorField from './widgets/ColorField';
-import DirectorySelectField from './widgets/DirectorySelectField';
-import TextAreaField from './widgets/TextAreaField';
-import ObjectField from './widgets/ObjectField';
+// Import our specialized fields
+import TextField from './fields/TextField';
+import NumberField from './fields/NumberField';
+import SelectField from './fields/SelectField';
+import CheckboxField from './fields/CheckboxField';
+import FieldSelectField from './fields/FieldSelectField';
+import EntitySelectField from './fields/EntitySelectField';
+import TransformSourceSelectField from './fields/TransformSourceSelectField';
+import ArrayField from './fields/ArrayField';
+import JsonField from './fields/JsonField';
+import ColorField from './fields/ColorField';
+import DirectorySelectField from './fields/DirectorySelectField';
+import TextAreaField from './fields/TextAreaField';
+import ObjectField from './fields/ObjectField';
 
 interface JsonSchemaFormProps {
   pluginId: string;
