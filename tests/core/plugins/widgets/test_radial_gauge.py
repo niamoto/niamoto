@@ -796,15 +796,27 @@ class TestRadialGaugeParams(NiamotoTestCase):
 
         self.assertEqual(params.threshold, threshold)
 
-    def test_params_validation_required_fields(self):
-        """Test validation of required fields."""
-        # Missing value_field should raise error
-        with self.assertRaises(ValueError):
-            RadialGaugeParams(max_value=100)
+    def test_params_optional_fields_with_defaults(self):
+        """Test that optional fields have sensible defaults.
 
-        # Missing max_value should raise error
-        with self.assertRaises(ValueError):
-            RadialGaugeParams(value_field="test")
+        Note: value_field and max_value are Optional since the widget supports
+        stat_to_display and auto_range as alternatives. Validation of required
+        values happens at render time, not at param creation.
+        """
+        # Should not raise - both value_field and max_value are Optional
+        params = RadialGaugeParams()
+        self.assertIsNone(params.value_field)
+        self.assertIsNone(params.max_value)
+
+        # With only max_value
+        params = RadialGaugeParams(max_value=100)
+        self.assertIsNone(params.value_field)
+        self.assertEqual(params.max_value, 100)
+
+        # With only value_field
+        params = RadialGaugeParams(value_field="test")
+        self.assertEqual(params.value_field, "test")
+        self.assertIsNone(params.max_value)
 
     def test_params_deprecated_units(self):
         """Test deprecated units parameter."""

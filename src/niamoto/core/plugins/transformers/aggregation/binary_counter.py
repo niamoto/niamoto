@@ -158,19 +158,19 @@ class BinaryCounter(TransformerPlugin):
 
                     if not field_data.empty:
                         # Handle both boolean (True/False) and numeric (0/1) values
-                        # Convert to boolean for consistent counting
-                        try:
-                            bool_data = field_data.astype(bool)
-                            true_count = int(bool_data.sum())
-                            false_count = len(bool_data) - true_count
+                        # First check if data is boolean type
+                        if field_data.dtype == bool:
+                            true_count = int(field_data.sum())
+                            false_count = len(field_data) - true_count
                             total_count = true_count + false_count
-                        except (ValueError, TypeError):
-                            # Fallback: try numeric comparison for 0/1 values
+                        else:
+                            # For numeric data, only count strict 0/1 values
+                            # Filter to only valid binary values (0 or 1)
                             valid_mask = (field_data == 0) | (field_data == 1)
-                            field_data = field_data[valid_mask]
-                            if not field_data.empty:
-                                true_count = len(field_data[field_data == 1])
-                                false_count = len(field_data[field_data == 0])
+                            binary_data = field_data[valid_mask]
+                            if not binary_data.empty:
+                                true_count = int((binary_data == 1).sum())
+                                false_count = int((binary_data == 0).sum())
                                 total_count = true_count + false_count
 
             # Prepare result
