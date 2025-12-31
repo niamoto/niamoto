@@ -213,8 +213,20 @@ async def get_available_references():
             """Build default relation config based on reference kind and config."""
             # Determine key field from config if available
             key_field = f"{ref_name}_id"  # Default pattern
+            ref_field = "id"  # Default ref_key
 
             if config and isinstance(config, dict):
+                # First check for explicit relation block in import.yml
+                relation_config = config.get("relation", {})
+                if relation_config:
+                    # Use explicit relation from import.yml
+                    foreign_key = relation_config.get("foreign_key")
+                    reference_key = relation_config.get("reference_key")
+                    if foreign_key:
+                        key_field = foreign_key
+                    if reference_key:
+                        ref_field = reference_key
+
                 # Check extraction.id_column for derived references (taxons)
                 connector = config.get("connector", {})
                 if connector.get("type") == "derived":
@@ -222,10 +234,11 @@ async def get_available_references():
                     if extraction.get("id_column"):
                         key_field = extraction["id_column"]
 
-                # Check schema.id_field for regular references (plots)
-                schema = config.get("schema", {})
-                if schema.get("id_field"):
-                    key_field = schema["id_field"]
+                # Check schema.id_field for regular references (plots) - only as fallback
+                if not relation_config:
+                    schema = config.get("schema", {})
+                    if schema.get("id_field"):
+                        key_field = schema["id_field"]
 
             # Determine plugin based on kind
             if kind == "hierarchical":
@@ -245,7 +258,7 @@ async def get_available_references():
                 return RelationConfig(
                     plugin="direct_reference",
                     key=key_field,
-                    ref_key="id",
+                    ref_key=ref_field,
                 )
 
         # Handle EntityRegistry v2 format (version: "1.0", entities: {...})
@@ -279,51 +292,12 @@ async def get_available_references():
                         )
                     )
 
-        # Handle legacy format (taxonomy, plots, occurrences, shapes at root)
+        # EntityRegistry v2 format is required
         else:
-            # Legacy datasets
-            if "occurrences" in import_config:
-                datasets.append(
-                    DatasetInfo(name="occurrences", description="Occurrence data")
-                )
-
-            # Legacy references
-            if "taxonomy" in import_config:
-                references.append(
-                    ReferenceInfo(
-                        name="taxons",
-                        kind="hierarchical",
-                        description="Taxonomic hierarchy",
-                        relation=RelationConfig(
-                            plugin="nested_set",
-                            key="id_taxonref",
-                            ref_key="taxons_id",
-                            fields=NestedSetFields(),
-                        ),
-                    )
-                )
-            if "plots" in import_config:
-                references.append(
-                    ReferenceInfo(
-                        name="plots",
-                        kind="flat",
-                        description="Plot data",
-                        relation=RelationConfig(
-                            plugin="direct_reference", key="plots_id", ref_key="id"
-                        ),
-                    )
-                )
-            if "shapes" in import_config:
-                references.append(
-                    ReferenceInfo(
-                        name="shapes",
-                        kind="spatial",
-                        description="Geographic shapes",
-                        relation=RelationConfig(
-                            plugin="direct_reference", key="shapes_id", ref_key="id"
-                        ),
-                    )
-                )
+            raise HTTPException(
+                status_code=400,
+                detail="import.yml must use EntityRegistry v2 format (version: '1.0', entities: {...})",
+            )
 
         return ReferencesResponse(references=references, datasets=datasets)
 

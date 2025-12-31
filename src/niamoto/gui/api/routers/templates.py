@@ -398,6 +398,28 @@ async def generate_transform_config(request: GenerateConfigRequest):
         }
 
     # Build sources section based on reference kind (not name!)
+    # Try to get relation info from import.yml first
+    relation_from_import = None
+    work_dir = get_working_directory()
+    if work_dir:
+        import_path = Path(work_dir) / "config" / "import.yml"
+        if import_path.exists():
+            try:
+                with open(import_path, "r", encoding="utf-8") as f:
+                    import_config = yaml.safe_load(f) or {}
+                refs = import_config.get("entities", {}).get("references", {})
+                ref_config = refs.get(request.group_by, {})
+                relation_config = ref_config.get("relation", {})
+                if relation_config:
+                    # Convert import.yml format to transform.yml format
+                    relation_from_import = {
+                        "plugin": "direct_reference",
+                        "key": relation_config.get("foreign_key"),
+                        "ref_key": relation_config.get("reference_key"),
+                    }
+            except Exception as e:
+                logger.warning(f"Error reading import.yml for relation: {e}")
+
     if request.reference_kind == "hierarchical":
         # Hierarchical references use nested_set for tree aggregation
         sources = [
@@ -415,16 +437,18 @@ async def generate_transform_config(request: GenerateConfigRequest):
         ]
     else:
         # Flat and spatial references use direct_reference
+        # Use relation from import.yml if available, otherwise fallback to convention
+        relation = relation_from_import or {
+            "plugin": "direct_reference",
+            "key": f"{request.group_by}_id",
+            "ref_key": "id",
+        }
         sources = [
             {
                 "name": "occurrences",
                 "data": "occurrences",
                 "grouping": request.group_by,
-                "relation": {
-                    "plugin": "direct_reference",
-                    "key": f"{request.group_by}_id",
-                    "ref_key": "id",
-                },
+                "relation": relation,
             }
         ]
 
@@ -1839,14 +1863,19 @@ def _get_hierarchy_info(
                     for group in transform_config:
                         if group.get("group_by") == reference_name:
                             sources = group.get("sources", [])
-                            if sources:
-                                source = sources[0]
-                                source_dataset = source.get("data", "occurrences")
+                            # Look for a database dataset source (not a CSV file path)
+                            for source in sources:
+                                data = source.get("data", "occurrences")
+                                # Skip CSV file paths (class_objects), use only database datasets
+                                if "/" in data or data.endswith(".csv"):
+                                    continue
+                                source_dataset = data
                                 relation = source.get("relation", {})
                                 relation_plugin = relation.get("plugin")
                                 is_hierarchical_grouping = (
                                     relation_plugin == "nested_set"
                                 )
+                                break
                             break
                 except Exception as e:
                     logger.warning(f"Error reading transform.yml: {e}")
@@ -3906,6 +3935,24 @@ async def preview_template(
             # Adjust config based on actual data (e.g., smart bins for binned_distribution)
             config = _adjust_config_for_data(config, transformer_plugin, sample_data)
 
+            # Check for identical values (only relevant for distribution-type transformers)
+            identical_value = _check_identical_values(
+                sample_data, config, transformer_plugin
+            )
+            if identical_value is not None:
+                # All values are identical - show informative message instead of histogram
+                unit = config.get("units", "")
+                if unit:
+                    value_display = f"{identical_value} {unit}"
+                else:
+                    value_display = str(identical_value)
+                return HTMLResponse(
+                    content=_wrap_html_response(
+                        f"<p class='info'>Toutes les valeurs sont identiques ({value_display})</p>",
+                        title=template_name,
+                    )
+                )
+
             # Execute transformer
             transformed_data = _execute_transformer(
                 db, transformer_plugin, sample_data, config
@@ -3978,6 +4025,47 @@ def _generate_smart_bins(min_val: float, max_val: float) -> List[float]:
         bins = bins[::2]
 
     return bins
+
+
+def _check_identical_values(
+    sample_data: pd.DataFrame,
+    config: Dict[str, Any],
+    transformer_plugin: str,
+) -> Optional[float]:
+    """Check if all values in the target field are identical.
+
+    For distribution-type transformers (binned_distribution), having all identical
+    values means a histogram is not meaningful. Instead, we should show an
+    informative message to the user.
+
+    Args:
+        sample_data: The loaded sample data
+        config: Transformer config
+        transformer_plugin: Name of the transformer plugin
+
+    Returns:
+        The identical value if all values are the same, None otherwise
+    """
+    # Only check for distribution transformers
+    if transformer_plugin != "binned_distribution":
+        return None
+
+    field = config.get("field")
+    if not field or field not in sample_data.columns:
+        return None
+
+    # Get numeric values from the field
+    field_data = pd.to_numeric(sample_data[field], errors="coerce").dropna()
+
+    if field_data.empty:
+        return None
+
+    # Check if all values are identical
+    unique_values = field_data.unique()
+    if len(unique_values) == 1:
+        return float(unique_values[0])
+
+    return None
 
 
 def _adjust_config_for_data(

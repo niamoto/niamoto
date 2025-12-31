@@ -111,6 +111,10 @@ class ColumnDetector:
         "scientific_name",
         "taxaname",
         "taxon_name",
+        "plot",  # Ecological plot/site name
+        "site",
+        "locality",
+        "station",
     ]
 
     # Patterns for date columns
