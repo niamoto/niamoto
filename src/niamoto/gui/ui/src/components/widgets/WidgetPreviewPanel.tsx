@@ -1,5 +1,10 @@
 /**
  * WidgetPreviewPanel - Live widget preview using API
+ *
+ * Supports two modes:
+ * 1. Template preview mode (TemplateSuggestion) - for widget gallery
+ * 2. Configured widget mode (ConfiguredWidget) - with edit capability
+ *
  * Renders actual widgets via iframe from the preview endpoint
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
@@ -26,6 +31,8 @@ import {
   FileCode,
   FileOutput,
   FolderTree,
+  Pencil,
+  Eye,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +40,8 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { TemplateSuggestion, WidgetCategory } from './types'
 import { CATEGORY_INFO, getPluginLabel, getPluginDescription } from './types'
+import type { ConfiguredWidget } from './useWidgetConfig'
+import { WidgetConfigForm } from './WidgetConfigForm'
 
 // Icon mapping
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -63,30 +72,77 @@ const CATEGORY_ICONS: Record<WidgetCategory, React.ElementType> = {
   table: Layers,
 }
 
+// Known transformer plugins - used to extract transformer type from template_id
+const KNOWN_TRANSFORMERS = [
+  'top_ranking',
+  'categorical_distribution',
+  'binned_distribution',
+  'statistical_summary',
+  'binary_counter',
+  'geospatial_extractor',
+  'field_aggregator',
+  'time_series_analysis',
+  'categories_extractor',
+  'class_object_series_extractor',
+] as const
+
 interface WidgetPreviewPanelProps {
-  template: TemplateSuggestion | null
+  // Template mode (for widget gallery)
+  template?: TemplateSuggestion | null
+  // Configured widget mode (for editing)
+  configuredWidget?: ConfiguredWidget | null
   groupBy?: string  // Reference name for correct data filtering
+  availableFields?: string[]  // For field-select widgets
+  onUpdateWidget?: (widgetId: string, config: Partial<ConfiguredWidget>) => Promise<boolean>
   className?: string
 }
 
-export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPreviewPanelProps) {
+export function WidgetPreviewPanel({
+  template,
+  configuredWidget,
+  groupBy,
+  availableFields = [],
+  onUpdateWidget,
+  className,
+}: WidgetPreviewPanelProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshCounter, setRefreshCounter] = useState(0)
+  const [editMode, setEditMode] = useState(false)
+
+  // Determine which mode we're in
+  const isConfiguredMode = !!configuredWidget && !template
+  const activeWidget = configuredWidget
+  const activeTemplate = template
 
   // Build preview URL with optional group_by parameter
   const previewUrl = useMemo(() => {
-    if (!template) return null
-    const baseUrl = `/api/templates/preview/${template.template_id}`
-    if (groupBy) {
-      return `${baseUrl}?group_by=${encodeURIComponent(groupBy)}`
+    // For configured widgets, use the templates preview endpoint with data_source as ID
+    // The data_source in export.yml maps to the key in transform.yml
+    if (isConfiguredMode && activeWidget) {
+      const baseUrl = `/api/templates/preview/${activeWidget.dataSource || activeWidget.id}`
+      if (groupBy) {
+        return `${baseUrl}?group_by=${encodeURIComponent(groupBy)}`
+      }
+      return baseUrl
     }
-    return baseUrl
-  }, [template, groupBy])
 
-  // Unique key for iframe: template_id + refresh counter
-  // This ensures single load on template change, and reload on manual refresh
-  const iframeKey = template ? `${template.template_id}-${refreshCounter}` : 'empty'
+    // For templates, use the template preview endpoint
+    if (activeTemplate) {
+      const baseUrl = `/api/templates/preview/${activeTemplate.template_id}`
+      if (groupBy) {
+        return `${baseUrl}?group_by=${encodeURIComponent(groupBy)}`
+      }
+      return baseUrl
+    }
+
+    return null
+  }, [isConfiguredMode, activeWidget, activeTemplate, groupBy])
+
+  // Unique key for iframe: id + refresh counter
+  // This ensures single load on item change, and reload on manual refresh
+  const itemId = isConfiguredMode ? activeWidget?.id : activeTemplate?.template_id
+  const iframeKey = itemId ? `${itemId}-${refreshCounter}` : 'empty'
 
   // Handle iframe load
   const handleIframeLoad = useCallback(() => {
@@ -107,113 +163,100 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
     setRefreshCounter(prev => prev + 1)
   }, [])
 
-  // Reset loading state when template changes
+  // Reset loading state when template or widget changes
   useEffect(() => {
-    if (template) {
+    if (activeTemplate || activeWidget) {
       setLoading(true)
       setError(null)
+      setEditMode(false)  // Reset edit mode when switching items
     }
-  }, [template?.template_id])
+  }, [activeTemplate?.template_id, activeWidget?.id])
 
   // Extract transformer from template_id (format: column_transformer_widget)
-  // Must be computed before early return for hooks consistency
-  const knownTransformers = ['top_ranking', 'categorical_distribution', 'binned_distribution', 'statistical_summary', 'binary_counter', 'geospatial_extractor', 'field_aggregator', 'time_series_analysis', 'categories_extractor', 'class_object_series_extractor']
-
   const transformer = useMemo(() => {
-    if (!template) return ''
-    let result = template.plugin
-    for (const t of knownTransformers) {
-      if (template.template_id.includes(t)) {
+    // For configured widgets, use the transformer plugin directly
+    if (isConfiguredMode && activeWidget) {
+      return activeWidget.transformerPlugin
+    }
+
+    // For templates, extract from template_id
+    if (!activeTemplate) return ''
+    let result = activeTemplate.plugin
+    for (const t of KNOWN_TRANSFORMERS) {
+      if (activeTemplate.template_id.includes(t)) {
         result = t
         break
       }
     }
     return result
-  }, [template])
+  }, [isConfiguredMode, activeWidget, activeTemplate])
 
-  const transformerLabel = template ? getPluginLabel(transformer, template.config) : ''
+  const transformerLabel = activeTemplate ? getPluginLabel(transformer, activeTemplate.config) : transformer
   const transformerDescription = transformer ? getPluginDescription(transformer) : ''
+
+  // Handle save from edit form
+  const handleSave = useCallback(async (config: Partial<ConfiguredWidget>): Promise<boolean> => {
+    if (!activeWidget || !onUpdateWidget) return false
+    const success = await onUpdateWidget(activeWidget.id, config)
+    if (success) {
+      // Refresh preview after save
+      handleRefresh()
+      setEditMode(false)
+    }
+    return success
+  }, [activeWidget, onUpdateWidget, handleRefresh])
+
+  // Handle cancel edit
+  const handleCancelEdit = useCallback(() => {
+    setEditMode(false)
+  }, [])
 
   // Generate realistic YAML previews for transform.yml and export.yml
   // Based on niamoto-nc reference format
   const yamlPreviews = useMemo(() => {
-    if (!template) return { transform: '', export: '' }
+    // For configured widgets, show actual config
+    if (isConfiguredMode && activeWidget) {
+      const transformConfig: Record<string, unknown> = {
+        [activeWidget.id]: {
+          plugin: activeWidget.transformerPlugin,
+          params: activeWidget.transformerParams,
+        },
+      }
 
-    const column = template.matched_column || 'field'
-    const config = template.config || {}
-    const source = String(config.source || 'occurrences')
+      const exportWidget: Record<string, unknown> = {
+        plugin: activeWidget.widgetPlugin,
+        data_source: activeWidget.dataSource,
+        title: activeWidget.title,
+        layout: {
+          colspan: 1,
+          order: 0,
+        },
+        ...(activeWidget.description && { description: activeWidget.description }),
+        ...(Object.keys(activeWidget.widgetParams).length > 0 && { params: activeWidget.widgetParams }),
+      }
 
-    // Generate short, descriptive widget name like niamoto-nc
-    // e.g., "top_species", "distribution_dbh", "map_occurrences"
-    let widgetName: string
-    if (transformer === 'top_ranking') {
-      widgetName = `top_${column}`
-    } else if (transformer === 'categorical_distribution') {
-      widgetName = `distribution_${column}`
-    } else if (transformer === 'binned_distribution') {
-      widgetName = `distribution_${column}`
-    } else if (transformer === 'geospatial_extractor') {
-      widgetName = `distribution_map`
-    } else if (transformer === 'binary_counter') {
-      widgetName = `distribution_${column}`
-    } else {
-      widgetName = `${column}_stats`
+      return {
+        transform: yaml.dump(transformConfig, { indent: 2, lineWidth: -1 }),
+        export: yaml.dump([exportWidget], { indent: 2, lineWidth: -1 }),
+      }
     }
 
-    // Build transform.yml section (format: widgets_data in transform.yml)
+    // For templates, use the config from the backend suggestion
+    if (!activeTemplate) return { transform: '', export: '' }
+
+    // Use template_id as widget name (this is what gets saved)
+    const widgetName = activeTemplate.template_id
+
+    // Build transform.yml section using the config from the backend
+    // The backend provides the correct transformer params in activeTemplate.config
     const transformConfig: Record<string, unknown> = {
       [widgetName]: {
         plugin: transformer,
-        params: {},
+        params: activeTemplate.config || {},
       },
     }
 
-    // Add transformer-specific params (matching niamoto-nc format)
-    if (transformer === 'top_ranking') {
-      (transformConfig[widgetName] as Record<string, unknown>).params = {
-        source,
-        field: column,
-        count: config.count || 10,
-      }
-    } else if (transformer === 'categorical_distribution') {
-      (transformConfig[widgetName] as Record<string, unknown>).params = {
-        source,
-        field: column,
-      }
-    } else if (transformer === 'binned_distribution') {
-      (transformConfig[widgetName] as Record<string, unknown>).params = {
-        source,
-        field: column,
-        bins: config.bins || 10,
-      }
-    } else if (transformer === 'statistical_summary') {
-      (transformConfig[widgetName] as Record<string, unknown>).params = {
-        source,
-        field: column,
-        stats: ['count', 'mean', 'min', 'max', 'std'],
-      }
-    } else if (transformer === 'binary_counter') {
-      (transformConfig[widgetName] as Record<string, unknown>).params = {
-        source,
-        field: column,
-        true_label: 'oui',
-        false_label: 'non',
-        include_percentages: true,
-      }
-    } else if (transformer === 'geospatial_extractor') {
-      (transformConfig[widgetName] as Record<string, unknown>).params = {
-        source,
-        field: 'geo_pt',
-        format: 'geojson',
-      }
-    } else {
-      (transformConfig[widgetName] as Record<string, unknown>).params = {
-        source,
-        field: column,
-      }
-    }
-
-    // Build export.yml section (format: list of widgets in export.yml groups)
+    // Build export.yml section
     // Map category to actual widget plugin name
     const categoryToPlugin: Record<string, string> = {
       info: 'info_grid',
@@ -222,19 +265,16 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
       gauge: 'radial_gauge',
       donut: 'donut_chart',
       table: 'info_grid',
+      navigation: 'hierarchical_nav_widget',
     }
-    const widgetPlugin = categoryToPlugin[template.category] || template.category
-    let exportWidget: Record<string, unknown> = {
-      plugin: widgetPlugin,
-      data_source: widgetName,
-      title: template.name,
-      params: {},
-    }
+    const widgetPlugin = categoryToPlugin[activeTemplate.category] || activeTemplate.category
 
-    // Add widget-specific params (matching niamoto-nc format)
+    // Generate export widget params matching backend's _generate_widget_params
+    let exportParams: Record<string, unknown> = {}
+
     if (widgetPlugin === 'bar_plot') {
       if (transformer === 'top_ranking') {
-        exportWidget.params = {
+        exportParams = {
           orientation: 'h',
           x_axis: 'counts',
           y_axis: 'tops',
@@ -242,44 +282,82 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
           auto_color: true,
         }
       } else if (transformer === 'categorical_distribution' || transformer === 'binned_distribution') {
-        exportWidget.params = {
+        exportParams = {
           orientation: 'v',
           x_axis: 'labels',
           y_axis: 'counts',
           gradient_color: '#10b981',
           gradient_mode: 'luminance',
+          show_legend: false,
+        }
+        if (transformer === 'binned_distribution') {
+          exportParams.transform = 'bins_to_df'
+          exportParams.transform_params = {
+            bin_field: 'bins',
+            count_field: 'counts',
+            use_percentages: true,
+            percentage_field: 'percentages',
+            x_field: 'bin',
+            y_field: 'count',
+          }
         }
       }
     } else if (widgetPlugin === 'donut_chart') {
-      exportWidget.params = {
+      exportParams = {
         labels_field: 'labels',
         values_field: 'counts',
       }
     } else if (widgetPlugin === 'radial_gauge') {
-      exportWidget.params = {
-        value_field: 'percentage',
+      if (transformer === 'statistical_summary') {
+        // Use new stat_to_display params for statistical_summary
+        exportParams = {
+          stat_to_display: 'mean',
+          show_range: true,
+          auto_range: true,
+        }
+      } else {
+        exportParams = {
+          auto_range: true,
+        }
       }
     } else if (widgetPlugin === 'interactive_map') {
-      exportWidget.params = {
-        center: [-21.5, 165.5],
+      exportParams = {
+        map_style: 'carto-voyager',
         zoom: 7,
+        layers: [{
+          id: 'occurrences',
+          source: 'coordinates',
+          type: 'circle_markers',
+          style: {
+            color: '#1fb99d',
+            weight: 1,
+            fillColor: '#00716b',
+            fillOpacity: 0.5,
+            radius: 8,
+          },
+        }],
       }
-    } else if (widgetPlugin === 'info_grid') {
-      exportWidget = {
-        plugin: widgetPlugin,
-        data_source: widgetName,
-        title: template.name,
-      }
+    }
+
+    const exportWidget: Record<string, unknown> = {
+      plugin: widgetPlugin,
+      data_source: widgetName,
+      title: activeTemplate.name,
+      layout: {
+        colspan: 1,
+        order: 0,  // Will be set based on position when saved
+      },
+      ...(Object.keys(exportParams).length > 0 && { params: exportParams }),
     }
 
     return {
       transform: yaml.dump(transformConfig, { indent: 2, lineWidth: -1 }),
       export: yaml.dump([exportWidget], { indent: 2, lineWidth: -1 }),
     }
-  }, [template, transformer])
+  }, [isConfiguredMode, activeWidget, activeTemplate, transformer])
 
   // Early return for empty state - AFTER all hooks
-  if (!template) {
+  if (!activeTemplate && !activeWidget) {
     return (
       <div className={cn('h-full flex flex-col', className)}>
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
@@ -287,7 +365,7 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
             <Sparkles className="h-10 w-10 text-muted-foreground/50" />
           </div>
           <h3 className="text-lg font-medium text-muted-foreground">
-            Selectionnez un template
+            Selectionnez un widget
           </h3>
           <p className="text-sm text-muted-foreground/70 mt-2 max-w-[240px]">
             Cliquez sur un widget pour visualiser son rendu
@@ -297,9 +375,27 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
     )
   }
 
-  // These are safe now since template is guaranteed to exist
-  const IconComponent = ICON_MAP[template.icon] || CATEGORY_ICONS[template.category] || Info
-  const categoryInfo = CATEGORY_INFO[template.category] ?? { label: template.category, color: 'text-gray-600', bgColor: 'bg-gray-50' }
+  // Determine display info based on mode
+  const displayInfo = isConfiguredMode && activeWidget
+    ? {
+        name: activeWidget.title,
+        description: activeWidget.description || `Widget ${activeWidget.id}`,
+        category: (activeWidget.category || 'chart') as WidgetCategory,
+        icon: 'BarChart3',
+      }
+    : activeTemplate
+    ? {
+        name: activeTemplate.name,
+        description: activeTemplate.description,
+        category: activeTemplate.category,
+        icon: activeTemplate.icon,
+      }
+    : null
+
+  if (!displayInfo) return null
+
+  const IconComponent = ICON_MAP[displayInfo.icon] || CATEGORY_ICONS[displayInfo.category] || Info
+  const categoryInfo = CATEGORY_INFO[displayInfo.category] ?? { label: displayInfo.category, color: 'text-gray-600', bgColor: 'bg-gray-50' }
 
   return (
     <div className={cn('h-full flex flex-col', className)}>
@@ -313,20 +409,45 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
             <IconComponent className={cn('h-6 w-6', categoryInfo.color)} />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold truncate">{template.name}</h3>
+            <h3 className="font-semibold truncate">{displayInfo.name}</h3>
             <p className="text-sm text-muted-foreground line-clamp-2">
-              {template.description}
+              {displayInfo.description}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 flex-shrink-0"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          </Button>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Edit/Preview toggle for configured widgets */}
+            {isConfiguredMode && onUpdateWidget && (
+              <Button
+                variant={editMode ? 'default' : 'outline'}
+                size="sm"
+                className="h-8"
+                onClick={() => setEditMode(!editMode)}
+              >
+                {editMode ? (
+                  <>
+                    <Eye className="h-4 w-4 mr-1" />
+                    Preview
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Editer
+                  </>
+                )}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            </Button>
+          </div>
         </div>
 
         {/* Badges - User-friendly descriptions */}
@@ -344,82 +465,104 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
             {categoryInfo.label}
           </Badge>
 
-          {/* Source: occurrences vs CSV */}
-          {template.config?.source !== undefined && (
+          {/* Source: occurrences vs CSV (only for templates) */}
+          {activeTemplate?.config?.source !== undefined && (
             <Badge variant="outline" className="text-xs">
-              Source: {String(template.config.source)}
+              Source: {String(activeTemplate.config.source)}
             </Badge>
           )}
 
-          {/* CSV source indicator */}
-          {template.source === 'class_object' && (
+          {/* CSV source indicator (only for templates) */}
+          {activeTemplate?.source === 'class_object' && (
             <Badge variant="outline" className="text-xs border-data-source-secondary/50 bg-data-source-secondary/10 text-data-source-secondary">
-              CSV pré-calculé
+              CSV pre-calcule
+            </Badge>
+          )}
+
+          {/* Configured widget indicator */}
+          {isConfiguredMode && (
+            <Badge variant="outline" className="text-xs border-primary/50 bg-primary/10 text-primary">
+              Configure
             </Badge>
           )}
         </div>
 
         {/* Transformer description */}
-        {transformerDescription && (
+        {transformerDescription && !editMode && (
           <p className="text-xs text-muted-foreground mt-2">
             {transformerDescription}
           </p>
         )}
 
-        {template.match_reason && (
+        {activeTemplate?.match_reason && !editMode && (
           <p className="text-xs text-muted-foreground mt-2">
-            {template.match_reason}
-            {template.matched_column && (
+            {activeTemplate.match_reason}
+            {activeTemplate.matched_column && (
               <span className="font-mono ml-1 px-1 py-0.5 rounded bg-muted">
-                {template.matched_column}
+                {activeTemplate.matched_column}
               </span>
             )}
           </p>
         )}
       </div>
 
-      {/* Preview area with iframe */}
-      <div className="flex-1 min-h-0 p-4 overflow-hidden">
-        <div className="h-full rounded-xl border bg-card overflow-hidden relative">
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-              <div className="flex flex-col items-center gap-2">
-                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Chargement...</span>
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
-              <AlertTriangle className="h-10 w-10 text-warning mb-2" />
-              <span className="text-sm text-muted-foreground">{error}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={handleRefresh}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Reessayer
-              </Button>
-            </div>
-          )}
-
-          {previewUrl && (
-            <iframe
-              key={iframeKey}
-              src={previewUrl}
-              className="w-full h-full border-0"
-              onLoad={handleIframeLoad}
-              onError={handleIframeError}
-              title={`Preview: ${template.name}`}
-            />
-          )}
+      {/* Main content area - Edit form or Preview */}
+      {editMode && activeWidget ? (
+        /* Edit form for configured widgets */
+        <div className="flex-1 min-h-0 overflow-auto">
+          <WidgetConfigForm
+            widget={activeWidget}
+            groupBy={groupBy || ''}
+            availableFields={availableFields}
+            onSave={handleSave}
+            onCancel={handleCancelEdit}
+          />
         </div>
-      </div>
+      ) : (
+        /* Preview area with iframe */
+        <div className="flex-1 min-h-0 p-4 overflow-hidden">
+          <div className="h-full rounded-xl border bg-card overflow-hidden relative">
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                <div className="flex flex-col items-center gap-2">
+                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Chargement...</span>
+                </div>
+              </div>
+            )}
 
-      {/* YAML Config preview */}
+            {error && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
+                <AlertTriangle className="h-10 w-10 text-warning mb-2" />
+                <span className="text-sm text-muted-foreground">{error}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reessayer
+                </Button>
+              </div>
+            )}
+
+            {previewUrl && (
+              <iframe
+                key={iframeKey}
+                src={previewUrl}
+                className="w-full h-full border-0"
+                onLoad={handleIframeLoad}
+                onError={handleIframeError}
+                title={`Preview: ${displayInfo.name}`}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* YAML Config preview - hidden in edit mode */}
+      {!editMode && (
       <div className="shrink-0 p-4 border-t">
         <details className="group" open>
           <summary className="text-sm font-medium cursor-pointer list-none flex items-center justify-between">
@@ -471,6 +614,7 @@ export function WidgetPreviewPanel({ template, groupBy, className }: WidgetPrevi
           </Tabs>
         </details>
       </div>
+      )}
     </div>
   )
 }

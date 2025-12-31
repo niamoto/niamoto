@@ -1310,3 +1310,1379 @@ async def get_import_v2_schema():
     }
 
     return schema
+
+
+# =============================================================================
+# Widget CRUD Endpoints for Transform and Export configurations
+# =============================================================================
+
+
+class TransformWidgetUpdate(BaseModel):
+    """Request body for updating a transform widget."""
+
+    plugin: str
+    params: Dict[str, Any] = {}
+
+
+class ExportWidgetUpdate(BaseModel):
+    """Request body for updating an export widget."""
+
+    plugin: str
+    data_source: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    params: Dict[str, Any] = {}
+
+
+class WidgetSummary(BaseModel):
+    """Summary of a widget configuration."""
+
+    id: str
+    plugin: str
+    params: Dict[str, Any] = {}
+
+
+def _load_transform_config() -> List[Dict[str, Any]]:
+    """Load transform.yml and return as list of groups."""
+    config_path = get_working_directory() / "config" / "transform.yml"
+    if not config_path.exists():
+        return []
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        content = yaml.safe_load(f)
+
+    # Handle both list and dict formats
+    if isinstance(content, list):
+        return content
+    return []
+
+
+def _save_transform_config(groups: List[Dict[str, Any]]) -> None:
+    """Save transform config to file."""
+    config_path = get_working_directory() / "config" / "transform.yml"
+    ensure_config_dir()
+
+    # Create backup
+    if config_path.exists():
+        create_backup(config_path)
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.dump(
+            groups, f, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
+
+
+def _load_export_config() -> Dict[str, Any]:
+    """Load export.yml."""
+    config_path = get_working_directory() / "config" / "export.yml"
+    if not config_path.exists():
+        return {"exports": []}
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {"exports": []}
+
+
+def _save_export_config(config: Dict[str, Any]) -> None:
+    """Save export config to file."""
+    config_path = get_working_directory() / "config" / "export.yml"
+    ensure_config_dir()
+
+    # Create backup
+    if config_path.exists():
+        create_backup(config_path)
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.dump(
+            config, f, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
+
+
+def _find_transform_group(
+    groups: List[Dict[str, Any]], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find a group by group_by value."""
+    for group in groups:
+        if group.get("group_by") == group_by:
+            return group
+    return None
+
+
+def _find_export_group(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find export group by group_by value."""
+    exports = export_config.get("exports", [])
+    for export_entry in exports:
+        groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+            "groups", []
+        )
+        for group in groups:
+            if group.get("group_by") == group_by:
+                return group
+    return None
+
+
+@router.get("/transform/{group_by}/widgets")
+async def list_transform_widgets(group_by: str) -> List[WidgetSummary]:
+    """
+    List all widgets in transform.yml for a specific group.
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        List of widget summaries
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            return []
+
+        widgets_data = group.get("widgets_data", {})
+        widgets = []
+
+        for widget_id, widget_config in widgets_data.items():
+            widgets.append(
+                WidgetSummary(
+                    id=widget_id,
+                    plugin=widget_config.get("plugin", ""),
+                    params=widget_config.get("params", {}),
+                )
+            )
+
+        return widgets
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing widgets: {str(e)}")
+
+
+@router.get("/transform/{group_by}/widgets/{widget_id}")
+async def get_transform_widget(group_by: str, widget_id: str) -> WidgetSummary:
+    """
+    Get a specific widget from transform.yml.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier
+
+    Returns:
+        Widget summary
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
+
+        widgets_data = group.get("widgets_data", {})
+        if widget_id not in widgets_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+            )
+
+        widget_config = widgets_data[widget_id]
+        return WidgetSummary(
+            id=widget_id,
+            plugin=widget_config.get("plugin", ""),
+            params=widget_config.get("params", {}),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting widget: {str(e)}")
+
+
+@router.put("/transform/{group_by}/widgets/{widget_id}")
+async def update_transform_widget(
+    group_by: str, widget_id: str, update: TransformWidgetUpdate
+) -> WidgetSummary:
+    """
+    Create or update a widget in transform.yml.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier
+        update: Widget configuration
+
+    Returns:
+        Updated widget summary
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
+
+        if "widgets_data" not in group:
+            group["widgets_data"] = {}
+
+        group["widgets_data"][widget_id] = {
+            "plugin": update.plugin,
+            "params": update.params,
+        }
+
+        _save_transform_config(groups)
+
+        return WidgetSummary(
+            id=widget_id,
+            plugin=update.plugin,
+            params=update.params,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating widget: {str(e)}")
+
+
+@router.delete("/transform/{group_by}/widgets/{widget_id}")
+async def delete_transform_widget(group_by: str, widget_id: str) -> Dict[str, bool]:
+    """
+    Delete a widget from transform.yml.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier
+
+    Returns:
+        Success status
+    """
+    try:
+        groups = _load_transform_config()
+        group = _find_transform_group(groups, group_by)
+
+        if not group:
+            raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
+
+        widgets_data = group.get("widgets_data", {})
+        if widget_id not in widgets_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+            )
+
+        del widgets_data[widget_id]
+        _save_transform_config(groups)
+
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting widget: {str(e)}")
+
+
+@router.get("/export/{group_by}/widgets")
+async def list_export_widgets(group_by: str) -> List[Dict[str, Any]]:
+    """
+    List all widgets in export.yml for a specific group.
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        List of widget configurations
+    """
+    try:
+        export_config = _load_export_config()
+        group = _find_export_group(export_config, group_by)
+
+        if not group:
+            return []
+
+        return group.get("widgets", [])
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error listing export widgets: {str(e)}"
+        )
+
+
+@router.put("/export/{group_by}/widgets/{widget_id}")
+async def update_export_widget(
+    group_by: str, widget_id: str, update: ExportWidgetUpdate
+) -> Dict[str, Any]:
+    """
+    Create or update a widget in export.yml.
+
+    The widget_id corresponds to the data_source field.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier (data_source)
+        update: Widget configuration
+
+    Returns:
+        Updated widget configuration
+    """
+    try:
+        export_config = _load_export_config()
+
+        # Find the export entry with groups
+        target_group = None
+
+        for export_entry in export_config.get("exports", []):
+            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+                "groups", []
+            )
+            for group in groups:
+                if group.get("group_by") == group_by:
+                    target_group = group
+                    break
+            if target_group:
+                break
+
+        if not target_group:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in export config"
+            )
+
+        # Ensure widgets list exists
+        if "widgets" not in target_group:
+            target_group["widgets"] = []
+
+        # Find existing widget by data_source
+        existing_idx = None
+        for idx, widget in enumerate(target_group["widgets"]):
+            if widget.get("data_source") == widget_id:
+                existing_idx = idx
+                break
+
+        new_widget = {
+            "plugin": update.plugin,
+            "data_source": update.data_source,
+            "params": update.params,
+        }
+        if update.title:
+            new_widget["title"] = update.title
+        if update.description:
+            new_widget["description"] = update.description
+
+        if existing_idx is not None:
+            target_group["widgets"][existing_idx] = new_widget
+        else:
+            target_group["widgets"].append(new_widget)
+
+        _save_export_config(export_config)
+
+        return new_widget
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error updating export widget: {str(e)}"
+        )
+
+
+@router.delete("/export/{group_by}/widgets/{widget_id}")
+async def delete_export_widget(group_by: str, widget_id: str) -> Dict[str, bool]:
+    """
+    Delete a widget from export.yml.
+
+    The widget_id corresponds to the data_source field.
+
+    Args:
+        group_by: The group name
+        widget_id: The widget identifier (data_source)
+
+    Returns:
+        Success status
+    """
+    try:
+        export_config = _load_export_config()
+
+        # Find the group
+        target_group = None
+        for export_entry in export_config.get("exports", []):
+            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+                "groups", []
+            )
+            for group in groups:
+                if group.get("group_by") == group_by:
+                    target_group = group
+                    break
+            if target_group:
+                break
+
+        if not target_group:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in export config"
+            )
+
+        widgets = target_group.get("widgets", [])
+        original_len = len(widgets)
+
+        # Filter out the widget
+        target_group["widgets"] = [
+            w for w in widgets if w.get("data_source") != widget_id
+        ]
+
+        if len(target_group["widgets"]) == original_len:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+            )
+
+        _save_export_config(export_config)
+
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error deleting export widget: {str(e)}"
+        )
+
+
+# =============================================================================
+# Index Generator Configuration Endpoints
+# =============================================================================
+
+
+class IndexGeneratorPageConfigUpdate(BaseModel):
+    """Page configuration for index generator."""
+
+    title: str
+    description: Optional[str] = None
+    items_per_page: int = 24
+
+
+class IndexGeneratorFilterUpdate(BaseModel):
+    """Filter configuration for index generator."""
+
+    field: str
+    values: List[Any]
+    operator: str = "in"
+
+
+class IndexGeneratorDisplayFieldUpdate(BaseModel):
+    """Display field configuration for index generator."""
+
+    name: str
+    source: str
+    fallback: Optional[str] = None
+    type: str = "text"
+    label: Optional[str] = None
+    searchable: bool = False
+    format: Optional[str] = None
+    mapping: Optional[Dict[str, str]] = None
+    filter_options: Optional[List[Dict[str, str]]] = None
+    dynamic_options: bool = False
+    inline_badge: bool = False
+    true_label: Optional[str] = None
+    false_label: Optional[str] = None
+    badge_color: Optional[str] = None
+    badge_style: Optional[str] = None
+    badge_colors: Optional[Dict[str, str]] = None
+    badge_styles: Optional[Dict[str, str]] = None
+    tooltip_mapping: Optional[Dict[str, str]] = None
+    display: Optional[str] = None
+    link_label: Optional[str] = None
+    link_template: Optional[str] = None
+    link_title: Optional[str] = None
+    link_target: Optional[str] = None
+    css_class: Optional[str] = None
+    css_style: Optional[str] = None
+    image_fields: Optional[Dict[str, str]] = None
+
+
+class IndexGeneratorViewUpdate(BaseModel):
+    """View configuration for index generator."""
+
+    type: str
+    default: bool = False
+
+
+class IndexGeneratorConfigUpdate(BaseModel):
+    """Complete index generator configuration."""
+
+    enabled: bool = True
+    template: str = "group_index.html"
+    page_config: IndexGeneratorPageConfigUpdate
+    filters: Optional[List[IndexGeneratorFilterUpdate]] = None
+    display_fields: List[IndexGeneratorDisplayFieldUpdate]
+    views: Optional[List[IndexGeneratorViewUpdate]] = None
+
+
+@router.get("/export/{group_by}/index-generator")
+async def get_index_generator(group_by: str) -> Dict[str, Any]:
+    """
+    Get index_generator configuration for a group.
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        Index generator configuration
+
+    Raises:
+        HTTPException 404: If group not found or no index_generator configured
+    """
+    try:
+        export_config = _load_export_config()
+        group = _find_export_group(export_config, group_by)
+
+        if not group:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in export config"
+            )
+
+        index_generator = group.get("index_generator")
+        if not index_generator:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No index_generator configuration for group '{group_by}'",
+            )
+
+        return index_generator
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting index generator config: {str(e)}"
+        )
+
+
+@router.put("/export/{group_by}/index-generator")
+async def update_index_generator(
+    group_by: str, config: IndexGeneratorConfigUpdate
+) -> Dict[str, Any]:
+    """
+    Update index_generator configuration for a group.
+
+    Args:
+        group_by: The group name
+        config: Index generator configuration
+
+    Returns:
+        Updated configuration
+    """
+    try:
+        export_config = _load_export_config()
+
+        # Find the group
+        target_group = None
+        for export_entry in export_config.get("exports", []):
+            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+                "groups", []
+            )
+            for group in groups:
+                if group.get("group_by") == group_by:
+                    target_group = group
+                    break
+            if target_group:
+                break
+
+        if not target_group:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in export config"
+            )
+
+        # Convert Pydantic model to dict
+        config_dict = config.model_dump(exclude_none=True)
+
+        # Convert nested models
+        if "page_config" in config_dict:
+            config_dict["page_config"] = {
+                k: v for k, v in config_dict["page_config"].items() if v is not None
+            }
+
+        if "filters" in config_dict:
+            config_dict["filters"] = [
+                {k: v for k, v in f.items() if v is not None}
+                for f in config_dict["filters"]
+            ]
+
+        if "display_fields" in config_dict:
+            config_dict["display_fields"] = [
+                {k: v for k, v in f.items() if v is not None}
+                for f in config_dict["display_fields"]
+            ]
+
+        if "views" in config_dict:
+            config_dict["views"] = [
+                {k: v for k, v in v.items() if v is not None}
+                for v in config_dict["views"]
+            ]
+
+        # Insert index_generator before widgets if widgets exists
+        if "widgets" in target_group:
+            # Reorder keys: everything before widgets, then index_generator, then widgets
+            new_group = {}
+            for key in target_group:
+                if key == "widgets":
+                    new_group["index_generator"] = config_dict
+                    new_group["widgets"] = target_group["widgets"]
+                elif key != "index_generator":
+                    new_group[key] = target_group[key]
+            # If widgets wasn't in the loop (shouldn't happen), add index_generator
+            if "index_generator" not in new_group:
+                new_group["index_generator"] = config_dict
+            target_group.clear()
+            target_group.update(new_group)
+        else:
+            target_group["index_generator"] = config_dict
+
+        _save_export_config(export_config)
+
+        return config_dict
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error updating index generator config: {str(e)}"
+        )
+
+
+# =============================================================================
+# Index Generator Field Suggestions
+# =============================================================================
+
+
+class SuggestedDisplayField(BaseModel):
+    """Suggested display field configuration."""
+
+    name: str
+    source: str
+    type: str  # text, select, boolean, json_array
+    label: str
+    searchable: bool = False
+    cardinality: Optional[int] = None  # Number of distinct values
+    sample_values: Optional[List[str]] = None  # Sample of values
+    suggested_as_filter: bool = False
+    format: Optional[str] = None
+    dynamic_options: bool = False
+    priority: str = "high"  # high, low - indicates importance for index display
+
+
+class SuggestedFilter(BaseModel):
+    """Suggested filter configuration."""
+
+    field: str
+    source: str
+    label: str
+    type: str
+    values: List[Any]
+    operator: str = "in"
+
+
+class IndexFieldSuggestions(BaseModel):
+    """Response with suggested fields for index generator."""
+
+    display_fields: List[SuggestedDisplayField]
+    filters: List[SuggestedFilter]
+    total_entities: int
+
+
+def _extract_json_paths(
+    data: Dict[str, Any], prefix: str = "", max_depth: int = 4
+) -> List[tuple]:
+    """
+    Extract all JSON paths from a nested dictionary.
+    Returns list of (path, value) tuples.
+    """
+    paths = []
+    if max_depth <= 0:
+        return paths
+
+    for key, value in data.items():
+        current_path = f"{prefix}.{key}" if prefix else key
+
+        if isinstance(value, dict):
+            # Check if it's a {value: X, label: Y} pattern (common in Niamoto)
+            if "value" in value:
+                paths.append((f"{current_path}.value", value.get("value")))
+            else:
+                # Recurse into nested dict
+                paths.extend(_extract_json_paths(value, current_path, max_depth - 1))
+        elif isinstance(value, list):
+            # For arrays, note the path but don't recurse
+            paths.append((current_path, value))
+        else:
+            paths.append((current_path, value))
+
+    return paths
+
+
+def _detect_field_type(values: List[Any]) -> str:
+    """Detect the field type based on sample values."""
+    if not values:
+        return "text"
+
+    # Filter out None values
+    non_null = [v for v in values if v is not None]
+    if not non_null:
+        return "text"
+
+    # Check for boolean
+    bool_values = {True, False, "true", "false", "True", "False", 1, 0}
+    if all(v in bool_values for v in non_null):
+        return "boolean"
+
+    # Check for arrays
+    if any(isinstance(v, list) for v in non_null):
+        return "json_array"
+
+    # Check for numeric
+    try:
+        for v in non_null[:10]:  # Check first 10
+            if isinstance(v, (int, float)):
+                continue
+            float(v)
+        return "number"
+    except (ValueError, TypeError):
+        pass
+
+    # Check cardinality for select vs text
+    unique = set(str(v) for v in non_null if v is not None)
+    if len(unique) <= 20 and len(non_null) > len(unique) * 2:
+        return "select"
+
+    return "text"
+
+
+def _generate_label(path: str) -> str:
+    """Generate a human-readable label from a JSON path."""
+    # Extract the meaningful part
+    parts = path.split(".")
+
+    # Common patterns to handle
+    if parts[-1] == "value":
+        parts = parts[:-1]
+
+    # Take the last meaningful part
+    name = parts[-1] if parts else path
+
+    # Convert to human readable
+    label = name.replace("_", " ").replace("-", " ")
+    return label.title()
+
+
+def _is_name_field(path: str) -> bool:
+    """Check if this is likely a name/title field."""
+    name_indicators = ["name", "title", "label", "full_name", "nom"]
+    lower_path = path.lower()
+    return any(ind in lower_path for ind in name_indicators)
+
+
+def _is_category_field(path: str) -> bool:
+    """Check if this is likely a category field."""
+    cat_indicators = [
+        "type",
+        "category",
+        "rank",
+        "status",
+        "class",
+        "kind",
+        "famille",
+        "family",
+        "genus",
+    ]
+    lower_path = path.lower()
+    return any(ind in lower_path for ind in cat_indicators)
+
+
+def _extract_extra_data_fields(
+    source_df: Any,
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Extract fields from extra_data column (API enrichment data).
+
+    These are high priority fields for index display.
+    Handles both dict and JSON string formats.
+    """
+    import json
+
+    schema = {}
+
+    if "extra_data" not in source_df.columns:
+        return schema
+
+    # Sample extra_data values
+    extra_data_values = source_df["extra_data"].dropna().tolist()
+    if not extra_data_values:
+        return schema
+
+    # Extract all keys from extra_data (including nested api_enrichment)
+    all_keys = set()
+    sample_values = {}
+
+    for data in extra_data_values[:50]:
+        # Parse JSON string if needed
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+
+        if not isinstance(data, dict):
+            continue
+
+        # Check for api_enrichment nested structure
+        if "api_enrichment" in data and isinstance(data["api_enrichment"], dict):
+            enrichment_data = data["api_enrichment"]
+            for key, value in enrichment_data.items():
+                full_key = f"api_enrichment.{key}"
+                all_keys.add(full_key)
+                if full_key not in sample_values:
+                    sample_values[full_key] = []
+                if value is not None and not isinstance(value, (dict, list)):
+                    sample_values[full_key].append(value)
+
+        # Also extract top-level keys (like enriched_at)
+        for key, value in data.items():
+            if key == "api_enrichment":
+                continue  # Already handled above
+            all_keys.add(key)
+            if key not in sample_values:
+                sample_values[key] = []
+            if value is not None and not isinstance(value, (dict, list)):
+                sample_values[key].append(value)
+
+    # Create schema entries for each key
+    for key in all_keys:
+        values = sample_values.get(key, [])
+        if values:
+            field_type = _detect_field_type(values)
+            unique_vals = list(set(str(v) for v in values if v is not None))[:10]
+            schema[f"extra_data.{key}"] = {
+                "type": field_type,
+                "sample_values": unique_vals,
+                "cardinality": len(set(str(v) for v in values if v is not None)),
+                "total_values": len(values),
+                "priority": "high",  # API enrichment data is high priority
+                "source": "extra_data",
+            }
+
+    return schema
+
+
+def _infer_schema_from_transform_config(
+    group_config: Dict[str, Any],
+    source_df: Any,
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Infer the output schema from transform.yml configuration.
+
+    Analyzes transformer configurations to predict what columns and JSON
+    structures will be created during transformation.
+
+    Priority levels:
+    - "high": field_aggregator, class_object_field_aggregator, extra_data
+    - "medium": statistical_summary with simple stats
+    - "low": distributions, rankings, complex transformers
+
+    Handles both:
+    - Old format: transformers: [{name, plugin, params}, ...]
+    - New format: widgets_data: {widget_name: {plugin, params}, ...}
+
+    Returns:
+        Dict mapping JSON paths to their inferred properties
+    """
+    schema = {}
+
+    # First, extract extra_data fields (high priority)
+    extra_data_schema = _extract_extra_data_fields(source_df)
+    schema.update(extra_data_schema)
+
+    # Handle new widgets_data format
+    widgets_data = group_config.get("widgets_data", {})
+    transformers = []
+
+    if widgets_data:
+        # Convert widgets_data format to transformers format
+        for widget_name, widget_config in widgets_data.items():
+            if isinstance(widget_config, dict):
+                transformers.append(
+                    {
+                        "name": widget_name,
+                        "plugin": widget_config.get("plugin", ""),
+                        "params": widget_config.get("params", {}),
+                    }
+                )
+    else:
+        # Use old transformers format
+        transformers = group_config.get("transformers", [])
+
+    # High priority plugins (good for index display)
+    HIGH_PRIORITY_PLUGINS = {"field_aggregator", "class_object_field_aggregator"}
+
+    for transformer in transformers:
+        name = transformer.get("name", "")
+        plugin = transformer.get("plugin", "")
+        params = transformer.get("params", {})
+
+        # Determine priority based on plugin type
+        priority = "high" if plugin in HIGH_PRIORITY_PLUGINS else "low"
+
+        # Handle field_aggregator - creates {name}.{field}.value structure
+        if plugin in ["field_aggregator", "class_object_field_aggregator"]:
+            fields = params.get("fields", [])
+            for field_config in fields:
+                # Handle both old format (source=column) and new format (source=ref, field=column)
+                if "field" in field_config:
+                    # New format: {source: ref_name, field: column_name, target: output_name}
+                    source_col = field_config.get("field", "")
+                else:
+                    # Old format: {source: column_name, target: output_name}
+                    source_col = field_config.get("source", "")
+
+                target = field_config.get("target", source_col)
+                path = f"{name}.{target}.value"
+
+                # Handle nested field paths like "extra_data.enriched_at"
+                if "." in source_col:
+                    # For nested paths, try to extract from extra_data
+                    parts = source_col.split(".")
+                    if parts[0] == "extra_data" and len(parts) > 1:
+                        extra_key = parts[1]
+                        # Get values from extra_data
+                        values = []
+                        for _, row in source_df.iterrows():
+                            if isinstance(row.get("extra_data"), dict):
+                                val = row["extra_data"].get(extra_key)
+                                if val is not None:
+                                    values.append(val)
+                        if values:
+                            schema[path] = {
+                                "type": _detect_field_type(values),
+                                "sample_values": list(
+                                    set(str(v) for v in values if v is not None)
+                                )[:10],
+                                "cardinality": len(
+                                    set(str(v) for v in values if v is not None)
+                                ),
+                                "total_values": len(values),
+                                "source_column": source_col,
+                                "priority": priority,
+                            }
+                        else:
+                            schema[path] = {
+                                "type": "text",
+                                "sample_values": [],
+                                "cardinality": 0,
+                                "total_values": 0,
+                                "source_column": source_col,
+                                "priority": priority,
+                            }
+                    else:
+                        schema[path] = {
+                            "type": "text",
+                            "sample_values": [],
+                            "cardinality": 0,
+                            "total_values": 0,
+                            "source_column": source_col,
+                            "priority": priority,
+                        }
+                elif source_col in source_df.columns:
+                    # Try to get sample values from source column
+                    values = source_df[source_col].dropna().tolist()
+                    if values:
+                        schema[path] = {
+                            "type": _detect_field_type(values),
+                            "sample_values": list(
+                                set(str(v) for v in values if v is not None)
+                            )[:10],
+                            "cardinality": len(
+                                set(str(v) for v in values if v is not None)
+                            ),
+                            "total_values": len(values),
+                            "source_column": source_col,
+                            "priority": priority,
+                        }
+                else:
+                    # Column not in source, but still add the path
+                    schema[path] = {
+                        "type": "text",
+                        "sample_values": [],
+                        "cardinality": 0,
+                        "total_values": 0,
+                        "source_column": source_col,
+                        "priority": priority,
+                    }
+
+        # Handle statistical_summary - creates {name}.{stat} structure (medium priority)
+        elif plugin == "statistical_summary":
+            stats = params.get("stats", ["mean", "min", "max", "count"])
+            source_field = params.get("source_field", params.get("field", ""))
+            for stat in stats:
+                path = f"{name}.{stat}"
+                schema[path] = {
+                    "type": "number",
+                    "sample_values": [],
+                    "cardinality": 0,
+                    "total_values": 0,
+                    "source_column": source_field,
+                    "priority": "low",  # Stats are less useful for index display
+                }
+
+        # Handle distribution transformers - creates {name}.bins, {name}.counts (low priority)
+        elif plugin in [
+            "binned_distribution",
+            "dbh_distribution",
+            "elevation_distribution",
+            "categorical_distribution",
+        ]:
+            schema[f"{name}.bins"] = {
+                "type": "json_array",
+                "sample_values": [],
+                "cardinality": 0,
+                "total_values": 0,
+                "priority": "low",
+            }
+            schema[f"{name}.counts"] = {
+                "type": "json_array",
+                "sample_values": [],
+                "cardinality": 0,
+                "total_values": 0,
+                "priority": "low",
+            }
+
+        # Skip other complex transformers for suggestions (they're not useful for index)
+        # Users can still add them manually if needed
+
+    return schema
+
+
+@router.get("/export/{group_by}/index-generator/suggestions")
+async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
+    """
+    Analyze transformed data and suggest display fields and filters.
+
+    This endpoint:
+    1. First tries to load the transformed stats table (if transform was already run)
+    2. If not available, infers the schema from transform.yml configuration
+    3. Uses source data to detect field types and sample values
+    4. Suggests fields for display and filtering based on cardinality
+
+    Args:
+        group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+
+    Returns:
+        Suggested display_fields and filters
+    """
+    try:
+        import pandas as pd
+        from niamoto.common.database import Database
+        from niamoto.core.imports.registry import EntityRegistry
+
+        db_path = get_working_directory() / "db" / "niamoto.duckdb"
+        if not db_path.exists():
+            raise HTTPException(status_code=404, detail="Database not found")
+
+        # Load transform config
+        transform_config = []
+        transform_path = get_working_directory() / "config" / "transform.yml"
+        if transform_path.exists():
+            with open(transform_path, "r", encoding="utf-8") as f:
+                transform_config = yaml.safe_load(f) or []
+
+        # Find the group config
+        group_config = None
+        for group in transform_config:
+            if group.get("group_by") == group_by:
+                group_config = group
+                break
+
+        if not group_config:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in transform.yml"
+            )
+
+        # Get source entity name from transform config
+        source_entity = group_config.get("source", group_by)
+
+        # Find source table from EntityRegistry
+        source_table = None
+        db = Database(str(db_path), read_only=True)
+        try:
+            if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                registry = EntityRegistry(db)
+                for entity in registry.list_entities():
+                    if entity.name == source_entity:
+                        source_table = entity.table_name
+                        break
+        finally:
+            db.close_db_session()
+
+        # Fallback to common patterns
+        if not source_table:
+            possible_tables = [
+                f"entity_{source_entity}",
+                f"reference_{source_entity}",
+                source_entity,
+            ]
+            db = Database(str(db_path), read_only=True)
+            try:
+                for table_name in possible_tables:
+                    if db.has_table(table_name):
+                        source_table = table_name
+                        break
+            finally:
+                db.close_db_session()
+
+        if not source_table:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Could not find source table for '{source_entity}'",
+            )
+
+        # Check if transformed stats table exists
+        stats_table = f"{group_by}_stats"
+        transformed_table_exists = False
+
+        db = Database(str(db_path), read_only=True)
+        try:
+            transformed_table_exists = db.has_table(stats_table)
+        finally:
+            db.close_db_session()
+
+        field_analysis = {}
+        total_count = 0
+
+        if transformed_table_exists:
+            # Use the actual transformed data
+            db = Database(str(db_path), read_only=True)
+            try:
+                df = pd.read_sql(f"SELECT * FROM {stats_table} LIMIT 100", db.engine)
+                total_count = pd.read_sql(
+                    f"SELECT COUNT(*) as cnt FROM {stats_table}", db.engine
+                ).iloc[0]["cnt"]
+
+                # Analyze each column
+                for col in df.columns:
+                    if col.startswith("_") or col in ["created_at", "updated_at"]:
+                        continue
+
+                    values = df[col].dropna().tolist()
+                    if not values:
+                        continue
+
+                    sample_value = values[0] if values else None
+
+                    if isinstance(sample_value, dict):
+                        # Extract paths from JSON column
+                        all_paths = []
+                        for row_value in values[:20]:
+                            if isinstance(row_value, dict):
+                                paths = _extract_json_paths(row_value, col)
+                                all_paths.extend(paths)
+
+                        # Group by path and collect values
+                        path_values = {}
+                        for path, value in all_paths:
+                            if path not in path_values:
+                                path_values[path] = []
+                            if value is not None and not isinstance(
+                                value, (dict, list)
+                            ):
+                                path_values[path].append(value)
+
+                        for path, vals in path_values.items():
+                            if len(vals) < 3:
+                                continue
+                            field_type = _detect_field_type(vals)
+                            unique_vals = list(
+                                set(str(v) for v in vals if v is not None)
+                            )[:10]
+                            field_analysis[path] = {
+                                "type": field_type,
+                                "cardinality": len(set(str(v) for v in vals)),
+                                "sample_values": unique_vals,
+                                "total_values": len(vals),
+                            }
+                    else:
+                        field_type = _detect_field_type(values)
+                        unique_vals = list(
+                            set(str(v) for v in values if v is not None)
+                        )[:10]
+                        field_analysis[col] = {
+                            "type": field_type,
+                            "cardinality": len(set(str(v) for v in values)),
+                            "sample_values": unique_vals,
+                            "total_values": len(values),
+                        }
+            finally:
+                db.close_db_session()
+        else:
+            # Infer schema from transform.yml using source data
+            db = Database(str(db_path), read_only=True)
+            try:
+                source_df = pd.read_sql(
+                    f"SELECT * FROM {source_table} LIMIT 100", db.engine
+                )
+                total_count = pd.read_sql(
+                    f"SELECT COUNT(*) as cnt FROM {source_table}", db.engine
+                ).iloc[0]["cnt"]
+
+                # Infer schema from transform config
+                field_analysis = _infer_schema_from_transform_config(
+                    group_config, source_df
+                )
+
+            finally:
+                db.close_db_session()
+
+        if not field_analysis:
+            return IndexFieldSuggestions(
+                display_fields=[], filters=[], total_entities=int(total_count)
+            )
+
+        # Generate suggestions
+        display_fields = []
+        filters = []
+
+        # Sort fields by relevance: priority first, then name fields, then category fields
+        sorted_fields = sorted(
+            field_analysis.items(),
+            key=lambda x: (
+                # Priority: high priority first
+                0 if x[1].get("priority", "low") == "high" else 1,
+                # Then name fields
+                0 if _is_name_field(x[0]) else 1,
+                # Then category fields
+                0 if _is_category_field(x[0]) else 1,
+                # Then by cardinality for select types
+                x[1]["cardinality"] if x[1]["type"] == "select" else 1000,
+            ),
+        )
+
+        for path, info in sorted_fields:
+            priority = info.get("priority", "low")
+
+            # For initial suggestions, only include high priority fields
+            # Low priority fields are skipped (user can add manually)
+            if priority == "low":
+                continue
+
+            # Skip if cardinality is too high for meaningful display
+            if info["type"] == "text" and info["cardinality"] > 50:
+                if not _is_name_field(path):
+                    continue
+
+            # Skip json_array types (not useful for index display)
+            if info["type"] == "json_array":
+                continue
+
+            # Create display field suggestion
+            is_searchable = _is_name_field(path)
+            is_filter_candidate = (
+                info["type"] in ["select", "boolean"]
+                and info["cardinality"] <= 20
+                and info["cardinality"] >= 2
+            )
+
+            # Determine format
+            format_hint = None
+            if info["type"] == "select":
+                format_hint = "map"
+            elif info["type"] == "boolean":
+                format_hint = "badge"
+
+            field_name = (
+                path.split(".")[-2] if path.endswith(".value") else path.split(".")[-1]
+            )
+
+            display_field = SuggestedDisplayField(
+                name=field_name,
+                source=path,
+                type=info["type"],
+                label=_generate_label(path),
+                searchable=is_searchable,
+                cardinality=info["cardinality"],
+                sample_values=info["sample_values"],
+                suggested_as_filter=is_filter_candidate,
+                format=format_hint,
+                dynamic_options=is_filter_candidate and info["cardinality"] > 5,
+                priority=priority,
+            )
+            display_fields.append(display_field)
+
+            # Create filter suggestion if appropriate (only for high priority fields)
+            if is_filter_candidate:
+                filter_values = info["sample_values"][:20]  # Limit filter values
+                filters.append(
+                    SuggestedFilter(
+                        field=path,
+                        source=path,
+                        label=_generate_label(path),
+                        type=info["type"],
+                        values=filter_values,
+                        operator="in",
+                    )
+                )
+
+        # Deduplicate fields by name, preferring transformation sources over extra_data
+        deduplicated_fields = []
+        seen_names: Dict[str, int] = {}  # name -> index in deduplicated_fields
+
+        for field in display_fields:
+            field_name = field.name
+            is_extra_data_source = field.source.startswith("extra_data.")
+
+            if field_name in seen_names:
+                # We have a duplicate name
+                existing_idx = seen_names[field_name]
+                existing_field = deduplicated_fields[existing_idx]
+                existing_is_extra_data = existing_field.source.startswith("extra_data.")
+
+                # Prefer transformation source over extra_data
+                if existing_is_extra_data and not is_extra_data_source:
+                    # Replace the extra_data version with the transformation version
+                    deduplicated_fields[existing_idx] = field
+                # else: keep the existing one (either it's from transformation, or both are extra_data)
+            else:
+                seen_names[field_name] = len(deduplicated_fields)
+                deduplicated_fields.append(field)
+
+        # Also deduplicate filters by field name
+        deduplicated_filters = []
+        seen_filter_names: set = set()
+
+        for flt in filters:
+            filter_name = (
+                flt.field.split(".")[-2]
+                if flt.field.endswith(".value")
+                else flt.field.split(".")[-1]
+            )
+            is_extra_data_source = flt.source.startswith("extra_data.")
+
+            if filter_name not in seen_filter_names:
+                seen_filter_names.add(filter_name)
+                deduplicated_filters.append(flt)
+            elif not is_extra_data_source:
+                # Replace extra_data filter with transformation filter
+                for i, existing_flt in enumerate(deduplicated_filters):
+                    existing_name = (
+                        existing_flt.field.split(".")[-2]
+                        if existing_flt.field.endswith(".value")
+                        else existing_flt.field.split(".")[-1]
+                    )
+                    if existing_name == filter_name and existing_flt.source.startswith(
+                        "extra_data."
+                    ):
+                        deduplicated_filters[i] = flt
+                        break
+
+        return IndexFieldSuggestions(
+            display_fields=deduplicated_fields[
+                :15
+            ],  # Limit to top 15 high priority fields
+            filters=deduplicated_filters[:5],  # Limit to top 5 filters
+            total_entities=int(total_count),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error analyzing data: {str(e)}")

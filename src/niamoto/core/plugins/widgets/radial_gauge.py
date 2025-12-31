@@ -29,7 +29,13 @@ class RadialGaugeParams(BasePluginParams):
                     "max_value": 100,
                     "unit": "%",
                     "title": "Progress Gauge",
-                }
+                },
+                {
+                    "stat_to_display": "mean",
+                    "show_range": True,
+                    "auto_range": True,
+                    "title": "DBH Statistics",
+                },
             ],
         }
     )
@@ -44,19 +50,43 @@ class RadialGaugeParams(BasePluginParams):
         description="Optional description or subtitle",
         json_schema_extra={"ui:widget": "textarea"},
     )
-    value_field: str = Field(
-        ...,
-        description="Field name containing the current value (supports dot notation for nested data)",
+    stat_to_display: Optional[str] = Field(
+        default=None,
+        description="Statistic to display (for statistical_summary data). Overrides value_field.",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:options": [
+                {"value": "", "label": "-- Use value_field --"},
+                {"value": "mean", "label": "Mean (Average)"},
+                {"value": "max", "label": "Maximum"},
+                {"value": "min", "label": "Minimum"},
+                {"value": "median", "label": "Median"},
+            ],
+        },
+    )
+    value_field: Optional[str] = Field(
+        default=None,
+        description="Field name containing the current value (supports dot notation). Use stat_to_display for statistical_summary data.",
         json_schema_extra={"ui:widget": "field-select"},
+    )
+    show_range: Optional[bool] = Field(
+        default=False,
+        description="Show min/max values as reference markers on the gauge (requires statistical_summary data)",
+        json_schema_extra={"ui:widget": "checkbox"},
+    )
+    auto_range: Optional[bool] = Field(
+        default=False,
+        description="Auto-detect gauge max from data's max_value field (for statistical_summary)",
+        json_schema_extra={"ui:widget": "checkbox"},
     )
     min_value: Optional[float] = Field(
         default=0,
         description="Minimum value of the gauge range",
         json_schema_extra={"ui:widget": "number"},
     )
-    max_value: float = Field(
-        ...,
-        description="Maximum value of the gauge range",
+    max_value: Optional[float] = Field(
+        default=None,
+        description="Maximum value of the gauge range (or use auto_range)",
         json_schema_extra={"ui:widget": "number"},
     )
     unit: Optional[str] = Field(
@@ -187,17 +217,60 @@ class RadialGaugeWidget(WidgetPlugin):
 
     def render(self, data: Optional[Any], params: RadialGaugeParams) -> str:
         """Generate the HTML for the radial gauge."""
+        # Determine effective value_field
+        effective_field = (
+            params.stat_to_display if params.stat_to_display else params.value_field
+        )
+
+        # Auto-detect field if none specified and data is dict with stats
+        if not effective_field and isinstance(data, dict):
+            # Try common stat fields in order of preference
+            for field in ["mean", "max", "value", "min", "median"]:
+                if field in data and data[field] is not None:
+                    effective_field = field
+                    break
+
+        if not effective_field:
+            logger.error("No value_field or stat_to_display specified")
+            return "<p class='error'>Configuration Error: No field specified for gauge value.</p>"
+
+        # Extract reference stats for show_range feature
+        stat_min = None
+        stat_max = None
+        data_max_value = None
+        data_unit = None
+
+        if isinstance(data, dict):
+            stat_min = data.get("min")
+            stat_max = data.get("max")
+            data_max_value = data.get("max_value")
+            data_unit = data.get("units") or data.get("unit")
+
+        # Handle auto_range: use max_value from data if available
+        gauge_max = params.max_value
+        if params.auto_range and data_max_value is not None:
+            gauge_max = float(data_max_value)
+        elif gauge_max is None:
+            # Fallback: use stat_max * 1.2 or default to 100
+            if stat_max is not None:
+                gauge_max = float(stat_max) * 1.2
+            else:
+                gauge_max = 100
+
+        # Handle auto unit from data
+        unit = params.unit
+        if not unit and data_unit:
+            unit = data_unit
+
         value = None
         if isinstance(data, pd.DataFrame):
             if data.empty:
                 logger.warning("Empty DataFrame provided to RadialGaugeWidget.")
                 return "<p class='info'>No data for gauge.</p>"
-            if params.value_field not in data.columns:
-                logger.error(
-                    f"Value field '{params.value_field}' not found in DataFrame."
-                )
-                return f"<p class='error'>Configuration Error: Value field '{params.value_field}' missing.</p>"
-            value = data[params.value_field].iloc[0]
+            if effective_field not in data.columns:
+                logger.error(f"Value field '{effective_field}' not found in DataFrame.")
+                return f"<p class='error'>Configuration Error: Value field '{effective_field}' missing.</p>"
+            value = data[effective_field].iloc[0]
         elif isinstance(data, pd.Series):
             if data.empty:
                 logger.warning("Empty Series provided to RadialGaugeWidget.")
@@ -205,16 +278,16 @@ class RadialGaugeWidget(WidgetPlugin):
             value = data.iloc[0]
         elif isinstance(data, dict):
             # Check if we need to access a nested field using dot notation
-            if "." in params.value_field:
-                value = self._get_nested_data(data, params.value_field)
+            if "." in effective_field:
+                value = self._get_nested_data(data, effective_field)
                 if value is None:
                     # Return empty string to not display the widget when no data
                     return ""
-            elif params.value_field not in data:
+            elif effective_field not in data:
                 # Return empty string to not display the widget when no data
                 return ""
             else:
-                value = data[params.value_field]
+                value = data[effective_field]
         elif isinstance(data, (int, float)):
             value = data
         else:
@@ -238,23 +311,22 @@ class RadialGaugeWidget(WidgetPlugin):
             return f"<p class='error'>Error processing gauge value: {e}</p>"
 
         # Handle deprecated units parameter
-        if params.units and not params.unit:
-            params.unit = params.units
+        if params.units and not unit:
+            unit = params.units
 
         # Apply value formatting if specified
-        number_config = {"suffix": params.unit if params.unit else ""}
+        number_config = {"suffix": unit if unit else ""}
         if params.value_format:
             number_config["valueformat"] = params.value_format
 
         # Configure style based on style_mode
         bar_color = params.bar_color
         bar_thickness = None  # Default thickness
+        min_value = params.min_value or 0
 
         if params.style_mode == "contextual":
             # Determine color based on value position in range
-            value_ratio = (numeric_value - params.min_value) / (
-                params.max_value - params.min_value
-            )
+            value_ratio = (numeric_value - min_value) / (gauge_max - min_value)
             if value_ratio < 0.33:
                 bar_color = "#f02828"  # Red for low values
             elif value_ratio < 0.66:
@@ -271,7 +343,7 @@ class RadialGaugeWidget(WidgetPlugin):
             "number": number_config,
             "gauge": {
                 "axis": {
-                    "range": [params.min_value, params.max_value],
+                    "range": [min_value, gauge_max],
                     "visible": params.show_axis,
                 },
                 "bar": {"color": bar_color},
@@ -279,6 +351,66 @@ class RadialGaugeWidget(WidgetPlugin):
                 "shape": params.gauge_shape,
             },
         }
+
+        # Add range markers (min/max) if show_range is enabled
+        if params.show_range and isinstance(data, dict):
+            steps = []
+            # Get numeric min/max values
+            range_min = None
+            range_max = None
+
+            if stat_min is not None and effective_field != "min":
+                try:
+                    range_min = float(stat_min)
+                except (TypeError, ValueError):
+                    pass
+
+            if stat_max is not None and effective_field != "max":
+                try:
+                    range_max = float(stat_max)
+                except (TypeError, ValueError):
+                    pass
+
+            # Add visual markers for min/max as subtle colored zones
+            if range_min is not None or range_max is not None:
+                # Create steps showing the data range
+                if range_min is not None and range_max is not None:
+                    # Show the full range as a highlighted zone
+                    steps = [
+                        {
+                            "range": [min_value, range_min],
+                            "color": "#f0f0f0",
+                        },  # Below min
+                        {
+                            "range": [range_min, range_max],
+                            "color": "#e3f2fd",
+                        },  # Data range
+                        {
+                            "range": [range_max, gauge_max],
+                            "color": "#f0f0f0",
+                        },  # Above max
+                    ]
+                elif range_min is not None:
+                    steps = [
+                        {"range": [min_value, range_min], "color": "#f0f0f0"},
+                        {"range": [range_min, gauge_max], "color": "#e3f2fd"},
+                    ]
+                elif range_max is not None:
+                    steps = [
+                        {"range": [min_value, range_max], "color": "#e3f2fd"},
+                        {"range": [range_max, gauge_max], "color": "#f0f0f0"},
+                    ]
+
+                if steps:
+                    gauge_args["gauge"]["steps"] = steps
+
+                # Add threshold marker for the max value
+                if range_max is not None and effective_field != "max":
+                    gauge_args["gauge"]["threshold"] = {
+                        "line": {"color": "#1976d2", "width": 2},
+                        "thickness": 0.75,
+                        "value": range_max,
+                    }
 
         # Apply bar thickness if specified
         if bar_thickness is not None:

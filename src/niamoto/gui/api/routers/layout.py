@@ -384,14 +384,14 @@ async def preview_widget(
 
         # Special handling for navigation widget
         if plugin_name == "hierarchical_nav_widget":
-            from niamoto.gui.api.routes.templates import _preview_navigation_widget
+            from niamoto.gui.api.routers.templates import _preview_navigation_widget
 
             referential = params.get("referential_data", group_by)
             return await _preview_navigation_widget(referential)
 
         # Use the same preview system as the gallery (templates.py)
         # This generates data on-the-fly from occurrences instead of requiring stats table
-        from niamoto.gui.api.routes.templates import preview_template
+        from niamoto.gui.api.routers.templates import preview_template
 
         # The data_source is the template_id used in transform.yml
         # e.g., "geo_pt_geospatial_extractor_interactive_map"

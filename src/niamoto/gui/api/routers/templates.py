@@ -372,9 +372,20 @@ async def generate_transform_config(request: GenerateConfigRequest):
     # Generate widgets_data directly from request
     widgets_data = {}
     for template in request.templates:
+        # Extract params from config - handle both nested and flat structures
+        # Some suggestions have config: {"plugin": ..., "params": {...}}
+        # Others have config: {direct params}
+        cfg = template.config
+        if isinstance(cfg, dict) and "params" in cfg and "plugin" in cfg:
+            # Nested structure - extract just the params
+            params = cfg["params"]
+        else:
+            # Flat structure - use config directly as params
+            params = cfg
+
         widgets_data[template.template_id] = {
             "plugin": template.plugin,
-            "params": template.config,
+            "params": params,
         }
 
     # Build sources section based on reference kind (not name!)
@@ -675,9 +686,18 @@ def _generate_widget_params(
         }
 
     elif widget_plugin == "radial_gauge":
-        params = {
-            "value_field": "percentage",
-        }
+        if transformer_plugin == "statistical_summary":
+            # Use new stat_to_display param for statistical_summary data
+            params = {
+                "stat_to_display": "mean",  # Display mean by default
+                "show_range": True,  # Show min/max as visual markers
+                "auto_range": True,  # Use max_value from data
+            }
+        else:
+            # Generic gauge - try to auto-detect value field
+            params = {
+                "auto_range": True,
+            }
 
     elif widget_plugin == "interactive_map":
         params = {
@@ -785,21 +805,26 @@ async def save_transform_config(request: SaveConfigRequest):
         # Update sources (replace entirely)
         group_config["sources"] = request.sources
 
-        # Update widgets_data (merge)
-        if "widgets_data" not in group_config:
-            group_config["widgets_data"] = {}
-
         # Track changes
+        existing_widgets = group_config.get("widgets_data", {})
         widgets_added = 0
         widgets_updated = 0
+        widgets_removed = 0
 
-        # Merge new widgets into existing
-        for widget_id, widget_config in request.widgets_data.items():
-            if widget_id in group_config["widgets_data"]:
+        # Count additions and updates
+        for widget_id in request.widgets_data:
+            if widget_id in existing_widgets:
                 widgets_updated += 1
             else:
                 widgets_added += 1
-            group_config["widgets_data"][widget_id] = widget_config
+
+        # Count removals
+        for widget_id in existing_widgets:
+            if widget_id not in request.widgets_data:
+                widgets_removed += 1
+
+        # Replace widgets_data entirely (not merge) to handle deletions
+        group_config["widgets_data"] = dict(request.widgets_data)
 
         # Update the group in the list
         existing_groups[group_index] = group_config
@@ -1359,10 +1384,7 @@ def _generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str,
                 "match_reason": f"Agrégation de {len(field_configs)} champs détectés dans '{reference_name}'",
                 "is_recommended": True,
                 "config": {
-                    "plugin": "field_aggregator",
-                    "params": {
-                        "fields": field_configs,
-                    },
+                    "fields": field_configs,
                 },
                 "transformer_config": {
                     "plugin": "field_aggregator",
@@ -2684,14 +2706,16 @@ def _build_widget_params_dynamic(
 
     elif widget == "radial_gauge":
         if transformer == "statistical_summary":
-            max_value = config.get("max_value", 100)
+            # Use new stat_to_display param with show_range for min/max markers
             stats = config.get("stats", ["mean"])
-            value_field = stats[0] if stats else "mean"
+            stat_to_display = (
+                "mean" if "mean" in stats else stats[0] if stats else "mean"
+            )
             return {
-                "value_field": value_field,
-                "max_value": max_value,
+                "stat_to_display": stat_to_display,
+                "show_range": True,  # Show min/max as visual markers
+                "auto_range": True,  # Use max_value from data
                 "title": title,
-                "unit": config.get("units", ""),
             }
 
     elif widget == "interactive_map":
@@ -3003,7 +3027,7 @@ async def _preview_general_info_widget(
                     )
                 )
 
-            field_configs = suggestion["config"]["params"]["fields"]
+            field_configs = suggestion["config"]["fields"]
 
             # Find the reference table
             ref_table = f"reference_{reference_name}"

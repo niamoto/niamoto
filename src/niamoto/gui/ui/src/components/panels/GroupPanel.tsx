@@ -9,7 +9,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Database, LayoutGrid, Package, Loader2, AlertCircle, Sparkles, Save, Plus, GripVertical, Layout } from 'lucide-react'
+import { Database, LayoutGrid, Package, Loader2, AlertCircle, Save, Plus, GripVertical, Layout, ListChecks, Wand2, ListOrdered } from 'lucide-react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,16 +18,20 @@ import { Button } from '@/components/ui/button'
 import {
   WidgetGallery,
   WidgetPreviewPanel,
+  ConfiguredWidgetsList,
   useSuggestions,
   useTemplateSelection,
   useConfiguredWidgets,
   useGenerateConfig,
   useSaveConfig,
+  useWidgetConfig,
   type TemplateSuggestion,
+  type ConfiguredWidget,
 } from '@/components/widgets'
 import { useSources, useRemoveSource } from '@/hooks/useSources'
 import { SourcesList, AddSourceDialog } from '@/components/sources'
 import { LayoutEditor } from '@/components/layout-editor'
+import { IndexConfigEditor } from '@/components/index-config'
 
 interface GroupPanelProps {
   reference: ReferenceInfo
@@ -79,7 +83,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <Database className="mr-2 h-4 w-4" />
-              Sources de données
+              Sources de donnees
             </TabsTrigger>
             <TabsTrigger
               value="widgets"
@@ -94,6 +98,13 @@ export function GroupPanel({ reference }: GroupPanelProps) {
             >
               <Layout className="mr-2 h-4 w-4" />
               Mise en page
+            </TabsTrigger>
+            <TabsTrigger
+              value="index"
+              className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+            >
+              <ListOrdered className="mr-2 h-4 w-4" />
+              Index
             </TabsTrigger>
           </TabsList>
         </div>
@@ -110,6 +121,10 @@ export function GroupPanel({ reference }: GroupPanelProps) {
 
           <TabsContent value="layout" className="m-0">
             <LayoutTab reference={reference} />
+          </TabsContent>
+
+          <TabsContent value="index" className="m-0">
+            <IndexTab reference={reference} />
           </TabsContent>
         </div>
       </Tabs>
@@ -234,14 +249,27 @@ function SourcesTab({ reference }: { reference: ReferenceInfo }) {
 }
 
 function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
-  // Fetch configured widgets from transform.yml
+  // Sub-tab state - default to "available" (suggestions)
+  const [widgetSubTab, setWidgetSubTab] = useState('available')
+
+  // Fetch configured widgets using the new hook
+  const {
+    configuredWidgets,
+    loading: configuredLoading,
+    updateWidget,
+    deleteWidget,
+    duplicateWidget,
+    refetch: refetchConfigured,
+  } = useWidgetConfig(reference.name)
+
+  // Fetch configured widget IDs for template selection
   const { configuredIds, hasConfig, loading: configLoading } = useConfiguredWidgets(reference.name)
 
   // Convert to Set for useTemplateSelection
   const existingIds = useMemo(() => new Set(configuredIds), [configuredIds])
 
   // Fetch widget suggestions for this reference
-  const { suggestions, columnsAnalyzed, loading, error, refetch } = useSuggestions(
+  const { suggestions, loading, error, refetch } = useSuggestions(
     reference.name,
     'occurrences'
   )
@@ -249,8 +277,9 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
   // Selection management: use existing config if available, otherwise auto-select
   const selection = useTemplateSelection(suggestions, hasConfig ? existingIds : undefined)
 
-  // Preview state
+  // Preview state - can be either a template or a configured widget
   const [previewTemplate, setPreviewTemplate] = useState<TemplateSuggestion | null>(null)
+  const [previewWidget, setPreviewWidget] = useState<ConfiguredWidget | null>(null)
 
   // Key to force re-render of preview on resize
   const [previewKey, setPreviewKey] = useState(0)
@@ -296,8 +325,53 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
       setSaveResult({ added: result.widgets_added, updated: result.widgets_updated })
       // Clear success message after 3 seconds
       setTimeout(() => setSaveResult(null), 3000)
+      // Refetch configured widgets
+      refetchConfigured()
     }
   }
+
+  // Handle selecting a template for preview
+  const handleSelectTemplate = useCallback((template: TemplateSuggestion) => {
+    setPreviewTemplate(template)
+    setPreviewWidget(null)
+  }, [])
+
+  // Handle selecting a configured widget for preview/edit
+  const handleSelectWidget = useCallback((widget: ConfiguredWidget) => {
+    setPreviewWidget(widget)
+    setPreviewTemplate(null)
+  }, [])
+
+  // Handle widget update (from edit form)
+  const handleUpdateWidget = useCallback(async (widgetId: string, config: Partial<ConfiguredWidget>): Promise<boolean> => {
+    const success = await updateWidget(widgetId, config)
+    if (success) {
+      refetchConfigured()
+    }
+    return success
+  }, [updateWidget, refetchConfigured])
+
+  // Handle widget delete
+  const handleDeleteWidget = useCallback(async (widgetId: string): Promise<boolean> => {
+    const success = await deleteWidget(widgetId)
+    if (success) {
+      // Clear preview if deleted widget was selected
+      if (previewWidget?.id === widgetId) {
+        setPreviewWidget(null)
+      }
+      refetchConfigured()
+    }
+    return success
+  }, [deleteWidget, previewWidget, refetchConfigured])
+
+  // Handle widget duplicate
+  const handleDuplicateWidget = useCallback(async (widgetId: string, newId: string): Promise<boolean> => {
+    const success = await duplicateWidget(widgetId, newId)
+    if (success) {
+      refetchConfigured()
+    }
+    return success
+  }, [duplicateWidget, refetchConfigured])
 
   // Loading state - wait for both config and suggestions
   if (loading || configLoading) {
@@ -319,72 +393,122 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
         <h3 className="mt-4 font-medium">Erreur de chargement</h3>
         <p className="mt-2 text-sm text-muted-foreground">{error}</p>
         <Button variant="outline" className="mt-4" onClick={refetch}>
-          Réessayer
+          Reessayer
         </Button>
       </div>
     )
   }
 
-  // No suggestions state
-  if (suggestions.length === 0) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center">
-        <Sparkles className="h-12 w-12 text-muted-foreground/50" />
-        <h3 className="mt-4 font-medium">Aucun widget disponible</h3>
-        <p className="mt-2 text-center text-sm text-muted-foreground max-w-md">
-          Importez des données avec des colonnes analysables pour obtenir des suggestions de widgets.
-        </p>
-        {columnsAnalyzed > 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            {columnsAnalyzed} colonnes analysées
-          </p>
-        )}
-      </div>
-    )
-  }
-
   return (
-    <div className="h-[calc(100vh-280px)]">
-      <PanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
-        {/* Gallery panel - left side */}
-        <Panel defaultSize={50} minSize={30} maxSize={70}>
-          <div className="h-full rounded-lg border bg-card overflow-hidden">
-            <WidgetGallery
-              suggestions={suggestions}
-              selectedIds={selection.selectedSet}
-              groupBy={reference.name}
-              onSelect={selection.toggle}
-              onPreview={setPreviewTemplate}
-              onSelectAll={() => selection.selectAll(suggestions.map(s => s.template_id))}
-              onDeselectAll={selection.deselectAll}
-            />
-          </div>
-        </Panel>
+    <Tabs value={widgetSubTab} onValueChange={setWidgetSubTab} className="h-[calc(100vh-280px)] flex flex-col">
+      {/* Sub-tabs header */}
+      <div className="shrink-0 mb-4">
+        <TabsList className="h-9 w-fit gap-1 bg-muted p-1">
+          <TabsTrigger value="available" className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <Wand2 className="mr-2 h-4 w-4" />
+            Disponibles
+            {suggestions.length > 0 && (
+              <Badge variant="outline" className="ml-2 h-5 px-1.5 text-xs">
+                {suggestions.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="configured" className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <ListChecks className="mr-2 h-4 w-4" />
+            Configures
+            {configuredWidgets.length > 0 && (
+              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                {configuredWidgets.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+      </div>
 
-        {/* Resize handle */}
-        <PanelResizeHandle className="w-2 mx-1 flex items-center justify-center group">
-          <div className="w-1 h-12 rounded-full bg-border group-hover:bg-primary/50 group-active:bg-primary transition-colors flex items-center justify-center">
-            <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-        </PanelResizeHandle>
+      {/* Main content - using TabsContent for proper accessibility */}
+      <TabsContent value="available" className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden">
+        <PanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
+          {/* Left panel - Widget Gallery */}
+          <Panel defaultSize={40} minSize={25} maxSize={60}>
+            <div className="h-full rounded-lg border bg-card overflow-hidden">
+              <WidgetGallery
+                suggestions={suggestions}
+                selectedIds={selection.selectedSet}
+                groupBy={reference.name}
+                onSelect={selection.toggle}
+                onPreview={handleSelectTemplate}
+                onSelectAll={() => selection.selectAll(suggestions.map(s => s.template_id))}
+                onDeselectAll={selection.deselectAll}
+              />
+            </div>
+          </Panel>
 
-        {/* Preview panel - right side */}
-        <Panel defaultSize={50} minSize={30} maxSize={70}>
-          <div className="h-full rounded-lg border bg-card overflow-hidden">
-            <WidgetPreviewPanel key={previewKey} template={previewTemplate} groupBy={reference.name} />
-          </div>
-        </Panel>
-      </PanelGroup>
+          {/* Resize handle */}
+          <PanelResizeHandle className="w-2 mx-1 flex items-center justify-center group">
+            <div className="w-1 h-12 rounded-full bg-border group-hover:bg-primary/50 group-active:bg-primary transition-colors flex items-center justify-center">
+              <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </PanelResizeHandle>
 
-      {/* Floating action button */}
-      {selectedTemplates.length > 0 && (
+          {/* Right panel - Preview */}
+          <Panel defaultSize={60} minSize={40} maxSize={75}>
+            <div className="h-full rounded-lg border bg-card overflow-hidden">
+              <WidgetPreviewPanel
+                key={`available-${previewKey}`}
+                template={previewTemplate}
+                groupBy={reference.name}
+              />
+            </div>
+          </Panel>
+        </PanelGroup>
+      </TabsContent>
+
+      <TabsContent value="configured" className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden">
+        <PanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
+          {/* Left panel - Configured List */}
+          <Panel defaultSize={40} minSize={25} maxSize={60}>
+            <div className="h-full rounded-lg border bg-card overflow-hidden">
+              <ConfiguredWidgetsList
+                widgets={configuredWidgets}
+                selectedId={previewWidget?.id}
+                loading={configuredLoading}
+                onSelect={handleSelectWidget}
+                onDelete={handleDeleteWidget}
+                onDuplicate={handleDuplicateWidget}
+              />
+            </div>
+          </Panel>
+
+          {/* Resize handle */}
+          <PanelResizeHandle className="w-2 mx-1 flex items-center justify-center group">
+            <div className="w-1 h-12 rounded-full bg-border group-hover:bg-primary/50 group-active:bg-primary transition-colors flex items-center justify-center">
+              <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </PanelResizeHandle>
+
+          {/* Right panel - Preview/Edit */}
+          <Panel defaultSize={60} minSize={40} maxSize={75}>
+            <div className="h-full rounded-lg border bg-card overflow-hidden">
+              <WidgetPreviewPanel
+                key={`configured-${previewKey}`}
+                configuredWidget={previewWidget}
+                groupBy={reference.name}
+                onUpdateWidget={handleUpdateWidget}
+              />
+            </div>
+          </Panel>
+        </PanelGroup>
+      </TabsContent>
+
+      {/* Floating action button - only for available widgets tab */}
+      {widgetSubTab === 'available' && selectedTemplates.length > 0 && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
           {/* Success message */}
           {saveResult && (
             <div className="bg-success text-success-foreground px-4 py-2 rounded-lg shadow-lg text-sm animate-in fade-in slide-in-from-bottom-2">
-              {saveResult.added > 0 && <span>{saveResult.added} widget{saveResult.added > 1 ? 's' : ''} ajouté{saveResult.added > 1 ? 's' : ''}</span>}
+              {saveResult.added > 0 && <span>{saveResult.added} widget{saveResult.added > 1 ? 's' : ''} ajoute{saveResult.added > 1 ? 's' : ''}</span>}
               {saveResult.added > 0 && saveResult.updated > 0 && <span>, </span>}
-              {saveResult.updated > 0 && <span>{saveResult.updated} mis à jour</span>}
+              {saveResult.updated > 0 && <span>{saveResult.updated} mis a jour</span>}
             </div>
           )}
 
@@ -405,7 +529,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
             {isSaving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {generating ? 'Génération...' : 'Sauvegarde...'}
+                {generating ? 'Generation...' : 'Sauvegarde...'}
               </>
             ) : (
               <>
@@ -416,7 +540,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
           </Button>
         </div>
       )}
-    </div>
+    </Tabs>
   )
 }
 
@@ -424,6 +548,14 @@ function LayoutTab({ reference }: { reference: ReferenceInfo }) {
   return (
     <div className="h-[calc(100vh-280px)]">
       <LayoutEditor groupBy={reference.name} />
+    </div>
+  )
+}
+
+function IndexTab({ reference }: { reference: ReferenceInfo }) {
+  return (
+    <div className="h-[calc(100vh-280px)]">
+      <IndexConfigEditor groupBy={reference.name} />
     </div>
   )
 }

@@ -39,6 +39,7 @@ import {
   Database,
   Clock,
   ImageIcon,
+  ExternalLink,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -94,6 +95,124 @@ interface EnrichmentStats {
   pending: number
 }
 
+// Component for image with loading state
+const ImageWithLoader = ({ src, alt }: { src: string; alt: string }) => {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  return (
+    <div className="relative inline-block">
+      {loading && !error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted rounded">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {error ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+          <ImageIcon className="h-4 w-4" />
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline truncate max-w-[150px]"
+          >
+            Voir l'image
+          </a>
+        </div>
+      ) : (
+        <a href={src} target="_blank" rel="noopener noreferrer">
+          <img
+            src={src}
+            alt={alt}
+            className={`h-16 w-16 object-cover rounded border hover:opacity-80 transition-opacity ${loading ? 'opacity-0' : 'opacity-100'}`}
+            onLoad={() => setLoading(false)}
+            onError={() => {
+              setLoading(false)
+              setError(true)
+            }}
+          />
+        </a>
+      )}
+    </div>
+  )
+}
+
+// Helper to detect and render URLs as clickable links or images
+const renderValue = (value: any): React.ReactNode => {
+  if (value === null || value === undefined) return '-'
+
+  if (typeof value === 'string') {
+    // Check if it's a URL
+    const urlPattern = /^(https?:\/\/[^\s]+)$/i
+    if (urlPattern.test(value)) {
+      // Check if it's an image URL
+      const imagePattern = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
+      const isImageUrl = imagePattern.test(value) ||
+        value.includes('/image') ||
+        value.includes('/photo') ||
+        value.includes('/thumb') ||
+        value.includes('/media/cache')
+
+      if (isImageUrl) {
+        return <ImageWithLoader src={value} alt="Preview" />
+      }
+
+      return (
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+        >
+          <span className="truncate max-w-[200px]">{value}</span>
+          <ExternalLink className="h-3 w-3 shrink-0" />
+        </a>
+      )
+    }
+
+    // Check if value contains URLs mixed with text
+    const urlInTextPattern = /(https?:\/\/[^\s]+)/gi
+    const parts = value.split(urlInTextPattern)
+    if (parts.length > 1) {
+      return (
+        <span>
+          {parts.map((part, idx) => {
+            if (urlInTextPattern.test(part)) {
+              urlInTextPattern.lastIndex = 0 // Reset regex state
+              return (
+                <a
+                  key={idx}
+                  href={part}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1"
+                >
+                  {part}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )
+            }
+            return <span key={idx}>{part}</span>
+          })}
+        </span>
+      )
+    }
+
+    return value
+  }
+
+  if (typeof value === 'object') {
+    // For objects, check if any nested value is a URL
+    return (
+      <pre className="text-xs whitespace-pre-wrap max-w-md">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    )
+  }
+
+  return String(value)
+}
+
 export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
   // State
   const [stats, setStats] = useState<EnrichmentStats | null>(null)
@@ -109,6 +228,11 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
   const [previewData, setPreviewData] = useState<any | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
+
+  // Entity list for selector
+  const [entities, setEntities] = useState<Array<{ id: number; name: string; enriched: boolean }>>([])
+  const [entitiesLoading, setEntitiesLoading] = useState(false)
+  const [entitySearch, setEntitySearch] = useState('')
 
   const [selectedResult, setSelectedResult] = useState<EnrichmentResult | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -264,9 +388,26 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
     }
   }
 
+  // Load entities for selector
+  const loadEntities = useCallback(async (search: string = '') => {
+    setEntitiesLoading(true)
+    try {
+      const response = await apiClient.get(`/enrichment/entities/${referenceName}`, {
+        params: { limit: 50, search }
+      })
+      setEntities(response.data.entities || [])
+    } catch (err: any) {
+      console.error('Failed to load entities:', err)
+      setEntities([])
+    } finally {
+      setEntitiesLoading(false)
+    }
+  }, [referenceName])
+
   // Preview entity enrichment
-  const previewEnrichment = async () => {
-    if (!previewQuery.trim()) return
+  const previewEnrichment = async (queryOverride?: string) => {
+    const query = queryOverride || previewQuery
+    if (!query.trim()) return
 
     setPreviewLoading(true)
     setPreviewError(null)
@@ -274,7 +415,7 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
 
     try {
       const response = await apiClient.post(`/enrichment/preview/${referenceName}`, {
-        query: previewQuery.trim()
+        query: query.trim()
       })
       setPreviewData(response.data)
     } catch (err: any) {
@@ -514,7 +655,13 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
       )}
 
       {/* Sub-tabs for Preview and Results */}
-      <Tabs defaultValue="preview" className="space-y-4">
+      <Tabs defaultValue="preview" className="space-y-4" onValueChange={(value) => {
+        if (value === 'results') {
+          loadResults()
+        } else if (value === 'preview' && entities.length === 0) {
+          loadEntities()
+        }
+      }}>
         <TabsList>
           <TabsTrigger value="preview" className="gap-1">
             <Eye className="h-4 w-4" />
@@ -533,55 +680,147 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
 
         {/* Preview Tab */}
         <TabsContent value="preview">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Tester l'enrichissement</CardTitle>
-              <CardDescription>
-                Previsualiser l'enrichissement pour une entite specifique
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label htmlFor="preview-query" className="sr-only">Requete</Label>
-                  <Input
-                    id="preview-query"
-                    placeholder="Nom de l'entite a tester..."
-                    value={previewQuery}
-                    onChange={(e) => setPreviewQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && previewEnrichment()}
-                  />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Entity selector */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-medium">Selectionner une entite</CardTitle>
+                    <CardDescription>
+                      Choisissez une entite a tester
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => loadEntities(entitySearch)}
+                    disabled={entitiesLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${entitiesLoading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </div>
-                <Button onClick={previewEnrichment} disabled={previewLoading || !previewQuery.trim()}>
-                  {previewLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Search input */}
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher..."
+                      value={entitySearch}
+                      onChange={(e) => setEntitySearch(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && loadEntities(entitySearch)}
+                      className="pl-8"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => loadEntities(entitySearch)}
+                    disabled={entitiesLoading}
+                  >
                     <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Entity list */}
+                <ScrollArea className="h-64 border rounded-md">
+                  {entitiesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : entities.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Cliquez sur rechercher pour charger les entites</p>
+                    </div>
+                  ) : (
+                    <div className="p-1">
+                      {entities.map((entity) => (
+                        <button
+                          key={entity.id}
+                          onClick={() => {
+                            setPreviewQuery(entity.name)
+                            previewEnrichment(entity.name)
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent flex items-center justify-between group ${
+                            previewQuery === entity.name ? 'bg-accent' : ''
+                          }`}
+                        >
+                          <span className="truncate flex-1">{entity.name}</span>
+                          <div className="flex items-center gap-2">
+                            {entity.enriched && (
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Enrichi
+                              </Badge>
+                            )}
+                            <Eye className="h-4 w-4 opacity-0 group-hover:opacity-50" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </Button>
-              </div>
+                </ScrollArea>
 
-              {previewError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{previewError}</AlertDescription>
-                </Alert>
-              )}
-
-              {previewLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Interrogation de l'API...</span>
+                {/* Manual input fallback */}
+                <div className="pt-2 border-t">
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Ou saisir manuellement :</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nom de l'entite..."
+                      value={previewQuery}
+                      onChange={(e) => setPreviewQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && previewEnrichment()}
+                      className="text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => previewEnrichment()}
+                      disabled={previewLoading || !previewQuery.trim()}
+                    >
+                      {previewLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              )}
+              </CardContent>
+            </Card>
 
-              {!previewData && !previewError && !previewLoading && (
-                <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg">
-                  <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Entrez un nom d'entite et appuyez sur Entree</p>
-                  <p className="text-xs">pour tester la configuration d'enrichissement</p>
-                </div>
-              )}
+            {/* Preview result */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Resultat de l'apercu</CardTitle>
+                <CardDescription>
+                  Donnees retournees par l'API
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {previewError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{previewError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {previewLoading && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Interrogation de l'API...</span>
+                  </div>
+                )}
+
+                {!previewData && !previewError && !previewLoading && (
+                  <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg">
+                    <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Selectionnez une entite</p>
+                    <p className="text-xs">pour tester la configuration d'enrichissement</p>
+                  </div>
+                )}
 
               {previewData && (
                 <div className="space-y-4">
@@ -612,24 +851,22 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
                   )}
 
                   {/* Data table */}
-                  <ScrollArea className="h-48">
+                  <ScrollArea className="h-80">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Champ</TableHead>
+                          <TableHead className="w-1/4">Champ</TableHead>
                           <TableHead>Valeur</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {Object.entries(previewData.api_enrichment || {})
-                          .filter(([key]) => key !== 'images' && !key.startsWith('image_'))
+                          .filter(([key]) => key !== 'images')
                           .map(([key, value]) => (
                             <TableRow key={key}>
-                              <TableCell className="font-mono text-xs">{key}</TableCell>
+                              <TableCell className="font-mono text-xs align-top">{key}</TableCell>
                               <TableCell className="text-sm">
-                                {typeof value === 'object'
-                                  ? JSON.stringify(value, null, 2)
-                                  : String(value)}
+                                {renderValue(value)}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -638,8 +875,9 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
                   </ScrollArea>
                 </div>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Results Tab */}
@@ -755,20 +993,18 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Champ</TableHead>
+                    <TableHead className="w-1/4">Champ</TableHead>
                     <TableHead>Valeur</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {Object.entries(selectedResult.data)
-                    .filter(([key]) => key !== 'images' && !key.startsWith('image_'))
+                    .filter(([key]) => key !== 'images')
                     .map(([key, value]) => (
                       <TableRow key={key}>
-                        <TableCell className="font-mono text-xs">{key}</TableCell>
+                        <TableCell className="font-mono text-xs align-top">{key}</TableCell>
                         <TableCell className="text-sm">
-                          {typeof value === 'object'
-                            ? JSON.stringify(value, null, 2)
-                            : String(value)}
+                          {renderValue(value)}
                         </TableCell>
                       </TableRow>
                     ))}
