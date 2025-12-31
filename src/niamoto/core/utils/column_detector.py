@@ -652,9 +652,15 @@ class ColumnDetector:
                     # Exact match with source column
                     if target_col_lower == source_col_lower:
                         score = 100
-                    # Match with keyword
+                    # Exact match with keyword (e.g., "plot" == "plot")
+                    elif target_col_lower == keyword:
+                        score = 90
+                    # Keyword is prefix (e.g., "plot_name" starts with "plot")
+                    elif target_col_lower.startswith(keyword + "_"):
+                        score = 85
+                    # Match with keyword (partial, e.g., "id_plot" contains "plot")
                     elif keyword in target_col_lower:
-                        score = 80
+                        score = 70
                     # Match with entity name
                     elif target_entity_lower in target_col_lower:
                         score = 60

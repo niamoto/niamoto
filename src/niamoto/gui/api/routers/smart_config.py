@@ -576,7 +576,10 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
                         referenced_by[entity_name].append(
                             {
                                 "from": other_name,
-                                "field": best_rel["source_field"],
+                                "field": best_rel["source_field"],  # FK in source
+                                "target_field": best_rel[
+                                    "target_field"
+                                ],  # Match in target
                                 "confidence": best_rel["confidence"],
                             }
                         )
@@ -906,14 +909,14 @@ def _build_simple_reference_config(
         # Find the best relation (highest confidence from occurrences)
         best_relation = max(relation_info, key=lambda r: r.get("confidence", 0))
 
-        # Determine the reference_key (column in this reference that matches)
-        # Priority: name column, then id column
-        reference_key = name_column or id_column
+        # Use the detected target_field as reference_key
+        # This is the column in this reference that matches the FK values
+        reference_key = best_relation.get("target_field") or name_column or id_column
 
         config["relation"] = {
             "dataset": best_relation["from"],  # e.g., "occurrences"
             "foreign_key": best_relation["field"],  # e.g., "plot_name"
-            "reference_key": reference_key,  # e.g., "plot" or "id_plot"
+            "reference_key": reference_key,  # e.g., "plot" (from relationship detection)
         }
 
     return config
