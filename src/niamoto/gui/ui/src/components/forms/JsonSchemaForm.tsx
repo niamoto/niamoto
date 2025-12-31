@@ -33,6 +33,7 @@ interface JsonSchemaFormProps {
   className?: string;
   showTitle?: boolean;
   availableFields?: string[]; // For field-select widgets
+  initialValues?: Record<string, any>; // Initial values to populate the form
 }
 
 interface PluginSchema {
@@ -78,19 +79,24 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   readOnly = false,
   className = '',
   showTitle = true,
-  availableFields = []
+  availableFields = [],
+  initialValues = {}
 }) => {
   const [schema, setSchema] = useState<PluginSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
 
-  // Fetch schema from API
+  // Track if we've initialized with initialValues
+  const initializedRef = React.useRef(false);
+
+  // Fetch schema from API (only when pluginId changes)
   useEffect(() => {
     const fetchSchema = async () => {
       try {
         setLoading(true);
         setError(null);
+        initializedRef.current = false;
 
         const response = await fetch(`/api/plugins/${pluginId}/schema`);
         if (!response.ok) {
@@ -109,7 +115,12 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               defaults[key] = fieldSchema.default;
             }
           });
-          setFormData(defaults);
+          // Merge: defaults first, then initialValues override
+          setFormData({ ...defaults, ...initialValues });
+          initializedRef.current = true;
+        } else if (Object.keys(initialValues).length > 0) {
+          setFormData(initialValues);
+          initializedRef.current = true;
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load plugin schema');
@@ -122,6 +133,20 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
       fetchSchema();
     }
   }, [pluginId]);
+
+  // Update form data when initialValues change (after initial load)
+  useEffect(() => {
+    if (schema && !loading && Object.keys(initialValues).length > 0) {
+      // Only update if values are different to avoid loops
+      const hasNewValues = Object.keys(initialValues).some(
+        key => initialValues[key] !== formData[key]
+      );
+      if (hasNewValues && !initializedRef.current) {
+        setFormData(prev => ({ ...prev, ...initialValues }));
+        initializedRef.current = true;
+      }
+    }
+  }, [initialValues, schema, loading]);
 
   // Handle field changes
   const handleFieldChange = (fieldName: string, value: any) => {
@@ -446,6 +471,19 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
 
   // Loading state
   if (loading) {
+    // Minimal skeleton when showTitle is false (embedded mode)
+    if (!showTitle) {
+      return (
+        <div className={className}>
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-3/4" />
+          </div>
+        </div>
+      );
+    }
+    // Full skeleton with card header
     return (
       <Card className={className}>
         <CardHeader>

@@ -810,12 +810,14 @@ async def cancel_enrichment():
 
 @router.get("/results", response_model=ResultsResponse)
 async def get_results(page: int = 0, limit: int = 50):
-    """Get enrichment results with pagination."""
+    """Get enrichment results with pagination (most recent first)."""
     global _job_results
 
+    # Reverse to show most recent results first
+    reversed_results = list(reversed(_job_results))
     start = page * limit
     end = start + limit
-    paginated = _job_results[start:end]
+    paginated = reversed_results[start:end]
 
     return ResultsResponse(
         results=paginated, total=len(_job_results), page=page, limit=limit
@@ -1120,12 +1122,14 @@ async def cancel_enrichment_for_reference(reference_name: str):
 async def get_results_for_reference(
     reference_name: str, page: int = 0, limit: int = 50
 ):
-    """Get enrichment results for a specific reference."""
+    """Get enrichment results for a specific reference (most recent first)."""
     global _job_results
 
+    # Reverse to show most recent results first
+    reversed_results = list(reversed(_job_results))
     start = page * limit
     end = start + limit
-    paginated = _job_results[start:end]
+    paginated = reversed_results[start:end]
 
     return {
         "results": [r.model_dump() for r in paginated],
@@ -1244,3 +1248,74 @@ async def preview_enrichment_for_reference(
 
     except Exception as e:
         return {"success": False, "entity_name": request.query, "error": str(e)}
+
+
+@router.get("/entities/{reference_name}")
+async def get_entities_for_reference(
+    reference_name: str, limit: int = 100, offset: int = 0, search: str = ""
+):
+    """Get entities from a reference for the entity selector.
+
+    Args:
+        reference_name: Name of the reference
+        limit: Maximum number of entities to return
+        offset: Number of entities to skip
+        search: Optional search filter
+
+    Returns:
+        List of entities with id, name, and enriched status
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        return {"entities": [], "total": 0}
+
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    table_name = _get_reference_table_name(reference_name)
+    if not table_name:
+        return {"entities": [], "total": 0}
+
+    # Get the query_field from enrichment config
+    config = _load_enrichment_config_for_reference(reference_name)
+    query_field = config.query_field if config else "full_name"
+
+    try:
+        from niamoto.common.database import Database
+        import pandas as pd
+
+        db = Database(str(db_path), read_only=True)
+        try:
+            # Build search clause
+            search_clause = ""
+            if search:
+                search_clause = f"WHERE {query_field} ILIKE '%{search}%'"
+
+            # Count total
+            count_query = f"SELECT COUNT(*) as count FROM {table_name} {search_clause}"
+            total_df = pd.read_sql(count_query, db.engine)
+            total = int(total_df.iloc[0]["count"])
+
+            # Get entities with enriched status
+            query = f"""
+                SELECT
+                    id,
+                    {query_field} as name,
+                    CASE
+                        WHEN extra_data IS NOT NULL
+                             AND CAST(extra_data AS VARCHAR) LIKE '%api_enrichment%'
+                        THEN true
+                        ELSE false
+                    END as enriched
+                FROM {table_name}
+                {search_clause}
+                ORDER BY {query_field}
+                LIMIT {limit} OFFSET {offset}
+            """
+            df = pd.read_sql(query, db.engine)
+            entities = df.to_dict("records")
+
+            return {"entities": entities, "total": total, "query_field": query_field}
+        finally:
+            db.close_db_session()
+    except Exception as e:
+        print(f"Error getting entities for {reference_name}: {e}")
+        return {"entities": [], "total": 0, "error": str(e)}

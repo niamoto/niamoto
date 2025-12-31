@@ -1,0 +1,488 @@
+/**
+ * IndexConfigEditor - Main component for configuring index generator
+ *
+ * Provides UI for:
+ * - Enabling/disabling index page
+ * - Page settings (title, description, items per page)
+ * - Filters configuration
+ * - Display fields configuration with drag-and-drop
+ * - Views configuration (grid/list)
+ */
+import { useState } from 'react'
+import {
+  Loader2,
+  Save,
+  RotateCcw,
+  Settings2,
+  Filter,
+  LayoutList,
+  Eye,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { useIndexConfig, createDefaultDisplayField } from './useIndexConfig'
+import { IndexFiltersConfig } from './IndexFiltersConfig'
+import { IndexDisplayFieldsConfig } from './IndexDisplayFieldsConfig'
+
+interface IndexConfigEditorProps {
+  groupBy: string
+  className?: string
+}
+
+export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps) {
+  const {
+    config,
+    loading,
+    error,
+    isDirty,
+    setEnabled,
+    setPageConfig,
+    addFilter,
+    updateFilter,
+    removeFilter,
+    addDisplayField,
+    updateDisplayField,
+    removeDisplayField,
+    reorderDisplayFields,
+    setViews,
+    save,
+    reset,
+    fetchSuggestions,
+    applySuggestions,
+  } = useIndexConfig(groupBy)
+
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [detecting, setDetecting] = useState(false)
+  const [showAutoDetectConfirm, setShowAutoDetectConfirm] = useState(false)
+
+  // Handle save
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveSuccess(false)
+    const success = await save()
+    setSaving(false)
+    if (success) {
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    }
+  }
+
+  // Handle enable toggle with auto-detection
+  const handleEnableToggle = async (enabled: boolean) => {
+    setEnabled(enabled)
+
+    // If enabling and no display fields yet, auto-detect
+    if (enabled && config.display_fields.length === 0) {
+      await runAutoDetect()
+    }
+  }
+
+  // Run auto-detection
+  const runAutoDetect = async () => {
+    setDetecting(true)
+    const suggestions = await fetchSuggestions()
+    setDetecting(false)
+    if (suggestions) {
+      applySuggestions(suggestions)
+    }
+  }
+
+  // Handle auto-detect button click
+  const handleAutoDetectClick = () => {
+    // If config already has fields, show confirmation
+    if (config.display_fields.length > 0 || (config.filters?.length ?? 0) > 0) {
+      setShowAutoDetectConfirm(true)
+    } else {
+      runAutoDetect()
+    }
+  }
+
+  // Confirm auto-detect (replaces existing config)
+  const handleAutoDetectConfirm = () => {
+    setShowAutoDetectConfirm(false)
+    runAutoDetect()
+  }
+
+  // Handle add display field
+  const handleAddDisplayField = () => {
+    addDisplayField(createDefaultDisplayField({
+      name: `field_${config.display_fields.length + 1}`,
+      source: '',
+    }))
+  }
+
+  // Loading state or config not ready
+  if (loading || !config) {
+    return (
+      <div className={cn('flex flex-col items-center justify-center py-12', className)}>
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="mt-4 text-sm text-muted-foreground">
+          Chargement de la configuration...
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn('flex flex-col h-full', className)}>
+      {/* Header with save button */}
+      <div className="shrink-0 flex items-center justify-between p-4 border-b bg-muted/30">
+        <div>
+          <h2 className="text-lg font-semibold">Configuration de l'Index</h2>
+          <p className="text-sm text-muted-foreground">
+            Configurez la page d'index pour le groupe "{groupBy}"
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isDirty && (
+            <Badge variant="outline" className="text-xs">
+              Modifications non sauvegardees
+            </Badge>
+          )}
+          {config.enabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAutoDetectClick}
+              disabled={detecting || saving}
+            >
+              {detecting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Detection...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Auto-detecter
+                </>
+              )}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reset}
+            disabled={!isDirty || saving}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Annuler
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={!isDirty || saving}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sauvegarde...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Sauvegarder
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Auto-detect confirmation dialog */}
+      <AlertDialog open={showAutoDetectConfirm} onOpenChange={setShowAutoDetectConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remplacer la configuration existante ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Une configuration existe deja avec {config.display_fields.length} champ(s)
+              {(config.filters?.length ?? 0) > 0 && ` et ${config.filters?.length} filtre(s)`}.
+              L'auto-detection va remplacer ces parametres par de nouvelles suggestions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAutoDetectConfirm}>
+              Remplacer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Success/Error messages */}
+      {saveSuccess && (
+        <Alert className="mx-4 mt-4 border-success/50 bg-success/10">
+          <CheckCircle2 className="h-4 w-4 text-success" />
+          <AlertDescription className="text-success">
+            Configuration sauvegardee avec succes
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert variant="destructive" className="mx-4 mt-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 overflow-auto p-4">
+        <div className="space-y-4 max-w-4xl">
+          {/* Enable/disable toggle */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Activer la page d'index</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {detecting
+                      ? 'Detection automatique des champs en cours...'
+                      : 'Genere une page listant toutes les entites du groupe'
+                    }
+                  </p>
+                </div>
+                {detecting ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <Switch
+                    checked={config.enabled}
+                    onCheckedChange={handleEnableToggle}
+                    disabled={detecting}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Only show rest of config if enabled */}
+          {config.enabled && (
+            <Accordion type="multiple" defaultValue={['page', 'fields']} className="space-y-2">
+              {/* Page settings */}
+              <AccordionItem value="page" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 border border-blue-200">
+                      <Settings2 className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-medium">Parametres de page</span>
+                      <p className="text-xs text-muted-foreground font-normal">
+                        Titre, description, pagination
+                      </p>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="page-title">Titre</Label>
+                      <Input
+                        id="page-title"
+                        value={config.page_config.title}
+                        onChange={(e) => setPageConfig({ title: e.target.value })}
+                        placeholder="Liste des taxons"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="page-description">Description (optionnel)</Label>
+                      <Textarea
+                        id="page-description"
+                        value={config.page_config.description || ''}
+                        onChange={(e) => setPageConfig({ description: e.target.value || undefined })}
+                        placeholder="Description de la page d'index"
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="items-per-page">Elements par page</Label>
+                      <Input
+                        id="items-per-page"
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={config.page_config.items_per_page}
+                        onChange={(e) => setPageConfig({ items_per_page: parseInt(e.target.value) || 24 })}
+                      />
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Filters */}
+              <AccordionItem value="filters" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 border border-amber-200">
+                      <Filter className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-medium">Filtres</span>
+                      <p className="text-xs text-muted-foreground font-normal">
+                        Filtrer les entites affichees
+                        {(config.filters?.length ?? 0) > 0 && (
+                          <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                            {config.filters?.length}
+                          </Badge>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <IndexFiltersConfig
+                    filters={config.filters || []}
+                    onAdd={addFilter}
+                    onUpdate={updateFilter}
+                    onRemove={removeFilter}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Display fields */}
+              <AccordionItem value="fields" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200">
+                      <LayoutList className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-medium">Champs affiches</span>
+                      <p className="text-xs text-muted-foreground font-normal">
+                        Colonnes visibles dans la liste
+                        {config.display_fields.length > 0 && (
+                          <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                            {config.display_fields.length}
+                          </Badge>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <IndexDisplayFieldsConfig
+                    fields={config.display_fields}
+                    onAdd={handleAddDisplayField}
+                    onUpdate={updateDisplayField}
+                    onRemove={removeDisplayField}
+                    onReorder={reorderDisplayFields}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Views */}
+              <AccordionItem value="views" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 border border-violet-200">
+                      <Eye className="h-4 w-4 text-violet-600" />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-medium">Modes d'affichage</span>
+                      <p className="text-xs text-muted-foreground font-normal">
+                        Grille et/ou liste
+                      </p>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between py-2">
+                      <div className="space-y-0.5">
+                        <Label>Affichage en grille</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Affiche les entites dans une grille de cartes
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.views?.some(v => v.type === 'grid') ?? true}
+                        onCheckedChange={(checked) => {
+                          const views = [...(config.views || [])].filter(v => v.type !== 'grid')
+                          if (checked) {
+                            views.push({ type: 'grid', default: views.length === 0 })
+                          }
+                          setViews(views.length > 0 ? views : [{ type: 'grid', default: true }])
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between py-2">
+                      <div className="space-y-0.5">
+                        <Label>Affichage en liste</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Affiche les entites dans une liste tabulaire
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.views?.some(v => v.type === 'list') ?? false}
+                        onCheckedChange={(checked) => {
+                          const views = [...(config.views || [])].filter(v => v.type !== 'list')
+                          if (checked) {
+                            views.push({ type: 'list', default: views.length === 0 })
+                          }
+                          setViews(views.length > 0 ? views : [{ type: 'grid', default: true }])
+                        }}
+                      />
+                    </div>
+
+                    {(config.views?.length ?? 0) > 1 && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <Label>Mode par defaut</Label>
+                        <div className="flex gap-2">
+                          {config.views?.map((view, index) => (
+                            <Button
+                              key={view.type}
+                              variant={view.default ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => {
+                                const newViews = config.views?.map((v, i) => ({
+                                  ...v,
+                                  default: i === index,
+                                })) || []
+                                setViews(newViews)
+                              }}
+                            >
+                              {view.type === 'grid' ? 'Grille' : 'Liste'}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
