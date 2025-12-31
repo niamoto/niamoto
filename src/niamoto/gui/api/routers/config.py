@@ -2092,6 +2092,124 @@ def _is_category_field(path: str) -> bool:
     return any(ind in lower_path for ind in cat_indicators)
 
 
+def _is_rank_field(path: str) -> bool:
+    """Check if this is likely a taxonomic rank field."""
+    rank_indicators = ["rank_name", "rank", "rang", "niveau"]
+    lower_path = path.lower()
+    return any(ind in lower_path for ind in rank_indicators)
+
+
+def _detect_terminal_ranks(values: List[str]) -> List[str]:
+    """
+    Detect terminal/leaf ranks from a list of rank values.
+
+    Works with multiple languages and naming conventions:
+    - French: Espèce, Sous-espèce, Variété, Forme
+    - English: Species, Subspecies, Variety, Form
+    - Latin abbreviations: sp., subsp., var., f.
+    - Numeric levels: higher numbers = more specific
+    """
+    # Known terminal rank patterns (case-insensitive)
+    terminal_patterns = [
+        # French
+        "espèce",
+        "espece",
+        "sous-espèce",
+        "sous-espece",
+        "variété",
+        "variete",
+        "forme",
+        "cultivar",
+        "sous-variété",
+        "sous-variete",
+        # English
+        "species",
+        "subspecies",
+        "variety",
+        "form",
+        "cultivar",
+        "subvariety",
+        # Latin/abbreviations
+        "sp.",
+        "sp",
+        "subsp.",
+        "subsp",
+        "var.",
+        "var",
+        "f.",
+        "cv.",
+        # Generic
+        "leaf",
+        "terminal",
+        "feuille",
+    ]
+
+    terminal_values = []
+    for val in values:
+        if val is None:
+            continue
+        lower_val = str(val).lower().strip()
+        # Check if value matches any terminal pattern
+        if any(
+            pattern in lower_val or lower_val == pattern
+            for pattern in terminal_patterns
+        ):
+            terminal_values.append(val)
+
+    return terminal_values
+
+
+def _detect_hierarchical_structure(df: Any) -> Dict[str, Any]:
+    """
+    Detect if a dataframe represents hierarchical data.
+
+    Returns info about the hierarchy:
+    - has_nested_set: bool (lft/rght columns)
+    - has_level: bool (level column)
+    - has_parent: bool (parent_id column)
+    - level_column: str or None
+    - max_level: int or None
+    """
+    columns = [c.lower() for c in df.columns]
+
+    result = {
+        "is_hierarchical": False,
+        "has_nested_set": False,
+        "has_level": False,
+        "has_parent": False,
+        "level_column": None,
+        "max_level": None,
+    }
+
+    # Check for nested set
+    if "lft" in columns and "rght" in columns:
+        result["has_nested_set"] = True
+        result["is_hierarchical"] = True
+
+    # Check for level column
+    level_names = ["level", "niveau", "depth", "profondeur"]
+    for col in df.columns:
+        if col.lower() in level_names:
+            result["has_level"] = True
+            result["level_column"] = col
+            result["is_hierarchical"] = True
+            try:
+                result["max_level"] = int(df[col].max())
+            except (ValueError, TypeError):
+                pass
+            break
+
+    # Check for parent reference
+    parent_names = ["parent_id", "parent", "id_parent"]
+    for col in df.columns:
+        if col.lower() in parent_names:
+            result["has_parent"] = True
+            result["is_hierarchical"] = True
+            break
+
+    return result
+
+
 def _extract_extra_data_fields(
     source_df: Any,
 ) -> Dict[str, Dict[str, Any]]:
@@ -2538,9 +2656,23 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                 display_fields=[], filters=[], total_entities=int(total_count)
             )
 
+        # Detect hierarchical structure for smart filtering
+        hierarchy_info = {"is_hierarchical": False}
+        db = Database(str(db_path), read_only=True)
+        try:
+            check_df = pd.read_sql(f"SELECT * FROM {source_table} LIMIT 10", db.engine)
+            hierarchy_info = _detect_hierarchical_structure(check_df)
+        except Exception:
+            pass
+        finally:
+            db.close_db_session()
+
         # Generate suggestions
         display_fields = []
         filters = []
+
+        # Track if we found a rank field with terminal values for hierarchical entities
+        rank_filter_added = False
 
         # Sort fields by relevance: priority first, then name fields, then category fields
         sorted_fields = sorted(
@@ -2611,6 +2743,54 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             # Create filter suggestion if appropriate (only for high priority fields)
             if is_filter_candidate:
                 filter_values = info["sample_values"][:20]  # Limit filter values
+
+                # For hierarchical entities, check if this is a rank field
+                # and pre-select terminal ranks (species, subspecies, etc.)
+                is_rank = _is_rank_field(path)
+                if (
+                    hierarchy_info["is_hierarchical"]
+                    and is_rank
+                    and not rank_filter_added
+                ):
+                    # For rank fields, fetch ALL distinct values from source table
+                    # because sample might not include terminal ranks
+                    all_rank_values = filter_values  # Default to sample
+                    try:
+                        # Extract the column name from path (e.g., "widget.rank_name.value" -> "rank_name")
+                        rank_col = (
+                            path.split(".")[-2]
+                            if path.endswith(".value")
+                            else path.split(".")[-1]
+                        )
+                        db = Database(str(db_path), read_only=True)
+                        try:
+                            distinct_df = pd.read_sql(
+                                f"SELECT DISTINCT {rank_col} FROM {source_table} WHERE {rank_col} IS NOT NULL",
+                                db.engine,
+                            )
+                            all_rank_values = distinct_df[rank_col].tolist()
+                        finally:
+                            db.close_db_session()
+                    except Exception:
+                        pass  # Fall back to sample values
+
+                    terminal_values = _detect_terminal_ranks(all_rank_values)
+                    if terminal_values:
+                        # Add rank filter with terminal values pre-selected
+                        filters.insert(
+                            0,  # Insert at beginning (priority filter)
+                            SuggestedFilter(
+                                field=path,
+                                source=path,
+                                label=_generate_label(path) + " (terminaux)",
+                                type=info["type"],
+                                values=terminal_values,  # Only terminal ranks
+                                operator="in",
+                            ),
+                        )
+                        rank_filter_added = True
+                        continue  # Don't add the regular filter
+
                 filters.append(
                     SuggestedFilter(
                         field=path,

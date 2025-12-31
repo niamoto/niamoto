@@ -10,6 +10,7 @@ Provides endpoints for:
 
 import json
 import logging
+import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -277,6 +278,14 @@ async def get_reference_suggestions(
                                     value_range=value_range,
                                 )
                                 enriched_profiles.append(profile)
+
+                            # Filter out columns that are 100% null (no data)
+                            enriched_profiles = [
+                                p
+                                for p in enriched_profiles
+                                if p.null_ratio
+                                < 0.99  # Keep columns with at least 1% data
+                            ]
 
                             columns_analyzed = len(enriched_profiles)
 
@@ -1207,8 +1216,26 @@ def _generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str,
                 else:
                     return None
 
-            # Get sample data to analyze columns
-            sample_df = pd.read_sql(f"SELECT * FROM {ref_table} LIMIT 100", db.engine)
+            # Get column info to exclude geometry columns (binary WKB causes encoding errors)
+            from sqlalchemy import text
+
+            with db.engine.connect() as conn:
+                result = conn.execute(text(f"DESCRIBE {ref_table}"))
+                col_info = result.fetchall()
+            safe_columns = [
+                f'"{c[0]}"'
+                for c in col_info
+                if c[1].upper() not in ("GEOMETRY", "BLOB", "BYTEA")
+                and not c[0].endswith("_geom")
+            ]
+            if not safe_columns:
+                return None
+
+            # Get sample data to analyze columns (excluding geometry)
+            columns_sql = ", ".join(safe_columns)
+            sample_df = pd.read_sql(
+                f"SELECT {columns_sql} FROM {ref_table} LIMIT 100", db.engine
+            )
             if sample_df.empty:
                 return None
 
@@ -1225,7 +1252,7 @@ def _generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str,
                 "modified",
                 "created",
             }
-            exclude_suffixes = ("_id", "_ref", "_key", "_idx")
+            exclude_suffixes = ("_id", "_ref", "_key", "_idx", "_geom")
 
             # Analyze each column and score its usefulness
             column_scores = []
@@ -2824,9 +2851,22 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
                         )
                     )
 
-            # Get column info to detect hierarchy
-            columns_df = pd.read_sql(f"SELECT * FROM {table_name} LIMIT 0", db.engine)
-            columns = set(columns_df.columns.tolist())
+            # Get column info to detect hierarchy and exclude geometry columns
+            from sqlalchemy import text
+
+            with db.engine.connect() as conn:
+                result = conn.execute(text(f"DESCRIBE {table_name}"))
+                col_info = result.fetchall()
+
+            # Build safe columns list (exclude geometry/binary types)
+            safe_columns = [
+                c[0]
+                for c in col_info
+                if c[1].upper() not in ("GEOMETRY", "BLOB", "BYTEA")
+                and not c[0].endswith("_geom")
+            ]
+            columns = set(safe_columns)
+            safe_columns_sql = ", ".join(f'"{c}"' for c in safe_columns)
 
             has_nested_set = "lft" in columns and "rght" in columns
             has_parent = "parent_id" in columns
@@ -2844,10 +2884,11 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
             name_field = next((c for c in name_candidates if c in columns), id_field)
 
             # Build query to get sample data for preview (limit to first levels)
+            # Use safe_columns_sql to exclude geometry columns
             if is_hierarchical and has_nested_set:
                 # Get hierarchical sample ordered by nested set
                 query = f"""
-                    SELECT *
+                    SELECT {safe_columns_sql}
                     FROM {table_name}
                     WHERE level <= 3
                     ORDER BY lft
@@ -2856,7 +2897,7 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
             elif is_hierarchical and has_parent:
                 # Get parent-child sample
                 query = f"""
-                    SELECT *
+                    SELECT {safe_columns_sql}
                     FROM {table_name}
                     WHERE level <= 3
                     LIMIT 50
@@ -2864,7 +2905,7 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
             else:
                 # Get flat sample
                 query = f"""
-                    SELECT *
+                    SELECT {safe_columns_sql}
                     FROM {table_name}
                     LIMIT 30
                 """
@@ -3862,6 +3903,9 @@ async def preview_template(
                     )
                 )
 
+            # Adjust config based on actual data (e.g., smart bins for binned_distribution)
+            config = _adjust_config_for_data(config, transformer_plugin, sample_data)
+
             # Execute transformer
             transformed_data = _execute_transformer(
                 db, transformer_plugin, sample_data, config
@@ -3892,6 +3936,97 @@ async def preview_template(
             content=_wrap_html_response(f"<p class='error'>Error: {str(e)}</p>"),
             status_code=500,
         )
+
+
+def _generate_smart_bins(min_val: float, max_val: float) -> List[float]:
+    """Generate smart histogram bins based on data range.
+
+    This mirrors the logic from WidgetGenerator._generate_smart_bins
+    to ensure consistent bin generation for previews.
+    """
+    if max_val <= min_val:
+        return [0, 10, 20, 30, 40, 50]
+
+    range_val = max_val - min_val
+
+    # Determine step size based on range
+    if range_val <= 10:
+        step = 1
+    elif range_val <= 50:
+        step = 5
+    elif range_val <= 100:
+        step = 10
+    elif range_val <= 500:
+        step = 50
+    elif range_val <= 2000:
+        step = 100
+    else:
+        step = 500
+
+    # Round min down and max up to step
+    start = math.floor(min_val / step) * step
+    end = math.ceil(max_val / step) * step
+
+    bins = []
+    current = start
+    while current <= end:
+        bins.append(current)
+        current += step
+
+    # Limit to ~15 bins max
+    while len(bins) > 15:
+        bins = bins[::2]
+
+    return bins
+
+
+def _adjust_config_for_data(
+    config: Dict[str, Any],
+    transformer_plugin: str,
+    sample_data: pd.DataFrame,
+) -> Dict[str, Any]:
+    """Adjust transformer config based on actual data values.
+
+    For binned_distribution, generates smart bins based on data range
+    instead of using default bins that may not match the data.
+
+    Args:
+        config: Original transformer config
+        transformer_plugin: Name of the transformer plugin
+        sample_data: The loaded sample data
+
+    Returns:
+        Adjusted config with appropriate parameters
+    """
+    if transformer_plugin != "binned_distribution":
+        return config
+
+    # Get the field name from config
+    field = config.get("field")
+    if not field or field not in sample_data.columns:
+        return config
+
+    # Get numeric values from the field
+    field_data = pd.to_numeric(sample_data[field], errors="coerce").dropna()
+
+    if field_data.empty:
+        return config
+
+    # Calculate min/max and generate smart bins
+    min_val = float(field_data.min())
+    max_val = float(field_data.max())
+
+    smart_bins = _generate_smart_bins(min_val, max_val)
+
+    # Update config with smart bins
+    adjusted_config = config.copy()
+    adjusted_config["bins"] = smart_bins
+
+    logger.debug(
+        f"Adjusted bins for '{field}': range [{min_val}, {max_val}] -> bins {smart_bins}"
+    )
+
+    return adjusted_config
 
 
 def _build_dynamic_template_info(
@@ -4049,6 +4184,32 @@ def _preprocess_data_for_widget(data: Any, transformer: str, widget: str) -> Any
                 "counts": counts,
                 "percentages": data.get("percentages", []),
             }
+
+    # binary_counter -> donut_chart: convert dict format to arrays
+    if transformer == "binary_counter" and widget == "donut_chart":
+        # binary_counter output: {'UM': 15731, 'NUM': 5749, 'UM_percent': 73.24, 'NUM_percent': 26.76}
+        # Extract labels and counts from the dict (skip percentage keys)
+        labels = []
+        counts = []
+        percentages = []
+
+        for key, value in data.items():
+            if not key.endswith("_percent"):
+                labels.append(key)
+                counts.append(value)
+                # Try to find the corresponding percentage
+                percent_key = f"{key}_percent"
+                if percent_key in data:
+                    percentages.append(data[percent_key])
+
+        if labels and counts:
+            result = {
+                "labels": labels,
+                "counts": counts,
+            }
+            if percentages and len(percentages) == len(labels):
+                result["percentages"] = percentages
+            return result
 
     return data
 
