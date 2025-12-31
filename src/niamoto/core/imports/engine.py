@@ -626,6 +626,7 @@ class GenericImporter:
                     "data_category": ep.data_category.value,
                     "field_purpose": ep.field_purpose.value,
                     "cardinality": ep.cardinality,
+                    "null_ratio": ep.null_ratio,
                     "suggested_bins": ep.suggested_bins,
                     "suggested_labels": ep.suggested_labels,
                     "value_range": ep.value_range,

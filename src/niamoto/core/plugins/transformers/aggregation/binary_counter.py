@@ -153,15 +153,25 @@ class BinaryCounter(TransformerPlugin):
             if not data.empty and params.field:
                 field_data = data.get(params.field)
                 if field_data is not None and not field_data.empty:
-                    # Filter out any values that are not 0 or 1
-                    valid_mask = (field_data == 0) | (field_data == 1)
-                    field_data = field_data[valid_mask]
+                    # Drop null values first
+                    field_data = field_data.dropna()
 
                     if not field_data.empty:
-                        # Count values (1 = true, 0 = false)
-                        true_count = len(field_data[field_data == 1])
-                        false_count = len(field_data[field_data == 0])
-                        total_count = true_count + false_count
+                        # Handle both boolean (True/False) and numeric (0/1) values
+                        # Convert to boolean for consistent counting
+                        try:
+                            bool_data = field_data.astype(bool)
+                            true_count = int(bool_data.sum())
+                            false_count = len(bool_data) - true_count
+                            total_count = true_count + false_count
+                        except (ValueError, TypeError):
+                            # Fallback: try numeric comparison for 0/1 values
+                            valid_mask = (field_data == 0) | (field_data == 1)
+                            field_data = field_data[valid_mask]
+                            if not field_data.empty:
+                                true_count = len(field_data[field_data == 1])
+                                false_count = len(field_data[field_data == 0])
+                                total_count = true_count + false_count
 
             # Prepare result
             result = {

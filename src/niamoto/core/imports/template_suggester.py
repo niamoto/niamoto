@@ -80,7 +80,8 @@ class TemplateSuggester:
     """
 
     # Essential widgets that should always be suggested if data allows
-    ESSENTIAL_WIDGETS = ["general_info"]
+    # Note: general_info is now generated dynamically in templates.py with auto-detected fields
+    ESSENTIAL_WIDGETS: list = []
 
     # Minimum confidence to include in suggestions
     MIN_CONFIDENCE = 0.4
@@ -121,12 +122,7 @@ class TemplateSuggester:
         # 2. Convert to TemplateSuggestion format
         suggestions = [self._convert_widget_suggestion(ws) for ws in widget_suggestions]
 
-        # 3. Add essential widgets (general_info) - always useful
-        suggestions.append(
-            self._create_general_info_suggestion(reference_name, source_name)
-        )
-
-        # 4. Filter by minimum confidence
+        # 3. Filter by minimum confidence
         suggestions = [s for s in suggestions if s.confidence >= self.MIN_CONFIDENCE]
 
         # 5. Sort by confidence (primary first), then by name
@@ -198,6 +194,7 @@ class TemplateSuggester:
             confidence=0.9,
             source="template",
             source_name=source_name,
+            matched_column=reference_name,
             match_reason=f"Widget essentiel pour {reference_name}",
             is_recommended=True,
             config={
