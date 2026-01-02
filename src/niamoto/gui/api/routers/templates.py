@@ -637,6 +637,7 @@ def _map_transformer_to_widget(transformer_plugin: str, widget_id: str) -> str:
         "statistical_summary": "info_grid",
         "geospatial_extractor": "interactive_map",
         "field_aggregator": "info_grid",
+        "class_object_field_aggregator": "info_grid",
     }
     return transformer_to_widget.get(transformer_plugin, "info_grid")
 
@@ -976,6 +977,7 @@ CLASS_OBJECT_EXTRACTORS = {
     "series_extractor",
     "binary_aggregator",
     "categories_extractor",
+    "class_object_field_aggregator",
 }
 
 
@@ -1054,7 +1056,16 @@ def _load_class_object_data_for_preview(
 
                 # Load and check for the class_object
                 try:
-                    df = pd.read_csv(csv_path)
+                    # Auto-detect delimiter (comma or semicolon)
+                    with open(csv_path, "r", encoding="utf-8") as f:
+                        first_line = f.readline()
+                        delimiter = (
+                            ";"
+                            if first_line.count(";") > first_line.count(",")
+                            else ","
+                        )
+
+                    df = pd.read_csv(csv_path, delimiter=delimiter)
 
                     # Check if this CSV has the class_object format
                     if "class_object" not in df.columns:
@@ -4206,13 +4217,22 @@ def _build_dynamic_template_info(
         name = f"Carte {col_name}"
 
     elif transformer == "field_aggregator":
+        # Standard field_aggregator for occurrences data
         config = {
             "source": "occurrences",
-            "fields": [column],
+            "fields": [{"source": "occurrences", "field": column, "target": column}],
         }
         name = f"Info {col_name}"
 
     # Class_object extractors (for pre-calculated CSV data)
+    elif transformer == "class_object_field_aggregator":
+        # Field aggregator for class_object CSV data (scalars like elevation_max)
+        config = {
+            "source": "shape_stats",
+            "fields": [{"class_object": column, "target": column}],
+        }
+        name = f"Info {col_name}"
+
     elif transformer == "series_extractor":
         config = {
             "class_object": column,
