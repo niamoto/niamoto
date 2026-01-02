@@ -277,11 +277,11 @@ class ClassObjectAnalyzer:
         """
         # No class_name (scalar metric with empty class_name like elevation_max)
         if cardinality == 0:
-            return "field_aggregator", 0.95
+            return "class_object_field_aggregator", 0.95
 
         # Single value (scalar metric)
         if cardinality == 1:
-            return "field_aggregator", 0.95
+            return "class_object_field_aggregator", 0.95
 
         # Binary (exactly 2 categories)
         if cardinality == 2:

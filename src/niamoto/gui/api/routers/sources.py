@@ -8,6 +8,7 @@ Provides endpoints for:
 - Removing source configuration
 """
 
+import csv
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -181,6 +182,162 @@ def _get_reference_kind(work_dir: Path, reference_name: str) -> str:
     references = import_config.get("entities", {}).get("references", {})
     ref_config = references.get(reference_name, {})
     return ref_config.get("kind", "flat")
+
+
+def _detect_relation_fields(
+    work_dir: Path, reference_name: str, csv_path: Path, csv_columns: list[str]
+) -> tuple[str, str]:
+    """
+    Intelligently detect the best ref_field and match_field for a CSV source.
+
+    Compares values from CSV columns with values from entity_* table columns
+    to find the best matching pair.
+
+    Args:
+        work_dir: Working directory containing the database
+        reference_name: Name of the reference group (e.g., "shapes", "plots")
+        csv_path: Path to the CSV file
+        csv_columns: List of column names in the CSV
+
+    Returns:
+        Tuple of (ref_field, match_field) - the best matching column pair
+    """
+    import duckdb
+
+    # Default fallback values
+    ref_field = f"id_{reference_name}"
+    if reference_name.endswith("s"):
+        ref_field = f"id_{reference_name[:-1]}"
+
+    # Find first matching entity column as fallback match_field
+    entity_candidates = ["plot_id", "shape_id", "taxon_id", "entity_id", "id"]
+    match_field = "id"
+    for candidate in entity_candidates:
+        if candidate in csv_columns:
+            match_field = candidate
+            break
+
+    # Try to find database and do intelligent matching
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    if not db_path.exists():
+        db_path = work_dir / "db" / "niamoto.db"
+    if not db_path.exists():
+        logger.warning("Database not found, using default relation fields")
+        return ref_field, match_field
+
+    try:
+        conn = duckdb.connect(str(db_path), read_only=True)
+
+        # Get entity table name
+        entity_table = f"entity_{reference_name}"
+
+        # Check if table exists
+        tables = conn.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema='main'"
+        ).fetchall()
+        table_names = [t[0] for t in tables]
+
+        if entity_table not in table_names:
+            conn.close()
+            return ref_field, match_field
+
+        # Get columns from entity table that could be join keys
+        entity_cols = conn.execute(f"DESCRIBE {entity_table}").fetchall()
+        # Filter to string/varchar columns that could be used for matching
+        matchable_entity_cols = [
+            c[0]
+            for c in entity_cols
+            if "VARCHAR" in str(c[1]).upper() or "TEXT" in str(c[1]).upper()
+        ]
+        # Also include id columns
+        matchable_entity_cols.extend(
+            [c[0] for c in entity_cols if c[0].startswith("id")]
+        )
+        matchable_entity_cols = list(set(matchable_entity_cols))
+
+        # Get unique values from entity table columns (limit for performance)
+        entity_values: dict[str, set[str]] = {}
+        for col in matchable_entity_cols:
+            try:
+                result = conn.execute(
+                    f'SELECT DISTINCT CAST("{col}" AS VARCHAR) FROM {entity_table} LIMIT 1000'
+                ).fetchall()
+                entity_values[col] = {str(r[0]) for r in result if r[0] is not None}
+            except Exception:
+                continue
+
+        # Detect CSV delimiter
+        with open(csv_path, "r", encoding="utf-8") as f:
+            first_line = f.readline()
+            delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
+
+        # Get unique values from CSV columns
+        csv_values: dict[str, set[str]] = {}
+        # Only check columns that could be entity identifiers
+        csv_candidates = [
+            c
+            for c in csv_columns
+            if c
+            in ["id", "label", "name", "entity_id", "plot_id", "shape_id", "taxon_id"]
+            or "name" in c.lower()
+            or "label" in c.lower()
+        ]
+
+        for col in csv_candidates:
+            try:
+                result = conn.execute(
+                    f"""
+                    SELECT DISTINCT CAST("{col}" AS VARCHAR)
+                    FROM read_csv_auto('{csv_path}', delim='{delimiter}', header=true)
+                    LIMIT 1000
+                """
+                ).fetchall()
+                csv_values[col] = {str(r[0]) for r in result if r[0] is not None}
+            except Exception:
+                continue
+
+        conn.close()
+
+        # Find best match: compare each CSV column with each entity column
+        best_score = 0.0
+        best_ref_field = ref_field
+        best_match_field = match_field
+
+        for csv_col, csv_vals in csv_values.items():
+            if not csv_vals:
+                continue
+            for entity_col, entity_vals in entity_values.items():
+                if not entity_vals:
+                    continue
+
+                # Calculate intersection score (how many CSV values match entity values)
+                intersection = csv_vals & entity_vals
+                if not intersection:
+                    continue
+
+                # Score = percentage of CSV values that match entity values
+                score = len(intersection) / len(csv_vals)
+
+                if score > best_score:
+                    best_score = score
+                    best_ref_field = entity_col
+                    best_match_field = csv_col
+
+        if best_score > 0.5:  # At least 50% match required
+            logger.info(
+                f"Smart relation detection: {best_match_field} -> {best_ref_field} "
+                f"(score: {best_score:.1%})"
+            )
+            return best_ref_field, best_match_field
+        else:
+            logger.warning(
+                f"No good match found (best score: {best_score:.1%}), using defaults"
+            )
+            return ref_field, match_field
+
+    except Exception as e:
+        logger.warning(f"Error during smart relation detection: {e}")
+        return ref_field, match_field
 
 
 # =============================================================================
@@ -372,10 +529,18 @@ async def save_source_config(
             break
 
     # Build source configuration
-    # Determine ref_field based on entity_id_column and reference name
-    ref_field = f"id_{reference_name}"  # Default: id_plots, id_shapes, etc.
-    if reference_name.endswith("s"):
-        ref_field = f"id_{reference_name[:-1]}"  # id_plot, id_shape (singular)
+    # Get CSV columns for smart detection
+    with open(csv_path, "r", encoding="utf-8") as f:
+        first_line = f.readline()
+        delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
+        f.seek(0)
+        reader = csv.reader(f, delimiter=delimiter)
+        csv_columns = [c.strip().lower() for c in next(reader)]
+
+    # Use smart detection to find best ref_field and match_field
+    ref_field, match_field = _detect_relation_fields(
+        work_dir, reference_name, csv_path, csv_columns
+    )
 
     new_source = {
         "name": request.source_name,
@@ -385,7 +550,7 @@ async def save_source_config(
             "plugin": "stats_loader",
             "key": "id",
             "ref_field": ref_field,
-            "match_field": request.entity_id_column,
+            "match_field": match_field,
         },
     }
 
