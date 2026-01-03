@@ -12,6 +12,16 @@ export { WidgetOptionCard } from './WidgetOptionCard'
 export { ConfiguredWidgetsList } from './ConfiguredWidgetsList'
 export { WidgetConfigForm } from './WidgetConfigForm'
 
+// New class_object-based components
+export { ClassObjectSelector } from './ClassObjectSelector'
+export { WidgetConfigYamlEditor } from './WidgetConfigYamlEditor'
+export { BinaryMappingWizard } from './BinaryMappingWizard'
+export { WidgetWizard } from './WidgetWizard'
+
+// Unified recipe editor
+export { RecipeEditor, YamlEditor } from './recipe'
+export type { YamlTemplate } from './recipe'
+
 export {
   useSuggestions,
   useTemplates,

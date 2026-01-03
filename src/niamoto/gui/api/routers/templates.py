@@ -26,6 +26,9 @@ from niamoto.core.imports.template_suggester import (
 )
 from niamoto.core.imports.class_object_suggester import suggest_widgets_for_source
 from niamoto.core.imports.widget_generator import WidgetGenerator
+from niamoto.core.imports.class_object_analyzer import (
+    analyze_csv,
+)
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.matching.matcher import SmartMatcher
@@ -157,6 +160,68 @@ class GenerateConfigResponse(BaseModel):
     group_by: str
     sources: List[Dict[str, Any]]
     widgets_data: Dict[str, Any]
+
+
+class ClassObjectSuggestion(BaseModel):
+    """A single class_object with its analysis and suggested configuration."""
+
+    name: str
+    category: (
+        str  # scalar, binary, ternary, multi_category, numeric_bins, large_category
+    )
+    cardinality: int
+    class_names: List[str]
+    value_type: str  # numeric or categorical
+    suggested_plugin: str
+    confidence: float
+    auto_config: Dict[str, Any]
+    mapping_hints: Dict[str, str]
+    related_class_objects: List[str]
+    pattern_group: Optional[str]
+
+
+class WidgetTemplate(BaseModel):
+    """A predefined widget template for complex configurations."""
+
+    name: str
+    description: str
+    plugin: str
+    complexity: str  # simple, medium, complex
+    example_config: Dict[str, Any]
+    applicable_categories: List[str]
+    variables: List[Dict[str, str]] = []  # For template variables
+
+
+class PluginParameter(BaseModel):
+    """A parameter definition for a plugin wizard."""
+
+    name: str
+    type: str  # class_object_select, class_object_list, binary_mapping_list, etc.
+    label: str
+    filter_category: Any  # str or list of str
+    required: bool = True
+    min_items: Optional[int] = None
+
+
+class PluginSchema(BaseModel):
+    """Schema describing a plugin's parameters for wizard UI."""
+
+    name: str
+    description: str
+    complexity: str  # simple, medium, complex
+    applicable_categories: List[str]
+    parameters: List[PluginParameter]
+
+
+class WidgetSuggestionsResponse(BaseModel):
+    """Response for class_object-based widget suggestions."""
+
+    source_name: str
+    source_path: str
+    class_objects: List[ClassObjectSuggestion]
+    pattern_groups: Dict[str, List[str]]
+    plugin_schemas: Dict[str, PluginSchema]  # Plugin schemas for wizard
+    categories_summary: Dict[str, int]  # Count per category
 
 
 # =============================================================================
@@ -965,6 +1030,292 @@ async def list_categories():
         "categories": list(WIDGET_CATEGORIES.values()),
         "total_categories": len(WIDGET_CATEGORIES),
     }
+
+
+# Plugin schemas for wizard UI - describes what parameters each plugin needs
+# These are generic descriptions, not domain-specific templates
+PLUGIN_SCHEMAS: Dict[str, Dict[str, Any]] = {
+    "class_object_field_aggregator": {
+        "name": "Agregateur de champs",
+        "description": "Regroupe plusieurs metriques scalaires dans un widget",
+        "complexity": "simple",
+        "applicable_categories": ["scalar"],
+        "parameters": [
+            {
+                "name": "fields",
+                "type": "class_object_list",
+                "label": "Champs a agreger",
+                "filter_category": "scalar",
+                "required": True,
+            }
+        ],
+    },
+    "class_object_binary_aggregator": {
+        "name": "Agregateur binaire",
+        "description": "Compare des ratios binaires (2 categories)",
+        "complexity": "medium",
+        "applicable_categories": ["binary"],
+        "parameters": [
+            {
+                "name": "groups",
+                "type": "binary_mapping_list",
+                "label": "Groupes binaires",
+                "filter_category": "binary",
+                "required": True,
+            }
+        ],
+    },
+    "class_object_categories_extractor": {
+        "name": "Extracteur de categories",
+        "description": "Extrait des categories avec leurs valeurs",
+        "complexity": "simple",
+        "applicable_categories": ["ternary", "multi_category"],
+        "parameters": [
+            {
+                "name": "class_object",
+                "type": "class_object_select",
+                "label": "Class object",
+                "filter_category": ["ternary", "multi_category"],
+                "required": True,
+            }
+        ],
+    },
+    "class_object_series_extractor": {
+        "name": "Extracteur de series",
+        "description": "Extrait une serie de valeurs numeriques",
+        "complexity": "simple",
+        "applicable_categories": ["numeric_bins"],
+        "parameters": [
+            {
+                "name": "class_object",
+                "type": "class_object_select",
+                "label": "Class object",
+                "filter_category": "numeric_bins",
+                "required": True,
+            }
+        ],
+    },
+    "class_object_series_ratio_aggregator": {
+        "name": "Comparaison de distributions",
+        "description": "Compare deux distributions (total vs subset)",
+        "complexity": "complex",
+        "applicable_categories": ["numeric_bins"],
+        "parameters": [
+            {
+                "name": "total",
+                "type": "class_object_select",
+                "label": "Distribution totale",
+                "filter_category": "numeric_bins",
+                "required": True,
+            },
+            {
+                "name": "subset",
+                "type": "class_object_select",
+                "label": "Distribution subset",
+                "filter_category": "numeric_bins",
+                "required": True,
+            },
+        ],
+    },
+    "class_object_categories_mapper": {
+        "name": "Comparaison de categories",
+        "description": "Compare des categories entre deux groupes",
+        "complexity": "complex",
+        "applicable_categories": ["ternary", "multi_category"],
+        "parameters": [
+            {
+                "name": "category_a",
+                "type": "class_object_select",
+                "label": "Premier groupe",
+                "filter_category": ["ternary", "multi_category"],
+                "required": True,
+            },
+            {
+                "name": "category_b",
+                "type": "class_object_select",
+                "label": "Deuxieme groupe",
+                "filter_category": ["ternary", "multi_category"],
+                "required": True,
+            },
+        ],
+    },
+    "class_object_series_by_axis_extractor": {
+        "name": "Series par axe commun",
+        "description": "Plusieurs series sur le meme axe",
+        "complexity": "complex",
+        "applicable_categories": ["numeric_bins"],
+        "parameters": [
+            {
+                "name": "series",
+                "type": "class_object_list",
+                "label": "Series a comparer",
+                "filter_category": "numeric_bins",
+                "required": True,
+                "min_items": 2,
+            }
+        ],
+    },
+    "class_object_series_matrix_extractor": {
+        "name": "Matrice de series",
+        "description": "Multiple series sur le meme axe avec echelle",
+        "complexity": "complex",
+        "applicable_categories": ["numeric_bins"],
+        "parameters": [
+            {
+                "name": "series",
+                "type": "series_config_list",
+                "label": "Series avec configuration",
+                "filter_category": "numeric_bins",
+                "required": True,
+                "min_items": 2,
+            }
+        ],
+    },
+}
+
+# No hardcoded templates - wizard UI will generate configs dynamically
+WIDGET_TEMPLATES: List[WidgetTemplate] = []
+
+
+@router.get("/widget-suggestions/{group_by}", response_model=WidgetSuggestionsResponse)
+async def get_widget_suggestions(
+    group_by: str,
+    source_name: Optional[str] = Query(
+        default=None, description="Nom de la source CSV (auto-détecté si non fourni)"
+    ),
+):
+    """Get widget suggestions based on class_object analysis of a CSV source.
+
+    This endpoint analyzes the CSV source to detect:
+    - Class object patterns (scalar, binary, categorical, numeric bins)
+    - Related class objects (cover_*, holdridge_*, etc.)
+    - Auto-generated configurations for each suggested plugin
+    - Mapping hints for binary patterns (Forêt → forest)
+
+    Returns suggestions organized by category with applicable templates.
+    """
+    work_dir = get_working_directory()
+    transform_path = work_dir / "config" / "transform.yml"
+
+    if not transform_path.exists():
+        raise HTTPException(status_code=404, detail="transform.yml not found")
+
+    # Find the CSV source for this group
+    try:
+        with open(transform_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+        # Find group config
+        group_config = None
+        if isinstance(config, list):
+            for g in config:
+                if isinstance(g, dict) and g.get("group_by") == group_by:
+                    group_config = g
+                    break
+        elif isinstance(config, dict):
+            groups = config.get("groups", {})
+            if isinstance(groups, list):
+                for g in groups:
+                    if isinstance(g, dict) and g.get("group_by") == group_by:
+                        group_config = g
+                        break
+
+        if not group_config:
+            raise HTTPException(
+                status_code=404, detail=f"Group '{group_by}' not found in transform.yml"
+            )
+
+        # Find CSV source
+        csv_source = None
+        sources = group_config.get("sources", [])
+        for src in sources:
+            data_path = src.get("data", "")
+            if data_path.endswith(".csv"):
+                if source_name is None or src.get("name") == source_name:
+                    csv_source = src
+                    break
+
+        if not csv_source:
+            raise HTTPException(
+                status_code=404, detail=f"No CSV source found for group '{group_by}'"
+            )
+
+        csv_path = work_dir / csv_source["data"]
+        if not csv_path.exists():
+            raise HTTPException(
+                status_code=404, detail=f"CSV file not found: {csv_source['data']}"
+            )
+
+        # Analyze the CSV
+        analysis = analyze_csv(csv_path)
+
+        if not analysis.is_valid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid CSV: {', '.join(analysis.validation_errors)}",
+            )
+
+        # Convert to response format
+        class_object_suggestions = []
+        categories_count: Dict[str, int] = {}
+
+        for co in analysis.class_objects:
+            category = co.category.value
+            categories_count[category] = categories_count.get(category, 0) + 1
+
+            # Update source name in auto_config
+            auto_config = co.auto_config.copy()
+            if "source" in auto_config:
+                auto_config["source"] = csv_source.get("name", "stats")
+
+            class_object_suggestions.append(
+                ClassObjectSuggestion(
+                    name=co.name,
+                    category=category,
+                    cardinality=co.cardinality,
+                    class_names=co.class_names,
+                    value_type=co.value_type,
+                    suggested_plugin=co.suggested_plugin or "",
+                    confidence=co.confidence,
+                    auto_config=auto_config,
+                    mapping_hints=co.mapping_hints,
+                    related_class_objects=co.related_class_objects,
+                    pattern_group=co.pattern_group,
+                )
+            )
+
+        # Filter plugin schemas based on available categories
+        available_categories = set(categories_count.keys())
+        applicable_schemas: Dict[str, PluginSchema] = {}
+        for plugin_name, schema_dict in PLUGIN_SCHEMAS.items():
+            if any(
+                cat in available_categories
+                for cat in schema_dict["applicable_categories"]
+            ):
+                applicable_schemas[plugin_name] = PluginSchema(
+                    name=schema_dict["name"],
+                    description=schema_dict["description"],
+                    complexity=schema_dict["complexity"],
+                    applicable_categories=schema_dict["applicable_categories"],
+                    parameters=[
+                        PluginParameter(**p) for p in schema_dict["parameters"]
+                    ],
+                )
+
+        return WidgetSuggestionsResponse(
+            source_name=csv_source.get("name", "stats"),
+            source_path=csv_source["data"],
+            class_objects=class_object_suggestions,
+            pattern_groups=analysis.pattern_groups,
+            plugin_schemas=applicable_schemas,
+            categories_summary=categories_count,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error analyzing CSV for widget suggestions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =============================================================================
@@ -2688,6 +3039,579 @@ def _parse_dynamic_template_id(template_id: str) -> Optional[Dict[str, Any]]:
     }
 
 
+def _load_configured_widget(widget_id: str, group_by: str) -> Optional[Dict[str, Any]]:
+    """Load a configured widget from transform.yml and export.yml.
+
+    This is used for previewing widgets created via the wizard, which have
+    simple IDs like 'agregateur_binaire_1' rather than dynamic template IDs.
+
+    Args:
+        widget_id: The widget identifier (key in widgets_data)
+        group_by: Reference name (group_by value in transform.yml)
+
+    Returns:
+        Dict with transformer plugin, params, widget plugin, and widget params
+        or None if not found.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    work_dir = Path(work_dir)
+    transform_path = work_dir / "config" / "transform.yml"
+    export_path = work_dir / "config" / "export.yml"
+
+    if not transform_path.exists():
+        return None
+
+    try:
+        # Load transform.yml
+        with open(transform_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        # Find the group config
+        group_config = None
+        if isinstance(transform_config, list):
+            for group in transform_config:
+                if isinstance(group, dict) and group.get("group_by") == group_by:
+                    group_config = group
+                    break
+        elif isinstance(transform_config, dict):
+            groups = transform_config.get("groups", {})
+            if isinstance(groups, dict) and group_by in groups:
+                group_config = groups[group_by]
+
+        if not group_config:
+            return None
+
+        # Get widget config from widgets_data
+        widgets_data = group_config.get("widgets_data", {})
+        if widget_id not in widgets_data:
+            return None
+
+        widget_config = widgets_data[widget_id]
+        transformer_plugin = widget_config.get("plugin")
+        transformer_params = widget_config.get("params", {})
+
+        if not transformer_plugin:
+            return None
+
+        # Try to load export.yml for widget display info
+        widget_plugin = "info_grid"  # Default
+        widget_params = {}
+        widget_title = widget_id.replace("_", " ").title()
+
+        if export_path.exists():
+            with open(export_path, "r", encoding="utf-8") as f:
+                export_config = yaml.safe_load(f) or {}
+
+            # Find export config for this group
+            # export.yml structure: exports: [{groups: [{group_by: ..., widgets: [...]}]}]
+            group_export = None
+
+            # Handle exports wrapper
+            exports = export_config.get("exports", [])
+            if isinstance(exports, list):
+                for export_entry in exports:
+                    if isinstance(export_entry, dict):
+                        groups = export_entry.get("groups", [])
+                        if isinstance(groups, list):
+                            for item in groups:
+                                if (
+                                    isinstance(item, dict)
+                                    and item.get("group_by") == group_by
+                                ):
+                                    group_export = item
+                                    break
+                    if group_export:
+                        break
+
+            # Also check legacy formats
+            if not group_export:
+                if isinstance(export_config, list):
+                    for item in export_config:
+                        if isinstance(item, dict) and item.get("group_by") == group_by:
+                            group_export = item
+                            break
+                elif isinstance(export_config, dict):
+                    groups = export_config.get("groups", [])
+                    if isinstance(groups, list):
+                        for item in groups:
+                            if (
+                                isinstance(item, dict)
+                                and item.get("group_by") == group_by
+                            ):
+                                group_export = item
+                                break
+
+            if group_export:
+                widgets_export = group_export.get("widgets", [])
+                for w in widgets_export:
+                    if w.get("data_source") == widget_id:
+                        widget_plugin = w.get("plugin", "info_grid")
+                        widget_params = w.get("params", {})
+                        widget_title = w.get("title", widget_title)
+                        break
+
+        return {
+            "transformer_plugin": transformer_plugin,
+            "transformer_params": transformer_params,
+            "widget_plugin": widget_plugin,
+            "widget_params": widget_params,
+            "widget_title": widget_title,
+            "widget_id": widget_id,
+        }
+
+    except Exception as e:
+        logger.warning(f"Error loading configured widget '{widget_id}': {e}")
+        return None
+
+
+async def _preview_configured_widget(
+    configured_widget: Dict[str, Any],
+    group_by: str,
+    entity_id: Optional[str] = None,
+) -> HTMLResponse:
+    """Preview a widget that was configured via the wizard.
+
+    This loads the transformer config from transform.yml, executes the transformer,
+    and renders the widget using export.yml settings.
+
+    Args:
+        configured_widget: Dict from _load_configured_widget
+        group_by: Reference name for data filtering
+        entity_id: Optional specific entity to preview
+
+    Returns:
+        HTMLResponse with rendered widget or error message
+    """
+    transformer_plugin = configured_widget["transformer_plugin"]
+    transformer_params = configured_widget["transformer_params"]
+    widget_plugin = configured_widget["widget_plugin"]
+    widget_params = configured_widget.get("widget_params", {})
+    widget_title = configured_widget["widget_title"]
+    widget_id = configured_widget["widget_id"]
+
+    # Get working directory
+    work_dir = get_working_directory()
+    if not work_dir:
+        return HTMLResponse(
+            content=_wrap_html_response(
+                "<p class='error'>Working directory not configured</p>"
+            ),
+            status_code=500,
+        )
+
+    work_dir = Path(work_dir)
+
+    # Verify the widget plugin exists
+    try:
+        PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
+    except Exception:
+        return HTMLResponse(
+            content=_wrap_html_response(
+                f"<p class='error'>Widget plugin '{widget_plugin}' not found</p>"
+            ),
+            status_code=400,
+        )
+
+    try:
+        # Check if this is a class_object-based transformer
+        if transformer_plugin.startswith("class_object_"):
+            # For class_object plugins, we need to load data from CSV sources
+            # Get the class_objects from transformer params
+            class_objects = _extract_class_objects_from_params(transformer_params)
+
+            if not class_objects:
+                return HTMLResponse(
+                    content=_wrap_html_response(
+                        "<p class='info'>Pas de class_objects configurés</p>"
+                    )
+                )
+
+            # Load data for each class_object from CSV
+            co_data_combined = {}
+            for co_name in class_objects:
+                co_data = _load_class_object_data_for_preview(
+                    work_dir, co_name, group_by
+                )
+                if co_data:
+                    co_data_combined[co_name] = co_data
+
+            if not co_data_combined:
+                return HTMLResponse(
+                    content=_wrap_html_response(
+                        f"<p class='info'>Données non trouvées pour les class_objects: {', '.join(class_objects)}</p>"
+                    )
+                )
+
+            # Get database for widget rendering
+            db_path = get_database_path()
+            db = Database(str(db_path), read_only=True) if db_path else None
+
+            try:
+                # Execute the transformer with the loaded data
+                transformer_data = _execute_configured_transformer(
+                    transformer_plugin, transformer_params, co_data_combined, group_by
+                )
+
+                if not transformer_data:
+                    return HTMLResponse(
+                        content=_wrap_html_response(
+                            "<p class='info'>Le transformer n'a pas retourné de données</p>"
+                        )
+                    )
+
+                # Render widget using the correct pattern
+                widget_html = _render_widget_for_configured(
+                    db,
+                    widget_plugin,
+                    transformer_data,
+                    transformer_plugin,
+                    widget_title,
+                    widget_params,
+                )
+
+                return HTMLResponse(
+                    content=_wrap_html_response(widget_html, title=widget_title)
+                )
+            finally:
+                if db:
+                    db.close_db_session()
+
+        else:
+            # Standard occurrence-based transformer
+            # Load import.yml
+            import_config = _load_import_config(work_dir)
+
+            # Get reference info
+            hierarchy_info = _get_hierarchy_info(import_config, group_by)
+
+            # Get database
+            db_path = get_database_path()
+            if not db_path:
+                return HTMLResponse(
+                    content=_wrap_html_response(
+                        "<p class='error'>Database not found</p>"
+                    ),
+                    status_code=404,
+                )
+
+            db = Database(str(db_path), read_only=True)
+            try:
+                # Find representative entity
+                if entity_id:
+                    representative = _find_entity_by_id(db, hierarchy_info, entity_id)
+                else:
+                    representative = _find_representative_entity(db, hierarchy_info)
+
+                # Load sample data
+                sample_data = _load_sample_data(db, representative, transformer_params)
+
+                if sample_data.empty:
+                    return HTMLResponse(
+                        content=_wrap_html_response(
+                            "<p class='info'>No data available for preview</p>"
+                        )
+                    )
+
+                # Execute transformer
+                transformer_cls = PluginRegistry.get_plugin(
+                    transformer_plugin, PluginType.TRANSFORMER
+                )
+                transformer = transformer_cls(db=db, config=transformer_params)
+                result = transformer.transform(sample_data)
+
+                # Render widget using the correct pattern
+                widget_html = _render_widget_for_configured(
+                    db,
+                    widget_plugin,
+                    result,
+                    transformer_plugin,
+                    widget_title,
+                    widget_params,
+                )
+
+                return HTMLResponse(
+                    content=_wrap_html_response(widget_html, title=widget_title)
+                )
+            finally:
+                db.close_db_session()
+
+    except Exception as e:
+        logger.error(f"Error previewing configured widget '{widget_id}': {e}")
+        return HTMLResponse(
+            content=_wrap_html_response(
+                f"<p class='error'>Erreur lors de la preview: {str(e)}</p>"
+            ),
+            status_code=500,
+        )
+
+
+def _extract_class_objects_from_params(params: Dict[str, Any]) -> List[str]:
+    """Extract class_object names from transformer parameters.
+
+    Different transformers store class_objects in different param structures:
+    - field_aggregator: params.fields[].class_object
+    - binary_aggregator: params.groups[].field
+    - series_extractor: params.class_object
+    - categories_extractor: params.class_object
+    """
+    class_objects = []
+
+    # Single class_object
+    if "class_object" in params:
+        class_objects.append(params["class_object"])
+
+    # List of fields with class_object
+    if "fields" in params:
+        for field in params["fields"]:
+            if isinstance(field, dict) and "class_object" in field:
+                class_objects.append(field["class_object"])
+
+    # List of groups with field (binary_aggregator)
+    if "groups" in params:
+        for group in params["groups"]:
+            if isinstance(group, dict) and "field" in group:
+                class_objects.append(group["field"])
+
+    # Series config list
+    if "series" in params:
+        for series in params["series"]:
+            if isinstance(series, dict) and "class_object" in series:
+                class_objects.append(series["class_object"])
+
+    # Distributions (ratio aggregator)
+    if "distributions" in params:
+        for dist in params["distributions"].values():
+            if isinstance(dist, dict):
+                if "total" in dist:
+                    class_objects.append(dist["total"])
+                if "subset" in dist:
+                    class_objects.append(dist["subset"])
+
+    return list(set(class_objects))  # Remove duplicates
+
+
+def _execute_configured_transformer(
+    transformer_plugin: str,
+    params: Dict[str, Any],
+    class_object_data: Dict[str, Dict[str, Any]],
+    group_by: str,
+) -> Optional[Dict[str, Any]]:
+    """Execute a class_object transformer with loaded CSV data.
+
+    This mimics what happens during the actual transform phase,
+    but uses the preview data we loaded.
+    """
+    try:
+        # For binary_aggregator, we need to compute ratios
+        # Output format: {"labels": [...], "counts": [...]} for bar_plot compatibility
+        if transformer_plugin == "class_object_binary_aggregator":
+            groups = params.get("groups", [])
+            all_labels = []
+            all_counts = []
+
+            for group in groups:
+                field = group.get("field", "")
+
+                if field not in class_object_data:
+                    continue
+
+                # co_data is already in {"labels": [...], "counts": [...]} format
+                co_data = class_object_data[field]
+                group_labels = co_data.get("labels", [])
+                group_counts = co_data.get("counts", [])
+
+                # Add labels and counts for this group
+                all_labels.extend(group_labels)
+                all_counts.extend(group_counts)
+
+            return {"labels": all_labels, "counts": all_counts}
+
+        # For field_aggregator, collect scalar values
+        elif transformer_plugin == "class_object_field_aggregator":
+            fields = params.get("fields", [])
+            result = {"fields": []}
+
+            for field_config in fields:
+                co_name = field_config.get("class_object", "")
+                target = field_config.get("target", co_name)
+
+                if co_name in class_object_data:
+                    # co_data is in {"labels": [...], "counts": [...]} format
+                    co_data = class_object_data[co_name]
+                    counts = co_data.get("counts", [])
+                    # For scalar, take the first (and only) value
+                    if counts:
+                        result["fields"].append(
+                            {
+                                "name": target,
+                                "value": counts[0],
+                                "label": field_config.get("label", target),
+                            }
+                        )
+
+            return result
+
+        # For series_extractor, extract size distribution
+        elif transformer_plugin == "class_object_series_extractor":
+            co_name = params.get("class_object", "")
+            if co_name not in class_object_data:
+                return None
+
+            # co_data is in {"labels": [...], "counts": [...]} format
+            co_data = class_object_data[co_name]
+            labels = co_data.get("labels", [])
+            counts = co_data.get("counts", [])
+
+            # Sort by numeric label if possible
+            if labels and counts:
+                paired = sorted(
+                    zip(labels, counts), key=lambda x: _try_parse_numeric(str(x[0]))
+                )
+                labels, counts = zip(*paired) if paired else ([], [])
+
+            return {"sizes": list(labels), "counts": list(counts)}
+
+        # For categories_extractor, extract categories
+        elif transformer_plugin == "class_object_categories_extractor":
+            co_name = params.get("class_object", "")
+            if co_name not in class_object_data:
+                return None
+
+            # co_data is in {"labels": [...], "counts": [...]} format
+            co_data = class_object_data[co_name]
+            labels = co_data.get("labels", [])
+            counts = co_data.get("counts", [])
+
+            return {"labels": labels, "counts": counts}
+
+        # Default: return the raw data
+        return {"data": class_object_data}
+
+    except Exception as e:
+        logger.warning(f"Error executing transformer {transformer_plugin}: {e}")
+        return None
+
+
+def _try_parse_numeric(value: str) -> float:
+    """Try to parse a string as a number for sorting."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return float("inf")
+
+
+def _render_widget_for_configured(
+    db: Optional[Database],
+    widget_name: str,
+    data: Dict[str, Any],
+    transformer: str,
+    title: str,
+    extra_params: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Render a widget for a configured widget from transform.yml.
+
+    This handles widgets created via the wizard that have custom configurations.
+
+    Args:
+        db: Database connection (can be None)
+        widget_name: Name of the widget plugin (e.g., 'bar_plot')
+        data: Transformer output data
+        transformer: Name of the transformer plugin
+        title: Title for the widget
+        extra_params: Additional widget params from export.yml
+
+    Returns:
+        HTML content of the rendered widget
+    """
+    try:
+        plugin_class = PluginRegistry.get_plugin(widget_name, PluginType.WIDGET)
+        plugin_instance = plugin_class(db=db)
+
+        # Build widget params based on transformer and widget type
+        widget_params = _build_widget_params_for_configured(
+            transformer, widget_name, data, title, extra_params
+        )
+
+        # Validate params if the plugin has a param_schema
+        if hasattr(plugin_instance, "param_schema") and plugin_instance.param_schema:
+            validated_params = plugin_instance.param_schema.model_validate(
+                widget_params
+            )
+        else:
+            validated_params = widget_params
+
+        return plugin_instance.render(data, validated_params)
+    except Exception as e:
+        logger.exception(f"Error rendering configured widget '{widget_name}': {e}")
+        return f"<p class='error'>Widget render error: {str(e)}</p>"
+
+
+def _build_widget_params_for_configured(
+    transformer: str,
+    widget: str,
+    data: Dict[str, Any],
+    title: str,
+    extra_params: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build widget parameters for configured widgets.
+
+    Maps transformer output to widget input based on known patterns.
+    """
+    params = {"title": title}
+
+    # Apply extra params from export.yml first (they can be overridden by defaults)
+    if extra_params:
+        params.update(extra_params)
+
+    if widget == "bar_plot":
+        # For binary_aggregator, data has groups with values
+        if transformer == "class_object_binary_aggregator":
+            # Set params for bar_plot
+            params.setdefault("x_axis", "labels")
+            params.setdefault("y_axis", "counts")
+            params.setdefault("orientation", "v")
+            params.setdefault("gradient_color", "#10b981")
+
+        # For series extractors
+        elif transformer in ("class_object_series_extractor", "series_extractor"):
+            params.setdefault("x_axis", "sizes")
+            params.setdefault("y_axis", "counts")
+            params.setdefault("orientation", "v")
+            params.setdefault("gradient_color", "#10b981")
+
+        # For categories extractors
+        elif transformer in (
+            "class_object_categories_extractor",
+            "categories_extractor",
+        ):
+            params.setdefault("x_axis", "labels")
+            params.setdefault("y_axis", "counts")
+            params.setdefault("orientation", "h")
+            params.setdefault("sort_order", "descending")
+
+        # Fallback for other bar_plot transformers
+        else:
+            params.setdefault("x_axis", "labels")
+            params.setdefault("y_axis", "counts")
+            params.setdefault("orientation", "v")
+
+    elif widget == "donut_chart":
+        params.setdefault("values_field", "counts")
+        params.setdefault("labels_field", "labels")
+
+    elif widget == "info_grid":
+        # For field aggregator
+        pass  # info_grid uses data directly
+
+    elif widget == "radial_gauge":
+        params.setdefault("auto_range", True)
+
+    return params
+
+
 def _build_widget_params_dynamic(
     transformer: str, widget: str, config: Dict[str, Any], title: str, data: Any
 ) -> Dict[str, Any]:
@@ -3833,6 +4757,14 @@ async def preview_template(
     # Parse dynamic template ID
     parsed = _parse_dynamic_template_id(template_id)
     if not parsed:
+        # Try to load as a configured widget from transform.yml
+        if group_by:
+            configured_widget = _load_configured_widget(template_id, group_by)
+            if configured_widget:
+                return await _preview_configured_widget(
+                    configured_widget, group_by, entity_id
+                )
+
         return HTMLResponse(
             content=_wrap_html_response(
                 f"<p class='error'>Invalid template ID format: '{template_id}'</p>"
