@@ -25,6 +25,7 @@ from .routers import (
     templates,
     sources,
     layout,
+    recipes,
 )
 from .context import get_working_directory
 
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     )  # Templates API for Smart Setup V2
     app.include_router(sources.router, prefix="/api")  # Pre-calculated sources API
     app.include_router(layout.router, prefix="/api")  # Layout editor API
+    app.include_router(recipes.router, prefix="/api")  # Widget recipes API
 
     # Serve exported site from exports/web/ directory
     work_dir = get_working_directory()
