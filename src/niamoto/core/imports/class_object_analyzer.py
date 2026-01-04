@@ -358,22 +358,22 @@ class ClassObjectAnalyzer:
 
         # Binary (exactly 2 categories)
         if cardinality == 2:
-            return "binary_aggregator", 0.95
+            return "class_object_binary_aggregator", 0.95
 
         # Numeric series (elevation distributions, etc.)
         if value_type == "numeric":
-            return "series_extractor", 0.90
+            return "class_object_series_extractor", 0.90
 
         # Small categorical set (good for pie/bar charts)
         if cardinality <= 5:
-            return "categories_extractor", 0.90
+            return "class_object_categories_extractor", 0.90
 
         # Large categorical set (still works but may be cluttered)
         if cardinality <= 15:
-            return "categories_extractor", 0.75
+            return "class_object_categories_extractor", 0.75
 
         # Very large categorical (like top10_family/species with >10 items)
-        return "categories_extractor", 0.60
+        return "class_object_categories_extractor", 0.60
 
     def _determine_category(
         self, cardinality: int, value_type: str
@@ -450,7 +450,7 @@ class ClassObjectAnalyzer:
 
         return {}
 
-    def _generate_mapping_hints(self, class_names: list[str]) -> dict[str, str]:
+    def _generate_mapping_hints(self, class_names: list) -> dict[str, str]:
         """Generate mapping hints for class_names.
 
         For known boolean patterns (yes/no, true/false), use standard mappings.
@@ -458,19 +458,22 @@ class ClassObjectAnalyzer:
         """
         mapping = {}
         for name in class_names:
+            # Convert to string in case of numeric class_names
+            name_str = str(name)
+
             # Try known patterns first (case-insensitive)
             matched = False
             for pattern_key, pattern_value in BINARY_MAPPING_PATTERNS.items():
-                if name.lower() == pattern_key.lower():
-                    mapping[name] = pattern_value
+                if name_str.lower() == pattern_key.lower():
+                    mapping[name_str] = pattern_value
                     matched = True
                     break
 
             if not matched:
                 # Generate normalized key from the value itself
                 # "Forêt dense" -> "foret_dense", "Non-forêt" -> "non_foret"
-                normalized = self._normalize_to_key(name)
-                mapping[name] = normalized
+                normalized = self._normalize_to_key(name_str)
+                mapping[name_str] = normalized
 
         return mapping
 

@@ -379,8 +379,8 @@ class BarPlotParams(BasePluginParams):
     # =========================================================================
     # GROUP 3: Layout (ui:group="3_layout")
     # =========================================================================
-    barmode: Optional[str] = Field(
-        default=None,
+    barmode: str = Field(
+        default="group",
         description="Mode d'affichage des barres",
         json_schema_extra={
             "ui:widget": "select",
@@ -393,8 +393,8 @@ class BarPlotParams(BasePluginParams):
             ],
         },
     )
-    orientation: Optional[str] = Field(
-        default=None,
+    orientation: str = Field(
+        default="v",
         description="Orientation des barres",
         json_schema_extra={
             "ui:widget": "select",

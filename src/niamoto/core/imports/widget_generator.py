@@ -698,6 +698,9 @@ class WidgetGenerator:
         """
         Calculate confidence score based on data quality and match score.
 
+        All transformers applicable to a data category should be proposed together.
+        If bar_plot is proposed for a numeric column, gauge should be too.
+
         Args:
             profile: Column profile
             transformer_name: Name of transformer plugin
@@ -707,22 +710,25 @@ class WidgetGenerator:
         Returns:
             Confidence score (0.3-1.0)
         """
-        base_confidence = 0.75 if is_primary else 0.60
+        # Base confidence: same for all transformers of the same category
+        # Primary gets a small ordering boost but not a filtering advantage
+        base_confidence = 0.70
 
-        # Factor in SmartMatcher score
-        base_confidence *= match_score
+        # Factor in SmartMatcher score (proportional, not multiplicative)
+        # This ensures widgets with 0.8 score aren't penalized too heavily
+        base_confidence += (match_score - 0.5) * 0.2  # Range: -0.1 to +0.1
 
-        # Penalize high null ratio
+        # Penalize high null ratio proportionally (max 15% penalty)
         if profile.null_ratio > 0:
-            base_confidence -= profile.null_ratio * 0.2
+            base_confidence -= profile.null_ratio * 0.15
 
-        # Boost for primary transformers
+        # Small boost for primary transformers (for ordering, not filtering)
         if is_primary:
-            base_confidence += 0.1
+            base_confidence += 0.05
 
         # Boost for common/useful transformer types
         if transformer_name in ("binned_distribution", "geospatial_extractor"):
-            base_confidence += 0.05
+            base_confidence += 0.03
 
         return min(1.0, max(0.3, base_confidence))
 

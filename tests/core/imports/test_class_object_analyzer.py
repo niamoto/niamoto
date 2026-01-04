@@ -80,17 +80,26 @@ class TestClassObjectAnalyzer:
         assert "top10_family" in class_objects
         assert class_objects["top10_family"].cardinality == 2
         assert class_objects["top10_family"].value_type == "categorical"
-        assert class_objects["top10_family"].suggested_plugin == "binary_aggregator"
+        assert (
+            class_objects["top10_family"].suggested_plugin
+            == "class_object_binary_aggregator"
+        )
 
         # cover_forest has 2 distinct class_names (binary)
         assert "cover_forest" in class_objects
         assert class_objects["cover_forest"].cardinality == 2
-        assert class_objects["cover_forest"].suggested_plugin == "binary_aggregator"
+        assert (
+            class_objects["cover_forest"].suggested_plugin
+            == "class_object_binary_aggregator"
+        )
 
         # elevation_max has 0 class_names (scalar)
         assert "elevation_max" in class_objects
         assert class_objects["elevation_max"].cardinality == 0
-        assert class_objects["elevation_max"].suggested_plugin == "field_aggregator"
+        assert (
+            class_objects["elevation_max"].suggested_plugin
+            == "class_object_field_aggregator"
+        )
 
     def test_numeric_class_names(self, valid_csv_semicolon):
         """Test detection of numeric class_names for series_extractor."""
@@ -99,7 +108,10 @@ class TestClassObjectAnalyzer:
         class_objects = {co.name: co for co in analysis.class_objects}
         assert "forest_elevation" in class_objects
         assert class_objects["forest_elevation"].value_type == "numeric"
-        assert class_objects["forest_elevation"].suggested_plugin == "series_extractor"
+        assert (
+            class_objects["forest_elevation"].suggested_plugin
+            == "class_object_series_extractor"
+        )
 
     def test_invalid_csv_validation(self, invalid_csv_missing_columns):
         """Test validation failure for missing columns."""
@@ -124,24 +136,24 @@ class TestPluginSuggestion:
     """Test plugin suggestion logic."""
 
     def test_scalar_suggestion(self, valid_csv_comma):
-        """Scalar values (cardinality=0) should suggest field_aggregator."""
+        """Scalar values (cardinality=0) should suggest class_object_field_aggregator."""
         analysis = analyze_csv(valid_csv_comma)
         scalar = next(co for co in analysis.class_objects if co.name == "elevation_max")
-        assert scalar.suggested_plugin == "field_aggregator"
+        assert scalar.suggested_plugin == "class_object_field_aggregator"
         assert scalar.confidence >= 0.9
 
     def test_binary_suggestion(self, valid_csv_comma):
-        """Binary values (cardinality=2) should suggest binary_aggregator."""
+        """Binary values (cardinality=2) should suggest class_object_binary_aggregator."""
         analysis = analyze_csv(valid_csv_comma)
         binary = next(co for co in analysis.class_objects if co.name == "cover_forest")
-        assert binary.suggested_plugin == "binary_aggregator"
+        assert binary.suggested_plugin == "class_object_binary_aggregator"
         assert binary.confidence >= 0.9
 
     def test_numeric_series_suggestion(self, valid_csv_semicolon):
-        """Numeric class_names should suggest series_extractor."""
+        """Numeric class_names should suggest class_object_series_extractor."""
         analysis = analyze_csv(valid_csv_semicolon)
         series = next(
             co for co in analysis.class_objects if co.name == "forest_elevation"
         )
-        assert series.suggested_plugin == "series_extractor"
+        assert series.suggested_plugin == "class_object_series_extractor"
         assert series.confidence >= 0.8

@@ -345,12 +345,10 @@ async def get_reference_suggestions(
                                 )
                                 enriched_profiles.append(profile)
 
-                            # Filter out columns that are 100% null (no data)
+                            # Filter out columns that are essentially empty
+                            # Keep columns with at least 0.1% of data (null_ratio < 99.9%)
                             enriched_profiles = [
-                                p
-                                for p in enriched_profiles
-                                if p.null_ratio
-                                < 0.99  # Keep columns with at least 1% data
+                                p for p in enriched_profiles if p.null_ratio < 0.999
                             ]
 
                             columns_analyzed = len(enriched_profiles)
