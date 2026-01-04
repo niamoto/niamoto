@@ -29,6 +29,10 @@ from niamoto.core.imports.widget_generator import WidgetGenerator
 from niamoto.core.imports.class_object_analyzer import (
     analyze_csv,
 )
+from niamoto.core.imports.multi_field_detector import (
+    suggest_combined_widgets,
+    detect_all_groups,
+)
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.matching.matcher import SmartMatcher
@@ -5409,3 +5413,266 @@ def _build_widget_params_for_class_object(
 
     # Default fallback
     return {"title": title}
+
+
+# =============================================================================
+# Multi-Field Combined Widget Suggestions
+# =============================================================================
+
+
+class CombinedWidgetRequest(BaseModel):
+    """Request for combined widget suggestions based on selected fields."""
+
+    selected_fields: List[str] = Field(
+        ..., description="List of field names selected by user", min_length=2
+    )
+    source_name: str = Field(
+        default="occurrences", description="Name of the data source entity"
+    )
+
+
+class CombinedWidgetSuggestion(BaseModel):
+    """A suggested combined widget configuration."""
+
+    pattern_type: str
+    name: str
+    description: str
+    fields: List[str]
+    field_roles: Dict[str, str]
+    confidence: float
+    is_recommended: bool
+    transformer_config: Dict[str, Any]
+    widget_config: Dict[str, Any]
+
+
+class CombinedWidgetResponse(BaseModel):
+    """Response with combined widget suggestions."""
+
+    suggestions: List[CombinedWidgetSuggestion]
+    semantic_groups: List[Dict[str, Any]]
+
+
+class SemanticGroupsResponse(BaseModel):
+    """Response with detected semantic groups for proactive suggestions."""
+
+    groups: List[Dict[str, Any]]
+
+
+@router.post(
+    "/{reference_name}/combined-suggestions",
+    response_model=CombinedWidgetResponse,
+    summary="Get combined widget suggestions for selected fields",
+    description="""
+    Analyze selected fields and suggest widgets that combine them meaningfully.
+
+    For example, selecting [month_obs, flower, fruit] would suggest a phenology
+    time series widget that shows the temporal distribution of flowering and fruiting.
+
+    The endpoint also returns detected semantic groups for proactive suggestions.
+    """,
+)
+async def get_combined_widget_suggestions(
+    reference_name: str,
+    request: CombinedWidgetRequest,
+):
+    """Get combined widget suggestions for a set of selected fields."""
+    try:
+        db_path = get_database_path()
+        if not db_path:
+            raise HTTPException(status_code=500, detail="Database path not configured")
+
+        from niamoto.core.imports.registry import EntityRegistry
+        from niamoto.core.imports.data_analyzer import (
+            DataCategory,
+            FieldPurpose,
+            EnrichedColumnProfile,
+        )
+
+        db = Database(str(db_path), read_only=True)
+        try:
+            registry = EntityRegistry(db)
+
+            # Get the source entity
+            entity_meta = registry.get(request.source_name)
+            semantic_profile = entity_meta.config.get("semantic_profile", {})
+            columns = semantic_profile.get("columns", [])
+
+            if not columns:
+                return CombinedWidgetResponse(suggestions=[], semantic_groups=[])
+
+            # Convert stored profiles to EnrichedColumnProfile objects
+            all_profiles = []
+            for col_data in columns:
+                cat_str = col_data.get("data_category", "categorical")
+                try:
+                    data_cat = DataCategory(cat_str)
+                except ValueError:
+                    data_cat = DataCategory.CATEGORICAL
+
+                purpose_str = col_data.get("field_purpose", "metadata")
+                try:
+                    field_purpose = FieldPurpose(purpose_str)
+                except ValueError:
+                    field_purpose = FieldPurpose.METADATA
+
+                value_range = col_data.get("value_range")
+                if (
+                    value_range
+                    and isinstance(value_range, list)
+                    and len(value_range) == 2
+                ):
+                    value_range = tuple(value_range)
+                else:
+                    value_range = None
+
+                profile = EnrichedColumnProfile(
+                    name=col_data.get("name", "unknown"),
+                    dtype=col_data.get("dtype", "object"),
+                    semantic_type=col_data.get("semantic_type"),
+                    unique_ratio=col_data.get("unique_ratio", 0.0),
+                    null_ratio=col_data.get("null_ratio", 0.0),
+                    sample_values=col_data.get("suggested_labels") or [],
+                    confidence=col_data.get("confidence", 0.5),
+                    data_category=data_cat,
+                    field_purpose=field_purpose,
+                    suggested_bins=col_data.get("suggested_bins"),
+                    suggested_labels=col_data.get("suggested_labels"),
+                    cardinality=col_data.get("cardinality", 0),
+                    value_range=value_range,
+                )
+                all_profiles.append(profile)
+
+            # Get combined widget suggestions
+            patterns = suggest_combined_widgets(
+                selected_field_names=request.selected_fields,
+                all_profiles=all_profiles,
+                source_name=request.source_name,
+            )
+
+            # Get semantic groups for proactive suggestions
+            semantic_groups = detect_all_groups(all_profiles)
+
+            # Convert patterns to response format
+            suggestions = []
+            for pattern in patterns:
+                suggestions.append(
+                    CombinedWidgetSuggestion(
+                        pattern_type=pattern.pattern_type.value,
+                        name=pattern.name,
+                        description=pattern.description,
+                        fields=pattern.fields,
+                        field_roles=pattern.field_roles,
+                        confidence=pattern.confidence,
+                        is_recommended=pattern.is_recommended,
+                        transformer_config={
+                            "plugin": pattern.transformer_plugin,
+                            "params": pattern.transformer_params,
+                        },
+                        widget_config={
+                            "plugin": pattern.widget_plugin,
+                            "params": pattern.widget_params,
+                        },
+                    )
+                )
+
+            return CombinedWidgetResponse(
+                suggestions=suggestions,
+                semantic_groups=semantic_groups,
+            )
+
+        finally:
+            db.close_db_session()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting combined widget suggestions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/{reference_name}/semantic-groups",
+    response_model=SemanticGroupsResponse,
+    summary="Detect semantic field groups for proactive suggestions",
+    description="""
+    Proactively detect groups of fields that could form combined widgets.
+
+    Returns groups like:
+    - Phenology: month_obs + flower + fruit
+    - Dimensions: dbh + height
+    - Leaf traits: leaf_area + leaf_sla + leaf_ldmc
+
+    These can be used to show suggestions like "These fields could be combined..."
+    """,
+)
+async def get_semantic_groups(
+    reference_name: str,
+    entity: str = Query(default="occurrences", description="Source entity name"),
+):
+    """Detect semantic groups for proactive combined widget suggestions."""
+    try:
+        db_path = get_database_path()
+        if not db_path:
+            raise HTTPException(status_code=500, detail="Database path not configured")
+
+        from niamoto.core.imports.registry import EntityRegistry
+        from niamoto.core.imports.data_analyzer import (
+            DataCategory,
+            FieldPurpose,
+            EnrichedColumnProfile,
+        )
+
+        db = Database(str(db_path), read_only=True)
+        try:
+            registry = EntityRegistry(db)
+
+            entity_meta = registry.get(entity)
+            semantic_profile = entity_meta.config.get("semantic_profile", {})
+            columns = semantic_profile.get("columns", [])
+
+            if not columns:
+                return SemanticGroupsResponse(groups=[])
+
+            # Convert to EnrichedColumnProfile objects
+            all_profiles = []
+            for col_data in columns:
+                cat_str = col_data.get("data_category", "categorical")
+                try:
+                    data_cat = DataCategory(cat_str)
+                except ValueError:
+                    data_cat = DataCategory.CATEGORICAL
+
+                purpose_str = col_data.get("field_purpose", "metadata")
+                try:
+                    field_purpose = FieldPurpose(purpose_str)
+                except ValueError:
+                    field_purpose = FieldPurpose.METADATA
+
+                profile = EnrichedColumnProfile(
+                    name=col_data.get("name", "unknown"),
+                    dtype=col_data.get("dtype", "object"),
+                    semantic_type=col_data.get("semantic_type"),
+                    unique_ratio=col_data.get("unique_ratio", 0.0),
+                    null_ratio=col_data.get("null_ratio", 0.0),
+                    sample_values=[],
+                    confidence=col_data.get("confidence", 0.5),
+                    data_category=data_cat,
+                    field_purpose=field_purpose,
+                    cardinality=col_data.get("cardinality", 0),
+                    value_range=None,
+                )
+                all_profiles.append(profile)
+
+            # Detect semantic groups
+            groups = detect_all_groups(all_profiles)
+
+            return SemanticGroupsResponse(groups=groups)
+
+        finally:
+            db.close_db_session()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error detecting semantic groups: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

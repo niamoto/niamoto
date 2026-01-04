@@ -45,8 +45,9 @@ class FieldConfig(BaseModel):
         ..., description="Field name to extract (supports dot notation for JSON fields)"
     )
     target: str = Field(..., description="Target field name in output")
-    transformation: Literal["direct", "count", "sum"] = Field(
-        default="direct", description="Type of transformation to apply"
+    transformation: Literal["direct", "count", "sum", "stats"] = Field(
+        default="direct",
+        description="Type of transformation: direct (single value), count, sum, or stats (mean/min/max/std)",
     )
     units: str = Field(
         default="", description="Units for the field value (e.g., 'ha', 'm', 'km²')"
@@ -220,6 +221,37 @@ class FieldAggregator(TransformerPlugin):
                     value = source_data[field.field].sum()
                 else:
                     value = 0
+            elif field.transformation == "stats":
+                # Calculate statistics for numeric fields
+                if source_data is not None and field.field in source_data.columns:
+                    series = pd.to_numeric(source_data[field.field], errors="coerce")
+                    series = series.dropna()
+                    if len(series) > 0:
+                        value = {
+                            "mean": round(float(series.mean()), 2),
+                            "min": round(float(series.min()), 2),
+                            "max": round(float(series.max()), 2),
+                            "std": round(float(series.std()), 2)
+                            if len(series) > 1
+                            else 0,
+                            "count": int(len(series)),
+                        }
+                    else:
+                        value = {
+                            "mean": None,
+                            "min": None,
+                            "max": None,
+                            "std": None,
+                            "count": 0,
+                        }
+                else:
+                    value = {
+                        "mean": None,
+                        "min": None,
+                        "max": None,
+                        "std": None,
+                        "count": 0,
+                    }
             else:  # direct
                 try:
                     if source_data is not None:

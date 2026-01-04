@@ -33,6 +33,7 @@ import { useSources, useRemoveSource } from '@/hooks/useSources'
 import { SourcesList, AddSourceDialog } from '@/components/sources'
 import { LayoutEditor } from '@/components/layout-editor'
 import { IndexConfigEditor } from '@/components/index-config'
+import { saveCombinedWidget, createCombinedWidgetRequest } from '@/lib/api/widget-suggestions'
 
 interface GroupPanelProps {
   reference: ReferenceInfo
@@ -380,6 +381,37 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
     return await reorderWidgets(widgetIds)
   }, [reorderWidgets])
 
+  // Handle adding a combined widget from the multi-field modal
+  const handleAddCombinedWidget = useCallback(async (config: Record<string, unknown>) => {
+    try {
+      // Transform the modal output to API format
+      const request = createCombinedWidgetRequest(
+        reference.name,
+        config as {
+          pattern_type: string
+          name: string
+          fields: string[]
+          transformer: { plugin: string; params: Record<string, unknown> }
+          widget: { plugin: string; params: Record<string, unknown> }
+        },
+        configuredWidgets.length
+      )
+
+      // Save the combined widget
+      const result = await saveCombinedWidget(request)
+
+      if (result.success) {
+        // Show success message
+        setSaveResult({ added: 1, updated: 0 })
+        setTimeout(() => setSaveResult(null), 3000)
+        // Refetch to show the new widget
+        refetchConfigured()
+      }
+    } catch (error) {
+      console.error('Failed to add combined widget:', error)
+    }
+  }, [reference.name, configuredWidgets.length, refetchConfigured])
+
   // Loading state - wait for both config and suggestions
   if (loading || configLoading) {
     return (
@@ -451,6 +483,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
                 onPreview={handleSelectTemplate}
                 onSelectAll={() => selection.selectAll(suggestions.map(s => s.template_id))}
                 onDeselectAll={selection.deselectAll}
+                onAddCombinedWidget={handleAddCombinedWidget}
               />
             </div>
           </Panel>
