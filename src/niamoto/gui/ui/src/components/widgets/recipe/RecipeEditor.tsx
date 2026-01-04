@@ -34,6 +34,11 @@ import {
 } from 'lucide-react'
 
 import { YamlEditor, type YamlTemplate } from './YamlEditor'
+import { FieldAggregatorBuilder, type FieldConfig } from './FieldAggregatorBuilder'
+import { ColorMapEditor } from './ColorMapEditor'
+import { JsonKeyValueEditor } from './JsonKeyValueEditor'
+import { NumberArrayInput } from './NumberArrayInput'
+import { TransformParamsEditor } from './TransformParamsEditor'
 import {
   useAvailableSources,
   useTransformers,
@@ -46,6 +51,7 @@ import {
   type WidgetRecipe,
   type SaveRecipeRequest,
   type SourceInfo,
+  type ParamSchema,
 } from '@/lib/api/recipes'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
@@ -174,15 +180,61 @@ const TRANSFORMER_INFO: Record<string, { label: string; description: string; ico
   class_object_series_by_axis_extractor: { label: 'Series par axe', description: 'Plusieurs series', icon: 'chart' },
 }
 
-// Widget descriptions
-const WIDGET_INFO: Record<string, { label: string; description: string }> = {
-  bar_plot: { label: 'Histogramme', description: 'Barres horizontales ou verticales' },
-  donut_chart: { label: 'Donut', description: 'Graphique circulaire' },
-  info_grid: { label: 'Grille info', description: 'Tableau cle-valeur' },
-  radial_gauge: { label: 'Jauge', description: 'Indicateur avec min/max' },
-  interactive_map: { label: 'Carte', description: 'Points ou polygones' },
-  stacked_area_plot: { label: 'Aire empilee', description: 'Distribution cumulee' },
-  hierarchical_nav_widget: { label: 'Navigation', description: 'Arborescence' },
+// Widget labels/descriptions are now fetched dynamically from the API via useWidgets()
+
+// Group labels for widget params
+const PARAM_GROUP_LABELS: Record<string, string> = {
+  '1_transform': 'Transformation des donnees',
+  '2_data': 'Mapping des donnees',
+  '3_layout': 'Disposition',
+  '4_colors': 'Couleurs',
+  '5_display': 'Affichage',
+  '6_general': 'General',
+}
+
+// Helper function to organize params by groups
+function organizeParamsByGroups(
+  params: Record<string, ParamSchema>
+): Array<{ group: string; label: string; params: Array<[string, ParamSchema]> }> {
+  // Group params
+  const grouped: Record<string, Array<[string, ParamSchema]>> = {}
+  const ungrouped: Array<[string, ParamSchema]> = []
+
+  for (const [key, param] of Object.entries(params)) {
+    if (param.ui_group) {
+      if (!grouped[param.ui_group]) {
+        grouped[param.ui_group] = []
+      }
+      grouped[param.ui_group].push([key, param])
+    } else {
+      ungrouped.push([key, param])
+    }
+  }
+
+  // Sort params within each group by ui_order
+  for (const group of Object.values(grouped)) {
+    group.sort((a, b) => (a[1].ui_order ?? 999) - (b[1].ui_order ?? 999))
+  }
+
+  // Sort groups by key (e.g., "1_transform" before "2_data")
+  const sortedGroups = Object.entries(grouped)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([group, params]) => ({
+      group,
+      label: PARAM_GROUP_LABELS[group] || group.replace(/^\d+_/, '').replace(/_/g, ' '),
+      params,
+    }))
+
+  // Add ungrouped params at the end if any
+  if (ungrouped.length > 0) {
+    sortedGroups.push({
+      group: 'other',
+      label: 'Autres parametres',
+      params: ungrouped,
+    })
+  }
+
+  return sortedGroups
 }
 
 // Wizard steps definition
@@ -331,12 +383,16 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
 
   // Build recipe from wizard
   const wizardRecipe = useMemo((): WidgetRecipe => {
+    // Determine if transformer needs a source param from its schema
+    // Only add source if the transformer declares it in its params
+    const needsSourceParam = transformerSchema?.params?.source !== undefined
+
     return {
       widget_id: widgetId || 'new_widget',
       transformer: {
         plugin: selectedTransformer,
         params: {
-          source: selectedSource?.name || '',
+          ...(needsSourceParam && { source: selectedSource?.name || '' }),
           ...transformerParams,
         },
       },
@@ -347,7 +403,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
         layout: { colspan, order },
       },
     }
-  }, [widgetId, selectedSource, selectedTransformer, transformerParams, selectedWidget, widgetParams, widgetTitle, colspan, order])
+  }, [widgetId, selectedSource, selectedTransformer, transformerSchema, transformerParams, selectedWidget, widgetParams, widgetTitle, colspan, order])
 
   // Live YAML from wizard
   const wizardYaml = useMemo(() => {
@@ -364,6 +420,51 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
       setParsedRecipe(null)
     }
   }, [])
+
+  // Load recipe into wizard state
+  const loadRecipeIntoWizard = useCallback((recipe: WidgetRecipe) => {
+    setWidgetId(recipe.widget_id || '')
+    setSelectedTransformer(recipe.transformer?.plugin || '')
+    setTransformerParams(recipe.transformer?.params || {})
+    setSelectedWidget(recipe.widget?.plugin || '')
+    setWidgetParams(recipe.widget?.params || {})
+    setWidgetTitle(recipe.widget?.title || '')
+    setColspan(recipe.widget?.layout?.colspan ?? 1)
+    setOrder(recipe.widget?.layout?.order ?? 0)
+
+    // Try to find and select source from transformer params
+    const sourceName = recipe.transformer?.params?.source as string
+    if (sourceName && sources) {
+      const source = sources.find(s => s.name === sourceName)
+      if (source) {
+        setSelectedSource(source)
+      }
+    }
+  }, [sources])
+
+  // Handle tab change with synchronization
+  const handleTabChange = useCallback((newTab: string) => {
+    const tab = newTab as 'expert' | 'wizard'
+
+    if (activeTab === 'wizard' && tab === 'expert') {
+      // Sync wizard -> expert: copy wizardYaml to yamlContent
+      if (wizardYaml) {
+        setYamlContent(wizardYaml)
+      }
+    } else if (activeTab === 'expert' && tab === 'wizard') {
+      // Sync expert -> wizard: parse yamlContent and load into wizard
+      try {
+        const parsed = yaml.load(yamlContent) as WidgetRecipe
+        if (parsed && typeof parsed === 'object') {
+          loadRecipeIntoWizard(parsed)
+        }
+      } catch {
+        // Invalid YAML, keep current wizard state
+      }
+    }
+
+    setActiveTab(tab)
+  }, [activeTab, wizardYaml, yamlContent, loadRecipeIntoWizard])
 
   // Get transformers for selected source type
   const availableTransformers = useMemo(() => {
@@ -387,7 +488,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
         class_object_field_aggregator: 'info_grid',
       }
       const suggested = suggestions[selectedTransformer]
-      if (suggested && widgets.includes(suggested)) {
+      if (suggested && widgets.some(w => w.name === suggested)) {
         setSelectedWidget(suggested)
       }
     }
@@ -457,7 +558,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
 
   return (
     <div className="flex h-full flex-col min-h-0 overflow-hidden">
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'expert' | 'wizard')} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
           <TabsList className="bg-background">
@@ -606,10 +707,12 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                   : 'hover:bg-muted'
                               }`}
                             >
-                              {source.type === 'occurrences' ? (
+                              {source.type === 'reference' ? (
                                 <Database className="h-5 w-5 text-blue-500" />
+                              ) : source.type === 'dataset' ? (
+                                <Database className="h-5 w-5 text-green-500" />
                               ) : (
-                                <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
+                                <FileSpreadsheet className="h-5 w-5 text-orange-500" />
                               )}
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium">{source.name}</div>
@@ -698,6 +801,23 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                 key === 'field' ||
                                 key.endsWith('_field') ||
                                 key === 'time_field'
+
+                              // Special case: field_aggregator's fields param
+                              if (selectedTransformer === 'field_aggregator' && key === 'fields') {
+                                return (
+                                  <div key={key} className="space-y-1">
+                                    <Label className="text-xs">
+                                      {key} {param.required && <span className="text-red-500">*</span>}
+                                    </Label>
+                                    <FieldAggregatorBuilder
+                                      groupBy={groupBy}
+                                      sources={sources}
+                                      value={(transformerParams.fields as FieldConfig[]) || []}
+                                      onChange={(fields) => updateTransformerParam('fields', fields)}
+                                    />
+                                  </div>
+                                )
+                              }
 
                               return (
                                 <div key={key} className="space-y-1">
@@ -904,19 +1024,14 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                           <SelectValue placeholder="Selectionnez un widget" />
                         </SelectTrigger>
                         <SelectContent>
-                          {widgets.map((w) => {
-                            const info = WIDGET_INFO[w]
-                            return (
-                              <SelectItem key={w} value={w}>
-                                <div className="flex flex-col">
-                                  <span>{info?.label || w}</span>
-                                  {info?.description && (
-                                    <span className="text-xs text-muted-foreground">{info.description}</span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
+                          {widgets.map((w) => (
+                            <SelectItem key={w.name} value={w.name}>
+                              <div className="flex flex-col">
+                                <span>{w.label}</span>
+                                <span className="text-xs text-muted-foreground">{w.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
 
@@ -955,19 +1070,21 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                         </div>
                       </div>
 
-                      {/* Widget Parameters */}
+                      {/* Widget Parameters - Grouped */}
                       {selectedWidget && widgetSchema && Object.keys(widgetSchema.params).length > 0 && (
-                        <Card className="bg-muted/30" onClick={(e) => e.stopPropagation()}>
-                          <CardHeader className="py-3 px-4">
-                            <CardTitle className="text-sm flex items-center gap-2">
-                              Parametres du widget
-                              {widgetSchemaLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="py-3 px-4 space-y-3">
-                            {Object.entries(widgetSchema.params)
-                              .filter(([key]) => !['title', 'description'].includes(key))
-                              .map(([key, param]) => (
+                        <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+                          {organizeParamsByGroups(widgetSchema.params).map((group) => (
+                            <Card key={group.group} className="bg-muted/30">
+                              <CardHeader className="py-2 px-4">
+                                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                  {group.label}
+                                  {widgetSchemaLoading && group.group === '1_transform' && (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  )}
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="py-2 px-4 space-y-3">
+                                {group.params.map(([key, param]) => (
                               <div key={key} className="space-y-1">
                                 <Label className="text-xs">
                                   {key.replace(/_/g, ' ')}
@@ -1053,20 +1170,39 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                     min={param.ui_min}
                                     max={param.ui_max}
                                   />
-                                ) : param.type === 'array' && param.ui_item_widget === 'number' ? (
-                                  <Input
-                                    className="h-8"
-                                    value={Array.isArray(widgetParams[key])
-                                      ? (widgetParams[key] as number[]).join(', ')
-                                      : ''}
-                                    onChange={(e) => {
-                                      const values = e.target.value
-                                        .split(',')
-                                        .map(s => parseFloat(s.trim()))
-                                        .filter(n => !isNaN(n))
-                                      updateWidgetParam(key, values.length ? values : undefined)
-                                    }}
+                                ) : param.type === 'array' && (param.ui_item_widget === 'number' || param.items_type === 'number') ? (
+                                  <NumberArrayInput
+                                    value={widgetParams[key] as number[] | undefined}
+                                    onChange={(v) => updateWidgetParam(key, v)}
                                     placeholder="ex: 0, 100"
+                                  />
+                                ) : key === 'color_discrete_map' ? (
+                                  <ColorMapEditor
+                                    value={widgetParams[key] as Record<string, string> | undefined}
+                                    onChange={(v) => updateWidgetParam(key, v)}
+                                    placeholder="Ajoutez des couleurs pour chaque serie"
+                                  />
+                                ) : key === 'labels' ? (
+                                  <JsonKeyValueEditor
+                                    value={widgetParams[key] as Record<string, string> | undefined}
+                                    onChange={(v) => updateWidgetParam(key, v)}
+                                    keyPlaceholder="Champ"
+                                    valuePlaceholder="Label affiche"
+                                    suggestedKeys={['x_axis', 'y_axis', 'color_field']}
+                                    placeholder="Labels pour les axes et legendes"
+                                  />
+                                ) : key === 'transform_params' && param.ui_transform_schemas ? (
+                                  <TransformParamsEditor
+                                    selectedTransform={widgetParams['transform'] as string | undefined}
+                                    transformSchemas={param.ui_transform_schemas}
+                                    value={widgetParams[key] as Record<string, unknown> | undefined}
+                                    onChange={(v) => updateWidgetParam(key, v)}
+                                  />
+                                ) : param.ui_widget === 'json' ? (
+                                  <JsonKeyValueEditor
+                                    value={widgetParams[key] as Record<string, string> | undefined}
+                                    onChange={(v) => updateWidgetParam(key, v)}
+                                    placeholder={param.description}
                                   />
                                 ) : (
                                   <Input
@@ -1081,9 +1217,11 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                   <p className="text-[10px] text-muted-foreground">{param.description}</p>
                                 )}
                               </div>
-                            ))}
-                          </CardContent>
-                        </Card>
+                                ))}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>

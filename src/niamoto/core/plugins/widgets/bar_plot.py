@@ -162,141 +162,336 @@ class BarPlotParams(BasePluginParams):
         }
     )
 
-    title: Optional[str] = Field(
-        default=None, description="Chart title", json_schema_extra={"ui:widget": "text"}
-    )
-    description: Optional[str] = Field(
+    # =========================================================================
+    # GROUP 1: Transformation (ui:group="1_transform") - Shows first
+    # =========================================================================
+    transform: Optional[str] = Field(
         default=None,
-        description="Chart description",
-        json_schema_extra={"ui:widget": "textarea"},
+        description="Type de transformation a appliquer aux donnees",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:group": "1_transform",
+            "ui:order": 0,
+            "ui:options": [
+                {"value": "bins_to_df", "label": "Histogramme (bins/counts)"},
+                {"value": "monthly_data", "label": "Donnees mensuelles/phenologie"},
+                {"value": "category_with_labels", "label": "Categories avec labels"},
+                {
+                    "value": "nested_dict_to_long",
+                    "label": "Dict imbrique → long format",
+                },
+                {"value": "pyramid_chart", "label": "Pyramide (gauche/droite)"},
+            ],
+        },
     )
+    transform_params: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Parametres de la transformation (selon le type choisi)",
+        json_schema_extra={
+            "ui:widget": "json",
+            "ui:group": "1_transform",
+            "ui:order": 1,
+            "ui:transform_schemas": {
+                "bins_to_df": {
+                    "bin_field": {
+                        "type": "string",
+                        "default": "bins",
+                        "description": "Champ contenant les bins",
+                    },
+                    "count_field": {
+                        "type": "string",
+                        "default": "counts",
+                        "description": "Champ contenant les comptages",
+                    },
+                    "x_field": {
+                        "type": "string",
+                        "default": "bin",
+                        "description": "Nom colonne X en sortie",
+                    },
+                    "y_field": {
+                        "type": "string",
+                        "default": "count",
+                        "description": "Nom colonne Y en sortie",
+                    },
+                    "use_percentages": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Utiliser les pourcentages",
+                    },
+                },
+                "monthly_data": {
+                    "labels_field": {
+                        "type": "string",
+                        "default": "labels",
+                        "description": "Champ des labels (mois)",
+                    },
+                    "data_field": {
+                        "type": "string",
+                        "default": "month_data",
+                        "description": "Champ des donnees",
+                    },
+                    "series_name": {
+                        "type": "string",
+                        "description": "Nom de la serie (optionnel)",
+                    },
+                    "melt": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Transformer en format long",
+                    },
+                },
+                "category_with_labels": {
+                    "category_field": {
+                        "type": "string",
+                        "default": "categories",
+                        "description": "Champ des categories",
+                    },
+                    "count_field": {
+                        "type": "string",
+                        "default": "counts",
+                        "description": "Champ des comptages",
+                    },
+                    "label_field": {
+                        "type": "string",
+                        "default": "labels",
+                        "description": "Champ des labels",
+                    },
+                    "use_percentages": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Utiliser les pourcentages",
+                    },
+                },
+                "nested_dict_to_long": {
+                    "primary_keys": {
+                        "type": "array",
+                        "description": "Cles primaires a extraire",
+                    },
+                    "category_field": {
+                        "type": "string",
+                        "default": "category",
+                        "description": "Nom colonne categorie",
+                    },
+                    "value_field": {
+                        "type": "string",
+                        "default": "value",
+                        "description": "Nom colonne valeur",
+                    },
+                    "type_field": {
+                        "type": "string",
+                        "default": "type",
+                        "description": "Nom colonne type",
+                    },
+                },
+                "pyramid_chart": {
+                    "class_field": {
+                        "type": "string",
+                        "default": "class_name",
+                        "description": "Champ des classes",
+                    },
+                    "series_field": {
+                        "type": "string",
+                        "default": "series",
+                        "description": "Champ des series",
+                    },
+                    "left_series": {
+                        "type": "string",
+                        "description": "Serie gauche (valeurs negatives)",
+                    },
+                    "right_series": {
+                        "type": "string",
+                        "description": "Serie droite (valeurs positives)",
+                    },
+                    "left_label": {
+                        "type": "string",
+                        "default": "Left",
+                        "description": "Label gauche",
+                    },
+                    "right_label": {
+                        "type": "string",
+                        "default": "Right",
+                        "description": "Label droite",
+                    },
+                },
+            },
+        },
+    )
+    field_mapping: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Mapping des champs source vers les colonnes attendues",
+        json_schema_extra={
+            "ui:widget": "json",
+            "ui:group": "1_transform",
+            "ui:order": 2,
+        },
+    )
+
+    # =========================================================================
+    # GROUP 2: Data mapping (ui:group="2_data")
+    # =========================================================================
     x_axis: str = Field(
         ...,
-        description="Field name for the X-axis (categories)",
-        json_schema_extra={"ui:widget": "field-select"},
+        description="Champ pour l'axe X (categories)",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 0,
+        },
     )
     y_axis: str = Field(
         ...,
-        description="Field name for the Y-axis (values)",
-        json_schema_extra={"ui:widget": "field-select"},
+        description="Champ pour l'axe Y (valeurs)",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 1,
+        },
     )
     color_field: Optional[str] = Field(
         default=None,
-        description="Field name for color grouping (creates grouped/stacked bars)",
-        json_schema_extra={"ui:widget": "field-select"},
+        description="Champ pour le groupement par couleur",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 2,
+        },
     )
+    hover_name: Optional[str] = Field(
+        default=None,
+        description="Champ pour le label au survol",
+        json_schema_extra={
+            "ui:widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 3,
+        },
+    )
+    hover_data: Optional[List[str]] = Field(
+        default=None,
+        description="Champs additionnels au survol",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:item-widget": "field-select",
+            "ui:group": "2_data",
+            "ui:order": 4,
+        },
+    )
+
+    # =========================================================================
+    # GROUP 3: Layout (ui:group="3_layout")
+    # =========================================================================
     barmode: Optional[str] = Field(
-        default="group",
-        description="Bar display mode",
+        default=None,
+        description="Mode d'affichage des barres",
         json_schema_extra={
             "ui:widget": "select",
-            "ui:options": ["group", "stack", "relative"],
+            "ui:group": "3_layout",
+            "ui:order": 0,
+            "ui:options": [
+                {"value": "group", "label": "Groupees"},
+                {"value": "stack", "label": "Empilees"},
+                {"value": "relative", "label": "Relatives"},
+            ],
         },
     )
     orientation: Optional[str] = Field(
-        default="v",
-        description="Bar orientation",
+        default=None,
+        description="Orientation des barres",
         json_schema_extra={
             "ui:widget": "select",
+            "ui:group": "3_layout",
+            "ui:order": 1,
             "ui:options": [
                 {"value": "v", "label": "Vertical"},
                 {"value": "h", "label": "Horizontal"},
             ],
         },
     )
-    text_auto: Union[bool, str] = Field(
-        default=True,
-        description="Display values on bars (True, False, or formatting string like '.2f')",
-        json_schema_extra={"ui:widget": "text"},
-    )
-    hover_name: Optional[str] = Field(
+    sort_order: Optional[str] = Field(
         default=None,
-        description="Field for primary hover label",
-        json_schema_extra={"ui:widget": "field-select"},
-    )
-    hover_data: Optional[List[str]] = Field(
-        default=None,
-        description="Additional fields for hover tooltip",
-        json_schema_extra={"ui:widget": "array", "ui:item-widget": "field-select"},
-    )
-    color_discrete_map: Optional[Any] = Field(
-        default=None,
-        description="Mapping for discrete colors",
-        json_schema_extra={"ui:widget": "json"},
-    )
-    color_continuous_scale: Optional[str] = Field(
-        default=None,
-        description="Plotly color scale name (if color_field is numeric)",
-        json_schema_extra={"ui:widget": "text"},
+        description="Ordre de tri des barres",
+        json_schema_extra={
+            "ui:widget": "select",
+            "ui:group": "3_layout",
+            "ui:order": 2,
+            "ui:options": [
+                {"value": None, "label": "Aucun"},
+                {"value": "ascending", "label": "Croissant"},
+                {"value": "descending", "label": "Decroissant"},
+            ],
+        },
     )
     range_y: Optional[List[float]] = Field(
         default=None,
-        description="Y-axis range [min, max]",
-        json_schema_extra={"ui:widget": "array", "ui:item-widget": "number"},
+        description="Plage de l'axe Y [min, max]",
+        json_schema_extra={
+            "ui:widget": "array",
+            "ui:item-widget": "number",
+            "ui:group": "3_layout",
+            "ui:order": 3,
+        },
     )
     labels: Optional[Any] = Field(
         default=None,
-        description="Mapping for axis/legend labels {'x_axis': 'X Label', ...}",
-        json_schema_extra={"ui:widget": "json"},
+        description="Labels personnalises pour axes et legende",
+        json_schema_extra={"ui:widget": "json", "ui:group": "3_layout", "ui:order": 4},
     )
-    sort_order: Optional[str] = Field(
+
+    # =========================================================================
+    # GROUP 4: Colors (ui:group="4_colors")
+    # =========================================================================
+    color_discrete_map: Optional[Any] = Field(
         default=None,
-        description="Sort bars order",
-        json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": [
-                {"value": None, "label": "None"},
-                {"value": "ascending", "label": "Ascending"},
-                {"value": "descending", "label": "Descending"},
-            ],
-        },
+        description="Couleurs par categorie",
+        json_schema_extra={"ui:widget": "json", "ui:group": "4_colors", "ui:order": 0},
     )
-    # New fields for data transformation
-    transform: Optional[str] = Field(
+    color_continuous_scale: Optional[str] = Field(
         default=None,
-        description="Type of transformation to apply to data",
-        json_schema_extra={
-            "ui:widget": "select",
-            "ui:options": ["extract_series", "unpivot", "pivot"],
-        },
-    )
-    transform_params: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Parameters for the transformation",
-        json_schema_extra={"ui:widget": "json"},
-    )
-    # Fields for field mappings
-    field_mapping: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Mapping from data fields to expected column names",
-        json_schema_extra={"ui:widget": "json"},
+        description="Echelle de couleur Plotly (si color_field numerique)",
+        json_schema_extra={"ui:widget": "text", "ui:group": "4_colors", "ui:order": 1},
     )
     auto_color: bool = Field(
         default=False,
-        description="Automatically generate harmonious colors for each bar",
-        json_schema_extra={"ui:widget": "checkbox"},
+        description="Generer automatiquement des couleurs harmonieuses",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:group": "4_colors",
+            "ui:order": 2,
+        },
     )
     gradient_color: Optional[str] = Field(
         default=None,
-        description="Base color for gradient generation (e.g., '#1fb99d'). Overrides auto_color if set",
-        json_schema_extra={"ui:widget": "color"},
+        description="Couleur de base pour gradient (ex: '#1fb99d')",
+        json_schema_extra={"ui:widget": "color", "ui:group": "4_colors", "ui:order": 3},
     )
     gradient_mode: Optional[str] = Field(
         default="luminance",
-        description="Gradient mode",
+        description="Mode de gradient",
         json_schema_extra={
             "ui:widget": "select",
+            "ui:group": "4_colors",
+            "ui:order": 4,
             "ui:options": [
-                {"value": "luminance", "label": "Light to dark"},
-                {"value": "saturation", "label": "Saturated to pale"},
+                {"value": "luminance", "label": "Clair vers fonce"},
+                {"value": "saturation", "label": "Sature vers pale"},
             ],
         },
     )
+
+    # =========================================================================
+    # GROUP 5: Display (ui:group="5_display")
+    # =========================================================================
+    text_auto: Union[bool, str] = Field(
+        default=True,
+        description="Afficher valeurs sur les barres (True, False, ou format '.2f')",
+        json_schema_extra={"ui:widget": "text", "ui:group": "5_display", "ui:order": 0},
+    )
     bar_width: Optional[float] = Field(
         default=None,
-        description="Width of bars (0.0 to 1.0). If None, width is calculated automatically based on data count",
+        description="Largeur des barres (0.0 a 1.0)",
         json_schema_extra={
             "ui:widget": "number",
+            "ui:group": "5_display",
+            "ui:order": 1,
             "ui:min": 0.0,
             "ui:max": 1.0,
             "ui:step": 0.1,
@@ -304,13 +499,39 @@ class BarPlotParams(BasePluginParams):
     )
     filter_zero_values: bool = Field(
         default=False,
-        description="Remove bars with zero or null values from the plot",
-        json_schema_extra={"ui:widget": "checkbox"},
+        description="Masquer les barres avec valeurs nulles",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:group": "5_display",
+            "ui:order": 2,
+        },
     )
     show_legend: bool = Field(
         default=True,
-        description="Show or hide the legend",
-        json_schema_extra={"ui:widget": "checkbox"},
+        description="Afficher la legende",
+        json_schema_extra={
+            "ui:widget": "checkbox",
+            "ui:group": "5_display",
+            "ui:order": 3,
+        },
+    )
+
+    # =========================================================================
+    # GROUP 6: General (ui:group="6_general") - Title & description at the end
+    # =========================================================================
+    title: Optional[str] = Field(
+        default=None,
+        description="Titre du graphique",
+        json_schema_extra={"ui:widget": "text", "ui:group": "6_general", "ui:order": 0},
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Description du graphique",
+        json_schema_extra={
+            "ui:widget": "textarea",
+            "ui:group": "6_general",
+            "ui:order": 1,
+        },
     )
 
 

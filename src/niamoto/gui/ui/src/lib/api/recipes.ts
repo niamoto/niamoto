@@ -4,14 +4,15 @@ import { apiClient } from './client'
 /**
  * Source types
  */
-export type SourceType = 'occurrences' | 'csv_stats' | 'csv_direct'
+export type SourceType = 'reference' | 'dataset' | 'csv_stats'
 
 /**
  * Information about an available data source
  */
 export interface SourceInfo {
   type: SourceType
-  name?: string
+  name: string
+  table_name?: string  // actual DuckDB table name
   columns: string[]
   transformers: string[]
 }
@@ -22,6 +23,25 @@ export interface SourceInfo {
 export interface SourcesResponse {
   group_by: string
   sources: SourceInfo[]
+}
+
+/**
+ * A column or nested field in the tree structure
+ */
+export interface ColumnNode {
+  name: string  // Column name or field name
+  path: string  // Full path (e.g., "extra_data.taxon_type")
+  type: string  // Data type (string, number, boolean, object, array)
+  children: ColumnNode[]  // Nested fields for JSON
+}
+
+/**
+ * Response with column tree structure for a source
+ */
+export interface SourceColumnsResponse {
+  source_name: string
+  table_name?: string
+  columns: ColumnNode[]
 }
 
 /**
@@ -47,6 +67,18 @@ export interface ParamSchema {
   ui_max?: number  // Max value for number inputs
   ui_step?: number  // Step for number inputs
   ui_item_widget?: string  // Widget type for array items
+  ui_transform_schemas?: Record<string, Record<string, TransformParamDef>>  // Conditional schemas for transform_params
+  ui_group?: string  // Group name for organizing params
+  ui_order?: number  // Order within group (lower = first)
+}
+
+/**
+ * Definition for a transform parameter
+ */
+export interface TransformParamDef {
+  type: string
+  default?: unknown
+  description?: string
 }
 
 /**
@@ -68,6 +100,15 @@ export interface WidgetSchema {
   description: string
   params: Record<string, ParamSchema>
   compatible_transformers: string[]
+}
+
+/**
+ * Basic info for a widget plugin
+ */
+export interface WidgetInfo {
+  name: string
+  label: string
+  description: string
 }
 
 /**
@@ -153,6 +194,17 @@ export async function getAvailableSources(groupBy: string): Promise<SourcesRespo
 }
 
 /**
+ * Get columns for a specific source with tree structure
+ */
+export async function getSourceColumns(
+  groupBy: string,
+  sourceName: string
+): Promise<SourceColumnsResponse> {
+  const response = await apiClient.get(`/recipes/sources/${groupBy}/${sourceName}/columns`)
+  return response.data
+}
+
+/**
  * Get transformer schema
  */
 export async function getTransformerSchema(pluginName: string): Promise<TransformerSchema> {
@@ -169,9 +221,9 @@ export async function listTransformers(): Promise<string[]> {
 }
 
 /**
- * List all widgets
+ * List all widgets with labels and descriptions
  */
-export async function listWidgets(): Promise<string[]> {
+export async function listWidgets(): Promise<WidgetInfo[]> {
   const response = await apiClient.get('/recipes/widgets')
   return response.data
 }
@@ -266,6 +318,47 @@ export function useAvailableSources(groupBy: string) {
 }
 
 /**
+ * Hook to fetch source columns with tree structure
+ */
+export function useSourceColumns(groupBy: string, sourceName: string | null) {
+  const [data, setData] = useState<SourceColumnsResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchColumns = useCallback(async () => {
+    if (!groupBy || !sourceName) {
+      setData(null)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await getSourceColumns(groupBy, sourceName)
+      setData(response)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error loading columns'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [groupBy, sourceName])
+
+  useEffect(() => {
+    fetchColumns()
+  }, [fetchColumns])
+
+  return {
+    data,
+    columns: data?.columns ?? [],
+    loading,
+    error,
+    refetch: fetchColumns,
+  }
+}
+
+/**
  * Hook to fetch transformer schema
  */
 export function useTransformerSchema(pluginName: string | null) {
@@ -332,10 +425,10 @@ export function useTransformers() {
 }
 
 /**
- * Hook to list all widgets
+ * Hook to list all widgets with labels and descriptions
  */
 export function useWidgets() {
-  const [widgets, setWidgets] = useState<string[]>([])
+  const [widgets, setWidgets] = useState<WidgetInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

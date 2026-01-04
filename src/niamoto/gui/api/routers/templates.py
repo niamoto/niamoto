@@ -33,6 +33,7 @@ from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.matching.matcher import SmartMatcher
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.services import PreviewService
 from niamoto.common.database import Database
 
 logger = logging.getLogger(__name__)
@@ -2923,26 +2924,6 @@ def _load_sample_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _execute_transformer(
-    db: Database, plugin_name: str, data: pd.DataFrame, config: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Execute a transformer plugin on sample data."""
-    try:
-        plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.TRANSFORMER)
-        plugin_instance = plugin_class(db=db)
-
-        # Build config in expected format
-        full_config = {"plugin": plugin_name, "params": config}
-
-        return plugin_instance.transform(data, full_config)
-    except Exception as e:
-        logger.exception(f"Error executing transformer '{plugin_name}': {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Transformer error: {str(e)}",
-        )
-
-
 def _find_widget_for_transformer(transformer_name: str) -> Optional[str]:
     """Use SmartMatcher to find a compatible widget for a transformer.
 
@@ -3037,6 +3018,51 @@ def _parse_dynamic_template_id(template_id: str) -> Optional[Dict[str, Any]]:
         "transformer": matched_transformer,
         "widget": matched_widget,
     }
+
+
+def _find_widget_group(widget_id: str) -> Optional[str]:
+    """Find which group contains a widget by searching transform.yml.
+
+    Args:
+        widget_id: The widget identifier to search for
+
+    Returns:
+        The group_by value if found, None otherwise
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    work_dir = Path(work_dir)
+    transform_path = work_dir / "config" / "transform.yml"
+
+    if not transform_path.exists():
+        return None
+
+    try:
+        with open(transform_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        # Search all groups for the widget_id
+        if isinstance(transform_config, list):
+            for group in transform_config:
+                if isinstance(group, dict):
+                    group_by = group.get("group_by")
+                    widgets_data = group.get("widgets_data", {})
+                    if widget_id in widgets_data:
+                        return group_by
+        elif isinstance(transform_config, dict):
+            groups = transform_config.get("groups", {})
+            if isinstance(groups, dict):
+                for group_by, group_config in groups.items():
+                    if isinstance(group_config, dict):
+                        widgets_data = group_config.get("widgets_data", {})
+                        if widget_id in widgets_data:
+                            return group_by
+
+        return None
+    except Exception:
+        return None
 
 
 def _load_configured_widget(widget_id: str, group_by: str) -> Optional[Dict[str, Any]]:
@@ -3196,7 +3222,7 @@ async def _preview_configured_widget(
     work_dir = get_working_directory()
     if not work_dir:
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 "<p class='error'>Working directory not configured</p>"
             ),
             status_code=500,
@@ -3209,7 +3235,7 @@ async def _preview_configured_widget(
         PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
     except Exception:
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Widget plugin '{widget_plugin}' not found</p>"
             ),
             status_code=400,
@@ -3224,7 +3250,7 @@ async def _preview_configured_widget(
 
             if not class_objects:
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         "<p class='info'>Pas de class_objects configurés</p>"
                     )
                 )
@@ -3240,7 +3266,7 @@ async def _preview_configured_widget(
 
             if not co_data_combined:
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         f"<p class='info'>Données non trouvées pour les class_objects: {', '.join(class_objects)}</p>"
                     )
                 )
@@ -3257,7 +3283,7 @@ async def _preview_configured_widget(
 
                 if not transformer_data:
                     return HTMLResponse(
-                        content=_wrap_html_response(
+                        content=PreviewService.wrap_html_response(
                             "<p class='info'>Le transformer n'a pas retourné de données</p>"
                         )
                     )
@@ -3273,7 +3299,9 @@ async def _preview_configured_widget(
                 )
 
                 return HTMLResponse(
-                    content=_wrap_html_response(widget_html, title=widget_title)
+                    content=PreviewService.wrap_html_response(
+                        widget_html, title=widget_title
+                    )
                 )
             finally:
                 if db:
@@ -3291,7 +3319,7 @@ async def _preview_configured_widget(
             db_path = get_database_path()
             if not db_path:
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         "<p class='error'>Database not found</p>"
                     ),
                     status_code=404,
@@ -3310,7 +3338,7 @@ async def _preview_configured_widget(
 
                 if sample_data.empty:
                     return HTMLResponse(
-                        content=_wrap_html_response(
+                        content=PreviewService.wrap_html_response(
                             "<p class='info'>No data available for preview</p>"
                         )
                     )
@@ -3319,8 +3347,12 @@ async def _preview_configured_widget(
                 transformer_cls = PluginRegistry.get_plugin(
                     transformer_plugin, PluginType.TRANSFORMER
                 )
-                transformer = transformer_cls(db=db, config=transformer_params)
-                result = transformer.transform(sample_data)
+                transformer = transformer_cls(db=db)
+                transform_config = {
+                    "plugin": transformer_plugin,
+                    "params": transformer_params,
+                }
+                result = transformer.transform(sample_data, transform_config)
 
                 # Render widget using the correct pattern
                 widget_html = _render_widget_for_configured(
@@ -3333,7 +3365,9 @@ async def _preview_configured_widget(
                 )
 
                 return HTMLResponse(
-                    content=_wrap_html_response(widget_html, title=widget_title)
+                    content=PreviewService.wrap_html_response(
+                        widget_html, title=widget_title
+                    )
                 )
             finally:
                 db.close_db_session()
@@ -3341,7 +3375,7 @@ async def _preview_configured_widget(
     except Exception as e:
         logger.error(f"Error previewing configured widget '{widget_id}': {e}")
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Erreur lors de la preview: {str(e)}</p>"
             ),
             status_code=500,
@@ -3734,47 +3768,6 @@ def _build_widget_params_dynamic(
     return {"title": title}
 
 
-def _wrap_html_response(content: str, title: str = "Preview") -> str:
-    """Wrap widget HTML in a complete HTML document."""
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{title}</title>
-    <style>
-        html, body {{
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, sans-serif;
-            background: transparent;
-        }}
-        .plotly-graph-div {{
-            width: 100% !important;
-            height: 100% !important;
-        }}
-        .error {{
-            color: #ef4444;
-            padding: 1rem;
-            text-align: center;
-        }}
-        .info {{
-            color: #6b7280;
-            padding: 1rem;
-            text-align: center;
-        }}
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/plotly.js@2.35.0/dist/plotly.min.js"></script>
-</head>
-<body>
-{content}
-</body>
-</html>"""
-
-
 async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
     """Generate a preview for a navigation widget using the real widget renderer.
 
@@ -3794,7 +3787,7 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
         db_path = get_database_path()
         if not db_path:
             return HTMLResponse(
-                content=_wrap_html_response(
+                content=PreviewService.wrap_html_response(
                     "<p class='info'>Base de données non configurée</p>"
                 )
             )
@@ -3810,7 +3803,7 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
                         break
                 else:
                     return HTMLResponse(
-                        content=_wrap_html_response(
+                        content=PreviewService.wrap_html_response(
                             f"<p class='info'>Table '{reference_name}' non trouvée</p>"
                         )
                     )
@@ -3991,7 +3984,9 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
     except Exception as e:
         logger.exception(f"Error generating navigation preview: {e}")
         return HTMLResponse(
-            content=_wrap_html_response(f"<p class='error'>Erreur: {str(e)}</p>"),
+            content=PreviewService.wrap_html_response(
+                f"<p class='error'>Erreur: {str(e)}</p>"
+            ),
             status_code=500,
         )
 
@@ -4016,7 +4011,7 @@ async def _preview_general_info_widget(
         db_path = get_database_path()
         if not db_path:
             return HTMLResponse(
-                content=_wrap_html_response(
+                content=PreviewService.wrap_html_response(
                     "<p class='info'>Base de données non configurée</p>"
                 )
             )
@@ -4027,7 +4022,7 @@ async def _preview_general_info_widget(
             suggestion = _generate_general_info_suggestion(reference_name)
             if not suggestion:
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         f"<p class='info'>Aucun champ détecté pour '{reference_name}'</p>"
                     )
                 )
@@ -4043,7 +4038,7 @@ async def _preview_general_info_widget(
                         break
                 else:
                     return HTMLResponse(
-                        content=_wrap_html_response(
+                        content=PreviewService.wrap_html_response(
                             f"<p class='info'>Table '{reference_name}' non trouvée</p>"
                         )
                     )
@@ -4059,7 +4054,7 @@ async def _preview_general_info_widget(
             sample_df = pd.read_sql(sample_query, db.engine)
             if sample_df.empty:
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         f"<p class='info'>Aucune donnée dans '{reference_name}'</p>"
                     )
                 )
@@ -4202,7 +4197,9 @@ async def _preview_general_info_widget(
     except Exception as e:
         logger.exception(f"Error generating general_info preview: {e}")
         return HTMLResponse(
-            content=_wrap_html_response(f"<p class='error'>Erreur: {str(e)}</p>"),
+            content=PreviewService.wrap_html_response(
+                f"<p class='error'>Erreur: {str(e)}</p>"
+            ),
             status_code=500,
         )
 
@@ -4307,7 +4304,9 @@ async def _preview_entity_map(
     db_path = get_database_path()
     if not db_path:
         return HTMLResponse(
-            content=_wrap_html_response("<p class='error'>Database not found</p>"),
+            content=PreviewService.wrap_html_response(
+                "<p class='error'>Database not found</p>"
+            ),
             status_code=404,
         )
 
@@ -4328,7 +4327,7 @@ async def _preview_entity_map(
         prefix = template_id[:-4]  # Remove "_map"
     else:
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Invalid entity map template: {template_id}</p>"
             ),
             status_code=400,
@@ -4340,7 +4339,7 @@ async def _preview_entity_map(
     parts = prefix.split("_")
     if len(parts) < 2:
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Cannot parse template ID: {template_id}</p>"
             ),
             status_code=400,
@@ -4380,7 +4379,7 @@ async def _preview_entity_map(
 
         if not db.has_table(entity_table):
             return HTMLResponse(
-                content=_wrap_html_response(
+                content=PreviewService.wrap_html_response(
                     f"<p class='error'>Table '{entity_table}' not found</p>"
                 ),
                 status_code=404,
@@ -4556,7 +4555,7 @@ async def _preview_entity_map(
 
         if result.empty:
             return HTMLResponse(
-                content=_wrap_html_response(
+                content=PreviewService.wrap_html_response(
                     "<p class='info'>Aucune donnée géographique disponible</p>"
                 )
             )
@@ -4592,7 +4591,7 @@ async def _preview_entity_map(
 
         if not features:
             return HTMLResponse(
-                content=_wrap_html_response(
+                content=PreviewService.wrap_html_response(
                     "<p class='info'>Aucune géométrie valide trouvée</p>"
                 )
             )
@@ -4695,7 +4694,9 @@ async def _preview_entity_map(
     except Exception as e:
         logger.exception(f"Error generating entity map preview: {e}")
         return HTMLResponse(
-            content=_wrap_html_response(f"<p class='error'>Erreur: {str(e)}</p>"),
+            content=PreviewService.wrap_html_response(
+                f"<p class='error'>Erreur: {str(e)}</p>"
+            ),
             status_code=500,
         )
     finally:
@@ -4758,15 +4759,20 @@ async def preview_template(
     parsed = _parse_dynamic_template_id(template_id)
     if not parsed:
         # Try to load as a configured widget from transform.yml
-        if group_by:
-            configured_widget = _load_configured_widget(template_id, group_by)
+        # If group_by not provided, try to auto-detect from transform.yml
+        detected_group_by = group_by
+        if not detected_group_by:
+            detected_group_by = _find_widget_group(template_id)
+
+        if detected_group_by:
+            configured_widget = _load_configured_widget(template_id, detected_group_by)
             if configured_widget:
                 return await _preview_configured_widget(
-                    configured_widget, group_by, entity_id
+                    configured_widget, detected_group_by, entity_id
                 )
 
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Invalid template ID format: '{template_id}'</p>"
             ),
             status_code=400,
@@ -4783,7 +4789,7 @@ async def preview_template(
         PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
     except Exception:
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Widget plugin '{widget_plugin}' not found</p>"
             ),
             status_code=400,
@@ -4793,7 +4799,7 @@ async def preview_template(
     work_dir = get_working_directory()
     if not work_dir:
         return HTMLResponse(
-            content=_wrap_html_response(
+            content=PreviewService.wrap_html_response(
                 "<p class='error'>Working directory not configured</p>"
             ),
             status_code=500,
@@ -4820,7 +4826,7 @@ async def preview_template(
             )
             if not co_data:
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         f"<p class='info'>Données '{column}' non trouvées dans les sources CSV</p>"
                     )
                 )
@@ -4836,7 +4842,9 @@ async def preview_template(
                 )
 
                 return HTMLResponse(
-                    content=_wrap_html_response(widget_html, title=template_name)
+                    content=PreviewService.wrap_html_response(
+                        widget_html, title=template_name
+                    )
                 )
             finally:
                 if db:
@@ -4853,7 +4861,9 @@ async def preview_template(
         db_path = get_database_path()
         if not db_path:
             return HTMLResponse(
-                content=_wrap_html_response("<p class='error'>Database not found</p>"),
+                content=PreviewService.wrap_html_response(
+                    "<p class='error'>Database not found</p>"
+                ),
                 status_code=404,
             )
 
@@ -4870,7 +4880,7 @@ async def preview_template(
 
             if sample_data.empty:
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         "<p class='info'>No data available for preview</p>"
                     )
                 )
@@ -4890,15 +4900,15 @@ async def preview_template(
                 else:
                     value_display = str(identical_value)
                 return HTMLResponse(
-                    content=_wrap_html_response(
+                    content=PreviewService.wrap_html_response(
                         f"<p class='info'>Toutes les valeurs sont identiques ({value_display})</p>",
                         title=template_name,
                     )
                 )
 
             # Execute transformer
-            transformed_data = _execute_transformer(
-                db, transformer_plugin, sample_data, config
+            transformed_data = PreviewService.execute_transformer(
+                db, transformer_plugin, config, sample_data
             )
 
             # Render widget using dynamic params builder
@@ -4912,7 +4922,9 @@ async def preview_template(
             )
 
             return HTMLResponse(
-                content=_wrap_html_response(widget_html, title=template_name)
+                content=PreviewService.wrap_html_response(
+                    widget_html, title=template_name
+                )
             )
 
         finally:
@@ -4923,7 +4935,9 @@ async def preview_template(
     except Exception as e:
         logger.exception(f"Error generating preview for template '{template_id}': {e}")
         return HTMLResponse(
-            content=_wrap_html_response(f"<p class='error'>Error: {str(e)}</p>"),
+            content=PreviewService.wrap_html_response(
+                f"<p class='error'>Error: {str(e)}</p>"
+            ),
             status_code=500,
         )
 
