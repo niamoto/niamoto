@@ -1325,6 +1325,68 @@ async def save_widget_recipe(request: SaveRecipeRequest):
     )
 
 
+class ReorderWidgetsRequest(BaseModel):
+    """Request to reorder widgets in a group."""
+
+    widget_ids: list[str] = Field(..., description="Ordered list of widget IDs")
+
+
+@router.post("/{group_by}/reorder")
+async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
+    """
+    Reorder widgets in export.yml for a group.
+
+    The widget_ids list defines the new order. Widgets not in the list
+    will be placed at the end in their original order.
+    Also updates layout.order property to ensure consistency with LayoutEditor.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    work_dir = Path(work_dir)
+
+    # Load export config
+    export_config = _load_export_config(work_dir)
+
+    # Find the group
+    for export in export_config.get("exports", []):
+        for group in export.get("groups", []):
+            if group.get("group_by") == group_by:
+                widgets = group.get("widgets", [])
+
+                # Create a map of data_source -> widget
+                widget_map = {w.get("data_source"): w for w in widgets}
+
+                # Reorder based on request
+                new_widgets = []
+                order_idx = 0
+                for widget_id in request.widget_ids:
+                    if widget_id in widget_map:
+                        widget = widget_map[widget_id]
+                        # Update layout.order to match new position
+                        if "layout" not in widget:
+                            widget["layout"] = {}
+                        widget["layout"]["order"] = order_idx
+                        new_widgets.append(widget)
+                        del widget_map[widget_id]
+                        order_idx += 1
+
+                # Add any remaining widgets not in the list
+                for widget in widget_map.values():
+                    if "layout" not in widget:
+                        widget["layout"] = {}
+                    widget["layout"]["order"] = order_idx
+                    new_widgets.append(widget)
+                    order_idx += 1
+
+                group["widgets"] = new_widgets
+
+    _save_export_config(work_dir, export_config)
+
+    return {"success": True, "message": f"Widgets reordered for group '{group_by}'"}
+
+
 @router.delete("/{group_by}/{widget_id}")
 async def delete_widget_recipe(group_by: str, widget_id: str):
     """

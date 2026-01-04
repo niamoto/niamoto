@@ -717,8 +717,16 @@ class HtmlPageExporter(ExporterPlugin):
                             rendered_widgets: Dict[str, str] = {}
                             widget_dependencies: Set[str] = set()
 
+                            # Sort widgets by layout.order before processing
+                            sorted_widgets = sorted(
+                                enumerate(group_config.widgets),
+                                key=lambda x: (
+                                    x[1].layout.order if x[1].layout else x[0]
+                                ),
+                            )
+
                             # Process widgets for this item
-                            for i, widget_config in enumerate(group_config.widgets):
+                            for i, widget_config in sorted_widgets:
                                 # Create a unique key combining plugin type, data source, and index
                                 widget_key = f"{widget_config.plugin}_{widget_config.data_source}_{i}"  # Unique key per widget instance
 

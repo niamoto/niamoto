@@ -46,6 +46,10 @@ interface ExportWidgetConfig {
   title?: string
   description?: string
   params?: Record<string, unknown>
+  layout?: {
+    colspan?: number
+    order?: number
+  }
 }
 
 interface ExportGroupConfig {
@@ -74,6 +78,7 @@ export interface UseWidgetConfigReturn {
   updateWidget: (widgetId: string, config: Partial<ConfiguredWidget>) => Promise<boolean>
   deleteWidget: (widgetId: string) => Promise<boolean>
   duplicateWidget: (widgetId: string, newId: string) => Promise<boolean>
+  reorderWidgets: (widgetIds: string[]) => Promise<boolean>
   refetch: () => void
 }
 
@@ -115,14 +120,16 @@ function parseTransformWidgets(
 
 /**
  * Parse export.yml to extract widgets for a specific group
+ * Returns both a map for quick lookup and an ordered array sorted by layout.order
  */
 function parseExportWidgets(
   exportData: ExportConfig,
   groupBy: string
-): Map<string, ExportWidgetConfig> {
-  const widgets = new Map<string, ExportWidgetConfig>()
+): { map: Map<string, ExportWidgetConfig>; order: string[] } {
+  const widgetMap = new Map<string, ExportWidgetConfig>()
+  const widgetsWithOrder: Array<{ dataSource: string; order: number }> = []
 
-  if (!exportData?.exports) return widgets
+  if (!exportData?.exports) return { map: widgetMap, order: [] }
 
   // Find the web_pages export (or first export with groups)
   for (const exportConfig of exportData.exports) {
@@ -131,15 +138,22 @@ function parseExportWidgets(
 
     const group = groups.find(g => g.group_by === groupBy)
     if (group?.widgets) {
-      group.widgets.forEach(widget => {
+      group.widgets.forEach((widget, arrayIndex) => {
         if (widget.data_source) {
-          widgets.set(widget.data_source, widget)
+          widgetMap.set(widget.data_source, widget)
+          // Use layout.order if available, otherwise use array index
+          const order = widget.layout?.order ?? arrayIndex
+          widgetsWithOrder.push({ dataSource: widget.data_source, order })
         }
       })
     }
   }
 
-  return widgets
+  // Sort by layout.order
+  widgetsWithOrder.sort((a, b) => a.order - b.order)
+  const order = widgetsWithOrder.map(w => w.dataSource)
+
+  return { map: widgetMap, order }
 }
 
 /**
@@ -161,27 +175,50 @@ function getWidgetCategory(plugin: string): string {
 
 /**
  * Merge transform and export widget data
+ * Preserves order from export.yml
  */
 function mergeWidgetData(
   transformWidgets: Map<string, { plugin: string; params: Record<string, unknown> }>,
-  exportWidgets: Map<string, ExportWidgetConfig>
+  exportWidgets: { map: Map<string, ExportWidgetConfig>; order: string[] }
 ): ConfiguredWidget[] {
   const merged: ConfiguredWidget[] = []
+  const processedIds = new Set<string>()
 
-  // Start from transform widgets (they define the data source)
-  transformWidgets.forEach((transformConfig, widgetId) => {
-    const exportConfig = exportWidgets.get(widgetId)
+  // First, add widgets in export.yml order (this preserves user's custom order)
+  for (const widgetId of exportWidgets.order) {
+    const transformConfig = transformWidgets.get(widgetId)
+    if (!transformConfig) continue // Skip if not in transform.yml
+
+    const exportConfig = exportWidgets.map.get(widgetId)
+    processedIds.add(widgetId)
 
     merged.push({
       id: widgetId,
       transformerPlugin: transformConfig.plugin,
-      widgetPlugin: exportConfig?.plugin || 'bar_plot', // Default widget
+      widgetPlugin: exportConfig?.plugin || 'bar_plot',
       title: exportConfig?.title || widgetId.replace(/_/g, ' '),
       description: exportConfig?.description,
       dataSource: widgetId,
       transformerParams: transformConfig.params,
       widgetParams: exportConfig?.params || {},
       category: exportConfig ? getWidgetCategory(exportConfig.plugin) : 'chart'
+    })
+  }
+
+  // Then add any widgets in transform.yml but not yet in export.yml
+  transformWidgets.forEach((transformConfig, widgetId) => {
+    if (processedIds.has(widgetId)) return
+
+    merged.push({
+      id: widgetId,
+      transformerPlugin: transformConfig.plugin,
+      widgetPlugin: 'bar_plot',
+      title: widgetId.replace(/_/g, ' '),
+      description: undefined,
+      dataSource: widgetId,
+      transformerParams: transformConfig.params,
+      widgetParams: {},
+      category: 'chart'
     })
   })
 
@@ -237,7 +274,9 @@ export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
     if (!transformData) return []
 
     const transformWidgets = parseTransformWidgets(transformData, groupBy)
-    const exportWidgets = exportData ? parseExportWidgets(exportData, groupBy) : new Map()
+    const exportWidgets = exportData
+      ? parseExportWidgets(exportData, groupBy)
+      : { map: new Map<string, ExportWidgetConfig>(), order: [] }
 
     return mergeWidgetData(transformWidgets, exportWidgets)
   }, [transformData, exportData, groupBy])
@@ -418,6 +457,29 @@ export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
     }
   }, [configuredWidgets, groupBy, fetchConfigs])
 
+  // Reorder widgets in export.yml
+  const reorderWidgets = useCallback(async (widgetIds: string[]): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/recipes/${groupBy}/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ widget_ids: widgetIds })
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.detail || 'Failed to reorder widgets')
+      }
+
+      // Refetch to sync state
+      await fetchConfigs()
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      return false
+    }
+  }, [groupBy, fetchConfigs])
+
   return {
     configuredWidgets,
     loading,
@@ -425,6 +487,7 @@ export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
     updateWidget,
     deleteWidget,
     duplicateWidget,
+    reorderWidgets,
     refetch: fetchConfigs
   }
 }

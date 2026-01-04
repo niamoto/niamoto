@@ -312,6 +312,10 @@ async def update_layout(group_by: str, request: LayoutUpdateRequest):
 
                 widgets_updated += 1
 
+        # Reorder widgets array to match the order property
+        # This ensures consistency between LayoutEditor and ConfiguredWidgetsList
+        widgets.sort(key=lambda w: w.get("layout", {}).get("order", 999))
+
         # Save updated config
         export_config["exports"][export_idx]["groups"][group_idx]["widgets"] = widgets
         _save_export_config(work_dir, export_config)
