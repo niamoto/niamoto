@@ -24,6 +24,7 @@ from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.utils.database import open_database
 from niamoto.common.database import Database
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
+from niamoto.gui.api.services.preview_service import PreviewService
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +86,9 @@ _ensure_plugins_loaded()
 class SourceInfo(BaseModel):
     """Information about an available data source."""
 
-    type: str  # "occurrences", "csv_stats", "csv_direct"
-    name: Optional[str] = None  # source name for csv_stats/csv_direct
+    type: str  # "reference", "dataset", "csv_stats"
+    name: str  # source name (taxons, occurrences, etc.)
+    table_name: Optional[str] = None  # actual DuckDB table name
     columns: list[str] = Field(default_factory=list)
     transformers: list[str] = Field(default_factory=list)
 
@@ -96,6 +98,23 @@ class SourcesResponse(BaseModel):
 
     group_by: str
     sources: list[SourceInfo]
+
+
+class ColumnNode(BaseModel):
+    """A column or nested field in the tree structure."""
+
+    name: str  # Column name or field name
+    path: str  # Full path (e.g., "extra_data.taxon_type")
+    type: str  # Data type (string, number, boolean, object, array)
+    children: list["ColumnNode"] = Field(default_factory=list)  # Nested fields for JSON
+
+
+class SourceColumnsResponse(BaseModel):
+    """Response with column tree structure for a source."""
+
+    source_name: str
+    table_name: Optional[str] = None
+    columns: list[ColumnNode]
 
 
 class ParamSchema(BaseModel):
@@ -120,6 +139,11 @@ class ParamSchema(BaseModel):
     ui_max: Optional[float] = None  # Max value for number inputs
     ui_step: Optional[float] = None  # Step for number inputs
     ui_item_widget: Optional[str] = None  # Widget type for array items
+    ui_transform_schemas: Optional[dict[str, Any]] = (
+        None  # Conditional schemas for transform_params
+    )
+    ui_group: Optional[str] = None  # Group name for organizing params
+    ui_order: Optional[int] = None  # Order within group (lower = first)
 
 
 class TransformerSchema(BaseModel):
@@ -139,6 +163,14 @@ class WidgetSchema(BaseModel):
     description: str
     params: dict[str, ParamSchema]
     compatible_transformers: list[str] = Field(default_factory=list)
+
+
+class WidgetInfo(BaseModel):
+    """Basic info for a widget plugin."""
+
+    name: str
+    label: str
+    description: str
 
 
 class TransformerConfig(BaseModel):
@@ -339,9 +371,18 @@ def _get_all_sources(
     """Get all sources from transform.yml for a group.
 
     Uses EntityRegistry to resolve entity names to table names and get columns.
+    Also includes the reference table for the group (e.g., taxons -> entity_taxons).
     """
     config = _load_transform_config(work_dir)
     sources = []
+    added_sources = set()  # Track added source names to avoid duplicates
+
+    # First, add the reference table for the group itself
+    if db:
+        ref_info = _get_reference_source(db, group_by)
+        if ref_info:
+            sources.append(ref_info)
+            added_sources.add(ref_info.name)
 
     for group in config:
         if group.get("group_by") != group_by:
@@ -350,6 +391,10 @@ def _get_all_sources(
         for source in group.get("sources", []):
             data_path = source.get("data", "")
             source_name = source.get("name", "unknown")
+
+            # Skip if already added (e.g., reference table)
+            if source_name in added_sources:
+                continue
 
             # CSV source
             if data_path.endswith(".csv"):
@@ -360,29 +405,77 @@ def _get_all_sources(
                     SourceInfo(
                         type="csv_stats",
                         name=source_name,
+                        table_name=None,
                         columns=columns,
                         transformers=_get_class_object_transformers(),
                     )
                 )
+                added_sources.add(source_name)
             # Table/Entity source - resolve via EntityRegistry
             elif data_path and db:
                 # data_path can be entity name (e.g., "occurrences") or table name
                 # Try EntityRegistry first, then fall back to direct table query
-                columns = _get_entity_columns(db, data_path)
+                table_name = None
+                columns = []
+
+                try:
+                    if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                        registry = EntityRegistry(db)
+                        try:
+                            metadata = registry.get(data_path)
+                            table_name = metadata.table_name
+                            columns = _get_table_columns(db, table_name)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
                 if not columns:
                     # Fallback: try as direct table name
                     columns = _get_table_columns(db, data_path)
+                    table_name = data_path
 
                 sources.append(
                     SourceInfo(
                         type="dataset",
                         name=source_name,
+                        table_name=table_name,
                         columns=columns,
                         transformers=_get_occurrence_transformers(),
                     )
                 )
+                added_sources.add(source_name)
 
     return sources
+
+
+def _get_reference_source(db: Database, group_by: str) -> Optional[SourceInfo]:
+    """Get the reference table source for a group.
+
+    For group_by='taxons', returns the entity_taxons reference table.
+    """
+    try:
+        if not db.has_table(EntityRegistry.ENTITIES_TABLE):
+            return None
+
+        registry = EntityRegistry(db)
+        try:
+            metadata = registry.get(group_by)
+            if metadata.kind == EntityKind.REFERENCE:
+                columns = _get_table_columns(db, metadata.table_name)
+                return SourceInfo(
+                    type="reference",
+                    name=group_by,
+                    table_name=metadata.table_name,
+                    columns=columns,
+                    transformers=_get_occurrence_transformers(),
+                )
+        except Exception:
+            pass
+        return None
+    except Exception as e:
+        logger.warning(f"Could not get reference source for {group_by}: {e}")
+        return None
 
 
 def _get_occurrence_transformers() -> list[str]:
@@ -579,6 +672,22 @@ def _extract_param_schema(
                 # Also check for nested properties in anyOf
                 if "items" in option:
                     prop_info["items"] = option["items"]
+                # Copy ui metadata from anyOf option to prop_info
+                for key in [
+                    "ui:widget",
+                    "ui:item-widget",
+                    "ui:depends",
+                    "ui:condition",
+                    "ui:options",
+                    "ui:min",
+                    "ui:max",
+                    "ui:step",
+                    "ui:transform_schemas",
+                    "ui:group",
+                    "ui:order",
+                ]:
+                    if key in option and key not in prop_info:
+                        prop_info[key] = option[key]
                 break
 
     # Extract array item type
@@ -611,6 +720,9 @@ def _extract_param_schema(
         ui_max=prop_info.get("ui:max"),
         ui_step=prop_info.get("ui:step"),
         ui_item_widget=prop_info.get("ui:item-widget"),
+        ui_transform_schemas=prop_info.get("ui:transform_schemas"),
+        ui_group=prop_info.get("ui:group"),
+        ui_order=prop_info.get("ui:order"),
     )
 
 
@@ -746,12 +858,13 @@ async def get_available_sources(group_by: str):
 
             # If no sources found in transform.yml, add all dataset entities
             if not sources:
-                for entity_name, table_name, columns in _get_all_dataset_entities(db):
+                for entity_name, tbl_name, columns in _get_all_dataset_entities(db):
                     if columns:
                         sources.append(
                             SourceInfo(
                                 type="dataset",
                                 name=entity_name,
+                                table_name=tbl_name,
                                 columns=columns,
                                 transformers=_get_occurrence_transformers(),
                             )
@@ -762,6 +875,169 @@ async def get_available_sources(group_by: str):
     except Exception as e:
         logger.exception(f"Error getting sources: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting sources: {str(e)}")
+
+
+@router.get(
+    "/sources/{group_by}/{source_name}/columns", response_model=SourceColumnsResponse
+)
+async def get_source_columns(group_by: str, source_name: str):
+    """
+    Get columns for a specific source with tree structure for JSON fields.
+
+    Returns columns organized as a tree where JSON columns (like extra_data)
+    are expandable to show their nested fields.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    work_dir = Path(work_dir)
+    db_path = get_database_path()
+
+    if not db_path or not Path(db_path).exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path, read_only=True) as db:
+            # First, find the source in the available sources
+            sources = _get_all_sources(work_dir, group_by, db)
+            source_info = next((s for s in sources if s.name == source_name), None)
+
+            if not source_info:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Source '{source_name}' not found for group '{group_by}'",
+                )
+
+            # Build column tree
+            columns = _build_column_tree(db, source_info)
+
+            return SourceColumnsResponse(
+                source_name=source_name,
+                table_name=source_info.table_name,
+                columns=columns,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting source columns: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error getting source columns: {str(e)}"
+        )
+
+
+def _build_column_tree(db: Database, source_info: SourceInfo) -> list[ColumnNode]:
+    """Build a tree structure of columns, expanding JSON fields."""
+    columns = []
+
+    if not source_info.table_name:
+        # CSV source - flat columns only
+        for col in source_info.columns:
+            columns.append(ColumnNode(name=col, path=col, type="string", children=[]))
+        return columns
+
+    # Get column types from database
+    try:
+        schema_sql = f"DESCRIBE {source_info.table_name}"
+        result = db.execute_sql(schema_sql, fetch=True)
+
+        if result:
+            for row in result if isinstance(result, list) else [result]:
+                col_name = (
+                    row[0]
+                    if isinstance(row, (list, tuple))
+                    else row.get("column_name", "")
+                )
+                col_type = (
+                    row[1]
+                    if isinstance(row, (list, tuple))
+                    else row.get("column_type", "")
+                )
+
+                # Check if this is a JSON column by sampling data
+                if "JSON" in col_type.upper() or "STRUCT" in col_type.upper():
+                    children = _extract_json_fields(
+                        db, source_info.table_name, col_name
+                    )
+                    columns.append(
+                        ColumnNode(
+                            name=col_name,
+                            path=col_name,
+                            type="object",
+                            children=children,
+                        )
+                    )
+                else:
+                    columns.append(
+                        ColumnNode(
+                            name=col_name,
+                            path=col_name,
+                            type=_map_db_type(col_type),
+                            children=[],
+                        )
+                    )
+    except Exception as e:
+        logger.warning(f"Could not get column types: {e}")
+        # Fallback to flat list
+        for col in source_info.columns:
+            columns.append(ColumnNode(name=col, path=col, type="string", children=[]))
+
+    return columns
+
+
+def _extract_json_fields(
+    db: Database, table_name: str, json_column: str
+) -> list[ColumnNode]:
+    """Extract nested field names from a JSON column by sampling data."""
+    children = []
+    seen_keys = set()
+
+    try:
+        # Sample some rows to discover JSON keys
+        sample_sql = f"""
+            SELECT DISTINCT json_keys({json_column}) as keys
+            FROM {table_name}
+            WHERE {json_column} IS NOT NULL
+            LIMIT 100
+        """
+        result = db.execute_sql(sample_sql, fetch=True)
+
+        if result:
+            for row in result if isinstance(result, list) else [result]:
+                keys = row[0] if isinstance(row, (list, tuple)) else row.get("keys", [])
+                if keys:
+                    for key in keys:
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            children.append(
+                                ColumnNode(
+                                    name=key,
+                                    path=f"{json_column}.{key}",
+                                    type="string",  # Default to string
+                                    children=[],
+                                )
+                            )
+    except Exception as e:
+        logger.warning(f"Could not extract JSON fields from {json_column}: {e}")
+
+    return sorted(children, key=lambda x: x.name)
+
+
+def _map_db_type(db_type: str) -> str:
+    """Map DuckDB types to simple type names."""
+    db_type = db_type.upper()
+    if "INT" in db_type or "BIGINT" in db_type:
+        return "number"
+    if "FLOAT" in db_type or "DOUBLE" in db_type or "DECIMAL" in db_type:
+        return "number"
+    if "BOOL" in db_type:
+        return "boolean"
+    if "JSON" in db_type or "STRUCT" in db_type or "MAP" in db_type:
+        return "object"
+    if "LIST" in db_type or "ARRAY" in db_type:
+        return "array"
+    return "string"
 
 
 @router.get("/transformer-schema/{plugin_name}", response_model=TransformerSchema)
@@ -804,12 +1080,49 @@ async def get_widget_schema(plugin_name: str):
     return schema
 
 
-@router.get("/widgets", response_model=list[str])
+def _extract_widget_label(name: str, plugin_class: type) -> str:
+    """Extract a human-readable label from a widget class."""
+    # Try to get label from docstring's first line
+    if plugin_class.__doc__:
+        first_line = plugin_class.__doc__.strip().split("\n")[0]
+        # Clean up common patterns like "Widget to display a..."
+        if first_line.lower().startswith("widget to display"):
+            label = first_line[17:].strip()  # Remove "Widget to display"
+            if label.startswith("a "):
+                label = label[2:]
+            elif label.startswith("an "):
+                label = label[3:]
+            # Capitalize first letter
+            label = label[0].upper() + label[1:] if label else name
+            # Remove trailing period
+            label = label.rstrip(".")
+            return label
+    # Fallback: convert snake_case to Title Case
+    return name.replace("_", " ").title()
+
+
+def _extract_widget_description(name: str, plugin_class: type) -> str:
+    """Extract description from a widget class."""
+    if plugin_class.__doc__:
+        return plugin_class.__doc__.strip().split("\n")[0].rstrip(".")
+    return f"Widget {name}"
+
+
+@router.get("/widgets", response_model=list[WidgetInfo])
 async def list_widgets():
-    """List all available widget plugins."""
+    """List all available widget plugins with labels and descriptions."""
     try:
         plugins = PluginRegistry.get_plugins_by_type(PluginType.WIDGET)
-        return list(plugins.keys())
+        result = []
+        for name, plugin_class in sorted(plugins.items()):
+            result.append(
+                WidgetInfo(
+                    name=name,
+                    label=_extract_widget_label(name, plugin_class),
+                    description=_extract_widget_description(name, plugin_class),
+                )
+            )
+        return result
     except Exception as e:
         logger.exception(f"Error listing widgets: {e}")
         return []
@@ -1060,374 +1373,6 @@ class PreviewRecipeRequest(BaseModel):
     recipe: WidgetRecipe
 
 
-def _wrap_preview_html(content: str, title: str = "Preview") -> str:
-    """Wrap widget HTML in a complete HTML document for iframe display."""
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{title}</title>
-    <style>
-        html, body {{
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, sans-serif;
-            background: transparent;
-        }}
-        .plotly-graph-div {{
-            width: 100% !important;
-            height: 100% !important;
-        }}
-        .error {{
-            color: #ef4444;
-            padding: 1rem;
-            text-align: center;
-        }}
-        .info {{
-            color: #6b7280;
-            padding: 1rem;
-            text-align: center;
-        }}
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/plotly.js@2.35.0/dist/plotly.min.js"></script>
-</head>
-<body>
-{content}
-</body>
-</html>"""
-
-
-def _build_widget_params(
-    transformer: str,
-    widget: str,
-    data: dict[str, Any],
-    title: str,
-    extra_params: Optional[dict[str, Any]] = None,
-) -> dict[str, Any]:
-    """Build widget parameters based on transformer output and widget type."""
-    params: dict[str, Any] = {"title": title}
-
-    # Merge extra params first (from recipe)
-    if extra_params:
-        params.update(extra_params)
-
-    # Add default params based on widget type
-    if widget == "bar_plot":
-        if "x_axis" not in params:
-            # Try to infer from data keys
-            if "tops" in data:
-                params.setdefault("x_axis", "counts")
-                params.setdefault("y_axis", "tops")
-                params.setdefault("orientation", "h")
-            elif "labels" in data:
-                params.setdefault("x_axis", "labels")
-                params.setdefault("y_axis", "counts")
-                params.setdefault("orientation", "v")
-        params.setdefault("auto_color", True)
-
-    elif widget == "donut_chart":
-        params.setdefault("labels_field", "labels")
-        params.setdefault("values_field", "counts")
-
-    elif widget == "radial_gauge":
-        params.setdefault("stat_to_display", "mean")
-        params.setdefault("show_range", True)
-        params.setdefault("auto_range", True)
-
-    elif widget == "info_grid":
-        pass  # info_grid uses data directly
-
-    elif widget == "interactive_map":
-        params.setdefault("map_style", "carto-voyager")
-        params.setdefault("zoom", 7)
-
-    return params
-
-
-def _render_widget(
-    db: Optional[Database],
-    widget_name: str,
-    data: dict[str, Any],
-    transformer: str,
-    title: str,
-    extra_params: Optional[dict[str, Any]] = None,
-) -> str:
-    """Render a widget with the given data."""
-    try:
-        plugin_class = PluginRegistry.get_plugin(widget_name, PluginType.WIDGET)
-        plugin_instance = plugin_class(db=db)
-
-        # Build widget params
-        widget_params = _build_widget_params(
-            transformer, widget_name, data, title, extra_params
-        )
-
-        # Validate params if the plugin has a param_schema
-        if hasattr(plugin_instance, "param_schema") and plugin_instance.param_schema:
-            validated_params = plugin_instance.param_schema.model_validate(
-                widget_params
-            )
-        else:
-            validated_params = widget_params
-
-        return plugin_instance.render(data, validated_params)
-    except Exception as e:
-        logger.exception(f"Error rendering widget '{widget_name}': {e}")
-        return f"<p class='error'>Widget render error: {str(e)}</p>"
-
-
-def _load_csv_data(
-    csv_path: Path, class_object_name: Optional[str] = None
-) -> dict[str, Any]:
-    """Load data from a CSV file, optionally filtering by class_object column."""
-    import pandas as pd
-
-    try:
-        # Detect delimiter
-        with open(csv_path, "r", encoding="utf-8") as f:
-            first_line = f.readline()
-            delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
-
-        df = pd.read_csv(csv_path, delimiter=delimiter)
-
-        # If class_object specified, try to find matching row
-        if class_object_name and "class_object" in df.columns:
-            matching = df[df["class_object"] == class_object_name]
-            if not matching.empty:
-                row = matching.iloc[0]
-                # Parse JSON columns if present
-                result = {}
-                for col in df.columns:
-                    val = row[col]
-                    if isinstance(val, str) and (
-                        val.startswith("{") or val.startswith("[")
-                    ):
-                        try:
-                            import json
-
-                            result[col] = json.loads(val)
-                        except (json.JSONDecodeError, ValueError):
-                            result[col] = val
-                    else:
-                        result[col] = val
-                return result
-
-        # Return first row as sample
-        if not df.empty:
-            row = df.iloc[0]
-            result = {}
-            for col in df.columns:
-                val = row[col]
-                if isinstance(val, str) and (
-                    val.startswith("{") or val.startswith("[")
-                ):
-                    try:
-                        import json
-
-                        result[col] = json.loads(val)
-                    except (json.JSONDecodeError, ValueError):
-                        result[col] = val
-                else:
-                    result[col] = val
-            return result
-
-        return {}
-    except Exception as e:
-        logger.warning(f"Error loading CSV {csv_path}: {e}")
-        return {}
-
-
-def _get_csv_path_for_source(
-    work_dir: Path, group_by: str, source_name: str
-) -> Optional[Path]:
-    """Get CSV path for a source name from transform.yml."""
-    config = _load_transform_config(work_dir)
-
-    for group in config:
-        if group.get("group_by") != group_by:
-            continue
-        for source in group.get("sources", []):
-            if source.get("name") == source_name:
-                data_path = source.get("data", "")
-                if data_path.endswith(".csv"):
-                    return work_dir / data_path
-    return None
-
-
-def _load_import_config(work_dir: Path) -> dict[str, Any]:
-    """Load import.yml configuration."""
-    import_path = work_dir / "config" / "import.yml"
-    if not import_path.exists():
-        return {}
-    with open(import_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
-
-
-def _get_hierarchy_info(
-    import_config: dict, group_by: Optional[str] = None
-) -> dict[str, Any]:
-    """Extract hierarchy info from import config."""
-    # Find reference that matches group_by
-    for ref in import_config.get("references", []):
-        ref_name = ref.get("name", "")
-        if group_by and ref_name == group_by:
-            return {
-                "reference_name": ref_name,
-                "table_name": ref.get("data", "").replace("dataset_", "") or ref_name,
-                "id_field": ref.get("identifier", "id"),
-                "parent_field": ref.get("hierarchy", {}).get(
-                    "parent_field", "id_parent"
-                ),
-            }
-
-    # Fallback to first hierarchical reference
-    for ref in import_config.get("references", []):
-        if ref.get("hierarchy"):
-            return {
-                "reference_name": ref.get("name"),
-                "table_name": ref.get("data", "").replace("dataset_", "")
-                or ref.get("name"),
-                "id_field": ref.get("identifier", "id"),
-                "parent_field": ref.get("hierarchy", {}).get(
-                    "parent_field", "id_parent"
-                ),
-            }
-
-    return {
-        "reference_name": "taxon",
-        "table_name": "taxon",
-        "id_field": "id",
-        "parent_field": "id_parent",
-    }
-
-
-def _load_sample_occurrences(db, hierarchy_info: dict, config: dict) -> Any:
-    """Load sample occurrence data for preview."""
-    import pandas as pd
-
-    table_name = hierarchy_info["table_name"]
-    id_field = hierarchy_info["id_field"]
-
-    # Find a representative entity with occurrences
-    try:
-        # Get an entity that has associated occurrences
-        query = f"""
-            SELECT DISTINCT t.{id_field}
-            FROM {table_name} t
-            JOIN occurrences o ON o.taxon_ref_id = t.{id_field}
-            LIMIT 1
-        """
-        result = db.execute_sql(query)
-        if not result:
-            return pd.DataFrame()
-
-        entity_id = result[0][0]
-
-        # Load occurrences for this entity
-        occ_query = f"""
-            SELECT * FROM occurrences
-            WHERE taxon_ref_id = {entity_id}
-            LIMIT 100
-        """
-        return pd.read_sql(occ_query, db.engine)
-    except Exception as e:
-        logger.warning(f"Error loading sample occurrences: {e}")
-        return pd.DataFrame()
-
-
-def _preview_with_db(
-    db,
-    work_dir: Path,
-    group_by: str,
-    transformer_plugin: str,
-    transformer_params: dict,
-    widget_plugin: str,
-    widget_params: dict,
-    widget_title: str,
-) -> str:
-    """Execute preview with database connection."""
-    # Check if this is a class_object-based transformer (CSV data)
-    if transformer_plugin.startswith("class_object_"):
-        # Get source name from params
-        source_name = transformer_params.get("source", "")
-        class_object_name = transformer_params.get("class_object")
-
-        # Find CSV file for this source
-        csv_path = _get_csv_path_for_source(work_dir, group_by, source_name)
-
-        if not csv_path or not csv_path.exists():
-            return _wrap_preview_html(
-                f"<p class='info'>Source CSV '{source_name}' not found</p>"
-            )
-
-        # Load data from CSV
-        csv_data = _load_csv_data(csv_path, class_object_name)
-
-        if not csv_data:
-            return _wrap_preview_html("<p class='info'>No data found in CSV source</p>")
-
-        # Execute transformer
-        transformer_cls = PluginRegistry.get_plugin(
-            transformer_plugin, PluginType.TRANSFORMER
-        )
-        transformer_instance = transformer_cls(db=db, config=transformer_params)
-
-        # For class_object transformers, pass the CSV data as a dict
-        result = transformer_instance.transform(csv_data)
-
-        if not result:
-            return _wrap_preview_html(
-                "<p class='info'>Transformer returned no data</p>"
-            )
-
-        # Render widget
-        widget_html = _render_widget(
-            db, widget_plugin, result, transformer_plugin, widget_title, widget_params
-        )
-
-        return _wrap_preview_html(widget_html, title=widget_title)
-
-    else:
-        # Standard occurrence-based transformer
-        if not db:
-            return _wrap_preview_html("<p class='error'>Database not found</p>")
-
-        # Load import config for hierarchy info
-        import_config = _load_import_config(work_dir)
-        hierarchy_info = _get_hierarchy_info(import_config, group_by)
-
-        # Load sample data
-        sample_data = _load_sample_occurrences(db, hierarchy_info, transformer_params)
-
-        if sample_data.empty:
-            return _wrap_preview_html(
-                "<p class='info'>No occurrence data available for preview</p>"
-            )
-
-        # Execute transformer
-        transformer_cls = PluginRegistry.get_plugin(
-            transformer_plugin, PluginType.TRANSFORMER
-        )
-        transformer_instance = transformer_cls(db=db, config=transformer_params)
-        result = transformer_instance.transform(sample_data)
-
-        if not result:
-            return _wrap_preview_html(
-                "<p class='info'>Transformer returned no data</p>"
-            )
-
-        # Render widget
-        widget_html = _render_widget(
-            db, widget_plugin, result, transformer_plugin, widget_title, widget_params
-        )
-
-        return _wrap_preview_html(widget_html, title=widget_title)
-
-
 @router.post("/preview", response_class=HTMLResponse)
 async def preview_recipe(request: PreviewRecipeRequest):
     """
@@ -1439,7 +1384,7 @@ async def preview_recipe(request: PreviewRecipeRequest):
     work_dir = get_working_directory()
     if not work_dir:
         return HTMLResponse(
-            content=_wrap_preview_html(
+            content=PreviewService.wrap_html_response(
                 "<p class='error'>Working directory not configured</p>"
             ),
             status_code=500,
@@ -1460,7 +1405,7 @@ async def preview_recipe(request: PreviewRecipeRequest):
         PluginRegistry.get_plugin(transformer_plugin, PluginType.TRANSFORMER)
     except Exception:
         return HTMLResponse(
-            content=_wrap_preview_html(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Transformer '{transformer_plugin}' not found</p>"
             ),
             status_code=400,
@@ -1470,7 +1415,7 @@ async def preview_recipe(request: PreviewRecipeRequest):
         PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
     except Exception:
         return HTMLResponse(
-            content=_wrap_preview_html(
+            content=PreviewService.wrap_html_response(
                 f"<p class='error'>Widget '{widget_plugin}' not found</p>"
             ),
             status_code=400,
@@ -1479,7 +1424,7 @@ async def preview_recipe(request: PreviewRecipeRequest):
     db_path = get_database_path()
     if not db_path:
         return HTMLResponse(
-            content=_wrap_preview_html(
+            content=PreviewService.wrap_html_response(
                 "<p class='error'>Database path not configured</p>"
             ),
             status_code=500,
@@ -1487,21 +1432,23 @@ async def preview_recipe(request: PreviewRecipeRequest):
 
     try:
         with open_database(db_path, read_only=True) as db:
-            html_content = _preview_with_db(
-                db,
-                work_dir,
-                group_by,
-                transformer_plugin,
-                transformer_params,
-                widget_plugin,
-                widget_params,
-                widget_title,
+            html_content = PreviewService.generate_preview(
+                db=db,
+                work_dir=work_dir,
+                group_by=group_by,
+                transformer_plugin=transformer_plugin,
+                transformer_params=transformer_params,
+                widget_plugin=widget_plugin,
+                widget_params=widget_params,
+                widget_title=widget_title,
             )
             return HTMLResponse(content=html_content)
 
     except Exception as e:
         logger.exception(f"Error previewing recipe: {e}")
         return HTMLResponse(
-            content=_wrap_preview_html(f"<p class='error'>Preview error: {str(e)}</p>"),
+            content=PreviewService.wrap_html_response(
+                f"<p class='error'>Preview error: {str(e)}</p>"
+            ),
             status_code=500,
         )
