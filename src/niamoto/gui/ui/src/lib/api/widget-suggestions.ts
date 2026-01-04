@@ -205,3 +205,315 @@ export function useClassObjectSuggestions(groupBy: string, sourceName?: string) 
     refetch: fetchSuggestions,
   }
 }
+
+// =============================================================================
+// MULTI-FIELD COMBINED WIDGET SUGGESTIONS
+// =============================================================================
+
+/**
+ * Multi-field pattern types
+ */
+export type MultiFieldPatternType =
+  | 'phenology'
+  | 'allometry'
+  | 'temporal_series'
+  | 'categorical_comparison'
+  | 'boolean_comparison'
+  | 'numeric_correlation'
+  | 'trait_comparison'
+
+/**
+ * A combined widget suggestion for multiple fields
+ */
+export interface CombinedWidgetSuggestion {
+  pattern_type: MultiFieldPatternType
+  name: string
+  description: string
+  fields: string[]
+  field_roles: Record<string, string>
+  confidence: number
+  is_recommended: boolean
+  transformer_config: Record<string, unknown>
+  widget_config: Record<string, unknown>
+}
+
+/**
+ * Semantic group detected proactively
+ */
+export interface SemanticGroup {
+  group_name: string
+  display_name: string
+  description: string
+  fields: string[]
+  pattern_type: MultiFieldPatternType
+}
+
+/**
+ * Response from combined-suggestions endpoint
+ */
+export interface CombinedWidgetResponse {
+  suggestions: CombinedWidgetSuggestion[]
+  semantic_groups: SemanticGroup[]
+}
+
+/**
+ * Response from semantic-groups endpoint
+ */
+export interface SemanticGroupsResponse {
+  groups: SemanticGroup[]
+}
+
+/**
+ * Multi-field pattern display info
+ * icon: Lucide icon name (see PATTERN_ICONS in CombinedWidgetModal)
+ */
+export const PATTERN_INFO: Record<
+  MultiFieldPatternType,
+  { label: string; description: string; icon: string; color: string }
+> = {
+  phenology: {
+    label: 'Phénologie',
+    description: 'Distribution temporelle des états (floraison, fructification)',
+    icon: 'Flower2',
+    color: 'text-pink-600',
+  },
+  allometry: {
+    label: 'Allométrie',
+    description: 'Relation entre dimensions (diamètre, hauteur)',
+    icon: 'Ruler',
+    color: 'text-blue-600',
+  },
+  temporal_series: {
+    label: 'Série temporelle',
+    description: 'Évolution de mesures dans le temps',
+    icon: 'TrendingUp',
+    color: 'text-green-600',
+  },
+  categorical_comparison: {
+    label: 'Comparaison catégorielle',
+    description: 'Comparaison de plusieurs catégories',
+    icon: 'BarChart3',
+    color: 'text-purple-600',
+  },
+  boolean_comparison: {
+    label: 'Comparaison d\'états',
+    description: 'Comparaison de variables booléennes',
+    icon: 'ToggleLeft',
+    color: 'text-amber-600',
+  },
+  numeric_correlation: {
+    label: 'Corrélation',
+    description: 'Relation entre deux variables numériques',
+    icon: 'GitCompareArrows',
+    color: 'text-teal-600',
+  },
+  trait_comparison: {
+    label: 'Traits fonctionnels',
+    description: 'Comparaison de traits écologiques (feuilles, bois, écorce)',
+    icon: 'Leaf',
+    color: 'text-emerald-600',
+  },
+}
+
+/**
+ * Fetch combined widget suggestions for selected fields
+ */
+export async function getCombinedWidgetSuggestions(
+  referenceName: string,
+  selectedFields: string[],
+  sourceName: string = 'occurrences'
+): Promise<CombinedWidgetResponse> {
+  const response = await apiClient.post(
+    `/templates/${referenceName}/combined-suggestions`,
+    {
+      selected_fields: selectedFields,
+      source_name: sourceName,
+    }
+  )
+  return response.data
+}
+
+/**
+ * Fetch semantic groups for proactive suggestions
+ */
+export async function getSemanticGroups(
+  referenceName: string,
+  entity: string = 'occurrences'
+): Promise<SemanticGroupsResponse> {
+  const response = await apiClient.get(
+    `/templates/${referenceName}/semantic-groups?entity=${encodeURIComponent(entity)}`
+  )
+  return response.data
+}
+
+/**
+ * Hook for combined widget suggestions
+ */
+export function useCombinedWidgetSuggestions(
+  referenceName: string,
+  selectedFields: string[],
+  sourceName: string = 'occurrences'
+) {
+  const [data, setData] = useState<CombinedWidgetResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchSuggestions = useCallback(async () => {
+    if (!referenceName || selectedFields.length < 2) {
+      setData(null)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await getCombinedWidgetSuggestions(
+        referenceName,
+        selectedFields,
+        sourceName
+      )
+      setData(response)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur lors du chargement'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [referenceName, selectedFields, sourceName])
+
+  return {
+    data,
+    suggestions: data?.suggestions ?? [],
+    semanticGroups: data?.semantic_groups ?? [],
+    loading,
+    error,
+    fetchSuggestions,
+  }
+}
+
+/**
+ * Hook for semantic groups (proactive detection)
+ */
+export function useSemanticGroups(referenceName: string, entity: string = 'occurrences') {
+  const [data, setData] = useState<SemanticGroupsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchGroups = useCallback(async () => {
+    if (!referenceName) {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await getSemanticGroups(referenceName, entity)
+      setData(response)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur lors du chargement'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }, [referenceName, entity])
+
+  useEffect(() => {
+    fetchGroups()
+  }, [fetchGroups])
+
+  return {
+    groups: data?.groups ?? [],
+    loading,
+    error,
+    refetch: fetchGroups,
+  }
+}
+
+// =============================================================================
+// SAVE COMBINED WIDGET
+// =============================================================================
+
+/**
+ * Request to save a combined widget recipe
+ */
+export interface SaveCombinedWidgetRequest {
+  group_by: string
+  recipe: {
+    widget_id: string
+    transformer: {
+      plugin: string
+      params: Record<string, unknown>
+    }
+    widget: {
+      plugin: string
+      title: string
+      params: Record<string, unknown>
+      layout: {
+        colspan: number
+        order: number
+      }
+    }
+  }
+}
+
+/**
+ * Response after saving a combined widget
+ */
+export interface SaveCombinedWidgetResponse {
+  success: boolean
+  message: string
+  widget_id: string
+  data_source_id: string
+}
+
+/**
+ * Save a combined widget recipe to transform.yml and export.yml
+ */
+export async function saveCombinedWidget(
+  request: SaveCombinedWidgetRequest
+): Promise<SaveCombinedWidgetResponse> {
+  const response = await apiClient.post('/recipes/save', request)
+  return response.data
+}
+
+/**
+ * Convert combined widget modal output to API request format
+ */
+export function createCombinedWidgetRequest(
+  groupBy: string,
+  config: {
+    pattern_type: string
+    name: string
+    fields: string[]
+    transformer: { plugin: string; params: Record<string, unknown> }
+    widget: { plugin: string; params: Record<string, unknown> }
+  },
+  existingWidgetCount: number = 0
+): SaveCombinedWidgetRequest {
+  // Generate a unique widget ID from the pattern and fields
+  const fieldsSuffix = config.fields.slice(0, 2).join('_').replace(/[^a-z0-9_]/gi, '_')
+  const widgetId = `${config.pattern_type}_${fieldsSuffix}`.toLowerCase()
+
+  return {
+    group_by: groupBy,
+    recipe: {
+      widget_id: widgetId,
+      transformer: {
+        plugin: config.transformer.plugin,
+        params: config.transformer.params,
+      },
+      widget: {
+        plugin: config.widget.plugin,
+        title: config.name,
+        params: config.widget.params,
+        layout: {
+          colspan: 1,
+          order: existingWidgetCount, // Add at the end
+        },
+      },
+    },
+  }
+}

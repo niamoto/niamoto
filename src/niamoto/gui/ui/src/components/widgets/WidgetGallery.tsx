@@ -12,13 +12,40 @@ import {
   FileSpreadsheet,
   ChevronDown,
   ChevronRight,
+  Combine,
+  X,
+  Flower2,
+  Ruler,
+  TrendingUp,
+  BarChart3,
+  ToggleLeft,
+  GitCompareArrows,
+  Leaf,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { FieldGroup } from './FieldGroup'
+import { CombinedWidgetModal } from './CombinedWidgetModal'
 import type { TemplateSuggestion, WidgetCategory } from './types'
 import { CATEGORY_INFO, groupSuggestionsByField } from './types'
+import {
+  useSemanticGroups,
+  PATTERN_INFO,
+  type SemanticGroup,
+} from '@/lib/api/widget-suggestions'
+
+// Mapping from icon name to Lucide component
+const PATTERN_ICONS: Record<string, LucideIcon> = {
+  Flower2,
+  Ruler,
+  TrendingUp,
+  BarChart3,
+  ToggleLeft,
+  GitCompareArrows,
+  Leaf,
+}
 
 // Source filter type - 'all' or actual source_name
 type SourceFilter = string
@@ -32,6 +59,8 @@ interface WidgetGalleryProps {
   onSelectAll: () => void
   onDeselectAll: () => void
   className?: string
+  // Callback when a combined widget configuration is generated
+  onAddCombinedWidget?: (config: Record<string, unknown>) => void
 }
 
 export function WidgetGallery({
@@ -43,11 +72,21 @@ export function WidgetGallery({
   onSelectAll,
   onDeselectAll,
   className,
+  onAddCombinedWidget,
 }: WidgetGalleryProps) {
   const [activeCategory, setActiveCategory] = useState<WidgetCategory | 'all'>('all')
   const [activeSource, setActiveSource] = useState<SourceFilter>('all')
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
   const [allExpanded, setAllExpanded] = useState(true)
+
+  // Multi-field selection state
+  const [fieldSelectionMode, setFieldSelectionMode] = useState(false)
+  const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set())
+  const [showCombinedModal, setShowCombinedModal] = useState(false)
+  const [showSemanticGroups, setShowSemanticGroups] = useState(true)
+
+  // Fetch semantic groups for proactive suggestions
+  const { groups: semanticGroups } = useSemanticGroups(groupBy || '', 'occurrences')
 
   // Get unique categories with counts
   const categoryCounts = useMemo(() => {
@@ -121,6 +160,56 @@ export function WidgetGallery({
       setAllExpanded(true)
     }
   }, [allExpanded, groupedSuggestions])
+
+  // Toggle field selection for multi-field widget
+  const handleFieldSelect = useCallback((field: string) => {
+    setSelectedFields(prev => {
+      const next = new Set(prev)
+      if (next.has(field)) {
+        next.delete(field)
+      } else {
+        next.add(field)
+      }
+      return next
+    })
+  }, [])
+
+  // Toggle field selection mode
+  const handleToggleFieldSelectionMode = useCallback(() => {
+    if (fieldSelectionMode) {
+      // Exiting selection mode - clear selections
+      setSelectedFields(new Set())
+    }
+    setFieldSelectionMode(prev => !prev)
+  }, [fieldSelectionMode])
+
+  // Open combined widget modal
+  const handleProposeCombinedWidget = useCallback(() => {
+    if (selectedFields.size >= 2) {
+      setShowCombinedModal(true)
+    }
+  }, [selectedFields])
+
+  // Handle combined widget addition
+  const handleAddCombinedWidget = useCallback((config: Record<string, unknown>) => {
+    if (onAddCombinedWidget) {
+      onAddCombinedWidget(config)
+    }
+    // Clear selection and close modal
+    setSelectedFields(new Set())
+    setFieldSelectionMode(false)
+    setShowCombinedModal(false)
+  }, [onAddCombinedWidget])
+
+  // Handle semantic group selection (proactive suggestion)
+  const handleSemanticGroupClick = useCallback((group: SemanticGroup) => {
+    // Set selected fields from the semantic group
+    setSelectedFields(new Set(group.fields))
+    // Enter selection mode
+    setFieldSelectionMode(true)
+    // Open the modal directly
+    setShowCombinedModal(true)
+  }, [])
 
   const filteredSelectedCount = filteredSuggestions.filter(s => selectedIds.has(s.template_id)).length
 
@@ -247,33 +336,82 @@ export function WidgetGallery({
       {/* Selection controls */}
       <div className="flex-shrink-0 px-4 py-2 border-b flex items-center justify-between bg-background">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">
-            {filteredSelectedCount} / {filteredSuggestions.length} selectionne{filteredSelectedCount > 1 ? 's' : ''}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            - {groupedSuggestions.length} champ{groupedSuggestions.length > 1 ? 's' : ''}
-          </span>
+          {fieldSelectionMode ? (
+            // Multi-field selection mode info
+            <>
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                {selectedFields.size} champ{selectedFields.size > 1 ? 's' : ''} selectionne{selectedFields.size > 1 ? 's' : ''}
+              </Badge>
+              {selectedFields.size >= 2 && (
+                <Button
+                  size="sm"
+                  onClick={handleProposeCombinedWidget}
+                  className="h-7 text-xs bg-primary"
+                >
+                  <Combine className="h-3.5 w-3.5 mr-1.5" />
+                  Proposer un widget combine
+                </Button>
+              )}
+            </>
+          ) : (
+            // Normal mode info
+            <>
+              <span className="text-sm text-muted-foreground">
+                {filteredSelectedCount} / {filteredSuggestions.length} selectionne{filteredSelectedCount > 1 ? 's' : ''}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                - {groupedSuggestions.length} champ{groupedSuggestions.length > 1 ? 's' : ''}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1">
+          {/* Multi-field combine button */}
           <Button
-            variant="ghost"
+            variant={fieldSelectionMode ? 'default' : 'outline'}
             size="sm"
-            onClick={onSelectAll}
-            className="h-8 text-xs"
+            onClick={handleToggleFieldSelectionMode}
+            className={cn(
+              'h-8 text-xs',
+              fieldSelectionMode && 'bg-primary'
+            )}
           >
-            <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
-            Tout
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDeselectAll}
-            className="h-8 text-xs"
-          >
-            <XSquare className="h-3.5 w-3.5 mr-1.5" />
-            Aucun
+            {fieldSelectionMode ? (
+              <>
+                <X className="h-3.5 w-3.5 mr-1.5" />
+                Annuler
+              </>
+            ) : (
+              <>
+                <Combine className="h-3.5 w-3.5 mr-1.5" />
+                Combiner
+              </>
+            )}
           </Button>
           <div className="w-px h-4 bg-border mx-1" />
+          {!fieldSelectionMode && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onSelectAll}
+                className="h-8 text-xs"
+              >
+                <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
+                Tout
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDeselectAll}
+                className="h-8 text-xs"
+              >
+                <XSquare className="h-3.5 w-3.5 mr-1.5" />
+                Aucun
+              </Button>
+              <div className="w-px h-4 bg-border mx-1" />
+            </>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -294,6 +432,52 @@ export function WidgetGallery({
           </Button>
         </div>
       </div>
+
+      {/* Semantic groups suggestions */}
+      {semanticGroups.length > 0 && showSemanticGroups && !fieldSelectionMode && (
+        <div className="flex-shrink-0 px-4 py-3 border-b bg-gradient-to-r from-primary/5 to-transparent">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Widgets combines suggeres</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setShowSemanticGroups(false)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {semanticGroups.map((group) => {
+              const patternInfo = PATTERN_INFO[group.pattern_type] || {
+                label: group.display_name,
+                icon: 'BarChart3',
+                color: 'text-gray-600',
+              }
+              const IconComponent = PATTERN_ICONS[patternInfo.icon] || BarChart3
+              return (
+                <button
+                  key={group.group_name}
+                  onClick={() => handleSemanticGroupClick(group)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-background hover:bg-primary/10 border hover:border-primary/30"
+                >
+                  <IconComponent className={cn('h-4 w-4', patternInfo.color)} />
+                  <span className={patternInfo.color}>{group.display_name}</span>
+                  <Badge variant="secondary" className="text-[10px] px-1.5">
+                    {group.fields.length} champs
+                  </Badge>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Cliquez pour creer un widget combinant plusieurs champs
+          </p>
+        </div>
+      )}
 
       {/* Grouped gallery content */}
       <div className="flex-1 overflow-auto p-4">
@@ -323,11 +507,25 @@ export function WidgetGallery({
                 onPreview={onPreview}
                 isExpanded={expandedFields.has(group.field)}
                 onToggleExpand={() => toggleFieldExpansion(group.field)}
+                showFieldSelection={fieldSelectionMode}
+                isFieldSelected={selectedFields.has(group.field)}
+                onFieldSelect={handleFieldSelect}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Combined Widget Modal */}
+      {showCombinedModal && groupBy && (
+        <CombinedWidgetModal
+          isOpen={showCombinedModal}
+          onClose={() => setShowCombinedModal(false)}
+          selectedFields={Array.from(selectedFields)}
+          referenceName={groupBy}
+          onAddWidget={handleAddCombinedWidget}
+        />
+      )}
     </div>
   )
 }

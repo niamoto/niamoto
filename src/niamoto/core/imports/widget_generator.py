@@ -16,7 +16,11 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from niamoto.core.imports.data_analyzer import DataCategory, EnrichedColumnProfile
+from niamoto.core.imports.data_analyzer import (
+    DataCategory,
+    EnrichedColumnProfile,
+    FieldPurpose,
+)
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.matching.matcher import SmartMatcher
@@ -696,10 +700,15 @@ class WidgetGenerator:
         match_score: float,
     ) -> float:
         """
-        Calculate confidence score based on data quality and match score.
+        Calculate confidence score based on data quality and field purpose.
 
         All transformers applicable to a data category should be proposed together.
         If bar_plot is proposed for a numeric column, gauge should be too.
+
+        Fields are prioritized by their purpose:
+        - MEASUREMENT fields (dbh, elevation): highest priority
+        - CLASSIFICATION fields (family, genus): normal priority
+        - FOREIGN_KEY/PRIMARY_KEY: low priority (IDs aren't meaningful to visualize)
 
         Args:
             profile: Column profile
@@ -711,11 +720,9 @@ class WidgetGenerator:
             Confidence score (0.3-1.0)
         """
         # Base confidence: same for all transformers of the same category
-        # Primary gets a small ordering boost but not a filtering advantage
         base_confidence = 0.70
 
         # Factor in SmartMatcher score (proportional, not multiplicative)
-        # This ensures widgets with 0.8 score aren't penalized too heavily
         base_confidence += (match_score - 0.5) * 0.2  # Range: -0.1 to +0.1
 
         # Penalize high null ratio proportionally (max 15% penalty)
@@ -729,6 +736,23 @@ class WidgetGenerator:
         # Boost for common/useful transformer types
         if transformer_name in ("binned_distribution", "geospatial_extractor"):
             base_confidence += 0.03
+
+        # === Field purpose penalties ===
+        # Foreign keys and primary keys are technical fields, not meaningful to visualize
+        if profile.field_purpose in (
+            FieldPurpose.FOREIGN_KEY,
+            FieldPurpose.PRIMARY_KEY,
+        ):
+            base_confidence -= 0.25
+
+        # Identifiers (even if not detected as FK/PK) should be penalized
+        if profile.data_category == DataCategory.IDENTIFIER:
+            base_confidence -= 0.20
+
+        # Column names containing 'id_' or '_id' are likely identifiers
+        col_name_lower = profile.name.lower()
+        if col_name_lower.startswith("id_") or col_name_lower.endswith("_id"):
+            base_confidence -= 0.10
 
         return min(1.0, max(0.3, base_confidence))
 

@@ -73,10 +73,10 @@ class InfoItem(BaseModel):
     )
     format: Optional[str] = Field(
         default=None,
-        description="Optional format for the value (e.g., 'map', 'number').",
+        description="Optional format for the value (e.g., 'map', 'number', 'stats').",
         json_schema_extra={
             "ui:widget": "select",
-            "ui:options": ["map", "number", "image"],
+            "ui:options": ["map", "number", "image", "stats"],
         },
     )
     mapping: Optional[Dict[str, str]] = Field(
@@ -268,6 +268,9 @@ class InfoGridWidget(WidgetPlugin):
                     """ logger.warning(
                         f"Could not format value '{value_to_format}' as number for item '{item.label}'."
                     ) """
+            elif item.format == "stats" and isinstance(item_value, dict):
+                # Handle stats format (mean, min, max, std, count)
+                display_value = self._render_stats(item_value)
             elif item.format == "image" and item.image_mapping:
                 # Handle image gallery format
                 # Debug log to see what we're getting
@@ -296,23 +299,37 @@ class InfoGridWidget(WidgetPlugin):
             )
             tooltip_attr = f'title="{item.description}"' if item.description else ""
 
-            # Generate HTML for each item with Tailwind styling
+            # Generate HTML for each item with Tailwind + inline styles as fallback
+            card_style = "padding: 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
+            label_style = "font-size: 0.875rem; font-weight: 500; color: #6b7280; margin-bottom: 0.25rem;"
+            value_style = "font-size: 1.5rem; font-weight: 600; color: #111827;"
+
             # Special handling for image format
             if item.format == "image":
                 item_html = f"""
-                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
-                    <div class="flex flex-col h-full">
-                        <div class="text-sm font-medium text-gray-500 mb-3">{icon_html}{item.label}</div>
-                        <div class="flex-1">{display_value}</div>
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm" style="{card_style}" {tooltip_attr}>
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div style="{label_style} margin-bottom: 0.75rem;">{icon_html}{item.label}</div>
+                        <div style="flex: 1;">{display_value}</div>
+                    </div>
+                </div>
+                """
+            elif item.format == "stats":
+                # Stats format has its own styling from _render_stats
+                item_html = f"""
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm" style="{card_style}" {tooltip_attr}>
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div style="{label_style}">{icon_html}{item.label}</div>
+                        <div>{display_value}</div>
                     </div>
                 </div>
                 """
             else:
                 item_html = f"""
-                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200" {tooltip_attr}>
-                    <div class="flex flex-col h-full">
-                        <div class="text-sm font-medium text-gray-500 mb-1">{icon_html}{item.label}</div>
-                        <div class="text-2xl font-semibold text-gray-900">{display_value}{unit_html}</div>
+                <div class="info-grid-item p-4 bg-white border border-gray-200 rounded-lg shadow-sm" style="{card_style}" {tooltip_attr}>
+                    <div style="display: flex; flex-direction: column; height: 100%;">
+                        <div style="{label_style}">{icon_html}{item.label}</div>
+                        <div style="{value_style}">{display_value}{unit_html}</div>
                     </div>
                 </div>
                 """
@@ -322,19 +339,63 @@ class InfoGridWidget(WidgetPlugin):
         if not item_html_parts:
             return ""
 
-        # Wrap items in a responsive grid layout
+        # Wrap items in a responsive grid layout with inline styles as fallback
         items_html = "\n".join(item_html_parts)
+
+        # Calculate grid template based on columns
+        grid_cols = params.grid_columns or 3
         output_html = f"""
         <div class="info-grid-widget">
             {title_html}
             {description_html}
-            <div class="grid {grid_cols_class} gap-4">
+            <div class="grid {grid_cols_class} gap-4" style="display: grid; grid-template-columns: repeat({grid_cols}, minmax(0, 1fr)); gap: 1rem;">
                 {items_html}
             </div>
         </div>
         """
 
         return output_html
+
+    def _render_stats(self, stats_data: Dict[str, Any]) -> str:
+        """Render statistics (mean, min, max, std, count) in a compact format."""
+        if not stats_data:
+            return '<span style="color: #9ca3af;">-</span>'
+
+        parts = []
+
+        # Format mean as the main value
+        mean_val = stats_data.get("mean")
+        if mean_val is not None:
+            parts.append(
+                f'<span style="font-size: 1.5rem; font-weight: 600; color: #111827;">{mean_val}</span>'
+            )
+
+        # Build secondary stats line
+        secondary_parts = []
+        min_val = stats_data.get("min")
+        max_val = stats_data.get("max")
+        if min_val is not None and max_val is not None:
+            secondary_parts.append(
+                f"<span style='color: #6b7280;'>{min_val} - {max_val}</span>"
+            )
+
+        std_val = stats_data.get("std")
+        if std_val is not None:
+            secondary_parts.append(f"<span style='color: #9ca3af;'>σ={std_val}</span>")
+
+        count_val = stats_data.get("count")
+        if count_val is not None:
+            secondary_parts.append(
+                f"<span style='color: #9ca3af;'>n={count_val}</span>"
+            )
+
+        if secondary_parts:
+            secondary_html = " · ".join(secondary_parts)
+            parts.append(
+                f'<div style="font-size: 0.75rem; margin-top: 0.25rem;">{secondary_html}</div>'
+            )
+
+        return "".join(parts) if parts else '<span style="color: #9ca3af;">-</span>'
 
     def _render_image_gallery(
         self, image_data: Any, image_mapping: ImageMapping, label: str
