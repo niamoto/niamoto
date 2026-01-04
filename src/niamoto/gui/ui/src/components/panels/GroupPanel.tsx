@@ -9,19 +9,16 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Database, LayoutGrid, Package, Loader2, AlertCircle, Save, Plus, GripVertical, Layout, ListChecks, Wand2, ListOrdered, Sparkles, FileSpreadsheet, Code2 } from 'lucide-react'
+import { Database, LayoutGrid, Package, Loader2, AlertCircle, Save, GripVertical, Layout, ListChecks, Wand2, Code2, ListOrdered, Plus } from 'lucide-react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   WidgetGallery,
   WidgetPreviewPanel,
   ConfiguredWidgetsList,
-  ClassObjectSelector,
-  WidgetWizard,
   RecipeEditor,
   useSuggestions,
   useTemplateSelection,
@@ -32,8 +29,6 @@ import {
   type TemplateSuggestion,
   type ConfiguredWidget,
 } from '@/components/widgets'
-import { useClassObjectSuggestions } from '@/lib/api/widget-suggestions'
-import { apiClient } from '@/lib/api/client'
 import { useSources, useRemoveSource } from '@/hooks/useSources'
 import { SourcesList, AddSourceDialog } from '@/components/sources'
 import { LayoutEditor } from '@/components/layout-editor'
@@ -265,6 +260,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
     updateWidget,
     deleteWidget,
     duplicateWidget,
+    reorderWidgets,
     refetch: refetchConfigured,
   } = useWidgetConfig(reference.name)
 
@@ -279,79 +275,6 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
     reference.name,
     'occurrences'
   )
-
-  // Fetch class_object suggestions (new API)
-  const {
-    classObjects,
-    pluginSchemas,
-    data: suggestionsData,
-    loading: classObjectsLoading,
-    error: classObjectsError,
-    refetch: refetchClassObjects,
-  } = useClassObjectSuggestions(reference.name)
-
-  // Class object selection state
-  const [selectedClassObjects, setSelectedClassObjects] = useState<Set<string>>(new Set())
-  const [_selectedConfigs, setSelectedConfigs] = useState<Map<string, Record<string, unknown>>>(new Map())
-
-  // Wizard state
-  const [wizardOpen, setWizardOpen] = useState(false)
-
-  // Handle class_object selection
-  const handleSelectClassObject = useCallback((name: string, config: Record<string, unknown>) => {
-    setSelectedClassObjects(prev => new Set([...prev, name]))
-    setSelectedConfigs(prev => new Map([...prev, [name, config]]))
-  }, [])
-
-  const handleDeselectClassObject = useCallback((name: string) => {
-    setSelectedClassObjects(prev => {
-      const next = new Set(prev)
-      next.delete(name)
-      return next
-    })
-    setSelectedConfigs(prev => {
-      const next = new Map(prev)
-      next.delete(name)
-      return next
-    })
-  }, [])
-
-  // Map transformer plugins to widget plugins for export
-  const TRANSFORMER_TO_WIDGET: Record<string, string> = {
-    class_object_field_aggregator: 'info_grid',
-    class_object_binary_aggregator: 'bar_plot',
-    class_object_categories_extractor: 'bar_plot',
-    class_object_series_extractor: 'bar_plot',
-    class_object_series_ratio_aggregator: 'bar_plot',
-    class_object_categories_mapper: 'bar_plot',
-    class_object_series_matrix_extractor: 'bar_plot',
-    class_object_series_by_axis_extractor: 'bar_plot',
-  }
-
-  // Handle wizard completion
-  const handleWizardComplete = useCallback(async (config: Record<string, unknown>, widgetId: string, pluginName: string) => {
-    try {
-      // 1. Save widget to transform.yml
-      await apiClient.put(`/config/transform/${reference.name}/widgets/${widgetId}`, {
-        plugin: pluginName,
-        params: config,
-      })
-
-      // 2. Save corresponding widget to export.yml
-      const widgetPlugin = TRANSFORMER_TO_WIDGET[pluginName] || 'info_grid'
-      await apiClient.put(`/config/export/${reference.name}/widgets/${widgetId}`, {
-        plugin: widgetPlugin,
-        data_source: widgetId,
-        title: widgetId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      })
-
-      console.log('Widget saved to transform.yml and export.yml:', widgetId, pluginName, widgetPlugin)
-      refetchConfigured()
-      setWizardOpen(false)
-    } catch (error) {
-      console.error('Error saving widget:', error)
-    }
-  }, [reference.name, refetchConfigured])
 
   // Selection management: use existing config if available, otherwise auto-select
   const selection = useTemplateSelection(suggestions, hasConfig ? existingIds : undefined)
@@ -452,6 +375,11 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
     return success
   }, [duplicateWidget, refetchConfigured])
 
+  // Handle widget reorder (drag and drop)
+  const handleReorderWidgets = useCallback(async (widgetIds: string[]): Promise<boolean> => {
+    return await reorderWidgets(widgetIds)
+  }, [reorderWidgets])
+
   // Loading state - wait for both config and suggestions
   if (loading || configLoading) {
     return (
@@ -492,15 +420,6 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
               </Badge>
             )}
           </TabsTrigger>
-          {classObjects.length > 0 && (
-            <TabsTrigger value="class_objects" className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Class Objects
-              <Badge variant="outline" className="ml-2 h-5 px-1.5 text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                {classObjects.length}
-              </Badge>
-            </TabsTrigger>
-          )}
           <TabsTrigger value="expert" className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Code2 className="mr-2 h-4 w-4" />
             Expert
@@ -518,133 +437,6 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
       </div>
 
       {/* Main content - using TabsContent for proper accessibility */}
-
-      {/* Class Objects tab - New feature */}
-      <TabsContent value="class_objects" className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden">
-        {classObjectsLoading ? (
-          <div className="flex min-h-[400px] flex-col items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="mt-4 text-sm text-muted-foreground">
-              Analyse des class_objects...
-            </p>
-          </div>
-        ) : classObjectsError ? (
-          <div className="flex min-h-[400px] flex-col items-center justify-center">
-            <AlertCircle className="h-12 w-12 text-destructive/50" />
-            <h3 className="mt-4 font-medium">Erreur de chargement</h3>
-            <p className="mt-2 text-sm text-muted-foreground">{classObjectsError}</p>
-            <Button variant="outline" className="mt-4" onClick={refetchClassObjects}>
-              Reessayer
-            </Button>
-          </div>
-        ) : classObjects.length === 0 ? (
-          <div className="flex min-h-[400px] flex-col items-center justify-center text-center p-8">
-            <FileSpreadsheet className="h-12 w-12 text-muted-foreground/50" />
-            <h3 className="mt-4 font-medium">Aucun class_object disponible</h3>
-            <p className="mt-2 text-sm text-muted-foreground max-w-md">
-              Ajoutez une source de donnees pre-calculee (fichier CSV avec colonnes id, label, class_object, class_name, class_value) dans l'onglet "Sources de donnees".
-            </p>
-          </div>
-        ) : (
-          <PanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
-            {/* Left panel - Class Object Selector */}
-            <Panel defaultSize={40} minSize={25} maxSize={60}>
-              <div className="h-full rounded-lg border bg-card overflow-hidden">
-                <ClassObjectSelector
-                  classObjects={classObjects}
-                  selectedNames={selectedClassObjects}
-                  onSelect={handleSelectClassObject}
-                  onDeselect={handleDeselectClassObject}
-                />
-              </div>
-            </Panel>
-
-            {/* Resize handle */}
-            <PanelResizeHandle className="w-2 mx-1 flex items-center justify-center group">
-              <div className="w-1 h-12 rounded-full bg-border group-hover:bg-primary/50 group-active:bg-primary transition-colors flex items-center justify-center">
-                <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </PanelResizeHandle>
-
-            {/* Right panel - Actions & Summary */}
-            <Panel defaultSize={60} minSize={40} maxSize={75}>
-              <div className="h-full rounded-lg border bg-card overflow-hidden flex flex-col">
-                <ScrollArea className="flex-1">
-                  {/* Wizard launcher */}
-                  <div className="p-4 border-b">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Wand2 className="h-4 w-4 text-primary" />
-                      <h4 className="text-sm font-medium">Creer un widget avance</h4>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Utilisez l'assistant pour configurer des widgets complexes
-                      (comparaisons, distributions, matrices).
-                    </p>
-                    <Button
-                      onClick={() => setWizardOpen(true)}
-                      className="w-full"
-                      disabled={Object.keys(pluginSchemas).length === 0}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Ouvrir l'assistant
-                    </Button>
-                  </div>
-
-                  {/* Selection summary */}
-                  {selectedClassObjects.size > 0 && (
-                    <div className="p-4 border-t">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <h4 className="text-sm font-medium">
-                          {selectedClassObjects.size} class_object{selectedClassObjects.size > 1 ? 's' : ''} selectionne{selectedClassObjects.size > 1 ? 's' : ''}
-                        </h4>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {Array.from(selectedClassObjects).map(name => (
-                          <Badge key={name} variant="secondary" className="text-xs">
-                            {name}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Les class_objects selectionnes peuvent etre utilises
-                        pour creer des widgets simples (agregateurs de champs).
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Plugin schemas summary */}
-                  {Object.keys(pluginSchemas).length > 0 && (
-                    <div className="p-4 border-t">
-                      <h4 className="text-sm font-medium mb-2">Plugins disponibles</h4>
-                      <div className="space-y-2">
-                        {Object.entries(pluginSchemas).map(([name, schema]) => (
-                          <div key={name} className="flex items-center justify-between text-xs">
-                            <span>{schema.name}</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {schema.complexity}
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
-            </Panel>
-          </PanelGroup>
-        )}
-
-        {/* Widget Wizard */}
-        <WidgetWizard
-          open={wizardOpen}
-          onOpenChange={setWizardOpen}
-          classObjects={classObjects}
-          pluginSchemas={pluginSchemas}
-          sourceName={suggestionsData?.source_name || 'stats'}
-          onComplete={handleWizardComplete}
-        />
-      </TabsContent>
 
       <TabsContent value="available" className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden">
         <PanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
@@ -695,6 +487,7 @@ function WidgetsTab({ reference }: { reference: ReferenceInfo }) {
                 onSelect={handleSelectWidget}
                 onDelete={handleDeleteWidget}
                 onDuplicate={handleDuplicateWidget}
+                onReorder={handleReorderWidgets}
               />
             </div>
           </Panel>

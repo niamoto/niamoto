@@ -44,6 +44,13 @@ class PluginConfig(BaseModel):
     )
 
 
+class WidgetLayoutConfig(BaseModel):
+    """Layout configuration for a widget."""
+
+    colspan: int = Field(default=1, ge=1, le=2, description="Column span (1 or 2)")
+    order: int = Field(default=0, description="Display order (lower values first)")
+
+
 class WidgetConfig(BaseModel):
     """
     Model representing a widget configuration within the 'widgets' list
@@ -64,6 +71,10 @@ class WidgetConfig(BaseModel):
     params: Dict[str, Any] = Field(
         default_factory=dict,
         description="Dictionary of parameters specific to this widget plugin",
+    )
+    layout: Optional[WidgetLayoutConfig] = Field(
+        default=None,
+        description="Layout configuration (colspan, order)",
     )
 
 
