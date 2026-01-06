@@ -54,6 +54,7 @@ class StatisticalSummaryParams(BasePluginParams):
         json_schema_extra={
             "examples": ["m", "cm", "kg", "°C", "%"],
             "ui_component": "text",
+            "ui:quick_edit": True,
         },
     )
 
@@ -61,7 +62,11 @@ class StatisticalSummaryParams(BasePluginParams):
         default=100,
         description="Maximum value for scaling/display purposes. Will be overridden if data maximum is higher.",
         ge=0,
-        json_schema_extra={"ui_component": "number", "ui_step": 1},
+        json_schema_extra={
+            "ui_component": "number",
+            "ui_step": 1,
+            "ui:quick_edit": True,
+        },
     )
 
 
@@ -94,6 +99,7 @@ class StatisticalSummary(TransformerPlugin):
     """Plugin for calculating statistical summaries"""
 
     config_model = StatisticalSummaryConfig
+    param_schema = StatisticalSummaryParams  # For exposing params with UI hints
 
     # Output structure for pattern matching
     output_structure = {

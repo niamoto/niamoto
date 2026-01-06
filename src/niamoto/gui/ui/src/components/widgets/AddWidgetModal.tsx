@@ -6,7 +6,7 @@
  * - Combined: Semantic groups + manual field selection
  * - Custom: 4-step wizard with YAML preview
  */
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import {
   Loader2,
   Sparkles,
@@ -33,6 +33,8 @@ import {
   ChevronsUpDown,
   MapPin,
   LayoutGrid,
+  FileSpreadsheet,
+  GitBranch,
 } from 'lucide-react'
 import {
   Dialog,
@@ -52,6 +54,7 @@ import { cn } from '@/lib/utils'
 import type { TemplateSuggestion } from './types'
 import { useGenerateConfig, useSaveConfig } from './useTemplates'
 import { RecipeEditor } from './recipe'
+import type { WidgetRecipe } from '@/lib/api/recipes'
 import {
   useCombinedWidgetSuggestions,
   useSemanticGroups,
@@ -71,8 +74,19 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   table: Layers,
 }
 
-// Default colors for customization
-const COLOR_PALETTE = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336']
+// Type for dynamic quick edit fields from plugin schema
+interface QuickEditField {
+  name: string
+  type: string
+  title: string
+  description?: string
+  default?: unknown
+  component?: string
+  examples?: unknown[]
+  help?: string
+  minimum?: number
+  maximum?: number
+}
 
 // Widget preview iframe component with scaling (like WidgetMiniature)
 interface WidgetPreviewProps {
@@ -91,6 +105,27 @@ function WidgetPreview({ templateId, groupBy, className, width = 200, height = 9
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [key, setKey] = useState(0)
+  const [isVisible, setIsVisible] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Lazy loading: only load preview when visible
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect() // Once visible, stop observing
+        }
+      },
+      { rootMargin: '100px' } // Start loading slightly before visible
+    )
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   // Calculate scale to fit the container
   const scale = Math.min(width / IFRAME_BASE_WIDTH, height / IFRAME_BASE_HEIGHT)
@@ -100,39 +135,51 @@ function WidgetPreview({ templateId, groupBy, className, width = 200, height = 9
     : `/api/templates/preview/${templateId}`
 
   useEffect(() => {
-    setIsLoading(true)
-    setHasError(false)
-    setKey((k) => k + 1)
-  }, [templateId, groupBy])
+    if (isVisible) {
+      setIsLoading(true)
+      setHasError(false)
+      setKey((k) => k + 1)
+    }
+  }, [templateId, groupBy, isVisible])
 
   return (
     <div
+      ref={containerRef}
       className={cn('relative bg-muted/30 overflow-hidden', className)}
       style={{ width, height }}
     >
-      {isLoading && !hasError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      {!isVisible ? (
+        // Placeholder before becoming visible
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+          <div className="w-8 h-8 rounded bg-muted/50" />
         </div>
+      ) : (
+        <>
+          {isLoading && !hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {hasError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 z-10">
+              <span className="text-[10px] text-muted-foreground">Erreur</span>
+            </div>
+          )}
+          <iframe
+            key={key}
+            src={previewUrl}
+            className="pointer-events-none origin-top-left border-0"
+            style={{
+              width: IFRAME_BASE_WIDTH,
+              height: IFRAME_BASE_HEIGHT,
+              transform: `scale(${scale})`,
+            }}
+            onLoad={() => setIsLoading(false)}
+            onError={() => setHasError(true)}
+            title={`Preview ${templateId}`}
+          />
+        </>
       )}
-      {hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 z-10">
-          <span className="text-[10px] text-muted-foreground">Erreur</span>
-        </div>
-      )}
-      <iframe
-        key={key}
-        src={previewUrl}
-        className="pointer-events-none origin-top-left border-0"
-        style={{
-          width: IFRAME_BASE_WIDTH,
-          height: IFRAME_BASE_HEIGHT,
-          transform: `scale(${scale})`,
-        }}
-        onLoad={() => setIsLoading(false)}
-        onError={() => setHasError(true)}
-        title={`Preview ${templateId}`}
-      />
     </div>
   )
 }
@@ -144,8 +191,8 @@ interface LargePreviewProps {
 }
 
 // Large preview dimensions
-const LARGE_PREVIEW_WIDTH = 348  // Right panel width - padding
-const LARGE_PREVIEW_HEIGHT = 192
+const LARGE_PREVIEW_WIDTH = 388  // Right panel width (420px) - padding
+const LARGE_PREVIEW_HEIGHT = 291  // 4:3 ratio (388 * 3/4)
 
 function LargePreview({ templateId, groupBy }: LargePreviewProps) {
   const [isLoading, setIsLoading] = useState(true)
@@ -174,7 +221,7 @@ function LargePreview({ templateId, groupBy }: LargePreviewProps) {
   return (
     <div className="relative">
       <div
-        className="bg-background border rounded-lg overflow-hidden"
+        className="bg-background border rounded-md overflow-hidden"
         style={{ width: LARGE_PREVIEW_WIDTH, height: LARGE_PREVIEW_HEIGHT }}
       >
         {isLoading && !hasError && (
@@ -232,8 +279,146 @@ interface AddWidgetModalProps {
 
 interface Customization {
   title: string
-  bins?: number
-  color: string
+  [key: string]: unknown // Dynamic fields from plugin schema
+}
+
+// Cache for plugin schemas to avoid repeated fetches
+const pluginSchemaCache: Record<string, QuickEditField[]> = {}
+
+// Extract quick_edit fields from plugin JSON schema
+function extractQuickEditFields(schema: Record<string, unknown>): QuickEditField[] {
+  const fields: QuickEditField[] = []
+  const defs = schema['$defs'] as Record<string, Record<string, unknown>> | undefined
+
+  // Helper to extract fields from a properties object
+  const extractFromProperties = (properties: Record<string, Record<string, unknown>>) => {
+    for (const [name, prop] of Object.entries(properties)) {
+      // Check for ui:quick_edit in the property
+      if (prop['ui:quick_edit'] === true) {
+        // Determine type - handle anyOf types (Optional fields)
+        let type = 'string'
+        const propType = prop.type
+        const anyOf = prop.anyOf as Array<Record<string, unknown>> | undefined
+
+        if (propType === 'number' || propType === 'integer') {
+          type = 'number'
+        } else if (propType === 'boolean') {
+          type = 'boolean'
+        } else if (propType === 'array') {
+          type = 'array'
+        } else if (anyOf) {
+          // Handle Optional types like anyOf: [{type: 'string'}, {type: 'null'}]
+          const nonNullType = anyOf.find(t => t.type !== 'null')
+          if (nonNullType) {
+            if (nonNullType.type === 'number' || nonNullType.type === 'integer') type = 'number'
+            else if (nonNullType.type === 'boolean') type = 'boolean'
+            else if (nonNullType.type === 'array') type = 'array'
+          }
+        }
+
+        fields.push({
+          name,
+          type,
+          title: (prop.title as string) || name,
+          description: prop.description as string | undefined,
+          default: prop.default,
+          component: prop.ui_component as string | undefined,
+          examples: prop.examples as unknown[] | undefined,
+          help: (prop.ui_help || prop['ui:help']) as string | undefined,
+          minimum: prop.minimum as number | undefined,
+          maximum: prop.maximum as number | undefined,
+        })
+      }
+    }
+  }
+
+  // First, check top-level properties
+  const properties = schema.properties as Record<string, Record<string, unknown>> | undefined
+  if (properties) {
+    extractFromProperties(properties)
+  }
+
+  // Then, check $defs for nested schemas (like params.$ref -> ClassObjectSeriesParams)
+  if (defs) {
+    for (const defSchema of Object.values(defs)) {
+      const defProperties = defSchema.properties as Record<string, Record<string, unknown>> | undefined
+      if (defProperties) {
+        extractFromProperties(defProperties)
+      }
+    }
+  }
+
+  return fields
+}
+
+// Convert a template suggestion to a widget recipe
+function suggestionToRecipe(suggestion: TemplateSuggestion, customization?: Customization): WidgetRecipe {
+  const config = suggestion.config as Record<string, unknown>
+  const transformer = config.transformer as Record<string, unknown> || {}
+  const widget = config.widget as Record<string, unknown> || {}
+  const layout = widget.layout as Record<string, unknown> || {}
+
+  // Extract transformer params from nested structure or directly from config
+  const nestedParams = transformer.params as Record<string, unknown> || {}
+
+  // Common transformer param fields that might be at top-level of config
+  const knownTransformerParams = ['source', 'field', 'bins', 'labels', 'include_percentages',
+    'stats', 'units', 'max_value', 'count', 'mode', 'fields', 'true_label', 'false_label',
+    'categories', 'time_field', 'aggregation']
+
+  // Extract params from config top-level (for suggestion templates)
+  const configParams: Record<string, unknown> = {}
+  for (const key of knownTransformerParams) {
+    if (config[key] !== undefined) {
+      configParams[key] = config[key]
+    }
+  }
+
+  // Also include matched_column as 'field' if present
+  if (suggestion.matched_column && !configParams.field) {
+    configParams.field = suggestion.matched_column
+  }
+
+  // Process customization values (convert comma-separated strings to arrays for bins/labels)
+  const customParams: Record<string, unknown> = {}
+  if (customization) {
+    for (const [key, value] of Object.entries(customization)) {
+      if (key === 'title') continue // title is for widget, not transformer
+      if (key === 'bins' && typeof value === 'string') {
+        // Convert "0, 200, 400" string to number array
+        customParams[key] = value.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
+      } else if (key === 'labels' && typeof value === 'string') {
+        // Convert "Low, Medium, High" string to string array
+        customParams[key] = value.split(',').map(s => s.trim()).filter(Boolean)
+      } else {
+        customParams[key] = value
+      }
+    }
+  }
+
+  // Merge params: nested > config > customization (later values override)
+  const mergedTransformerParams = {
+    ...configParams,
+    ...nestedParams,
+    ...customParams,
+  }
+
+  return {
+    widget_id: suggestion.template_id,
+    transformer: {
+      plugin: transformer.plugin as string || suggestion.plugin,
+      params: mergedTransformerParams,
+    },
+    widget: {
+      plugin: widget.plugin as string || 'bar_plot',
+      title: customization?.title || suggestion.name,
+      params: widget.params as Record<string, unknown> || {},
+      layout: {
+        colspan: (layout.colspan as number) || 2,
+        order: (layout.order as number) || 0,
+      },
+    },
+  }
 }
 
 export function AddWidgetModal({
@@ -249,12 +434,13 @@ export function AddWidgetModal({
 
   // Suggestions tab state
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set())
-  const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(null)
   const [focusedSuggestion, setFocusedSuggestion] = useState<string | null>(null)
   const [customizations, setCustomizations] = useState<Record<string, Customization>>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const [quickEditFields, setQuickEditFields] = useState<QuickEditField[]>([])
+  const [loadingSchema, setLoadingSchema] = useState(false)
 
   // Combined tab state
   const [selectedFields, setSelectedFields] = useState<string[]>([])
@@ -262,6 +448,7 @@ export function AddWidgetModal({
 
   // Custom tab state
   const [wizardStep, setWizardStep] = useState(1)
+  const [initialRecipe, setInitialRecipe] = useState<WidgetRecipe | undefined>(undefined)
 
   // Hooks for generating and saving config
   const { generate: generateConfig, loading: generating } = useGenerateConfig()
@@ -291,12 +478,13 @@ export function AddWidgetModal({
     if (open) {
       setActiveTab(defaultTab)
       setSelectedSuggestions(new Set())
-      setHoveredSuggestion(null)
       setFocusedSuggestion(null)
       setCustomizations({})
       setSearchQuery('')
       setCollapsedSections(new Set())
       setCategoryFilter(null)
+      setQuickEditFields([])
+      setInitialRecipe(undefined)
       setSelectedFields([])
       setSelectedCombined(null)
       setWizardStep(1)
@@ -318,10 +506,45 @@ export function AddWidgetModal({
     }
   }, [combinedSuggestions, selectedCombined])
 
-  // Get the suggestion to preview (focused > hovered > first selected)
-  const previewSuggestionId =
-    focusedSuggestion || hoveredSuggestion || Array.from(selectedSuggestions)[0] || null
+  // Get the suggestion to preview (only when clicked/focused)
+  const previewSuggestionId = focusedSuggestion || null
   const previewSuggestion = suggestions.find((s) => s.template_id === previewSuggestionId)
+
+  // Fetch plugin schema when a suggestion is focused for quick edit
+  useEffect(() => {
+    if (!previewSuggestion || !selectedSuggestions.has(previewSuggestion.template_id)) {
+      setQuickEditFields([])
+      return
+    }
+
+    const pluginId = previewSuggestion.plugin
+
+    // Check cache first
+    if (pluginId in pluginSchemaCache) {
+      setQuickEditFields(pluginSchemaCache[pluginId] || [])
+      return
+    }
+
+    // Fetch schema
+    setLoadingSchema(true)
+    fetch(`/api/plugins/${pluginId}/schema`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.has_params && data.schema) {
+          const fields = extractQuickEditFields(data.schema)
+          pluginSchemaCache[pluginId] = fields
+          setQuickEditFields(fields)
+        } else {
+          pluginSchemaCache[pluginId] = []
+          setQuickEditFields([])
+        }
+      })
+      .catch(() => {
+        pluginSchemaCache[pluginId] = []
+        setQuickEditFields([])
+      })
+      .finally(() => setLoadingSchema(false))
+  }, [previewSuggestion, selectedSuggestions])
 
   // Group suggestions with smart ordering:
   // 1. Group widgets (navigation, info) - with group name
@@ -438,8 +661,6 @@ export function AddWidgetModal({
       const suggestion = suggestions.find((s) => s.template_id === id)
       return {
         title: suggestion?.name || '',
-        bins: 10,
-        color: COLOR_PALETTE[0],
       }
     },
     [customizations, suggestions]
@@ -494,12 +715,34 @@ export function AddWidgetModal({
         const suggestion = suggestions.find((s) => s.template_id === id)
         if (!suggestion) return null
         const customization = getCustomization(id)
+
+        // Extract dynamic customization fields (all except title)
+        const { title, ...dynamicFields } = customization
+
+        // Process array fields (convert comma-separated strings to arrays)
+        const processedFields: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(dynamicFields)) {
+          if (typeof value === 'string' && value.includes(',')) {
+            // Try to parse as array of numbers
+            const parts = value.split(',').map((s) => s.trim())
+            const numbers = parts.map((p) => parseFloat(p))
+            if (numbers.every((n) => !isNaN(n))) {
+              processedFields[key] = numbers
+            } else {
+              processedFields[key] = parts
+            }
+          } else if (value !== undefined) {
+            processedFields[key] = value
+          }
+        }
+
         return {
           template_id: suggestion.template_id,
           plugin: suggestion.plugin,
           config: {
             ...suggestion.config,
-            title: customization.title || suggestion.name,
+            ...processedFields,
+            title: title || suggestion.name,
           },
         }
       })
@@ -558,7 +801,6 @@ export function AddWidgetModal({
       onOpenChange={(isOpen) => {
         onOpenChange(isOpen)
         if (!isOpen) {
-          setHoveredSuggestion(null)
           setFocusedSuggestion(null)
         }
       }}
@@ -712,7 +954,7 @@ export function AddWidgetModal({
                                 : Database
 
                           return (
-                            <div key={group.key} className="border rounded-lg overflow-hidden">
+                            <div key={group.key} className="border rounded-md overflow-hidden">
                               {/* Collapsible section header */}
                               <button
                                 className={cn(
@@ -751,8 +993,8 @@ export function AddWidgetModal({
 
                               {/* Section content */}
                               {!isCollapsed && (
-                                <div className="p-3 pt-2 border-t bg-background">
-                                  <div className="grid grid-cols-2 gap-3">
+                                <div className="p-2 border-t bg-background">
+                                  <div className="grid grid-cols-2 gap-2">
                                     {group.suggestions.map((suggestion) => {
                                       const Icon = CATEGORY_ICONS[suggestion.category] || BarChart3
                                       const isSelected = selectedSuggestions.has(suggestion.template_id)
@@ -762,45 +1004,57 @@ export function AddWidgetModal({
                                         <div
                                           key={suggestion.template_id}
                                           className={cn(
-                                            'border rounded-lg overflow-hidden cursor-pointer transition-all hover:shadow-md group',
+                                            'flex border rounded-md overflow-hidden cursor-pointer transition-all hover:shadow-sm group',
                                             isSelected && isFocused
-                                              ? 'border-primary ring-2 ring-primary/30'
+                                              ? 'border-primary ring-2 ring-primary/20'
                                               : isSelected
                                                 ? 'border-primary/50 bg-primary/5'
-                                                : 'hover:border-muted-foreground/40'
+                                                : 'hover:border-muted-foreground/30'
                                           )}
                                           onClick={() => toggleSuggestion(suggestion.template_id)}
-                                          onMouseEnter={() => setHoveredSuggestion(suggestion.template_id)}
-                                          onMouseLeave={() => setHoveredSuggestion(null)}
                                         >
-                                          {/* Preview area with scaled iframe */}
-                                          <div className="relative bg-muted/30">
+                                          {/* Preview area - left side (4:3 ratio) */}
+                                          <div className="relative shrink-0">
                                             <WidgetPreview
                                               templateId={suggestion.template_id}
                                               groupBy={reference.name}
-                                              width={380}
-                                              height={100}
+                                              width={100}
+                                              height={75}
                                             />
-                                            {/* Checkbox overlay */}
-                                            <div className="absolute top-2 right-2 z-20">
-                                              <Checkbox
-                                                checked={isSelected}
-                                                className="bg-background shadow-sm"
-                                                onClick={(e) => e.stopPropagation()}
-                                              />
-                                            </div>
                                           </div>
-                                          {/* Info */}
-                                          <div className="p-2.5">
+                                          {/* Info - right side */}
+                                          <div className="flex-1 min-w-0 px-2.5 py-1.5 flex flex-col justify-center">
                                             <div className="flex items-center gap-1.5 mb-1">
                                               <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                              <span className="font-medium text-sm truncate">
+                                              <span className="font-medium text-xs truncate">
                                                 {suggestion.name}
                                               </span>
                                             </div>
-                                            <Badge variant="outline" className="text-[10px] h-5">
-                                              {suggestion.plugin}
-                                            </Badge>
+                                            <div className="flex items-center gap-1 flex-wrap">
+                                              <Badge variant="outline" className="text-[9px] h-4 px-1.5">
+                                                {suggestion.plugin}
+                                              </Badge>
+                                              {suggestion.source_name && (
+                                                <Badge variant="secondary" className="text-[9px] h-4 px-1.5">
+                                                  {suggestion.source === 'class_object' ? (
+                                                    <FileSpreadsheet className="h-2.5 w-2.5 mr-0.5" />
+                                                  ) : suggestion.source_name === reference.name ? (
+                                                    <GitBranch className="h-2.5 w-2.5 mr-0.5" />
+                                                  ) : (
+                                                    <Database className="h-2.5 w-2.5 mr-0.5" />
+                                                  )}
+                                                  {suggestion.source_name}
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {/* Checkbox - right edge */}
+                                          <div className="shrink-0 flex items-center pr-2">
+                                            <Checkbox
+                                              checked={isSelected}
+                                              className="h-4 w-4"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
                                           </div>
                                         </div>
                                       )
@@ -817,9 +1071,9 @@ export function AddWidgetModal({
                 </div>
 
                 {/* Right column - Preview & Customization */}
-                <div className="w-[380px] flex flex-col bg-muted/20 shrink-0 min-h-0">
+                <div className="w-[420px] flex flex-col bg-muted/20 shrink-0 min-h-0 overflow-hidden">
                   {previewSuggestion ? (
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1 h-full">
                       <div className="p-4">
                         {/* Preview header */}
                         <div className="flex items-center justify-between mb-3">
@@ -872,9 +1126,13 @@ export function AddWidgetModal({
                             <div className="flex items-center gap-2 mb-3">
                               <Settings2 className="h-4 w-4 text-muted-foreground" />
                               <span className="font-medium text-sm">Personnalisation rapide</span>
+                              {loadingSchema && (
+                                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                              )}
                             </div>
 
                             <div className="space-y-3">
+                              {/* Title - always shown */}
                               <div>
                                 <label className="text-xs text-muted-foreground">Titre</label>
                                 <Input
@@ -888,44 +1146,114 @@ export function AddWidgetModal({
                                 />
                               </div>
 
-                              {previewSuggestion.category === 'chart' && (
-                                <div>
-                                  <label className="text-xs text-muted-foreground">
-                                    Nombre de bins
+                              {/* Dynamic fields from plugin schema */}
+                              {quickEditFields.map((field) => (
+                                <div key={field.name}>
+                                  <label className="text-xs text-muted-foreground flex items-center gap-1">
+                                    {field.title}
+                                    {field.help && (
+                                      <span
+                                        className="text-[10px] text-muted-foreground/70 cursor-help"
+                                        title={field.help}
+                                      >
+                                        (?)
+                                      </span>
+                                    )}
                                   </label>
-                                  <Input
-                                    type="number"
-                                    value={getCustomization(previewSuggestion.template_id).bins || 10}
-                                    onChange={(e) =>
-                                      updateCustomization(previewSuggestion.template_id, {
-                                        bins: parseInt(e.target.value),
-                                      })
-                                    }
-                                    className="h-8 mt-1"
-                                  />
-                                </div>
-                              )}
-
-                              <div>
-                                <label className="text-xs text-muted-foreground">Couleur</label>
-                                <div className="flex gap-2 mt-1">
-                                  {COLOR_PALETTE.map((color) => (
-                                    <button
-                                      key={color}
-                                      className={cn(
-                                        'w-7 h-7 rounded border-2 transition-all',
-                                        getCustomization(previewSuggestion.template_id).color === color
-                                          ? 'border-foreground scale-110'
-                                          : 'border-transparent hover:scale-105'
-                                      )}
-                                      style={{ backgroundColor: color }}
-                                      onClick={() =>
-                                        updateCustomization(previewSuggestion.template_id, { color })
+                                  {field.type === 'number' ? (
+                                    <Input
+                                      type="number"
+                                      value={
+                                        (getCustomization(previewSuggestion.template_id)[
+                                          field.name
+                                        ] as number) ??
+                                        (previewSuggestion.config as Record<string, unknown>)?.[
+                                          field.name
+                                        ] ??
+                                        field.default ??
+                                        ''
+                                      }
+                                      min={field.minimum}
+                                      max={field.maximum}
+                                      onChange={(e) =>
+                                        updateCustomization(previewSuggestion.template_id, {
+                                          [field.name]: e.target.value
+                                            ? parseFloat(e.target.value)
+                                            : undefined,
+                                        })
+                                      }
+                                      className="h-8 mt-1"
+                                      placeholder={
+                                        field.examples
+                                          ? `ex: ${field.examples.slice(0, 2).join(', ')}`
+                                          : undefined
                                       }
                                     />
-                                  ))}
+                                  ) : field.type === 'array' && field.component === 'array_number' ? (
+                                    <Input
+                                      value={
+                                        (getCustomization(previewSuggestion.template_id)[
+                                          field.name
+                                        ] as string) ??
+                                        (
+                                          (previewSuggestion.config as Record<string, unknown>)?.[
+                                            field.name
+                                          ] as number[]
+                                        )?.join(', ') ??
+                                        (field.default as number[])?.join(', ') ??
+                                        ''
+                                      }
+                                      onChange={(e) =>
+                                        updateCustomization(previewSuggestion.template_id, {
+                                          [field.name]: e.target.value,
+                                        })
+                                      }
+                                      className="h-8 mt-1 font-mono text-xs"
+                                      placeholder={
+                                        field.examples && Array.isArray(field.examples[0])
+                                          ? `ex: ${(field.examples[0] as number[]).join(', ')}`
+                                          : 'ex: 0, 100, 200, 500'
+                                      }
+                                    />
+                                  ) : (
+                                    <Input
+                                      value={
+                                        (getCustomization(previewSuggestion.template_id)[
+                                          field.name
+                                        ] as string) ??
+                                        ((previewSuggestion.config as Record<string, unknown>)?.[
+                                          field.name
+                                        ] as string) ??
+                                        (field.default as string) ??
+                                        ''
+                                      }
+                                      onChange={(e) =>
+                                        updateCustomization(previewSuggestion.template_id, {
+                                          [field.name]: e.target.value,
+                                        })
+                                      }
+                                      className="h-8 mt-1"
+                                      placeholder={
+                                        field.examples
+                                          ? `ex: ${field.examples.slice(0, 2).join(', ')}`
+                                          : undefined
+                                      }
+                                    />
+                                  )}
+                                  {field.description && (
+                                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                                      {field.description}
+                                    </p>
+                                  )}
                                 </div>
-                              </div>
+                              ))}
+
+                              {/* Message when no quick edit fields */}
+                              {!loadingSchema && quickEditFields.length === 0 && (
+                                <p className="text-xs text-muted-foreground/70 italic">
+                                  Utilisez l'edition avancee pour plus d'options
+                                </p>
+                              )}
                             </div>
 
                             <Button
@@ -933,6 +1261,10 @@ export function AddWidgetModal({
                               size="sm"
                               className="w-full mt-4"
                               onClick={() => {
+                                // Pre-fill the recipe editor with current suggestion
+                                const customization = customizations[previewSuggestion.template_id]
+                                const recipe = suggestionToRecipe(previewSuggestion, customization)
+                                setInitialRecipe(recipe)
                                 setActiveTab('custom')
                                 setWizardStep(1)
                               }}
@@ -957,7 +1289,7 @@ export function AddWidgetModal({
                       <Eye className="h-12 w-12 text-muted-foreground/30 mb-3" />
                       <p className="font-medium text-muted-foreground">Apercu du widget</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Survolez ou selectionnez un widget pour voir l'apercu
+                        Sélectionnez un widget pour voir l'aperçu
                       </p>
                     </div>
                   )}
@@ -1171,7 +1503,7 @@ export function AddWidgetModal({
 
               {/* RecipeEditor (handles wizard internally) */}
               <div className="flex-1 overflow-auto">
-                <RecipeEditor groupBy={reference.name} onSave={handleRecipeSave} />
+                <RecipeEditor groupBy={reference.name} onSave={handleRecipeSave} initialRecipe={initialRecipe} />
               </div>
             </div>
           </TabsContent>

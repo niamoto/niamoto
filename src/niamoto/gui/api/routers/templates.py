@@ -780,6 +780,17 @@ def _generate_widget_params(
                     "x_field": "bin",
                     "y_field": "count",
                 }
+                # After transform, columns are "bin" and "count"
+                params["x_axis"] = "bin"
+                params["y_axis"] = "count"
+                # Use axis labels from transformer config if available
+                x_label = transformer_params.get("x_label")
+                y_label = transformer_params.get("y_label")
+                if x_label or y_label:
+                    params["labels"] = {
+                        "bin": x_label or "Classe",
+                        "count": y_label or "%",
+                    }
 
     elif widget_plugin == "donut_chart":
         params = {
@@ -1441,10 +1452,11 @@ def _load_class_object_data_for_preview(
                     values = aggregated["class_value"].tolist()
 
                     return {
-                        "labels": labels,
+                        "tops": labels,
                         "counts": values,
                         "source": source.get("name", Path(data_path).stem),
                         "group_by": group_config.get("group_by", "unknown"),
+                        "class_object": class_object_name,
                     }
 
                 except Exception as e:
@@ -3442,7 +3454,7 @@ def _execute_configured_transformer(
     """
     try:
         # For binary_aggregator, we need to compute ratios
-        # Output format: {"labels": [...], "counts": [...]} for bar_plot compatibility
+        # Output format: {"tops": [...], "counts": [...]} for bar_plot compatibility
         if transformer_plugin == "class_object_binary_aggregator":
             groups = params.get("groups", [])
             all_labels = []
@@ -3454,16 +3466,16 @@ def _execute_configured_transformer(
                 if field not in class_object_data:
                     continue
 
-                # co_data is already in {"labels": [...], "counts": [...]} format
+                # co_data is already in {"tops": [...], "counts": [...]} format
                 co_data = class_object_data[field]
-                group_labels = co_data.get("labels", [])
+                group_tops = co_data.get("tops", [])
                 group_counts = co_data.get("counts", [])
 
-                # Add labels and counts for this group
-                all_labels.extend(group_labels)
+                # Add tops and counts for this group
+                all_labels.extend(group_tops)
                 all_counts.extend(group_counts)
 
-            return {"labels": all_labels, "counts": all_counts}
+            return {"tops": all_labels, "counts": all_counts}
 
         # For field_aggregator, collect scalar values
         elif transformer_plugin == "class_object_field_aggregator":
@@ -3475,7 +3487,7 @@ def _execute_configured_transformer(
                 target = field_config.get("target", co_name)
 
                 if co_name in class_object_data:
-                    # co_data is in {"labels": [...], "counts": [...]} format
+                    # co_data is in {"tops": [...], "counts": [...]} format
                     co_data = class_object_data[co_name]
                     counts = co_data.get("counts", [])
                     # For scalar, take the first (and only) value
@@ -3496,19 +3508,21 @@ def _execute_configured_transformer(
             if co_name not in class_object_data:
                 return None
 
-            # co_data is in {"labels": [...], "counts": [...]} format
+            # co_data is in {"tops": [...], "counts": [...]} format
             co_data = class_object_data[co_name]
-            labels = co_data.get("labels", [])
+            tops = co_data.get("tops", [])
             counts = co_data.get("counts", [])
 
-            # Sort by numeric label if possible
-            if labels and counts:
-                paired = sorted(
-                    zip(labels, counts), key=lambda x: _try_parse_numeric(str(x[0]))
-                )
-                labels, counts = zip(*paired) if paired else ([], [])
+            # Sort by value descending (like top_ranking)
+            if tops and counts:
+                paired = sorted(zip(tops, counts), key=lambda x: -x[1])
+                # Apply count limit if specified
+                count_limit = params.get("count")
+                if count_limit and len(paired) > count_limit:
+                    paired = paired[:count_limit]
+                tops, counts = zip(*paired) if paired else ([], [])
 
-            return {"sizes": list(labels), "counts": list(counts)}
+            return {"tops": list(tops), "counts": list(counts)}
 
         # For categories_extractor, extract categories
         elif transformer_plugin == "class_object_categories_extractor":
@@ -3516,12 +3530,12 @@ def _execute_configured_transformer(
             if co_name not in class_object_data:
                 return None
 
-            # co_data is in {"labels": [...], "counts": [...]} format
+            # co_data is in {"tops": [...], "counts": [...]} format
             co_data = class_object_data[co_name]
-            labels = co_data.get("labels", [])
+            tops = co_data.get("tops", [])
             counts = co_data.get("counts", [])
 
-            return {"labels": labels, "counts": counts}
+            return {"tops": tops, "counts": counts}
 
         # Default: return the raw data
         return {"data": class_object_data}
@@ -3660,7 +3674,7 @@ def _build_widget_params_dynamic(
     # Widget-specific parameters based on transformer output
     if widget == "bar_plot":
         if transformer == "binned_distribution":
-            return {
+            params = {
                 "x_axis": "bin",
                 "y_axis": "count",
                 "title": title,
@@ -3678,6 +3692,15 @@ def _build_widget_params_dynamic(
                 "gradient_mode": "luminance",
                 "show_legend": False,
             }
+            # Add axis labels from transformer config
+            x_label = config.get("x_label")
+            y_label = config.get("y_label")
+            if x_label or y_label:
+                params["labels"] = {
+                    "bin": x_label or "Classe",
+                    "count": y_label or "%",
+                }
+            return params
         elif transformer == "top_ranking":
             return {
                 "x_axis": "counts",
@@ -5096,11 +5119,27 @@ def _build_dynamic_template_info(
     col_name = column.replace("_", " ").title()
 
     if transformer == "binned_distribution":
+        # Guess unit based on column name
+        col_lower = column.lower()
+        unit = ""
+        if "height" in col_lower or "hauteur" in col_lower:
+            unit = "m"
+        elif "dbh" in col_lower or "diameter" in col_lower:
+            unit = "cm"
+        elif "elevation" in col_lower or "altitude" in col_lower:
+            unit = "m"
+
+        x_label = column.upper()
+        if unit:
+            x_label = f"{x_label} ({unit})"
+
         config = {
             "source": "occurrences",
             "field": column,
             "bins": [0, 10, 20, 30, 40, 50, 100, 200, 500],  # Default bins
             "include_percentages": True,
+            "x_label": x_label,
+            "y_label": "%",
         }
         name = f"Distribution de {col_name}"
 
@@ -5337,9 +5376,48 @@ def _render_widget_for_class_object(
         plugin_class = PluginRegistry.get_plugin(widget_name, PluginType.WIDGET)
         plugin_instance = plugin_class(db=db)
 
+        # For bar_plot, handle data based on type (numeric vs categorical)
+        render_data = data
+        if widget_name == "bar_plot":
+            tops = data.get("tops", [])
+            counts = data.get("counts", [])
+            if tops and counts:
+                # Check if data is numeric (distribution bins like dbh)
+                is_numeric = all(
+                    isinstance(t, (int, float))
+                    or (
+                        isinstance(t, str)
+                        and t.replace(".", "").replace("-", "").isdigit()
+                    )
+                    for t in tops[:5]  # Check first 5 items
+                )
+
+                if is_numeric:
+                    # Numeric bins: sort by bin value descending (largest bins first)
+                    paired = sorted(
+                        zip(tops, counts),
+                        key=lambda x: float(x[0])
+                        if isinstance(x[0], (int, float))
+                        or x[0].replace(".", "").replace("-", "").isdigit()
+                        else 0,
+                        reverse=True,
+                    )
+                    tops, counts = zip(*paired) if paired else ([], [])
+                elif len(tops) > 10:
+                    # Categorical: sort by value descending and take top 10
+                    paired = sorted(zip(tops, counts), key=lambda x: -x[1])[:10]
+                    tops, counts = zip(*paired) if paired else ([], [])
+
+                render_data = {
+                    **data,
+                    "tops": list(tops),
+                    "counts": list(counts),
+                    "_is_numeric": is_numeric,
+                }
+
         # Build widget params based on extractor type
         widget_params = _build_widget_params_for_class_object(
-            extractor, widget_name, data, title
+            extractor, widget_name, render_data, title
         )
 
         # Validate params if the plugin has a param_schema
@@ -5350,7 +5428,7 @@ def _render_widget_for_class_object(
         else:
             validated_params = widget_params
 
-        return plugin_instance.render(data, validated_params)
+        return plugin_instance.render(render_data, validated_params)
     except Exception as e:
         logger.exception(f"Error rendering class_object widget '{widget_name}': {e}")
         return f"<p class='error'>Widget render error: {str(e)}</p>"
@@ -5361,29 +5439,58 @@ def _build_widget_params_for_class_object(
 ) -> Dict[str, Any]:
     """Build widget parameters for class_object data.
 
-    Class_object data format: {"labels": [...], "counts": [...], "source": "..."}
+    Class_object data format: {"tops": [...], "counts": [...], "source": "...", "class_object": "..."}
 
     Widget params depend on the widget type:
-    - bar_plot: x_axis="labels", y_axis="counts"
-    - donut_chart: values_field="counts", labels_field="labels"
+    - bar_plot: horizontal with y_axis="tops", x_axis="counts" (like top_ranking)
+    - donut_chart: values_field="counts", labels_field="tops"
     - radial_gauge: value_field (uses first value), max_value
     """
     if widget == "bar_plot":
-        # Determine orientation based on extractor
-        orientation = "v" if extractor == "series_extractor" else "h"
-        return {
-            "x_axis": "labels" if orientation == "v" else "counts",
-            "y_axis": "counts" if orientation == "v" else "labels",
-            "title": title,
-            "orientation": orientation,
-            "gradient_color": "#10b981",
-            "gradient_mode": "luminance",
-        }
+        # Check if data is numeric (distribution) or categorical (ranking)
+        is_numeric = data.get("_is_numeric", False)
+
+        if is_numeric:
+            # Numeric bins (like dbh) → vertical bar chart with gradient
+            # Detect if values are percentages (sum ≈ 100)
+            counts = data.get("counts", [])
+            total = sum(counts) if counts else 0
+            is_percentage = 95 <= total <= 105  # Allow some tolerance
+
+            # Get class_object name for x-axis label
+            class_object_name = data.get("class_object", "").upper()
+            x_label = class_object_name if class_object_name else "Classe"
+            y_label = "%" if is_percentage else "Effectif"
+
+            return {
+                "x_axis": "tops",  # bins on x-axis
+                "y_axis": "counts",
+                "title": title,
+                "orientation": "v",
+                "sort_order": "descending",
+                "gradient_color": "#8B4513",
+                "gradient_mode": "luminance",
+                "show_legend": False,  # no legend for distributions
+                "labels": {
+                    "tops": x_label,
+                    "counts": y_label,
+                },  # Applied from x_label/y_label
+            }
+        else:
+            # Categorical (like top_ranking) → horizontal bar chart with auto_color
+            return {
+                "x_axis": "counts",
+                "y_axis": "tops",
+                "title": title,
+                "orientation": "h",
+                "sort_order": "descending",
+                "auto_color": True,
+            }
 
     elif widget == "donut_chart":
         return {
             "values_field": "counts",
-            "labels_field": "labels",
+            "labels_field": "tops",
             "title": title,
         }
 

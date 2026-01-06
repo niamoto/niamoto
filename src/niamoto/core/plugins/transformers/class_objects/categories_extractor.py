@@ -1,9 +1,10 @@
 """
 Plugin for extracting categorical values from shape statistics.
 Extracts values for ordered categories from a single field.
+Supports auto-detection of categories when not explicitly specified.
 """
 
-from typing import Dict, Any, List, Literal
+from typing import Dict, Any, List, Literal, Optional
 from pydantic import Field, ConfigDict, ValidationError
 import pandas as pd
 
@@ -30,7 +31,11 @@ class CategoriesExtractorParams(BasePluginParams):
                         "Très Humide",
                         "Réserve",
                     ],
-                }
+                },
+                {
+                    "class_object": "dbh",
+                    "count": 10,
+                },
             ],
         }
     )
@@ -41,11 +46,21 @@ class CategoriesExtractorParams(BasePluginParams):
         json_schema_extra={"ui:widget": "text"},
     )
 
-    categories_order: List[str] = Field(
-        ...,
-        min_length=1,
-        description="List of categories in desired order",
+    categories_order: Optional[List[str]] = Field(
+        default=None,
+        description="List of categories in desired order. If not provided, categories are auto-detected and sorted by value (descending)",
         json_schema_extra={"ui:widget": "tags"},
+    )
+
+    count: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        description="Maximum number of categories to return (used when auto-detecting)",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:quick_edit": True,
+        },
     )
 
 
@@ -131,12 +146,14 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
             ``class_value`` columns.
         config:
             Raw configuration describing the target ``class_object`` and the desired
-            category ordering.
+            category ordering. If ``categories_order`` is not provided, categories
+            are auto-detected from the data and sorted by value (descending).
 
         Returns
         -------
         dict[str, list]
             Lists of category labels and their associated values.
+            Format: {"tops": [...], "counts": [...]} (same as top_ranking)
         """
         try:
             # Use validated config directly if passed or re-validate
@@ -148,6 +165,7 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
             params = validated_config.params
             class_object_name = params.class_object
             categories_order = params.categories_order
+            max_count = params.count
 
             # Check required columns exist
             required_columns = ["class_object", "class_name", "class_value"]
@@ -177,20 +195,38 @@ class ClassObjectCategoriesExtractor(TransformerPlugin):
                     },
                 )
 
-            # Initialize results with ordered categories
-            results = {"categories": categories_order, "values": []}
+            # Use same output format as top_ranking: {"tops": [...], "counts": [...]}
+            tops = []
+            counts = []
 
-            # Extract values for each category in order
-            for category in categories_order:
-                # Get value where class_name equals category
-                category_data = field_data[field_data["class_name"] == category]
-                if len(category_data) > 0:
-                    value = float(category_data.iloc[0]["class_value"])
-                else:
-                    value = 0.0
-                results["values"].append(value)
+            if categories_order:
+                # Use specified category order
+                for category in categories_order:
+                    category_data = field_data[field_data["class_name"] == category]
+                    if len(category_data) > 0:
+                        value = float(category_data.iloc[0]["class_value"])
+                    else:
+                        value = 0.0
+                    tops.append(category)
+                    counts.append(value)
+            else:
+                # Auto-detect categories: sort by value (descending) like top_ranking
+                # Convert class_value to numeric for sorting
+                field_data = field_data.copy()
+                field_data["class_value"] = pd.to_numeric(
+                    field_data["class_value"], errors="coerce"
+                )
 
-            return results
+                # Sort by value descending and take top N
+                sorted_data = field_data.sort_values(
+                    "class_value", ascending=False
+                ).head(max_count)
+
+                for _, row in sorted_data.iterrows():
+                    tops.append(str(row["class_name"]))
+                    counts.append(float(row["class_value"]))
+
+            return {"tops": tops, "counts": counts}
 
         except Exception as e:
             if isinstance(e, DataTransformError):

@@ -81,7 +81,10 @@ class TopRankingParams(BasePluginParams):
         ge=1,
         le=100,
         description="Number of top items to return",
-        json_schema_extra={"ui:widget": "number"},
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:quick_edit": True,
+        },
     )
 
     mode: Literal["direct", "hierarchical", "join"] = Field(
@@ -203,6 +206,7 @@ class TopRanking(TransformerPlugin):
     """Plugin for getting top N items"""
 
     config_model = TopRankingConfig
+    param_schema = TopRankingParams  # For exposing params with UI hints
 
     # Output structure for pattern matching
     output_structure = {"tops": "list", "counts": "list"}

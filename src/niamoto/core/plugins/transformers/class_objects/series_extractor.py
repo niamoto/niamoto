@@ -3,7 +3,7 @@ Plugin for extracting a series of values from a specific class_object.
 Handles extraction of values along a size/class axis, with optional sorting and numeric conversion.
 """
 
-from typing import Dict, Any, List, Literal
+from typing import Dict, Any, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 import pandas as pd
 import numpy as np
@@ -47,6 +47,7 @@ class ClassObjectSeriesParams(BasePluginParams):
                         "output": "values",
                         "numeric": True,
                     },
+                    "count": 10,
                 }
             ],
         }
@@ -79,6 +80,37 @@ class ClassObjectSeriesParams(BasePluginParams):
         default=FieldConfig(input="class_value", output="values", numeric=True),
         description="Configuration for value axis",
         json_schema_extra={"ui:widget": "json"},
+    )
+
+    count: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Maximum number of items to return (sorted by value descending). If not set, returns all items.",
+        json_schema_extra={
+            "ui:widget": "number",
+            "ui:quick_edit": True,
+        },
+    )
+
+    x_label: Optional[str] = Field(
+        default=None,
+        description="Label for X axis (e.g., 'DBH (cm)', 'Elevation')",
+        json_schema_extra={
+            "ui:widget": "text",
+            "ui:quick_edit": True,
+            "ui:placeholder": "Label axe X",
+        },
+    )
+
+    y_label: Optional[str] = Field(
+        default=None,
+        description="Label for Y axis (e.g., '%', 'Effectif', 'Count')",
+        json_schema_extra={
+            "ui:widget": "text",
+            "ui:quick_edit": True,
+            "ui:placeholder": "Label axe Y",
+        },
     )
 
 
@@ -238,18 +270,31 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
                     )
 
             # Construct result
-            result = {
-                size_config.output: size_values.tolist(),
-                value_config.output: value_values.tolist(),
-            }
+            sizes_list = size_values.tolist()
+            values_list = value_values.tolist()
 
-            # Remove -1 values from result
-            result[size_config.output] = [
-                x for x in result[size_config.output] if x != -1
+            # Remove -1 values
+            cleaned_pairs = [
+                (s, v) for s, v in zip(sizes_list, values_list) if s != -1 and v != -1
             ]
-            result[value_config.output] = [
-                x for x in result[value_config.output] if x != -1
-            ]
+
+            # Apply count limit if specified (sort by value descending first)
+            if params.count is not None and len(cleaned_pairs) > params.count:
+                # Sort by value descending and take top N
+                cleaned_pairs = sorted(cleaned_pairs, key=lambda x: -x[1])[
+                    : params.count
+                ]
+
+            # Unzip back to separate lists
+            if cleaned_pairs:
+                sizes_list, values_list = zip(*cleaned_pairs)
+            else:
+                sizes_list, values_list = [], []
+
+            result = {
+                size_config.output: list(sizes_list),
+                value_config.output: list(values_list),
+            }
 
             return result
 

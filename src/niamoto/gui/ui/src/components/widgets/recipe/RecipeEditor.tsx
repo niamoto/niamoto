@@ -378,6 +378,33 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
     }
   }, [completedSteps, currentStep])
 
+  // Load initial recipe into wizard state (most fields)
+  useEffect(() => {
+    if (initialRecipe) {
+      setWidgetId(initialRecipe.widget_id || '')
+      setSelectedTransformer(initialRecipe.transformer?.plugin || '')
+      setTransformerParams(initialRecipe.transformer?.params || {})
+      setSelectedWidget(initialRecipe.widget?.plugin || '')
+      setWidgetParams(initialRecipe.widget?.params || {})
+      setWidgetTitle(initialRecipe.widget?.title || '')
+      setColspan(initialRecipe.widget?.layout?.colspan ?? 1)
+      setOrder(initialRecipe.widget?.layout?.order ?? 0)
+    }
+  }, [initialRecipe])
+
+  // Set source when sources become available
+  useEffect(() => {
+    if (initialRecipe && sources && sources.length > 0) {
+      const sourceName = initialRecipe.transformer?.params?.source as string
+      if (sourceName) {
+        const source = sources.find(s => s.name === sourceName)
+        if (source) {
+          setSelectedSource(source)
+        }
+      }
+    }
+  }, [initialRecipe, sources])
+
   // Preview panel state
   const [previewTab, setPreviewTab] = useState<'yaml' | 'widget'>('yaml')
 

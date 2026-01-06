@@ -342,11 +342,14 @@ class ClassObjectAnalyzer:
         Suggest the best class_object plugin based on data characteristics.
 
         Logic:
-        - cardinality == 1 → field_aggregator (single scalar value)
+        - cardinality == 0 or 1 → field_aggregator (single scalar value)
         - cardinality == 2 → binary_aggregator (binary ratio like forest/non-forest)
-        - cardinality <= 5 && categorical → categories_extractor (categorical distribution)
+        - cardinality 3-5 && categorical → series_extractor (small categorical, donut-friendly)
         - numeric class_names → series_extractor (numeric distribution by elevation, etc.)
-        - cardinality > 5 && categorical → categories_extractor (but lower confidence)
+        - cardinality > 5 && categorical → series_extractor (top10_family, etc.)
+
+        Note: We use series_extractor for all multi-value data because it provides
+        consistent output format (tops/counts) that works with bar_plot widgets.
         """
         # No class_name (scalar metric with empty class_name like elevation_max)
         if cardinality == 0:
@@ -364,16 +367,16 @@ class ClassObjectAnalyzer:
         if value_type == "numeric":
             return "class_object_series_extractor", 0.90
 
-        # Small categorical set (good for pie/bar charts)
+        # Small categorical set (3-5 categories, good for donut charts)
         if cardinality <= 5:
-            return "class_object_categories_extractor", 0.90
+            return "class_object_series_extractor", 0.90
 
-        # Large categorical set (still works but may be cluttered)
+        # Medium categorical set (6-15 items)
         if cardinality <= 15:
-            return "class_object_categories_extractor", 0.75
+            return "class_object_series_extractor", 0.85
 
-        # Very large categorical (like top10_family/species with >10 items)
-        return "class_object_categories_extractor", 0.60
+        # Large categorical (like top10_family/species with >15 items)
+        return "class_object_series_extractor", 0.80
 
     def _determine_category(
         self, cardinality: int, value_type: str
@@ -407,31 +410,35 @@ class ClassObjectAnalyzer:
                 ],
             }
 
-        if plugin == "series_extractor":
+        if plugin in ("series_extractor", "class_object_series_extractor"):
+            # Use tops/counts output names for compatibility with bar_plot widget
+            # For categorical data: don't sort (preserve value-based order from CSV)
+            # For numeric data: sort by class_name (e.g., elevation bins)
+            is_numeric = value_type == "numeric"
             return {
                 "source": "shape_stats",
                 "class_object": class_object_name,
                 "size_field": {
                     "input": "class_name",
-                    "output": "sizes",
-                    "numeric": True,
-                    "sort": True,
+                    "output": "tops",
+                    "numeric": is_numeric,
+                    "sort": is_numeric,  # Sort only for numeric bins
                 },
                 "value_field": {
                     "input": "class_value",
-                    "output": "values",
+                    "output": "counts",
                     "numeric": True,
                 },
             }
 
-        if plugin == "categories_extractor":
+        if plugin in ("categories_extractor", "class_object_categories_extractor"):
             return {
                 "source": "shape_stats",
                 "class_object": class_object_name,
                 "categories_order": class_names,
             }
 
-        if plugin == "binary_aggregator":
+        if plugin in ("binary_aggregator", "class_object_binary_aggregator"):
             # Generate mapping from class_names to normalized keys
             mapping = self._generate_mapping_hints(class_names)
             classes = list(mapping.values()) if mapping else class_names
