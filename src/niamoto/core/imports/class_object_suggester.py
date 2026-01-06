@@ -134,7 +134,9 @@ class ClassObjectWidgetSuggester:
             return None
 
         label = _humanize_name(co.name)
-        template_id = f"{co.name}_{plugin}_{widget}"
+        # Strip class_object_ prefix for template_id to match parser expectations
+        short_plugin = plugin.replace("class_object_", "")
+        template_id = f"{co.name}_{short_plugin}_{widget}"
 
         return ClassObjectWidgetSuggestion(
             template_id=template_id,
@@ -156,58 +158,89 @@ class ClassObjectWidgetSuggester:
         """Build widget type and transformer config for a class_object.
 
         Widget selection logic (generic, based on data not names):
-        - series_extractor (numeric bins) → bar_plot
+        - series_extractor (all multi-value) → bar_plot with tops/counts
         - binary_aggregator (exactly 2 categories) → donut_chart
-        - categories_extractor (3-5 categories) → donut_chart
-        - categories_extractor (>5 categories) → bar_plot horizontal
         - field_aggregator (scalar) → radial_gauge
-        """
-        base_config = {
-            "source": source_name,
-            "class_object": co.name,
-        }
 
-        # Series (numeric distribution) → bar_plot vertical
-        if plugin == "series_extractor":
-            return "bar_plot", {
-                **base_config,
-                "output_field": f"{co.name}_distribution",
-                "orientation": "v",
+        The config follows the reference format from niamoto-nc/config.
+        """
+        # Series extractor for all multi-value data (categorical and numeric)
+        if plugin in ("series_extractor", "class_object_series_extractor"):
+            is_numeric = co.value_type == "numeric"
+
+            # Build transformer config matching reference format
+            transformer_config = {
+                "source": source_name,
+                "class_object": co.name,
+                "size_field": {
+                    "input": "class_name",
+                    "output": "tops",
+                    "numeric": is_numeric,
+                    "sort": is_numeric,  # Sort only for numeric bins
+                },
+                "value_field": {
+                    "input": "class_value",
+                    "output": "counts",
+                    "numeric": True,
+                },
             }
 
+            # Choose widget based on value type and cardinality
+            if co.cardinality <= 5 and not is_numeric:
+                # Small categorical → donut chart
+                return "donut_chart", transformer_config
+
+            if is_numeric:
+                # Numeric bins (like dbh, elevation) → vertical bar chart with gradient
+                # No count limit - show all bins for distribution
+                transformer_config["orientation"] = "v"
+                transformer_config["x_axis"] = "tops"  # bins on x-axis
+                transformer_config["y_axis"] = "counts"
+                transformer_config["sort_order"] = "descending"  # largest bins first
+                transformer_config["gradient_color"] = (
+                    "#8B4513"  # brown for distributions
+                )
+                transformer_config["gradient_mode"] = "luminance"
+                transformer_config["show_legend"] = False  # no legend for distributions
+
+                # Detect if values are percentages (sum ≈ 100)
+                total = sum(co.sample_values) if co.sample_values else 0
+                is_percentage = 95 <= total <= 105
+
+                # Add axis labels using class_object name (quick_edit fields)
+                transformer_config["x_label"] = co.name.upper()
+                transformer_config["y_label"] = "%" if is_percentage else "Effectif"
+
+                return "bar_plot", transformer_config
+            else:
+                # Categorical (like top10_family) → horizontal bar chart with auto_color
+                # Add count limit for large datasets
+                transformer_config["count"] = 10
+                transformer_config["orientation"] = "h"
+                transformer_config["x_axis"] = "counts"
+                transformer_config["y_axis"] = "tops"
+                transformer_config["sort_order"] = "descending"
+                transformer_config["auto_color"] = True
+                return "bar_plot", transformer_config
+
         # Binary (exactly 2 categories) → donut_chart
-        if plugin == "binary_aggregator":
+        if plugin in ("binary_aggregator", "class_object_binary_aggregator"):
             # Use actual class_names from data if available
             labels = co.class_names[:2] if len(co.class_names) >= 2 else ["A", "B"]
             return "donut_chart", {
-                **base_config,
+                "source": source_name,
+                "class_object": co.name,
                 "true_label": labels[0],
                 "false_label": labels[1] if len(labels) > 1 else "Other",
             }
 
-        # Categories → donut (small) or bar (large)
-        if plugin == "categories_extractor":
-            if co.cardinality <= 5:
-                # Small categorical → donut chart
-                return "donut_chart", {
-                    **base_config,
-                    "output_field": f"{co.name}_distribution",
-                }
-            else:
-                # Large categorical → horizontal bar chart
-                # Limit to top 10 for readability
-                return "bar_plot", {
-                    **base_config,
-                    "orientation": "h",
-                    "limit": min(co.cardinality, 10),
-                }
-
         # Scalar (field_aggregator) → radial_gauge
-        if plugin == "field_aggregator":
+        if plugin in ("field_aggregator", "class_object_field_aggregator"):
             # Use sample values to estimate max_value if available
             max_value = self._estimate_max_value(co)
             return "radial_gauge", {
-                **base_config,
+                "source": source_name,
+                "class_object": co.name,
                 "output_field": co.name,
                 "max_value": max_value,
             }

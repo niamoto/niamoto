@@ -463,11 +463,22 @@ class WidgetGenerator:
         else:
             bins = [0, 10, 20, 30, 40, 50, 100, 200, 500]
 
+        # Generate axis labels
+        unit = self._guess_unit(profile.name)
+        x_label = profile.name.upper()
+        if unit:
+            x_label = f"{x_label} ({unit})"
+
+        # Default to percentage since include_percentages is True
+        y_label = "%"
+
         return {
             "source": source_table,
             "field": profile.name,
             "bins": bins,
             "include_percentages": True,
+            "x_label": x_label,
+            "y_label": y_label,
         }
 
     def _config_stats(
