@@ -25,6 +25,10 @@ import {
   Upload,
   LayoutDashboard,
   Table2,
+  FlaskConical,
+  ListCollapse,
+  Combine,
+  PaintBucket,
   type LucideIcon
 } from 'lucide-react'
 import { useNavigationStore, navigationSections, type NavigationSection, type NavigationItem } from '@/stores/navigationStore'
@@ -40,7 +44,8 @@ const sectionIconMap: Record<string, LucideIcon> = {
   groups: Layers,
   site: FolderTree,
   tools: Settings,
-  legacy: Archive
+  legacy: Archive,
+  labs: FlaskConical
 }
 
 // Icon mapping for items
@@ -71,7 +76,12 @@ const itemIconMap: Record<string, LucideIcon> = {
   'demo-entity': Archive,
   'demo-pipeline': Archive,
   'demo-wizard': Archive,
-  'demo-goal': Archive
+  'demo-goal': Archive,
+  // Labs
+  'labs-index': FlaskConical,
+  'mockup-hybrid': Combine,
+  'mockup-canvas': PaintBucket,
+  'mockup-inline': ListCollapse
 }
 
 // Get icon for a reference kind

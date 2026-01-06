@@ -34,6 +34,12 @@ const Plugins = lazy(() => import('@/pages/tools/plugins').then(m => ({ default:
 const ApiDocs = lazy(() => import('@/pages/tools/docs/index').then(m => ({ default: m.ApiDocs })))
 const ConfigEditor = lazy(() => import('@/pages/tools/config-editor').then(m => ({ default: m.ConfigEditor })))
 
+// Labs pages - UX mockups
+const LabsIndex = lazy(() => import('@/pages/labs'))
+const MockupWidgetsHybrid = lazy(() => import('@/pages/labs/mockup-widgets-hybrid'))
+const MockupCanvasBuilder = lazy(() => import('@/pages/labs/mockup-canvas-builder'))
+const MockupWidgetsInline = lazy(() => import('@/pages/labs/mockup-widgets-inline'))
+
 // Check if running in Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 
@@ -243,6 +249,28 @@ function App() {
             <Route path="showcase" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <Showcase />
+              </Suspense>
+            } />
+
+            {/* Labs - UX Mockups */}
+            <Route path="labs" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <LabsIndex />
+              </Suspense>
+            } />
+            <Route path="labs/mockup-widgets-hybrid" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <MockupWidgetsHybrid />
+              </Suspense>
+            } />
+            <Route path="labs/mockup-canvas-builder" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <MockupCanvasBuilder />
+              </Suspense>
+            } />
+            <Route path="labs/mockup-widgets-inline" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <MockupWidgetsInline />
               </Suspense>
             } />
           </Route>
