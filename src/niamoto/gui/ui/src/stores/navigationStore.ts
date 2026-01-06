@@ -98,6 +98,17 @@ export const navigationSections: NavigationSection[] = [
       { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
       { id: 'docs', label: 'Documentation', path: '/tools/docs' }
     ]
+  },
+  {
+    id: 'labs',
+    label: 'Labs',
+    defaultOpen: true,
+    items: [
+      { id: 'labs-index', label: 'Vue d\'ensemble', path: '/labs' },
+      { id: 'mockup-hybrid', label: 'Option A: Hybride', path: '/labs/mockup-widgets-hybrid' },
+      { id: 'mockup-canvas', label: 'Option B: Canvas', path: '/labs/mockup-canvas-builder' },
+      { id: 'mockup-inline', label: 'Option C: Inline', path: '/labs/mockup-widgets-inline' }
+    ]
   }
 ]
 

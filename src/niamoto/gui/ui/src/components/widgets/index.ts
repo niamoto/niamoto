@@ -11,6 +11,7 @@ export { FieldGroup } from './FieldGroup'
 export { WidgetOptionCard } from './WidgetOptionCard'
 export { ConfiguredWidgetsList } from './ConfiguredWidgetsList'
 export { WidgetConfigForm } from './WidgetConfigForm'
+export { AddWidgetModal } from './AddWidgetModal'
 
 // Additional widget components
 export { WidgetConfigYamlEditor } from './WidgetConfigYamlEditor'
