@@ -22,8 +22,9 @@ const GroupDetailPage = lazy(() => import('@/pages/groups/[name]'))
 
 // Site pages
 const SiteIndexPage = lazy(() => import('@/pages/site'))
-const SiteStructurePage = lazy(() => import('@/pages/site/structure'))
 const SitePagesPage = lazy(() => import('@/pages/site/pages'))
+const SiteNavigationPage = lazy(() => import('@/pages/site/navigation'))
+const SiteApparencePage = lazy(() => import('@/pages/site/apparence'))
 const SiteThemePage = lazy(() => import('@/pages/site/theme'))
 
 // Tools pages
@@ -197,14 +198,19 @@ function App() {
                 <SiteIndexPage />
               </Suspense>
             } />
-            <Route path="site/structure" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SiteStructurePage />
-              </Suspense>
-            } />
             <Route path="site/pages" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <SitePagesPage />
+              </Suspense>
+            } />
+            <Route path="site/navigation" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <SiteNavigationPage />
+              </Suspense>
+            } />
+            <Route path="site/apparence" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <SiteApparencePage />
               </Suspense>
             } />
             <Route path="site/theme" element={

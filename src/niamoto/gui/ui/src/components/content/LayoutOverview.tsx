@@ -453,7 +453,12 @@ export function LayoutOverview({
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
 
-  // Set default entity
+  // Reset entity selection when group changes
+  useEffect(() => {
+    setSelectedEntityId(null)
+  }, [groupBy])
+
+  // Set default entity when representatives are loaded
   useEffect(() => {
     if (representatives?.default_entity && !selectedEntityId) {
       setSelectedEntityId(representatives.default_entity.id)

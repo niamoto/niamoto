@@ -9,8 +9,51 @@ import shutil
 from datetime import datetime
 
 from ..context import get_working_directory
+from niamoto.gui.api.services.templates.config_service import (
+    load_transform_config as _load_transform_config_impl,
+    save_transform_config as _save_transform_config_impl,
+    load_export_config as _load_export_config_impl,
+    save_export_config as _save_export_config_impl,
+    find_transform_group as _find_transform_group_impl,
+    find_export_group as _find_export_group_impl,
+)
 
 router = APIRouter()
+
+
+# Wrapper functions for backward compatibility (use get_working_directory)
+def _load_transform_config() -> List[Dict[str, Any]]:
+    """Load transform.yml using centralized service."""
+    return _load_transform_config_impl(get_working_directory())
+
+
+def _save_transform_config(groups: List[Dict[str, Any]]) -> None:
+    """Save transform.yml using centralized service with backup."""
+    _save_transform_config_impl(get_working_directory(), groups, create_backup=True)
+
+
+def _load_export_config() -> Dict[str, Any]:
+    """Load export.yml using centralized service."""
+    return _load_export_config_impl(get_working_directory())
+
+
+def _save_export_config(config: Dict[str, Any]) -> None:
+    """Save export.yml using centralized service with backup."""
+    _save_export_config_impl(get_working_directory(), config, create_backup=True)
+
+
+def _find_transform_group(
+    groups: List[Dict[str, Any]], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find a group by group_by value using centralized service."""
+    return _find_transform_group_impl(groups, group_by)
+
+
+def _find_export_group(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find export group by group_by value using centralized service."""
+    return _find_export_group_impl(export_config, group_by)
 
 
 class ConfigUpdate(BaseModel):
@@ -1340,86 +1383,6 @@ class WidgetSummary(BaseModel):
     id: str
     plugin: str
     params: Dict[str, Any] = {}
-
-
-def _load_transform_config() -> List[Dict[str, Any]]:
-    """Load transform.yml and return as list of groups."""
-    config_path = get_working_directory() / "config" / "transform.yml"
-    if not config_path.exists():
-        return []
-
-    with open(config_path, "r", encoding="utf-8") as f:
-        content = yaml.safe_load(f)
-
-    # Handle both list and dict formats
-    if isinstance(content, list):
-        return content
-    return []
-
-
-def _save_transform_config(groups: List[Dict[str, Any]]) -> None:
-    """Save transform config to file."""
-    config_path = get_working_directory() / "config" / "transform.yml"
-    ensure_config_dir()
-
-    # Create backup
-    if config_path.exists():
-        create_backup(config_path)
-
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            groups, f, default_flow_style=False, allow_unicode=True, sort_keys=False
-        )
-
-
-def _load_export_config() -> Dict[str, Any]:
-    """Load export.yml."""
-    config_path = get_working_directory() / "config" / "export.yml"
-    if not config_path.exists():
-        return {"exports": []}
-
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {"exports": []}
-
-
-def _save_export_config(config: Dict[str, Any]) -> None:
-    """Save export config to file."""
-    config_path = get_working_directory() / "config" / "export.yml"
-    ensure_config_dir()
-
-    # Create backup
-    if config_path.exists():
-        create_backup(config_path)
-
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            config, f, default_flow_style=False, allow_unicode=True, sort_keys=False
-        )
-
-
-def _find_transform_group(
-    groups: List[Dict[str, Any]], group_by: str
-) -> Optional[Dict[str, Any]]:
-    """Find a group by group_by value."""
-    for group in groups:
-        if group.get("group_by") == group_by:
-            return group
-    return None
-
-
-def _find_export_group(
-    export_config: Dict[str, Any], group_by: str
-) -> Optional[Dict[str, Any]]:
-    """Find export group by group_by value."""
-    exports = export_config.get("exports", [])
-    for export_entry in exports:
-        groups = export_entry.get("groups") or export_entry.get("params", {}).get(
-            "groups", []
-        )
-        for group in groups:
-            if group.get("group_by") == group_by:
-                return group
-    return None
 
 
 @router.get("/transform/{group_by}/widgets")

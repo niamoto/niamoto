@@ -422,7 +422,7 @@ class HtmlPageExporter(ExporterPlugin):
                 f"Processing static page: '{page_config.name}' -> {page_config.output_file}"
             )
             try:
-                template_name = page_config.template or "static_page.html"
+                template_name = page_config.template or "page.html"
                 template = jinja_env.get_template(template_name)
 
                 # Prepare context
@@ -430,6 +430,14 @@ class HtmlPageExporter(ExporterPlugin):
                     "site": html_params.site.model_dump() if html_params.site else {},
                     "navigation": html_params.navigation
                     if html_params.navigation
+                    else [],
+                    "footer_navigation": html_params.footer_navigation
+                    if html_params.footer_navigation
+                    else [],
+                    "external_links": [
+                        link.model_dump() for link in html_params.external_links
+                    ]
+                    if html_params.external_links
                     else [],
                     "page": page_config.context.model_dump()
                     if page_config.context
@@ -665,7 +673,7 @@ class HtmlPageExporter(ExporterPlugin):
                 )
                 continue
 
-            detail_template_name = group_config.page_template or "group_detail.html"
+            detail_template_name = group_config.page_template or "_group_detail.html"
 
             # Outer try for the entire detail page generation process for this group
             try:
@@ -906,6 +914,15 @@ class HtmlPageExporter(ExporterPlugin):
                                 else {},
                                 "navigation": html_params.navigation
                                 if html_params.navigation
+                                else [],
+                                "footer_navigation": html_params.footer_navigation
+                                if html_params.footer_navigation
+                                else [],
+                                "external_links": [
+                                    link.model_dump()
+                                    for link in html_params.external_links
+                                ]
+                                if html_params.external_links
                                 else [],
                                 "id_column": id_column,
                                 "group_config": group_config,
@@ -1416,7 +1433,7 @@ class HtmlPageExporter(ExporterPlugin):
                 return
 
             # Use traditional template
-            index_template_name = group_config.index_template or "group_index.html"
+            index_template_name = group_config.index_template or "_group_index.html"
 
             index_template = jinja_env.get_template(index_template_name)
             logger.debug(f"Rendering traditional index template: {index_template_name}")
@@ -1424,6 +1441,14 @@ class HtmlPageExporter(ExporterPlugin):
             index_context = {
                 "site": html_params.site,
                 "navigation": html_params.navigation,
+                "footer_navigation": html_params.footer_navigation
+                if html_params.footer_navigation
+                else [],
+                "external_links": [
+                    link.model_dump() for link in html_params.external_links
+                ]
+                if html_params.external_links
+                else [],
                 "group_by": group_by_key,
                 "items": index_data,
                 "group_config": group_config,

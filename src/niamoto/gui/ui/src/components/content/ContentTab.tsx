@@ -6,7 +6,7 @@
  * - Widget selected: Shows widget detail panel (preview + params + YAML)
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { GripVertical, Plus } from 'lucide-react'
 import {
   ResizableHandle,
@@ -38,6 +38,11 @@ interface ContentTabProps {
 export function ContentTab({ reference }: ContentTabProps) {
   // Selection state
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
+
+  // Reset selection when reference changes (group switch)
+  useEffect(() => {
+    setSelectedWidgetId(null)
+  }, [reference.name])
 
   // Modal state
   const [addModalOpen, setAddModalOpen] = useState(false)

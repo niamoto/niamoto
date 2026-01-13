@@ -23,12 +23,42 @@
             <ul class="list-reset lg:flex justify-end flex-1 items-center">
                 {% if navigation %}
                     {% for item in navigation %}
-                        <li class="mr-3">
-                            <a class="nav-link inline-block py-2 px-3 text-white no-underline"
-                               href="{{ '../' * (depth|default(0)) }}{{ item.url.lstrip('/') }}">
-                                {{ item.text }}
-                            </a>
-                        </li>
+                        {% if item.children and item.children|length > 0 %}
+                            <!-- Menu item with dropdown -->
+                            <li class="mr-3 relative group">
+                                {% if item.url %}
+                                <a class="nav-link inline-block py-2 px-3 text-white no-underline"
+                                   href="{{ '../' * (depth|default(0)) }}{{ item.url.lstrip('/') }}">
+                                    {{ item.text }}
+                                    <i class="fas fa-chevron-down ml-1 text-xs opacity-70"></i>
+                                </a>
+                                {% else %}
+                                <span class="nav-link inline-block py-2 px-3 text-white cursor-pointer">
+                                    {{ item.text }}
+                                    <i class="fas fa-chevron-down ml-1 text-xs opacity-70"></i>
+                                </span>
+                                {% endif %}
+                                <!-- Dropdown menu -->
+                                <ul class="dropdown-menu absolute left-0 mt-0 w-48 bg-white rounded-md shadow-lg z-50 overflow-hidden">
+                                    {% for child in item.children %}
+                                        <li>
+                                            <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-green-600 first:rounded-t-md last:rounded-b-md"
+                                               href="{{ '../' * (depth|default(0)) }}{{ child.url.lstrip('/') if child.url else '#' }}">
+                                                {{ child.text }}
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </li>
+                        {% else %}
+                            <!-- Simple menu item -->
+                            <li class="mr-3">
+                                <a class="nav-link inline-block py-2 px-3 text-white no-underline"
+                                   href="{{ '../' * (depth|default(0)) }}{{ item.url.lstrip('/') if item.url else '#' }}">
+                                    {{ item.text }}
+                                </a>
+                            </li>
+                        {% endif %}
                     {% endfor %}
                 {% else %}
                     <!-- Default navigation if none provided -->
@@ -82,8 +112,18 @@
         background-color: rgba(34, 139, 34, 1);
     }
 
-    .group:hover .group-hover\:block {
-        display: block;
+    /* Dropdown menu - hidden by default, visible on hover */
+    .dropdown-menu {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.2s ease;
+    }
+
+    .group:hover .dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
     }
 
     .custom-nav {

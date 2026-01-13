@@ -79,10 +79,11 @@ export const navigationSections: NavigationSection[] = [
     id: 'site',
     label: 'Site',
     defaultOpen: true,
-    badge: { type: 'count', value: '0 pages' },
+    dynamic: true, // Badge will show page count
     items: [
-      { id: 'site-structure', label: 'Structure', path: '/site/structure' },
       { id: 'site-pages', label: 'Pages', path: '/site/pages' },
+      { id: 'site-navigation', label: 'Navigation', path: '/site/navigation' },
+      { id: 'site-apparence', label: 'Apparence', path: '/site/apparence' },
       { id: 'site-theme', label: 'Thème', path: '/site/theme' },
     ]
   },

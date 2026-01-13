@@ -1,0 +1,206 @@
+{% extends "_base.html" %}
+{#
+    Template: bibliography.html
+    Description: Page de references bibliographiques avec citations formatees
+    Variables:
+        - title: Titre de la page (ex: "References bibliographiques")
+        - introduction: Texte d'introduction
+        - references: Liste de references [{authors, year, title, journal, volume, pages, doi, url, type}]
+        - page_content_html: Contenu markdown converti en HTML (alternative aux references structurees)
+        - categories: Categories pour filtrage [{id, label}]
+#}
+
+{% block title %}{{ title | default('Bibliographie') }} - {{ site.title | default('Niamoto') }}{% endblock %}
+
+{% block content %}
+<div class="bibliography-page py-12">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <header class="mb-12">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">
+                {{ title | default('References bibliographiques') }}
+            </h1>
+            <div class="w-20 h-1 bg-green-600 mb-6"></div>
+            {% if introduction %}
+            <p class="text-lg text-gray-600 max-w-3xl">{{ introduction }}</p>
+            {% endif %}
+        </header>
+
+        <!-- Filter by category -->
+        {% if categories %}
+        <div class="mb-8">
+            <div class="flex flex-wrap gap-2">
+                <button class="filter-btn active px-4 py-2 text-sm rounded-full bg-green-600 text-white"
+                        data-category="all">
+                    Toutes
+                </button>
+                {% for cat in categories %}
+                <button class="filter-btn px-4 py-2 text-sm rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        data-category="{{ cat.id }}">
+                    {{ cat.label }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Search -->
+        <div class="mb-8">
+            <div class="relative max-w-md">
+                <input type="text" id="ref-search" placeholder="Rechercher par auteur, titre, annee..."
+                       class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            </div>
+        </div>
+
+        <!-- References List -->
+        <div class="references-list space-y-4">
+            {% if references %}
+                {% for ref in references %}
+                <article class="reference-item bg-white rounded-lg shadow-sm border border-gray-100 p-6 hover:border-green-200 transition-colors"
+                         data-category="{{ ref.type | default('article') }}"
+                         data-searchable="{{ ref.authors }} {{ ref.year }} {{ ref.title }}">
+                    <div class="flex items-start gap-4">
+                        <!-- Type Icon -->
+                        <div class="flex-shrink-0 w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+                            {% if ref.type == 'book' %}
+                            <i class="fas fa-book text-green-600"></i>
+                            {% elif ref.type == 'thesis' %}
+                            <i class="fas fa-graduation-cap text-green-600"></i>
+                            {% elif ref.type == 'report' %}
+                            <i class="fas fa-file-alt text-green-600"></i>
+                            {% else %}
+                            <i class="fas fa-file-lines text-green-600"></i>
+                            {% endif %}
+                        </div>
+
+                        <!-- Reference Content -->
+                        <div class="flex-1 min-w-0">
+                            <p class="reference-citation text-gray-800 leading-relaxed">
+                                <span class="font-semibold">{{ ref.authors }}</span>
+                                ({{ ref.year }}).
+                                <em>{{ ref.title }}</em>.
+                                {% if ref.journal %}{{ ref.journal }}{% endif %}
+                                {% if ref.volume %}, {{ ref.volume }}{% endif %}
+                                {% if ref.pages %}: {{ ref.pages }}{% endif %}.
+                            </p>
+
+                            <!-- Links -->
+                            <div class="mt-3 flex flex-wrap gap-3">
+                                {% if ref.doi %}
+                                <a href="https://doi.org/{{ ref.doi }}" target="_blank" rel="noopener noreferrer"
+                                   class="inline-flex items-center text-sm text-green-600 hover:text-green-800">
+                                    <i class="fas fa-external-link-alt mr-1"></i>
+                                    DOI
+                                </a>
+                                {% endif %}
+                                {% if ref.url %}
+                                <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer"
+                                   class="inline-flex items-center text-sm text-green-600 hover:text-green-800">
+                                    <i class="fas fa-link mr-1"></i>
+                                    Lien
+                                </a>
+                                {% endif %}
+                                {% if ref.pdf %}
+                                <a href="{{ ref.pdf | relative_url(depth|default(0)) }}" target="_blank" rel="noopener noreferrer"
+                                   class="inline-flex items-center text-sm text-red-600 hover:text-red-800">
+                                    <i class="fas fa-file-pdf mr-1"></i>
+                                    PDF
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Year Badge -->
+                        <div class="flex-shrink-0">
+                            <span class="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                                {{ ref.year }}
+                            </span>
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            {% elif page_content_html %}
+                <!-- Fallback to markdown content -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-8">
+                    <div class="bibliography-content">
+                        {{ page_content_html | safe }}
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-gray-500 italic text-center py-12">
+                    Aucune reference disponible
+                </p>
+            {% endif %}
+        </div>
+
+        <!-- Stats -->
+        {% if references %}
+        <div class="mt-12 pt-8 border-t border-gray-200">
+            <p class="text-sm text-gray-500 text-center">
+                <span id="visible-count">{{ references | length }}</span> reference(s) sur {{ references | length }}
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Back -->
+        <div class="mt-8">
+            <a href="{{ 'index.html' | relative_url(depth|default(0)) }}"
+               class="inline-flex items-center text-green-600 hover:text-green-800">
+                <i class="fas fa-arrow-left mr-2"></i>
+                Retour a l'accueil
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bibliography-content p { margin-bottom: 1.5rem; line-height: 1.75; color: #4b5563; }
+    .bibliography-content p strong:first-child { display: block; margin-bottom: 0.25rem; color: #1f2937; }
+    .reference-item.hidden { display: none; }
+    .filter-btn.active { background-color: #059669; color: white; }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('ref-search');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const items = document.querySelectorAll('.reference-item');
+        const countEl = document.getElementById('visible-count');
+
+        let activeCategory = 'all';
+
+        function filterItems() {
+            const searchTerm = searchInput?.value.toLowerCase() || '';
+            let visibleCount = 0;
+
+            items.forEach(item => {
+                const matchesCategory = activeCategory === 'all' || item.dataset.category === activeCategory;
+                const matchesSearch = !searchTerm || item.dataset.searchable.toLowerCase().includes(searchTerm);
+
+                if (matchesCategory && matchesSearch) {
+                    item.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    item.classList.add('hidden');
+                }
+            });
+
+            if (countEl) countEl.textContent = visibleCount;
+        }
+
+        searchInput?.addEventListener('input', filterItems);
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                activeCategory = this.dataset.category;
+                filterItems();
+            });
+        });
+    });
+</script>
+{% endblock %}

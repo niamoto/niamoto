@@ -131,7 +131,7 @@ export interface IndexGeneratorConfig {
  */
 const DEFAULT_CONFIG: IndexGeneratorConfig = {
   enabled: false,
-  template: 'group_index.html',
+  template: '_group_index.html',
   page_config: {
     title: 'Index',
     description: '',

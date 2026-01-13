@@ -34,6 +34,7 @@ import {
 import { useNavigationStore, navigationSections, type NavigationSection, type NavigationItem } from '@/stores/navigationStore'
 import { useReferences } from '@/hooks/useReferences'
 import { useDatasets } from '@/hooks/useDatasets'
+import { useSiteConfig } from '@/hooks/useSiteConfig'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import niamotoLogo from '@/assets/niamoto_logo.png'
@@ -62,8 +63,9 @@ const itemIconMap: Record<string, LucideIcon> = {
   plots: MapPin,
   shapes: Map,
   // Site
-  'site-structure': FolderTree,
   'site-pages': FileText,
+  'site-navigation': Menu,
+  'site-apparence': Settings,
   'site-theme': Palette,
   // Tools
   'data-explorer': Search,
@@ -112,8 +114,10 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
   // Fetch datasets and references dynamically
   const { data: datasetsData } = useDatasets()
   const { data: referencesData } = useReferences()
+  const { data: siteConfigData } = useSiteConfig()
   const datasets = datasetsData?.datasets ?? []
   const references = referencesData?.references ?? []
+  const staticPagesCount = siteConfigData?.static_pages?.length ?? 0
 
   // Build navigation sections with dynamic items
   const sections = useMemo(() => {
@@ -184,9 +188,19 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
         }
       }
 
+      // Site section: show dynamic page count
+      if (section.id === 'site' && section.dynamic) {
+        return {
+          ...section,
+          badge: staticPagesCount > 0
+            ? { type: 'count' as const, value: `${staticPagesCount} page${staticPagesCount > 1 ? 's' : ''}` }
+            : undefined
+        }
+      }
+
       return section
     })
-  }, [datasets, references])
+  }, [datasets, references, staticPagesCount])
 
   if (sidebarMode === 'hidden') {
     return null

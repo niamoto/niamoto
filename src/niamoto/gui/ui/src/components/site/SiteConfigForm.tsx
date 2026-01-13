@@ -9,7 +9,7 @@
  */
 
 import { useRef } from 'react'
-import { Globe, Image, Palette, Link2, Upload, Loader2 } from 'lucide-react'
+import { Globe, Image, Upload, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -240,80 +240,6 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
                 </div>
               )}
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Colors */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Palette className="h-4 w-4" />
-            Couleurs
-          </CardTitle>
-          <CardDescription>Couleurs du theme</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="primary-color">Couleur primaire</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  id="primary-color"
-                  value={config.primary_color}
-                  onChange={(e) => updateField('primary_color', e.target.value)}
-                  className="h-10 w-14 cursor-pointer rounded border bg-transparent p-1"
-                />
-                <Input
-                  value={config.primary_color}
-                  onChange={(e) => updateField('primary_color', e.target.value)}
-                  placeholder="#228b22"
-                  className="font-mono"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nav-color">Couleur navigation</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  id="nav-color"
-                  value={config.nav_color}
-                  onChange={(e) => updateField('nav_color', e.target.value)}
-                  className="h-10 w-14 cursor-pointer rounded border bg-transparent p-1"
-                />
-                <Input
-                  value={config.nav_color}
-                  onChange={(e) => updateField('nav_color', e.target.value)}
-                  placeholder="#228b22"
-                  className="font-mono"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* External Links */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Link2 className="h-4 w-4" />
-            Liens externes
-          </CardTitle>
-          <CardDescription>Liens vers des ressources externes</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="github-url">URL GitHub</Label>
-            <Input
-              id="github-url"
-              type="url"
-              value={config.github_url || ''}
-              onChange={(e) => updateField('github_url', e.target.value || null)}
-              placeholder="https://github.com/niamoto/niamoto"
-            />
           </div>
         </CardContent>
       </Card>

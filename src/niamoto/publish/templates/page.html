@@ -1,0 +1,210 @@
+{% extends "_base.html" %}
+{#
+    Template: page.html
+    Description: Page simple avec contenu centre (a propos, mentions legales, etc.)
+    Variables:
+        - title: Titre de la page
+        - page_content_html: Contenu markdown converti en HTML
+#}
+
+{% block title %}{{ title | default('Page') }} - {{ site.title | default('Niamoto') }}{% endblock %}
+
+{% block content %}
+<div class="simple-page py-12">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Page Header -->
+        {% if title %}
+        <header class="page-header mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">{{ title }}</h1>
+            <div class="w-20 h-1 bg-green-600"></div>
+        </header>
+        {% endif %}
+
+        <!-- Main Content -->
+        <article class="bg-white rounded-lg shadow-md p-8 lg:p-12">
+            {% if page_content_html %}
+            <div class="markdown-content">
+                {{ page_content_html | safe }}
+            </div>
+            {% else %}
+            <p class="text-gray-500 italic text-center py-8">
+                (Aucun contenu disponible pour cette page)
+            </p>
+            {% endif %}
+        </article>
+
+        <!-- Back Navigation -->
+        <div class="mt-8">
+            <a href="{{ 'index.html' | relative_url(depth|default(0)) }}"
+               class="inline-flex items-center text-green-600 hover:text-green-800 transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>
+                Retour a l'accueil
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .markdown-content h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    .markdown-content h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+    .markdown-content h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #374151;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .markdown-content p {
+        color: #4b5563;
+        margin-bottom: 1rem;
+        line-height: 1.75;
+    }
+    .markdown-content ul, .markdown-content ol {
+        margin-bottom: 1rem;
+        margin-left: 1.5rem;
+        color: #4b5563;
+    }
+    .markdown-content ul { list-style-type: disc; }
+    .markdown-content ol { list-style-type: decimal; }
+    .markdown-content li {
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+    }
+    .markdown-content blockquote {
+        border-left: 4px solid #10b981;
+        padding-left: 1rem;
+        margin: 1.5rem 0;
+        color: #6b7280;
+        font-style: italic;
+    }
+    .markdown-content code {
+        background-color: #f3f4f6;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+    }
+    .markdown-content pre {
+        background-color: #1f2937;
+        color: #e5e7eb;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+    }
+    .markdown-content pre code {
+        background: none;
+        padding: 0;
+        color: inherit;
+    }
+    .markdown-content a {
+        color: #059669;
+        text-decoration: underline;
+        transition: color 0.2s;
+    }
+    .markdown-content a:hover {
+        color: #047857;
+    }
+    .markdown-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+    }
+    .markdown-content th, .markdown-content td {
+        border: 1px solid #e5e7eb;
+        padding: 0.75rem;
+        text-align: left;
+    }
+    .markdown-content th {
+        background-color: #f9fafb;
+        font-weight: 600;
+    }
+    .markdown-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.5rem;
+        margin: 1.5rem 0;
+    }
+
+    /* ===========================================
+       Image Gallery Support
+       Consecutive images (without blank lines in markdown)
+       will display side-by-side automatically
+       =========================================== */
+
+    /* Container for gallery detection */
+    .markdown-content {
+        /* Enable gallery layout detection */
+    }
+
+    /* Paragraphs containing only an image become gallery items */
+    .markdown-content p:has(> img:only-child) {
+        display: inline-block;
+        vertical-align: top;
+        margin: 0.25rem;
+        max-width: calc(50% - 0.5rem); /* Default: 2 images per row */
+    }
+
+    .markdown-content p:has(> img:only-child) img {
+        margin: 0;
+        width: 100%;
+        height: auto;
+        object-fit: cover;
+    }
+
+    /* Reset margin for first image in a gallery sequence */
+    .markdown-content p:has(> img:only-child):not(p:has(> img:only-child) + p) {
+        margin-left: 0;
+    }
+
+    /* When 3+ consecutive images, make them smaller */
+    .markdown-content p:has(> img:only-child) + p:has(> img:only-child) + p:has(> img:only-child) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+    .markdown-content p:has(> img:only-child) + p:has(> img:only-child) + p:has(> img:only-child) ~ p:has(> img:only-child) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+    .markdown-content p:has(> img:only-child):has(+ p:has(> img:only-child) + p:has(> img:only-child)) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+    .markdown-content p:has(> img:only-child) + p:has(> img:only-child):has(+ p:has(> img:only-child)) {
+        max-width: calc(33.333% - 0.5rem);
+    }
+
+    /* Gallery container styling - wrap for multiple rows */
+    .markdown-content p:has(> img:only-child) + p:not(:has(> img:only-child)) {
+        clear: both;
+    }
+
+    /* Add spacing after gallery */
+    .markdown-content p:has(> img:only-child):last-child,
+    .markdown-content p:has(> img:only-child) + p:not(:has(> img:only-child)) {
+        margin-top: 1.5rem;
+    }
+
+    /* Hover effect on gallery images */
+    .markdown-content p:has(> img:only-child) img:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .markdown-content p:has(> img:only-child) img {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
