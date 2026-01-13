@@ -1,0 +1,1299 @@
+/**
+ * SiteBuilder - Unified site configuration interface
+ *
+ * Split Preview layout with:
+ * - Left panel: Tree navigation (Params, Navigation, Pages, Groups)
+ * - Center panel: Contextual editor
+ * - Right panel: Live preview (toggleable)
+ */
+
+import { useState, useEffect, useMemo, useRef } from 'react'
+import {
+  Settings,
+  Palette,
+  Navigation,
+  FileText,
+  Folder,
+  Lock,
+  Loader2,
+  Save,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Smartphone,
+  Tablet,
+  Monitor,
+  Plus,
+  ExternalLink as ExternalLinkIcon,
+} from 'lucide-react'
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
+import {
+  useSiteConfig,
+  useUpdateSiteConfig,
+  useGroups,
+  useTemplates,
+  useTemplatePreview,
+  useGroupIndexPreview,
+  useFileContent,
+  type SiteSettings,
+  type NavigationItem,
+  type StaticPage,
+  type SiteConfigUpdate,
+  type GroupInfo,
+  DEFAULT_SITE_SETTINGS,
+  DEFAULT_STATIC_PAGE,
+} from '@/hooks/useSiteConfig'
+import { SiteConfigForm } from './SiteConfigForm'
+import { ThemeConfigForm } from './ThemeConfigForm'
+import { NavigationBuilder } from './NavigationBuilder'
+import { StaticPageEditor } from './StaticPageEditor'
+import { TemplateList } from './TemplateList'
+import { GroupPageViewer } from './GroupPageViewer'
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+type SelectionType = 'identity' | 'theme' | 'navigation' | 'footer' | 'page' | 'group' | 'new-page'
+
+interface Selection {
+  type: SelectionType
+  id?: string
+}
+
+type DeviceSize = 'mobile' | 'tablet' | 'desktop'
+
+// =============================================================================
+// SITE TREE COMPONENT
+// =============================================================================
+
+interface SiteTreeProps {
+  navigation: NavigationItem[]
+  footerNavigation: NavigationItem[]
+  pages: StaticPage[]
+  groups: GroupInfo[]
+  groupsLoading: boolean
+  selection: Selection | null
+  onSelect: (selection: Selection) => void
+  onAddPage: () => void
+}
+
+function SiteTree({
+  navigation,
+  footerNavigation,
+  pages,
+  groups,
+  groupsLoading,
+  selection,
+  onSelect,
+  onAddPage,
+}: SiteTreeProps) {
+  const isSelected = (type: SelectionType, id?: string) => {
+    if (!selection) return false
+    if (selection.type !== type) return false
+    if (id !== undefined) return selection.id === id
+    return true
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <ScrollArea className="flex-1">
+        <Accordion
+          type="multiple"
+          defaultValue={['pages', 'navigation', 'appearance', 'groups']}
+          className="px-2 py-2"
+        >
+          {/* Pages Section - EN PREMIER */}
+          <AccordionItem value="pages" className="border-none">
+            <AccordionTrigger className="py-2 text-sm hover:no-underline">
+              <span className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Pages
+                <Badge variant="secondary" className="ml-auto text-[10px]">
+                  {pages.length}
+                </Badge>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-2">
+              <div className="space-y-1 pl-6">
+                {pages.length === 0 ? (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
+                    Aucune page
+                  </p>
+                ) : (
+                  pages.map((page, index) => (
+                    <button
+                      key={`${page.name}-${index}`}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                        isSelected('page', page.name)
+                          ? 'bg-primary/10 text-primary'
+                          : 'hover:bg-muted/50'
+                      )}
+                      onClick={() => onSelect({ type: 'page', id: page.name })}
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span className="truncate flex-1 text-left">{page.name}</span>
+                    </button>
+                  ))
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-xs text-muted-foreground hover:text-foreground"
+                  onClick={onAddPage}
+                >
+                  + Ajouter une page
+                </Button>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Navigation Section */}
+          <AccordionItem value="navigation" className="border-none">
+            <AccordionTrigger className="py-2 text-sm hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Navigation className="h-4 w-4" />
+                Navigation
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-2">
+              <div className="space-y-1 pl-6">
+                <button
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isSelected('navigation')
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-muted/50'
+                  )}
+                  onClick={() => onSelect({ type: 'navigation' })}
+                >
+                  <span className="flex items-center gap-2">
+                    <Navigation className="h-4 w-4" />
+                    Menu principal
+                  </span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {navigation.length}
+                  </Badge>
+                </button>
+                <button
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isSelected('footer')
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-muted/50'
+                  )}
+                  onClick={() => onSelect({ type: 'footer' })}
+                >
+                  <span className="flex items-center gap-2">
+                    <Navigation className="h-4 w-4" />
+                    Menu footer
+                  </span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {footerNavigation.length}
+                  </Badge>
+                </button>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Appearance Section (ancien Settings) */}
+          <AccordionItem value="appearance" className="border-none">
+            <AccordionTrigger className="py-2 text-sm hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Palette className="h-4 w-4" />
+                Apparence
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-2">
+              <div className="space-y-1 pl-6">
+                <button
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isSelected('identity')
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-muted/50'
+                  )}
+                  onClick={() => onSelect({ type: 'identity' })}
+                >
+                  <Settings className="h-4 w-4" />
+                  Identite
+                </button>
+                <button
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                    isSelected('theme')
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-muted/50'
+                  )}
+                  onClick={() => onSelect({ type: 'theme' })}
+                >
+                  <Palette className="h-4 w-4" />
+                  Theme
+                </button>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Groups Section */}
+          <AccordionItem value="groups" className="border-none">
+            <AccordionTrigger className="py-2 text-sm hover:no-underline">
+              <span className="flex items-center gap-2">
+                <Folder className="h-4 w-4 text-amber-600" />
+                Groupes
+                {groupsLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin ml-auto" />
+                ) : (
+                  <Badge variant="secondary" className="ml-auto text-[10px]">
+                    {groups.length}
+                  </Badge>
+                )}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-2">
+              <div className="space-y-1 pl-6">
+                {groupsLoading ? (
+                  <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Chargement...
+                  </div>
+                ) : groups.length === 0 ? (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
+                    Aucun groupe
+                  </p>
+                ) : (
+                  groups.map((group, index) => (
+                    <button
+                      key={`${group.name}-${index}`}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                        isSelected('group', group.name)
+                          ? 'bg-primary/10 text-primary'
+                          : 'hover:bg-muted/50'
+                      )}
+                      onClick={() => onSelect({ type: 'group', id: group.name })}
+                    >
+                      <Lock className="h-3 w-3 text-muted-foreground" />
+                      <span className="truncate flex-1 text-left">{group.name}/</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {group.widgets_count}w
+                      </Badge>
+                    </button>
+                  ))
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </ScrollArea>
+    </div>
+  )
+}
+
+// =============================================================================
+// PAGES OVERVIEW COMPONENT
+// =============================================================================
+
+interface PagesOverviewProps {
+  staticPages: StaticPage[]
+  groups: GroupInfo[]
+  onSelectPage: (pageName: string) => void
+  onSelectGroup: (groupName: string) => void
+  onAddPage: () => void
+}
+
+function PagesOverview({
+  staticPages,
+  groups,
+  onSelectPage,
+  onSelectGroup,
+  onAddPage,
+}: PagesOverviewProps) {
+  return (
+    <ScrollArea className="h-full">
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Pages</h2>
+            <p className="text-sm text-muted-foreground">
+              Gerez les pages statiques et visualisez les groupes
+            </p>
+          </div>
+          <Button onClick={onAddPage}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nouvelle page
+          </Button>
+        </div>
+
+        {/* Static Pages Section */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-medium">Pages statiques</h3>
+            <Badge variant="secondary" className="text-xs">
+              {staticPages.length}
+            </Badge>
+          </div>
+
+          {staticPages.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <FileText className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                <p className="text-sm text-muted-foreground mb-3">
+                  Aucune page statique
+                </p>
+                <Button variant="outline" size="sm" onClick={onAddPage}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Creer une page
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {staticPages.map((page, index) => {
+                const hasContent = page.context?.content_markdown || page.context?.content_source
+                return (
+                  <Card
+                    key={`${page.name}-${index}`}
+                    className="cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => onSelectPage(page.name)}
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        {page.name}
+                      </CardTitle>
+                      <CardDescription className="text-xs font-mono">
+                        {page.output_file}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          {hasContent ? (
+                            <>
+                              <div className="h-2 w-2 rounded-full bg-green-500" />
+                              <span className="text-xs text-muted-foreground">Contenu MD</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                              <span className="text-xs text-muted-foreground">Vide</span>
+                            </>
+                          )}
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs">
+                          Éditer
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Groups Section */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Folder className="h-4 w-4 text-amber-600" />
+              <h3 className="font-medium">Groupes</h3>
+              <Badge variant="secondary" className="text-xs">
+                {groups.length}
+              </Badge>
+            </div>
+            <Button variant="link" size="sm" className="text-xs" asChild>
+              <a href="/flow?tab=export">
+                Configurer dans Export
+                <ExternalLinkIcon className="h-3 w-3 ml-1" />
+              </a>
+            </Button>
+          </div>
+
+          {groups.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <Folder className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Aucun groupe configure
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Les groupes sont definis dans la configuration Export
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {groups.map((group, index) => {
+                const hasIndex = group.index_generator?.enabled
+                return (
+                  <Card
+                    key={`${group.name}-${index}`}
+                    className="cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => onSelectGroup(group.name)}
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Folder className="h-4 w-4 text-amber-600" />
+                        {group.name}/
+                      </CardTitle>
+                      <CardDescription className="text-xs font-mono">
+                        {group.output_pattern}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="text-xs">
+                            {group.widgets_count} widgets
+                          </Badge>
+                          {hasIndex ? (
+                            <span className="flex items-center gap-1 text-xs text-green-600">
+                              <div className="h-2 w-2 rounded-full bg-green-500" />
+                              Index
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                              Pas d'index
+                            </span>
+                          )}
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs">
+                          Voir
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </ScrollArea>
+  )
+}
+
+// =============================================================================
+// SITE PREVIEW COMPONENT
+// =============================================================================
+
+interface SitePreviewProps {
+  page: StaticPage | null
+  site: SiteSettings
+  navigation: NavigationItem[]
+  device: DeviceSize
+  onDeviceChange: (device: DeviceSize) => void
+  // For markdown content loaded from file
+  fileContent?: string
+  // Callback when a link is clicked in the preview
+  onLinkClick?: (href: string) => void
+}
+
+function SitePreview({ page, site, navigation, device, onDeviceChange, fileContent, onLinkClick }: SitePreviewProps) {
+  const previewMutation = useTemplatePreview()
+  const [html, setHtml] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+
+  // Device dimensions (real viewport sizes)
+  const deviceDimensions = {
+    mobile: { width: 375, height: 667 },
+    tablet: { width: 768, height: 1024 },
+    desktop: { width: 1440, height: 900 },
+  }
+
+  // Calculate scale based on container size (with ResizeObserver for panel resizing)
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 32 // padding
+        const containerHeight = containerRef.current.clientHeight - 32
+        const targetWidth = deviceDimensions[device].width
+        const targetHeight = deviceDimensions[device].height
+
+        // Scale to fit both width and height
+        const scaleX = containerWidth / targetWidth
+        const scaleY = containerHeight / targetHeight
+        const newScale = Math.min(scaleX, scaleY, 1) // Don't scale up, only down
+
+        setScale(newScale)
+      }
+    }
+
+    updateScale()
+
+    // Use ResizeObserver for panel resizing
+    const resizeObserver = new ResizeObserver(updateScale)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+
+    return () => resizeObserver.disconnect()
+  }, [device])
+
+  // Listen for messages from iframe (link clicks)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'preview-link-click' && event.data?.href) {
+        onLinkClick?.(event.data.href)
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [onLinkClick])
+
+  useEffect(() => {
+    if (page) {
+      // Build context for template preview
+      const context: Record<string, unknown> = { ...page.context }
+
+      // If we have file content, use it as content_markdown
+      if (fileContent && page.context?.content_source) {
+        context.content_markdown = fileContent
+        delete context.content_source // Don't load from file again
+      }
+
+      // Add title from context if present
+      if (page.context?.title) {
+        context.title = page.context.title
+      }
+
+      previewMutation.mutate({
+        template: page.template || 'page.html',
+        context,
+        site: site as Record<string, unknown>,
+        navigation: navigation.map(n => ({
+          text: n.text,
+          url: n.url,
+          children: n.children,
+        })),
+      }, {
+        onSuccess: (data) => setHtml(data.html),
+        onError: (error) => {
+          setHtml(`<div class="text-red-500 p-4">Erreur: ${error.message}</div>`)
+        },
+      })
+    } else {
+      setHtml('')
+    }
+  }, [page, site, navigation, fileContent])
+
+  const currentDimensions = deviceDimensions[device]
+
+  return (
+    <div className="flex h-full flex-col bg-muted/30">
+      {/* Preview Header */}
+      <div className="flex items-center justify-between border-b bg-background px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Apercu</span>
+          <span className="text-xs text-muted-foreground">
+            {currentDimensions.width}x{currentDimensions.height} ({Math.round(scale * 100)}%)
+          </span>
+        </div>
+        <ToggleGroup
+          type="single"
+          value={device}
+          onValueChange={(v) => v && onDeviceChange(v as DeviceSize)}
+          size="sm"
+        >
+          <ToggleGroupItem value="mobile" aria-label="Mobile">
+            <Smartphone className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="tablet" aria-label="Tablette">
+            <Tablet className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="desktop" aria-label="Desktop">
+            <Monitor className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {/* Preview Content */}
+      <div ref={containerRef} className="flex-1 p-4 overflow-hidden flex items-center justify-center">
+        {previewMutation.isPending ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : html ? (
+          <div
+            className="relative flex items-center justify-center"
+            style={{
+              width: currentDimensions.width * scale,
+              height: currentDimensions.height * scale,
+            }}
+          >
+            <div
+              className="absolute rounded-lg border bg-white shadow-sm overflow-hidden"
+              style={{
+                width: currentDimensions.width,
+                height: currentDimensions.height,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+                top: 0,
+                left: 0,
+              }}
+            >
+              <iframe
+                srcDoc={html}
+                className="w-full h-full border-0"
+                title="Apercu du template"
+                sandbox="allow-same-origin allow-scripts"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Eye className="h-10 w-10 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              Selectionnez une page pour voir l'apercu
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// GROUP INDEX PREVIEW PANEL COMPONENT
+// =============================================================================
+
+interface GroupIndexPreviewPanelProps {
+  html: string | null
+  isLoading: boolean
+  device: DeviceSize
+  onDeviceChange: (device: DeviceSize) => void
+  groupName: string
+}
+
+function GroupIndexPreviewPanel({
+  html,
+  isLoading,
+  device,
+  onDeviceChange,
+  groupName,
+}: GroupIndexPreviewPanelProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+
+  // Device dimensions
+  const deviceDimensions = {
+    mobile: { width: 375, height: 667 },
+    tablet: { width: 768, height: 1024 },
+    desktop: { width: 1440, height: 900 },
+  }
+
+  // Calculate scale based on container size
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 32
+        const containerHeight = containerRef.current.clientHeight - 32
+        const targetWidth = deviceDimensions[device].width
+        const targetHeight = deviceDimensions[device].height
+        const scaleX = containerWidth / targetWidth
+        const scaleY = containerHeight / targetHeight
+        setScale(Math.min(scaleX, scaleY, 1))
+      }
+    }
+    updateScale()
+    const resizeObserver = new ResizeObserver(updateScale)
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
+    }
+    return () => resizeObserver.disconnect()
+  }, [device])
+
+  const currentDimensions = deviceDimensions[device]
+
+  return (
+    <div className="flex h-full flex-col bg-muted/30">
+      {/* Preview Header */}
+      <div className="flex items-center justify-between border-b bg-background px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Aperçu Index</span>
+          <span className="text-xs text-muted-foreground">
+            {groupName} - {currentDimensions.width}x{currentDimensions.height} ({Math.round(scale * 100)}%)
+          </span>
+        </div>
+        <ToggleGroup
+          type="single"
+          value={device}
+          onValueChange={(v) => v && onDeviceChange(v as DeviceSize)}
+          size="sm"
+        >
+          <ToggleGroupItem value="mobile" aria-label="Mobile">
+            <Smartphone className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="tablet" aria-label="Tablette">
+            <Tablet className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="desktop" aria-label="Desktop">
+            <Monitor className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {/* Preview Content */}
+      <div ref={containerRef} className="flex-1 p-4 overflow-hidden flex items-center justify-center">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Génération de l'aperçu...</span>
+          </div>
+        ) : html ? (
+          <div
+            className="relative flex items-center justify-center"
+            style={{
+              width: currentDimensions.width * scale,
+              height: currentDimensions.height * scale,
+            }}
+          >
+            <div
+              className="absolute rounded-lg border bg-white shadow-sm overflow-hidden"
+              style={{
+                width: currentDimensions.width,
+                height: currentDimensions.height,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+                top: 0,
+                left: 0,
+              }}
+            >
+              <iframe
+                srcDoc={html}
+                className="w-full h-full border-0"
+                title="Aperçu de l'index de groupe"
+                sandbox="allow-same-origin allow-scripts"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="text-center text-muted-foreground">
+            <p>Aucun aperçu disponible</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// MAIN SITE BUILDER COMPONENT
+// =============================================================================
+
+interface SiteBuilderProps {
+  initialSection?: 'identity' | 'theme' | 'navigation' | 'pages'
+}
+
+export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
+  // Data fetching
+  const { data: siteConfig, isLoading, error, refetch } = useSiteConfig()
+  const { data: groupsData, isLoading: groupsLoading } = useGroups()
+  const { data: templatesData } = useTemplates()
+  const updateMutation = useUpdateSiteConfig()
+
+  // Local editing state
+  const [editedSite, setEditedSite] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS)
+  const [editedNavigation, setEditedNavigation] = useState<NavigationItem[]>([])
+  const [editedFooterNavigation, setEditedFooterNavigation] = useState<NavigationItem[]>([])
+  const [editedPages, setEditedPages] = useState<StaticPage[]>([])
+
+  // UI state - initialize based on initialSection prop
+  const mapSectionToSelection = (section: string): Selection | null => {
+    switch (section) {
+      case 'identity':
+      case 'apparence':
+        return { type: 'identity' }
+      case 'theme':
+        return { type: 'theme' }
+      case 'navigation':
+        return { type: 'navigation' }
+      case 'pages':
+        // For pages, we don't select anything specific - just show the tree
+        return null
+      default:
+        return { type: 'identity' }
+    }
+  }
+  const [selection, setSelection] = useState<Selection | null>(() => mapSectionToSelection(initialSection))
+
+  // Update selection when initialSection changes (navigation between sub-menus)
+  useEffect(() => {
+    setSelection(mapSectionToSelection(initialSection))
+  }, [initialSection])
+
+  // Preview is available for static pages, theme (if pages exist), and groups with index_generator
+  const currentGroupForPreview = selection?.type === 'group'
+    ? (groupsData?.groups ?? []).find((g) => g.name === selection.id)
+    : null
+  const groupHasIndex = currentGroupForPreview?.index_generator?.enabled ?? false
+  const previewAvailable = selection?.type === 'page'
+    || (selection?.type === 'theme' && editedPages.length > 0)
+    || (selection?.type === 'group' && groupHasIndex)
+  const [previewEnabled, setPreviewEnabled] = useState(false)
+  const showPreview = previewAvailable && previewEnabled
+  const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
+
+  // Group index preview
+  const groupIndexPreviewMutation = useGroupIndexPreview()
+  const [groupIndexHtml, setGroupIndexHtml] = useState<string | null>(null)
+
+  // Load file content for preview when content_source is used
+  // For theme preview, use the first available page
+  const previewPageForTheme = selection?.type === 'theme' ? editedPages[0] : null
+  const previewFilePath = selection?.type === 'page'
+    ? editedPages.find((p) => p.name === selection.id)?.context?.content_source
+    : previewPageForTheme?.context?.content_source ?? null
+  const { data: previewFileData } = useFileContent(previewFilePath)
+
+  // Load group index preview when group is selected and preview is enabled
+  useEffect(() => {
+    if (selection?.type === 'group' && groupHasIndex && previewEnabled && selection.id) {
+      groupIndexPreviewMutation.mutate(
+        { groupName: selection.id },
+        {
+          onSuccess: (data) => setGroupIndexHtml(data.html),
+          onError: (error) => {
+            setGroupIndexHtml(`<div style="padding: 20px; color: #ef4444;">Erreur: ${error.message}</div>`)
+          },
+        }
+      )
+    } else if (selection?.type !== 'group') {
+      setGroupIndexHtml(null)
+    }
+  }, [selection?.type, selection?.id, groupHasIndex, previewEnabled])
+
+  // Groups from API (read-only)
+  const groups = groupsData?.groups ?? []
+
+  // Sync local state with fetched data
+  useEffect(() => {
+    if (siteConfig) {
+      setEditedSite(siteConfig.site)
+      setEditedNavigation(siteConfig.navigation)
+      setEditedFooterNavigation(siteConfig.footer_navigation || [])
+      setEditedPages(siteConfig.static_pages)
+    }
+  }, [siteConfig])
+
+  // Check for unsaved changes
+  const hasChanges = useMemo(() => {
+    if (!siteConfig) return false
+    return (
+      JSON.stringify(editedSite) !== JSON.stringify(siteConfig.site) ||
+      JSON.stringify(editedNavigation) !== JSON.stringify(siteConfig.navigation) ||
+      JSON.stringify(editedFooterNavigation) !== JSON.stringify(siteConfig.footer_navigation || []) ||
+      JSON.stringify(editedPages) !== JSON.stringify(siteConfig.static_pages)
+    )
+  }, [siteConfig, editedSite, editedNavigation, editedFooterNavigation, editedPages])
+
+  // Save handler
+  const handleSave = async () => {
+    if (!siteConfig) return
+
+    const update: SiteConfigUpdate = {
+      site: editedSite,
+      navigation: editedNavigation,
+      footer_navigation: editedFooterNavigation,
+      external_links: siteConfig.external_links || [],  // Keep original, not editable here
+      static_pages: editedPages,
+      template_dir: siteConfig.template_dir,
+      output_dir: siteConfig.output_dir,
+      copy_assets_from: siteConfig.copy_assets_from,
+    }
+
+    try {
+      await updateMutation.mutateAsync(update)
+      toast.success('Configuration sauvegardee', {
+        description: 'Les modifications ont ete appliquees a export.yml',
+      })
+    } catch (err) {
+      toast.error('Erreur', {
+        description: err instanceof Error ? err.message : 'Echec de la sauvegarde',
+      })
+    }
+  }
+
+  // Show template list for adding new page
+  const handleAddPage = () => {
+    setSelection({ type: 'new-page' })
+  }
+
+  // Create page after template selection
+  const handleTemplateSelected = (templateName: string) => {
+    // Generate unique page name based on template
+    const baseName = templateName.replace('.html', '')
+    const existingNames = new Set(editedPages.map((p) => p.name))
+
+    let pageName = baseName
+    let counter = 1
+    while (existingNames.has(pageName)) {
+      pageName = `${baseName}-${counter}`
+      counter++
+    }
+
+    const newPage: StaticPage = {
+      ...DEFAULT_STATIC_PAGE,
+      name: pageName,
+      output_file: `${pageName}.html`,
+      template: templateName,
+    }
+    setEditedPages([...editedPages, newPage])
+    setSelection({ type: 'page', id: newPage.name })
+
+    // Propose to add to navigation
+    toast.success('Page creee', {
+      description: `La page "${newPage.name}" a ete ajoutee`,
+      action: {
+        label: 'Ajouter au menu',
+        onClick: () => {
+          setEditedNavigation((nav) => [
+            ...nav,
+            { text: newPage.name, url: `/${newPage.output_file}` },
+          ])
+          toast.success('Lien ajoute', {
+            description: 'La page a ete ajoutee a la navigation',
+          })
+        },
+      },
+    })
+  }
+
+  // Update page (handles name changes)
+  const handleUpdatePage = (updatedPage: StaticPage) => {
+    const oldName = selection?.id
+    setEditedPages((pages) =>
+      pages.map((p) => (p.name === oldName ? updatedPage : p))
+    )
+    // Update selection if name changed
+    if (oldName && updatedPage.name !== oldName) {
+      setSelection({ type: 'page', id: updatedPage.name })
+    }
+  }
+
+  // Delete page
+  const handleDeletePage = (pageName: string) => {
+    setEditedPages((pages) => pages.filter((p) => p.name !== pageName))
+    // Also remove from navigation if present
+    setEditedNavigation((nav) =>
+      nav.filter((item) => {
+        const page = editedPages.find((p) => p.name === pageName)
+        return page ? item.url !== `/${page.output_file}` : true
+      })
+    )
+    setSelection(null)
+    toast.success('Page supprimee', {
+      description: 'N\'oubliez pas de sauvegarder pour appliquer les modifications',
+    })
+  }
+
+  // Get current page for preview
+  // For theme preview, use the first available page
+  const currentPage = selection?.type === 'page'
+    ? editedPages.find((p) => p.name === selection.id)
+    : selection?.type === 'theme' && editedPages.length > 0
+      ? editedPages[0]
+      : null
+
+  // File content for preview (loaded separately when content_source is used)
+  const previewFileContent = previewFileData?.content
+
+  // Get current group for viewer
+  const currentGroup = selection?.type === 'group'
+    ? groups.find((g) => g.name === selection.id)
+    : null
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Chargement de la configuration...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Erreur lors du chargement: {error instanceof Error ? error.message : 'Erreur inconnue'}
+          </AlertDescription>
+        </Alert>
+        <Button onClick={() => refetch()} className="mt-4">
+          Reessayer
+        </Button>
+      </div>
+    )
+  }
+
+  // Render editor based on selection
+  const renderEditor = () => {
+    // When no selection, show PagesOverview dashboard
+    if (!selection) {
+      return (
+        <PagesOverview
+          staticPages={editedPages}
+          groups={groups}
+          onSelectPage={(name) => setSelection({ type: 'page', id: name })}
+          onSelectGroup={(name) => setSelection({ type: 'group', id: name })}
+          onAddPage={handleAddPage}
+        />
+      )
+    }
+
+    switch (selection.type) {
+      case 'identity':
+        return (
+          <ScrollArea className="h-full">
+            <div className="p-6">
+              <SiteConfigForm config={editedSite} onChange={setEditedSite} />
+            </div>
+          </ScrollArea>
+        )
+
+      case 'theme':
+        return (
+          <ScrollArea className="h-full">
+            <div className="p-6">
+              <ThemeConfigForm config={editedSite} onChange={setEditedSite} />
+            </div>
+          </ScrollArea>
+        )
+
+      case 'navigation':
+        return (
+          <ScrollArea className="h-full">
+            <div className="p-6">
+              <NavigationBuilder
+                items={editedNavigation}
+                onChange={setEditedNavigation}
+                staticPages={editedPages}
+                groups={groups}
+                title="Menu principal"
+                description="Navigation header du site"
+                allowSubmenus={true}
+              />
+            </div>
+          </ScrollArea>
+        )
+
+      case 'footer':
+        return (
+          <ScrollArea className="h-full">
+            <div className="p-6">
+              <NavigationBuilder
+                items={editedFooterNavigation}
+                onChange={setEditedFooterNavigation}
+                staticPages={editedPages}
+                groups={groups}
+                title="Menu footer"
+                description="Liens affiches dans le pied de page"
+                allowSubmenus={false}
+              />
+            </div>
+          </ScrollArea>
+        )
+
+      case 'page':
+        const pageIndex = editedPages.findIndex((p) => p.name === selection.id)
+        const page = pageIndex >= 0 ? editedPages[pageIndex] : null
+        if (!page) {
+          return (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground">Page non trouvee</p>
+            </div>
+          )
+        }
+        return (
+          <StaticPageEditor
+            key={`page-${pageIndex}`} // Use index for stable key during name edits
+            page={page}
+            onChange={handleUpdatePage}
+            onDelete={() => handleDeletePage(page.name)}
+            onBack={() => setSelection(null)}
+          />
+        )
+
+      case 'group':
+        if (!currentGroup) {
+          return (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground">Groupe non trouve</p>
+            </div>
+          )
+        }
+        return (
+          <ScrollArea className="h-full">
+            <div className="p-6">
+              <GroupPageViewer
+                group={currentGroup}
+                onBack={() => setSelection(null)}
+              />
+            </div>
+          </ScrollArea>
+        )
+
+      case 'new-page':
+        return (
+          <TemplateList
+            templates={templatesData?.templates ?? []}
+            onSelect={handleTemplateSelected}
+            onBack={() => setSelection(null)}
+          />
+        )
+
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
+        <div>
+          <h1 className="text-lg font-semibold">{editedSite.title || 'Site Builder'}</h1>
+          <p className="text-xs text-muted-foreground">
+            Configuration du site
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Preview button only shown for static pages */}
+          {previewAvailable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPreviewEnabled(!previewEnabled)}
+            >
+              {previewEnabled ? (
+                <EyeOff className="h-4 w-4 mr-2" />
+              ) : (
+                <Eye className="h-4 w-4 mr-2" />
+              )}
+              {previewEnabled ? 'Masquer apercu' : 'Apercu'}
+            </Button>
+          )}
+          {hasChanges && (
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Sauvegarder
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        {/* Left Panel - Tree */}
+        <ResizablePanel defaultSize={15} minSize={12} maxSize={25}>
+          <SiteTree
+            navigation={editedNavigation}
+            footerNavigation={editedFooterNavigation}
+            pages={editedPages}
+            groups={groups}
+            groupsLoading={groupsLoading}
+            selection={selection}
+            onSelect={setSelection}
+            onAddPage={handleAddPage}
+          />
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        {/* Center Panel - Editor */}
+        <ResizablePanel defaultSize={showPreview ? 45 : 80} minSize={30}>
+          {renderEditor()}
+        </ResizablePanel>
+
+        {/* Right Panel - Preview (optional) */}
+        {showPreview && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={35} minSize={20} maxSize={50}>
+              {selection?.type === 'group' ? (
+                <GroupIndexPreviewPanel
+                  html={groupIndexHtml}
+                  isLoading={groupIndexPreviewMutation.isPending}
+                  device={previewDevice}
+                  onDeviceChange={setPreviewDevice}
+                  groupName={selection.id ?? ''}
+                />
+              ) : (
+                <SitePreview
+                  page={currentPage ?? null}
+                  site={editedSite}
+                  navigation={editedNavigation}
+                  device={previewDevice}
+                  onDeviceChange={setPreviewDevice}
+                  fileContent={previewFileContent}
+                  onLinkClick={(href) => {
+                    // Extract filename from href (e.g., "index.html", "/page.html", "taxons/123.html")
+                    const filename = href.replace(/^\//, '').split('/').pop() || href
+                    // Find page by output_file
+                    const targetPage = editedPages.find(p =>
+                      p.output_file === filename ||
+                      p.output_file === href ||
+                      p.output_file === href.replace(/^\//, '')
+                    )
+                    if (targetPage) {
+                      setSelection({ type: 'page', id: targetPage.name })
+                      toast.info(`Navigation vers "${targetPage.name}"`)
+                    } else {
+                      toast.warning(`Page non trouvee: ${href}`)
+                    }
+                  }}
+                />
+              )}
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
+    </div>
+  )
+}
+
+export default SiteBuilder

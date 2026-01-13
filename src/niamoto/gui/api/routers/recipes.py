@@ -13,7 +13,6 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-import yaml
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -25,6 +24,13 @@ from niamoto.gui.api.utils.database import open_database
 from niamoto.common.database import Database
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
 from niamoto.gui.api.services.preview_service import PreviewService
+from niamoto.gui.api.services.templates.config_service import (
+    load_transform_config,
+    save_transform_config,
+    load_export_config,
+    save_export_config,
+    find_transform_group,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -240,64 +246,6 @@ class ValidateRecipeResponse(BaseModel):
 # =============================================================================
 
 
-def _load_transform_config(work_dir: Path) -> list[dict[str, Any]]:
-    """Load transform.yml configuration as list format."""
-    transform_path = work_dir / "config" / "transform.yml"
-    if not transform_path.exists():
-        return []
-
-    with open(transform_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-
-    return config if isinstance(config, list) else []
-
-
-def _save_transform_config(work_dir: Path, config: list[dict[str, Any]]) -> None:
-    """Save transform.yml configuration in list format."""
-    config_dir = work_dir / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-
-    transform_path = config_dir / "transform.yml"
-    with open(transform_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
-
-
-def _load_export_config(work_dir: Path) -> dict[str, Any]:
-    """Load export.yml configuration."""
-    export_path = work_dir / "config" / "export.yml"
-    if not export_path.exists():
-        return {"exports": []}
-
-    with open(export_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-
-    return config if isinstance(config, dict) else {"exports": []}
-
-
-def _save_export_config(work_dir: Path, config: dict[str, Any]) -> None:
-    """Save export.yml configuration."""
-    config_dir = work_dir / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-
-    export_path = config_dir / "export.yml"
-    with open(export_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
-
-
 def _get_table_columns(db: Database, table_name: str) -> list[str]:
     """Get column names from a database table."""
     try:
@@ -373,7 +321,7 @@ def _get_all_sources(
     Uses EntityRegistry to resolve entity names to table names and get columns.
     Also includes the reference table for the group (e.g., taxons -> entity_taxons).
     """
-    config = _load_transform_config(work_dir)
+    config = load_transform_config(work_dir)
     sources = []
     added_sources = set()  # Track added source names to avoid duplicates
 
@@ -807,23 +755,6 @@ def _get_available_widgets() -> list[str]:
         return []
 
 
-def _find_group_config(config: list[dict], group_by: str) -> Optional[dict]:
-    """Find group configuration in transform config."""
-    for group in config:
-        if group.get("group_by") == group_by:
-            return group
-    return None
-
-
-def _find_export_group(exports: list[dict], group_by: str) -> Optional[dict]:
-    """Find group configuration in export config."""
-    for export in exports:
-        for group in export.get("groups", []):
-            if group.get("group_by") == group_by:
-                return group
-    return None
-
-
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
@@ -1216,10 +1147,10 @@ async def save_widget_recipe(request: SaveRecipeRequest):
     data_source_id = f"{recipe.widget_id}"
 
     # --- Update transform.yml ---
-    transform_config = _load_transform_config(work_dir)
+    transform_config = load_transform_config(work_dir)
 
     # Find or create group
-    group_config = _find_group_config(transform_config, group_by)
+    group_config = find_transform_group(transform_config, group_by)
     if not group_config:
         group_config = {"group_by": group_by, "sources": [], "widgets_data": {}}
         transform_config.append(group_config)
@@ -1234,10 +1165,10 @@ async def save_widget_recipe(request: SaveRecipeRequest):
         "params": recipe.transformer.params,
     }
 
-    _save_transform_config(work_dir, transform_config)
+    save_transform_config(work_dir, transform_config)
 
     # --- Update export.yml ---
-    export_config = _load_export_config(work_dir)
+    export_config = load_export_config(work_dir)
 
     # Find the web_pages export
     web_export = None
@@ -1315,7 +1246,7 @@ async def save_widget_recipe(request: SaveRecipeRequest):
             }
         )
 
-    _save_export_config(work_dir, export_config)
+    save_export_config(work_dir, export_config)
 
     return SaveRecipeResponse(
         success=True,
@@ -1347,7 +1278,7 @@ async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
     work_dir = Path(work_dir)
 
     # Load export config
-    export_config = _load_export_config(work_dir)
+    export_config = load_export_config(work_dir)
 
     # Find the group
     for export in export_config.get("exports", []):
@@ -1382,7 +1313,7 @@ async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
 
                 group["widgets"] = new_widgets
 
-    _save_export_config(work_dir, export_config)
+    save_export_config(work_dir, export_config)
 
     return {"success": True, "message": f"Widgets reordered for group '{group_by}'"}
 
@@ -1399,16 +1330,16 @@ async def delete_widget_recipe(group_by: str, widget_id: str):
     work_dir = Path(work_dir)
 
     # --- Update transform.yml ---
-    transform_config = _load_transform_config(work_dir)
-    group_config = _find_group_config(transform_config, group_by)
+    transform_config = load_transform_config(work_dir)
+    group_config = find_transform_group(transform_config, group_by)
 
     if group_config and "widgets_data" in group_config:
         if widget_id in group_config["widgets_data"]:
             del group_config["widgets_data"][widget_id]
-            _save_transform_config(work_dir, transform_config)
+            save_transform_config(work_dir, transform_config)
 
     # --- Update export.yml ---
-    export_config = _load_export_config(work_dir)
+    export_config = load_export_config(work_dir)
 
     for export in export_config.get("exports", []):
         for group in export.get("groups", []):
@@ -1418,7 +1349,7 @@ async def delete_widget_recipe(group_by: str, widget_id: str):
                     w for w in widgets if w.get("data_source") != widget_id
                 ]
 
-    _save_export_config(work_dir, export_config)
+    save_export_config(work_dir, export_config)
 
     return {"success": True, "message": f"Widget '{widget_id}' deleted"}
 

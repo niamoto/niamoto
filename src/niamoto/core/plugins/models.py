@@ -84,17 +84,31 @@ class WidgetConfig(BaseModel):
 class SiteConfig(BaseModel):
     """Global site configuration options."""
 
+    model_config = ConfigDict(extra="allow")
+
     title: str = "Niamoto Data Export"
     logo_header: Optional[str] = None
     logo_footer: Optional[str] = None
     lang: str = "en"
+    primary_color: str = "#228b22"
+    nav_color: str = "#228b22"
 
 
 class NavigationItem(BaseModel):
     """A single item in the site navigation menu."""
 
     text: str
+    url: Optional[str] = None
+    children: Optional[List["NavigationItem"]] = None
+
+
+class ExternalLinkConfig(BaseModel):
+    """External link configuration (GitHub, social, etc.)."""
+
+    name: str
     url: str
+    icon: Optional[str] = None  # Font Awesome class
+    type: Optional[str] = None  # github, twitter, linkedin, etc.
 
 
 class StaticPageContext(BaseModel):
@@ -166,6 +180,8 @@ class HtmlExporterParams(BasePluginParams):
     )
     site: SiteConfig = Field(default_factory=SiteConfig)
     navigation: List[NavigationItem] = Field(default_factory=list)
+    footer_navigation: List[NavigationItem] = Field(default_factory=list)
+    external_links: List[ExternalLinkConfig] = Field(default_factory=list)
     include_default_assets: bool = Field(
         default=True,
         description="Whether to automatically include Niamoto's default CSS/JS assets",
@@ -242,7 +258,7 @@ class IndexGeneratorConfig(BaseModel):
     """Complete configuration for the index generator."""
 
     enabled: bool = True
-    template: str = "group_index.html"
+    template: str = "_group_index.html"
     page_config: IndexGeneratorPageConfig
     filters: Optional[List[IndexGeneratorFilterConfig]] = None
     display_fields: List[IndexGeneratorDisplayField]

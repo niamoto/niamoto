@@ -1,0 +1,139 @@
+{% extends "_base.html" %}
+{#
+    Template: index.html
+    Description: Page d'accueil avec hero, statistiques et navigation vers les sections
+    Variables:
+        - title: Titre principal du site
+        - subtitle: Sous-titre/description
+        - stats: Liste de statistiques [{label, value, icon}]
+        - features: Liste de fonctionnalites [{title, description, icon, url}]
+        - page_content_html: Contenu markdown converti en HTML
+#}
+
+{% block title %}{{ title | default(site.title) | default('Accueil') }}{% endblock %}
+
+{% block content %}
+<div class="index-page">
+    <!-- Hero Section -->
+    <section class="hero-section bg-gradient-to-br from-green-700 to-green-900 text-white py-16 lg:py-24">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            {% if site.logo_header %}
+            <img src="{{ site.logo_header | relative_url(depth|default(0)) }}"
+                 alt="{{ site.title }}"
+                 class="h-20 lg:h-28 mx-auto mb-6">
+            {% endif %}
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4">
+                {{ title | default(site.title) | default('Bienvenue') }}
+            </h1>
+            {% if subtitle %}
+            <p class="text-xl lg:text-2xl text-green-100 max-w-3xl mx-auto mb-8">
+                {{ subtitle }}
+            </p>
+            {% endif %}
+            <div class="flex flex-wrap justify-center gap-4">
+                <a href="#explorer" class="bg-white text-green-800 px-6 py-3 rounded-lg font-semibold hover:bg-green-50 transition-colors">
+                    Explorer les donnees
+                </a>
+                {% if site.github_url %}
+                <a href="{{ site.github_url }}" target="_blank" rel="noopener noreferrer" class="border-2 border-white text-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-green-800 transition-colors">
+                    <i class="fab fa-github mr-2"></i>GitHub
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    {% if stats %}
+    <section class="stats-section bg-white py-12 -mt-8">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white rounded-xl shadow-xl p-8">
+                {% for stat in stats %}
+                <div class="text-center">
+                    <div class="text-3xl mb-2">{{ stat.icon | default('📊') }}</div>
+                    <div class="text-3xl lg:text-4xl font-bold text-green-700">{{ stat.value }}</div>
+                    <div class="text-gray-600">{{ stat.label }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Content Section -->
+    {% if page_content_html %}
+    <section class="content-section py-12 bg-gray-50">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="bg-white rounded-lg shadow-md p-8">
+                <div class="markdown-content prose prose-green max-w-none">
+                    {{ page_content_html | safe }}
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Explorer Section -->
+    <section id="explorer" class="explorer-section py-16 bg-white">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4 text-center">Explorer les donnees</h2>
+            <p class="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
+                Decouvrez la richesse des donnees ecologiques a travers nos differentes sections
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {% if features %}
+                    {% for feature in features %}
+                    <a href="{{ feature.url | relative_url(depth|default(0)) }}" class="feature-card group">
+                        <div class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all p-8 text-center border border-gray-100 group-hover:border-green-300">
+                            <div class="text-5xl mb-4">{{ feature.icon | default('📁') }}</div>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">{{ feature.title }}</h3>
+                            <p class="text-gray-600">{{ feature.description }}</p>
+                        </div>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <!-- Default navigation cards -->
+                    <a href="{{ 'taxon/index.html' | relative_url(depth|default(0)) }}" class="feature-card group">
+                        <div class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all p-8 text-center border border-gray-100 group-hover:border-green-300">
+                            <div class="text-5xl mb-4">🌿</div>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Taxons</h3>
+                            <p class="text-gray-600">Explorer les especes et leur repartition</p>
+                        </div>
+                    </a>
+                    <a href="{{ 'plot/index.html' | relative_url(depth|default(0)) }}" class="feature-card group">
+                        <div class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all p-8 text-center border border-gray-100 group-hover:border-green-300">
+                            <div class="text-5xl mb-4">📍</div>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Parcelles</h3>
+                            <p class="text-gray-600">Decouvrir les sites d'etude</p>
+                        </div>
+                    </a>
+                    <a href="{{ 'shape/index.html' | relative_url(depth|default(0)) }}" class="feature-card group">
+                        <div class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all p-8 text-center border border-gray-100 group-hover:border-green-300">
+                            <div class="text-5xl mb-4">🗺️</div>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Territoires</h3>
+                            <p class="text-gray-600">Visualiser les zones geographiques</p>
+                        </div>
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+</div>
+
+<style>
+    .feature-card {
+        text-decoration: none;
+        display: block;
+        transition: transform 0.2s;
+    }
+    .feature-card:hover {
+        transform: translateY(-4px);
+    }
+    .prose h2 { font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-top: 2rem; margin-bottom: 1rem; }
+    .prose h3 { font-size: 1.25rem; font-weight: 600; color: #374151; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+    .prose p { color: #4b5563; line-height: 1.625; margin-bottom: 1rem; }
+    .prose ul { list-style-type: disc; list-style-position: inside; margin-bottom: 1rem; color: #4b5563; }
+    .prose a { color: #059669; text-decoration: underline; }
+    .prose a:hover { color: #065f46; }
+</style>
+{% endblock %}

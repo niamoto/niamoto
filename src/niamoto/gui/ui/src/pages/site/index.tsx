@@ -1,10 +1,10 @@
 /**
- * Site Configuration - Redirect to structure
+ * Site Configuration - Redirect to pages
  * Route: /site
  */
 
 import { Navigate } from 'react-router-dom'
 
 export default function SiteIndexPage() {
-  return <Navigate to="/site/structure" replace />
+  return <Navigate to="/site/pages" replace />
 }
