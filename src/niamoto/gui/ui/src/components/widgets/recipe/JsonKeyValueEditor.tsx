@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,10 +29,14 @@ export function JsonKeyValueEditor({
   value,
   onChange,
   placeholder,
-  keyPlaceholder = "Cle",
-  valuePlaceholder = "Valeur",
+  keyPlaceholder,
+  valuePlaceholder,
   suggestedKeys = []
 }: JsonKeyValueEditorProps) {
+  const { t } = useTranslation(['widgets'])
+
+  const effectiveKeyPlaceholder = keyPlaceholder ?? t('recipe.key')
+  const effectiveValuePlaceholder = valuePlaceholder ?? t('recipe.value')
   // Convert object to array with stable IDs
   const [entries, setEntries] = useState<KeyValueEntry[]>(() => {
     if (!value) return []
@@ -117,21 +122,21 @@ export function JsonKeyValueEditor({
     <div className="space-y-2 p-2 bg-background rounded border">
       {entries.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-2">
-          {placeholder || 'Aucune valeur configuree'}
+          {placeholder || t('recipe.noValueConfigured')}
         </p>
       ) : (
         entries.map((entry) => (
           <div key={entry.id} className="flex gap-2 items-center">
             <Input
               className="h-7 w-28"
-              placeholder={keyPlaceholder}
+              placeholder={effectiveKeyPlaceholder}
               value={entry.key}
               onChange={(e) => handleKeyChange(entry.id, e.target.value)}
             />
             <span className="text-xs text-muted-foreground">:</span>
             <Input
               className="h-7 flex-1"
-              placeholder={valuePlaceholder}
+              placeholder={effectiveValuePlaceholder}
               value={entry.value}
               onChange={(e) => handleValueChange(entry.id, e.target.value)}
             />
@@ -153,7 +158,7 @@ export function JsonKeyValueEditor({
         onClick={handleAdd}
       >
         <Plus className="h-3 w-3 mr-1" />
-        Ajouter
+        {t('recipe.add')}
       </Button>
     </div>
   )

@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Popover,
   PopoverContent,
@@ -165,6 +166,7 @@ interface LucideIconPickerProps {
 }
 
 export function LucideIconPicker({ value, onChange, className }: LucideIconPickerProps) {
+  const { t } = useTranslation('site')
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
 
@@ -199,7 +201,7 @@ export function LucideIconPicker({ value, onChange, className }: LucideIconPicke
       <PopoverContent className="w-80 p-2" align="start">
         <div className="space-y-2">
           <Input
-            placeholder="Rechercher une icone..."
+            placeholder={t('iconPicker.searchIcon')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8"

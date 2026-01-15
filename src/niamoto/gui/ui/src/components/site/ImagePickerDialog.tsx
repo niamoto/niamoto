@@ -10,6 +10,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ function isImageFile(file: ProjectFile): boolean {
 }
 
 export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerDialogProps) {
+  const { t } = useTranslation(['site', 'common'])
   const [selectedFiles, setSelectedFiles] = useState<ProjectFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
 
@@ -83,8 +85,8 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
           // Validate file type
           const isImage = file.type.startsWith('image/')
           if (!isImage) {
-            toast.error('Type de fichier invalide', {
-              description: `${file.name} n'est pas une image`,
+            toast.error(t('imagePicker.invalidFileType'), {
+              description: t('imagePicker.notAnImage', { name: file.name }),
             })
             continue
           }
@@ -100,8 +102,8 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
         }
 
         if (uploadedFiles.length > 0) {
-          toast.success('Images uploadees', {
-            description: `${uploadedFiles.length} image(s) ajoutee(s)`,
+          toast.success(t('imagePicker.imagesUploaded'), {
+            description: t('imagePicker.imagesAdded', { count: uploadedFiles.length }),
           })
           // Refresh file list
           await refetch()
@@ -109,8 +111,8 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
           setSelectedFiles((prev) => [...prev, ...uploadedFiles])
         }
       } catch (err) {
-        toast.error("Erreur d'upload", {
-          description: err instanceof Error ? err.message : 'Echec',
+        toast.error(t('imagePicker.uploadError'), {
+          description: err instanceof Error ? err.message : t('imagePicker.uploadFailed'),
         })
       } finally {
         setIsUploading(false)
@@ -166,8 +168,8 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
               <ImageIcon className="h-5 w-5" />
             )}
             {selectedFiles.length > 1
-              ? `Inserer ${selectedFiles.length} images (galerie)`
-              : 'Inserer une image'}
+              ? t('imagePicker.insertImages', { count: selectedFiles.length })
+              : t('imagePicker.insertImage')}
           </DialogTitle>
         </DialogHeader>
 
@@ -186,7 +188,7 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
               ) : (
                 <Upload className="h-4 w-4" />
               )}
-              <span>Uploader des images</span>
+              <span>{t('imagePicker.uploadImages')}</span>
               <input
                 id="image-upload"
                 type="file"
@@ -198,7 +200,7 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
               />
             </label>
             <span className="text-sm text-muted-foreground">
-              Cliquez pour selectionner plusieurs images
+              {t('imagePicker.clickToSelectMultiple')}
             </span>
           </div>
 
@@ -207,7 +209,7 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
             <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
               <Images className="h-4 w-4 text-primary" />
               <span className="text-sm">
-                {selectedFiles.length} images selectionnees - elles seront inserees comme galerie
+                {t('imagePicker.imagesSelected', { count: selectedFiles.length })}
               </span>
               <Button
                 variant="ghost"
@@ -215,7 +217,7 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
                 className="ml-auto h-7 text-xs"
                 onClick={() => setSelectedFiles([])}
               >
-                Tout deselectionner
+                {t('imagePicker.deselectAll')}
               </Button>
             </div>
           )}
@@ -238,8 +240,8 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
               ) : imageFiles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <ImageIcon className="mb-2 h-8 w-8" />
-                  <p className="text-sm">Aucune image dans files/images/</p>
-                  <p className="text-xs">Uploadez une image pour commencer</p>
+                  <p className="text-sm">{t('imagePicker.noImagesInFolder')}</p>
+                  <p className="text-xs">{t('imagePicker.uploadToStart')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2 p-2">
@@ -299,16 +301,16 @@ export function ImagePickerDialog({ open, onOpenChange, onSelect }: ImagePickerD
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
-            Annuler
+            {t('common:actions.cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={selectedFiles.length === 0}>
             {selectedFiles.length > 1 ? (
               <>
                 <Images className="mr-2 h-4 w-4" />
-                Inserer {selectedFiles.length} images
+                {t('imagePicker.insertImages', { count: selectedFiles.length })}
               </>
             ) : (
-              'Inserer'
+              t('imagePicker.insert')
             )}
           </Button>
         </DialogFooter>

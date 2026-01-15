@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -72,6 +73,7 @@ async function saveDatasetConfig(name: string, config: DatasetConfig): Promise<v
 }
 
 export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEditorProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const queryClient = useQueryClient()
   const [localConfig, setLocalConfig] = useState<DatasetConfig | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
@@ -159,7 +161,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Erreur lors du chargement de la configuration
+          {t('configEditor.loadError')}
         </AlertDescription>
       </Alert>
     )
@@ -174,7 +176,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
         <Alert className="bg-success/10 border-success/30">
           <CheckCircle2 className="h-4 w-4 text-success" />
           <AlertDescription className="text-success">
-            Configuration sauvegardee avec succes
+            {t('configEditor.savedSuccess')}
           </AlertDescription>
         </Alert>
       )}
@@ -183,7 +185,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Erreur lors de la sauvegarde
+            {t('configEditor.saveError')}
           </AlertDescription>
         </Alert>
       )}
@@ -191,20 +193,20 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
       {/* Basic Info */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Informations generales</CardTitle>
+          <CardTitle className="text-base">{t('configEditor.generalInfo')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Nom</Label>
+            <Label>{t('configEditor.name')}</Label>
             <Input value={datasetName} disabled />
           </div>
 
           <div className="space-y-2">
-            <Label>Description</Label>
+            <Label>{t('configEditor.description')}</Label>
             <Input
               value={localConfig.description || ''}
               onChange={(e) => updateConfig({ description: e.target.value })}
-              placeholder="Description du dataset..."
+              placeholder={t('configEditor.descriptionPlaceholder')}
             />
           </div>
         </CardContent>
@@ -213,13 +215,13 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
       {/* Connector Settings */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Source de donnees</CardTitle>
-          <CardDescription>Configuration du connecteur</CardDescription>
+          <CardTitle className="text-base">{t('configEditor.dataSource')}</CardTitle>
+          <CardDescription>{t('configEditor.connectorConfig')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Type de connecteur</Label>
+              <Label>{t('configEditor.connectorType')}</Label>
               <Select
                 value={localConfig.connector?.type || 'file'}
                 onValueChange={(value) => updateConnector({ type: value })}
@@ -228,15 +230,15 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="file">Fichier</SelectItem>
-                  <SelectItem value="database">Base de donnees</SelectItem>
-                  <SelectItem value="api">API</SelectItem>
+                  <SelectItem value="file">{t('configEditor.file')}</SelectItem>
+                  <SelectItem value="database">{t('configEditor.database')}</SelectItem>
+                  <SelectItem value="api">{t('configEditor.api')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {localConfig.connector?.type === 'file' && (
               <div className="space-y-2">
-                <Label>Format</Label>
+                <Label>{t('configEditor.format')}</Label>
                 <Select
                   value={localConfig.connector?.format || 'csv'}
                   onValueChange={(value) => updateConnector({ format: value })}
@@ -246,7 +248,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="csv">CSV</SelectItem>
-                    <SelectItem value="excel">Excel</SelectItem>
+                    <SelectItem value="excel">{t('configEditor.excel')}</SelectItem>
                     <SelectItem value="json">JSON</SelectItem>
                     <SelectItem value="geojson">GeoJSON</SelectItem>
                   </SelectContent>
@@ -256,11 +258,11 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
           </div>
 
           <div className="space-y-2">
-            <Label>Chemin du fichier</Label>
+            <Label>{t('configEditor.filePath')}</Label>
             <Input
               value={localConfig.connector?.path || ''}
               onChange={(e) => updateConnector({ path: e.target.value })}
-              placeholder="data/fichier.csv"
+              placeholder={t('configEditor.filePathPlaceholder')}
               className="font-mono text-sm"
             />
           </div>
@@ -270,13 +272,13 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
       {/* Schema Settings */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Schema</CardTitle>
-          <CardDescription>Configuration des champs</CardDescription>
+          <CardTitle className="text-base">{t('configEditor.schema')}</CardTitle>
+          <CardDescription>{t('configEditor.fieldsConfig')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Champ ID</Label>
+              <Label>{t('configEditor.idField')}</Label>
               <Input
                 value={localConfig.schema?.id_field || ''}
                 onChange={(e) => updateSchema({ id_field: e.target.value })}
@@ -284,11 +286,11 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
               />
             </div>
             <div className="space-y-2">
-              <Label>Champ geometrie</Label>
+              <Label>{t('configEditor.geometryField')}</Label>
               <Input
                 value={localConfig.schema?.geometry_field || ''}
                 onChange={(e) => updateSchema({ geometry_field: e.target.value })}
-                placeholder="geometry (optionnel)"
+                placeholder={t('configEditor.geometryOptional')}
               />
             </div>
           </div>
@@ -302,13 +304,13 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Link className="h-4 w-4" />
-                Liens vers les references
+                {t('configEditor.linksToReferences')}
               </CardTitle>
-              <CardDescription>Jointures avec les entites de reference</CardDescription>
+              <CardDescription>{t('configEditor.joinsWithReferences')}</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={addLink}>
               <Plus className="h-3 w-3 mr-1" />
-              Ajouter
+              {t('common:actions.add')}
             </Button>
           </div>
         </CardHeader>
@@ -318,7 +320,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
               <div key={index} className="flex items-center gap-2 p-3 rounded-md border bg-muted/30">
                 <div className="flex-1 grid grid-cols-3 gap-2">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Reference</Label>
+                    <Label className="text-xs text-muted-foreground">{t('configEditor.reference')}</Label>
                     <Input
                       value={link.entity}
                       onChange={(e) => updateLink(index, { entity: e.target.value })}
@@ -327,7 +329,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Champ local</Label>
+                    <Label className="text-xs text-muted-foreground">{t('configEditor.localField')}</Label>
                     <Input
                       value={link.field}
                       onChange={(e) => updateLink(index, { field: e.target.value })}
@@ -336,7 +338,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Champ cible</Label>
+                    <Label className="text-xs text-muted-foreground">{t('configEditor.targetField')}</Label>
                     <Input
                       value={link.target_field}
                       onChange={(e) => updateLink(index, { target_field: e.target.value })}
@@ -357,7 +359,7 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
             ))}
             {(!localConfig.links || localConfig.links.length === 0) && (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                Aucun lien defini. Les liens permettent de joindre ce dataset aux references.
+                {t('configEditor.noLinksHint')}
               </p>
             )}
           </div>
@@ -368,9 +370,9 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
       <div className="flex items-center justify-between pt-4 border-t">
         <div className="text-sm text-muted-foreground">
           {hasChanges ? (
-            <span className="text-warning">Modifications non sauvegardees</span>
+            <span className="text-warning">{t('configEditor.unsavedChanges')}</span>
           ) : (
-            <span>Aucune modification</span>
+            <span>{t('configEditor.noChanges')}</span>
           )}
         </div>
         <Button
@@ -380,12 +382,12 @@ export function DatasetConfigEditor({ datasetName, onSaved }: DatasetConfigEdito
           {mutation.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sauvegarde...
+              {t('configEditor.saving')}
             </>
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Sauvegarder
+              {t('configEditor.save')}
             </>
           )}
         </Button>

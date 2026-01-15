@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import Editor from '@monaco-editor/react'
 
 export function DataExplorer() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['tools', 'common'])
   const navigate = useNavigate()
   const [selectedTable, setSelectedTable] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -56,7 +56,7 @@ export function DataExplorer() {
       setExports(data)
     } catch (error) {
       console.error('Failed to load exports:', error)
-      toast.error('Erreur lors du chargement des exports')
+      toast.error(t('errors.loadExports'))
     } finally {
       setExportsLoading(false)
     }
@@ -72,7 +72,7 @@ export function DataExplorer() {
       setSelectedJsonFile(fileContent)
     } catch (error) {
       console.error('Failed to load JSON file:', error)
-      toast.error('Erreur lors du chargement du fichier')
+      toast.error(t('errors.loadFile'))
       setJsonViewerModal(false)
     } finally {
       setJsonFileLoading(false)
@@ -93,7 +93,7 @@ export function DataExplorer() {
       setTables(data)
     } catch (error) {
       console.error('Failed to load tables:', error)
-      toast.error('Erreur lors du chargement des tables')
+      toast.error(t('errors.loadTables'))
     } finally {
       setLoading(false)
     }
@@ -113,7 +113,7 @@ export function DataExplorer() {
       setQueryResult(result)
     } catch (error) {
       console.error('Failed to query table:', error)
-      toast.error('Erreur lors de la requête')
+      toast.error(t('errors.query'))
     } finally {
       setQuerying(false)
     }
@@ -141,7 +141,7 @@ export function DataExplorer() {
       setEnrichmentData(result)
     } catch (error) {
       console.error('Failed to preview enrichment:', error)
-      toast.error('Erreur lors de la prévisualisation de l\'enrichissement')
+      toast.error(t('errors.enrichmentPreview'))
       setEnrichmentModal(false)
     } finally {
       setEnrichmentLoading(false)
@@ -154,16 +154,16 @@ export function DataExplorer() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            {t('data_explorer.title', 'Data Explorer')}
+            {t('dataExplorer.title')}
           </h1>
           <p className="text-muted-foreground">
-            {t('data_explorer.description', 'Browse and query your ecological data')}
+            {t('dataExplorer.description')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            {t('common.refresh', 'Actualiser')}
+            {t('common:actions.reset')}
           </Button>
         </div>
       </div>
@@ -190,7 +190,7 @@ export function DataExplorer() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Database className="h-5 w-5" />
-                {t('data_explorer.tables', 'Tables')}
+                {t('dataExplorer.tables')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -202,7 +202,7 @@ export function DataExplorer() {
                 <div className="text-center py-8">
                   <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    {t('data_explorer.no_tables', 'Aucune table disponible')}
+                    {t('dataExplorer.noTables')}
                   </p>
                 </div>
               ) : (
@@ -242,15 +242,15 @@ export function DataExplorer() {
               {/* Query Builder */}
               <Card>
                 <CardHeader>
-                  <CardTitle>{t('data_explorer.query_builder', 'Query Builder')}</CardTitle>
+                  <CardTitle>{t('dataExplorer.queryBuilder')}</CardTitle>
                   <CardDescription>
-                    {t('data_explorer.query_description', 'Build queries to filter and analyze data')}
+                    {t('dataExplorer.queryDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
                     <Input
-                      placeholder={t('data_explorer.search_placeholder', 'WHERE clause (ex: id > 100)')}
+                      placeholder={t('dataExplorer.searchPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -262,12 +262,12 @@ export function DataExplorer() {
                       ) : (
                         <Search className="mr-2 h-4 w-4" />
                       )}
-                      {t('common.search', 'Rechercher')}
+                      {t('common:actions.search')}
                     </Button>
                   </div>
 
                   <div className="text-xs text-muted-foreground">
-                    <p>Exemples de requêtes WHERE :</p>
+                    <p>{t('dataExplorer.queryExamples')}</p>
                     <ul className="list-disc list-inside mt-1 space-y-0.5">
                       <li><code className="bg-muted px-1 rounded">id &lt; 100</code></li>
                       <li><code className="bg-muted px-1 rounded">full_name LIKE '%Araucaria%'</code></li>
@@ -282,11 +282,11 @@ export function DataExplorer() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>{t('data_explorer.results', 'Résultats')}</CardTitle>
+                      <CardTitle>{t('dataExplorer.results')}</CardTitle>
                       <CardDescription>
                         {queryResult
-                          ? `Affichage de ${queryResult.page_count} sur ${queryResult.total_count.toLocaleString()} enregistrements`
-                          : t('data_explorer.no_query', 'Exécutez une requête pour voir les résultats')}
+                          ? t('dataExplorer.displayingRecords', { count: queryResult.page_count, total: queryResult.total_count.toLocaleString() })
+                          : t('dataExplorer.noQuery')}
                       </CardDescription>
                     </div>
                     {queryResult && queryResult.total_count > pageSize && (
@@ -297,10 +297,10 @@ export function DataExplorer() {
                           onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
                           disabled={currentPage === 0 || querying}
                         >
-                          Précédent
+                          {t('dataExplorer.previous')}
                         </Button>
                         <span className="text-sm text-muted-foreground">
-                          Page {currentPage + 1} / {Math.ceil(queryResult.total_count / pageSize)}
+                          {t('dataExplorer.page', { current: currentPage + 1, total: Math.ceil(queryResult.total_count / pageSize) })}
                         </span>
                         <Button
                           variant="outline"
@@ -308,7 +308,7 @@ export function DataExplorer() {
                           onClick={() => setCurrentPage(currentPage + 1)}
                           disabled={currentPage >= Math.floor(queryResult.total_count / pageSize) || querying}
                         >
-                          Suivant
+                          {t('dataExplorer.next')}
                         </Button>
                       </div>
                     )}
@@ -324,7 +324,7 @@ export function DataExplorer() {
                       <table className="w-full text-sm">
                         <thead className="bg-muted/50 sticky top-0">
                           <tr>
-                            {selectedTable === 'taxon_ref' && <th className="px-4 py-2 text-left font-medium whitespace-nowrap">Actions</th>}
+                            {selectedTable === 'taxon_ref' && <th className="px-4 py-2 text-left font-medium whitespace-nowrap">{t('dataExplorer.actions')}</th>}
                             {queryResult.columns.map((col) => (
                               <th key={col} className="px-4 py-2 text-left font-medium whitespace-nowrap">
                                 {col}
@@ -367,8 +367,8 @@ export function DataExplorer() {
                     <div className="rounded-lg border p-4">
                       <p className="text-sm text-muted-foreground text-center py-8">
                         {queryResult?.rows.length === 0
-                          ? t('data_explorer.no_results', 'Aucun résultat trouvé')
-                          : t('data_explorer.table_preview', 'Sélectionnez une table et cliquez sur Rechercher')}
+                          ? t('dataExplorer.noResults')
+                          : t('dataExplorer.tablePreview')}
                       </p>
                     </div>
                   )}
@@ -380,10 +380,10 @@ export function DataExplorer() {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Database className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-medium">
-                  {t('data_explorer.select_table', 'Select a table to explore')}
+                  {t('dataExplorer.selectTable')}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {t('data_explorer.select_table_description', 'Choose a table from the list to start exploring your data')}
+                  {t('dataExplorer.selectTableDesc')}
                 </p>
               </CardContent>
             </Card>
@@ -403,9 +403,9 @@ export function DataExplorer() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <Package className="h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-lg font-medium">Aucun export disponible</p>
+                  <p className="text-lg font-medium">{t('exports.noExports')}</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Exécutez le pipeline pour générer des exports
+                    {t('exports.runPipeline')}
                   </p>
                 </CardContent>
               </Card>
@@ -418,7 +418,7 @@ export function DataExplorer() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-2xl font-bold">{exports.web.length}</p>
-                          <p className="text-xs text-muted-foreground">Pages HTML</p>
+                          <p className="text-xs text-muted-foreground">{t('exports.htmlPages')}</p>
                         </div>
                         <Globe className="h-8 w-8 text-purple-500" />
                       </div>
@@ -429,7 +429,7 @@ export function DataExplorer() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-2xl font-bold">{exports.api.length}</p>
-                          <p className="text-xs text-muted-foreground">Fichiers JSON</p>
+                          <p className="text-xs text-muted-foreground">{t('exports.jsonFiles')}</p>
                         </div>
                         <FileCode className="h-8 w-8 text-blue-500" />
                       </div>
@@ -440,7 +440,7 @@ export function DataExplorer() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-2xl font-bold">{exports.dwc.length}</p>
-                          <p className="text-xs text-muted-foreground">Darwin Core</p>
+                          <p className="text-xs text-muted-foreground">{t('exports.darwinCore')}</p>
                         </div>
                         <Database className="h-8 w-8 text-green-500" />
                       </div>
@@ -455,14 +455,14 @@ export function DataExplorer() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm">
                           <Package className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">Répertoire :</span>
+                          <span className="text-muted-foreground">{t('exports.directory')}</span>
                           <code className="px-2 py-1 bg-muted rounded font-mono text-xs">
                             {exports.path}
                           </code>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => navigate('/data/preview')}>
                           <ExternalLink className="h-4 w-4 mr-2" />
-                          Voir le site
+                          {t('exports.viewSite')}
                         </Button>
                       </div>
                     </CardContent>
@@ -475,10 +475,10 @@ export function DataExplorer() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Globe className="h-5 w-5 text-purple-500" />
-                        Pages Web ({exports.web.length})
+                        {t('exports.webPages')} ({exports.web.length})
                       </CardTitle>
                       <CardDescription>
-                        Pages HTML statiques générées
+                        {t('exports.staticHtmlPages')}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -486,9 +486,9 @@ export function DataExplorer() {
                         <table className="w-full text-sm">
                           <thead className="bg-muted/50 sticky top-0">
                             <tr>
-                              <th className="px-4 py-2 text-left font-medium">Fichier</th>
-                              <th className="px-4 py-2 text-left font-medium">Chemin</th>
-                              <th className="px-4 py-2 text-right font-medium">Taille</th>
+                              <th className="px-4 py-2 text-left font-medium">{t('exports.file')}</th>
+                              <th className="px-4 py-2 text-left font-medium">{t('exports.path')}</th>
+                              <th className="px-4 py-2 text-right font-medium">{t('exports.size')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -505,7 +505,7 @@ export function DataExplorer() {
                         </table>
                         {exports.web.length > 50 && (
                           <div className="p-3 text-center text-sm text-muted-foreground border-t">
-                            ... et {exports.web.length - 50} autres fichiers
+                            {t('exports.andMoreFiles', { count: exports.web.length - 50 })}
                           </div>
                         )}
                       </div>
@@ -519,10 +519,10 @@ export function DataExplorer() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <FileCode className="h-5 w-5 text-blue-500" />
-                        API JSON ({exports.api.length})
+                        {t('exports.apiJson')} ({exports.api.length})
                       </CardTitle>
                       <CardDescription>
-                        Fichiers JSON pour API statique
+                        {t('exports.jsonForApi')}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -530,9 +530,9 @@ export function DataExplorer() {
                         <table className="w-full text-sm">
                           <thead className="bg-muted/50 sticky top-0">
                             <tr>
-                              <th className="px-4 py-2 text-left font-medium">Fichier</th>
-                              <th className="px-4 py-2 text-left font-medium">Chemin</th>
-                              <th className="px-4 py-2 text-right font-medium">Taille</th>
+                              <th className="px-4 py-2 text-left font-medium">{t('exports.file')}</th>
+                              <th className="px-4 py-2 text-left font-medium">{t('exports.path')}</th>
+                              <th className="px-4 py-2 text-right font-medium">{t('exports.size')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -553,7 +553,7 @@ export function DataExplorer() {
                         </table>
                         {exports.api.length > 50 && (
                           <div className="p-3 text-center text-sm text-muted-foreground border-t">
-                            ... et {exports.api.length - 50} autres fichiers
+                            {t('exports.andMoreFiles', { count: exports.api.length - 50 })}
                           </div>
                         )}
                       </div>
@@ -567,10 +567,10 @@ export function DataExplorer() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Database className="h-5 w-5 text-green-500" />
-                        Darwin Core ({exports.dwc.length})
+                        {t('exports.darwinCore')} ({exports.dwc.length})
                       </CardTitle>
                       <CardDescription>
-                        Exports au format Darwin Core
+                        {t('exports.darwinCoreExports')}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -578,9 +578,9 @@ export function DataExplorer() {
                         <table className="w-full text-sm">
                           <thead className="bg-muted/50 sticky top-0">
                             <tr>
-                              <th className="px-4 py-2 text-left font-medium">Fichier</th>
-                              <th className="px-4 py-2 text-left font-medium">Chemin</th>
-                              <th className="px-4 py-2 text-right font-medium">Taille</th>
+                              <th className="px-4 py-2 text-left font-medium">{t('exports.file')}</th>
+                              <th className="px-4 py-2 text-left font-medium">{t('exports.path')}</th>
+                              <th className="px-4 py-2 text-right font-medium">{t('exports.size')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -601,7 +601,7 @@ export function DataExplorer() {
                         </table>
                         {exports.dwc.length > 50 && (
                           <div className="p-3 text-center text-sm text-muted-foreground border-t">
-                            ... et {exports.dwc.length - 50} autres fichiers
+                            {t('exports.andMoreFiles', { count: exports.dwc.length - 50 })}
                           </div>
                         )}
                       </div>
@@ -620,10 +620,10 @@ export function DataExplorer() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
-              {t('data_explorer.enrichment_preview', 'API Enrichment Preview')}
+              {t('dataExplorer.enrichmentPreview')}
             </DialogTitle>
             <DialogDescription>
-              {enrichmentData?.taxon_name && `Données enrichies pour : ${enrichmentData.taxon_name}`}
+              {enrichmentData?.taxon_name && t('dataExplorer.enrichmentFor', { name: enrichmentData.taxon_name })}
             </DialogDescription>
           </DialogHeader>
 
@@ -636,7 +636,7 @@ export function DataExplorer() {
               {/* Config Info */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Configuration</CardTitle>
+                  <CardTitle className="text-sm">{t('dataExplorer.configuration')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <div>
@@ -699,15 +699,15 @@ export function DataExplorer() {
               {/* Other Data */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Données enrichies</CardTitle>
+                  <CardTitle className="text-sm">{t('dataExplorer.enrichedData')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-lg border">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50">
                         <tr>
-                          <th className="px-4 py-2 text-left font-medium">Champ</th>
-                          <th className="px-4 py-2 text-left font-medium">Valeur</th>
+                          <th className="px-4 py-2 text-left font-medium">{t('dataExplorer.field')}</th>
+                          <th className="px-4 py-2 text-left font-medium">{t('dataExplorer.value')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -742,7 +742,7 @@ export function DataExplorer() {
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              Aucune donnée disponible
+              {t('dataExplorer.noDataAvailable')}
             </div>
           )}
         </DialogContent>
@@ -754,7 +754,7 @@ export function DataExplorer() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileCode className="h-5 w-5" />
-              Visualisation JSON
+              {t('exports.jsonViewer')}
             </DialogTitle>
             <DialogDescription>
               {selectedJsonFile?.path}
@@ -791,7 +791,7 @@ export function DataExplorer() {
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              Aucun fichier sélectionné
+              {t('exports.noFileSelected')}
             </div>
           )}
         </DialogContent>

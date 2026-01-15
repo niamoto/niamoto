@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -214,6 +215,8 @@ const renderValue = (value: any): React.ReactNode => {
 }
 
 export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
+  const { t } = useTranslation()
+
   // State
   const [stats, setStats] = useState<EnrichmentStats | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)  // Only true on initial load
@@ -769,7 +772,7 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Ou saisir manuellement :</Label>
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Nom de l'entite..."
+                      placeholder={t('common:labels.name')}
                       value={previewQuery}
                       onChange={(e) => setPreviewQuery(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && previewEnrichment()}

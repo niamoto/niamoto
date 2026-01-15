@@ -8,6 +8,7 @@
  */
 
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -57,6 +58,8 @@ const SOCIAL_PLATFORMS = [
 ]
 
 export function ContactForm({ context, onChange }: ContactFormProps) {
+  const { t } = useTranslation('site')
+
   const updateField = useCallback(
     <K extends keyof ContactPageContext>(field: K, value: ContactPageContext[K]) => {
       onChange({ ...context, [field]: value })
@@ -76,7 +79,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
             id="title"
             value={context.title || ''}
             onChange={(e) => updateField('title', e.target.value)}
-            placeholder="Contact"
+            placeholder={t('forms.contact.pageTitlePlaceholder')}
           />
         </div>
 
@@ -86,7 +89,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
             id="introduction"
             value={context.introduction || ''}
             onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder="N'hesitez pas a nous contacter..."
+            placeholder={t('forms.contact.introPlaceholder')}
             rows={3}
           />
         </div>
@@ -106,7 +109,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
               type="email"
               value={context.email || ''}
               onChange={(e) => updateField('email', e.target.value)}
-              placeholder="contact@niamoto.nc"
+              placeholder={t('forms.contact.emailPlaceholder')}
             />
           </div>
 
@@ -117,7 +120,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
               type="tel"
               value={context.phone || ''}
               onChange={(e) => updateField('phone', e.target.value)}
-              placeholder="+687 12 34 56"
+              placeholder={t('forms.contact.phonePlaceholder')}
             />
           </div>
         </div>
@@ -128,7 +131,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
             id="address"
             value={context.address || ''}
             onChange={(e) => updateField('address', e.target.value)}
-            placeholder="123 Rue de la Biodiversite&#10;Noumea, NC 98800&#10;Nouvelle-Caledonie"
+            placeholder={t('forms.contact.addressPlaceholder')}
             rows={3}
           />
           <p className="text-xs text-muted-foreground">
@@ -141,9 +144,9 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
 
       {/* Social Links Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Reseaux sociaux</h3>
+        <h3 className="text-lg font-semibold">{t('forms.contact.socialLinks')}</h3>
         <p className="text-sm text-muted-foreground">
-          Liens vers vos profils sur les reseaux sociaux
+          {t('forms.contact.socialLinksDesc', { defaultValue: 'Links to your social profiles' })}
         </p>
 
         <RepeatableField<SocialLink>
@@ -154,11 +157,11 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
             url: '',
             icon: 'fab fa-twitter',
           })}
-          addLabel="Ajouter un reseau"
+          addLabel={t('forms.contact.addSocialLink')}
           renderItem={(item, _index, onItemChange) => (
             <div className="grid grid-cols-[150px_1fr] gap-2">
               <div className="space-y-1">
-                <Label className="text-xs">Plateforme</Label>
+                <Label className="text-xs">{t('forms.contact.platform')}</Label>
                 <Select
                   value={item.platform}
                   onValueChange={(value) => {
@@ -171,7 +174,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder={t('forms.contact.selectPlatform')} />
                   </SelectTrigger>
                   <SelectContent>
                     {SOCIAL_PLATFORMS.map((platform) => (
@@ -183,11 +186,11 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">URL</Label>
+                <Label className="text-xs">{t('common:labels.url', { defaultValue: 'URL' })}</Label>
                 <Input
                   value={item.url}
                   onChange={(e) => onItemChange({ ...item, url: e.target.value })}
-                  placeholder="https://twitter.com/niamoto"
+                  placeholder={t('forms.contact.urlPlaceholder')}
                 />
               </div>
             </div>

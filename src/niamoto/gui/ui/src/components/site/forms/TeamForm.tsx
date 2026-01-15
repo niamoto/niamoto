@@ -9,6 +9,7 @@
  */
 
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -62,6 +63,8 @@ interface TeamFormProps {
 }
 
 export function TeamForm({ context, onChange }: TeamFormProps) {
+  const { t } = useTranslation('site')
+
   const updateField = useCallback(
     <K extends keyof TeamPageContext>(field: K, value: TeamPageContext[K]) => {
       onChange({ ...context, [field]: value })
@@ -73,25 +76,25 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
     <div className="space-y-6">
       {/* Header Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">En-tete</h3>
+        <h3 className="text-lg font-semibold">{t('forms.team.header')}</h3>
 
         <div className="space-y-2">
-          <Label htmlFor="title">Titre de la page</Label>
+          <Label htmlFor="title">{t('forms.team.pageTitle')}</Label>
           <Input
             id="title"
             value={context.title || ''}
             onChange={(e) => updateField('title', e.target.value)}
-            placeholder="Equipe & Partenaires"
+            placeholder={t('forms.team.pageTitlePlaceholder')}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="introduction">Introduction</Label>
+          <Label htmlFor="introduction">{t('forms.team.introduction')}</Label>
           <Textarea
             id="introduction"
             value={context.introduction || ''}
             onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder="Decouvrez les personnes et organisations derriere ce projet..."
+            placeholder={t('forms.team.introPlaceholder')}
             rows={3}
           />
         </div>
@@ -104,15 +107,15 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Equipe ({context.team?.length || 0})
+            {t('forms.team.tabTeam')} ({context.team?.length || 0})
           </TabsTrigger>
           <TabsTrigger value="partners" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            Partenaires ({context.partners?.length || 0})
+            {t('forms.team.tabPartners')} ({context.partners?.length || 0})
           </TabsTrigger>
           <TabsTrigger value="funders" className="flex items-center gap-2">
             <Wallet className="h-4 w-4" />
-            Financeurs ({context.funders?.length || 0})
+            {t('forms.team.tabFunders')} ({context.funders?.length || 0})
           </TabsTrigger>
         </TabsList>
 
@@ -127,25 +130,25 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
               institution: '',
               email: '',
             })}
-            addLabel="Ajouter un membre"
+            addLabel={t('forms.team.addMember')}
             renderItem={(item, _index, onItemChange) => (
               <div className="space-y-3">
                 {/* Row 1: Name, Role */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Nom</Label>
+                    <Label className="text-xs">{t('forms.team.name')}</Label>
                     <Input
                       value={item.name}
                       onChange={(e) => onItemChange({ ...item, name: e.target.value })}
-                      placeholder="Alice Dupont"
+                      placeholder={t('forms.team.namePlaceholder')}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Role</Label>
+                    <Label className="text-xs">{t('forms.team.role')}</Label>
                     <Input
                       value={item.role}
                       onChange={(e) => onItemChange({ ...item, role: e.target.value })}
-                      placeholder="Chercheur"
+                      placeholder={t('forms.team.rolePlaceholder')}
                     />
                   </div>
                 </div>
@@ -153,20 +156,20 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
                 {/* Row 2: Institution, Photo */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Institution</Label>
+                    <Label className="text-xs">{t('forms.team.institution')}</Label>
                     <Input
                       value={item.institution || ''}
                       onChange={(e) => onItemChange({ ...item, institution: e.target.value })}
-                      placeholder="Universite de Nouvelle-Caledonie"
+                      placeholder={t('forms.team.organizationPlaceholder')}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Photo</Label>
+                    <Label className="text-xs">{t('forms.team.photo')}</Label>
                     <ImagePickerField
                       value={item.photo || ''}
                       onChange={(photo) => onItemChange({ ...item, photo })}
                       folder="files/team"
-                      placeholder="Selectionner une photo"
+                      placeholder={t('forms.team.selectPhoto')}
                     />
                   </div>
                 </div>
@@ -174,26 +177,26 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
                 {/* Row 3: Email, ORCID */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Email</Label>
+                    <Label className="text-xs">{t('forms.team.email')}</Label>
                     <Input
                       value={item.email || ''}
                       onChange={(e) => onItemChange({ ...item, email: e.target.value })}
-                      placeholder="alice@example.com"
+                      placeholder={t('forms.team.emailPlaceholder')}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">ORCID</Label>
+                    <Label className="text-xs">{t('forms.team.orcid')}</Label>
                     <Input
                       value={item.orcid || ''}
                       onChange={(e) => onItemChange({ ...item, orcid: e.target.value })}
-                      placeholder="0000-0001-2345-6789"
+                      placeholder={t('forms.team.orcidPlaceholder')}
                     />
                   </div>
                 </div>
 
                 {/* Row 4: Social/Web links */}
                 <div className="space-y-1">
-                  <Label className="text-xs">Liens</Label>
+                  <Label className="text-xs">{t('forms.team.links')}</Label>
                   <div className="border rounded-md p-2 bg-muted/20">
                     {(item.links || []).map((link, linkIndex) => (
                       <div key={linkIndex} className="flex gap-2 mb-2 last:mb-0">
@@ -204,7 +207,7 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
                             newLinks[linkIndex] = { ...link, label: e.target.value }
                             onItemChange({ ...item, links: newLinks })
                           }}
-                          placeholder="Label"
+                          placeholder={t('forms.team.linkLabel')}
                           className="w-32"
                         />
                         <Input
@@ -225,7 +228,7 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
                           }}
                           className="text-muted-foreground hover:text-destructive px-2"
                         >
-                          ×
+                          x
                         </button>
                       </div>
                     ))}
@@ -237,7 +240,7 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
                       }}
                       className="text-xs text-muted-foreground hover:text-foreground"
                     >
-                      + Ajouter un lien
+                      {t('forms.team.addLink')}
                     </button>
                   </div>
                 </div>
@@ -257,47 +260,47 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
               url: '',
               description: '',
             })}
-            addLabel="Ajouter un partenaire"
+            addLabel={t('forms.team.addPartner')}
             renderItem={(item, _index, onItemChange) => (
               <div className="space-y-3">
                 {/* Row 1: Name, Logo */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Nom</Label>
+                    <Label className="text-xs">{t('forms.team.name')}</Label>
                     <Input
                       value={item.name}
                       onChange={(e) => onItemChange({ ...item, name: e.target.value })}
-                      placeholder="IRD"
+                      placeholder={t('forms.team.partnerNamePlaceholder')}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Logo</Label>
+                    <Label className="text-xs">{t('forms.team.partnerLogo')}</Label>
                     <ImagePickerField
                       value={item.logo || ''}
                       onChange={(logo) => onItemChange({ ...item, logo })}
                       folder="files/logos"
-                      placeholder="Selectionner un logo"
+                      placeholder={t('forms.team.selectPartnerLogo')}
                     />
                   </div>
                 </div>
 
                 {/* Row 2: URL */}
                 <div className="space-y-1">
-                  <Label className="text-xs">Site web</Label>
+                  <Label className="text-xs">{t('forms.team.website')}</Label>
                   <Input
                     value={item.url || ''}
                     onChange={(e) => onItemChange({ ...item, url: e.target.value })}
-                    placeholder="https://www.ird.fr"
+                    placeholder={t('forms.team.websitePlaceholder')}
                   />
                 </div>
 
                 {/* Row 3: Description */}
                 <div className="space-y-1">
-                  <Label className="text-xs">Description</Label>
+                  <Label className="text-xs">{t('forms.team.description')}</Label>
                   <Input
                     value={item.description || ''}
                     onChange={(e) => onItemChange({ ...item, description: e.target.value })}
-                    placeholder="Institut de recherche pour le developpement"
+                    placeholder={t('forms.team.descriptionPlaceholder')}
                   />
                 </div>
               </div>
@@ -315,34 +318,34 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
               logo: '',
               url: '',
             })}
-            addLabel="Ajouter un financeur"
+            addLabel={t('forms.team.addFunder')}
             renderItem={(item, _index, onItemChange) => (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Nom</Label>
+                    <Label className="text-xs">{t('forms.team.name')}</Label>
                     <Input
                       value={item.name}
                       onChange={(e) => onItemChange({ ...item, name: e.target.value })}
-                      placeholder="Province Nord"
+                      placeholder={t('forms.team.funderNamePlaceholder')}
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Logo</Label>
+                    <Label className="text-xs">{t('forms.team.partnerLogo')}</Label>
                     <ImagePickerField
                       value={item.logo || ''}
                       onChange={(logo) => onItemChange({ ...item, logo })}
                       folder="files/logos"
-                      placeholder="Selectionner un logo"
+                      placeholder={t('forms.team.selectPartnerLogo')}
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Site web</Label>
+                  <Label className="text-xs">{t('forms.team.website')}</Label>
                   <Input
                     value={item.url || ''}
                     onChange={(e) => onItemChange({ ...item, url: e.target.value })}
-                    placeholder="https://www.province-nord.nc"
+                    placeholder={t('forms.team.funderWebsitePlaceholder')}
                   />
                 </div>
               </div>

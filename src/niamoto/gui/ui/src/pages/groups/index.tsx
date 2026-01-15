@@ -4,12 +4,14 @@
  */
 
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Layers, ArrowRight } from 'lucide-react'
 
 export default function GroupsPage() {
+  const { t } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
   const { data: referencesData, isLoading } = useReferences()
   const references = referencesData?.references ?? []
@@ -17,7 +19,7 @@ export default function GroupsPage() {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Chargement...</div>
+        <div className="animate-pulse text-muted-foreground">{t('common:status.loading')}</div>
       </div>
     )
   }
@@ -27,15 +29,15 @@ export default function GroupsPage() {
       <div className="h-full flex items-center justify-center">
         <div className="text-center max-w-md">
           <Layers className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h2 className="text-lg font-medium">Aucun groupe disponible</h2>
+          <h2 className="text-lg font-medium">{t('groups.noGroups')}</h2>
           <p className="text-muted-foreground mt-2">
-            Importez d'abord des références pour pouvoir configurer leurs widgets.
+            {t('groups.noGroupsHint')}
           </p>
           <button
             className="mt-4 text-primary hover:underline"
             onClick={() => navigate('/sources/import')}
           >
-            Importer des données
+            {t('groups.importData')}
           </button>
         </div>
       </div>
@@ -45,9 +47,9 @@ export default function GroupsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Groupes</h1>
+        <h1 className="text-2xl font-bold">{t('groups.title')}</h1>
         <p className="text-muted-foreground mt-1">
-          Configurez les widgets et transformations pour chaque groupe de référence.
+          {t('groups.description')}
         </p>
       </div>
 
@@ -64,14 +66,14 @@ export default function GroupsPage() {
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </div>
               <CardDescription>
-                Table: {ref.table_name}
+                {t('groups.table')}: {ref.table_name}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">{ref.kind}</Badge>
                 {ref.entity_count !== undefined && (
-                  <Badge variant="secondary">{ref.entity_count} entités</Badge>
+                  <Badge variant="secondary">{ref.entity_count} {t('reference.entities')}</Badge>
                 )}
               </div>
             </CardContent>

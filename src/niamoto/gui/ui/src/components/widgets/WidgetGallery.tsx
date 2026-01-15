@@ -2,6 +2,7 @@
  * WidgetGallery - Main gallery component with field grouping
  */
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Grid3X3,
   Filter,
@@ -74,6 +75,7 @@ export function WidgetGallery({
   className,
   onAddCombinedWidget,
 }: WidgetGalleryProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [activeCategory, setActiveCategory] = useState<WidgetCategory | 'all'>('all')
   const [activeSource, setActiveSource] = useState<SourceFilter>('all')
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set())
@@ -221,7 +223,7 @@ export function WidgetGallery({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Source des donnees</span>
+            <span className="text-sm font-medium">{t('gallery.dataSource')}</span>
           </div>
         </div>
 
@@ -238,7 +240,7 @@ export function WidgetGallery({
             )}
           >
             <Grid3X3 className="h-4 w-4" />
-            Toutes
+            {t('gallery.allSources')}
             <Badge
               variant={activeSource === 'all' ? 'outline' : 'secondary'}
               className={cn('ml-1 text-xs px-1.5', activeSource === 'all' && 'border-current')}
@@ -280,7 +282,7 @@ export function WidgetGallery({
         {/* Category filters - secondary */}
         <div className="flex items-center gap-2 mb-2">
           <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">Type de widget</span>
+          <span className="text-xs font-medium text-muted-foreground">{t('gallery.widgetType')}</span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -295,7 +297,7 @@ export function WidgetGallery({
             )}
           >
             <Grid3X3 className="h-4 w-4" />
-            Tous
+            {t('gallery.all')}
             <Badge variant="secondary" className="ml-1 text-xs px-1.5">
               {categoryCounts.all}
             </Badge>
@@ -340,7 +342,7 @@ export function WidgetGallery({
             // Multi-field selection mode info
             <>
               <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
-                {selectedFields.size} champ{selectedFields.size > 1 ? 's' : ''} selectionne{selectedFields.size > 1 ? 's' : ''}
+                {t('selection.fieldsSelected', { count: selectedFields.size })}
               </Badge>
               {selectedFields.size >= 2 && (
                 <Button
@@ -349,7 +351,7 @@ export function WidgetGallery({
                   className="h-7 text-xs bg-primary"
                 >
                   <Combine className="h-3.5 w-3.5 mr-1.5" />
-                  Proposer un widget combine
+                  {t('gallery.proposeCombined')}
                 </Button>
               )}
             </>
@@ -357,10 +359,10 @@ export function WidgetGallery({
             // Normal mode info
             <>
               <span className="text-sm text-muted-foreground">
-                {filteredSelectedCount} / {filteredSuggestions.length} selectionne{filteredSelectedCount > 1 ? 's' : ''}
+                {filteredSelectedCount} / {filteredSuggestions.length} {t('gallery.selected')}
               </span>
               <span className="text-xs text-muted-foreground">
-                - {groupedSuggestions.length} champ{groupedSuggestions.length > 1 ? 's' : ''}
+                - {groupedSuggestions.length} {t('gallery.fields')}
               </span>
             </>
           )}
@@ -379,12 +381,12 @@ export function WidgetGallery({
             {fieldSelectionMode ? (
               <>
                 <X className="h-3.5 w-3.5 mr-1.5" />
-                Annuler
+                {t('common:actions.cancel')}
               </>
             ) : (
               <>
                 <Combine className="h-3.5 w-3.5 mr-1.5" />
-                Combiner
+                {t('gallery.combine')}
               </>
             )}
           </Button>
@@ -398,7 +400,7 @@ export function WidgetGallery({
                 className="h-8 text-xs"
               >
                 <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
-                Tout
+                {t('gallery.selectAll')}
               </Button>
               <Button
                 variant="ghost"
@@ -407,7 +409,7 @@ export function WidgetGallery({
                 className="h-8 text-xs"
               >
                 <XSquare className="h-3.5 w-3.5 mr-1.5" />
-                Aucun
+                {t('gallery.selectNone')}
               </Button>
               <div className="w-px h-4 bg-border mx-1" />
             </>
@@ -421,12 +423,12 @@ export function WidgetGallery({
             {allExpanded ? (
               <>
                 <ChevronDown className="h-3.5 w-3.5 mr-1" />
-                Replier
+                {t('gallery.collapse')}
               </>
             ) : (
               <>
                 <ChevronRight className="h-3.5 w-3.5 mr-1" />
-                Deplier
+                {t('gallery.expand')}
               </>
             )}
           </Button>
@@ -439,7 +441,7 @@ export function WidgetGallery({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Widgets combines suggeres</span>
+              <span className="text-sm font-medium">{t('gallery.suggestedCombined')}</span>
             </div>
             <Button
               variant="ghost"
@@ -467,14 +469,14 @@ export function WidgetGallery({
                   <IconComponent className={cn('h-4 w-4', patternInfo.color)} />
                   <span className={patternInfo.color}>{group.display_name}</span>
                   <Badge variant="secondary" className="text-[10px] px-1.5">
-                    {group.fields.length} champs
+                    {t('gallery.fieldsCount', { count: group.fields.length })}
                   </Badge>
                 </button>
               )
             })}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Cliquez pour creer un widget combinant plusieurs champs
+            {t('gallery.clickToCreateCombined')}
           </p>
         </div>
       )}
@@ -487,12 +489,12 @@ export function WidgetGallery({
               <Sparkles className="h-8 w-8 text-muted-foreground/50" />
             </div>
             <h3 className="text-lg font-medium text-muted-foreground">
-              Aucun widget disponible
+              {t('gallery.noWidgets')}
             </h3>
             <p className="text-sm text-muted-foreground/70 mt-2">
               {activeCategory === 'all' && activeSource === 'all'
-                ? "Importez des donnees pour obtenir des suggestions"
-                : "Aucun widget avec ces filtres"}
+                ? t('gallery.importDataForSuggestions')
+                : t('gallery.noWidgetsWithFilters')}
             </p>
           </div>
         ) : (

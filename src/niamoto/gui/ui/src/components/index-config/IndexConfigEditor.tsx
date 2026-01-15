@@ -9,6 +9,7 @@
  * - Views configuration (grid/list)
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Loader2,
   Save,
@@ -77,6 +78,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
     applySuggestions,
   } = useIndexConfig(groupBy)
 
+  const { t } = useTranslation(['indexConfig', 'common'])
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [detecting, setDetecting] = useState(false)
@@ -302,28 +304,28 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                 <AccordionContent className="px-4 pb-4">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="page-title">Titre</Label>
+                      <Label htmlFor="page-title">{t('pageSettings.title')}</Label>
                       <Input
                         id="page-title"
                         value={config.page_config.title}
                         onChange={(e) => setPageConfig({ title: e.target.value })}
-                        placeholder="Liste des taxons"
+                        placeholder={t('pageSettings.titlePlaceholder')}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="page-description">Description (optionnel)</Label>
+                      <Label htmlFor="page-description">{t('pageSettings.description')}</Label>
                       <Textarea
                         id="page-description"
                         value={config.page_config.description || ''}
                         onChange={(e) => setPageConfig({ description: e.target.value || undefined })}
-                        placeholder="Description de la page d'index"
+                        placeholder={t('pageSettings.descriptionPlaceholder')}
                         rows={2}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="items-per-page">Elements par page</Label>
+                      <Label htmlFor="items-per-page">{t('pageSettings.itemsPerPage')}</Label>
                       <Input
                         id="items-per-page"
                         type="number"
@@ -470,7 +472,7 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                                 setViews(newViews)
                               }}
                             >
-                              {view.type === 'grid' ? 'Grille' : 'Liste'}
+                              {view.type === 'grid' ? t('common:display.grid') : t('common:display.list')}
                             </Button>
                           ))}
                         </div>

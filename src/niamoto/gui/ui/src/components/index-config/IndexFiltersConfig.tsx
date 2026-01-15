@@ -5,6 +5,7 @@
  * Each filter specifies a field, operator, and allowed values.
  */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +33,7 @@ export function IndexFiltersConfig({
   onUpdate,
   onRemove,
 }: IndexFiltersConfigProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const [newValueInput, setNewValueInput] = useState<Record<number, string>>({})
 
   // Add a new empty filter
@@ -81,11 +83,11 @@ export function IndexFiltersConfig({
     return (
       <div className="text-center py-6">
         <p className="text-sm text-muted-foreground mb-4">
-          Aucun filtre configure. Les filtres permettent de restreindre les entites affichees dans l'index.
+          {t('indexConfig.filters.noFilters')}
         </p>
         <Button variant="outline" size="sm" onClick={handleAddFilter}>
           <Plus className="mr-2 h-4 w-4" />
-          Ajouter un filtre
+          {t('indexConfig.filters.addFilter')}
         </Button>
       </div>
     )
@@ -111,7 +113,7 @@ export function IndexFiltersConfig({
           <div className="space-y-4 pr-10">
             {/* Field path */}
             <div className="space-y-2">
-              <Label>Champ (chemin JSON)</Label>
+              <Label>{t('indexConfig.filters.fieldPath')}</Label>
               <Input
                 value={filter.field}
                 onChange={(e) => handleUpdateField(index, e.target.value)}
@@ -119,13 +121,13 @@ export function IndexFiltersConfig({
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                Chemin vers le champ dans les donnees JSON (ex: general_info.rank.value)
+                {t('indexConfig.filters.pathHint')}
               </p>
             </div>
 
             {/* Operator */}
             <div className="space-y-2">
-              <Label>Operateur</Label>
+              <Label>{t('indexConfig.filters.operator')}</Label>
               <Select
                 value={filter.operator}
                 onValueChange={(value) => handleUpdateOperator(index, value)}
@@ -134,16 +136,16 @@ export function IndexFiltersConfig({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="in">Est parmi (in)</SelectItem>
-                  <SelectItem value="not_in">N'est pas parmi (not_in)</SelectItem>
-                  <SelectItem value="equals">Est egal a (equals)</SelectItem>
+                  <SelectItem value="in">{t('indexConfig.filters.operatorIn')}</SelectItem>
+                  <SelectItem value="not_in">{t('indexConfig.filters.operatorNotIn')}</SelectItem>
+                  <SelectItem value="equals">{t('indexConfig.filters.operatorEquals')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Values */}
             <div className="space-y-2">
-              <Label>Valeurs autorisees</Label>
+              <Label>{t('indexConfig.filters.allowedValues')}</Label>
               <div className="flex flex-wrap gap-2 min-h-[32px]">
                 {filter.values.map((value, valueIndex) => (
                   <Badge
@@ -168,7 +170,7 @@ export function IndexFiltersConfig({
                 <Input
                   value={newValueInput[index] || ''}
                   onChange={(e) => setNewValueInput(prev => ({ ...prev, [index]: e.target.value }))}
-                  placeholder="Ajouter une valeur..."
+                  placeholder={t('indexConfig.filters.addValue')}
                   className="flex-1"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -193,7 +195,7 @@ export function IndexFiltersConfig({
 
       <Button variant="outline" size="sm" onClick={handleAddFilter}>
         <Plus className="mr-2 h-4 w-4" />
-        Ajouter un filtre
+        {t('indexConfig.filters.addFilter')}
       </Button>
     </div>
   )

@@ -1,0 +1,32 @@
+{
+  "title": "Index Configuration",
+  "description": "Configure index display",
+  "loading": "Loading configuration...",
+  "pageSettings": {
+    "title": "Title",
+    "titlePlaceholder": "List of taxa",
+    "description": "Description (optional)",
+    "descriptionPlaceholder": "Index page description",
+    "itemsPerPage": "Items per page"
+  },
+  "replaceExisting": "Replace existing configuration?",
+  "existingConfig": "A configuration already exists with {{count}} field(s)",
+  "filters": {
+    "noFilters": "No filters configured. Filters restrict which entities are displayed in the index.",
+    "addFilter": "Add filter",
+    "addValue": "Add value...",
+    "pathHint": "Path to field in JSON data (e.g., general_info.rank.value)"
+  },
+  "fields": {
+    "noFields": "No fields configured. Fields define the columns displayed in the index.",
+    "addField": "Add field",
+    "editField": "Edit field",
+    "sourceUndefined": "(source undefined)",
+    "generateFilterOptions": "Generate filter options from data",
+    "linkSettings": "Link settings",
+    "linkLabel": "Link label",
+    "linkLabelPlaceholder": "See more",
+    "none": "None",
+    "pathToValue": "Path to value in data (e.g., general_info.rank.value)"
+  }
+}

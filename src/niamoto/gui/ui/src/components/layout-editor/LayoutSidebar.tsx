@@ -5,6 +5,7 @@
  * that will appear in the sidebar of the exported page.
  */
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, RefreshCw, Navigation, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ interface LayoutSidebarProps {
 }
 
 export function LayoutSidebar({ groupBy, navigationWidget }: LayoutSidebarProps) {
+  const { t } = useTranslation('common')
   const [isLoading, setIsLoading] = useState(true)
   const [iframeKey, setIframeKey] = useState(0)
 
@@ -52,7 +54,7 @@ export function LayoutSidebar({ groupBy, navigationWidget }: LayoutSidebarProps)
         </span>
 
         <Badge variant="outline" className="text-xs shrink-0">
-          {navigationWidget.is_hierarchical ? 'Hierarchique' : 'Liste'}
+          {navigationWidget.is_hierarchical ? t('display.hierarchical') : t('display.list')}
         </Badge>
 
         <Button

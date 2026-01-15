@@ -11,6 +11,7 @@
  * - Loading states for both schemas
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, Settings2, Palette, Save, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -45,6 +46,8 @@ export function WidgetConfigForm({
   onChange,
   className,
 }: WidgetConfigFormProps) {
+  const { t } = useTranslation('widgets')
+
   // Local state for form values
   const [title, setTitle] = useState(widget.title)
   const [description, setDescription] = useState(widget.description || '')
@@ -116,10 +119,10 @@ export function WidgetConfigForm({
     try {
       const success = await onSave(currentConfig)
       if (!success) {
-        setError('Erreur lors de la sauvegarde')
+        setError(t('form.saveError'))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setError(err instanceof Error ? err.message : t('form.unknownError'))
     } finally {
       setSaving(false)
     }
@@ -145,7 +148,7 @@ export function WidgetConfigForm({
             id="widget-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titre du widget"
+            placeholder={t('form.titlePlaceholder')}
           />
         </div>
 
@@ -155,7 +158,7 @@ export function WidgetConfigForm({
             id="widget-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description du widget"
+            placeholder={t('form.descriptionPlaceholder')}
             rows={2}
           />
         </div>

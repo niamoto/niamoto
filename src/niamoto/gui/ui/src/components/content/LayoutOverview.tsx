@@ -11,6 +11,7 @@
  * - Save changes to layout API
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   DndContext,
@@ -152,6 +153,7 @@ interface NavigationSidebarProps {
 }
 
 function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [isLoading, setIsLoading] = useState(true)
   const [iframeKey, setIframeKey] = useState(0)
 
@@ -180,7 +182,7 @@ function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps
           {navigationWidget.title}
         </span>
         <Badge variant="outline" className="text-xs shrink-0">
-          {navigationWidget.is_hierarchical ? 'Hierarchique' : 'Liste'}
+          {navigationWidget.is_hierarchical ? t('layout.hierarchical') : t('layout.list')}
         </Badge>
         <Button
           variant="ghost"
@@ -217,7 +219,7 @@ function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps
       {/* Footer */}
       <div className="px-3 py-2 border-t bg-muted/30 shrink-0">
         <p className="text-xs text-muted-foreground">
-          Reference: <code className="font-mono">{referential}</code>
+          {t('layout.reference')}: <code className="font-mono">{referential}</code>
         </p>
       </div>
     </div>
@@ -246,6 +248,7 @@ function SortableWidgetCard({
   onColspanToggle,
   onSelect,
 }: SortableWidgetCardProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [isLoading, setIsLoading] = useState(true)
   const [iframeKey, setIframeKey] = useState(0)
 
@@ -353,7 +356,7 @@ function SortableWidgetCard({
             e.stopPropagation()
             onColspanToggle()
           }}
-          title={widget.colspan === 1 ? 'Etendre sur 2 colonnes' : 'Reduire a 1 colonne'}
+          title={widget.colspan === 1 ? t('layout.columns.expandTo2') : t('layout.columns.reduceTo1')}
         >
           {widget.colspan === 1 ? (
             <Columns2 className="h-4 w-4 text-muted-foreground" />
@@ -386,7 +389,7 @@ function SortableWidgetCard({
             <div className="absolute inset-0 bg-primary/0 hover:bg-primary/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
               <div className="bg-background/90 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
                 <MousePointerClick className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-primary">Voir les details</span>
+                <span className="text-sm font-medium text-primary">{t('layout.seeDetails')}</span>
               </div>
             </div>
           </>
@@ -396,7 +399,7 @@ function SortableWidgetCard({
               {widget.plugin}
             </Badge>
             <span className="mt-2 text-xs">
-              {isDragging ? 'Deplacement...' : 'Preview desactivee'}
+              {isDragging ? t('layout.moving') : t('layout.previewDisabled')}
             </span>
           </div>
         )}
@@ -426,6 +429,7 @@ export function LayoutOverview({
   onSelectWidget,
   onLayoutSaved,
 }: LayoutOverviewProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const queryClient = useQueryClient()
 
   // Fetch layout data
@@ -574,7 +578,7 @@ export function LayoutOverview({
       <div className="h-full flex flex-col items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <p className="mt-4 text-sm text-muted-foreground">
-          Chargement de la mise en page...
+          {t('layout.loadingLayout')}
         </p>
       </div>
     )
@@ -585,13 +589,13 @@ export function LayoutOverview({
     return (
       <div className="h-full flex flex-col items-center justify-center">
         <AlertCircle className="h-12 w-12 text-destructive/50" />
-        <h3 className="mt-4 font-medium">Erreur de chargement</h3>
+        <h3 className="mt-4 font-medium">{t('layout.loadError')}</h3>
         <p className="mt-2 text-sm text-muted-foreground">
-          {error instanceof Error ? error.message : 'Erreur inconnue'}
+          {error instanceof Error ? error.message : t('layout.unknownError')}
         </p>
         <Button variant="outline" className="mt-4" onClick={() => refetch()}>
           <RefreshCw className="mr-2 h-4 w-4" />
-          Reessayer
+          {t('common:actions.retry')}
         </Button>
       </div>
     )
@@ -604,9 +608,9 @@ export function LayoutOverview({
         <div className="rounded-full bg-muted p-4 mb-4">
           <Settings2 className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="font-medium text-lg">Aucun widget configure</h3>
+        <h3 className="font-medium text-lg">{t('layout.noWidgets')}</h3>
         <p className="mt-2 text-sm text-muted-foreground text-center max-w-[300px]">
-          Ajoutez des widgets en utilisant le bouton "Ajouter un widget" dans le panneau de gauche.
+          {t('layout.noWidgetsHintAdd')}
         </p>
       </div>
     )
@@ -626,12 +630,12 @@ export function LayoutOverview({
       <div className="px-4 py-3 border-b shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-semibold">Apercu de la mise en page</h2>
+            <h2 className="font-semibold">{t('layout.layoutPreview')}</h2>
             <p className="text-sm text-muted-foreground">
-              {layout.total_widgets} widgets - Cliquez pour modifier
+              {t('layout.widgetsConfigured', { count: layout.total_widgets })} - {t('layout.clickToEdit')}
               {hasChanges && (
                 <Badge variant="outline" className="ml-2 text-warning border-warning">
-                  Modifications non sauvegardees
+                  {t('layout.unsavedChanges')}
                 </Badge>
               )}
             </p>
@@ -648,7 +652,7 @@ export function LayoutOverview({
               ) : (
                 <EyeOff className="mr-1.5 h-4 w-4" />
               )}
-              Previews
+              {t('layout.previews')}
             </Button>
 
             {/* Entity selector */}
@@ -659,7 +663,7 @@ export function LayoutOverview({
               >
                 <SelectTrigger className="w-[180px] h-8">
                   <Leaf className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Entite..." />
+                  <SelectValue placeholder={t('layout.entity')} />
                 </SelectTrigger>
                 <SelectContent>
                   {representatives.entities.map((entity) => (
@@ -692,7 +696,7 @@ export function LayoutOverview({
               ) : (
                 <Save className="mr-1.5 h-4 w-4" />
               )}
-              Sauvegarder
+              {t('layout.save')}
             </Button>
           </div>
         </div>
@@ -701,14 +705,14 @@ export function LayoutOverview({
       {/* Success/Error messages */}
       {saveMutation.isSuccess && (
         <div className="mx-4 mt-2 bg-success/10 text-success border border-success/30 px-3 py-2 rounded-lg text-sm">
-          Mise en page sauvegardee
+          {t('layout.saveSuccess')}
         </div>
       )}
       {saveMutation.error && (
         <div className="mx-4 mt-2 bg-destructive/10 text-destructive border border-destructive/30 px-3 py-2 rounded-lg text-sm">
           {saveMutation.error instanceof Error
             ? saveMutation.error.message
-            : 'Erreur lors de la sauvegarde'}
+            : t('layout.saveError')}
         </div>
       )}
 
@@ -779,14 +783,14 @@ export function LayoutOverview({
       <div className="px-4 py-2 border-t flex items-center gap-4 text-xs text-muted-foreground shrink-0">
         <div className="flex items-center gap-1">
           <Columns className="h-3.5 w-3.5" />
-          <span>1 colonne</span>
+          <span>{t('layout.columns.one')}</span>
         </div>
         <div className="flex items-center gap-1">
           <Columns2 className="h-3.5 w-3.5" />
-          <span>2 colonnes</span>
+          <span>{t('layout.columns.two')}</span>
         </div>
         <span className="text-muted-foreground/50">|</span>
-        <span>Glissez-deposez pour reordonner</span>
+        <span>{t('layout.dragDrop')}</span>
       </div>
     </div>
   )

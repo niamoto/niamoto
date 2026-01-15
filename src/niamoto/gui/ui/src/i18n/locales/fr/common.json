@@ -15,6 +15,42 @@
     "aggregations": "Agrégations",
     "summary": "Résumé"
   },
+  "sidebar": {
+    "sections": {
+      "sources": "Sources",
+      "groups": "Groupes",
+      "site": "Site",
+      "tools": "Outils",
+      "labs": "Labs"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "import": "Import",
+      "overview": "Vue d'ensemble",
+      "pages": "Pages",
+      "navigation": "Navigation",
+      "appearance": "Apparence",
+      "theme": "Thème",
+      "dataExplorer": "Data Explorer",
+      "livePreview": "Live Preview",
+      "showcase": "Showcase",
+      "configEditor": "Config Editor",
+      "plugins": "Plugins",
+      "docs": "Documentation",
+      "optionHybrid": "Option A: Hybride",
+      "optionCanvas": "Option B: Canvas",
+      "optionInline": "Option C: Inline"
+    },
+    "badges": {
+      "empty": "Vide",
+      "pages": "{{count}} page",
+      "pages_plural": "{{count}} pages"
+    },
+    "footer": {
+      "settings": "Paramètres",
+      "previewSite": "Prévisualiser le site"
+    }
+  },
   "actions": {
     "save": "Enregistrer",
     "cancel": "Annuler",
@@ -41,7 +77,9 @@
     "goTo": "Aller à",
     "retry": "Réessayer",
     "start": "Lancer",
-    "addNew": "Ajouter"
+    "addNew": "Ajouter",
+    "hidePreview": "Masquer l'aperçu",
+    "duplicate": "Dupliquer"
   },
   "status": {
     "loading": "Chargement...",
@@ -54,7 +92,12 @@
     "failed": "Échec",
     "pending": "En attente",
     "inProgress": "En cours",
-    "testing": "Test en cours..."
+    "testing": "Test en cours...",
+    "selected": "Sélectionné",
+    "deleting": "Suppression...",
+    "saving": "Sauvegarde...",
+    "registering": "Enregistrement...",
+    "noFieldsAvailable": "Aucun champ disponible"
   },
   "validation": {
     "required": "Ce champ est requis",
@@ -113,6 +156,69 @@
     "suggested": "(suggéré)",
     "optional": "(optionnel)",
     "example": "ex: {{example}}",
-    "or": "ou"
+    "or": "ou",
+    "notFound": "Non trouvé",
+    "navigatingTo": "Navigation vers \"{{name}}\"",
+    "pageNotFound": "Page non trouvée : {{href}}"
+  },
+  "dialogs": {
+    "deleteConfirm": "Supprimer {{item}} ?",
+    "deleteConfirmDescription": "Cela supprimera <strong>\"{{item}}\"</strong> de la configuration.",
+    "cannotUndo": "Cette action est irréversible.",
+    "replaceExisting": "Remplacer la configuration existante ?"
+  },
+  "placeholders": {
+    "search": "Rechercher...",
+    "selectOption": "Sélectionner...",
+    "enterValue": "Entrer une valeur...",
+    "autoDetect": "Auto-détection"
+  },
+  "labels": {
+    "title": "Titre",
+    "description": "Description",
+    "name": "Nom",
+    "source": "Source",
+    "field": "Champ",
+    "type": "Type",
+    "value": "Valeur",
+    "settings": "Paramètres",
+    "preview": "Aperçu"
+  },
+  "empty": {
+    "noItems": "Aucun élément",
+    "noData": "Aucune donnée disponible",
+    "clickToAdd": "Cliquez sur \"{{button}}\" pour commencer."
+  },
+  "responsive": {
+    "mobile": "Mobile",
+    "tablet": "Tablette",
+    "desktop": "Bureau"
+  },
+  "display": {
+    "grid": "Grille",
+    "list": "Liste",
+    "hierarchical": "Hiérarchique"
+  },
+  "aria": {
+    "close": "Fermer",
+    "minimize": "Réduire",
+    "maximize": "Agrandir",
+    "expand": "Développer",
+    "collapse": "Réduire",
+    "expandAll": "Tout déplier",
+    "collapseAll": "Tout replier",
+    "duplicate": "Dupliquer",
+    "settings": "Paramètres",
+    "previewSite": "Prévisualiser le site"
+  },
+  "diagnostic": {
+    "loadingDiagnostic": "Chargement des informations de diagnostic...",
+    "diagnosticError": "Erreur de diagnostic",
+    "workingDirectory": "Répertoire de travail",
+    "database": "Base de données",
+    "notFound": "Non trouvée",
+    "tables": "Tables",
+    "moreOthers": "+{{count}} autres",
+    "configFiles": "Fichiers de configuration"
   }
 }

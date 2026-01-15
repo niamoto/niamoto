@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, AlertCircle, FileSpreadsheet, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react'
 import {
   Dialog,
@@ -53,6 +54,7 @@ export function AddSourceDialog({
   referenceName,
   onSuccess,
 }: AddSourceDialogProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const [step, setStep] = useState<Step>('upload')
   const [sourceName, setSourceName] = useState('')
   const [validationResult, setValidationResult] = useState<UploadValidationResponse | null>(null)
@@ -161,12 +163,12 @@ export function AddSourceDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Ajouter une source pre-calculee</DialogTitle>
+          <DialogTitle>{t('dialogs.addPrecomputedSource')}</DialogTitle>
           <DialogDescription>
-            {step === 'upload' && 'Importez un fichier CSV avec vos donnees pre-calculees.'}
-            {step === 'validation' && 'Verification de la structure du fichier.'}
-            {step === 'configure' && 'Configurez les parametres de la source.'}
-            {step === 'confirm' && 'Verifiez et enregistrez la configuration.'}
+            {step === 'upload' && t('dialogs.importPrecomputedDescription')}
+            {step === 'validation' && t('wizard.verifyingFile', 'Verification of file structure.')}
+            {step === 'configure' && t('dialogs.configureParameters')}
+            {step === 'confirm' && t('wizard.verifyAndSave', 'Verify and save configuration.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -218,7 +220,7 @@ export function AddSourceDialog({
           {step === 'configure' && validationResult && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="source-name">Nom de la source</Label>
+                <Label htmlFor="source-name">{t('form.sourceName')}</Label>
                 <Input
                   id="source-name"
                   value={sourceName}
@@ -228,22 +230,22 @@ export function AddSourceDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="entity-column">Colonne d'entite</Label>
+                <Label htmlFor="entity-column">{t('form.entityColumn')}</Label>
                 <Select value={entityColumn} onValueChange={setEntityColumn}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selectionnez une colonne" />
+                    <SelectValue placeholder={t('common:placeholders.selectOption')} />
                   </SelectTrigger>
                   <SelectContent>
                     {validationResult.columns.map((col) => (
                       <SelectItem key={col} value={col}>
                         {col}
-                        {col === validationResult.entity_column && ' (detecte)'}
+                        {col === validationResult.entity_column && ` (${t('common:messages.suggested', '(suggested)')}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Colonne qui relie les donnees aux entites du groupe "{referenceName}"
+                  {t('form.linkToEntities', { reference: referenceName })}
                 </p>
               </div>
             </div>
@@ -254,19 +256,19 @@ export function AddSourceDialog({
             <div className="space-y-3">
               <div className="rounded-md border p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Source</span>
+                  <span className="text-sm text-muted-foreground">{t('common:labels.source')}</span>
                   <span className="font-medium">{sourceName}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Fichier</span>
+                  <span className="text-sm text-muted-foreground">{t('reference.file')}</span>
                   <span className="text-sm">{validationResult.file_name}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Colonne d'entite</span>
+                  <span className="text-sm text-muted-foreground">{t('form.entityColumn')}</span>
                   <span className="font-mono text-sm">{entityColumn}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Entites</span>
+                  <span className="text-sm text-muted-foreground">{t('reference.entities')}</span>
                   <span>{validationResult.entity_count}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -289,7 +291,7 @@ export function AddSourceDialog({
           {step !== 'upload' && (
             <Button variant="outline" onClick={prevStep} disabled={saveMutation.isPending}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour
+              {t('wizard.back')}
             </Button>
           )}
 
@@ -298,16 +300,16 @@ export function AddSourceDialog({
               {saveMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enregistrement...
+                  {t('common:status.registering')}
                 </>
               ) : step === 'confirm' ? (
                 <>
                   <Check className="mr-2 h-4 w-4" />
-                  Enregistrer
+                  {t('common:actions.save')}
                 </>
               ) : (
                 <>
-                  Suivant
+                  {t('common:actions.next')}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </>
               )}
@@ -324,12 +326,13 @@ export function AddSourceDialog({
 // =============================================================================
 
 function ValidationStepContent({ result }: { result: UploadValidationResponse }) {
+  const { t } = useTranslation(['sources', 'common'])
   if (!result.success) {
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3">
           <AlertCircle className="h-5 w-5 text-destructive" />
-          <span className="font-medium text-destructive">Validation echouee</span>
+          <span className="font-medium text-destructive">{t('validation.validationFailed')}</span>
         </div>
         <ul className="space-y-1 text-sm text-muted-foreground">
           {result.validation_errors.map((error, i) => (
@@ -347,7 +350,7 @@ function ValidationStepContent({ result }: { result: UploadValidationResponse })
     <div className="space-y-3">
       <div className="flex items-center gap-2 rounded-md bg-success/10 p-3">
         <Check className="h-5 w-5 text-success" />
-        <span className="font-medium text-success">Fichier valide</span>
+        <span className="font-medium text-success">{t('validation.fileValid')}</span>
       </div>
 
       {/* File Info */}
@@ -356,7 +359,7 @@ function ValidationStepContent({ result }: { result: UploadValidationResponse })
         <div>
           <p className="font-medium">{result.file_name}</p>
           <p className="text-xs text-muted-foreground">
-            {result.row_count.toLocaleString()} lignes • Delimiteur: "{result.delimiter}"
+            {result.row_count.toLocaleString()} {t('common:file.rows')} • Delimiter: "{result.delimiter}"
           </p>
         </div>
       </div>
@@ -364,7 +367,7 @@ function ValidationStepContent({ result }: { result: UploadValidationResponse })
       {/* Class Objects */}
       <div>
         <p className="mb-2 text-sm font-medium">
-          {result.class_objects.length} class_objects detectes
+          {result.class_objects.length} class_objects
         </p>
         <ScrollArea className="h-[150px]">
           <div className="space-y-1.5 pr-4">

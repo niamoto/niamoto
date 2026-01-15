@@ -7,6 +7,7 @@
  * - Custom: 4-step wizard with YAML preview
  */
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Loader2,
   Sparkles,
@@ -102,6 +103,7 @@ const IFRAME_BASE_WIDTH = 400
 const IFRAME_BASE_HEIGHT = 300
 
 function WidgetPreview({ templateId, groupBy, className, width = 200, height = 96 }: WidgetPreviewProps) {
+  const { t } = useTranslation(['widgets'])
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [key, setKey] = useState(0)
@@ -162,7 +164,7 @@ function WidgetPreview({ templateId, groupBy, className, width = 200, height = 9
           )}
           {hasError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 z-10">
-              <span className="text-[10px] text-muted-foreground">Erreur</span>
+              <span className="text-[10px] text-muted-foreground">{t('preview.error')}</span>
             </div>
           )}
           <iframe
@@ -195,6 +197,7 @@ const LARGE_PREVIEW_WIDTH = 388  // Right panel width (420px) - padding
 const LARGE_PREVIEW_HEIGHT = 291  // 4:3 ratio (388 * 3/4)
 
 function LargePreview({ templateId, groupBy }: LargePreviewProps) {
+  const { t } = useTranslation(['widgets'])
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [key, setKey] = useState(0)
@@ -232,10 +235,10 @@ function LargePreview({ templateId, groupBy }: LargePreviewProps) {
         {hasError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
             <Eye className="h-8 w-8 text-muted-foreground/30 mb-2" />
-            <span className="text-sm text-muted-foreground">Preview indisponible</span>
+            <span className="text-sm text-muted-foreground">{t('preview.unavailable')}</span>
             <Button variant="ghost" size="sm" className="mt-2" onClick={handleRefresh}>
               <RefreshCw className="h-3 w-3 mr-1" />
-              Reessayer
+              {t('preview.retry')}
             </Button>
           </div>
         )}
@@ -430,6 +433,7 @@ export function AddWidgetModal({
   suggestionsLoading,
   onWidgetAdded,
 }: AddWidgetModalProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [activeTab, setActiveTab] = useState(defaultTab)
 
   // Suggestions tab state
@@ -606,7 +610,7 @@ export function AddWidgetModal({
     if (mapWidgets.length > 0) {
       result.push({
         key: '_map',
-        label: 'Cartographie',
+        label: t('modal.cartography'),
         icon: 'map',
         suggestions: mapWidgets.sort((a, b) => b.confidence - a.confidence),
       })
@@ -809,7 +813,7 @@ export function AddWidgetModal({
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            Ajouter un widget
+            {t('actions.addWidget')}
           </DialogTitle>
         </DialogHeader>
 
@@ -856,14 +860,14 @@ export function AddWidgetModal({
             {suggestionsLoading ? (
               <div className="flex flex-col items-center justify-center h-full">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="mt-3 text-sm text-muted-foreground">Analyse des donnees...</p>
+                <p className="mt-3 text-sm text-muted-foreground">{t('analysis.analyzing')}</p>
               </div>
             ) : suggestions.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full">
                 <Sparkles className="h-12 w-12 text-muted-foreground/50" />
-                <h3 className="mt-4 font-medium">Aucune suggestion</h3>
+                <h3 className="mt-4 font-medium">{t('gallery.noWidgets')}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Importez des donnees pour obtenir des suggestions de widgets.
+                  {t('analysis.importForSuggestions')}
                 </p>
               </div>
             ) : (
@@ -877,7 +881,7 @@ export function AddWidgetModal({
                       <div className="relative flex-1">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Rechercher..."
+                          placeholder={t('common:placeholders.search')}
                           className="pl-8 h-9"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -888,7 +892,7 @@ export function AddWidgetModal({
                         size="sm"
                         className="h-9 px-2"
                         onClick={collapsedSections.size === groupedSuggestions.length ? expandAll : collapseAll}
-                        title={collapsedSections.size === groupedSuggestions.length ? 'Tout déplier' : 'Tout replier'}
+                        title={collapsedSections.size === groupedSuggestions.length ? t('common:aria.expandAll') : t('common:aria.collapseAll')}
                       >
                         <ChevronsUpDown className="h-4 w-4" />
                       </Button>
@@ -902,7 +906,7 @@ export function AddWidgetModal({
                         className="h-7 text-xs px-2.5"
                         onClick={() => setCategoryFilter(null)}
                       >
-                        Tous
+                        {t('gallery.selectAll')}
                       </Button>
                       {availableCategories.map((cat) => {
                         const catIcons: Record<string, React.ElementType> = {
@@ -916,13 +920,13 @@ export function AddWidgetModal({
                         }
                         const CatIcon = catIcons[cat] || BarChart3
                         const catLabels: Record<string, string> = {
-                          navigation: 'Navigation',
-                          info: 'Info',
-                          map: 'Carte',
-                          chart: 'Graphique',
-                          gauge: 'Jauge',
-                          donut: 'Donut',
-                          table: 'Tableau',
+                          navigation: t('categories.navigation'),
+                          info: t('categories.info'),
+                          map: t('categories.map'),
+                          chart: t('categories.chart'),
+                          gauge: t('categories.gauge'),
+                          donut: t('categories.donut'),
+                          table: t('categories.table'),
                         }
                         return (
                           <Button
@@ -1087,7 +1091,7 @@ export function AddWidgetModal({
                           {selectedSuggestions.has(previewSuggestion.template_id) && (
                             <Badge variant="outline" className="text-xs">
                               <Check className="h-3 w-3 mr-1" />
-                              Selectionne
+                              {t('common:status.selected')}
                             </Badge>
                           )}
                         </div>
@@ -1125,7 +1129,7 @@ export function AddWidgetModal({
                           <div>
                             <div className="flex items-center gap-2 mb-3">
                               <Settings2 className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium text-sm">Personnalisation rapide</span>
+                              <span className="font-medium text-sm">{t('modal.quickCustomization')}</span>
                               {loadingSchema && (
                                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                               )}
@@ -1134,7 +1138,7 @@ export function AddWidgetModal({
                             <div className="space-y-3">
                               {/* Title - always shown */}
                               <div>
-                                <label className="text-xs text-muted-foreground">Titre</label>
+                                <label className="text-xs text-muted-foreground">{t('modal.title')}</label>
                                 <Input
                                   value={getCustomization(previewSuggestion.template_id).title}
                                   onChange={(e) =>
@@ -1251,7 +1255,7 @@ export function AddWidgetModal({
                               {/* Message when no quick edit fields */}
                               {!loadingSchema && quickEditFields.length === 0 && (
                                 <p className="text-xs text-muted-foreground/70 italic">
-                                  Utilisez l'edition avancee pour plus d'options
+                                  {t('modal.advancedEditHint')}
                                 </p>
                               )}
                             </div>
@@ -1270,7 +1274,7 @@ export function AddWidgetModal({
                               }}
                             >
                               <Wand2 className="h-4 w-4 mr-2" />
-                              Edition avancee (YAML)
+                              {t('modal.advancedEdit')}
                               <ChevronRight className="h-4 w-4 ml-auto" />
                             </Button>
                           </div>
@@ -1278,7 +1282,7 @@ export function AddWidgetModal({
                           <div className="text-center py-4">
                             <Info className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
                             <p className="text-sm text-muted-foreground">
-                              Cliquez sur ce widget pour le selectionner et personnaliser
+                              {t('modal.clickToSelectAndCustomize')}
                             </p>
                           </div>
                         )}
@@ -1287,9 +1291,9 @@ export function AddWidgetModal({
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
                       <Eye className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                      <p className="font-medium text-muted-foreground">Apercu du widget</p>
+                      <p className="font-medium text-muted-foreground">{t('preview.widgetPreview')}</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Sélectionnez un widget pour voir l'aperçu
+                        {t('preview.selectToPreview')}
                       </p>
                     </div>
                   )}
@@ -1309,7 +1313,7 @@ export function AddWidgetModal({
                     <div className="mb-8">
                       <div className="flex items-center gap-2 mb-4">
                         <Zap className="h-5 w-5 text-amber-500" />
-                        <h3 className="font-medium">Patterns detectes automatiquement</h3>
+                        <h3 className="font-medium">{t('modal.autoDetectedPatterns')}</h3>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         {semanticGroups.map((group) => (
@@ -1328,7 +1332,7 @@ export function AddWidgetModal({
                                 <Zap className="h-5 w-5 text-amber-600" />
                                 {group.display_name}
                                 <Badge className="ml-auto text-xs bg-amber-100 text-amber-800">
-                                  {group.fields.length} champs
+                                  {t('gallery.fieldsCount', { count: group.fields.length })}
                                 </Badge>
                               </CardTitle>
                             </CardHeader>
@@ -1352,10 +1356,10 @@ export function AddWidgetModal({
                   <div>
                     <div className="flex items-center gap-2 mb-4">
                       <Link2 className="h-5 w-5 text-blue-500" />
-                      <h3 className="font-medium">Combiner manuellement</h3>
+                      <h3 className="font-medium">{t('modal.manualCombine')}</h3>
                     </div>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Selectionnez 2 a 5 champs pour creer un widget combine personnalise.
+                      {t('selection.selectFields')}
                     </p>
                     <div className="grid grid-cols-3 gap-2 p-4 border rounded-lg bg-muted/30">
                       {availableFields.map((field) => (
@@ -1387,7 +1391,7 @@ export function AddWidgetModal({
                           </div>
                         ) : combinedSuggestions.length > 0 ? (
                           <div className="space-y-2">
-                            <h4 className="text-sm font-medium mb-3">Widgets proposes</h4>
+                            <h4 className="text-sm font-medium mb-3">{t('modal.proposedWidgets')}</h4>
                             {combinedSuggestions.map((suggestion, idx) => {
                               const isSelected = selectedCombined === suggestion
                               return (
@@ -1405,7 +1409,7 @@ export function AddWidgetModal({
                                     <span className="font-medium">{suggestion.name}</span>
                                     {suggestion.is_recommended && (
                                       <Badge className="bg-primary/10 text-primary text-[10px]">
-                                        Recommande
+                                        {t('modal.recommended')}
                                       </Badge>
                                     )}
                                   </div>
@@ -1416,7 +1420,7 @@ export function AddWidgetModal({
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground text-center py-4">
-                            Aucune combinaison detectee pour ces champs.
+                            {t('selection.noCombination')}
                           </p>
                         )}
                       </div>
@@ -1445,9 +1449,9 @@ export function AddWidgetModal({
                 ) : (
                   <>
                     <Eye className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                    <p className="font-medium text-muted-foreground">Apercu du widget combine</p>
+                    <p className="font-medium text-muted-foreground">{t('preview.combinedPreview')}</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Selectionnez un pattern ou des champs pour voir l'apercu
+                      {t('config.selectPreview')}
                     </p>
                   </>
                 )}
@@ -1460,13 +1464,13 @@ export function AddWidgetModal({
             <div className="flex h-full min-h-0">
               {/* Wizard steps sidebar */}
               <div className="w-56 border-r p-4 bg-muted/20 shrink-0">
-                <h3 className="font-medium mb-4 text-sm">Etapes de creation</h3>
+                <h3 className="font-medium mb-4 text-sm">{t('modal.creationSteps')}</h3>
                 <div className="space-y-2">
                   {[
-                    { step: 1, label: 'Identifiant', desc: 'Nom unique' },
-                    { step: 2, label: 'Source', desc: 'Donnees' },
-                    { step: 3, label: 'Transformation', desc: 'Traitement' },
-                    { step: 4, label: 'Affichage', desc: 'Visualisation' },
+                    { step: 1, label: t('modal.stepIdentifier'), desc: t('modal.stepIdentifierDesc') },
+                    { step: 2, label: t('modal.stepSource'), desc: t('modal.stepSourceDesc') },
+                    { step: 3, label: t('modal.stepTransform'), desc: t('modal.stepTransformDesc') },
+                    { step: 4, label: t('modal.stepDisplay'), desc: t('modal.stepDisplayDesc') },
                   ].map(({ step, label, desc }) => (
                     <div
                       key={step}
@@ -1515,19 +1519,19 @@ export function AddWidgetModal({
             {activeTab === 'suggestions' && selectedSuggestions.size > 0 && (
               <span className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-primary" />
-                {selectedSuggestions.size} widget(s) selectionne(s)
+                {t('selection.fieldsSelected', { count: selectedSuggestions.size })}
               </span>
             )}
             {activeTab === 'combined' && selectedFields.length > 0 && (
               <span className="flex items-center gap-2">
                 <Link2 className="h-4 w-4 text-primary" />
-                {selectedFields.length} champ(s) selectionne(s)
+                {t('selection.fieldsSelected', { count: selectedFields.length })}
               </span>
             )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Annuler
+              {t('common:actions.cancel')}
             </Button>
             {activeTab === 'suggestions' && (
               <Button
@@ -1539,7 +1543,7 @@ export function AddWidgetModal({
                 ) : (
                   <Plus className="mr-2 h-4 w-4" />
                 )}
-                Ajouter {selectedSuggestions.size} widget(s)
+                {t('selection.addWidgets', { count: selectedSuggestions.size })}
               </Button>
             )}
             {activeTab === 'combined' && (
@@ -1549,7 +1553,7 @@ export function AddWidgetModal({
                 ) : (
                   <Plus className="mr-2 h-4 w-4" />
                 )}
-                Creer le widget combine
+                {t('combined.createWidget')}
               </Button>
             )}
           </div>

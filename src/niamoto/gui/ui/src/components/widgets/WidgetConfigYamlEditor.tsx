@@ -7,6 +7,7 @@
  * - Preview integration
  */
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Editor } from '@monaco-editor/react'
 import { useTheme } from '@/hooks/use-theme'
 import * as yaml from 'js-yaml'
@@ -46,6 +47,7 @@ export function WidgetConfigYamlEditor({
   readOnly = false,
   height = '400px',
 }: WidgetConfigYamlEditorProps) {
+  const { t } = useTranslation('common')
   const { theme } = useTheme()
   const [editorValue, setEditorValue] = useState(initialValue)
   const [error, setError] = useState<string | null>(null)
@@ -161,7 +163,7 @@ export function WidgetConfigYamlEditor({
               size="sm"
             >
               <Save className="h-3.5 w-3.5 mr-1" />
-              {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+              {isSaving ? t('status.saving') : t('actions.save')}
             </Button>
           )}
         </div>

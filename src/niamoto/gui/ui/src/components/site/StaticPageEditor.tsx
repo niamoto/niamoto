@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
   FileText,
@@ -63,6 +64,8 @@ interface StaticPageEditorProps {
 type ContentMode = 'inline' | 'file'
 
 export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPageEditorProps) {
+  const { t } = useTranslation(['site', 'common'])
+
   // Local state for editing (initialized from prop, component remounts on page change via key)
   const [editedPage, setEditedPage] = useState<StaticPage>(page)
   const [contentMode, setContentMode] = useState<ContentMode>(() => {
@@ -109,12 +112,12 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
       // Refresh file list and select the uploaded file
       await refetchFiles()
       updateContext('content_source', result.path)
-      toast.success('Fichier uploade', {
+      toast.success(t('pageEditor.fileUploaded'), {
         description: result.filename,
       })
     } catch (err) {
-      toast.error('Erreur upload', {
-        description: err instanceof Error ? err.message : 'Echec de l\'upload',
+      toast.error(t('pageEditor.uploadError'), {
+        description: err instanceof Error ? err.message : t('pageEditor.uploadFailed'),
       })
     }
     // Reset input
@@ -183,12 +186,12 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
         content: editedFileContent,
       })
       setIsEditingFile(false)
-      toast.success('Fichier sauvegarde', {
+      toast.success(t('pageEditor.fileSaved'), {
         description: fileContentData?.filename || selectedFilePath,
       })
     } catch (err) {
-      toast.error('Erreur de sauvegarde', {
-        description: err instanceof Error ? err.message : 'Echec de la sauvegarde',
+      toast.error(t('pageEditor.saveError'), {
+        description: err instanceof Error ? err.message : t('pageEditor.saveFailed'),
       })
     }
   }
@@ -223,7 +226,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
           <div>
             <h1 className="flex items-center gap-2 text-lg font-semibold">
               <FileText className="h-5 w-5" />
-              {editedPage.name || 'Nouvelle page'}
+              {editedPage.name || t('pageEditor.newPage')}
             </h1>
             <p className="text-sm text-muted-foreground">
               {editedPage.output_file}
@@ -238,7 +241,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
             className="text-destructive hover:text-destructive hover:bg-destructive/10"
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Supprimer
+            {t('pageEditor.delete')}
           </Button>
         )}
       </div>
@@ -249,14 +252,14 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
           {/* Basic Settings */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Parametres de la page</CardTitle>
-              <CardDescription>Configuration de base de la page statique</CardDescription>
+              <CardTitle className="text-base">{t('pageEditor.pageSettings')}</CardTitle>
+              <CardDescription>{t('pageEditor.pageSettingsDesc')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 {/* Page name */}
                 <div className="space-y-2">
-                  <Label htmlFor="page-name">Nom de la page</Label>
+                  <Label htmlFor="page-name">{t('pageEditor.pageName')}</Label>
                   <Input
                     id="page-name"
                     value={editedPage.name}
@@ -264,13 +267,13 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                     placeholder="methodology"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Identifiant interne (sans espaces)
+                    {t('pageEditor.pageNameHint')}
                   </p>
                 </div>
 
                 {/* Output file */}
                 <div className="space-y-2">
-                  <Label htmlFor="output-file">Fichier de sortie</Label>
+                  <Label htmlFor="output-file">{t('pageEditor.outputFile')}</Label>
                   <Input
                     id="output-file"
                     value={editedPage.output_file}
@@ -299,9 +302,9 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
             /* Dedicated form for specific templates */
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Configuration de la page</CardTitle>
+                <CardTitle className="text-base">{t('pageEditor.pageConfig')}</CardTitle>
                 <CardDescription>
-                  Formulaire dedie pour le template {editedPage.template}
+                  {t('pageEditor.templateFormDesc', { template: editedPage.template })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -360,8 +363,8 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
             <>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Contenu</CardTitle>
-                  <CardDescription>Contenu markdown de la page</CardDescription>
+                  <CardTitle className="text-base">{t('pageEditor.content')}</CardTitle>
+                  <CardDescription>{t('pageEditor.markdownContent')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Content mode toggle */}
@@ -373,13 +376,13 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="inline" id="mode-inline" />
                       <Label htmlFor="mode-inline" className="cursor-pointer">
-                        Éditer directement
+                        {t('pageEditor.editDirectly')}
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="file" id="mode-file" />
                       <Label htmlFor="mode-file" className="cursor-pointer">
-                        Depuis un fichier
+                        {t('pageEditor.fromFile')}
                       </Label>
                     </div>
                   </RadioGroup>
@@ -388,12 +391,12 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                   {contentMode === 'file' && (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="content-source">Fichier source</Label>
+                        <Label htmlFor="content-source">{t('pageEditor.sourceFile')}</Label>
                         <div className="flex gap-2">
                           {markdownFiles.length === 0 ? (
                             <div className="flex-1 flex items-center">
                               <p className="text-sm text-muted-foreground">
-                                Aucun fichier dans templates/content/
+                                {t('pageEditor.noFilesIn')}
                               </p>
                             </div>
                           ) : (
@@ -406,7 +409,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                               disabled={filesLoading}
                             >
                               <SelectTrigger id="content-source" className="flex-1">
-                                <SelectValue placeholder="Selectionner un fichier" />
+                                <SelectValue placeholder={t('pageEditor.selectFile')} />
                               </SelectTrigger>
                               <SelectContent>
                                 {markdownFiles.map((f) => (
@@ -429,7 +432,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                             size="icon"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={uploadMutation.isPending}
-                            title="Uploader un fichier markdown"
+                            title={t('pageEditor.uploadMarkdown')}
                           >
                             {uploadMutation.isPending ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -439,7 +442,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                           </Button>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Fichier markdown dans templates/content/
+                          {t('pageEditor.mdFileIn')}
                         </p>
                       </div>
 
@@ -447,7 +450,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                       {selectedFilePath && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <Label>Contenu du fichier</Label>
+                            <Label>{t('pageEditor.fileContent')}</Label>
                             <div className="flex gap-2">
                               {isEditingFile ? (
                                 <>
@@ -456,7 +459,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                                     size="sm"
                                     onClick={handleCancelEdit}
                                   >
-                                    Annuler
+                                    {t('pageEditor.cancel')}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -468,7 +471,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                                     ) : (
                                       <Save className="mr-2 h-4 w-4" />
                                     )}
-                                    Sauvegarder
+                                    {t('pageEditor.save')}
                                   </Button>
                                 </>
                               ) : (
@@ -478,7 +481,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setShowRawContent(!showRawContent)}
-                                    title={showRawContent ? 'Voir formaté' : 'Voir le code'}
+                                    title={showRawContent ? t('site:pageEditor.viewFormatted') : t('site:pageEditor.viewCode')}
                                   >
                                     {showRawContent ? (
                                       <FileType className="h-4 w-4" />
@@ -493,7 +496,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                                     disabled={fileContentLoading}
                                   >
                                     <Edit3 className="mr-2 h-4 w-4" />
-                                    Éditer
+                                    {t('pageEditor.edit')}
                                   </Button>
                                 </>
                               )}
@@ -508,13 +511,13 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                             <MarkdownEditor
                               initialContent={editedFileContent}
                               onChange={setEditedFileContent}
-                              placeholder="Contenu markdown..."
+                              placeholder={t('pageEditor.markdownPlaceholder')}
                               className="min-h-[300px]"
                             />
                           ) : showRawContent ? (
                             <div className="border rounded-md bg-muted/30 p-4 max-h-[400px] overflow-auto">
                               <pre className="text-sm whitespace-pre-wrap font-mono text-muted-foreground">
-                                {fileContentData?.content || 'Aucun contenu'}
+                                {fileContentData?.content || t('pageEditor.noContent')}
                               </pre>
                             </div>
                           ) : (
@@ -534,15 +537,15 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                   {/* Markdown editor */}
                   {contentMode === 'inline' && (
                     <div className="space-y-2">
-                      <Label>Editeur</Label>
+                      <Label>{t('pageEditor.editor')}</Label>
                       <MarkdownEditor
                         initialContent={editedPage.context?.content_markdown || ''}
                         onChange={(md) => updateContext('content_markdown', md)}
-                        placeholder="Tapez / pour voir les commandes..."
+                        placeholder={t('pageEditor.markdownPlaceholder')}
                         className="min-h-[400px]"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Utilisez / pour inserer des titres, listes, citations, etc.
+                        {t('pageEditor.editorHint')}
                       </p>
                     </div>
                   )}
@@ -552,20 +555,20 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
               {/* Additional context - only for non-form templates */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Contexte supplementaire</CardTitle>
-                  <CardDescription>Variables additionnelles passees au template</CardDescription>
+                  <CardTitle className="text-base">{t('pageEditor.additionalContext')}</CardTitle>
+                  <CardDescription>{t('pageEditor.additionalContextDesc')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <Label htmlFor="page-title">Titre de la page</Label>
+                    <Label htmlFor="page-title">{t('pageEditor.pageTitle')}</Label>
                     <Input
                       id="page-title"
                       value={(editedPage.context?.title as string) || ''}
                       onChange={(e) => updateContext('title', e.target.value || null)}
-                      placeholder="Titre affiche dans la page"
+                      placeholder={t('pageEditor.pageTitleHint')}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Titre utilise dans le template (optionnel)
+                      {t('pageEditor.pageTitleHint')}
                     </p>
                   </div>
                 </CardContent>

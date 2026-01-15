@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -68,6 +69,7 @@ export function ReferenceDetailPanel({
   hierarchyLevels,
   onBack,
 }: ReferenceDetailPanelProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [isDeleting, setIsDeleting] = useState(false)
@@ -155,16 +157,16 @@ export function ReferenceDetailPanel({
               {referenceName}
             </h1>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <span>Reference {kind || 'flat'}</span>
+              <span>{t('reference.referenceKind', { kind: kind || 'flat' })}</span>
               {entityCount !== undefined && (
                 <Badge variant="outline">
-                  {entityCount.toLocaleString()} entites
+                  {entityCount.toLocaleString()} {t('reference.entities')}
                 </Badge>
               )}
               {hasEnrichment && (
                 <Badge variant="secondary" className="gap-1">
                   <Zap className="h-3 w-3" />
-                  Enrichissement API
+                  {t('reference.apiEnrichment')}
                 </Badge>
               )}
             </div>
@@ -181,17 +183,17 @@ export function ReferenceDetailPanel({
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="text-destructive hover:bg-destructive/10">
                 <Trash2 className="mr-2 h-4 w-4" />
-                Supprimer
+                {t('common:actions.delete')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Supprimer "{referenceName}" ?</AlertDialogTitle>
+                <AlertDialogTitle>{t('reference.deleteReference', { name: referenceName })}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Cette action supprimera la reference de la configuration.
+                  {t('reference.deleteReferenceDescription')}
                   {kind === 'hierarchical' && (
                     <span className="mt-2 block text-warning">
-                      Attention : les datasets lies pourraient ne plus fonctionner.
+                      {t('reference.deleteWarningHierarchical')}
                     </span>
                   )}
                 </AlertDialogDescription>
@@ -203,11 +205,11 @@ export function ReferenceDetailPanel({
                   onCheckedChange={(checked) => setDeleteTable(checked === true)}
                 />
                 <label htmlFor="delete-table-ref" className="text-sm font-medium leading-none">
-                  Supprimer aussi la table de la base de donnees
+                  {t('dataset.deleteTableToo')}
                 </label>
               </div>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDelete}
                   disabled={isDeleting}
@@ -216,10 +218,10 @@ export function ReferenceDetailPanel({
                   {isDeleting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Suppression...
+                      {t('common:status.deleting')}
                     </>
                   ) : (
-                    'Supprimer'
+                    t('common:actions.delete')
                   )}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -234,17 +236,17 @@ export function ReferenceDetailPanel({
           <TabsList>
             <TabsTrigger value="overview" className="gap-1">
               <LayoutDashboard className="h-4 w-4" />
-              Vue d'ensemble
+              {t('reference.overview')}
             </TabsTrigger>
             {!enrichmentLoading && hasEnrichment && (
               <TabsTrigger value="enrichment" className="gap-1">
                 <Zap className="h-4 w-4" />
-                Enrichissement API
+                {t('reference.apiEnrichment')}
               </TabsTrigger>
             )}
             <TabsTrigger value="config" className="gap-1">
               <Settings className="h-4 w-4" />
-              Configuration
+              {t('reference.configuration')}
             </TabsTrigger>
           </TabsList>
 
@@ -256,10 +258,10 @@ export function ReferenceDetailPanel({
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Leaf className="h-4 w-4" />
-                    Hierarchie
+                    {t('reference.hierarchy')}
                   </CardTitle>
                   <CardDescription>
-                    Structure taxonomique a {hierarchyLevels.length} niveaux
+                    {t('reference.hierarchyLevels', { count: hierarchyLevels.length })}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -282,7 +284,7 @@ export function ReferenceDetailPanel({
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Database className="h-4 w-4" />
-                  Statistiques
+                  {t('reference.statistics')}
                 </CardTitle>
                 <CardDescription>Table: {tableName}</CardDescription>
               </CardHeader>
@@ -298,9 +300,9 @@ export function ReferenceDetailPanel({
             {/* Data Preview */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Apercu des donnees</CardTitle>
+                <CardTitle className="text-base">{t('reference.dataPreview')}</CardTitle>
                 <CardDescription>
-                  Premieres lignes de la reference
+                  {t('reference.firstRows')}
                 </CardDescription>
               </CardHeader>
               <CardContent>

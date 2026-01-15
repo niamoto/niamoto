@@ -10,6 +10,7 @@
  */
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   EditorRoot,
   EditorCommand,
@@ -311,6 +312,8 @@ export function MarkdownEditor({
   className,
   readOnly = false,
 }: MarkdownEditorProps) {
+  const { t } = useTranslation('site')
+
   const [content] = useState<JSONContent | undefined>(() =>
     initialContent ? markdownToContent(initialContent) : undefined
   )
@@ -336,17 +339,17 @@ export function MarkdownEditor({
     () =>
       createSuggestionItems([
         {
-          title: 'Texte',
-          description: 'Texte simple',
+          title: t('markdownEditor.commands.text'),
+          description: t('markdownEditor.commands.textDesc'),
           icon: <Text size={18} />,
-          searchTerms: ['p', 'paragraph', 'texte'],
+          searchTerms: ['p', 'paragraph', 'texte', 'text'],
           command: ({ editor, range }: any) => {
             editor.chain().focus().deleteRange(range).toggleNode('paragraph', 'paragraph').run()
           },
         },
         {
-          title: 'Titre 1',
-          description: 'Grand titre de section',
+          title: t('markdownEditor.commands.heading1'),
+          description: t('markdownEditor.commands.heading1Desc'),
           icon: <Heading1 size={18} />,
           searchTerms: ['title', 'h1', 'heading', 'titre'],
           command: ({ editor, range }: any) => {
@@ -354,8 +357,8 @@ export function MarkdownEditor({
           },
         },
         {
-          title: 'Titre 2',
-          description: 'Titre de sous-section',
+          title: t('markdownEditor.commands.heading2'),
+          description: t('markdownEditor.commands.heading2Desc'),
           icon: <Heading2 size={18} />,
           searchTerms: ['subtitle', 'h2', 'heading', 'titre'],
           command: ({ editor, range }: any) => {
@@ -363,8 +366,8 @@ export function MarkdownEditor({
           },
         },
         {
-          title: 'Titre 3',
-          description: 'Petit titre',
+          title: t('markdownEditor.commands.heading3'),
+          description: t('markdownEditor.commands.heading3Desc'),
           icon: <Heading3 size={18} />,
           searchTerms: ['h3', 'heading', 'titre'],
           command: ({ editor, range }: any) => {
@@ -372,8 +375,8 @@ export function MarkdownEditor({
           },
         },
         {
-          title: 'Image',
-          description: 'Inserer une image',
+          title: t('markdownEditor.commands.image'),
+          description: t('markdownEditor.commands.imageDesc'),
           icon: <ImageIcon size={18} />,
           searchTerms: ['image', 'photo', 'picture', 'img'],
           command: ({ editor, range }: any) => {
@@ -386,35 +389,35 @@ export function MarkdownEditor({
           },
         },
         {
-          title: 'Liste',
-          description: 'Liste a puces',
+          title: t('markdownEditor.commands.list'),
+          description: t('markdownEditor.commands.listDesc'),
           icon: <List size={18} />,
-          searchTerms: ['unordered', 'ul', 'bullet', 'liste'],
+          searchTerms: ['unordered', 'ul', 'bullet', 'liste', 'list'],
           command: ({ editor, range }: any) => {
             editor.chain().focus().deleteRange(range).toggleBulletList().run()
           },
         },
         {
-          title: 'Liste numerotee',
-          description: 'Liste ordonnee',
+          title: t('markdownEditor.commands.numberedList'),
+          description: t('markdownEditor.commands.numberedListDesc'),
           icon: <ListOrdered size={18} />,
-          searchTerms: ['ordered', 'ol', 'number', 'liste'],
+          searchTerms: ['ordered', 'ol', 'number', 'liste', 'list'],
           command: ({ editor, range }: any) => {
             editor.chain().focus().deleteRange(range).toggleOrderedList().run()
           },
         },
         {
-          title: 'Taches',
-          description: 'Liste de taches',
+          title: t('markdownEditor.commands.tasks'),
+          description: t('markdownEditor.commands.tasksDesc'),
           icon: <CheckSquare size={18} />,
-          searchTerms: ['todo', 'task', 'checkbox', 'tache'],
+          searchTerms: ['todo', 'task', 'checkbox', 'tache', 'tasks'],
           command: ({ editor, range }: any) => {
             editor.chain().focus().deleteRange(range).toggleTaskList().run()
           },
         },
         {
-          title: 'Citation',
-          description: 'Bloc de citation',
+          title: t('markdownEditor.commands.quote'),
+          description: t('markdownEditor.commands.quoteDesc'),
           icon: <TextQuote size={18} />,
           searchTerms: ['blockquote', 'quote', 'citation'],
           command: ({ editor, range }: any) => {
@@ -422,8 +425,8 @@ export function MarkdownEditor({
           },
         },
         {
-          title: 'Code',
-          description: 'Bloc de code',
+          title: t('markdownEditor.commands.code'),
+          description: t('markdownEditor.commands.codeDesc'),
           icon: <Code size={18} />,
           searchTerms: ['codeblock', 'code', 'pre'],
           command: ({ editor, range }: any) => {
@@ -431,7 +434,7 @@ export function MarkdownEditor({
           },
         },
       ]),
-    []
+    [t]
   )
 
   // Configure slash command extension
@@ -498,9 +501,9 @@ export function MarkdownEditor({
       Placeholder.configure({
         placeholder: ({ node }: any) => {
           if (node.type.name === 'heading') {
-            return `Titre ${node.attrs.level}`
+            return t('markdownEditor.placeholder.heading', { level: node.attrs.level })
           }
-          return 'Tapez / pour afficher les commandes...'
+          return t('markdownEditor.placeholder.slashCommands')
         },
       }),
       ImageResize.configure({
@@ -512,7 +515,7 @@ export function MarkdownEditor({
       }),
       slashCommand,
     ],
-    [slashCommand]
+    [slashCommand, t]
   )
 
   // Build extensions - exclude slash command in read-only mode
@@ -714,10 +717,10 @@ export function MarkdownEditor({
           >
             <div className="max-w-md text-center px-6 py-4 rounded-lg bg-muted/50 border border-dashed border-muted-foreground/30">
               <p className="text-sm font-medium text-muted-foreground mb-2">
-                Commencez a ecrire votre contenu
+                {t('markdownEditor.help.startWriting')}
               </p>
               <p className="text-xs text-muted-foreground/80 mb-3">
-                Tapez directement ou utilisez les commandes :
+                {t('markdownEditor.help.typeOrUseCommands')}
               </p>
               <div className="flex flex-wrap gap-2 justify-center text-xs">
                 <kbd className="px-2 py-1 bg-background rounded border font-mono">/titre</kbd>
@@ -759,7 +762,7 @@ export function MarkdownEditor({
             {!readOnly && (
               <EditorCommand className="z-50 h-auto max-h-[330px] w-72 overflow-y-auto rounded-md border border-muted bg-background px-1 py-2 shadow-md transition-all">
                 <EditorCommandEmpty className="px-2 text-muted-foreground">
-                  Aucun resultat
+                  {t('markdownEditor.help.noResult')}
                 </EditorCommandEmpty>
                 <EditorCommandList>
                   {suggestionItems.map((item) => (

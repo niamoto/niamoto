@@ -8,6 +8,7 @@
  */
 
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus, Trash2, GripVertical } from 'lucide-react'
@@ -31,11 +32,13 @@ export function RepeatableField<T>({
   renderItem,
   createItem,
   label,
-  addLabel = 'Ajouter',
+  addLabel,
   maxItems,
   minItems = 0,
   className,
 }: RepeatableFieldProps<T>) {
+  const { t } = useTranslation('common')
+  const resolvedAddLabel = addLabel ?? t('actions.add')
   const handleAdd = useCallback(() => {
     if (maxItems && items.length >= maxItems) return
     onChange([...items, createItem()])
@@ -86,7 +89,7 @@ export function RepeatableField<T>({
 
       {items.length === 0 ? (
         <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-          Aucun element. Cliquez sur "{addLabel}" pour commencer.
+          {t('empty.noItems')}. {t('empty.clickToAdd', { button: resolvedAddLabel })}
         </div>
       ) : (
         <div className="space-y-2">
@@ -147,7 +150,7 @@ export function RepeatableField<T>({
         className="w-full"
       >
         <Plus className="mr-2 h-4 w-4" />
-        {addLabel}
+        {resolvedAddLabel}
       </Button>
     </div>
   )

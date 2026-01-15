@@ -11,6 +11,7 @@
  */
 
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Upload, Database, ArrowRight } from 'lucide-react'
@@ -19,6 +20,7 @@ import { useDatasets } from '@/hooks/useDatasets'
 import { useReferences } from '@/hooks/useReferences'
 
 export function DataDashboard() {
+  const { t } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
   const { data: datasetsData } = useDatasets()
   const { data: referencesData } = useReferences()
@@ -48,15 +50,15 @@ export function DataDashboard() {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
               <Database className="h-8 w-8 text-muted-foreground" />
             </div>
-            <CardTitle>Aucune donnee importee</CardTitle>
+            <CardTitle>{t('dashboard.noData')}</CardTitle>
             <CardDescription>
-              Commencez par importer vos fichiers de donnees pour voir les statistiques et la qualite.
+              {t('dashboard.noDataHint')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={handleImport} size="lg" className="gap-2">
               <Upload className="h-4 w-4" />
-              Importer des donnees
+              {t('dashboard.importData')}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </CardContent>
@@ -70,15 +72,15 @@ export function DataDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard des donnees</h1>
+          <h1 className="text-2xl font-bold">{t('dashboard.title')}</h1>
           <p className="text-muted-foreground">
-            Vue d'ensemble de la qualite et de la completude des donnees importees.
+            {t('dashboard.description')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleImport}>
             <Upload className="mr-2 h-4 w-4" />
-            Importer
+            {t('dashboard.import')}
           </Button>
         </div>
       </div>

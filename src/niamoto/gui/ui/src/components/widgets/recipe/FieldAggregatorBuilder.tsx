@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,6 +56,7 @@ function FieldRow({
   onChange,
   onDelete,
 }: FieldRowProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   // Get columns for the selected source
@@ -124,7 +126,7 @@ function FieldRow({
             columns={columns}
             value={field.field}
             onChange={handleFieldSelect}
-            placeholder="Champ"
+            placeholder={t('recipe.field')}
             disabled={!field.source}
             loading={columnsLoading}
           />
@@ -201,10 +203,10 @@ function FieldRow({
                 }
               >
                 <SelectTrigger className="h-8">
-                  <SelectValue placeholder="Aucun" />
+                  <SelectValue placeholder={t('recipe.none')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun</SelectItem>
+                  <SelectItem value="">{t('recipe.none')}</SelectItem>
                   <SelectItem value="boolean">boolean</SelectItem>
                   <SelectItem value="url">url</SelectItem>
                   <SelectItem value="text">text</SelectItem>
@@ -215,7 +217,7 @@ function FieldRow({
 
             {/* Units */}
             <div className="space-y-1">
-              <Label className="text-xs">Unites</Label>
+              <Label className="text-xs">{t('recipe.units')}</Label>
               <Input
                 className="h-8"
                 placeholder="ex: ha, m, km²"
@@ -232,7 +234,7 @@ function FieldRow({
           {/* Labels mapping (for boolean/categorical) */}
           {(field.format === 'boolean' || field.transformation === 'direct') && (
             <div className="space-y-1">
-              <Label className="text-xs">Labels (JSON)</Label>
+              <Label className="text-xs">{t('recipe.labelsJson')}</Label>
               <Input
                 className="h-8 font-mono text-xs"
                 placeholder='{"1": "Oui", "0": "Non"}'
@@ -262,6 +264,8 @@ export function FieldAggregatorBuilder({
   value,
   onChange,
 }: FieldAggregatorBuilderProps) {
+  const { t } = useTranslation(['widgets', 'common'])
+
   const handleFieldChange = useCallback(
     (index: number, field: FieldConfig) => {
       const newFields = [...value]
@@ -315,13 +319,13 @@ export function FieldAggregatorBuilder({
         onClick={handleAdd}
       >
         <Plus className="h-3 w-3 mr-1" />
-        Ajouter un champ
+        {t('recipe.addField')}
       </Button>
 
       {/* Help text */}
       {value.length === 0 && (
         <p className="text-xs text-muted-foreground text-center py-2">
-          Ajoutez des champs pour configurer l'agregateur
+          {t('recipe.addFieldsHint')}
         </p>
       )}
     </div>
