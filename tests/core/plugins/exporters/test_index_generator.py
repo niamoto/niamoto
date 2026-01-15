@@ -321,6 +321,8 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
         mock_html_params.site = Mock()
         mock_html_params.site.model_dump.return_value = {"title": "Test Site"}
         mock_html_params.navigation = [{"name": "Home", "url": "/"}]
+        mock_html_params.footer_navigation = []
+        mock_html_params.external_links = []
 
         # Configure index
         config = IndexGeneratorConfig(

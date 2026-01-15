@@ -132,8 +132,9 @@ class TestCreateApp:
 
         route_paths = [route.path for route in app.routes]
 
-        # Should not have /assets route
-        assets_routes = [path for path in route_paths if "/assets" in path]
+        # Should not have /assets route mounted at root level
+        # Use startswith to avoid matching API routes that might contain 'assets'
+        assets_routes = [path for path in route_paths if path.startswith("/assets")]
         assert len(assets_routes) == 0
 
 
