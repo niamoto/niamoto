@@ -8,6 +8,7 @@
  * - Advanced: link settings, mapping
  */
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -71,6 +72,7 @@ export function DisplayFieldEditor({
   onOpenChange,
   onSave,
 }: DisplayFieldEditorProps) {
+  const { t } = useTranslation(['sources', 'common'])
   // Local state for editing
   const [localField, setLocalField] = useState<IndexDisplayField>(field)
 
@@ -105,7 +107,7 @@ export function DisplayFieldEditor({
     setMappingText(text)
     const parsed = parseJsonObject(text)
     if (parsed === null) {
-      setMappingError('JSON invalide')
+      setMappingError(t('indexConfig.fieldEditor.invalidJson'))
     } else {
       setMappingError(null)
       updateField({ mapping: Object.keys(parsed).length > 0 ? parsed : undefined })
@@ -117,7 +119,7 @@ export function DisplayFieldEditor({
     setBadgeColorsText(text)
     const parsed = parseJsonObject(text)
     if (parsed === null) {
-      setBadgeColorsError('JSON invalide')
+      setBadgeColorsError(t('indexConfig.fieldEditor.invalidJson'))
     } else {
       setBadgeColorsError(null)
       updateField({ badge_colors: Object.keys(parsed).length > 0 ? parsed : undefined })
@@ -157,9 +159,9 @@ export function DisplayFieldEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Modifier le champ</DialogTitle>
+          <DialogTitle>{t('indexConfig.fieldEditor.editField')}</DialogTitle>
           <DialogDescription>
-            Configurez les proprietes du champ "{field.name || 'nouveau champ'}"
+            {t('indexConfig.fieldEditor.configureField', { name: field.name || t('indexConfig.fieldEditor.newField') })}
           </DialogDescription>
         </DialogHeader>
 
@@ -170,13 +172,13 @@ export function DisplayFieldEditor({
               <AccordionTrigger className="px-4 py-3 hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Settings2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Parametres de base</span>
+                  <span className="font-medium">{t('indexConfig.fieldEditor.basicSettings')}</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="field-name">Nom du champ</Label>
+                    <Label htmlFor="field-name">{t('indexConfig.fieldEditor.fieldName')}</Label>
                     <Input
                       id="field-name"
                       value={localField.name}
@@ -184,26 +186,26 @@ export function DisplayFieldEditor({
                       placeholder="nom_du_champ"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Identifiant unique du champ
+                      {t('indexConfig.fieldEditor.fieldNameHint')}
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="field-label">Label (optionnel)</Label>
+                    <Label htmlFor="field-label">{t('indexConfig.fieldEditor.labelOptional')}</Label>
                     <Input
                       id="field-label"
                       value={localField.label || ''}
                       onChange={(e) => updateField({ label: e.target.value || undefined })}
-                      placeholder="Nom affiche"
+                      placeholder={t('indexConfig.fieldEditor.displayedName')}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Label affiche dans l'interface
+                      {t('indexConfig.fieldEditor.labelHint')}
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="field-source">Source (chemin JSON)</Label>
+                  <Label htmlFor="field-source">{t('indexConfig.fieldEditor.sourceJsonPath')}</Label>
                   <Input
                     id="field-source"
                     value={localField.source}
@@ -212,12 +214,12 @@ export function DisplayFieldEditor({
                     className="font-mono"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Chemin vers la valeur dans les donnees (ex: general_info.rank.value)
+                    {t('indexConfig.fieldEditor.sourceHint')}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="field-fallback">Fallback (optionnel)</Label>
+                  <Label htmlFor="field-fallback">{t('indexConfig.fieldEditor.fallbackOptional')}</Label>
                   <Input
                     id="field-fallback"
                     value={localField.fallback || ''}
@@ -226,13 +228,13 @@ export function DisplayFieldEditor({
                     className="font-mono"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Chemin alternatif si la source est vide
+                    {t('indexConfig.fieldEditor.fallbackHint')}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Type de donnee</Label>
+                    <Label>{t('indexConfig.fieldEditor.dataType')}</Label>
                     <Select
                       value={localField.type}
                       onValueChange={(value) => updateField({ type: value as IndexDisplayField['type'] })}
@@ -241,16 +243,16 @@ export function DisplayFieldEditor({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="text">Texte</SelectItem>
-                        <SelectItem value="select">Selection</SelectItem>
-                        <SelectItem value="boolean">Booleen</SelectItem>
-                        <SelectItem value="json_array">Tableau JSON</SelectItem>
+                        <SelectItem value="text">{t('indexConfig.fieldEditor.typeText')}</SelectItem>
+                        <SelectItem value="select">{t('indexConfig.fieldEditor.typeSelect')}</SelectItem>
+                        <SelectItem value="boolean">{t('indexConfig.fieldEditor.typeBoolean')}</SelectItem>
+                        <SelectItem value="json_array">{t('indexConfig.fieldEditor.typeJsonArray')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Mode d'affichage</Label>
+                    <Label>{t('indexConfig.fieldEditor.displayMode')}</Label>
                     <Select
                       value={localField.display}
                       onValueChange={(value) => updateField({ display: value as IndexDisplayField['display'] })}
@@ -259,10 +261,10 @@ export function DisplayFieldEditor({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="hidden">Cache</SelectItem>
-                        <SelectItem value="image_preview">Apercu image</SelectItem>
-                        <SelectItem value="link">Lien</SelectItem>
+                        <SelectItem value="normal">{t('indexConfig.fieldEditor.displayNormal')}</SelectItem>
+                        <SelectItem value="hidden">{t('indexConfig.fieldEditor.displayHidden')}</SelectItem>
+                        <SelectItem value="image_preview">{t('indexConfig.fieldEditor.displayImagePreview')}</SelectItem>
+                        <SelectItem value="link">{t('indexConfig.fieldEditor.displayLink')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -275,15 +277,15 @@ export function DisplayFieldEditor({
               <AccordionTrigger className="px-4 py-3 hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Search className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Recherche</span>
+                  <span className="font-medium">{t('indexConfig.fieldEditor.search')}</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Champ recherchable</Label>
+                    <Label>{t('indexConfig.fieldEditor.searchable')}</Label>
                     <p className="text-xs text-muted-foreground">
-                      Inclure ce champ dans la recherche texte
+                      {t('indexConfig.fieldEditor.searchableHint')}
                     </p>
                   </div>
                   <Switch
@@ -294,9 +296,9 @@ export function DisplayFieldEditor({
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Options dynamiques</Label>
+                    <Label>{t('indexConfig.fieldEditor.dynamicOptions')}</Label>
                     <p className="text-xs text-muted-foreground">
-                      Generer les options de filtre depuis les donnees
+                      {t('indexConfig.fieldEditor.dynamicOptionsHint')}
                     </p>
                   </div>
                   <Switch
@@ -312,34 +314,34 @@ export function DisplayFieldEditor({
               <AccordionTrigger className="px-4 py-3 hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Palette className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Apparence</span>
+                  <span className="font-medium">{t('indexConfig.fieldEditor.appearance')}</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4 space-y-4">
                 <div className="space-y-2">
-                  <Label>Format d'affichage</Label>
+                  <Label>{t('indexConfig.fieldEditor.displayFormat')}</Label>
                   <Select
                     value={localField.format || 'none'}
                     onValueChange={(value) => updateField({ format: value === 'none' ? undefined : value as IndexDisplayField['format'] })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Aucun" />
+                      <SelectValue placeholder={t('indexConfig.fieldEditor.formatNone')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Aucun</SelectItem>
-                      <SelectItem value="badge">Badge</SelectItem>
-                      <SelectItem value="map">Mapping</SelectItem>
-                      <SelectItem value="number">Nombre</SelectItem>
-                      <SelectItem value="link">Lien</SelectItem>
+                      <SelectItem value="none">{t('indexConfig.fieldEditor.formatNone')}</SelectItem>
+                      <SelectItem value="badge">{t('indexConfig.fieldEditor.formatBadge')}</SelectItem>
+                      <SelectItem value="map">{t('indexConfig.fieldEditor.formatMapping')}</SelectItem>
+                      <SelectItem value="number">{t('indexConfig.fieldEditor.formatNumber')}</SelectItem>
+                      <SelectItem value="link">{t('indexConfig.fieldEditor.formatLink')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Badge inline</Label>
+                    <Label>{t('indexConfig.fieldEditor.inlineBadge')}</Label>
                     <p className="text-xs text-muted-foreground">
-                      Afficher comme badge dans le titre
+                      {t('indexConfig.fieldEditor.inlineBadgeHint')}
                     </p>
                   </div>
                   <Switch
@@ -350,7 +352,7 @@ export function DisplayFieldEditor({
 
                 {localField.inline_badge && (
                   <div className="space-y-2">
-                    <Label htmlFor="badge-color">Couleur du badge (classes CSS)</Label>
+                    <Label htmlFor="badge-color">{t('indexConfig.fieldEditor.badgeColorCss')}</Label>
                     <Input
                       id="badge-color"
                       value={localField.badge_color || ''}
@@ -363,7 +365,7 @@ export function DisplayFieldEditor({
                 {localField.type === 'boolean' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="true-label">Label pour vrai</Label>
+                      <Label htmlFor="true-label">{t('indexConfig.fieldEditor.trueLabel')}</Label>
                       <Input
                         id="true-label"
                         value={localField.true_label || ''}
@@ -372,7 +374,7 @@ export function DisplayFieldEditor({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="false-label">Label pour faux</Label>
+                      <Label htmlFor="false-label">{t('indexConfig.fieldEditor.falseLabel')}</Label>
                       <Input
                         id="false-label"
                         value={localField.false_label || ''}
@@ -391,12 +393,12 @@ export function DisplayFieldEditor({
                 <AccordionTrigger className="px-4 py-3 hover:no-underline">
                   <div className="flex items-center gap-2">
                     <Link2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Paramètres du lien</span>
+                    <span className="font-medium">{t('indexConfig.fieldEditor.linkSettings')}</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="link-template">Template URL</Label>
+                    <Label htmlFor="link-template">{t('indexConfig.fieldEditor.urlTemplate')}</Label>
                     <Input
                       id="link-template"
                       value={localField.link_template || ''}
@@ -405,22 +407,22 @@ export function DisplayFieldEditor({
                       className="font-mono"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Utilisez {'{value}'} pour inserer la valeur du champ
+                      {t('indexConfig.fieldEditor.urlTemplateHint')}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="link-label">Label du lien</Label>
+                      <Label htmlFor="link-label">{t('indexConfig.fieldEditor.linkLabel')}</Label>
                       <Input
                         id="link-label"
                         value={localField.link_label || ''}
                         onChange={(e) => updateField({ link_label: e.target.value || undefined })}
-                        placeholder="Voir plus"
+                        placeholder={t('indexConfig:fields.linkLabelPlaceholder')}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="link-target">Target</Label>
+                      <Label htmlFor="link-target">{t('indexConfig.fieldEditor.target')}</Label>
                       <Select
                         value={localField.link_target || '_self'}
                         onValueChange={(value) => updateField({ link_target: value })}
@@ -429,8 +431,8 @@ export function DisplayFieldEditor({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="_self">Meme fenetre</SelectItem>
-                          <SelectItem value="_blank">Nouvelle fenetre</SelectItem>
+                          <SelectItem value="_self">{t('indexConfig.fieldEditor.sameWindow')}</SelectItem>
+                          <SelectItem value="_blank">{t('indexConfig.fieldEditor.newWindow')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -444,32 +446,32 @@ export function DisplayFieldEditor({
               <AccordionTrigger className="px-4 py-3 hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Braces className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Mapping & Filtres</span>
+                  <span className="font-medium">{t('indexConfig.fieldEditor.mappingFilters')}</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4 space-y-4">
                 {/* Value Mapping */}
                 <div className="space-y-2">
-                  <Label htmlFor="mapping">Mapping des valeurs (JSON)</Label>
+                  <Label htmlFor="mapping">{t('indexConfig.fieldEditor.valueMapping')}</Label>
                   <Textarea
                     id="mapping"
                     value={mappingText}
                     onChange={(e) => handleMappingChange(e.target.value)}
-                    placeholder='{"species": "Espèce", "genus": "Genre"}'
+                    placeholder={t('sources:indexConfig.fieldEditor.mappingExample', { defaultValue: '{"species": "Species", "genus": "Genus"}' })}
                     className={`font-mono text-sm min-h-[80px] ${mappingError ? 'border-destructive' : ''}`}
                   />
                   {mappingError && (
                     <p className="text-xs text-destructive">{mappingError}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Transforme les valeurs pour l'affichage (ex: codes -&gt; labels)
+                    {t('indexConfig.fieldEditor.valueMappingHint')}
                   </p>
                 </div>
 
                 {/* Filter Options (for select type) */}
                 {localField.type === 'select' && !localField.dynamic_options && (
                   <div className="space-y-2">
-                    <Label>Options de filtre statiques</Label>
+                    <Label>{t('indexConfig.fieldEditor.staticFilterOptions')}</Label>
                     <div className="space-y-2">
                       {(localField.filter_options || []).map((option, index) => (
                         <div key={index} className="flex items-center gap-2">
@@ -492,7 +494,7 @@ export function DisplayFieldEditor({
                       {/* Add new filter option */}
                       <div className="flex items-end gap-2 mt-2">
                         <div className="flex-1 space-y-1">
-                          <Label className="text-xs">Valeur</Label>
+                          <Label className="text-xs">{t('indexConfig.fieldEditor.value')}</Label>
                           <Input
                             value={newFilterValue}
                             onChange={(e) => setNewFilterValue(e.target.value)}
@@ -505,7 +507,7 @@ export function DisplayFieldEditor({
                           <Input
                             value={newFilterLabel}
                             onChange={(e) => setNewFilterLabel(e.target.value)}
-                            placeholder="Espèce"
+                            placeholder={t('sources:indexConfig.fieldEditor.exampleValue', { defaultValue: 'Species' })}
                             className="h-8 text-sm"
                           />
                         </div>
@@ -521,7 +523,7 @@ export function DisplayFieldEditor({
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Options fixes pour le filtre (desactiver "Options dynamiques" d'abord)
+                      {t('indexConfig.fieldEditor.staticFilterHint')}
                     </p>
                   </div>
                 )}
@@ -529,7 +531,7 @@ export function DisplayFieldEditor({
                 {/* Badge colors per value */}
                 {(localField.inline_badge || localField.format === 'badge') && (
                   <div className="space-y-2">
-                    <Label htmlFor="badge-colors">Couleurs par valeur (JSON)</Label>
+                    <Label htmlFor="badge-colors">{t('indexConfig.fieldEditor.badgeColorsJson')}</Label>
                     <Textarea
                       id="badge-colors"
                       value={badgeColorsText}
@@ -541,7 +543,7 @@ export function DisplayFieldEditor({
                       <p className="text-xs text-destructive">{badgeColorsError}</p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      Classes CSS par valeur pour styliser les badges differemment
+                      {t('indexConfig.fieldEditor.badgeColorsHint')}
                     </p>
                   </div>
                 )}
@@ -552,13 +554,13 @@ export function DisplayFieldEditor({
 
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annuler
+            {t('common:actions.cancel')}
           </Button>
           <Button
             onClick={handleSave}
             disabled={!!mappingError || !!badgeColorsError}
           >
-            Enregistrer
+            {t('common:actions.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

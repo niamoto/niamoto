@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronRight, ChevronDown, Search, ChevronsUpDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -129,10 +130,11 @@ export function FieldTreeSelector({
   columns,
   value,
   onChange,
-  placeholder = 'Selectionnez un champ',
+  placeholder,
   disabled = false,
   loading = false,
 }: FieldTreeSelectorProps) {
+  const { t } = useTranslation('common')
   const [open, setOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -203,7 +205,7 @@ export function FieldTreeSelector({
         )}
       >
         <span className="truncate">
-          {loading ? 'Chargement...' : displayValue || placeholder}
+          {loading ? t('status.loading') : displayValue || placeholder || t('messages.selectField')}
         </span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </Button>
@@ -215,7 +217,7 @@ export function FieldTreeSelector({
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher..."
+                placeholder={t('placeholders.search')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-8 pl-8"
@@ -229,7 +231,7 @@ export function FieldTreeSelector({
             <div className="p-2">
               {columns.length === 0 ? (
                 <div className="text-sm text-muted-foreground text-center py-4">
-                  Aucun champ disponible
+                  {t('status.noFieldsAvailable')}
                 </div>
               ) : (
                 columns.map((column) => (

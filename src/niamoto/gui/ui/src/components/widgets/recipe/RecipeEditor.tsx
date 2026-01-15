@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import * as yaml from 'js-yaml'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -300,6 +301,7 @@ function WizardStepper({
 }
 
 export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [activeTab, setActiveTab] = useState<'expert' | 'wizard'>('wizard')
   const [yamlContent, setYamlContent] = useState(() => {
     if (initialRecipe) {
@@ -553,7 +555,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
       toast.success(`Widget "${recipe.widget_id}" ajoute`)
       onSave?.()
     } else {
-      toast.error('Erreur lors de la sauvegarde')
+      toast.error(t('widgets:form.saveError'))
     }
   }, [activeTab, isValidYaml, parsedRecipe, widgetId, selectedTransformer, selectedWidget, wizardRecipe, groupBy, validate, save, onSave])
 
@@ -612,7 +614,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {activeTab === 'wizard' ? 'Ajouter le widget' : 'Sauvegarder'}
+            {activeTab === 'wizard' ? t('widgets:actions.addWidget') : t('common:actions.save')}
           </Button>
         </div>
 
@@ -713,11 +715,11 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                       {sourcesLoading ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Chargement des sources...
+                          {t('recipe.loadingSources')}
                         </div>
                       ) : sources.length === 0 ? (
                         <div className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
-                          Aucune source configuree. Ajoutez une source dans l'onglet "Sources de donnees".
+                          {t('recipe.noSourcesConfigured')}
                         </div>
                       ) : (
                         <div className="grid gap-2">
@@ -744,7 +746,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium">{source.name}</div>
                                 <div className="text-xs text-muted-foreground truncate">
-                                  {source.type} - {source.columns.length} colonnes
+                                  {source.type} - {source.columns.length} {t('recipe.columns')}
                                 </div>
                               </div>
                               {selectedSource?.name === source.name && (
@@ -786,7 +788,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
 
                       <Select value={selectedTransformer} onValueChange={setSelectedTransformer}>
                         <SelectTrigger onClick={(e) => e.stopPropagation()}>
-                          <SelectValue placeholder="Selectionnez un transformer" />
+                          <SelectValue placeholder={t('recipe.selectTransformer')} />
                         </SelectTrigger>
                         <SelectContent>
                           {availableTransformers.map((t) => {
@@ -872,7 +874,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                       onValueChange={(v) => updateTransformerParam(key, v)}
                                     >
                                       <SelectTrigger className="h-8">
-                                        <SelectValue placeholder="Selectionnez une colonne" />
+                                        <SelectValue placeholder={t('recipe.selectColumn')} />
                                       </SelectTrigger>
                                       <SelectContent>
                                         {selectedSource.columns.map((col) => (
@@ -909,7 +911,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                         const values = e.target.value.split(',').map(s => s.trim()).filter(Boolean)
                                         updateTransformerParam(key, values)
                                       }}
-                                      placeholder="Valeurs separees par virgule"
+                                      placeholder={t('recipe.commaSeparatedValues')}
                                     />
                                   ) : param.type === 'array' && param.items_type === 'number' ? (
                                     <Input
@@ -935,7 +937,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                         <div key={idx} className="flex gap-2 items-center">
                                           <Input
                                             className="h-7 flex-1"
-                                            placeholder="Label"
+                                            placeholder={t('recipe.label')}
                                             value={k}
                                             onChange={(e) => {
                                               const current = (transformerParams[key] as Record<string, string>) || {}
@@ -1048,7 +1050,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
 
                       <Select value={selectedWidget} onValueChange={setSelectedWidget}>
                         <SelectTrigger onClick={(e) => e.stopPropagation()}>
-                          <SelectValue placeholder="Selectionnez un widget" />
+                          <SelectValue placeholder={t('recipe.selectWidget')} />
                         </SelectTrigger>
                         <SelectContent>
                           {widgets.map((w) => (
@@ -1067,7 +1069,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                         <Input
                           value={widgetTitle}
                           onChange={(e) => setWidgetTitle(e.target.value)}
-                          placeholder={widgetId.replace(/_/g, ' ') || 'Titre automatique'}
+                          placeholder={widgetId.replace(/_/g, ' ') || t('widgets:form.autoTitle')}
                           className="h-8"
                         />
                       </div>
@@ -1124,7 +1126,7 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                     onValueChange={(v) => updateWidgetParam(key, v)}
                                   >
                                     <SelectTrigger className="h-8">
-                                      <SelectValue placeholder="Selectionnez..." />
+                                      <SelectValue placeholder={t('recipe.select')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {param.ui_options.map((opt) => {
@@ -1207,16 +1209,16 @@ export function RecipeEditor({ groupBy, onSave, initialRecipe }: RecipeEditorPro
                                   <ColorMapEditor
                                     value={widgetParams[key] as Record<string, string> | undefined}
                                     onChange={(v) => updateWidgetParam(key, v)}
-                                    placeholder="Ajoutez des couleurs pour chaque serie"
+                                    placeholder={t('recipe.addColorsForSeries')}
                                   />
                                 ) : key === 'labels' ? (
                                   <JsonKeyValueEditor
                                     value={widgetParams[key] as Record<string, string> | undefined}
                                     onChange={(v) => updateWidgetParam(key, v)}
-                                    keyPlaceholder="Champ"
-                                    valuePlaceholder="Label affiche"
+                                    keyPlaceholder={t('recipe.field')}
+                                    valuePlaceholder={t('recipe.labelDisplayed')}
                                     suggestedKeys={['x_axis', 'y_axis', 'color_field']}
-                                    placeholder="Labels pour les axes et legendes"
+                                    placeholder={t('recipe.labelsForAxesLegends')}
                                   />
                                 ) : key === 'transform_params' && param.ui_transform_schemas ? (
                                   <TransformParamsEditor

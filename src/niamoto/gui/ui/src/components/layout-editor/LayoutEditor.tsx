@@ -9,6 +9,7 @@
  * - Navigation sidebar preview
  */
 import { useState, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Loader2,
@@ -92,6 +93,7 @@ async function fetchRepresentatives(groupBy: string): Promise<RepresentativesRes
 }
 
 export function LayoutEditor({ groupBy }: LayoutEditorProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const queryClient = useQueryClient()
 
   // Fetch layout data
@@ -199,7 +201,7 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
       <div className="flex min-h-[400px] flex-col items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <p className="mt-4 text-sm text-muted-foreground">
-          Chargement de la mise en page...
+          {t('layout.loadingLayout')}
         </p>
       </div>
     )
@@ -210,13 +212,13 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center">
         <AlertCircle className="h-12 w-12 text-destructive/50" />
-        <h3 className="mt-4 font-medium">Erreur de chargement</h3>
+        <h3 className="mt-4 font-medium">{t('layout.loadError')}</h3>
         <p className="mt-2 text-sm text-muted-foreground">
-          {error instanceof Error ? error.message : 'Erreur inconnue'}
+          {error instanceof Error ? error.message : t('layout.unknownError')}
         </p>
         <Button variant="outline" className="mt-4" onClick={() => refetch()}>
           <RefreshCw className="mr-2 h-4 w-4" />
-          Reessayer
+          {t('common:actions.retry')}
         </Button>
       </div>
     )
@@ -227,9 +229,9 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-8">
         <Settings2 className="mb-4 h-12 w-12 text-muted-foreground" />
-        <h3 className="mb-2 font-medium">Aucun widget configure</h3>
+        <h3 className="mb-2 font-medium">{t('layout.noWidgets')}</h3>
         <p className="text-center text-sm text-muted-foreground max-w-md">
-          Ajoutez d'abord des widgets dans l'onglet "Widgets" pour pouvoir configurer leur mise en page.
+          {t('layout.noWidgetsHint')}
         </p>
       </div>
     )
@@ -244,12 +246,12 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
       {/* Header with actions */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-lg font-medium">Mise en page</h2>
+          <h2 className="text-lg font-medium">{t('layout.title')}</h2>
           <p className="text-sm text-muted-foreground">
-            {layout.total_widgets} widgets configures
+            {t('layout.widgetsConfigured', { count: layout.total_widgets })}
             {hasChanges && (
               <Badge variant="outline" className="ml-2 text-warning border-warning">
-                Modifications non sauvegardees
+                {t('layout.unsavedChanges')}
               </Badge>
             )}
           </p>
@@ -259,17 +261,17 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
             variant={showPreviews ? 'secondary' : 'outline'}
             size="sm"
             onClick={() => setShowPreviews(!showPreviews)}
-            title={showPreviews ? 'Masquer les previews' : 'Afficher les previews'}
+            title={showPreviews ? t('layout.hidePreviews') : t('layout.showPreviews')}
           >
             {showPreviews ? (
               <>
                 <Eye className="mr-2 h-4 w-4" />
-                Previews
+                {t('layout.previews')}
               </>
             ) : (
               <>
                 <EyeOff className="mr-2 h-4 w-4" />
-                Previews
+                {t('layout.previews')}
               </>
             )}
           </Button>
@@ -282,7 +284,7 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
             >
               <SelectTrigger className="w-[200px] h-8">
                 <Leaf className="mr-2 h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="Selectionner..." />
+                <SelectValue placeholder={t('layout.selectEntity')} />
               </SelectTrigger>
               <SelectContent>
                 {representatives.entities.map((entity) => (
@@ -301,7 +303,7 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
             disabled={saveMutation.isPending}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            Actualiser
+            {t('layout.refresh')}
           </Button>
           <Button
             size="sm"
@@ -311,12 +313,12 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
             {saveMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sauvegarde...
+                {t('layout.saving')}
               </>
             ) : (
               <>
                 <Save className="mr-2 h-4 w-4" />
-                Sauvegarder
+                {t('layout.save')}
               </>
             )}
           </Button>
@@ -326,14 +328,14 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
       {/* Success/Error messages */}
       {saveMutation.isSuccess && (
         <div className="mb-4 bg-success/10 text-success border border-success/30 px-4 py-2 rounded-lg text-sm">
-          Mise en page sauvegardee avec succes
+          {t('layout.saveSuccess')}
         </div>
       )}
       {saveMutation.error && (
         <div className="mb-4 bg-destructive/10 text-destructive border border-destructive/30 px-4 py-2 rounded-lg text-sm">
           {saveMutation.error instanceof Error
             ? saveMutation.error.message
-            : 'Erreur lors de la sauvegarde'}
+            : t('layout.saveError')}
         </div>
       )}
 
@@ -367,14 +369,14 @@ export function LayoutEditor({ groupBy }: LayoutEditorProps) {
       <div className="mt-4 pt-4 border-t flex items-center gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
           <Columns className="h-3.5 w-3.5" />
-          <span>1 colonne</span>
+          <span>{t('layout.columns.one')}</span>
         </div>
         <div className="flex items-center gap-1">
           <Columns2 className="h-3.5 w-3.5" />
-          <span>2 colonnes</span>
+          <span>{t('layout.columns.two')}</span>
         </div>
         <span className="text-muted-foreground/50">|</span>
-        <span>Glissez-deposez pour reordonner</span>
+        <span>{t('layout.dragDrop')}</span>
       </div>
     </div>
   )

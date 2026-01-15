@@ -8,6 +8,7 @@
  * - Theme presets for quick styling
  */
 
+import { useTranslation } from 'react-i18next'
 import { Palette, Type, Sparkles, Paintbrush } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -32,7 +33,7 @@ interface ThemeConfigFormProps {
 // Theme presets
 const THEME_PRESETS = {
   forest: {
-    name: 'Foret',
+    key: 'forest',
     primary_color: '#228b22',
     secondary_color: '#4caf50',
     nav_color: '#228b22',
@@ -42,7 +43,7 @@ const THEME_PRESETS = {
     footer_bg_color: '#14532d',
   },
   ocean: {
-    name: 'Ocean',
+    key: 'ocean',
     primary_color: '#0369a1',
     secondary_color: '#0ea5e9',
     nav_color: '#0c4a6e',
@@ -52,7 +53,7 @@ const THEME_PRESETS = {
     footer_bg_color: '#0c4a6e',
   },
   sunset: {
-    name: 'Crepuscule',
+    key: 'sunset',
     primary_color: '#c2410c',
     secondary_color: '#f97316',
     nav_color: '#9a3412',
@@ -62,7 +63,7 @@ const THEME_PRESETS = {
     footer_bg_color: '#7c2d12',
   },
   lavender: {
-    name: 'Lavande',
+    key: 'lavender',
     primary_color: '#7c3aed',
     secondary_color: '#a78bfa',
     nav_color: '#5b21b6',
@@ -72,7 +73,7 @@ const THEME_PRESETS = {
     footer_bg_color: '#4c1d95',
   },
   earth: {
-    name: 'Terre',
+    key: 'earth',
     primary_color: '#78350f',
     secondary_color: '#a16207',
     nav_color: '#78350f',
@@ -82,7 +83,7 @@ const THEME_PRESETS = {
     footer_bg_color: '#422006',
   },
   slate: {
-    name: 'Ardoise',
+    key: 'slate',
     primary_color: '#475569',
     secondary_color: '#64748b',
     nav_color: '#334155',
@@ -94,19 +95,19 @@ const THEME_PRESETS = {
 }
 
 const FONT_OPTIONS = [
-  { value: 'system', label: 'Systeme', preview: 'system-ui, sans-serif' },
-  { value: 'serif', label: 'Serif', preview: 'Georgia, serif' },
-  { value: 'mono', label: 'Monospace', preview: 'ui-monospace, monospace' },
-  { value: 'inter', label: 'Inter', preview: '"Inter", sans-serif' },
-  { value: 'roboto', label: 'Roboto', preview: '"Roboto", sans-serif' },
+  { value: 'system', key: 'system', preview: 'system-ui, sans-serif' },
+  { value: 'serif', key: 'serif', preview: 'Georgia, serif' },
+  { value: 'mono', key: 'mono', preview: 'ui-monospace, monospace' },
+  { value: 'inter', key: 'inter', preview: '"Inter", sans-serif' },
+  { value: 'roboto', key: 'roboto', preview: '"Roboto", sans-serif' },
 ]
 
 const RADIUS_OPTIONS = [
-  { value: 'none', label: 'Aucun', preview: '0px' },
-  { value: 'small', label: 'Petit', preview: '4px' },
-  { value: 'medium', label: 'Moyen', preview: '8px' },
-  { value: 'large', label: 'Grand', preview: '12px' },
-  { value: 'full', label: 'Arrondi', preview: '9999px' },
+  { value: 'none', key: 'none', preview: '0px' },
+  { value: 'small', key: 'small', preview: '4px' },
+  { value: 'medium', key: 'medium', preview: '8px' },
+  { value: 'large', key: 'large', preview: '12px' },
+  { value: 'full', key: 'rounded', preview: '9999px' },
 ]
 
 // Color picker component with label
@@ -150,6 +151,8 @@ function ColorPicker({
 }
 
 export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
+  const { t } = useTranslation('site')
+
   const updateField = <K extends keyof SiteSettings>(field: K, value: SiteSettings[K]) => {
     onChange({ ...config, [field]: value })
   }
@@ -187,9 +190,9 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Paintbrush className="h-4 w-4" />
-            Presets de theme
+            {t('themeConfig.themePresets')}
           </CardTitle>
-          <CardDescription>Choisir un theme predefinipour commencer</CardDescription>
+          <CardDescription>{t('themeConfig.choosePreset')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
@@ -214,7 +217,7 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
                     style={{ backgroundColor: preset.nav_color }}
                   />
                 </div>
-                <span className="text-xs font-medium">{preset.name}</span>
+                <span className="text-xs font-medium">{t(`themeConfig.presets.${preset.key}`)}</span>
               </Button>
             ))}
           </div>
@@ -226,57 +229,57 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Palette className="h-4 w-4" />
-            Couleurs
+            {t('themeConfig.colors')}
           </CardTitle>
-          <CardDescription>Personnaliser les couleurs du site</CardDescription>
+          <CardDescription>{t('themeConfig.customizeColors')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Primary colors row */}
           <div className="grid gap-4 md:grid-cols-2">
             <ColorPicker
-              label="Couleur primaire"
+              label={t('themeConfig.primaryColor')}
               value={primaryColor}
               onChange={(v) => updateField('primary_color', v)}
-              description="Boutons, accents"
+              description={t('themeConfig.buttonsAccents')}
             />
             <ColorPicker
-              label="Couleur secondaire"
+              label={t('themeConfig.secondaryColor')}
               value={secondaryColor}
               onChange={(v) => updateField('secondary_color', v)}
-              description="Hover, variations"
+              description={t('themeConfig.hoverVariations')}
             />
           </div>
 
           {/* Navigation colors */}
           <div className="grid gap-4 md:grid-cols-2">
             <ColorPicker
-              label="Barre de navigation"
+              label={t('themeConfig.navbar')}
               value={navColor}
               onChange={(v) => updateField('nav_color', v)}
-              description="Menu principal"
+              description={t('themeConfig.mainMenu')}
             />
             <ColorPicker
-              label="Pied de page"
+              label={t('themeConfig.footer')}
               value={footerBgColor}
               onChange={(v) => updateField('footer_bg_color', v)}
-              description="Fond du footer"
+              description={t('themeConfig.footerBackground')}
             />
           </div>
 
           {/* Content colors */}
           <div className="grid gap-4 md:grid-cols-3">
             <ColorPicker
-              label="Fond de page"
+              label={t('themeConfig.pageBackground')}
               value={backgroundColor}
               onChange={(v) => updateField('background_color', v)}
             />
             <ColorPicker
-              label="Texte"
+              label={t('themeConfig.text')}
               value={textColor}
               onChange={(v) => updateField('text_color', v)}
             />
             <ColorPicker
-              label="Liens"
+              label={t('themeConfig.links')}
               value={linkColor}
               onChange={(v) => updateField('link_color', v)}
             />
@@ -288,30 +291,30 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
               className="rounded-md p-3 mb-3"
               style={{ backgroundColor: navColor }}
             >
-              <span className="text-white font-medium text-sm">Barre de navigation</span>
+              <span className="text-white font-medium text-sm">{t('themeConfig.navbar')}</span>
             </div>
             <h3 className="font-semibold mb-2" style={{ color: textColor }}>
-              Apercu des couleurs
+              {t('themeConfig.colorPreview')}
             </h3>
             <p className="text-sm mb-2" style={{ color: textColor }}>
-              Voici un exemple de texte avec un{' '}
+              {t('themeConfig.previewText')}{' '}
               <span style={{ color: linkColor }} className="underline cursor-pointer">
-                lien cliquable
+                {t('themeConfig.clickableLink')}
               </span>{' '}
-              pour visualiser le rendu.
+              {t('themeConfig.toVisualize')}
             </p>
             <div className="flex gap-2">
               <button
                 className="px-3 py-1.5 rounded text-white text-sm font-medium"
                 style={{ backgroundColor: primaryColor }}
               >
-                Bouton primaire
+                {t('themeConfig.primaryButton')}
               </button>
               <button
                 className="px-3 py-1.5 rounded text-white text-sm font-medium"
                 style={{ backgroundColor: secondaryColor }}
               >
-                Bouton secondaire
+                {t('themeConfig.secondaryButton')}
               </button>
             </div>
           </div>
@@ -323,22 +326,22 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Type className="h-4 w-4" />
-            Typographie
+            {t('themeConfig.typography')}
           </CardTitle>
-          <CardDescription>Police de caracteres du site</CardDescription>
+          <CardDescription>{t('themeConfig.siteFont')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Police principale</Label>
+              <Label>{t('themeConfig.fontFamily')}</Label>
               <Select value={fontFamily} onValueChange={(v) => updateField('font_family', v as SiteSettings['font_family'])}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choisir une police" />
+                  <SelectValue placeholder={t('themeConfig.selectFont')} />
                 </SelectTrigger>
                 <SelectContent>
                   {FONT_OPTIONS.map((font) => (
                     <SelectItem key={font.value} value={font.value}>
-                      <span style={{ fontFamily: font.preview }}>{font.label}</span>
+                      <span style={{ fontFamily: font.preview }}>{t(`themeConfig.fonts.${font.key}`)}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -353,7 +356,7 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
                   fontFamily: FONT_OPTIONS.find((f) => f.value === fontFamily)?.preview,
                 }}
               >
-                Apercu de la police selectionnee
+                {t('themeConfig.fontPreview')}
               </p>
               <p
                 className="text-sm text-muted-foreground"
@@ -373,17 +376,17 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4" />
-            Effets visuels
+            {t('themeConfig.visualEffects')}
           </CardTitle>
-          <CardDescription>Style des widgets et composants</CardDescription>
+          <CardDescription>{t('themeConfig.widgetsStyle')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Widget gradient toggle */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Gradient anime sur les widgets</Label>
+              <Label>{t('themeConfig.animatedGradient')}</Label>
               <p className="text-sm text-muted-foreground">
-                Effet de degradeen-tete des widgets
+                {t('themeConfig.gradientEffect')}
               </p>
             </div>
             <Switch
@@ -394,7 +397,7 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
 
           {/* Border radius */}
           <div className="space-y-2">
-            <Label>Arrondi des coins</Label>
+            <Label>{t('themeConfig.cornerRadius')}</Label>
             <div className="flex gap-2">
               {RADIUS_OPTIONS.map((option) => (
                 <Button
@@ -407,7 +410,7 @@ export function ThemeConfigForm({ config, onChange }: ThemeConfigFormProps) {
                     borderRadius === option.value && 'ring-2 ring-primary ring-offset-2'
                   )}
                 >
-                  {option.label}
+                  {t(`themeConfig.${option.key}`)}
                 </Button>
               ))}
             </div>

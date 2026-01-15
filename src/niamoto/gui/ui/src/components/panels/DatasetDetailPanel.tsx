@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -56,6 +57,7 @@ export function DatasetDetailPanel({
   path,
   onBack,
 }: DatasetDetailPanelProps) {
+  const { t } = useTranslation(['common', 'sources'])
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [isDeleting, setIsDeleting] = useState(false)
@@ -102,7 +104,7 @@ export function DatasetDetailPanel({
               <span>Dataset</span>
               {entityCount !== undefined && (
                 <Badge variant="outline">
-                  {entityCount.toLocaleString()} lignes
+                  {entityCount.toLocaleString()} {t('file.rows')}
                 </Badge>
               )}
               {connectorType && (
@@ -124,14 +126,14 @@ export function DatasetDetailPanel({
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="text-destructive hover:bg-destructive/10">
                 <Trash2 className="mr-2 h-4 w-4" />
-                Supprimer
+                {t('actions.delete')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Supprimer "{datasetName}" ?</AlertDialogTitle>
+                <AlertDialogTitle>{t('sources:dataset.deleteDataset', { name: datasetName })}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Cette action supprimera le dataset de la configuration.
+                  {t('sources:reference.deleteReferenceDescription')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="flex items-center space-x-2 py-4">
@@ -144,11 +146,11 @@ export function DatasetDetailPanel({
                   htmlFor="delete-table"
                   className="text-sm font-medium leading-none"
                 >
-                  Supprimer aussi la table de la base de donnees
+                  {t('sources:dataset.deleteTableToo')}
                 </label>
               </div>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogCancel>{t('actions.cancel')}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDelete}
                   disabled={isDeleting}
@@ -157,10 +159,10 @@ export function DatasetDetailPanel({
                   {isDeleting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Suppression...
+                      {t('status.deleting')}
                     </>
                   ) : (
-                    'Supprimer'
+                    t('actions.delete')
                   )}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -175,11 +177,11 @@ export function DatasetDetailPanel({
           <TabsList>
             <TabsTrigger value="overview" className="gap-1">
               <LayoutDashboard className="h-4 w-4" />
-              Vue d'ensemble
+              {t('sources:reference.overview')}
             </TabsTrigger>
             <TabsTrigger value="config" className="gap-1">
               <Settings className="h-4 w-4" />
-              Configuration
+              {t('sources:reference.configuration')}
             </TabsTrigger>
           </TabsList>
 
@@ -190,7 +192,7 @@ export function DatasetDetailPanel({
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Database className="h-4 w-4" />
-                  Statistiques
+                  {t('sources:reference.statistics')}
                 </CardTitle>
                 {path && (
                   <CardDescription className="font-mono text-xs">{path}</CardDescription>
@@ -204,7 +206,7 @@ export function DatasetDetailPanel({
             {/* Data Preview */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Apercu des donnees</CardTitle>
+                <CardTitle className="text-base">{t('sources:reference.dataPreview')}</CardTitle>
                 <CardDescription>Table: {tableName}</CardDescription>
               </CardHeader>
               <CardContent>

@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -68,6 +69,7 @@ export function AutoConfigDisplay({
   editable = false,
   detectedColumns = {},
 }: AutoConfigDisplayProps) {
+  const { t } = useTranslation('sources')
   // Single editing state - opens in Sheet
   const [editingEntity, setEditingEntity] = useState<EditingEntity>(null)
 
@@ -323,17 +325,17 @@ export function AutoConfigDisplay({
       case 'dataset':
         return {
           title: `Dataset: ${editingEntity.name}`,
-          description: 'Configuration du connecteur, schema et relations',
+          description: t('autoConfig.sheetDescriptions.dataset'),
         }
       case 'reference':
         return {
           title: `Reference: ${editingEntity.name}`,
-          description: 'Configuration de la source, hierarchie et enrichissement',
+          description: t('autoConfig.sheetDescriptions.reference'),
         }
       case 'layer':
         return {
           title: `Couche: ${editingEntity.config.name}`,
-          description: 'Configuration de la couche metadata',
+          description: t('autoConfig.sheetDescriptions.layer'),
         }
     }
   }

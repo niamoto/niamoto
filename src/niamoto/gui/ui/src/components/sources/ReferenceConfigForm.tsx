@@ -10,6 +10,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -76,6 +77,7 @@ export function ReferenceConfigForm({
   onSave,
   onCancel,
 }: ReferenceConfigFormProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const [localConfig, setLocalConfig] = useState<ReferenceConfig>({
     ...config,
     description: config.description || '',
@@ -304,7 +306,7 @@ export function ReferenceConfigForm({
       {/* Type indicator */}
       <div className="flex items-center gap-2">
         <Badge variant="secondary">
-          {isHierarchical ? 'Hierarchique' : isSpatial ? 'Spatial' : 'Fichier'}
+          {isHierarchical ? t('reference.hierarchical') : isSpatial ? t('reference.spatial') : t('reference.file')}
         </Badge>
         {localConfig.kind && (
           <Badge variant="outline">{localConfig.kind}</Badge>
@@ -313,12 +315,12 @@ export function ReferenceConfigForm({
 
       {/* Description field - common to all types */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Description</Label>
+        <Label className="text-xs">{t('common:labels.description')}</Label>
         <Input
           className="h-8 text-sm"
           value={localConfig.description || ''}
           onChange={(e) => updateDescription(e.target.value)}
-          placeholder="Description de cette reference..."
+          placeholder={t('reference.descriptionPlaceholder')}
         />
       </div>
 
@@ -330,18 +332,18 @@ export function ReferenceConfigForm({
             <CardHeader className="py-3">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Network className="h-4 w-4" />
-                Source
+                {t('common:labels.source')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Dataset source</Label>
+                <Label className="text-xs">{t('reference.sourceDataset')}</Label>
                 <Select
                   value={localConfig.connector.source || 'none'}
                   onValueChange={(v) => updateConnector('source', v === 'none' ? '' : v)}
                 >
                   <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Selectionner..." />
+                    <SelectValue placeholder={t('common:placeholders.selectOption')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">
@@ -355,13 +357,13 @@ export function ReferenceConfigForm({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Dataset depuis lequel extraire la hierarchie
+                  {t('reference.selectDatasetForHierarchy')}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Colonne ID</Label>
+                  <Label className="text-xs">{t('reference.idColumn')}</Label>
                   <Select
                     value={localConfig.connector.extraction?.id_column || 'none'}
                     onValueChange={(v) =>
@@ -385,7 +387,7 @@ export function ReferenceConfigForm({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Colonne Nom</Label>
+                  <Label className="text-xs">{t('reference.nameColumn')}</Label>
                   <Select
                     value={localConfig.connector.extraction?.name_column || 'none'}
                     onValueChange={(v) =>
@@ -393,7 +395,7 @@ export function ReferenceConfigForm({
                     }
                   >
                     <SelectTrigger className="h-8">
-                      <SelectValue placeholder="Selectionner..." />
+                      <SelectValue placeholder={t('common:placeholders.selectOption')} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">
@@ -411,7 +413,7 @@ export function ReferenceConfigForm({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Strategie ID</Label>
+                  <Label className="text-xs">{t('reference.idStrategy')}</Label>
                   <Select
                     value={localConfig.connector.extraction?.id_strategy || 'hash'}
                     onValueChange={(v) => updateExtraction('id_strategy', v)}
@@ -427,7 +429,7 @@ export function ReferenceConfigForm({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Lignes incompletes</Label>
+                  <Label className="text-xs">{t('reference.incompleteRows')}</Label>
                   <Select
                     value={localConfig.connector.extraction?.incomplete_rows || 'skip'}
                     onValueChange={(v) => updateExtraction('incomplete_rows', v)}
@@ -458,7 +460,7 @@ export function ReferenceConfigForm({
             <CardHeader className="py-3">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <List className="h-4 w-4" />
-                Schema - Champs ({localConfig.schema?.fields?.length || 0})
+                {t('reference.schemaFields')} ({localConfig.schema?.fields?.length || 0})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -473,7 +475,7 @@ export function ReferenceConfigForm({
                         className="h-8 text-sm"
                         value={field.name}
                         onChange={(e) => updateSchemaField(idx, 'name', e.target.value)}
-                        placeholder="Nom du champ"
+                        placeholder={t('form.fieldNamePlaceholder')}
                       />
                       <Select
                         value={field.type || 'string'}
@@ -495,7 +497,7 @@ export function ReferenceConfigForm({
                         className="h-8 text-sm"
                         value={field.description || ''}
                         onChange={(e) => updateSchemaField(idx, 'description', e.target.value)}
-                        placeholder="Description"
+                        placeholder={t('form.fieldDescriptionPlaceholder')}
                       />
                     </div>
                   </div>
@@ -517,11 +519,11 @@ export function ReferenceConfigForm({
                 className="w-full"
               >
                 <Plus className="mr-1 h-3 w-3" />
-                Ajouter un champ
+                {t('form.addField')}
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                Champs additionnels a inclure dans la table de reference (optionnel).
+                {t('form.defineSchemaHint')}
               </p>
             </CardContent>
           </Card>
@@ -533,7 +535,7 @@ export function ReferenceConfigForm({
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <Sparkles className="h-4 w-4" />
-                    Enrichissement API
+                    {t('reference.apiEnrichment')}
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <Switch
@@ -571,13 +573,13 @@ export function ReferenceConfigForm({
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-sm">
               <FileSpreadsheet className="h-4 w-4" />
-              Fichier source
+              {t('reference.sourceFile')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Format</Label>
+                <Label className="text-xs">{t('reference.format')}</Label>
                 <Select
                   value={localConfig.connector.format || 'csv'}
                   onValueChange={(v) => updateConnector('format', v)}
@@ -593,7 +595,7 @@ export function ReferenceConfigForm({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">Chemin</Label>
+                <Label className="text-xs">{t('reference.path')}</Label>
                 <Input
                   className="h-8 text-sm"
                   value={localConfig.connector.path || ''}
@@ -604,7 +606,7 @@ export function ReferenceConfigForm({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Colonne ID</Label>
+              <Label className="text-xs">{t('reference.idColumn')}</Label>
               <Select
                 value={localConfig.schema?.id_field || 'none'}
                 onValueChange={(v) =>
@@ -642,7 +644,7 @@ export function ReferenceConfigForm({
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-sm">
               <List className="h-4 w-4" />
-              Schema - Champs ({localConfig.schema?.fields?.length || 0})
+              {t('reference.schemaFields')} ({localConfig.schema?.fields?.length || 0})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -657,7 +659,7 @@ export function ReferenceConfigForm({
                       className="h-8 text-sm"
                       value={field.name}
                       onChange={(e) => updateSchemaField(idx, 'name', e.target.value)}
-                      placeholder="Nom du champ"
+                      placeholder={t('form.fieldNamePlaceholder')}
                     />
                     <Select
                       value={field.type || 'string'}
@@ -679,7 +681,7 @@ export function ReferenceConfigForm({
                       className="h-8 text-sm"
                       value={field.description || ''}
                       onChange={(e) => updateSchemaField(idx, 'description', e.target.value)}
-                      placeholder="Description"
+                      placeholder={t('form.fieldDescriptionPlaceholder')}
                     />
                   </div>
                 </div>
@@ -701,11 +703,11 @@ export function ReferenceConfigForm({
               className="w-full"
             >
               <Plus className="mr-1 h-3 w-3" />
-              Ajouter un champ
+              {t('form.addField')}
             </Button>
 
             <p className="text-xs text-muted-foreground">
-              Definissez les champs du schema pour documenter la structure des donnees.
+              {t('form.defineSchemaHint')}
             </p>
           </CardContent>
         </Card>
@@ -717,7 +719,7 @@ export function ReferenceConfigForm({
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-sm">
               <Link2 className="h-4 w-4" />
-              Relations ({localConfig.links?.length || 0})
+              {t('form.relations')} ({localConfig.links?.length || 0})
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -731,21 +733,21 @@ export function ReferenceConfigForm({
                     className="h-8 w-28 text-sm"
                     value={link.entity}
                     onChange={(e) => updateLink(idx, 'entity', e.target.value)}
-                    placeholder="Entite"
+                    placeholder={t('form.entity')}
                   />
                   <span className="text-xs text-muted-foreground">.</span>
                   <Input
                     className="h-8 w-28 text-sm"
                     value={link.field}
                     onChange={(e) => updateLink(idx, 'field', e.target.value)}
-                    placeholder="Champ local"
+                    placeholder={t('form.localField')}
                   />
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   <Input
                     className="h-8 w-28 text-sm"
                     value={link.target_field}
                     onChange={(e) => updateLink(idx, 'target_field', e.target.value)}
-                    placeholder="Champ cible"
+                    placeholder={t('form.targetField')}
                   />
                 </div>
                 <Button
@@ -766,11 +768,11 @@ export function ReferenceConfigForm({
               className="w-full"
             >
               <Plus className="mr-1 h-3 w-3" />
-              Ajouter une relation
+              {t('form.addRelation')}
             </Button>
 
             <p className="text-xs text-muted-foreground">
-              Definissez les relations vers d'autres entites (ex: occurrences).
+              {t('form.defineSchemaHint')}
             </p>
           </CardContent>
         </Card>
@@ -783,7 +785,7 @@ export function ReferenceConfigForm({
             <CardHeader className="py-3">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Map className="h-4 w-4" />
-                Sources spatiales ({localConfig.connector.sources?.length || 0})
+                {t('reference.spatialSources')} ({localConfig.connector.sources?.length || 0})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -799,13 +801,13 @@ export function ReferenceConfigForm({
                         className="h-8 text-sm"
                         value={source.name}
                         onChange={(e) => updateSource(idx, 'name', e.target.value)}
-                        placeholder="Nom (ex: Provinces)"
+                        placeholder={t('form.sourceName')}
                       />
                       <Input
                         className="h-8 text-sm"
                         value={source.path}
                         onChange={(e) => updateSource(idx, 'path', e.target.value)}
-                        placeholder="imports/file.gpkg"
+                        placeholder={t('form.sourceFile')}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -813,13 +815,13 @@ export function ReferenceConfigForm({
                         className="h-8 text-sm"
                         value={source.name_field || ''}
                         onChange={(e) => updateSource(idx, 'name_field', e.target.value)}
-                        placeholder="Champ nom (ex: nom)"
+                        placeholder={t('form.nameField')}
                       />
                       <Input
                         className="h-8 text-sm"
                         value={source.layer || ''}
                         onChange={(e) => updateSource(idx, 'layer', e.target.value)}
-                        placeholder="Layer (optionnel)"
+                        placeholder={t('form.layerOptional')}
                       />
                     </div>
                   </div>
@@ -841,7 +843,7 @@ export function ReferenceConfigForm({
                 className="w-full"
               >
                 <Plus className="mr-1 h-3 w-3" />
-                Ajouter source
+                {t('form.addSource')}
               </Button>
             </CardContent>
           </Card>
@@ -856,7 +858,7 @@ export function ReferenceConfigForm({
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Colonne ID</Label>
+                <Label className="text-xs">{t('reference.idColumn')}</Label>
                 <Input
                   className="h-8 text-sm"
                   value={localConfig.schema?.id_field || ''}
@@ -874,7 +876,7 @@ export function ReferenceConfigForm({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs">Champs ({localConfig.schema?.fields?.length || 0})</Label>
+                <Label className="text-xs">{t('form.fields')} ({localConfig.schema?.fields?.length || 0})</Label>
                 {localConfig.schema?.fields?.map((field, idx) => (
                   <div
                     key={idx}
@@ -886,7 +888,7 @@ export function ReferenceConfigForm({
                           className="h-8 text-sm"
                           value={field.name}
                           onChange={(e) => updateSchemaField(idx, 'name', e.target.value)}
-                          placeholder="Nom"
+                          placeholder={t('form.fieldNamePlaceholder')}
                         />
                         <Select
                           value={field.type || 'string'}
@@ -907,7 +909,7 @@ export function ReferenceConfigForm({
                           className="h-8 text-sm"
                           value={field.description || ''}
                           onChange={(e) => updateSchemaField(idx, 'description', e.target.value)}
-                          placeholder="Description"
+                          placeholder={t('form.fieldDescriptionPlaceholder')}
                         />
                       </div>
                     </div>
@@ -929,7 +931,7 @@ export function ReferenceConfigForm({
                   className="w-full"
                 >
                   <Plus className="mr-1 h-3 w-3" />
-                  Ajouter un champ
+                  {t('form.addField')}
                 </Button>
               </div>
             </CardContent>
@@ -941,12 +943,12 @@ export function ReferenceConfigForm({
       <div className="flex justify-end gap-2 pt-2">
         {onCancel && (
           <Button variant="outline" size="sm" onClick={onCancel}>
-            Annuler
+            {t('common:actions.cancel')}
           </Button>
         )}
         <Button size="sm" onClick={handleSave}>
           <Check className="mr-1 h-3 w-3" />
-          Appliquer
+          {t('common:actions.confirm')}
         </Button>
       </div>
     </div>

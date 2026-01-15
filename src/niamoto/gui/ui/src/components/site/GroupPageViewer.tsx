@@ -8,6 +8,7 @@
  * - Link to edit in Transform/Export
  */
 
+import { useTranslation } from 'react-i18next'
 import { ExternalLink, Folder, LayoutGrid, Filter, List, Eye, Settings2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,7 @@ interface GroupPageViewerProps {
 }
 
 export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
+  const { t } = useTranslation(['site', 'common'])
   const hasIndex = group.index_generator?.enabled
   const indexConfig = group.index_generator
 
@@ -34,11 +36,11 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
           </div>
           <div>
             <h2 className="text-lg font-semibold">{group.name}/</h2>
-            <p className="text-sm text-muted-foreground">Groupe de pages</p>
+            <p className="text-sm text-muted-foreground">{t('groupViewer.pageGroup')}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={onBack}>
-          Retour
+          {t('groupViewer.back')}
         </Button>
       </div>
 
@@ -47,27 +49,27 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Settings2 className="h-4 w-4" />
-            Configuration
+            {t('groupViewer.configuration')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Pattern de sortie</span>
+              <span className="text-muted-foreground">{t('groupViewer.outputPattern')}</span>
               <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">
                 {group.output_pattern}
               </code>
             </div>
             {group.index_output_pattern && (
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Page d'index</span>
+                <span className="text-muted-foreground">{t('groupViewer.indexPage')}</span>
                 <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">
                   {group.index_output_pattern}
                 </code>
               </div>
             )}
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Widgets configurés</span>
+              <span className="text-muted-foreground">{t('groupViewer.configuredWidgets')}</span>
               <Badge variant="secondary">{group.widgets_count}</Badge>
             </div>
           </div>
@@ -81,29 +83,29 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <LayoutGrid className="h-4 w-4" />
-                Générateur d'index
+                {t('groupViewer.indexGenerator')}
               </CardTitle>
               <Badge variant="default" className="bg-green-500/10 text-green-600">
-                Active
+                {t('groupViewer.enabled')}
               </Badge>
             </div>
             <CardDescription>
-              Page de liste avec filtres et affichage configurable
+              {t('groupViewer.indexPageDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Page config */}
             <div className="grid gap-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Titre</span>
+                <span className="text-muted-foreground">{t('groupViewer.titleLabel')}</span>
                 <span>{indexConfig.page_config?.title || '-'}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Items par page</span>
+                <span className="text-muted-foreground">{t('groupViewer.itemsPerPage')}</span>
                 <Badge variant="outline">{indexConfig.page_config?.items_per_page || 24}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Template</span>
+                <span className="text-muted-foreground">{t('groupViewer.template')}</span>
                 <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono">
                   {indexConfig.template}
                 </code>
@@ -116,7 +118,7 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Filtres</span>
+                <span className="text-sm font-medium">{t('groupViewer.filters')}</span>
                 <Badge variant="secondary" className="text-xs">
                   {indexConfig.filters?.length || 0}
                 </Badge>
@@ -146,7 +148,7 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground italic">Aucun filtre</p>
+                <p className="text-xs text-muted-foreground italic">{t('groupViewer.noFilter')}</p>
               )}
             </div>
 
@@ -156,7 +158,7 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <List className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Champs affiches</span>
+                <span className="text-sm font-medium">{t('groupViewer.displayFields')}</span>
                 <Badge variant="secondary" className="text-xs">
                   {indexConfig.display_fields?.length || 0}
                 </Badge>
@@ -171,13 +173,13 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
                     >
                       {field.label || field.name}
                       {field.searchable && (
-                        <span className="ml-1 text-[10px] text-blue-500">recherche</span>
+                        <span className="ml-1 text-[10px] text-blue-500">{t('groupViewer.search')}</span>
                       )}
                     </Badge>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground italic">Aucun champ</p>
+                <p className="text-xs text-muted-foreground italic">{t('groupViewer.noField')}</p>
               )}
             </div>
 
@@ -187,7 +189,7 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <Eye className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Modes d'affichage</span>
+                <span className="text-sm font-medium">{t('groupViewer.displayModes')}</span>
               </div>
               <div className="flex gap-2">
                 {indexConfig.views?.map((view, idx) => (
@@ -197,7 +199,7 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
                     className="capitalize"
                   >
                     {view.type}
-                    {view.default && <span className="ml-1 text-[10px]">(défaut)</span>}
+                    {view.default && <span className="ml-1 text-[10px]">({t('groupViewer.default')})</span>}
                   </Badge>
                 ))}
               </div>
@@ -211,10 +213,9 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8 text-center">
             <LayoutGrid className="mb-3 h-10 w-10 text-muted-foreground/50" />
-            <h3 className="font-medium">Pas de page d'index</h3>
+            <h3 className="font-medium">{t('groupViewer.noIndexPage')}</h3>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
-              Ce groupe ne genere pas de page d'index. Seules les pages de detail sont creees pour
-              chaque entite.
+              {t('groupViewer.noIndexPageDesc')}
             </p>
           </CardContent>
         </Card>
@@ -226,15 +227,15 @@ export function GroupPageViewer({ group, onBack }: GroupPageViewerProps) {
           <div className="flex items-center gap-3">
             <Settings2 className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">Modifier les widgets</p>
+              <p className="text-sm font-medium">{t('groupViewer.editWidgets')}</p>
               <p className="text-xs text-muted-foreground">
-                Configurez les widgets dans l'onglet Transform/Export
+                {t('groupViewer.editWidgetsDesc')}
               </p>
             </div>
           </div>
           <Button variant="outline" size="sm" asChild>
             <a href={`/flow?tab=export&group=${group.name}`}>
-              Ouvrir
+              {t('groupViewer.open')}
               <ExternalLink className="ml-2 h-3 w-3" />
             </a>
           </Button>

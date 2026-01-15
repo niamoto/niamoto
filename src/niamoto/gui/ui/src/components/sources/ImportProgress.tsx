@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
@@ -28,6 +29,7 @@ export function ImportProgress({
   onError,
   autoStart = true,
 }: ImportProgressProps) {
+  const { t } = useTranslation('sources')
   const [step, setStep] = useState<ImportStep>('idle')
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
@@ -109,7 +111,7 @@ export function ImportProgress({
       <div className="space-y-4 py-4">
         <div className="text-center">
           <AlertCircle className="mx-auto mb-2 h-10 w-10 text-destructive" />
-          <h3 className="font-semibold">Import echoue</h3>
+          <h3 className="font-semibold">{t('wizard.importFailed')}</h3>
         </div>
 
         <Alert variant="destructive">
@@ -118,7 +120,7 @@ export function ImportProgress({
         </Alert>
 
         <div className="flex justify-center gap-2">
-          <Button onClick={executeImport}>Reessayer</Button>
+          <Button onClick={executeImport}>{t('wizard.retry')}</Button>
         </div>
       </div>
     )
@@ -134,9 +136,9 @@ export function ImportProgress({
           <div className="mx-auto mb-2 inline-flex h-14 w-14 animate-bounce items-center justify-center rounded-full bg-green-500/10">
             <CheckCircle2 className="h-8 w-8 text-green-500" />
           </div>
-          <h3 className="text-lg font-semibold">Import termine!</h3>
+          <h3 className="text-lg font-semibold">{t('wizard.importComplete')}</h3>
           <p className="text-sm text-muted-foreground">
-            {datasetCount} dataset(s) et {referenceCount} reference(s) importe(s)
+            {t('wizard.importedSummary', { datasets: datasetCount, references: referenceCount })}
           </p>
         </div>
       </div>
@@ -149,16 +151,16 @@ export function ImportProgress({
       <div className="text-center">
         <Loader2 className="mx-auto mb-2 h-10 w-10 animate-spin text-primary" />
         <h3 className="font-semibold">
-          {step === 'saving' && 'Sauvegarde de la configuration...'}
-          {step === 'importing' && 'Import des donnees...'}
-          {step === 'idle' && 'Preparation...'}
+          {step === 'saving' && t('wizard.savingConfig')}
+          {step === 'importing' && t('wizard.importingData')}
+          {step === 'idle' && t('wizard.preparing')}
         </h3>
         <p className="text-sm text-muted-foreground">
-          {step === 'saving' && 'Ecriture dans import.yml'}
+          {step === 'saving' && t('wizard.writingImportYml')}
           {step === 'importing' &&
             importDetails.currentEntity &&
-            `Import de ${importDetails.currentEntity}...`}
-          {step === 'importing' && !importDetails.currentEntity && 'Traitement des entites...'}
+            t('wizard.importingEntity', { entity: importDetails.currentEntity })}
+          {step === 'importing' && !importDetails.currentEntity && t('wizard.processingEntities')}
         </p>
       </div>
 
@@ -184,7 +186,7 @@ export function ImportProgress({
           ) : (
             <Loader2 className="h-4 w-4 animate-spin" />
           )}
-          Sauvegarde de la configuration
+          {t('wizard.savingConfigStep')}
         </div>
 
         <div
@@ -203,7 +205,7 @@ export function ImportProgress({
           ) : (
             <div className="h-4 w-4" />
           )}
-          Import des donnees
+          {t('wizard.importDataStep')}
           {importDetails.processedEntities > 0 && step === 'importing' && (
             <span className="text-xs">({importDetails.processedEntities})</span>
           )}
@@ -211,7 +213,7 @@ export function ImportProgress({
 
         <div className={`flex items-center gap-2 ${progress >= 100 ? 'text-green-600' : 'text-muted-foreground'}`}>
           {progress >= 100 ? <CheckCircle2 className="h-4 w-4" /> : <div className="h-4 w-4" />}
-          Termine
+          {t('wizard.complete')}
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -89,9 +90,10 @@ interface SortableLinkItemProps {
   link: ExternalLink
   onUpdate: (link: ExternalLink) => void
   onRemove: () => void
+  t: (key: string) => string
 }
 
-function SortableLinkItem({ id, link, onUpdate, onRemove }: SortableLinkItemProps) {
+function SortableLinkItem({ id, link, onUpdate, onRemove, t }: SortableLinkItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   })
@@ -159,7 +161,7 @@ function SortableLinkItem({ id, link, onUpdate, onRemove }: SortableLinkItemProp
       <Input
         value={link.name}
         onChange={(e) => onUpdate({ ...link, name: e.target.value })}
-        placeholder="Nom du lien"
+        placeholder={t('externalLinks.linkName')}
         className="w-32"
       />
 
@@ -167,7 +169,7 @@ function SortableLinkItem({ id, link, onUpdate, onRemove }: SortableLinkItemProp
       <Input
         value={link.url}
         onChange={(e) => handleUrlChange(e.target.value)}
-        placeholder="https://..."
+        placeholder={t('externalLinks.linkUrl')}
         className="flex-1 font-mono text-sm"
       />
 
@@ -180,6 +182,8 @@ function SortableLinkItem({ id, link, onUpdate, onRemove }: SortableLinkItemProp
 }
 
 export function ExternalLinksEditor({ links, onChange }: ExternalLinksEditorProps) {
+  const { t } = useTranslation('site')
+
   // Generate stable IDs for sortable items
   const [idMap] = useState(() => {
     const map = new Map<number, string>()
@@ -271,6 +275,7 @@ export function ExternalLinksEditor({ links, onChange }: ExternalLinksEditorProp
                     link={link}
                     onUpdate={(updated) => handleUpdate(index, updated)}
                     onRemove={() => handleRemove(index)}
+                    t={t}
                   />
                 ))}
               </div>

@@ -8,6 +8,7 @@
  * - Edit and delete capabilities
  */
 import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import yaml from 'js-yaml'
 import {
   ArrowLeft,
@@ -81,6 +82,7 @@ export function WidgetDetailPanel({
   onUpdate,
   onDelete,
 }: WidgetDetailPanelProps) {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'preview' | 'params' | 'yaml'>('preview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -383,10 +385,10 @@ export function WidgetDetailPanel({
               {isDeleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Suppression...
+                  {t('status.deleting')}
                 </>
               ) : (
-                'Supprimer'
+                t('actions.delete')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

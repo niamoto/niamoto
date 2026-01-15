@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 type ViewportSize = 'mobile' | 'tablet' | 'desktop'
 
 export function LivePreview() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['tools', 'common'])
   const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop')
   const [iframeKey, setIframeKey] = useState(0)
   const [siteExists, setSiteExists] = useState(true)
@@ -41,10 +41,10 @@ export function LivePreview() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            {t('live_preview.title', 'Aperçu du site')}
+            {t('livePreview.title')}
           </h1>
           <p className="text-muted-foreground">
-            {t('live_preview.description', 'Prévisualisation en temps réel de votre site exporté')}
+            {t('livePreview.description')}
           </p>
         </div>
       </div>
@@ -55,7 +55,7 @@ export function LivePreview() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
-              <CardTitle>{t('live_preview.preview_panel', 'Panneau d\'aperçu')}</CardTitle>
+              <CardTitle>{t('livePreview.previewPanel')}</CardTitle>
             </div>
             <div className="flex gap-2">
               <Button
@@ -84,16 +84,16 @@ export function LivePreview() {
               </Button>
               <Button variant="outline" size="sm" onClick={handleRefresh}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                {t('common.refresh', 'Actualiser')}
+                {t('common:actions.reset')}
               </Button>
               <Button variant="outline" size="sm" onClick={handleOpenNewTab}>
                 <ExternalLink className="mr-2 h-4 w-4" />
-                {t('live_preview.open_new', 'Ouvrir dans un nouvel onglet')}
+                {t('livePreview.openNew')}
               </Button>
             </div>
           </div>
           <CardDescription>
-            {t('live_preview.preview_description', 'Aperçu en temps réel de votre site statique exporté')}
+            {t('livePreview.previewDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -103,14 +103,14 @@ export function LivePreview() {
                 <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto" />
                 <div>
                   <p className="text-lg font-medium">
-                    {t('live_preview.not_available', 'Aperçu non disponible')}
+                    {t('livePreview.notAvailable')}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {t('live_preview.export_first', 'Exportez votre site d\'abord pour voir un aperçu')}
+                    {t('livePreview.exportFirst')}
                   </p>
                 </div>
                 <Button onClick={() => window.location.href = '/showcase'}>
-                  {t('live_preview.go_to_export', 'Aller à la section Export')}
+                  {t('livePreview.goToExport')}
                 </Button>
               </div>
             </div>
@@ -137,12 +137,12 @@ export function LivePreview() {
           <CardHeader>
             <CardTitle className="text-base">
               <RefreshCw className="h-4 w-4 inline mr-2" />
-              {t('live_preview.auto_refresh', 'Actualisation')}
+              {t('livePreview.autoRefresh')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              {t('live_preview.auto_refresh_desc', 'Utilisez le bouton actualiser pour recharger l\'aperçu après un nouvel export')}
+              {t('livePreview.autoRefreshDesc')}
             </p>
           </CardContent>
         </Card>

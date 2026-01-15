@@ -10,6 +10,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -95,6 +96,7 @@ function NavItemEditor({
   isChild = false,
   dragHandleProps,
 }: NavItemEditorProps) {
+  const { t } = useTranslation(['site', 'common'])
   const [open, setOpen] = useState(false)
   const hasChildren = item.children && item.children.length > 0
 
@@ -135,7 +137,7 @@ function NavItemEditor({
       <Input
         value={item.text}
         onChange={(e) => onUpdate({ ...item, text: e.target.value })}
-        placeholder={isChild ? 'Sous-menu' : 'Texte du menu'}
+        placeholder={isChild ? t('navigation.submenu') : t('navigation.menuText')}
         className={cn('flex-1', isChild && 'h-8 text-sm')}
       />
 
@@ -155,7 +157,7 @@ function NavItemEditor({
                 {matchedPage?.type === 'static' && <FileText className="h-3 w-3 shrink-0" />}
                 {matchedPage?.type === 'group' && <Folder className="h-3 w-3 shrink-0 text-amber-600" />}
                 {!matchedPage && item.url && <Link2 className="h-3 w-3 shrink-0" />}
-                {item.url || 'Selectionner...'}
+                {item.url || t('common:placeholders.selectOption')}
               </span>
               <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
             </Button>
@@ -166,7 +168,7 @@ function NavItemEditor({
               {availablePages.filter((p) => p.type === 'static').length > 0 && (
                 <div className="p-2">
                   <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                    Pages statiques
+                    {t('navigation.staticPages')}
                   </p>
                   {availablePages
                     .filter((p) => p.type === 'static')
@@ -193,7 +195,7 @@ function NavItemEditor({
               {availablePages.filter((p) => p.type === 'group').length > 0 && (
                 <div className="border-t p-2">
                   <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                    Pages de groupes
+                    {t('navigation.groupPages')}
                   </p>
                   {availablePages
                     .filter((p) => p.type === 'group')
@@ -219,7 +221,7 @@ function NavItemEditor({
               {/* Custom URL option */}
               <div className="border-t p-2">
                 <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                  URL personnalisee
+                  {t('navigation.customUrl')}
                 </p>
                 <div className="flex gap-2 px-2">
                   <Input
@@ -239,7 +241,7 @@ function NavItemEditor({
       {/* Parent indicator if has children */}
       {hasChildren && !isChild && (
         <span className="text-xs text-muted-foreground px-2">
-          {item.children?.length} sous-menu{(item.children?.length || 0) > 1 ? 's' : ''}
+          {item.children?.length} {t('navigation.submenus')}
         </span>
       )}
 
@@ -250,7 +252,7 @@ function NavItemEditor({
           size="icon"
           onClick={onAddChild}
           className="h-8 w-8 shrink-0"
-          title="Ajouter un sous-menu"
+          title={t('navigation.addSubmenu')}
         >
           <Plus className="h-4 w-4 text-muted-foreground" />
         </Button>
@@ -274,6 +276,7 @@ interface SortableNavItemProps {
 }
 
 function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSubmenus = true }: SortableNavItemProps) {
+  const { t } = useTranslation(['site', 'common'])
   const [isOpen, setIsOpen] = useState(true)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -336,11 +339,11 @@ function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSu
               <Input
                 value={item.text}
                 onChange={(e) => onUpdate({ ...item, text: e.target.value })}
-                placeholder="Texte du menu"
+                placeholder={t('navigation.menuText')}
                 className="flex-1"
               />
               <span className="text-xs text-muted-foreground px-2">
-                {item.children?.length} sous-menu{(item.children?.length || 0) > 1 ? 's' : ''}
+                {item.children?.length} {t('navigation.submenus')}
               </span>
               {allowSubmenus && (
                 <Button
@@ -348,7 +351,7 @@ function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSu
                   size="icon"
                   onClick={handleAddChild}
                   className="h-8 w-8 shrink-0"
-                  title="Ajouter un sous-menu"
+                  title={t('navigation.addSubmenu')}
                 >
                   <Plus className="h-4 w-4 text-muted-foreground" />
                 </Button>
@@ -394,10 +397,13 @@ export function NavigationBuilder({
   onChange,
   staticPages = [],
   groups = [],
-  title = 'Navigation',
-  description = 'Menu de navigation principal du site',
+  title,
+  description,
   allowSubmenus = true,
 }: NavigationBuilderProps) {
+  const { t } = useTranslation(['site', 'common'])
+  const effectiveTitle = title || t('tree.navigation')
+  const effectiveDescription = description || t('navigation.mainDescription')
   // Build available pages list from static pages and groups
   const availablePages: AvailablePage[] = [
     // Static pages
@@ -470,7 +476,7 @@ export function NavigationBuilder({
     return (
       <div key={index} className="flex items-center gap-1">
         <span className="rounded-md bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-          {item.text || 'Sans titre'}
+          {item.text || t('navigation.untitled')}
           {hasChildren && <ChevronDown className="inline-block ml-1 h-3 w-3" />}
         </span>
       </div>
@@ -484,13 +490,13 @@ export function NavigationBuilder({
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Navigation className="h-4 w-4" />
-              {title}
+              {effectiveTitle}
             </CardTitle>
-            <CardDescription>{description}</CardDescription>
+            <CardDescription>{effectiveDescription}</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={handleAdd}>
             <Plus className="mr-1 h-4 w-4" />
-            Ajouter
+            {t('common:actions.add')}
           </Button>
         </div>
       </CardHeader>
@@ -498,10 +504,10 @@ export function NavigationBuilder({
         {items.length === 0 ? (
           <div className="flex min-h-[100px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-4 text-center">
             <Navigation className="mb-2 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">Aucun menu configure</p>
+            <p className="text-sm text-muted-foreground">{t('navigation.noMenuConfigured')}</p>
             <Button variant="link" size="sm" onClick={handleAdd} className="mt-2">
               <Plus className="mr-1 h-4 w-4" />
-              Ajouter un premier element
+              {t('navigation.addFirstElement')}
             </Button>
           </div>
         ) : (
@@ -530,7 +536,7 @@ export function NavigationBuilder({
         {/* Preview */}
         {items.length > 0 && (
           <div className="mt-4 rounded-lg border bg-muted/30 p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Apercu</p>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{t('preview.title')}</p>
             <div className="flex flex-wrap gap-2">
               {items.map((item, index) => renderPreviewItem(item, index))}
             </div>

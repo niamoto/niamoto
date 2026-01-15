@@ -15,6 +15,42 @@
     "aggregations": "Aggregations",
     "summary": "Summary"
   },
+  "sidebar": {
+    "sections": {
+      "sources": "Sources",
+      "groups": "Groups",
+      "site": "Site",
+      "tools": "Tools",
+      "labs": "Labs"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "import": "Import",
+      "overview": "Overview",
+      "pages": "Pages",
+      "navigation": "Navigation",
+      "appearance": "Appearance",
+      "theme": "Theme",
+      "dataExplorer": "Data Explorer",
+      "livePreview": "Live Preview",
+      "showcase": "Showcase",
+      "configEditor": "Config Editor",
+      "plugins": "Plugins",
+      "docs": "Documentation",
+      "optionHybrid": "Option A: Hybrid",
+      "optionCanvas": "Option B: Canvas",
+      "optionInline": "Option C: Inline"
+    },
+    "badges": {
+      "empty": "Empty",
+      "pages_one": "{{count}} page",
+      "pages_other": "{{count}} pages"
+    },
+    "footer": {
+      "settings": "Settings",
+      "previewSite": "Preview site"
+    }
+  },
   "actions": {
     "save": "Save",
     "cancel": "Cancel",
@@ -41,7 +77,9 @@
     "goTo": "Go to",
     "retry": "Retry",
     "start": "Start",
-    "addNew": "Add"
+    "addNew": "Add",
+    "hidePreview": "Hide preview",
+    "duplicate": "Duplicate"
   },
   "status": {
     "loading": "Loading...",
@@ -54,7 +92,12 @@
     "failed": "Failed",
     "pending": "Pending",
     "inProgress": "In progress",
-    "testing": "Testing..."
+    "testing": "Testing...",
+    "selected": "Selected",
+    "deleting": "Deleting...",
+    "saving": "Saving...",
+    "registering": "Registering...",
+    "noFieldsAvailable": "No fields available"
   },
   "validation": {
     "required": "This field is required",
@@ -115,6 +158,69 @@
     "suggested": "(suggested)",
     "optional": "(optional)",
     "example": "e.g., {{example}}",
-    "or": "or"
+    "or": "or",
+    "notFound": "Not found",
+    "navigatingTo": "Navigating to \"{{name}}\"",
+    "pageNotFound": "Page not found: {{href}}"
+  },
+  "dialogs": {
+    "deleteConfirm": "Delete {{item}}?",
+    "deleteConfirmDescription": "This will delete <strong>\"{{item}}\"</strong> from the configuration.",
+    "cannotUndo": "This action cannot be undone.",
+    "replaceExisting": "Replace existing configuration?"
+  },
+  "placeholders": {
+    "search": "Search...",
+    "selectOption": "Select...",
+    "enterValue": "Enter value...",
+    "autoDetect": "Auto-detect"
+  },
+  "labels": {
+    "title": "Title",
+    "description": "Description",
+    "name": "Name",
+    "source": "Source",
+    "field": "Field",
+    "type": "Type",
+    "value": "Value",
+    "settings": "Settings",
+    "preview": "Preview"
+  },
+  "empty": {
+    "noItems": "No items",
+    "noData": "No data available",
+    "clickToAdd": "Click \"{{button}}\" to get started."
+  },
+  "responsive": {
+    "mobile": "Mobile",
+    "tablet": "Tablet",
+    "desktop": "Desktop"
+  },
+  "display": {
+    "grid": "Grid",
+    "list": "List",
+    "hierarchical": "Hierarchical"
+  },
+  "aria": {
+    "close": "Close",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "duplicate": "Duplicate",
+    "settings": "Settings",
+    "previewSite": "Preview site"
+  },
+  "diagnostic": {
+    "loadingDiagnostic": "Loading diagnostic information...",
+    "diagnosticError": "Diagnostic error",
+    "workingDirectory": "Working directory",
+    "database": "Database",
+    "notFound": "Not found",
+    "tables": "Tables",
+    "moreOthers": "+{{count}} others",
+    "configFiles": "Configuration files"
   }
 }

@@ -9,6 +9,7 @@
  */
 
 import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Globe, Image, Upload, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -31,6 +32,8 @@ interface SiteConfigFormProps {
 }
 
 export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
+  const { t } = useTranslation('site')
+
   // Refs for file inputs
   const headerInputRef = useRef<HTMLInputElement>(null)
   const footerInputRef = useRef<HTMLInputElement>(null)
@@ -51,12 +54,12 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
     try {
       const result = await uploadMutation.mutateAsync({ file, folder: 'files' })
       updateField(field, result.path)
-      toast.success('Logo uploade', {
+      toast.success(t('siteConfig.logoUploaded'), {
         description: result.filename,
       })
     } catch (err) {
-      toast.error('Erreur upload', {
-        description: err instanceof Error ? err.message : 'Echec de l\'upload',
+      toast.error(t('siteConfig.uploadError'), {
+        description: err instanceof Error ? err.message : t('siteConfig.uploadFailed'),
       })
     }
   }
@@ -77,26 +80,26 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Globe className="h-4 w-4" />
-            Parametres generaux
+            {t('siteConfig.generalSettings')}
           </CardTitle>
-          <CardDescription>Titre et langue du site</CardDescription>
+          <CardDescription>{t('siteConfig.generalSettingsDesc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="site-title">Titre du site</Label>
+              <Label htmlFor="site-title">{t('siteConfig.siteTitle')}</Label>
               <Input
                 id="site-title"
                 value={config.title}
                 onChange={(e) => updateField('title', e.target.value)}
-                placeholder="Niamoto"
+                placeholder={t('siteConfig.siteNamePlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="site-lang">Langue</Label>
+              <Label htmlFor="site-lang">{t('siteConfig.language')}</Label>
               <Select value={config.lang} onValueChange={(v) => updateField('lang', v)}>
                 <SelectTrigger id="site-lang">
-                  <SelectValue placeholder="Choisir une langue" />
+                  <SelectValue placeholder={t('siteConfig.selectLanguage')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="fr">Francais</SelectItem>
@@ -115,25 +118,25 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Image className="h-4 w-4" />
-            Logos
+            {t('siteConfig.logos')}
           </CardTitle>
-          <CardDescription>Logos pour l'en-tete et le pied de page</CardDescription>
+          <CardDescription>{t('siteConfig.logosDesc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             {/* Header Logo */}
             <div className="space-y-2">
-              <Label htmlFor="logo-header">Logo en-tete</Label>
+              <Label htmlFor="logo-header">{t('siteConfig.headerLogo')}</Label>
               <div className="flex gap-2">
                 <Select
                   value={config.logo_header || '__none__'}
                   onValueChange={(v) => updateField('logo_header', v === '__none__' ? null : v)}
                 >
                   <SelectTrigger id="logo-header" className="flex-1 min-w-0">
-                    <SelectValue placeholder="Selectionner un logo" className="truncate" />
+                    <SelectValue placeholder={t('siteConfig.selectLogo')} className="truncate" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Aucun</SelectItem>
+                    <SelectItem value="__none__">{t('siteConfig.none')}</SelectItem>
                     {imageFiles.map((file) => (
                       <SelectItem key={file.path} value={file.path}>
                         <span className="truncate max-w-[200px]" title={file.name}>
@@ -155,7 +158,7 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
                   size="icon"
                   onClick={() => headerInputRef.current?.click()}
                   disabled={uploadMutation.isPending}
-                  title="Uploader un logo"
+                  title={t('siteConfig.uploadLogo')}
                 >
                   {uploadMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -183,17 +186,17 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
 
             {/* Footer Logo */}
             <div className="space-y-2">
-              <Label htmlFor="logo-footer">Logo pied de page</Label>
+              <Label htmlFor="logo-footer">{t('siteConfig.footerLogo')}</Label>
               <div className="flex gap-2">
                 <Select
                   value={config.logo_footer || '__none__'}
                   onValueChange={(v) => updateField('logo_footer', v === '__none__' ? null : v)}
                 >
                   <SelectTrigger id="logo-footer" className="flex-1 min-w-0">
-                    <SelectValue placeholder="Selectionner un logo" className="truncate" />
+                    <SelectValue placeholder={t('siteConfig.selectLogo')} className="truncate" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Aucun</SelectItem>
+                    <SelectItem value="__none__">{t('siteConfig.none')}</SelectItem>
                     {imageFiles.map((file) => (
                       <SelectItem key={file.path} value={file.path}>
                         <span className="truncate max-w-[200px]" title={file.name}>
@@ -215,7 +218,7 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
                   size="icon"
                   onClick={() => footerInputRef.current?.click()}
                   disabled={uploadMutation.isPending}
-                  title="Uploader un logo"
+                  title={t('siteConfig.uploadLogo')}
                 >
                   {uploadMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

@@ -4,10 +4,12 @@
  */
 
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
 import { GroupPanel } from '@/components/panels/GroupPanel'
 
 export default function GroupDetailPage() {
+  const { t } = useTranslation(['sources', 'common'])
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
   const { data: referencesData, isLoading } = useReferences()
@@ -19,7 +21,7 @@ export default function GroupDetailPage() {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Chargement...</div>
+        <div className="animate-pulse text-muted-foreground">{t('common:status.loading')}</div>
       </div>
     )
   }
@@ -28,15 +30,15 @@ export default function GroupDetailPage() {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-lg font-medium">Groupe non trouvé</h2>
+          <h2 className="text-lg font-medium">{t('groups.notFound')}</h2>
           <p className="text-muted-foreground mt-1">
-            Le groupe "{name}" n'existe pas.
+            {t('groups.notFoundDesc', { name })}
           </p>
           <button
             className="mt-4 text-primary hover:underline"
             onClick={() => navigate('/groups')}
           >
-            Retour aux groupes
+            {t('groups.backToGroups')}
           </button>
         </div>
       </div>

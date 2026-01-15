@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -73,38 +74,11 @@ interface ValueValidationViewProps {
   entities: EntityInfo[]
 }
 
-// Method explanations for documentation
-const METHOD_INFO = {
-  iqr: {
-    name: 'IQR (Interquartile Range)',
-    shortName: 'IQR (1.5x)',
-    formula: 'Q1 - 1.5×IQR à Q3 + 1.5×IQR',
-    description: 'Méthode robuste basée sur les quartiles. Identifie les valeurs en dehors de la zone "normale" définie par l\'écart interquartile.',
-    details: 'Q1 = 25e percentile, Q3 = 75e percentile, IQR = Q3 - Q1. Une valeur est considérée outlier si elle est < Q1 - 1.5×IQR ou > Q3 + 1.5×IQR.',
-    bestFor: 'Données asymétriques ou avec des distributions non-normales. Standard en statistiques exploratoires.',
-    sensitivity: 'Modérée - détecte les valeurs vraiment extrêmes',
-  },
-  zscore: {
-    name: 'Z-Score (Écart-type)',
-    shortName: 'Z-Score (3σ)',
-    formula: 'μ ± 3σ',
-    description: 'Mesure à combien d\'écarts-types une valeur se trouve de la moyenne. Suppose une distribution normale.',
-    details: 'Z = (valeur - moyenne) / écart-type. Une valeur avec |Z| > 3 est considérée outlier (> 3 écarts-types de la moyenne).',
-    bestFor: 'Données suivant une distribution normale (gaussienne). Mesures physiques, tailles, poids.',
-    sensitivity: 'Faible - ne détecte que les valeurs très extrêmes',
-  },
-  percentile: {
-    name: 'Percentile (1% - 99%)',
-    shortName: 'Percentile',
-    formula: '< P1 ou > P99',
-    description: 'Identifie simplement les 1% de valeurs les plus basses et les 1% les plus hautes.',
-    details: 'Toute valeur en dessous du 1er percentile ou au-dessus du 99e percentile est un outlier. Simple et intuitif.',
-    bestFor: 'Quand vous voulez identifier un pourcentage fixe de valeurs extrêmes, quelle que soit la distribution.',
-    sensitivity: 'Fixe - détecte toujours exactement 2% des données (si elles existent)',
-  },
-}
+// Method keys for translation lookup
+const METHOD_KEYS = ['iqr', 'zscore', 'percentile'] as const
 
 export function ValueValidationView({ entities }: ValueValidationViewProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const [selectedEntity, setSelectedEntity] = useState<string>(
     entities[0]?.name || ''
   )
@@ -155,8 +129,6 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
     return value.toFixed(2)
   }
 
-  const currentMethodInfo = METHOD_INFO[method]
-
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -165,7 +137,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
           <CollapsibleTrigger asChild>
             <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <HelpCircle className="h-4 w-4" />
-              <span>{showHelp ? 'Masquer l\'aide' : 'Qu\'est-ce qu\'un outlier ?'}</span>
+              <span>{showHelp ? t('validation.hideHelp') : t('validation.whatIsOutlier')}</span>
               <ChevronDown className={`h-4 w-4 transition-transform ${showHelp ? 'rotate-180' : ''}`} />
             </button>
           </CollapsibleTrigger>
@@ -176,29 +148,28 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                   <div>
                     <h4 className="font-medium flex items-center gap-2">
                       <Info className="h-4 w-4 text-blue-600" />
-                      Qu'est-ce qu'un outlier (valeur aberrante) ?
+                      {t('validation.outlierTitle')}
                     </h4>
-                    <p className="text-muted-foreground mt-1">
-                      Un <strong>outlier</strong> est une valeur qui s'écarte significativement des autres observations.
-                      Ces valeurs peuvent indiquer des erreurs de saisie, des cas exceptionnels intéressants,
-                      ou des problèmes dans les données.
-                    </p>
+                    <p
+                      className="text-muted-foreground mt-1"
+                      dangerouslySetInnerHTML={{ __html: t('validation.outlierDescription') }}
+                    />
                   </div>
 
                   <div className="grid md:grid-cols-3 gap-3 mt-4">
-                    {Object.entries(METHOD_INFO).map(([key, info]) => (
+                    {METHOD_KEYS.map((key) => (
                       <div
                         key={key}
                         className={`p-3 rounded-lg border ${
                           method === key ? 'border-blue-400 bg-blue-100/50' : 'border-gray-200 bg-white'
                         }`}
                       >
-                        <h5 className="font-medium text-xs">{info.name}</h5>
-                        <p className="text-xs text-muted-foreground mt-1">{info.description}</p>
+                        <h5 className="font-medium text-xs">{t(`validation.methods.${key}.name`)}</h5>
+                        <p className="text-xs text-muted-foreground mt-1">{t(`validation.methods.${key}.description`)}</p>
                         <div className="mt-2 text-xs">
-                          <span className="font-mono bg-muted px-1 rounded">{info.formula}</span>
+                          <span className="font-mono bg-muted px-1 rounded">{t(`validation.methods.${key}.formula`)}</span>
                         </div>
-                        <p className="text-xs text-blue-600 mt-2">{info.sensitivity}</p>
+                        <p className="text-xs text-blue-600 mt-2">{t(`validation.methods.${key}.sensitivity`)}</p>
                       </div>
                     ))}
                   </div>
@@ -212,7 +183,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
         <div className="flex items-center gap-4 flex-wrap">
           <Select value={selectedEntity} onValueChange={setSelectedEntity}>
             <SelectTrigger className="w-64">
-              <SelectValue placeholder="Sélectionner une entité" />
+              <SelectValue placeholder={t('common:placeholders.selectOption')} />
             </SelectTrigger>
             <SelectContent>
               {entities.map((e) => (
@@ -226,7 +197,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
           <div className="flex items-center gap-1">
             <Select value={method} onValueChange={(v) => setMethod(v as 'iqr' | 'zscore' | 'percentile')}>
               <SelectTrigger className="w-44">
-                <SelectValue placeholder="Méthode" />
+                <SelectValue placeholder={t('common:labels.type')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="iqr">
@@ -255,9 +226,9 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs">
                 <div className="text-xs">
-                  <p className="font-medium">{currentMethodInfo.name}</p>
-                  <p className="mt-1">{currentMethodInfo.details}</p>
-                  <p className="mt-1 text-blue-400">{currentMethodInfo.bestFor}</p>
+                  <p className="font-medium">{t(`validation.methods.${method}.name`)}</p>
+                  <p className="mt-1">{t(`validation.methods.${method}.details`)}</p>
+                  <p className="mt-1 text-blue-400">{t(`validation.methods.${method}.bestFor`)}</p>
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -268,18 +239,18 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
               <TooltipTrigger asChild>
                 <Badge variant="outline" className="text-yellow-700 border-yellow-300 cursor-help">
                   <AlertTriangle className="mr-1 h-3 w-3" />
-                  {totalOutliers} outliers détectés
+                  {t('validation.outliersDetected', { count: totalOutliers })}
                 </Badge>
               </TooltipTrigger>
               <TooltipContent>
-                <p className="text-xs">Valeurs hors limites selon la méthode {currentMethodInfo.shortName}</p>
+                <p className="text-xs">{t('validation.valuesOutOfBounds', { method: t(`validation.methods.${method}.shortName`) })}</p>
               </TooltipContent>
             </Tooltip>
           ) : (
             validation && (
               <Badge variant="outline" className="text-green-700 border-green-300">
                 <CheckCircle2 className="mr-1 h-3 w-3" />
-                Aucun outlier
+                {t('validation.noOutlier')}
               </Badge>
             )
           )}
@@ -289,9 +260,9 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
         <div className="text-xs bg-muted/50 rounded-lg p-3 flex items-start gap-2">
           <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
           <div>
-            <span className="font-medium">{currentMethodInfo.name} :</span>{' '}
-            <span className="text-muted-foreground">{currentMethodInfo.description}</span>
-            <span className="block mt-1 font-mono text-blue-600">{currentMethodInfo.formula}</span>
+            <span className="font-medium">{t(`validation.methods.${method}.name`)} :</span>{' '}
+            <span className="text-muted-foreground">{t(`validation.methods.${method}.description`)}</span>
+            <span className="block mt-1 font-mono text-blue-600">{t(`validation.methods.${method}.formula`)}</span>
           </div>
         </div>
 

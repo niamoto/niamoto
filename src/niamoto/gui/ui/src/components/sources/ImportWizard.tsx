@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -44,6 +45,7 @@ type ImportPhase =
   | 'error'
 
 export function ImportWizard() {
+  const { t } = useTranslation(['sources', 'common'])
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -67,11 +69,11 @@ export function ImportWizard() {
         setConfigResult(result)
         setPhase('reviewing')
       } catch (err: any) {
-        setError(err.message || 'Erreur lors de la configuration automatique')
+        setError(err.message || t('wizard.autoConfigError'))
         setPhase('error')
       }
     },
-    []
+    [t]
   )
 
   // Handle existing files selected for re-import
@@ -89,11 +91,11 @@ export function ImportWizard() {
         setConfigResult(result)
         setPhase('reviewing')
       } catch (err: any) {
-        setError(err.message || 'Erreur lors de la configuration automatique')
+        setError(err.message || t('wizard.autoConfigError'))
         setPhase('error')
       }
     },
-    []
+    [t]
   )
 
   // Start import from review phase
@@ -142,7 +144,7 @@ export function ImportWizard() {
       const importConfig = response.data
 
       if (!importConfig || !importConfig.entities) {
-        throw new Error('Configuration invalide ou vide')
+        throw new Error(t('wizard.invalidConfig'))
       }
 
       // Analyze datasets to get their columns
@@ -180,10 +182,10 @@ export function ImportWizard() {
       setConfigResult(configResponse)
       setPhase('editing')
     } catch (err: any) {
-      setError(err.message || 'Erreur lors du chargement de la configuration')
+      setError(err.message || t('wizard.loadConfigError'))
       setPhase('error')
     }
-  }, [])
+  }, [t])
 
   // Retry from error
   const retryFromError = () => {
@@ -212,9 +214,9 @@ export function ImportWizard() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Import de donnees</h1>
+        <h1 className="text-2xl font-bold">{t('wizard.importData')}</h1>
         <p className="text-muted-foreground">
-          Importez vos fichiers de donnees et configurez les entites.
+          {t('wizard.importDescription')}
         </p>
       </div>
 
@@ -224,18 +226,18 @@ export function ImportWizard() {
           <CardTitle className="flex items-center gap-2 text-base">
             {phase === 'editing' ? <Settings2 className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
             {phase === 'editing'
-              ? 'Modifier la configuration'
+              ? t('wizard.editConfig')
               : phase === 'reviewing'
-                ? 'Configuration detectee'
+                ? t('wizard.configDetected')
                 : phase === 'importing'
-                  ? 'Import en cours'
+                  ? t('wizard.importInProgress')
                   : phase === 'complete'
-                    ? 'Import termine'
-                    : 'Ajouter des donnees'}
+                    ? t('wizard.importComplete')
+                    : t('wizard.addData')}
           </CardTitle>
           {phase === 'idle' && (
             <CardDescription>
-              Glissez-deposez vos fichiers pour commencer l'import.
+              {t('wizard.dropFilesToStart')}
             </CardDescription>
           )}
         </CardHeader>
@@ -250,9 +252,9 @@ export function ImportWizard() {
               <div className="flex gap-2">
                 <Button variant="outline" onClick={resetToIdle}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Retour
+                  {t('wizard.back')}
                 </Button>
-                <Button onClick={retryFromError}>Reessayer</Button>
+                <Button onClick={retryFromError}>{t('common:actions.retry')}</Button>
               </div>
             </div>
           )}
@@ -288,11 +290,11 @@ export function ImportWizard() {
               <div className="flex items-center justify-between border-t pt-4">
                 <Button variant="outline" onClick={resetToIdle}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Annuler
+                  {t('common:actions.cancel')}
                 </Button>
                 <Button onClick={startImport} size="lg">
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Lancer l'import
+                  {t('wizard.startImport')}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -305,7 +307,7 @@ export function ImportWizard() {
               <Alert>
                 <Settings2 className="h-4 w-4" />
                 <AlertDescription>
-                  Modification de la configuration existante.
+                  {t('wizard.editExistingConfigDesc')}
                 </AlertDescription>
               </Alert>
 
@@ -332,11 +334,11 @@ export function ImportWizard() {
               <div className="flex items-center justify-between border-t pt-4">
                 <Button variant="outline" onClick={resetToIdle}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Annuler
+                  {t('common:actions.cancel')}
                 </Button>
                 <Button onClick={startImport} size="lg">
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Sauvegarder et reimporter
+                  {t('wizard.saveAndReimport')}
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -357,7 +359,7 @@ export function ImportWizard() {
           {phase === 'complete' && (
             <div className="flex items-center gap-2 rounded-md bg-success/10 p-4 text-success">
               <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">Import termine avec succes !</span>
+              <span className="font-medium">{t('wizard.importSuccess')}</span>
             </div>
           )}
 
@@ -374,14 +376,14 @@ export function ImportWizard() {
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">ou</span>
+                  <span className="bg-card px-2 text-muted-foreground">{t('wizard.or')}</span>
                 </div>
               </div>
 
               <div>
                 <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
                   <Upload className="h-4 w-4" />
-                  Ajouter de nouveaux fichiers
+                  {t('wizard.addNewFiles')}
                 </h4>
                 <FileUploadZone
                   onFilesReady={handleFilesReady}
@@ -400,7 +402,7 @@ export function ImportWizard() {
         <div className="flex justify-center">
           <Button variant="outline" onClick={loadExistingConfig}>
             <Settings2 className="mr-2 h-4 w-4" />
-            Modifier la configuration existante
+            {t('wizard.modifyExistingConfig')}
           </Button>
         </div>
       )}
@@ -408,12 +410,11 @@ export function ImportWizard() {
       {/* Help Section */}
       {phase === 'idle' && (
         <div className="rounded-lg bg-muted/50 p-4">
-          <h3 className="mb-2 font-medium">Comment ca marche ?</h3>
+          <h3 className="mb-2 font-medium">{t('wizard.howItWorks')}</h3>
           <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
-            <li>Ajoutez vos fichiers (CSV pour les donnees, GeoPackage pour les shapes)</li>
-            <li>La configuration est analysee et affichee pour validation</li>
-            <li>Les donnees sont importees dans la base</li>
-            <li>Les groupes de reference apparaissent dans le menu lateral</li>
+            {(t('wizard.howItWorksSteps', { returnObjects: true }) as string[]).map((step, index) => (
+              <li key={index}>{step}</li>
+            ))}
           </ol>
         </div>
       )}

@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -138,6 +139,7 @@ async function saveReferenceConfig(name: string, config: ReferenceConfig): Promi
 }
 
 export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfigEditorProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const queryClient = useQueryClient()
   const [localConfig, setLocalConfig] = useState<ReferenceConfig | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
@@ -239,7 +241,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Erreur lors du chargement de la configuration
+          {t('configEditor.loadError')}
         </AlertDescription>
       </Alert>
     )
@@ -264,7 +266,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
         <Alert className="bg-success/10 border-success/30">
           <CheckCircle2 className="h-4 w-4 text-success" />
           <AlertDescription className="text-success">
-            Configuration sauvegardee avec succes
+            {t('configEditor.savedSuccess')}
           </AlertDescription>
         </Alert>
       )}
@@ -273,7 +275,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Erreur lors de la sauvegarde
+            {t('configEditor.saveError')}
           </AlertDescription>
         </Alert>
       )}
@@ -281,16 +283,16 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
       {/* Basic Info */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Informations generales</CardTitle>
+          <CardTitle className="text-base">{t('configEditor.generalInfo')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Nom</Label>
+              <Label>{t('configEditor.name')}</Label>
               <Input value={referenceName} disabled />
             </div>
             <div className="space-y-2">
-              <Label>Type</Label>
+              <Label>{t('configEditor.type')}</Label>
               <Select
                 value={localConfig.kind || 'flat'}
                 onValueChange={(value) => updateConfig({ kind: value })}
@@ -302,19 +304,19 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                   <SelectItem value="flat">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
-                      Flat (simple)
+                      {t('configEditor.flatSimple')}
                     </div>
                   </SelectItem>
                   <SelectItem value="hierarchical">
                     <div className="flex items-center gap-2">
                       <Leaf className="h-4 w-4" />
-                      Hierarchique
+                      {t('configEditor.hierarchical')}
                     </div>
                   </SelectItem>
                   <SelectItem value="spatial">
                     <div className="flex items-center gap-2">
                       <Map className="h-4 w-4" />
-                      Spatial
+                      {t('configEditor.spatial')}
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -323,11 +325,11 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
           </div>
 
           <div className="space-y-2">
-            <Label>Description</Label>
+            <Label>{t('configEditor.description')}</Label>
             <Input
               value={localConfig.description || ''}
               onChange={(e) => updateConfig({ description: e.target.value })}
-              placeholder="Description de la reference..."
+              placeholder={t('configEditor.descriptionPlaceholder')}
             />
           </div>
         </CardContent>
@@ -336,13 +338,13 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
       {/* Connector Settings */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Source de donnees</CardTitle>
-          <CardDescription>Configuration du connecteur</CardDescription>
+          <CardTitle className="text-base">{t('configEditor.dataSource')}</CardTitle>
+          <CardDescription>{t('configEditor.connectorConfig')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Type de connecteur</Label>
+              <Label>{t('configEditor.connectorType')}</Label>
               <Select
                 value={localConfig.connector?.type || 'file'}
                 onValueChange={(value) => updateConnector({ type: value })}
@@ -351,15 +353,15 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="file">Fichier</SelectItem>
-                  <SelectItem value="derived">Derive</SelectItem>
-                  <SelectItem value="file_multi_feature">Multi-feature (spatial)</SelectItem>
+                  <SelectItem value="file">{t('configEditor.file')}</SelectItem>
+                  <SelectItem value="derived">{t('configEditor.derived')}</SelectItem>
+                  <SelectItem value="file_multi_feature">{t('configEditor.multiFeature')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {localConfig.connector?.type === 'file' && (
               <div className="space-y-2">
-                <Label>Format</Label>
+                <Label>{t('configEditor.format')}</Label>
                 <Select
                   value={localConfig.connector?.format || 'csv'}
                   onValueChange={(value) => updateConnector({ format: value })}
@@ -369,7 +371,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="csv">CSV</SelectItem>
-                    <SelectItem value="excel">Excel</SelectItem>
+                    <SelectItem value="excel">{t('configEditor.excel')}</SelectItem>
                     <SelectItem value="json">JSON</SelectItem>
                   </SelectContent>
                 </Select>
@@ -379,11 +381,11 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
 
           {localConfig.connector?.type !== 'derived' && (
             <div className="space-y-2">
-              <Label>Chemin du fichier</Label>
+              <Label>{t('configEditor.filePath')}</Label>
               <Input
                 value={localConfig.connector?.path || ''}
                 onChange={(e) => updateConnector({ path: e.target.value })}
-                placeholder="data/fichier.csv"
+                placeholder={t('configEditor.filePathPlaceholder')}
                 className="font-mono text-sm"
               />
             </div>
@@ -397,14 +399,14 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Leaf className="h-4 w-4" />
-              Configuration hierarchique
+              {t('configEditor.hierarchyConfig')}
             </CardTitle>
-            <CardDescription>Niveaux et colonnes de la hierarchie</CardDescription>
+            <CardDescription>{t('configEditor.hierarchyLevelsConfig')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Strategie</Label>
+                <Label>{t('configEditor.strategy')}</Label>
                 <Select
                   value={localConfig.hierarchy?.strategy || 'adjacency_list'}
                   onValueChange={(value) => updateHierarchy({ strategy: value })}
@@ -413,13 +415,13 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="adjacency_list">Liste d'adjacence</SelectItem>
-                    <SelectItem value="nested_set">Nested Set</SelectItem>
+                    <SelectItem value="adjacency_list">{t('configEditor.adjacencyList')}</SelectItem>
+                    <SelectItem value="nested_set">{t('configEditor.nestedSet')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Lignes incompletes</Label>
+                <Label>{t('configEditor.incompleteRows')}</Label>
                 <Select
                   value={localConfig.hierarchy?.incomplete_rows || 'skip'}
                   onValueChange={(value) => updateHierarchy({ incomplete_rows: value })}
@@ -428,8 +430,8 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="skip">Ignorer</SelectItem>
-                    <SelectItem value="keep">Conserver</SelectItem>
+                    <SelectItem value="skip">{t('configEditor.skip')}</SelectItem>
+                    <SelectItem value="keep">{t('configEditor.keep')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -439,10 +441,10 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Niveaux de hierarchie</Label>
+                <Label>{t('configEditor.hierarchyLevels')}</Label>
                 <Button variant="outline" size="sm" onClick={addHierarchyLevel}>
                   <Plus className="h-3 w-3 mr-1" />
-                  Ajouter
+                  {t('common:actions.add')}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -454,7 +456,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                     <Input
                       value={level}
                       onChange={(e) => updateHierarchyLevel(index, e.target.value)}
-                      placeholder={`Niveau ${index + 1}`}
+                      placeholder={t('configEditor.levelN', { n: index + 1 })}
                       className="flex-1"
                     />
                     <Button
@@ -469,7 +471,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                 ))}
                 {(!localConfig.hierarchy?.levels || localConfig.hierarchy.levels.length === 0) && (
                   <p className="text-sm text-muted-foreground py-2">
-                    Aucun niveau defini. Cliquez sur "Ajouter" pour definir les niveaux.
+                    {t('configEditor.noLevelsHint')}
                   </p>
                 )}
               </div>
@@ -479,7 +481,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Colonne ID</Label>
+                <Label>{t('configEditor.idColumn')}</Label>
                 <Input
                   value={localConfig.hierarchy?.id_column || ''}
                   onChange={(e) => updateHierarchy({ id_column: e.target.value })}
@@ -487,7 +489,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
                 />
               </div>
               <div className="space-y-2">
-                <Label>Colonne Nom</Label>
+                <Label>{t('configEditor.nameColumn')}</Label>
                 <Input
                   value={localConfig.hierarchy?.name_column || ''}
                   onChange={(e) => updateHierarchy({ name_column: e.target.value })}
@@ -506,15 +508,15 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Zap className="h-4 w-4" />
-                Enrichissement API
+                {t('configEditor.apiEnrichment')}
               </CardTitle>
               <CardDescription>
-                Enrichir les donnees via une API externe
+                {t('configEditor.enrichWithApi')}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Label htmlFor="enrichment-enabled" className="text-sm">
-                {enrichment?.enabled ? 'Active' : 'Desactive'}
+                {enrichment?.enabled ? t('configEditor.enabled') : t('configEditor.disabled')}
               </Label>
               <Switch
                 id="enrichment-enabled"
@@ -542,9 +544,9 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
       <div className="flex items-center justify-between pt-4 border-t">
         <div className="text-sm text-muted-foreground">
           {hasChanges ? (
-            <span className="text-warning">Modifications non sauvegardees</span>
+            <span className="text-warning">{t('configEditor.unsavedChanges')}</span>
           ) : (
-            <span>Aucune modification</span>
+            <span>{t('configEditor.noChanges')}</span>
           )}
         </div>
         <Button
@@ -554,12 +556,12 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
           {mutation.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sauvegarde...
+              {t('configEditor.saving')}
             </>
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Sauvegarder
+              {t('configEditor.save')}
             </>
           )}
         </Button>

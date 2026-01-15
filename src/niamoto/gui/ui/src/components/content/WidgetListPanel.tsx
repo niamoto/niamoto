@@ -8,6 +8,7 @@
  * - Simplified item display (no inline expansion)
  */
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -103,6 +104,7 @@ function SortableWidgetItem({
   onDeleteClick,
   onDuplicateClick,
 }: SortableWidgetItemProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const {
     attributes,
     listeners,
@@ -171,7 +173,7 @@ function SortableWidgetItem({
             size="icon"
             className="h-7 w-7"
             onClick={onDuplicateClick}
-            title="Dupliquer"
+            title={t('common:actions.duplicate')}
           >
             <Copy className="h-3.5 w-3.5" />
           </Button>
@@ -181,7 +183,7 @@ function SortableWidgetItem({
           size="icon"
           className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={onDeleteClick}
-          title="Supprimer"
+          title={t('common:actions.delete')}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
@@ -209,6 +211,7 @@ export function WidgetListPanel({
   onDuplicate,
   onReorder,
 }: WidgetListPanelProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [targetWidget, setTargetWidget] = useState<ConfiguredWidget | null>(null)
@@ -283,7 +286,7 @@ export function WidgetListPanel({
     return (
       <div className="flex-1 flex flex-col items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <p className="mt-3 text-sm text-muted-foreground">Chargement...</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('listPanel.loading')}</p>
       </div>
     )
   }
@@ -295,9 +298,9 @@ export function WidgetListPanel({
         <div className="rounded-full bg-muted p-3 mb-3">
           <Settings2 className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h3 className="font-medium text-sm text-muted-foreground">Aucun widget</h3>
+        <h3 className="font-medium text-sm text-muted-foreground">{t('listPanel.noWidgets')}</h3>
         <p className="mt-1 text-xs text-muted-foreground max-w-[200px]">
-          Cliquez sur "Ajouter un widget" pour commencer.
+          {t('listPanel.noWidgetsHint')}
         </p>
       </div>
     )
@@ -338,15 +341,16 @@ export function WidgetListPanel({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Supprimer le widget ?
+              {t('listPanel.deleteWidget')}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Cela supprimera <strong>"{targetWidget?.title}"</strong> de la configuration.
-              Cette action est irreversible.
-            </AlertDialogDescription>
+            <AlertDialogDescription
+              dangerouslySetInnerHTML={{
+                __html: t('listPanel.deleteDescription', { title: targetWidget?.title })
+              }}
+            />
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('common:actions.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isDeleting}
@@ -355,10 +359,10 @@ export function WidgetListPanel({
               {isDeleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Suppression...
+                  {t('listPanel.deleting')}
                 </>
               ) : (
-                'Supprimer'
+                t('common:actions.delete')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -369,22 +373,22 @@ export function WidgetListPanel({
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Dupliquer le widget</DialogTitle>
+            <DialogTitle>{t('listPanel.duplicateWidget')}</DialogTitle>
             <DialogDescription>
-              Creez une copie de "{targetWidget?.title}" avec un nouvel identifiant.
+              {t('listPanel.duplicateDescription', { title: targetWidget?.title })}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="new-widget-id">Nouvel identifiant</Label>
+            <Label htmlFor="new-widget-id">{t('listPanel.newId')}</Label>
             <Input
               id="new-widget-id"
               value={newWidgetId}
               onChange={(e) => setNewWidgetId(e.target.value)}
-              placeholder="ex: dbh_distribution_copy"
+              placeholder={t('listPanel.newIdPlaceholder')}
               className="mt-2"
             />
             <p className="text-xs text-muted-foreground mt-2">
-              L'identifiant doit etre unique et ne contenir que des lettres, chiffres et underscores.
+              {t('listPanel.newIdHint')}
             </p>
           </div>
           <DialogFooter>
@@ -393,7 +397,7 @@ export function WidgetListPanel({
               onClick={() => setDuplicateDialogOpen(false)}
               disabled={isDuplicating}
             >
-              Annuler
+              {t('common:actions.cancel')}
             </Button>
             <Button
               onClick={handleConfirmDuplicate}
@@ -402,12 +406,12 @@ export function WidgetListPanel({
               {isDuplicating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Duplication...
+                  {t('listPanel.duplicating')}
                 </>
               ) : (
                 <>
                   <Copy className="mr-2 h-4 w-4" />
-                  Dupliquer
+                  {t('common:actions.duplicate')}
                 </>
               )}
             </Button>

@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -46,6 +47,8 @@ const SUGGESTED_CATEGORIES = [
 ]
 
 export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
+  const { t } = useTranslation('site')
+
   const updateField = useCallback(
     <K extends keyof GlossaryPageContext>(field: K, value: GlossaryPageContext[K]) => {
       onChange({ ...context, [field]: value })
@@ -87,25 +90,25 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
     <div className="space-y-6">
       {/* Header Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">En-tete</h3>
+        <h3 className="text-lg font-semibold">{t('forms.glossary.header')}</h3>
 
         <div className="space-y-2">
-          <Label htmlFor="title">Titre de la page</Label>
+          <Label htmlFor="title">{t('forms.glossary.pageTitle')}</Label>
           <Input
             id="title"
             value={context.title || ''}
             onChange={(e) => updateField('title', e.target.value)}
-            placeholder="Glossaire"
+            placeholder={t('forms.glossary.pageTitlePlaceholder')}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="introduction">Introduction</Label>
+          <Label htmlFor="introduction">{t('forms.glossary.introduction')}</Label>
           <Textarea
             id="introduction"
             value={context.introduction || ''}
             onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder="Definitions des termes ecologiques utilises dans Niamoto..."
+            placeholder={t('forms.glossary.introPlaceholder')}
             rows={3}
           />
         </div>
@@ -117,9 +120,9 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold">Termes</h3>
+            <h3 className="text-lg font-semibold">{t('forms.glossary.terms')}</h3>
             <p className="text-sm text-muted-foreground">
-              {context.terms?.length || 0} terme(s) defini(s)
+              {t('forms.glossary.termsDefined', { count: context.terms?.length || 0 })}
             </p>
           </div>
           {existingCategories.length > 0 && (
@@ -142,26 +145,26 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
             category: '',
             related: [],
           })}
-          addLabel="Ajouter un terme"
+          addLabel={t('forms.glossary.addTerm')}
           renderItem={(item, _index, onItemChange) => (
             <div className="space-y-3">
               {/* Row 1: Term, Category */}
               <div className="grid grid-cols-[1fr_150px] gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Terme</Label>
+                  <Label className="text-xs">{t('forms.glossary.term')}</Label>
                   <Input
                     value={item.term}
                     onChange={(e) => onItemChange({ ...item, term: e.target.value })}
-                    placeholder="Endemique"
+                    placeholder={t('forms.glossary.termPlaceholder')}
                     className="font-medium"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Categorie</Label>
+                  <Label className="text-xs">{t('forms.glossary.category')}</Label>
                   <Input
                     value={item.category || ''}
                     onChange={(e) => onItemChange({ ...item, category: e.target.value })}
-                    placeholder="Ecologie"
+                    placeholder={t('forms.glossary.categoryPlaceholder')}
                     list="categories-list"
                   />
                   <datalist id="categories-list">
@@ -174,27 +177,27 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
 
               {/* Row 2: Definition */}
               <div className="space-y-1">
-                <Label className="text-xs">Definition</Label>
+                <Label className="text-xs">{t('forms.glossary.definition')}</Label>
                 <Textarea
                   value={item.definition}
                   onChange={(e) => onItemChange({ ...item, definition: e.target.value })}
-                  placeholder="Espece presente uniquement dans une region geographique donnee..."
+                  placeholder={t('forms.glossary.definitionPlaceholder')}
                   rows={3}
                 />
               </div>
 
               {/* Row 3: Related terms */}
               <div className="space-y-1">
-                <Label className="text-xs">Termes lies (separes par des virgules)</Label>
+                <Label className="text-xs">{t('forms.glossary.relatedTerms')}</Label>
                 <Input
                   value={parseRelated(item.related)}
                   onChange={(e) =>
                     onItemChange({ ...item, related: toRelatedArray(e.target.value) })
                   }
-                  placeholder="Aire de repartition, Biodiversite, Conservation"
+                  placeholder={t('forms.glossary.relatedTermsPlaceholder')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Termes associes pour la navigation croisee
+                  {t('forms.glossary.relatedTermsHint')}
                 </p>
               </div>
             </div>

@@ -8,6 +8,7 @@
  * - Visual indication of widget type and transformer
  */
 import { useState, useCallback } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -102,6 +103,7 @@ function SortableWidgetItem({
   onDeleteClick,
   onDuplicateClick,
 }: SortableWidgetItemProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const {
     attributes,
     listeners,
@@ -175,7 +177,7 @@ function SortableWidgetItem({
             size="icon"
             className="h-8 w-8"
             onClick={onDuplicateClick}
-            title="Dupliquer"
+            title={t('common:aria.duplicate')}
           >
             <Copy className="h-4 w-4" />
           </Button>
@@ -185,7 +187,7 @@ function SortableWidgetItem({
           size="icon"
           className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={onDeleteClick}
-          title="Supprimer"
+          title={t('common:actions.delete')}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -213,6 +215,7 @@ export function ConfiguredWidgetsList({
   onDuplicate,
   onReorder,
 }: ConfiguredWidgetsListProps) {
+  const { t } = useTranslation(['widgets', 'common'])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [targetWidget, setTargetWidget] = useState<ConfiguredWidget | null>(null)
@@ -288,7 +291,7 @@ export function ConfiguredWidgetsList({
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         <p className="mt-4 text-sm text-muted-foreground">
-          Chargement des widgets...
+          {t('listPanel.loading')}
         </p>
       </div>
     )
@@ -301,9 +304,9 @@ export function ConfiguredWidgetsList({
         <div className="rounded-full bg-muted p-4 mb-4">
           <Settings2 className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="font-medium text-muted-foreground">Aucun widget configure</h3>
+        <h3 className="font-medium text-muted-foreground">{t('list.noWidgets')}</h3>
         <p className="mt-2 text-sm text-muted-foreground max-w-[250px]">
-          Selectionnez des widgets dans l'onglet "Disponibles" puis sauvegardez pour les voir ici.
+          {t('list.clickToAdd')}
         </p>
       </div>
     )
@@ -316,9 +319,9 @@ export function ConfiguredWidgetsList({
       <div className="h-full overflow-auto">
         <div className="p-4">
           <div className="text-sm text-muted-foreground mb-4">
-            {widgets.length} widget{widgets.length > 1 ? 's' : ''} configure{widgets.length > 1 ? 's' : ''}
+            {t('list.widgetsCount', { count: widgets.length })}
             {onReorder && (
-              <span className="text-xs ml-2">(glisser pour reordonner)</span>
+              <span className="text-xs ml-2">{t('listPanel.dragToReorder')}</span>
             )}
           </div>
 
@@ -351,15 +354,19 @@ export function ConfiguredWidgetsList({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Supprimer le widget ?
+              {t('dialogs.deleteWidget')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Cela supprimera <strong>"{targetWidget?.title}"</strong> de transform.yml et export.yml.
-              Cette action est irreversible.
+              <Trans
+                i18nKey="listPanel.deleteDescription"
+                t={t}
+                values={{ title: targetWidget?.title }}
+                components={{ strong: <strong /> }}
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('common:actions.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isDeleting}
@@ -368,10 +375,10 @@ export function ConfiguredWidgetsList({
               {isDeleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Suppression...
+                  {t('common:status.deleting')}
                 </>
               ) : (
-                'Supprimer'
+                t('common:actions.delete')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -382,22 +389,22 @@ export function ConfiguredWidgetsList({
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Dupliquer le widget</DialogTitle>
+            <DialogTitle>{t('dialogs.duplicateWidget')}</DialogTitle>
             <DialogDescription>
-              Creez une copie de "{targetWidget?.title}" avec un nouvel identifiant.
+              {t('listPanel.duplicateDescription', { title: targetWidget?.title })}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="new-widget-id">Nouvel identifiant</Label>
+            <Label htmlFor="new-widget-id">{t('listPanel.newId')}</Label>
             <Input
               id="new-widget-id"
               value={newWidgetId}
               onChange={(e) => setNewWidgetId(e.target.value)}
-              placeholder="ex: dbh_distribution_copy"
+              placeholder={t('dialogs.duplicatePlaceholder')}
               className="mt-2"
             />
             <p className="text-xs text-muted-foreground mt-2">
-              L'identifiant doit etre unique et ne contenir que des lettres, chiffres et underscores.
+              {t('listPanel.newIdHint')}
             </p>
           </div>
           <DialogFooter>
@@ -406,7 +413,7 @@ export function ConfiguredWidgetsList({
               onClick={() => setDuplicateDialogOpen(false)}
               disabled={isDuplicating}
             >
-              Annuler
+              {t('common:actions.cancel')}
             </Button>
             <Button
               onClick={handleConfirmDuplicate}
@@ -415,12 +422,12 @@ export function ConfiguredWidgetsList({
               {isDuplicating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Duplication...
+                  {t('listPanel.duplicating')}
                 </>
               ) : (
                 <>
                   <Copy className="mr-2 h-4 w-4" />
-                  Dupliquer
+                  {t('common:actions.duplicate')}
                 </>
               )}
             </Button>

@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import { Database, Package, Loader2, ListOrdered, Plus, LayoutGrid } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -24,13 +25,14 @@ interface GroupPanelProps {
 }
 
 export function GroupPanel({ reference }: GroupPanelProps) {
+  const { t } = useTranslation(['sources', 'common'])
   const [activeTab, setActiveTab] = useState('sources')
 
-  // Kind display mapping
+  // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
-    hierarchical: 'Hiérarchique',
-    flat: 'Plat',
-    spatial: 'Spatial',
+    hierarchical: t('groupPanel.kinds.hierarchical'),
+    flat: t('groupPanel.kinds.flat'),
+    spatial: t('groupPanel.kinds.spatial'),
   }
 
   return (
@@ -44,7 +46,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
           <div>
             <h1 className="text-xl font-bold">{reference.name}</h1>
             <p className="text-sm text-muted-foreground">
-              {reference.entity_count ?? '?'} entités
+              {reference.entity_count ?? '?'} {t('reference.entities')}
               <span className="mx-2">·</span>
               <Badge variant="outline" className="text-xs">
                 {kindLabels[reference.kind] || reference.kind}
@@ -69,21 +71,21 @@ export function GroupPanel({ reference }: GroupPanelProps) {
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <Database className="mr-2 h-4 w-4" />
-              Sources de donnees
+              {t('groupPanel.tabs.sources')}
             </TabsTrigger>
             <TabsTrigger
               value="content"
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <LayoutGrid className="mr-2 h-4 w-4" />
-              Contenu
+              {t('groupPanel.tabs.content')}
             </TabsTrigger>
             <TabsTrigger
               value="index"
               className="px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
             >
               <ListOrdered className="mr-2 h-4 w-4" />
-              Index
+              {t('groupPanel.tabs.index')}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -106,6 +108,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
 }
 
 function SourcesTab({ reference }: { reference: ReferenceInfo }) {
+  const { t } = useTranslation(['sources', 'common'])
   const [addDialogOpen, setAddDialogOpen] = useState(false)
 
   // Fetch configured sources
@@ -122,9 +125,9 @@ function SourcesTab({ reference }: { reference: ReferenceInfo }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-medium">Sources de donnees</h2>
+        <h2 className="text-lg font-medium">{t('groupPanel.sourcesTab.title')}</h2>
         <p className="text-sm text-muted-foreground">
-          Configurez les sources de donnees pour le groupe "{reference.name}".
+          {t('groupPanel.sourcesTab.description', { name: reference.name })}
         </p>
       </div>
 
@@ -132,16 +135,16 @@ function SourcesTab({ reference }: { reference: ReferenceInfo }) {
         {/* Primary source - occurrences */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Source principale</CardTitle>
+            <CardTitle className="text-base">{t('groupPanel.sourcesTab.primarySource')}</CardTitle>
             <CardDescription>
-              Table de donnees liee a cette reference
+              {t('groupPanel.sourcesTab.primarySourceDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="rounded-md bg-muted p-3">
-              <p className="font-mono text-sm">occurrences</p>
+              <p className="font-mono text-sm">{t('groupPanel.sourcesTab.occurrences')}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Relation: {reference.kind === 'hierarchical' ? 'nested_set' : 'direct_reference'}
+                {t('groupPanel.sourcesTab.relation')}: {reference.kind === 'hierarchical' ? t('groupPanel.sourcesTab.nestedSet') : t('groupPanel.sourcesTab.directReference')}
               </p>
             </div>
           </CardContent>
@@ -151,9 +154,9 @@ function SourcesTab({ reference }: { reference: ReferenceInfo }) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="text-base">Donnees pre-calculees</CardTitle>
+              <CardTitle className="text-base">{t('groupPanel.sourcesTab.precomputed')}</CardTitle>
               <CardDescription>
-                Fichiers CSV de statistiques supplementaires
+                {t('groupPanel.sourcesTab.precomputedDesc')}
               </CardDescription>
             </div>
             <Button
@@ -162,7 +165,7 @@ function SourcesTab({ reference }: { reference: ReferenceInfo }) {
               onClick={() => setAddDialogOpen(true)}
             >
               <Plus className="mr-1 h-3 w-3" />
-              Ajouter
+              {t('common:actions.add')}
             </Button>
           </CardHeader>
           <CardContent>
@@ -185,9 +188,9 @@ function SourcesTab({ reference }: { reference: ReferenceInfo }) {
       {reference.schema_fields.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Champs du schema</CardTitle>
+            <CardTitle className="text-base">{t('groupPanel.sourcesTab.schemaFields')}</CardTitle>
             <CardDescription>
-              Colonnes disponibles pour cette reference
+              {t('groupPanel.sourcesTab.schemaFieldsDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>

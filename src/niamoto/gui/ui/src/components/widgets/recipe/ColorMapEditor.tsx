@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +23,8 @@ let nextId = 1
  * Example: { "fleur": "#FFB74D", "fruit": "#81C784" }
  */
 export function ColorMapEditor({ value, onChange, placeholder }: ColorMapEditorProps) {
+  const { t } = useTranslation('widgets')
+
   // Convert object to array with stable IDs
   const [entries, setEntries] = useState<ColorEntry[]>(() => {
     if (!value) return []
@@ -104,14 +107,14 @@ export function ColorMapEditor({ value, onChange, placeholder }: ColorMapEditorP
     <div className="space-y-2 p-2 bg-background rounded border">
       {entries.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-2">
-          {placeholder || 'Aucune couleur configuree'}
+          {placeholder || t('recipe.noColorConfigured')}
         </p>
       ) : (
         entries.map((entry) => (
           <div key={entry.id} className="flex gap-2 items-center">
             <Input
               className="h-7 flex-1"
-              placeholder="Cle (ex: fleur)"
+              placeholder={t('recipe.keyPlaceholder')}
               value={entry.key}
               onChange={(e) => handleKeyChange(entry.id, e.target.value)}
             />
@@ -146,7 +149,7 @@ export function ColorMapEditor({ value, onChange, placeholder }: ColorMapEditorP
         onClick={handleAdd}
       >
         <Plus className="h-3 w-3 mr-1" />
-        Ajouter une couleur
+        {t('recipe.addColorButton')}
       </Button>
     </div>
   )

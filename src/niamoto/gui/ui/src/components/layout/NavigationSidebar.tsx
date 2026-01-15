@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { cn } from '@/lib/utils'
 import {
@@ -102,7 +103,35 @@ interface NavigationSidebarProps {
   className?: string
 }
 
+// Translation key mapping for section labels
+const sectionLabelKeys: Record<string, string> = {
+  sources: 'sidebar.sections.sources',
+  groups: 'sidebar.sections.groups',
+  site: 'sidebar.sections.site',
+  tools: 'sidebar.sections.tools',
+  // labs: keep English (will be removed)
+}
+
+// Translation key mapping for item labels
+const itemLabelKeys: Record<string, string> = {
+  dashboard: 'sidebar.items.dashboard',
+  import: 'sidebar.items.import',
+  'groups-index': 'sidebar.items.overview',
+  'site-pages': 'sidebar.items.pages',
+  'site-navigation': 'sidebar.items.navigation',
+  'site-apparence': 'sidebar.items.appearance',
+  'site-theme': 'sidebar.items.theme',
+  'data-explorer': 'sidebar.items.dataExplorer',
+  'live-preview': 'sidebar.items.livePreview',
+  showcase: 'sidebar.items.showcase',
+  'config-editor': 'sidebar.items.configEditor',
+  plugins: 'sidebar.items.plugins',
+  docs: 'sidebar.items.docs',
+  // labs items: keep English (will be removed)
+}
+
 export function NavigationSidebar({ className }: NavigationSidebarProps) {
+  const { t } = useTranslation('common')
   const location = useLocation()
   const {
     sidebarMode,
@@ -122,12 +151,17 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
   // Build navigation sections with dynamic items
   const sections = useMemo(() => {
     return navigationSections.map(section => {
+      // Translate section label
+      const translatedLabel = sectionLabelKeys[section.id]
+        ? t(sectionLabelKeys[section.id])
+        : section.label
+
       // Sources section: add datasets and references dynamically
       if (section.id === 'sources' && section.dynamic) {
         const sourceItems: NavigationItem[] = [
           // Static items first
-          { id: 'dashboard', label: 'Dashboard', path: '/sources' },
-          { id: 'import', label: 'Import', path: '/sources/import' },
+          { id: 'dashboard', label: t('sidebar.items.dashboard'), path: '/sources' },
+          { id: 'import', label: t('sidebar.items.import'), path: '/sources/import' },
         ]
 
         // Add datasets
@@ -158,9 +192,10 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
         const totalEntities = datasets.length + references.length
         return {
           ...section,
+          label: translatedLabel,
           badge: totalEntities > 0
             ? { type: 'count' as const, value: totalEntities }
-            : { type: 'status' as const, value: 'Vide' },
+            : { type: 'status' as const, value: t('sidebar.badges.empty') },
           items: sourceItems
         }
       }
@@ -168,7 +203,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
       // Groups section: references for widget configuration
       if (section.id === 'groups' && section.dynamic) {
         const groupItems: NavigationItem[] = [
-          { id: 'groups-index', label: 'Vue d\'ensemble', path: '/groups' },
+          { id: 'groups-index', label: t('sidebar.items.overview'), path: '/groups' },
         ]
 
         references.forEach(ref => {
@@ -183,24 +218,40 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
 
         return {
           ...section,
+          label: translatedLabel,
           badge: { type: 'count' as const, value: references.length },
           items: groupItems
         }
       }
 
-      // Site section: show dynamic page count
+      // Site section: show dynamic page count and translate items
       if (section.id === 'site' && section.dynamic) {
+        const siteItems = section.items.map(item => ({
+          ...item,
+          label: itemLabelKeys[item.id] ? t(itemLabelKeys[item.id]) : item.label
+        }))
         return {
           ...section,
+          label: translatedLabel,
           badge: staticPagesCount > 0
-            ? { type: 'count' as const, value: `${staticPagesCount} page${staticPagesCount > 1 ? 's' : ''}` }
-            : undefined
+            ? { type: 'count' as const, value: t('sidebar.badges.pages', { count: staticPagesCount }) }
+            : undefined,
+          items: siteItems
         }
       }
 
-      return section
+      // Default: translate section label and item labels
+      const translatedItems = section.items.map(item => ({
+        ...item,
+        label: itemLabelKeys[item.id] ? t(itemLabelKeys[item.id]) : item.label
+      }))
+      return {
+        ...section,
+        label: translatedLabel,
+        items: translatedItems
+      }
     })
-  }, [datasets, references, staticPagesCount])
+  }, [datasets, references, staticPagesCount, t])
 
   if (sidebarMode === 'hidden') {
     return null
@@ -286,7 +337,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               }
             >
               <Settings className="h-4 w-4" />
-              Paramètres
+              {t('sidebar.footer.settings')}
             </NavLink>
             <Button
               variant="outline"
@@ -294,7 +345,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               onClick={() => window.open('/preview', '_blank')}
             >
               <Eye className="h-4 w-4" />
-              Prévisualiser le site
+              {t('sidebar.footer.previewSite')}
               <ExternalLink className="ml-auto h-3 w-3 opacity-50" />
             </Button>
           </>
@@ -309,7 +360,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
                   isActive && 'bg-accent text-accent-foreground'
                 )
               }
-              title="Paramètres"
+              title={t('sidebar.footer.settings')}
             >
               <Settings className="h-4 w-4" />
             </NavLink>
@@ -317,7 +368,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               variant="ghost"
               size="icon"
               className="mx-auto flex"
-              title="Prévisualiser le site"
+              title={t('sidebar.footer.previewSite')}
               onClick={() => window.open('/preview', '_blank')}
             >
               <Eye className="h-4 w-4" />

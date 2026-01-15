@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -77,6 +78,7 @@ interface ShapeDistributionResult {
 }
 
 export function GeoCoverageView() {
+  const { t } = useTranslation(['sources', 'common'])
   const [quickData, setQuickData] = useState<GeoCoverage | null>(null)
   const [analysisResult, setAnalysisResult] = useState<SpatialAnalysisResult | null>(null)
   const [distribution, setDistribution] = useState<ShapeDistributionResult | null>(null)
@@ -365,12 +367,12 @@ export function GeoCoverageView() {
                     <ChevronDown className="mr-2 h-4 w-4" />
                   )}
                   {loadingDistribution
-                    ? 'Chargement...'
+                    ? t('common:status.loading')
                     : distribution
                       ? showDistribution
-                        ? 'Masquer'
-                        : 'Afficher'
-                      : 'Charger la repartition'}
+                        ? t('geoCoverage.hide')
+                        : t('geoCoverage.show')
+                      : t('geoCoverage.loadDistribution')}
                 </Button>
               </div>
             </CardHeader>
@@ -384,8 +386,8 @@ export function GeoCoverageView() {
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                      <span>{distribution.shapes.length} shapes analysees</span>
-                      <span>Temps: {distribution.analysis_time_seconds}s</span>
+                      <span>{t('geoCoverage.shapesAnalyzed', { count: distribution.shapes.length })}</span>
+                      <span>{t('geoCoverage.time')}: {distribution.analysis_time_seconds}s</span>
                     </div>
                     <ScrollArea className="h-[300px] pr-4">
                       <div className="space-y-2">

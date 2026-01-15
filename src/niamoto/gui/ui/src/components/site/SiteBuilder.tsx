@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Settings,
   Palette,
@@ -112,6 +113,7 @@ function SiteTree({
   onSelect,
   onAddPage,
 }: SiteTreeProps) {
+  const { t } = useTranslation(['site', 'common'])
   const isSelected = (type: SelectionType, id?: string) => {
     if (!selection) return false
     if (selection.type !== type) return false
@@ -142,7 +144,7 @@ function SiteTree({
               <div className="space-y-1 pl-6">
                 {pages.length === 0 ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    Aucune page
+                    {t('tree.noPages')}
                   </p>
                 ) : (
                   pages.map((page, index) => (
@@ -167,7 +169,7 @@ function SiteTree({
                   className="w-full justify-start text-xs text-muted-foreground hover:text-foreground"
                   onClick={onAddPage}
                 >
-                  + Ajouter une page
+                  {t('pages.addPage')}
                 </Button>
               </div>
             </AccordionContent>
@@ -194,7 +196,7 @@ function SiteTree({
                 >
                   <span className="flex items-center gap-2">
                     <Navigation className="h-4 w-4" />
-                    Menu principal
+                    {t('tree.mainMenu')}
                   </span>
                   <Badge variant="secondary" className="text-[10px]">
                     {navigation.length}
@@ -211,7 +213,7 @@ function SiteTree({
                 >
                   <span className="flex items-center gap-2">
                     <Navigation className="h-4 w-4" />
-                    Menu footer
+                    {t('tree.footerMenu')}
                   </span>
                   <Badge variant="secondary" className="text-[10px]">
                     {footerNavigation.length}
@@ -226,7 +228,7 @@ function SiteTree({
             <AccordionTrigger className="py-2 text-sm hover:no-underline">
               <span className="flex items-center gap-2">
                 <Palette className="h-4 w-4" />
-                Apparence
+                {t('tree.appearance')}
               </span>
             </AccordionTrigger>
             <AccordionContent className="pb-2">
@@ -241,7 +243,7 @@ function SiteTree({
                   onClick={() => onSelect({ type: 'identity' })}
                 >
                   <Settings className="h-4 w-4" />
-                  Identite
+                  {t('tree.identity')}
                 </button>
                 <button
                   className={cn(
@@ -253,7 +255,7 @@ function SiteTree({
                   onClick={() => onSelect({ type: 'theme' })}
                 >
                   <Palette className="h-4 w-4" />
-                  Theme
+                  {t('tree.theme')}
                 </button>
               </div>
             </AccordionContent>
@@ -264,7 +266,7 @@ function SiteTree({
             <AccordionTrigger className="py-2 text-sm hover:no-underline">
               <span className="flex items-center gap-2">
                 <Folder className="h-4 w-4 text-amber-600" />
-                Groupes
+                {t('tree.groups')}
                 {groupsLoading ? (
                   <Loader2 className="h-3 w-3 animate-spin ml-auto" />
                 ) : (
@@ -279,11 +281,11 @@ function SiteTree({
                 {groupsLoading ? (
                   <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Chargement...
+                    {t('common:status.loading')}
                   </div>
                 ) : groups.length === 0 ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    Aucun groupe
+                    {t('tree.noGroups')}
                   </p>
                 ) : (
                   groups.map((group, index) => (
@@ -333,20 +335,21 @@ function PagesOverview({
   onSelectGroup,
   onAddPage,
 }: PagesOverviewProps) {
+  const { t } = useTranslation(['site', 'common'])
   return (
     <ScrollArea className="h-full">
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Pages</h2>
+            <h2 className="text-lg font-semibold">{t('pages.title')}</h2>
             <p className="text-sm text-muted-foreground">
-              Gerez les pages statiques et visualisez les groupes
+              {t('pages.subtitle')}
             </p>
           </div>
           <Button onClick={onAddPage}>
             <Plus className="h-4 w-4 mr-2" />
-            Nouvelle page
+            {t('pages.newPage')}
           </Button>
         </div>
 
@@ -354,7 +357,7 @@ function PagesOverview({
         <div>
           <div className="flex items-center gap-2 mb-3">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-medium">Pages statiques</h3>
+            <h3 className="font-medium">{t('pages.staticPages')}</h3>
             <Badge variant="secondary" className="text-xs">
               {staticPages.length}
             </Badge>
@@ -365,11 +368,11 @@ function PagesOverview({
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <FileText className="h-10 w-10 text-muted-foreground/50 mb-3" />
                 <p className="text-sm text-muted-foreground mb-3">
-                  Aucune page statique
+                  {t('pages.noStaticPages')}
                 </p>
                 <Button variant="outline" size="sm" onClick={onAddPage}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Creer une page
+                  {t('pages.createPage')}
                 </Button>
               </CardContent>
             </Card>
@@ -398,17 +401,17 @@ function PagesOverview({
                           {hasContent ? (
                             <>
                               <div className="h-2 w-2 rounded-full bg-green-500" />
-                              <span className="text-xs text-muted-foreground">Contenu MD</span>
+                              <span className="text-xs text-muted-foreground">{t('pages.contentMd')}</span>
                             </>
                           ) : (
                             <>
                               <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
-                              <span className="text-xs text-muted-foreground">Vide</span>
+                              <span className="text-xs text-muted-foreground">{t('pages.empty')}</span>
                             </>
                           )}
                         </div>
                         <Button variant="ghost" size="sm" className="h-7 text-xs">
-                          Éditer
+                          {t('pages.edit')}
                         </Button>
                       </div>
                     </CardContent>
@@ -424,14 +427,14 @@ function PagesOverview({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Folder className="h-4 w-4 text-amber-600" />
-              <h3 className="font-medium">Groupes</h3>
+              <h3 className="font-medium">{t('groups.title')}</h3>
               <Badge variant="secondary" className="text-xs">
                 {groups.length}
               </Badge>
             </div>
             <Button variant="link" size="sm" className="text-xs" asChild>
               <a href="/flow?tab=export">
-                Configurer dans Export
+                {t('groups.configureInExport')}
                 <ExternalLinkIcon className="h-3 w-3 ml-1" />
               </a>
             </Button>
@@ -442,10 +445,10 @@ function PagesOverview({
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Folder className="h-10 w-10 text-muted-foreground/50 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  Aucun groupe configure
+                  {t('groups.noGroupsConfigured')}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Les groupes sont definis dans la configuration Export
+                  {t('groups.groupsDefinedInExport')}
                 </p>
               </CardContent>
             </Card>
@@ -472,22 +475,22 @@ function PagesOverview({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Badge variant="outline" className="text-xs">
-                            {group.widgets_count} widgets
+                            {group.widgets_count} {t('groups.widgets')}
                           </Badge>
                           {hasIndex ? (
                             <span className="flex items-center gap-1 text-xs text-green-600">
                               <div className="h-2 w-2 rounded-full bg-green-500" />
-                              Index
+                              {t('groups.index')}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
                               <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
-                              Pas d'index
+                              {t('groups.noIndex')}
                             </span>
                           )}
                         </div>
                         <Button variant="ghost" size="sm" className="h-7 text-xs">
-                          Voir
+                          {t('pages.view')}
                         </Button>
                       </div>
                     </CardContent>
@@ -519,6 +522,7 @@ interface SitePreviewProps {
 }
 
 function SitePreview({ page, site, navigation, device, onDeviceChange, fileContent, onLinkClick }: SitePreviewProps) {
+  const { t } = useTranslation(['site', 'common'])
   const previewMutation = useTemplatePreview()
   const [html, setHtml] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -614,7 +618,7 @@ function SitePreview({ page, site, navigation, device, onDeviceChange, fileConte
       {/* Preview Header */}
       <div className="flex items-center justify-between border-b bg-background px-4 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Apercu</span>
+          <span className="text-sm font-medium">{t('preview.title')}</span>
           <span className="text-xs text-muted-foreground">
             {currentDimensions.width}x{currentDimensions.height} ({Math.round(scale * 100)}%)
           </span>
@@ -628,7 +632,7 @@ function SitePreview({ page, site, navigation, device, onDeviceChange, fileConte
           <ToggleGroupItem value="mobile" aria-label="Mobile">
             <Smartphone className="h-4 w-4" />
           </ToggleGroupItem>
-          <ToggleGroupItem value="tablet" aria-label="Tablette">
+          <ToggleGroupItem value="tablet" aria-label={t('responsive.tablet')}>
             <Tablet className="h-4 w-4" />
           </ToggleGroupItem>
           <ToggleGroupItem value="desktop" aria-label="Desktop">
@@ -665,7 +669,7 @@ function SitePreview({ page, site, navigation, device, onDeviceChange, fileConte
               <iframe
                 srcDoc={html}
                 className="w-full h-full border-0"
-                title="Apercu du template"
+                title={t('builder.templatePreview')}
                 sandbox="allow-same-origin allow-scripts"
               />
             </div>
@@ -674,7 +678,7 @@ function SitePreview({ page, site, navigation, device, onDeviceChange, fileConte
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Eye className="h-10 w-10 text-muted-foreground/50 mb-3" />
             <p className="text-sm text-muted-foreground">
-              Selectionnez une page pour voir l'apercu
+              {t('preview.selectPageForPreview')}
             </p>
           </div>
         )}
@@ -702,6 +706,7 @@ function GroupIndexPreviewPanel({
   onDeviceChange,
   groupName,
 }: GroupIndexPreviewPanelProps) {
+  const { t } = useTranslation(['site', 'common'])
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
 
@@ -740,7 +745,7 @@ function GroupIndexPreviewPanel({
       {/* Preview Header */}
       <div className="flex items-center justify-between border-b bg-background px-4 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Aperçu Index</span>
+          <span className="text-sm font-medium">{t('preview.previewIndex')}</span>
           <span className="text-xs text-muted-foreground">
             {groupName} - {currentDimensions.width}x{currentDimensions.height} ({Math.round(scale * 100)}%)
           </span>
@@ -754,7 +759,7 @@ function GroupIndexPreviewPanel({
           <ToggleGroupItem value="mobile" aria-label="Mobile">
             <Smartphone className="h-4 w-4" />
           </ToggleGroupItem>
-          <ToggleGroupItem value="tablet" aria-label="Tablette">
+          <ToggleGroupItem value="tablet" aria-label={t('responsive.tablet')}>
             <Tablet className="h-4 w-4" />
           </ToggleGroupItem>
           <ToggleGroupItem value="desktop" aria-label="Desktop">
@@ -768,7 +773,7 @@ function GroupIndexPreviewPanel({
         {isLoading ? (
           <div className="flex flex-col items-center justify-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Génération de l'aperçu...</span>
+            <span className="text-sm text-muted-foreground">{t('preview.generatingPreview')}</span>
           </div>
         ) : html ? (
           <div
@@ -792,14 +797,14 @@ function GroupIndexPreviewPanel({
               <iframe
                 srcDoc={html}
                 className="w-full h-full border-0"
-                title="Aperçu de l'index de groupe"
+                title={t('builder.groupIndexPreview')}
                 sandbox="allow-same-origin allow-scripts"
               />
             </div>
           </div>
         ) : (
           <div className="text-center text-muted-foreground">
-            <p>Aucun aperçu disponible</p>
+            <p>{t('preview.noPreviewAvailable')}</p>
           </div>
         )}
       </div>
@@ -816,6 +821,7 @@ interface SiteBuilderProps {
 }
 
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
+  const { t } = useTranslation(['site', 'common'])
   // Data fetching
   const { data: siteConfig, isLoading, error, refetch } = useSiteConfig()
   const { data: groupsData, isLoading: groupsLoading } = useGroups()
@@ -934,12 +940,12 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
     try {
       await updateMutation.mutateAsync(update)
-      toast.success('Configuration sauvegardee', {
-        description: 'Les modifications ont ete appliquees a export.yml',
+      toast.success(t('messages.configSaved'), {
+        description: t('messages.configSavedDesc'),
       })
     } catch (err) {
-      toast.error('Erreur', {
-        description: err instanceof Error ? err.message : 'Echec de la sauvegarde',
+      toast.error(t('common:status.error'), {
+        description: err instanceof Error ? err.message : t('messages.saveFailed'),
       })
     }
   }
@@ -972,17 +978,17 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     setSelection({ type: 'page', id: newPage.name })
 
     // Propose to add to navigation
-    toast.success('Page creee', {
-      description: `La page "${newPage.name}" a ete ajoutee`,
+    toast.success(t('pages.pageCreated'), {
+      description: t('pages.pageCreatedDesc', { name: newPage.name }),
       action: {
-        label: 'Ajouter au menu',
+        label: t('navigation.addToMenu'),
         onClick: () => {
           setEditedNavigation((nav) => [
             ...nav,
             { text: newPage.name, url: `/${newPage.output_file}` },
           ])
-          toast.success('Lien ajoute', {
-            description: 'La page a ete ajoutee a la navigation',
+          toast.success(t('navigation.linkAdded'), {
+            description: t('navigation.linkAddedDesc'),
           })
         },
       },
@@ -1012,8 +1018,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       })
     )
     setSelection(null)
-    toast.success('Page supprimee', {
-      description: 'N\'oubliez pas de sauvegarder pour appliquer les modifications',
+    toast.success(t('pages.pageDeleted'), {
+      description: t('pages.pageDeletedDesc'),
     })
   }
 
@@ -1039,7 +1045,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       <div className="flex h-full items-center justify-center p-6">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Chargement de la configuration...</p>
+          <p className="text-sm text-muted-foreground">{t('messages.loadingConfig')}</p>
         </div>
       </div>
     )
@@ -1052,11 +1058,11 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Erreur lors du chargement: {error instanceof Error ? error.message : 'Erreur inconnue'}
+            {t('messages.loadError', { error: error instanceof Error ? error.message : t('common:messages.unknownError') })}
           </AlertDescription>
         </Alert>
         <Button onClick={() => refetch()} className="mt-4">
-          Reessayer
+          {t('messages.retry')}
         </Button>
       </div>
     )
@@ -1105,8 +1111,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                 onChange={setEditedNavigation}
                 staticPages={editedPages}
                 groups={groups}
-                title="Menu principal"
-                description="Navigation header du site"
+                title={t('builder.mainMenu')}
+                description={t('navigation.mainDescription')}
                 allowSubmenus={true}
               />
             </div>
@@ -1122,8 +1128,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                 onChange={setEditedFooterNavigation}
                 staticPages={editedPages}
                 groups={groups}
-                title="Menu footer"
-                description="Liens affiches dans le pied de page"
+                title={t('builder.footerMenu')}
+                description={t('navigation.footerDescription')}
                 allowSubmenus={false}
               />
             </div>
@@ -1136,7 +1142,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         if (!page) {
           return (
             <div className="flex h-full items-center justify-center">
-              <p className="text-muted-foreground">Page non trouvee</p>
+              <p className="text-muted-foreground">{t('common:messages.notFound')}</p>
             </div>
           )
         }
@@ -1154,7 +1160,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         if (!currentGroup) {
           return (
             <div className="flex h-full items-center justify-center">
-              <p className="text-muted-foreground">Groupe non trouve</p>
+              <p className="text-muted-foreground">{t('common:messages.notFound')}</p>
             </div>
           )
         }
@@ -1190,7 +1196,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         <div>
           <h1 className="text-lg font-semibold">{editedSite.title || 'Site Builder'}</h1>
           <p className="text-xs text-muted-foreground">
-            Configuration du site
+            {t('description')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1206,7 +1212,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
               ) : (
                 <Eye className="h-4 w-4 mr-2" />
               )}
-              {previewEnabled ? 'Masquer apercu' : 'Apercu'}
+              {previewEnabled ? t('common:actions.hidePreview') : t('preview.title')}
             </Button>
           )}
           {hasChanges && (
@@ -1220,7 +1226,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
-              Sauvegarder
+              {t('common:actions.save')}
             </Button>
           )}
         </div>
@@ -1281,9 +1287,9 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                     )
                     if (targetPage) {
                       setSelection({ type: 'page', id: targetPage.name })
-                      toast.info(`Navigation vers "${targetPage.name}"`)
+                      toast.info(t('common:messages.navigatingTo', { name: targetPage.name }))
                     } else {
-                      toast.warning(`Page non trouvee: ${href}`)
+                      toast.warning(t('common:messages.pageNotFound', { href }))
                     }
                   }}
                 />
