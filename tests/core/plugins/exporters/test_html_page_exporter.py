@@ -175,6 +175,10 @@ class TestHtmlPageExporter(NiamotoTestCase):
         (self.template_dir / "group_index.html").write_text(index_template)
         (self.template_dir / "group_detail.html").write_text(detail_template)
 
+        # Create _group_index.html for traditional index generation
+        (self.template_dir / "_group_index.html").write_text(index_template)
+        (self.template_dir / "_group_detail.html").write_text(detail_template)
+
     def test_init(self):
         """Test exporter initialization."""
         exporter = HtmlPageExporter(self.mock_db)
