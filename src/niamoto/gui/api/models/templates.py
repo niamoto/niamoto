@@ -5,7 +5,7 @@ These models define the request/response schemas for template-related endpoints.
 Extracted from templates.py for better organization.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -105,6 +105,10 @@ class SaveConfigRequest(BaseModel):
     group_by: str = Field(..., description="Reference name for the group")
     sources: List[Dict[str, Any]] = Field(..., description="Sources configuration")
     widgets_data: Dict[str, Any] = Field(..., description="Widgets configuration")
+    mode: Literal["merge", "replace"] = Field(
+        default="replace",
+        description="'merge' adds new widgets to existing, 'replace' overwrites all widgets",
+    )
 
 
 class SaveConfigResponse(BaseModel):

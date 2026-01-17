@@ -13,12 +13,14 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+import pandas as pd
 import yaml
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
+from niamoto.common.database import Database
 from niamoto.core.imports.class_object_analyzer import ClassObjectAnalyzer
-from niamoto.gui.api.context import get_working_directory
+from niamoto.gui.api.context import get_database_path, get_working_directory
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,9 @@ class ConfiguredSource(BaseModel):
     grouping: str
     relation_plugin: str
     class_object_count: Optional[int] = None
+    is_builtin: bool = False  # True for reference entity sources
+    source_type: str = "csv"  # "csv", "reference", "occurrences"
+    columns: Optional[list[str]] = None  # Available columns for reference sources
 
 
 class SourcesListResponse(BaseModel):
@@ -182,6 +187,52 @@ def _get_reference_kind(work_dir: Path, reference_name: str) -> str:
     references = import_config.get("entities", {}).get("references", {})
     ref_config = references.get(reference_name, {})
     return ref_config.get("kind", "flat")
+
+
+def _get_reference_entity_info(
+    work_dir: Path, reference_name: str
+) -> Optional[ConfiguredSource]:
+    """
+    Get information about the reference entity table as a built-in source.
+
+    This allows the reference entity data (e.g., plots table with holdridge, rainfall)
+    to be used as a data source for widgets without manual configuration.
+
+    Returns None if the entity table doesn't exist.
+    """
+    db_path = get_database_path()
+    if not db_path:
+        return None
+
+    try:
+        db = Database(str(db_path), read_only=True)
+        entity_table = f"entity_{reference_name}"
+
+        if not db.has_table(entity_table):
+            return None
+
+        # Get columns from the entity table
+        columns_df = pd.read_sql(f"SELECT * FROM {entity_table} LIMIT 0", db.engine)
+        columns = columns_df.columns.tolist()
+
+        # Filter out internal/geometry columns for cleaner display
+        excluded_patterns = ["lft", "rght", "level", "parent_id", "location", "geo_pt"]
+        display_columns = [
+            c for c in columns if not any(ex in c.lower() for ex in excluded_patterns)
+        ]
+
+        return ConfiguredSource(
+            name=reference_name,
+            data_path=f"entity_{reference_name}",  # Virtual path indicating DB table
+            grouping=reference_name,
+            relation_plugin="builtin",
+            is_builtin=True,
+            source_type="reference",
+            columns=display_columns,
+        )
+    except Exception as e:
+        logger.warning(f"Error getting reference entity info for {reference_name}: {e}")
+        return None
 
 
 def _detect_relation_fields(
@@ -431,24 +482,34 @@ async def upload_precalc_source(
 @router.get("/{reference_name}/sources", response_model=SourcesListResponse)
 async def get_group_sources(reference_name: str):
     """
-    List pre-calculated data sources configured for a reference group.
+    List data sources available for a reference group.
 
-    Reads the sources section from transform.yml for the specified group
-    and returns only CSV-based sources (not occurrences).
+    Includes:
+    1. Built-in reference entity source (e.g., entity_plots with holdridge, rainfall)
+    2. CSV-based pre-calculated sources from transform.yml
+
+    Built-in sources provide access to reference entity data for widgets.
     """
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
 
     work_dir = Path(work_dir)
-    config = _load_transform_config(work_dir)
 
-    # Get group config (now always normalized to dict format with 'groups' key)
+    # Start with built-in reference entity source
+    all_sources: list[ConfiguredSource] = []
+
+    # Add reference entity as built-in source
+    ref_source = _get_reference_entity_info(work_dir, reference_name)
+    if ref_source:
+        all_sources.append(ref_source)
+
+    # Load CSV sources from transform.yml
+    config = _load_transform_config(work_dir)
     group_config = config.get("groups", {}).get(reference_name, {})
     sources_config = group_config.get("sources", [])
 
     # Filter to only CSV sources (exclude occurrences)
-    csv_sources = []
     for source in sources_config:
         data_path = source.get("data", "")
         # Skip non-CSV sources (like 'occurrences' table reference)
@@ -456,19 +517,21 @@ async def get_group_sources(reference_name: str):
             continue
 
         relation = source.get("relation", {})
-        csv_sources.append(
+        all_sources.append(
             ConfiguredSource(
                 name=source.get("name", "unknown"),
                 data_path=data_path,
                 grouping=source.get("grouping", reference_name),
                 relation_plugin=relation.get("plugin", "stats_loader"),
+                is_builtin=False,
+                source_type="csv",
             )
         )
 
     return SourcesListResponse(
         group_name=reference_name,
-        sources=csv_sources,
-        total=len(csv_sources),
+        sources=all_sources,
+        total=len(all_sources),
     )
 
 

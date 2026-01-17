@@ -9,7 +9,7 @@
  * - Removing items
  */
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   DndContext,
@@ -40,6 +40,17 @@ import {
   ChevronDown,
   ChevronRight,
   Link2,
+  Sparkles,
+  Loader2,
+  Home,
+  BookOpen,
+  Users,
+  Mail,
+  Download,
+  List,
+  Newspaper,
+  ScrollText,
+  type LucideIcon,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -54,8 +65,77 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { NavigationItem, StaticPage, GroupInfo } from '@/hooks/useSiteConfig'
+import type { NavigationItem, StaticPage, GroupInfo, TemplateInfo } from '@/hooks/useSiteConfig'
+
+// =============================================================================
+// Template Configuration (shared with TemplateList)
+// =============================================================================
+
+type TemplateCategory = 'landing' | 'content' | 'project' | 'reference'
+
+const CATEGORY_ORDER: Record<TemplateCategory, number> = {
+  landing: 0,
+  content: 1,
+  project: 2,
+  reference: 3,
+}
+
+interface TemplateDefinition {
+  icon: LucideIcon
+  category: TemplateCategory
+}
+
+const TEMPLATE_CONFIG: Record<string, TemplateDefinition> = {
+  'index.html': { icon: Home, category: 'landing' },
+  'page.html': { icon: FileText, category: 'content' },
+  'article.html': { icon: Newspaper, category: 'content' },
+  'documentation.html': { icon: ScrollText, category: 'content' },
+  'team.html': { icon: Users, category: 'project' },
+  'contact.html': { icon: Mail, category: 'project' },
+  'resources.html': { icon: Download, category: 'reference' },
+  'bibliography.html': { icon: BookOpen, category: 'reference' },
+  'glossary.html': { icon: List, category: 'reference' },
+}
+
+// Group templates by category
+function groupTemplatesByCategory(templates: TemplateInfo[]): Map<TemplateCategory, TemplateInfo[]> {
+  const groups = new Map<TemplateCategory, TemplateInfo[]>()
+
+  // Initialize groups in order
+  for (const category of Object.keys(CATEGORY_ORDER) as TemplateCategory[]) {
+    groups.set(category, [])
+  }
+
+  // Group templates
+  for (const template of templates) {
+    const config = TEMPLATE_CONFIG[template.name]
+    const category = config?.category || 'content'
+    groups.get(category)?.push(template)
+  }
+
+  // Remove empty groups
+  for (const [category, items] of groups) {
+    if (items.length === 0) {
+      groups.delete(category)
+    }
+  }
+
+  return groups
+}
+
+// =============================================================================
+// Types
+// =============================================================================
 
 // Available page for navigation selection
 interface AvailablePage {
@@ -69,6 +149,8 @@ interface NavigationBuilderProps {
   onChange: (items: NavigationItem[]) => void
   staticPages?: StaticPage[]
   groups?: GroupInfo[]
+  templates?: TemplateInfo[]
+  onCreatePage?: (name: string, template: string) => Promise<StaticPage | null>
   title?: string
   description?: string
   allowSubmenus?: boolean
@@ -85,6 +167,9 @@ interface NavItemEditorProps {
     attributes: DraggableAttributes
     listeners: SyntheticListenerMap | undefined
   }
+  // For inline page creation
+  templates?: TemplateInfo[]
+  onCreatePage?: (name: string, template: string) => Promise<StaticPage | null>
 }
 
 function NavItemEditor({
@@ -95,10 +180,24 @@ function NavItemEditor({
   onAddChild,
   isChild = false,
   dragHandleProps,
+  templates,
+  onCreatePage,
 }: NavItemEditorProps) {
   const { t } = useTranslation(['site', 'common'])
   const [open, setOpen] = useState(false)
   const hasChildren = item.children && item.children.length > 0
+
+  // State for inline page creation
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newPageName, setNewPageName] = useState('')
+  const [newPageTemplate, setNewPageTemplate] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+
+  // Group templates by category for display
+  const groupedTemplates = useMemo(
+    () => groupTemplatesByCategory(templates || []),
+    [templates]
+  )
 
   // Find if current URL matches an available page
   const matchedPage = availablePages.find((p) => p.url === item.url)
@@ -110,6 +209,30 @@ function NavItemEditor({
       url: page.url,
     })
     setOpen(false)
+  }
+
+  const handleCreatePage = async () => {
+    if (!newPageName.trim() || !newPageTemplate || !onCreatePage) return
+
+    setIsCreating(true)
+    try {
+      const createdPage = await onCreatePage(newPageName.trim(), newPageTemplate)
+      if (createdPage) {
+        // Auto-link to the newly created page
+        onUpdate({
+          ...item,
+          text: item.text || createdPage.name,
+          url: `/${createdPage.output_file}`,
+        })
+        // Reset form and close
+        setNewPageName('')
+        setNewPageTemplate('')
+        setShowCreateForm(false)
+        setOpen(false)
+      }
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   return (
@@ -233,6 +356,100 @@ function NavItemEditor({
                   />
                 </div>
               </div>
+
+              {/* Create new page option */}
+              {onCreatePage && groupedTemplates.size > 0 && (
+                <div className="border-t p-2">
+                  {!showCreateForm ? (
+                    <button
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted text-primary"
+                      onClick={() => setShowCreateForm(true)}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span>{t('navigation.createNewPage')}</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-2 px-2">
+                      <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        {t('navigation.createNewPage')}
+                      </p>
+                      <Input
+                        value={newPageName}
+                        onChange={(e) => setNewPageName(e.target.value)}
+                        placeholder={t('navigation.pageName')}
+                        className="h-8 text-sm"
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                      <Select value={newPageTemplate} onValueChange={setNewPageTemplate}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder={t('navigation.selectTemplate')}>
+                            {newPageTemplate && (() => {
+                              const config = TEMPLATE_CONFIG[newPageTemplate]
+                              const Icon = config?.icon || FileText
+                              return (
+                                <span className="flex items-center gap-2">
+                                  <Icon className="h-3 w-3" />
+                                  {newPageTemplate.replace('.html', '')}
+                                </span>
+                              )
+                            })()}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from(groupedTemplates.entries()).map(([category, items]) => (
+                            <SelectGroup key={category}>
+                              <SelectLabel className="text-xs uppercase text-muted-foreground">
+                                {t(`templates.categories.${category}`)}
+                              </SelectLabel>
+                              {items.map((template) => {
+                                const config = TEMPLATE_CONFIG[template.name]
+                                const Icon = config?.icon || FileText
+                                return (
+                                  <SelectItem key={template.name} value={template.name}>
+                                    <span className="flex items-center gap-2">
+                                      <Icon className="h-4 w-4" />
+                                      {template.name.replace('.html', '')}
+                                    </span>
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 h-8"
+                          onClick={handleCreatePage}
+                          disabled={!newPageName.trim() || !newPageTemplate || isCreating}
+                        >
+                          {isCreating ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          ) : (
+                            <Plus className="h-3 w-3 mr-1" />
+                          )}
+                          {t('navigation.createAndLink')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8"
+                          onClick={() => {
+                            setShowCreateForm(false)
+                            setNewPageName('')
+                            setNewPageTemplate('')
+                          }}
+                        >
+                          {t('common:actions.cancel')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </PopoverContent>
         </Popover>
@@ -273,9 +490,11 @@ interface SortableNavItemProps {
   onUpdate: (item: NavigationItem) => void
   onRemove: () => void
   allowSubmenus?: boolean
+  templates?: TemplateInfo[]
+  onCreatePage?: (name: string, template: string) => Promise<StaticPage | null>
 }
 
-function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSubmenus = true }: SortableNavItemProps) {
+function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSubmenus = true, templates, onCreatePage }: SortableNavItemProps) {
   const { t } = useTranslation(['site', 'common'])
   const [isOpen, setIsOpen] = useState(true)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -371,6 +590,8 @@ function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSu
                   onUpdate={(updated) => handleUpdateChild(childIndex, updated)}
                   onRemove={() => handleRemoveChild(childIndex)}
                   isChild
+                  templates={templates}
+                  onCreatePage={onCreatePage}
                 />
               ))}
             </div>
@@ -385,6 +606,8 @@ function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSu
             onRemove={onRemove}
             onAddChild={allowSubmenus ? handleAddChild : undefined}
             dragHandleProps={{ attributes, listeners }}
+            templates={templates}
+            onCreatePage={onCreatePage}
           />
         </div>
       )}
@@ -397,6 +620,8 @@ export function NavigationBuilder({
   onChange,
   staticPages = [],
   groups = [],
+  templates = [],
+  onCreatePage,
   title,
   description,
   allowSubmenus = true,
@@ -422,19 +647,27 @@ export function NavigationBuilder({
       })),
   ]
 
-  // Generate stable IDs for sortable items using WeakMap
-  // This ensures each item object gets a consistent ID
+  // Generate stable IDs for sortable items
+  // We maintain a stable array of IDs that grows with the items array
+  // IDs are only added, never removed (until component unmounts)
   const idCounterRef = useRef(0)
-  const itemIdMapRef = useRef(new WeakMap<NavigationItem, string>())
+  const stableIdsRef = useRef<string[]>([])
 
-  // Get or create stable ID for an item
-  const getId = useCallback((item: NavigationItem): string => {
-    if (!itemIdMapRef.current.has(item)) {
+  // Ensure we have enough stable IDs for all items
+  const itemIds = useMemo(() => {
+    // Grow the ID array if needed (when items are added)
+    while (stableIdsRef.current.length < items.length) {
       idCounterRef.current += 1
-      itemIdMapRef.current.set(item, `nav-${idCounterRef.current}`)
+      stableIdsRef.current.push(`nav-${idCounterRef.current}`)
     }
-    return itemIdMapRef.current.get(item)!
-  }, [])
+    // Return IDs for current items (slice to match current length)
+    return stableIdsRef.current.slice(0, items.length)
+  }, [items.length])
+
+  // Get stable ID for an item by index
+  const getId = (index: number): string => {
+    return itemIds[index]
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -447,11 +680,14 @@ export function NavigationBuilder({
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex((item) => getId(item) === active.id)
-      const newIndex = items.findIndex((item) => getId(item) === over.id)
+      const oldIndex = itemIds.findIndex((id) => id === active.id)
+      const newIndex = itemIds.findIndex((id) => id === over.id)
 
       if (oldIndex !== -1 && newIndex !== -1) {
-        onChange(arrayMove(items, oldIndex, newIndex))
+        // Reorder both items and their IDs to maintain stability
+        const newItems = arrayMove(items, oldIndex, newIndex)
+        stableIdsRef.current = arrayMove(stableIdsRef.current, oldIndex, newIndex)
+        onChange(newItems)
       }
     }
   }
@@ -467,6 +703,8 @@ export function NavigationBuilder({
   }
 
   const handleRemove = (index: number) => {
+    // Remove both the item and its ID to maintain synchronization
+    stableIdsRef.current = stableIdsRef.current.filter((_, i) => i !== index)
     onChange(items.filter((_, i) => i !== index))
   }
 
@@ -513,19 +751,21 @@ export function NavigationBuilder({
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext
-              items={items.map((item) => getId(item))}
+              items={itemIds}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
                 {items.map((item, index) => (
                   <SortableNavItem
-                    key={getId(item)}
-                    id={getId(item)}
+                    key={getId(index)}
+                    id={getId(index)}
                     item={item}
                     availablePages={availablePages}
                     onUpdate={(updated) => handleUpdate(index, updated)}
                     onRemove={() => handleRemove(index)}
                     allowSubmenus={allowSubmenus}
+                    templates={templates}
+                    onCreatePage={onCreatePage}
                   />
                 ))}
               </div>

@@ -200,6 +200,7 @@ class TemplatePreviewRequest(BaseModel):
     context: Dict[str, Any] = {}  # Page-specific context (team, references, etc.)
     site: Optional[Dict[str, Any]] = None  # Site settings override
     navigation: Optional[List[Dict[str, Any]]] = None  # Navigation override
+    footer_navigation: Optional[List[Dict[str, Any]]] = None  # Footer nav override
 
 
 class TemplatePreviewResponse(BaseModel):
@@ -807,6 +808,7 @@ async def preview_template(request: TemplatePreviewRequest):
 
         # Default navigation if not provided
         navigation = request.navigation or []
+        footer_navigation = request.footer_navigation or []
 
         # Prepare the page context
         page_context = dict(request.context)
@@ -866,7 +868,7 @@ async def preview_template(request: TemplatePreviewRequest):
         context = {
             "site": site_config,
             "navigation": navigation,
-            "footer_navigation": [],
+            "footer_navigation": footer_navigation,
             "external_links": [],
             "page": page_context,
             "depth": 0,  # For relative_url filter

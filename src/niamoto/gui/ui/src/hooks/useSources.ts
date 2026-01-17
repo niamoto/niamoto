@@ -45,6 +45,9 @@ export interface ConfiguredSource {
   grouping: string
   relation_plugin: string
   class_object_count?: number
+  is_builtin?: boolean  // True for reference entity sources
+  source_type?: 'csv' | 'reference' | 'occurrences'  // Type of source
+  columns?: string[]  // Available columns for reference sources
 }
 
 export interface SourcesListResponse {

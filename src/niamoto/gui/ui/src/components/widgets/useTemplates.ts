@@ -47,7 +47,7 @@ interface SaveConfigResponse {
 }
 
 interface UseSaveConfigReturn {
-  save: (config: GenerateConfigResponse) => Promise<SaveConfigResponse | null>
+  save: (config: GenerateConfigResponse, mode?: 'merge' | 'replace') => Promise<SaveConfigResponse | null>
   loading: boolean
   error: string | null
 }
@@ -170,13 +170,15 @@ export function useGenerateConfig(): UseGenerateConfigReturn {
 
 /**
  * Save generated config to transform.yml
+ * @param mode - 'merge' to add widgets to existing config, 'replace' to overwrite all widgets
  */
 export function useSaveConfig(): UseSaveConfigReturn {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const save = useCallback(async (
-    config: GenerateConfigResponse
+    config: GenerateConfigResponse,
+    mode: 'merge' | 'replace' = 'replace'
   ): Promise<SaveConfigResponse | null> => {
     setLoading(true)
     setError(null)
@@ -187,7 +189,8 @@ export function useSaveConfig(): UseSaveConfigReturn {
         body: JSON.stringify({
           group_by: config.group_by,
           sources: config.sources,
-          widgets_data: config.widgets_data
+          widgets_data: config.widgets_data,
+          mode: mode
         })
       })
       if (!response.ok) {

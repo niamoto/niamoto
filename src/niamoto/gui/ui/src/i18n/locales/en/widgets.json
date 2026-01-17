@@ -130,7 +130,19 @@
     "retry": "Retry",
     "widgetPreview": "Widget preview",
     "selectToPreview": "Select a widget to see preview",
-    "combinedPreview": "Combined widget preview"
+    "combinedPreview": "Combined widget preview",
+    "loading": "Loading...",
+    "loadError": "Failed to load preview",
+    "selectWidget": "Select a widget",
+    "selectWidgetHint": "Click on a widget to see its preview",
+    "edit": "Edit",
+    "yamlConfig": "YAML Configuration",
+    "show": "Show",
+    "hide": "Hide",
+    "precomputedCsv": "Pre-computed CSV",
+    "configured": "Configured",
+    "transformation": "Transformation",
+    "widget": "Widget"
   },
   "modal": {
     "suggestions": "Suggestions",
@@ -154,7 +166,8 @@
     "stepTransform": "Transformation",
     "stepTransformDesc": "Processing",
     "stepDisplay": "Display",
-    "stepDisplayDesc": "Visualization"
+    "stepDisplayDesc": "Visualization",
+    "filterBySource": "Source"
   },
   "categories": {
     "navigation": "Navigation",

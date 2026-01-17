@@ -35,6 +35,12 @@ const Plugins = lazy(() => import('@/pages/tools/plugins').then(m => ({ default:
 const ApiDocs = lazy(() => import('@/pages/tools/docs/index').then(m => ({ default: m.ApiDocs })))
 const ConfigEditor = lazy(() => import('@/pages/tools/config-editor').then(m => ({ default: m.ConfigEditor })))
 
+// Publish pages
+const PublishOverview = lazy(() => import('@/pages/publish'))
+const PublishBuild = lazy(() => import('@/pages/publish/build'))
+const PublishDeploy = lazy(() => import('@/pages/publish/deploy'))
+const PublishHistory = lazy(() => import('@/pages/publish/history'))
+
 // Labs pages - UX mockups
 const LabsIndex = lazy(() => import('@/pages/labs'))
 const MockupWidgetsHybrid = lazy(() => import('@/pages/labs/mockup-widgets-hybrid'))
@@ -248,6 +254,28 @@ function App() {
             <Route path="tools/config-editor" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
                 <ConfigEditor />
+              </Suspense>
+            } />
+
+            {/* Publish - Build & Deploy */}
+            <Route path="publish" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <PublishOverview />
+              </Suspense>
+            } />
+            <Route path="publish/build" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <PublishBuild />
+              </Suspense>
+            } />
+            <Route path="publish/deploy" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <PublishDeploy />
+              </Suspense>
+            } />
+            <Route path="publish/history" element={
+              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
+                <PublishHistory />
               </Suspense>
             } />
 

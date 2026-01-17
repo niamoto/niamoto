@@ -1,6 +1,15 @@
 {
   "title": "Sources",
   "description": "Configuration des sources de données",
+  "noSources": "Aucune source configurée",
+  "builtin": "Intégré",
+  "referenceData": "Données de référence",
+  "fields": "champs",
+  "availableFields": "Champs disponibles",
+  "delete": "Supprimer",
+  "deleteConfirmTitle": "Supprimer la source ?",
+  "deleteConfirmDescription": "Cette action supprimera la configuration de la source \"{{name}}\". Le fichier CSV ne sera pas supprimé.",
+  "cancel": "Annuler",
   "dialogs": {
     "addPrecomputedSource": "Ajouter une source pré-calculée",
     "importPrecomputedDescription": "Importez un fichier CSV avec vos données pré-calculées.",
@@ -156,7 +165,20 @@
     },
     "outliersDetected": "{{count}} outliers détectés",
     "noOutlier": "Aucun outlier",
-    "valuesOutOfBounds": "Valeurs hors limites selon la méthode {{method}}"
+    "valuesOutOfBounds": "Valeurs hors limites selon la méthode {{method}}",
+    "threshold": "Seuil",
+    "thresholdHints": {
+      "iqr": "1.5× = modéré (standard), 3× = extrême (très peu d'outliers)",
+      "zscore": "2σ = 95% des données, 3σ = 99.7% des données",
+      "percentile": "5% = exclut les 5% extrêmes de chaque côté (10% total)"
+    },
+    "outlierBounds": "Outlier si",
+    "tooLow": "trop bas",
+    "tooHigh": "trop hauts",
+    "distribution": "Distribution",
+    "sqlQuery": "Requête SQL",
+    "exportCsv": "Exporter CSV",
+    "sampleOutliers": "Échantillon d'outliers"
   },
   "layers": {
     "rasterLayer": "Couche Raster",
@@ -175,7 +197,25 @@
     "hide": "Masquer",
     "show": "Afficher",
     "shapesAnalyzed": "{{count}} shapes analysées",
-    "time": "Temps"
+    "time": "Temps",
+    "totalOccurrences": "Total occurrences",
+    "withGeometry": "Avec géométrie",
+    "withoutGeometry": "Sans géométrie",
+    "analysisTime": "Temps d'analyse",
+    "geoColumnDetected": "Colonne géométrie détectée :",
+    "geoColumn": "Colonne géométrie :",
+    "coverageByShapeType": "Couverture par type de shape",
+    "shapes": "shapes",
+    "occurrences": "occurrences",
+    "distributionByShape": "Répartition par shape",
+    "shapesWithoutOccurrences": "{{count}} shapes sans occurrences",
+    "rerunAnalysis": "Relancer l'analyse",
+    "availableShapes": "Shapes disponibles",
+    "shapesAvailableForAnalysis": "Shapes disponibles pour l'analyse",
+    "spatialAnalysis": "Analyse spatiale",
+    "spatialAnalysisDescription": "Lancez une analyse spatiale pour vérifier la couverture des occurrences par les shapes importées (utilise les géométries, peut prendre du temps).",
+    "analysisInProgress": "Analyse en cours...",
+    "runSpatialAnalysis": "Lancer l'analyse spatiale"
   },
   "groups": {
     "title": "Groupes",
