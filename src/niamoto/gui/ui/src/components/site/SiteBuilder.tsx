@@ -26,6 +26,19 @@ import {
   Monitor,
   Plus,
   ExternalLink as ExternalLinkIcon,
+  Home,
+  BookOpen,
+  Users,
+  Mail,
+  Download,
+  List,
+  Newspaper,
+  ScrollText,
+  Link2,
+  MoreHorizontal,
+  Trash2,
+  Copy,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   ResizablePanelGroup,
@@ -50,6 +63,13 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -87,6 +107,43 @@ interface Selection {
 }
 
 type DeviceSize = 'mobile' | 'tablet' | 'desktop'
+
+// =============================================================================
+// TEMPLATE ICONS CONFIGURATION
+// =============================================================================
+
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  'index.html': Home,
+  'page.html': FileText,
+  'article.html': Newspaper,
+  'documentation.html': ScrollText,
+  'team.html': Users,
+  'contact.html': Mail,
+  'resources.html': Download,
+  'bibliography.html': BookOpen,
+  'glossary.html': List,
+}
+
+function getTemplateIcon(template?: string): LucideIcon {
+  return template ? TEMPLATE_ICONS[template] || FileText : FileText
+}
+
+// Check if a page is linked in navigation (recursive for submenus)
+function isPageInNavigation(pageUrl: string, items: NavigationItem[]): 'direct' | 'parent' | null {
+  for (const item of items) {
+    if (item.url === pageUrl) return 'direct'
+    if (item.children && item.children.length > 0) {
+      // Check if this is a parent menu (has children but no direct URL)
+      if (!item.url && item.children.some(child => child.url === pageUrl)) {
+        return 'parent'
+      }
+      // Check children recursively
+      const childResult = isPageInNavigation(pageUrl, item.children)
+      if (childResult) return childResult
+    }
+  }
+  return null
+}
 
 // =============================================================================
 // SITE TREE COMPONENT
@@ -147,21 +204,32 @@ function SiteTree({
                     {t('tree.noPages')}
                   </p>
                 ) : (
-                  pages.map((page, index) => (
-                    <button
-                      key={`${page.name}-${index}`}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                        isSelected('page', page.name)
-                          ? 'bg-primary/10 text-primary'
-                          : 'hover:bg-muted/50'
-                      )}
-                      onClick={() => onSelect({ type: 'page', id: page.name })}
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span className="truncate flex-1 text-left">{page.name}</span>
-                    </button>
-                  ))
+                  pages.map((page, index) => {
+                    const Icon = getTemplateIcon(page.template)
+                    const pageUrl = `/${page.output_file}`
+                    const inMainNav = isPageInNavigation(pageUrl, navigation)
+                    const inFooterNav = isPageInNavigation(pageUrl, footerNavigation)
+                    const isLinked = inMainNav || inFooterNav
+
+                    return (
+                      <button
+                        key={`${page.name}-${index}`}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                          isSelected('page', page.name)
+                            ? 'bg-primary/10 text-primary'
+                            : 'hover:bg-muted/50'
+                        )}
+                        onClick={() => onSelect({ type: 'page', id: page.name })}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate flex-1 text-left">{page.name}</span>
+                        {isLinked && (
+                          <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+                    )
+                  })
                 )}
                 <Button
                   variant="ghost"
@@ -323,19 +391,35 @@ function SiteTree({
 interface PagesOverviewProps {
   staticPages: StaticPage[]
   groups: GroupInfo[]
+  navigation: NavigationItem[]
+  footerNavigation: NavigationItem[]
   onSelectPage: (pageName: string) => void
   onSelectGroup: (groupName: string) => void
   onAddPage: () => void
+  onDeletePage: (pageName: string) => void
+  onDuplicatePage: (page: StaticPage) => void
+  onAddToNavigation: (page: StaticPage) => void
 }
 
 function PagesOverview({
   staticPages,
   groups,
+  navigation,
+  footerNavigation,
   onSelectPage,
   onSelectGroup,
   onAddPage,
+  onDeletePage,
+  onDuplicatePage,
+  onAddToNavigation,
 }: PagesOverviewProps) {
   const { t } = useTranslation(['site', 'common'])
+
+  // Helper to get template name without extension
+  const getTemplateName = (template?: string) => {
+    if (!template) return null
+    return template.replace('.html', '')
+  }
   return (
     <ScrollArea className="h-full">
       <div className="p-6 space-y-6">
@@ -380,39 +464,94 @@ function PagesOverview({
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {staticPages.map((page, index) => {
                 const hasContent = page.context?.content_markdown || page.context?.content_source
+                const Icon = getTemplateIcon(page.template)
+                const pageUrl = `/${page.output_file}`
+                const inMainNav = isPageInNavigation(pageUrl, navigation)
+                const inFooterNav = isPageInNavigation(pageUrl, footerNavigation)
+                const isLinked = inMainNav || inFooterNav
+                const templateName = getTemplateName(page.template)
+
                 return (
                   <Card
                     key={`${page.name}-${index}`}
-                    className="cursor-pointer hover:border-primary/50 transition-colors"
+                    className="group cursor-pointer hover:border-primary/50 transition-colors"
                     onClick={() => onSelectPage(page.name)}
                   >
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        {page.name}
-                      </CardTitle>
-                      <CardDescription className="text-xs font-mono">
-                        {page.output_file}
+                      <div className="flex items-start justify-between">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{page.name}</span>
+                        </CardTitle>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={() => onSelectPage(page.name)}>
+                              <FileText className="h-4 w-4 mr-2" />
+                              {t('pages.edit')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onDuplicatePage(page)}>
+                              <Copy className="h-4 w-4 mr-2" />
+                              {t('common:actions.duplicate')}
+                            </DropdownMenuItem>
+                            {!isLinked && (
+                              <DropdownMenuItem onClick={() => onAddToNavigation(page)}>
+                                <Link2 className="h-4 w-4 mr-2" />
+                                {t('navigation.addToMenu')}
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => onDeletePage(page.name)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t('common:actions.delete')}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <CardDescription className="text-xs font-mono flex items-center gap-2">
+                        <span className="truncate">{page.output_file}</span>
+                        {isLinked && (
+                          <span className="flex items-center gap-0.5 text-primary shrink-0" title={inMainNav ? t('navigation.inMainMenu') : t('navigation.inFooterMenu')}>
+                            <Link2 className="h-3 w-3" />
+                          </span>
+                        )}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          {hasContent ? (
-                            <>
-                              <div className="h-2 w-2 rounded-full bg-green-500" />
-                              <span className="text-xs text-muted-foreground">{t('pages.contentMd')}</span>
-                            </>
-                          ) : (
-                            <>
-                              <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
-                              <span className="text-xs text-muted-foreground">{t('pages.empty')}</span>
-                            </>
-                          )}
+                        <div className="flex items-center gap-2">
+                          {/* Content status */}
+                          <div className="flex items-center gap-1.5">
+                            {hasContent ? (
+                              <>
+                                <div className="h-2 w-2 rounded-full bg-green-500" />
+                                <span className="text-xs text-muted-foreground">{t('pages.contentMd')}</span>
+                              </>
+                            ) : (
+                              <>
+                                <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                                <span className="text-xs text-muted-foreground">{t('pages.empty')}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs">
-                          {t('pages.edit')}
-                        </Button>
+                        {/* Template badge */}
+                        {templateName && (
+                          <Badge variant="outline" className="text-[10px] h-5 font-normal">
+                            {templateName}
+                          </Badge>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -513,6 +652,7 @@ interface SitePreviewProps {
   page: StaticPage | null
   site: SiteSettings
   navigation: NavigationItem[]
+  footerNavigation: NavigationItem[]
   device: DeviceSize
   onDeviceChange: (device: DeviceSize) => void
   // For markdown content loaded from file
@@ -521,7 +661,7 @@ interface SitePreviewProps {
   onLinkClick?: (href: string) => void
 }
 
-function SitePreview({ page, site, navigation, device, onDeviceChange, fileContent, onLinkClick }: SitePreviewProps) {
+function SitePreview({ page, site, navigation, footerNavigation, device, onDeviceChange, fileContent, onLinkClick }: SitePreviewProps) {
   const { t } = useTranslation(['site', 'common'])
   const previewMutation = useTemplatePreview()
   const [html, setHtml] = useState('')
@@ -600,6 +740,11 @@ function SitePreview({ page, site, navigation, device, onDeviceChange, fileConte
           url: n.url,
           children: n.children,
         })),
+        footer_navigation: footerNavigation.map(n => ({
+          text: n.text,
+          url: n.url,
+          children: n.children,
+        })),
       }, {
         onSuccess: (data) => setHtml(data.html),
         onError: (error) => {
@@ -609,7 +754,7 @@ function SitePreview({ page, site, navigation, device, onDeviceChange, fileConte
     } else {
       setHtml('')
     }
-  }, [page, site, navigation, fileContent])
+  }, [page, site, navigation, footerNavigation, fileContent])
 
   const currentDimensions = deviceDimensions[device]
 
@@ -697,6 +842,7 @@ interface GroupIndexPreviewPanelProps {
   device: DeviceSize
   onDeviceChange: (device: DeviceSize) => void
   groupName: string
+  onLinkClick?: (href: string) => void
 }
 
 function GroupIndexPreviewPanel({
@@ -705,10 +851,22 @@ function GroupIndexPreviewPanel({
   device,
   onDeviceChange,
   groupName,
+  onLinkClick,
 }: GroupIndexPreviewPanelProps) {
   const { t } = useTranslation(['site', 'common'])
   const containerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
+
+  // Listen for messages from iframe (link clicks)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'preview-link-click' && event.data?.href) {
+        onLinkClick?.(event.data.href)
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [onLinkClick])
 
   // Device dimensions
   const deviceDimensions = {
@@ -995,6 +1153,33 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     })
   }
 
+  // Create page from navigation builder (inline creation)
+  const handleCreatePageFromNavigation = async (pageName: string, templateName: string): Promise<StaticPage | null> => {
+    // Ensure unique page name
+    const existingNames = new Set(editedPages.map((p) => p.name))
+    let finalName = pageName
+    let counter = 1
+    while (existingNames.has(finalName)) {
+      finalName = `${pageName}-${counter}`
+      counter++
+    }
+
+    const newPage: StaticPage = {
+      ...DEFAULT_STATIC_PAGE,
+      name: finalName,
+      output_file: `${finalName}.html`,
+      template: templateName,
+    }
+
+    setEditedPages((pages) => [...pages, newPage])
+
+    toast.success(t('pages.pageCreated'), {
+      description: t('pages.pageCreatedDesc', { name: finalName }),
+    })
+
+    return newPage
+  }
+
   // Update page (handles name changes)
   const handleUpdatePage = (updatedPage: StaticPage) => {
     const oldName = selection?.id
@@ -1020,6 +1205,40 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     setSelection(null)
     toast.success(t('pages.pageDeleted'), {
       description: t('pages.pageDeletedDesc'),
+    })
+  }
+
+  // Duplicate a page
+  const handleDuplicatePage = (page: StaticPage) => {
+    const existingNames = new Set(editedPages.map((p) => p.name))
+    let newName = `${page.name}-copy`
+    let counter = 1
+    while (existingNames.has(newName)) {
+      newName = `${page.name}-copy-${counter}`
+      counter++
+    }
+
+    const newPage: StaticPage = {
+      ...page,
+      name: newName,
+      output_file: `${newName}.html`,
+    }
+
+    setEditedPages((pages) => [...pages, newPage])
+    setSelection({ type: 'page', id: newName })
+    toast.success(t('pages.pageDuplicated'), {
+      description: t('pages.pageDuplicatedDesc', { name: newName }),
+    })
+  }
+
+  // Add page to main navigation
+  const handleAddPageToNavigation = (page: StaticPage) => {
+    setEditedNavigation((nav) => [
+      ...nav,
+      { text: page.name, url: `/${page.output_file}` },
+    ])
+    toast.success(t('navigation.linkAdded'), {
+      description: t('navigation.linkAddedDesc'),
     })
   }
 
@@ -1076,9 +1295,14 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         <PagesOverview
           staticPages={editedPages}
           groups={groups}
+          navigation={editedNavigation}
+          footerNavigation={editedFooterNavigation}
           onSelectPage={(name) => setSelection({ type: 'page', id: name })}
           onSelectGroup={(name) => setSelection({ type: 'group', id: name })}
           onAddPage={handleAddPage}
+          onDeletePage={handleDeletePage}
+          onDuplicatePage={handleDuplicatePage}
+          onAddToNavigation={handleAddPageToNavigation}
         />
       )
     }
@@ -1111,6 +1335,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                 onChange={setEditedNavigation}
                 staticPages={editedPages}
                 groups={groups}
+                templates={templatesData?.templates ?? []}
+                onCreatePage={handleCreatePageFromNavigation}
                 title={t('builder.mainMenu')}
                 description={t('navigation.mainDescription')}
                 allowSubmenus={true}
@@ -1128,6 +1354,8 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                 onChange={setEditedFooterNavigation}
                 staticPages={editedPages}
                 groups={groups}
+                templates={templatesData?.templates ?? []}
+                onCreatePage={handleCreatePageFromNavigation}
                 title={t('builder.footerMenu')}
                 description={t('navigation.footerDescription')}
                 allowSubmenus={false}
@@ -1153,6 +1381,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
             onChange={handleUpdatePage}
             onDelete={() => handleDeletePage(page.name)}
             onBack={() => setSelection(null)}
+            navigation={editedNavigation}
+            footerNavigation={editedFooterNavigation}
+            onUpdateNavigation={setEditedNavigation}
+            onUpdateFooterNavigation={setEditedFooterNavigation}
           />
         )
 
@@ -1187,6 +1419,54 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       default:
         return null
     }
+  }
+
+  // Shared handler for link clicks in preview iframes
+  const handlePreviewLinkClick = (href: string) => {
+    const normalizedHref = href.replace(/^\//, '')
+    const filename = normalizedHref.split('/').pop() || href
+
+    // 1. Check if it's a group index page FIRST (e.g., "taxons/index.html")
+    // This must be checked before static pages to avoid "index.html" matching root index
+    const groupByIndex = groups.find(g => {
+      const indexPattern = g.index_output_pattern || `${g.name}/index.html`
+      return normalizedHref === indexPattern
+    })
+    if (groupByIndex) {
+      setSelection({ type: 'group', id: groupByIndex.name })
+      toast.info(t('common:messages.navigatingTo', { name: `${groupByIndex.name}/` }))
+      return
+    }
+
+    // 2. Check if it's a group detail page (e.g., "taxons/123.html")
+    const groupByPath = groups.find(g => {
+      // Check if href starts with group name folder
+      return normalizedHref.startsWith(`${g.name}/`) && normalizedHref !== `${g.name}/index.html`
+    })
+    if (groupByPath) {
+      // Navigate to the group view - detail pages can't be previewed individually
+      setSelection({ type: 'group', id: groupByPath.name })
+      toast.info(t('preview.groupDetailPage', { group: groupByPath.name }), {
+        description: t('preview.groupDetailPageDesc'),
+      })
+      return
+    }
+
+    // 3. Try to find in static pages (after group checks to avoid false matches)
+    // Prioritize exact path match over filename-only match
+    const targetPage = editedPages.find(p =>
+      p.output_file === normalizedHref ||
+      p.output_file === href
+    ) || editedPages.find(p =>
+      p.output_file === filename
+    )
+    if (targetPage) {
+      setSelection({ type: 'page', id: targetPage.name })
+      toast.info(t('common:messages.navigatingTo', { name: targetPage.name }))
+      return
+    }
+
+    toast.warning(t('common:messages.pageNotFound', { href }))
   }
 
   return (
@@ -1267,31 +1547,18 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                   device={previewDevice}
                   onDeviceChange={setPreviewDevice}
                   groupName={selection.id ?? ''}
+                  onLinkClick={handlePreviewLinkClick}
                 />
               ) : (
                 <SitePreview
                   page={currentPage ?? null}
                   site={editedSite}
                   navigation={editedNavigation}
+                  footerNavigation={editedFooterNavigation}
                   device={previewDevice}
                   onDeviceChange={setPreviewDevice}
                   fileContent={previewFileContent}
-                  onLinkClick={(href) => {
-                    // Extract filename from href (e.g., "index.html", "/page.html", "taxons/123.html")
-                    const filename = href.replace(/^\//, '').split('/').pop() || href
-                    // Find page by output_file
-                    const targetPage = editedPages.find(p =>
-                      p.output_file === filename ||
-                      p.output_file === href ||
-                      p.output_file === href.replace(/^\//, '')
-                    )
-                    if (targetPage) {
-                      setSelection({ type: 'page', id: targetPage.name })
-                      toast.info(t('common:messages.navigatingTo', { name: targetPage.name }))
-                    } else {
-                      toast.warning(t('common:messages.pageNotFound', { href }))
-                    }
-                  }}
+                  onLinkClick={handlePreviewLinkClick}
                 />
               )}
             </ResizablePanel>

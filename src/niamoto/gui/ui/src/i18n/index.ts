@@ -23,6 +23,8 @@ import frIndexConfig from './locales/fr/indexConfig.json';
 import enIndexConfig from './locales/en/indexConfig.json';
 import frTools from './locales/fr/tools.json';
 import enTools from './locales/en/tools.json';
+import frPublish from './locales/fr/publish.json';
+import enPublish from './locales/en/publish.json';
 
 const resources = {
   fr: {
@@ -36,6 +38,7 @@ const resources = {
     sources: frSources,
     indexConfig: frIndexConfig,
     tools: frTools,
+    publish: frPublish,
   },
   en: {
     common: enCommon,
@@ -48,6 +51,7 @@ const resources = {
     sources: enSources,
     indexConfig: enIndexConfig,
     tools: enTools,
+    publish: enPublish,
   },
 };
 
@@ -57,7 +61,7 @@ i18n
   .init({
     resources,
     defaultNS: 'common',
-    ns: ['common', 'import', 'transform', 'export', 'visualize', 'site', 'widgets', 'sources', 'indexConfig', 'tools'],
+    ns: ['common', 'import', 'transform', 'export', 'visualize', 'site', 'widgets', 'sources', 'indexConfig', 'tools', 'publish'],
     fallbackLng: 'fr',
     debug: false,
 

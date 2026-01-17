@@ -82,6 +82,7 @@ from niamoto.gui.api.services.templates.suggestion_service import (  # noqa: E40
     generate_general_info_suggestion,
     get_entity_map_suggestions,
     get_class_object_suggestions,
+    get_reference_field_suggestions,
 )
 
 # Backward compatibility aliases for suggestion functions
@@ -89,6 +90,7 @@ _generate_navigation_suggestion = generate_navigation_suggestion
 _generate_general_info_suggestion = generate_general_info_suggestion
 _get_entity_map_suggestions = get_entity_map_suggestions
 _get_class_object_suggestions = get_class_object_suggestions
+_get_reference_field_suggestions = get_reference_field_suggestions
 
 from niamoto.core.imports.template_suggester import (  # noqa: E402
     TemplateSuggester,
@@ -302,6 +304,9 @@ async def get_reference_suggestions(
     # Generate general_info suggestion (field_aggregator for metadata)
     general_info_suggestion = _generate_general_info_suggestion(reference_name)
 
+    # Get suggestions based on reference entity table columns (e.g., plots.holdridge, plots.rainfall)
+    reference_field_suggestions = _get_reference_field_suggestions(reference_name)
+
     # Combine all types of suggestions
     # Navigation suggestion is always first (highest priority)
     # Class_object suggestions are always included (pre-calculated CSV data)
@@ -318,18 +323,22 @@ async def get_reference_suggestions(
     # Sort column suggestions by confidence
     column_suggestion_dicts.sort(key=lambda s: -s.get("confidence", 0))
 
-    # Calculate how many column suggestions we can include (reserve slots for navigation + general_info + entity maps + class_objects)
+    # Calculate how many column suggestions we can include (reserve slots for navigation + general_info + entity maps + class_objects + reference_fields)
     reserved_slots = (
-        2 + len(class_object_suggestions) + len(entity_map_suggestions)
+        2
+        + len(class_object_suggestions)
+        + len(entity_map_suggestions)
+        + len(reference_field_suggestions)
     )  # 2 = navigation + general_info
     remaining_slots = max(0, max_suggestions - reserved_slots)
     limited_column_suggestions = column_suggestion_dicts[:remaining_slots]
 
-    # Combine: navigation first, then general_info, then entity maps, then class_object, then column suggestions
+    # Combine: navigation first, then general_info, then entity maps, then reference fields, then class_object, then column suggestions
     all_suggestions = (
         ([navigation_suggestion] if navigation_suggestion else [])
         + ([general_info_suggestion] if general_info_suggestion else [])
         + entity_map_suggestions
+        + reference_field_suggestions
         + class_object_suggestions
         + limited_column_suggestions
     )
@@ -451,11 +460,15 @@ def _generate_export_config(
     group_name: str,
     widgets_data: Dict[str, Any],
     sources: List[Dict[str, Any]],
+    mode: str = "replace",
 ) -> None:
     """
     Generate export.yml configuration for widgets.
 
-    Creates or updates the export.yml file with widget configurations
+    Creates or updates the export.yml file with widget configurations.
+
+    Args:
+        mode: 'merge' adds new widgets to existing, 'replace' overwrites all widgets
     that correspond to the transform.yml widgets_data.
     """
     export_path = work_dir / "config" / "export.yml"
@@ -558,8 +571,28 @@ def _generate_export_config(
 
         export_widgets.append(export_widget)
 
-    # Update group widgets
-    group_config["widgets"] = export_widgets
+    # Update group widgets based on mode
+    if mode == "merge":
+        # Merge: add new widgets to existing ones
+        existing_widgets = group_config.get("widgets", [])
+        existing_data_sources = {w.get("data_source") for w in existing_widgets}
+
+        # Find the max order from existing widgets
+        max_order = max(
+            (w.get("layout", {}).get("order", 0) for w in existing_widgets), default=-1
+        )
+
+        # Add only new widgets (not already in config)
+        for widget in export_widgets:
+            if widget.get("data_source") not in existing_data_sources:
+                max_order += 1
+                widget["layout"]["order"] = max_order
+                existing_widgets.append(widget)
+
+        group_config["widgets"] = existing_widgets
+    else:
+        # Replace: overwrite all widgets
+        group_config["widgets"] = export_widgets
 
     # Update the config structure
     html_exporter["groups"][group_idx] = group_config
@@ -640,8 +673,18 @@ async def save_transform_config(request: SaveConfigRequest):
             existing_groups.append(group_config)
             group_index = len(existing_groups) - 1
 
-        # Update sources (replace entirely)
-        group_config["sources"] = request.sources
+        # Update sources based on mode
+        if request.mode == "merge":
+            # Merge mode: preserve existing sources, only add new ones
+            existing_sources = group_config.get("sources", [])
+            existing_source_names = {s.get("name") for s in existing_sources}
+            for new_source in request.sources:
+                if new_source.get("name") not in existing_source_names:
+                    existing_sources.append(new_source)
+            group_config["sources"] = existing_sources
+        else:
+            # Replace mode: replace sources entirely
+            group_config["sources"] = request.sources
 
         # Track changes
         existing_widgets = group_config.get("widgets_data", {})
@@ -649,20 +692,30 @@ async def save_transform_config(request: SaveConfigRequest):
         widgets_updated = 0
         widgets_removed = 0
 
-        # Count additions and updates
-        for widget_id in request.widgets_data:
-            if widget_id in existing_widgets:
-                widgets_updated += 1
-            else:
-                widgets_added += 1
+        if request.mode == "merge":
+            # Merge mode: add new widgets to existing ones, update if exists
+            merged_widgets = dict(existing_widgets)
+            for widget_id, widget_config in request.widgets_data.items():
+                if widget_id in merged_widgets:
+                    widgets_updated += 1
+                else:
+                    widgets_added += 1
+                merged_widgets[widget_id] = widget_config
+            group_config["widgets_data"] = merged_widgets
+        else:
+            # Replace mode: count changes and replace entirely
+            for widget_id in request.widgets_data:
+                if widget_id in existing_widgets:
+                    widgets_updated += 1
+                else:
+                    widgets_added += 1
 
-        # Count removals
-        for widget_id in existing_widgets:
-            if widget_id not in request.widgets_data:
-                widgets_removed += 1
+            for widget_id in existing_widgets:
+                if widget_id not in request.widgets_data:
+                    widgets_removed += 1
 
-        # Replace widgets_data entirely (not merge) to handle deletions
-        group_config["widgets_data"] = dict(request.widgets_data)
+            # Replace widgets_data entirely (not merge) to handle deletions
+            group_config["widgets_data"] = dict(request.widgets_data)
 
         # Update the group in the list
         existing_groups[group_index] = group_config
@@ -684,7 +737,11 @@ async def save_transform_config(request: SaveConfigRequest):
 
         # Also generate export.yml configuration
         _generate_export_config(
-            work_dir, group_name, request.widgets_data, group_config.get("sources", [])
+            work_dir,
+            group_name,
+            request.widgets_data,
+            group_config.get("sources", []),
+            mode=request.mode,
         )
 
         return SaveConfigResponse(
@@ -1738,8 +1795,19 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
             has_level = "level" in columns
             is_hierarchical = has_nested_set or (has_parent and has_level)
 
-            # Detect ID field
-            id_candidates = [f"id_{reference_name}", f"{reference_name}_id", "id"]
+            # Detect ID field - handle both plural (plots) and singular (plot) forms
+            singular = (
+                reference_name.rstrip("s")
+                if reference_name.endswith("s")
+                else reference_name
+            )
+            id_candidates = [
+                f"id_{singular}",  # id_plot (for plots)
+                f"{singular}_id",  # plot_id
+                f"id_{reference_name}",  # id_plots
+                f"{reference_name}_id",  # plots_id
+                "id",
+            ]
             id_field = next((c for c in id_candidates if c in columns), None)
             if not id_field:
                 id_field = next((c for c in columns if "id" in c.lower()), "id")
@@ -1938,16 +2006,23 @@ async def _preview_general_info_widget(
             field_configs = suggestion["config"]["fields"]
 
             # Find the reference table
+            # When entity_id is provided, prefer entity_ table (where the ID comes from)
             ref_table = f"reference_{reference_name}"
             if not db.has_table(ref_table):
-                for alt_name in [reference_name, f"entity_{reference_name}"]:
+                # Prioritize entity_ table when entity_id is provided
+                fallback_tables = (
+                    [f"entity_{reference_name}", reference_name]
+                    if entity_id
+                    else [reference_name, f"entity_{reference_name}"]
+                )
+                for alt_name in fallback_tables:
                     if db.has_table(alt_name):
                         ref_table = alt_name
                         break
                 else:
                     return HTMLResponse(
                         content=PreviewService.wrap_html_response(
-                            f"<p class='info'>Table '{reference_name}' non trouvée</p>"
+                            f"<p class='info'>Table '{reference_name}' not found</p>"
                         )
                     )
 
@@ -1961,11 +2036,25 @@ async def _preview_general_info_widget(
             ]
 
             # Detect ID column with common patterns
-            id_candidates = [f"id_{reference_name}", f"{reference_name}_id", "id"]
+            # Handle both plural (plots) and singular (plot) forms
+            singular = (
+                reference_name.rstrip("s")
+                if reference_name.endswith("s")
+                else reference_name
+            )
+            id_candidates = [
+                "id",
+                f"id_{singular}",  # id_plot (for plots)
+                f"{singular}_id",  # plot_id
+                f"id_{reference_name}",  # id_plots
+                f"{reference_name}_id",  # plots_id
+            ]
             id_field = next((c for c in id_candidates if c in columns), None)
             if not id_field:
-                # Fallback: any column containing 'id'
-                id_field = next((c for c in columns if "id" in c), "id")
+                # Fallback: any column containing 'id' (but not just containing 'id' in middle)
+                id_field = next(
+                    (c for c in columns if c == "id" or c.endswith("_id")), "id"
+                )
 
             if entity_id:
                 # Properly quote entity_id to prevent SQL injection
@@ -1983,7 +2072,7 @@ async def _preview_general_info_widget(
             if sample_df.empty:
                 return HTMLResponse(
                     content=PreviewService.wrap_html_response(
-                        f"<p class='info'>Aucune donnée dans '{reference_name}'</p>"
+                        f"<p class='info'>No data in '{reference_name}'</p>"
                     )
                 )
 
@@ -2001,7 +2090,7 @@ async def _preview_general_info_widget(
 
                 if transformation == "count":
                     # For count, show a placeholder
-                    value = "(comptage)"
+                    value = "(count)"
                 elif "." in field:
                     # JSON field access
                     json_field, json_key = field.split(".", 1)
@@ -2323,8 +2412,15 @@ async def _preview_entity_map(
         if not name_field:
             name_field = next((c for c in columns if "name" in c.lower()), "id")
 
-        # Detect ID field
-        id_candidates = [f"id_{reference}", f"{reference}_id", "id", "id_plot"]
+        # Detect ID field - handle both plural (plots) and singular (plot) forms
+        singular = reference.rstrip("s") if reference.endswith("s") else reference
+        id_candidates = [
+            f"id_{singular}",  # id_plot (for plots)
+            f"{singular}_id",  # plot_id
+            f"id_{reference}",  # id_plots
+            f"{reference}_id",  # plots_id
+            "id",
+        ]
         id_field = next((c for c in id_candidates if c in columns), None)
         if not id_field:
             id_field = next(
@@ -2484,7 +2580,7 @@ async def _preview_entity_map(
         if result.empty:
             return HTMLResponse(
                 content=PreviewService.wrap_html_response(
-                    "<p class='info'>Aucune donnée géographique disponible</p>"
+                    "<p class='info'>No geographic data available</p>"
                 )
             )
 
@@ -2520,7 +2616,7 @@ async def _preview_entity_map(
         if not features:
             return HTMLResponse(
                 content=PreviewService.wrap_html_response(
-                    "<p class='info'>Aucune géométrie valide trouvée</p>"
+                    "<p class='info'>No valid geometry found</p>"
                 )
             )
 
@@ -2640,6 +2736,10 @@ async def preview_template(
     entity_id: str = Query(
         default=None, description="Specific entity ID to use for preview"
     ),
+    source: str = Query(
+        default=None,
+        description="Data source (entity name like 'plots' for entity data)",
+    ),
 ):
     """
     Generate a live preview of a template widget on sample data.
@@ -2706,7 +2806,7 @@ async def preview_template(
             status_code=400,
         )
 
-    template_info = _build_dynamic_template_info(parsed, template_id)
+    template_info = _build_dynamic_template_info(parsed, template_id, source=source)
     transformer_plugin = template_info["plugin"]
     widget_plugin = template_info["widget"]  # Widget is now part of the template ID
     config = template_info["config"]
@@ -2777,6 +2877,94 @@ async def preview_template(
             finally:
                 if db:
                     db.close_db_session()
+
+        # Check if source is an entity table (not occurrences)
+        data_source = config.get("source", "occurrences")
+        if data_source and data_source != "occurrences":
+            # Try to load from entity table directly
+            db_path = get_database_path()
+            if not db_path:
+                return HTMLResponse(
+                    content=PreviewService.wrap_html_response(
+                        "<p class='error'>Database not found</p>"
+                    ),
+                    status_code=404,
+                )
+
+            db = Database(str(db_path), read_only=True)
+            try:
+                # Check for entity table
+                entity_table = f"entity_{data_source}"
+                if not db.has_table(entity_table):
+                    # Try reference table
+                    entity_table = f"reference_{data_source}"
+                    if not db.has_table(entity_table):
+                        entity_table = data_source
+
+                if db.has_table(entity_table):
+                    # Load data from entity table
+                    field = config.get("field", column)
+                    try:
+                        sample_data = pd.read_sql(
+                            f'SELECT "{field}" FROM {entity_table} WHERE "{field}" IS NOT NULL',
+                            db.engine,
+                        )
+
+                        if sample_data.empty:
+                            return HTMLResponse(
+                                content=PreviewService.wrap_html_response(
+                                    f"<p class='info'>No data for field '{field}' in {entity_table}</p>"
+                                )
+                            )
+
+                        # Adjust config based on actual data
+                        config = _adjust_config_for_data(
+                            config, transformer_plugin, sample_data
+                        )
+
+                        # Check for identical values
+                        identical_value = _check_identical_values(
+                            sample_data, config, transformer_plugin
+                        )
+                        if identical_value is not None:
+                            unit = config.get("units", "")
+                            value_display = (
+                                f"{identical_value} {unit}"
+                                if unit
+                                else str(identical_value)
+                            )
+                            return HTMLResponse(
+                                content=PreviewService.wrap_html_response(
+                                    f"<p class='info'>Toutes les valeurs sont identiques ({value_display})</p>",
+                                    title=template_name,
+                                )
+                            )
+
+                        # Execute transformer
+                        transformed_data = PreviewService.execute_transformer(
+                            db, transformer_plugin, config, sample_data
+                        )
+
+                        # Render widget
+                        widget_html = _render_widget_dynamic(
+                            db,
+                            widget_plugin,
+                            transformed_data,
+                            transformer_plugin,
+                            config,
+                            template_name,
+                        )
+
+                        return HTMLResponse(
+                            content=PreviewService.wrap_html_response(
+                                widget_html, title=template_name
+                            )
+                        )
+                    except Exception as e:
+                        logger.warning(f"Error loading entity data: {e}")
+                        # Fall through to standard flow
+            finally:
+                db.close_db_session()
 
         # Standard flow for occurrence-based templates
         # Load import.yml
@@ -3003,13 +3191,14 @@ def _adjust_config_for_data(
 
 
 def _build_dynamic_template_info(
-    parsed: Dict[str, Any], template_id: str
+    parsed: Dict[str, Any], template_id: str, source: Optional[str] = None
 ) -> Dict[str, Any]:
     """Build template info for dynamic templates based on parsed ID.
 
     Args:
         parsed: Dict with 'column', 'transformer', 'widget' keys
         template_id: Original template ID string
+        source: Optional data source (entity name). Defaults to "occurrences".
 
     Returns:
         Dict with 'name', 'plugin' (transformer), 'widget', 'config'
@@ -3017,6 +3206,9 @@ def _build_dynamic_template_info(
     column = parsed["column"]
     transformer = parsed["transformer"]
     widget = parsed["widget"]
+
+    # Use provided source or default to "occurrences"
+    data_source = source or "occurrences"
 
     # Build config based on transformer type
     col_name = column.replace("_", " ").title()
@@ -3037,7 +3229,7 @@ def _build_dynamic_template_info(
             x_label = f"{x_label} ({unit})"
 
         config = {
-            "source": "occurrences",
+            "source": data_source,
             "field": column,
             "bins": [0, 10, 20, 30, 40, 50, 100, 200, 500],  # Default bins
             "include_percentages": True,
@@ -3062,7 +3254,7 @@ def _build_dynamic_template_info(
             unit = "m"
 
         config = {
-            "source": "occurrences",
+            "source": data_source,
             "field": column,
             "stats": ["mean", "min", "max"],
             "units": unit,
@@ -3072,7 +3264,7 @@ def _build_dynamic_template_info(
 
     elif transformer == "categorical_distribution":
         config = {
-            "source": "occurrences",
+            "source": data_source,
             "field": column,
             "include_percentages": True,
         }
@@ -3080,7 +3272,7 @@ def _build_dynamic_template_info(
 
     elif transformer == "top_ranking":
         config = {
-            "source": "occurrences",
+            "source": data_source,
             "field": column,
             "mode": "direct",
             "count": 10,
@@ -3089,7 +3281,7 @@ def _build_dynamic_template_info(
 
     elif transformer == "binary_counter":
         config = {
-            "source": "occurrences",
+            "source": data_source,
             "field": column,
             "true_label": "Oui",
             "false_label": "Non",

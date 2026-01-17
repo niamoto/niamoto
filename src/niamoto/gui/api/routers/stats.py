@@ -1,7 +1,10 @@
 """Import statistics API endpoints for post-import dashboard."""
 
+import csv
+import io
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import inspect, text
 
@@ -87,6 +90,15 @@ class TaxonomyConsistency(BaseModel):
     hierarchy_depth: int
 
 
+class HistogramBin(BaseModel):
+    """A bin in a histogram."""
+
+    bin_start: float
+    bin_end: float
+    count: int
+    is_outlier_zone: bool = False
+
+
 class ColumnValidation(BaseModel):
     """Validation statistics for a numeric column."""
 
@@ -98,6 +110,12 @@ class ColumnValidation(BaseModel):
     std_dev: Optional[float]
     outlier_count: int
     outliers: List[Dict[str, Any]]  # Sample of outlier records
+    # New fields for enhanced outlier analysis
+    lower_bound: Optional[float] = None  # Threshold below which values are outliers
+    upper_bound: Optional[float] = None  # Threshold above which values are outliers
+    outliers_low_count: int = 0  # Count of outliers below lower_bound
+    outliers_high_count: int = 0  # Count of outliers above upper_bound
+    histogram: Optional[List[HistogramBin]] = None  # Distribution histogram
 
 
 class EntityValidation(BaseModel):
@@ -907,9 +925,21 @@ async def get_value_validation(
                         except Exception:
                             median_val = None
 
-                        # IQR-based outlier detection
+                        # Outlier detection - initialize variables
                         outliers = []
                         outlier_count = 0
+                        lower_bound = None
+                        upper_bound = None
+                        outliers_low_count = 0
+                        outliers_high_count = 0
+                        histogram_bins: List[HistogramBin] = []
+
+                        # Prepare safe columns list (exclude BYTEA for JSON serialization)
+                        safe_columns = [
+                            c["name"]
+                            for c in columns_info
+                            if "BYTEA" not in str(c.get("type", "")).upper()
+                        ]
 
                         if method == "iqr":
                             try:
@@ -928,34 +958,308 @@ async def get_value_validation(
                                 if q_row and q_row[0] is not None:
                                     q1, q3 = float(q_row[0]), float(q_row[1])
                                     iqr = q3 - q1
-                                    lower = q1 - threshold * iqr
-                                    upper = q3 + threshold * iqr
+                                    lower_bound = q1 - threshold * iqr
+                                    upper_bound = q3 + threshold * iqr
 
-                                    # Count outliers
+                                    # Count outliers (total, low, high)
                                     result = conn.execute(
                                         text(
                                             f"""
-                                        SELECT COUNT(*) FROM {quoted_table}
+                                        SELECT
+                                            COUNT(*) FILTER (WHERE {quoted_col} < {lower_bound}),
+                                            COUNT(*) FILTER (WHERE {quoted_col} > {upper_bound})
+                                        FROM {quoted_table}
                                         WHERE {quoted_col} IS NOT NULL
-                                        AND ({quoted_col} < {lower} OR {quoted_col} > {upper})
                                     """
                                         )
                                     )
-                                    outlier_count = result.scalar() or 0
+                                    count_row = result.fetchone()
+                                    outliers_low_count = count_row[0] or 0
+                                    outliers_high_count = count_row[1] or 0
+                                    outlier_count = (
+                                        outliers_low_count + outliers_high_count
+                                    )
 
-                                    # Get sample outliers
+                                    # Get sample outliers with the analyzed column first
+                                    # Reorder columns to put analyzed column first
+                                    cols_ordered = [col_name] + [
+                                        c for c in safe_columns if c != col_name
+                                    ]
+                                    cols_ordered_sql = ", ".join(
+                                        preparer.quote(c) for c in cols_ordered[:10]
+                                    )
                                     result = conn.execute(
                                         text(
                                             f"""
-                                        SELECT * FROM {quoted_table}
+                                        SELECT {cols_ordered_sql} FROM {quoted_table}
                                         WHERE {quoted_col} IS NOT NULL
-                                        AND ({quoted_col} < {lower} OR {quoted_col} > {upper})
+                                        AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                                        ORDER BY ABS({quoted_col} - {(lower_bound + upper_bound) / 2}) DESC
                                         LIMIT 5
                                     """
                                         )
                                     )
                                     for out_row in result:
                                         outliers.append(dict(out_row._mapping))
+
+                                    # Generate histogram (20 bins)
+                                    if (
+                                        min_val is not None
+                                        and max_val is not None
+                                        and max_val > min_val
+                                    ):
+                                        num_bins = 20
+                                        bin_width = (max_val - min_val) / num_bins
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT
+                                                FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                COUNT(*) as cnt
+                                            FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                            GROUP BY bin_idx
+                                            ORDER BY bin_idx
+                                        """
+                                            )
+                                        )
+                                        bin_counts = {
+                                            int(r[0]): int(r[1])
+                                            for r in result
+                                            if r[0] is not None
+                                        }
+                                        for i in range(num_bins):
+                                            bin_start = min_val + i * bin_width
+                                            bin_end = min_val + (i + 1) * bin_width
+                                            is_outlier = (
+                                                bin_start < lower_bound
+                                                or bin_end > upper_bound
+                                            )
+                                            histogram_bins.append(
+                                                HistogramBin(
+                                                    bin_start=round(bin_start, 2),
+                                                    bin_end=round(bin_end, 2),
+                                                    count=bin_counts.get(i, 0),
+                                                    is_outlier_zone=is_outlier,
+                                                )
+                                            )
+                            except Exception:
+                                pass
+
+                        elif method == "zscore":
+                            # Z-score: outlier if |z| > threshold (z = (x - mean) / std)
+                            # Default threshold: 3 (99.7% of data)
+                            try:
+                                result = conn.execute(
+                                    text(
+                                        f"""
+                                    SELECT AVG({quoted_col}), STDDEV({quoted_col})
+                                    FROM {quoted_table}
+                                    WHERE {quoted_col} IS NOT NULL
+                                """
+                                    )
+                                )
+                                stats_row = result.fetchone()
+                                if (
+                                    stats_row
+                                    and stats_row[0] is not None
+                                    and stats_row[1] is not None
+                                ):
+                                    mean = float(stats_row[0])
+                                    std = float(stats_row[1])
+
+                                    if std > 0:
+                                        lower_bound = mean - threshold * std
+                                        upper_bound = mean + threshold * std
+
+                                        # Count outliers (total, low, high)
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT
+                                                COUNT(*) FILTER (WHERE {quoted_col} < {lower_bound}),
+                                                COUNT(*) FILTER (WHERE {quoted_col} > {upper_bound})
+                                            FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                        """
+                                            )
+                                        )
+                                        count_row = result.fetchone()
+                                        outliers_low_count = count_row[0] or 0
+                                        outliers_high_count = count_row[1] or 0
+                                        outlier_count = (
+                                            outliers_low_count + outliers_high_count
+                                        )
+
+                                        # Get sample outliers with analyzed column first
+                                        cols_ordered = [col_name] + [
+                                            c for c in safe_columns if c != col_name
+                                        ]
+                                        cols_ordered_sql = ", ".join(
+                                            preparer.quote(c) for c in cols_ordered[:10]
+                                        )
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT {cols_ordered_sql} FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                            AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                                            ORDER BY ABS({quoted_col} - {mean}) DESC
+                                            LIMIT 5
+                                        """
+                                            )
+                                        )
+                                        for out_row in result:
+                                            outliers.append(dict(out_row._mapping))
+
+                                        # Generate histogram (20 bins)
+                                        if (
+                                            min_val is not None
+                                            and max_val is not None
+                                            and max_val > min_val
+                                        ):
+                                            num_bins = 20
+                                            bin_width = (max_val - min_val) / num_bins
+                                            result = conn.execute(
+                                                text(
+                                                    f"""
+                                                SELECT
+                                                    FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                    COUNT(*) as cnt
+                                                FROM {quoted_table}
+                                                WHERE {quoted_col} IS NOT NULL
+                                                GROUP BY bin_idx
+                                                ORDER BY bin_idx
+                                            """
+                                                )
+                                            )
+                                            bin_counts = {
+                                                int(r[0]): int(r[1])
+                                                for r in result
+                                                if r[0] is not None
+                                            }
+                                            for i in range(num_bins):
+                                                bin_start = min_val + i * bin_width
+                                                bin_end = min_val + (i + 1) * bin_width
+                                                is_outlier = (
+                                                    bin_start < lower_bound
+                                                    or bin_end > upper_bound
+                                                )
+                                                histogram_bins.append(
+                                                    HistogramBin(
+                                                        bin_start=round(bin_start, 2),
+                                                        bin_end=round(bin_end, 2),
+                                                        count=bin_counts.get(i, 0),
+                                                        is_outlier_zone=is_outlier,
+                                                    )
+                                                )
+                            except Exception:
+                                pass
+
+                        elif method == "percentile":
+                            # Percentile: outlier if value < P(threshold) or > P(100-threshold)
+                            # Default threshold: 5 (excludes bottom 5% and top 5%)
+                            try:
+                                lower_pct = threshold / 100.0
+                                upper_pct = 1.0 - lower_pct
+
+                                result = conn.execute(
+                                    text(
+                                        f"""
+                                    SELECT
+                                        PERCENTILE_CONT({lower_pct}) WITHIN GROUP (ORDER BY {quoted_col}),
+                                        PERCENTILE_CONT({upper_pct}) WITHIN GROUP (ORDER BY {quoted_col})
+                                    FROM {quoted_table}
+                                    WHERE {quoted_col} IS NOT NULL
+                                """
+                                    )
+                                )
+                                pct_row = result.fetchone()
+                                if pct_row and pct_row[0] is not None:
+                                    lower_bound = float(pct_row[0])
+                                    upper_bound = float(pct_row[1])
+
+                                    # Count outliers (total, low, high)
+                                    result = conn.execute(
+                                        text(
+                                            f"""
+                                        SELECT
+                                            COUNT(*) FILTER (WHERE {quoted_col} < {lower_bound}),
+                                            COUNT(*) FILTER (WHERE {quoted_col} > {upper_bound})
+                                        FROM {quoted_table}
+                                        WHERE {quoted_col} IS NOT NULL
+                                    """
+                                        )
+                                    )
+                                    count_row = result.fetchone()
+                                    outliers_low_count = count_row[0] or 0
+                                    outliers_high_count = count_row[1] or 0
+                                    outlier_count = (
+                                        outliers_low_count + outliers_high_count
+                                    )
+
+                                    # Get sample outliers with analyzed column first
+                                    cols_ordered = [col_name] + [
+                                        c for c in safe_columns if c != col_name
+                                    ]
+                                    cols_ordered_sql = ", ".join(
+                                        preparer.quote(c) for c in cols_ordered[:10]
+                                    )
+                                    result = conn.execute(
+                                        text(
+                                            f"""
+                                        SELECT {cols_ordered_sql} FROM {quoted_table}
+                                        WHERE {quoted_col} IS NOT NULL
+                                        AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                                        ORDER BY ABS({quoted_col} - {(lower_bound + upper_bound) / 2}) DESC
+                                        LIMIT 5
+                                    """
+                                        )
+                                    )
+                                    for out_row in result:
+                                        outliers.append(dict(out_row._mapping))
+
+                                    # Generate histogram (20 bins)
+                                    if (
+                                        min_val is not None
+                                        and max_val is not None
+                                        and max_val > min_val
+                                    ):
+                                        num_bins = 20
+                                        bin_width = (max_val - min_val) / num_bins
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT
+                                                FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                COUNT(*) as cnt
+                                            FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                            GROUP BY bin_idx
+                                            ORDER BY bin_idx
+                                        """
+                                            )
+                                        )
+                                        bin_counts = {
+                                            int(r[0]): int(r[1])
+                                            for r in result
+                                            if r[0] is not None
+                                        }
+                                        for i in range(num_bins):
+                                            bin_start = min_val + i * bin_width
+                                            bin_end = min_val + (i + 1) * bin_width
+                                            is_outlier = (
+                                                bin_start < lower_bound
+                                                or bin_end > upper_bound
+                                            )
+                                            histogram_bins.append(
+                                                HistogramBin(
+                                                    bin_start=round(bin_start, 2),
+                                                    bin_end=round(bin_end, 2),
+                                                    count=bin_counts.get(i, 0),
+                                                    is_outlier_zone=is_outlier,
+                                                )
+                                            )
                             except Exception:
                                 pass
 
@@ -969,6 +1273,15 @@ async def get_value_validation(
                                 std_dev=None,
                                 outlier_count=outlier_count,
                                 outliers=outliers[:5],
+                                lower_bound=round(lower_bound, 4)
+                                if lower_bound is not None
+                                else None,
+                                upper_bound=round(upper_bound, 4)
+                                if upper_bound is not None
+                                else None,
+                                outliers_low_count=outliers_low_count,
+                                outliers_high_count=outliers_high_count,
+                                histogram=histogram_bins if histogram_bins else None,
                             )
                         )
                     else:
@@ -992,6 +1305,163 @@ async def get_value_validation(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error validating values: {str(e)}"
+        )
+
+
+@router.get("/value-validation/{entity}/export-outliers")
+async def export_outliers_csv(
+    entity: str,
+    column: str = Query(..., description="Column to analyze for outliers"),
+    method: str = Query(
+        default="iqr", description="Detection method: iqr, zscore, percentile"
+    ),
+    threshold: float = Query(default=1.5, description="Detection threshold"),
+):
+    """
+    Export all outliers for a specific column as CSV.
+
+    Returns a CSV file with all records that are detected as outliers
+    according to the specified method and threshold.
+    """
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path, read_only=True) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+
+            if entity not in inspector.get_table_names():
+                raise HTTPException(
+                    status_code=404, detail=f"Entity '{entity}' not found"
+                )
+
+            columns_info = inspector.get_columns(entity)
+            col_names = [c["name"] for c in columns_info]
+
+            if column not in col_names:
+                raise HTTPException(
+                    status_code=404, detail=f"Column '{column}' not found in {entity}"
+                )
+
+            quoted_table = preparer.quote(entity)
+            quoted_col = preparer.quote(column)
+
+            # Prepare safe columns (exclude BYTEA)
+            safe_columns = [
+                c["name"]
+                for c in columns_info
+                if "BYTEA" not in str(c.get("type", "")).upper()
+            ]
+
+            with db.engine.connect() as conn:
+                # Calculate bounds based on method
+                lower_bound = None
+                upper_bound = None
+
+                if method == "iqr":
+                    result = conn.execute(
+                        text(
+                            f"""
+                        SELECT
+                            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY {quoted_col}),
+                            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY {quoted_col})
+                        FROM {quoted_table}
+                        WHERE {quoted_col} IS NOT NULL
+                    """
+                        )
+                    )
+                    q_row = result.fetchone()
+                    if q_row and q_row[0] is not None:
+                        q1, q3 = float(q_row[0]), float(q_row[1])
+                        iqr = q3 - q1
+                        lower_bound = q1 - threshold * iqr
+                        upper_bound = q3 + threshold * iqr
+
+                elif method == "zscore":
+                    result = conn.execute(
+                        text(
+                            f"""
+                        SELECT AVG({quoted_col}), STDDEV({quoted_col})
+                        FROM {quoted_table}
+                        WHERE {quoted_col} IS NOT NULL
+                    """
+                        )
+                    )
+                    stats_row = result.fetchone()
+                    if stats_row and stats_row[0] is not None and stats_row[1]:
+                        mean = float(stats_row[0])
+                        std = float(stats_row[1])
+                        if std > 0:
+                            lower_bound = mean - threshold * std
+                            upper_bound = mean + threshold * std
+
+                elif method == "percentile":
+                    lower_pct = threshold / 100.0
+                    upper_pct = 1.0 - lower_pct
+                    result = conn.execute(
+                        text(
+                            f"""
+                        SELECT
+                            PERCENTILE_CONT({lower_pct}) WITHIN GROUP (ORDER BY {quoted_col}),
+                            PERCENTILE_CONT({upper_pct}) WITHIN GROUP (ORDER BY {quoted_col})
+                        FROM {quoted_table}
+                        WHERE {quoted_col} IS NOT NULL
+                    """
+                        )
+                    )
+                    pct_row = result.fetchone()
+                    if pct_row and pct_row[0] is not None:
+                        lower_bound = float(pct_row[0])
+                        upper_bound = float(pct_row[1])
+
+                if lower_bound is None or upper_bound is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Could not calculate outlier bounds for this column",
+                    )
+
+                # Fetch all outliers
+                cols_ordered = [column] + [c for c in safe_columns if c != column]
+                cols_ordered_sql = ", ".join(preparer.quote(c) for c in cols_ordered)
+
+                result = conn.execute(
+                    text(
+                        f"""
+                    SELECT {cols_ordered_sql} FROM {quoted_table}
+                    WHERE {quoted_col} IS NOT NULL
+                    AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                    ORDER BY {quoted_col}
+                """
+                    )
+                )
+
+                # Generate CSV
+                output = io.StringIO()
+                writer = csv.writer(output)
+
+                # Write header
+                writer.writerow(cols_ordered)
+
+                # Write data
+                for row in result:
+                    writer.writerow(row)
+
+                output.seek(0)
+
+                filename = f"{entity}_{column}_outliers_{method}.csv"
+                return StreamingResponse(
+                    iter([output.getvalue()]),
+                    media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={filename}"},
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error exporting outliers: {str(e)}"
         )
 
 

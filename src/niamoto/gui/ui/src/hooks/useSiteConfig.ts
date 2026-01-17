@@ -220,6 +220,7 @@ export interface TemplatePreviewRequest {
   context: Record<string, unknown>
   site?: Record<string, unknown>
   navigation?: Array<{ text: string; url?: string; children?: unknown[] }>
+  footer_navigation?: Array<{ text: string; url?: string; children?: unknown[] }>
 }
 
 /**

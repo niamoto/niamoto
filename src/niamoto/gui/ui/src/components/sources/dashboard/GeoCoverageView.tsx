@@ -222,7 +222,7 @@ export function GeoCoverageView() {
                   <div className="text-xl font-bold">
                     {analysisResult.total_occurrences.toLocaleString()}
                   </div>
-                  <p className="text-xs text-muted-foreground">Total occurrences</p>
+                  <p className="text-xs text-muted-foreground">{t('geoCoverage.totalOccurrences')}</p>
                 </div>
               </div>
             </CardContent>
@@ -236,7 +236,7 @@ export function GeoCoverageView() {
                   <div className="text-xl font-bold">
                     {analysisResult.occurrences_with_geo.toLocaleString()}
                   </div>
-                  <p className="text-xs text-muted-foreground">With geometry</p>
+                  <p className="text-xs text-muted-foreground">{t('geoCoverage.withGeometry')}</p>
                 </div>
               </div>
             </CardContent>
@@ -250,7 +250,7 @@ export function GeoCoverageView() {
                   <div className="text-xl font-bold">
                     {analysisResult.occurrences_without_geo.toLocaleString()}
                   </div>
-                  <p className="text-xs text-muted-foreground">Without geometry</p>
+                  <p className="text-xs text-muted-foreground">{t('geoCoverage.withoutGeometry')}</p>
                 </div>
               </div>
             </CardContent>
@@ -264,7 +264,7 @@ export function GeoCoverageView() {
                   <div className="text-xl font-bold">
                     {analysisResult.analysis_time_seconds}s
                   </div>
-                  <p className="text-xs text-muted-foreground">Analysis time</p>
+                  <p className="text-xs text-muted-foreground">{t('geoCoverage.analysisTime')}</p>
                 </div>
               </div>
             </CardContent>
@@ -275,7 +275,7 @@ export function GeoCoverageView() {
         {analysisResult.geo_column && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Database className="h-4 w-4" />
-            <span>Geometry column detected:</span>
+            <span>{t('geoCoverage.geoColumnDetected')}</span>
             <Badge variant="outline" className="font-mono">
               {analysisResult.geo_column}
             </Badge>
@@ -288,7 +288,7 @@ export function GeoCoverageView() {
             <CardHeader className="py-3">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Layers className="h-4 w-4" />
-                Coverage by Shape Type
+                {t('geoCoverage.coverageByShapeType')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -303,12 +303,12 @@ export function GeoCoverageView() {
                           <div className={`w-3 h-3 rounded ${colorClass}`} />
                           <span>{shape.shape_type}</span>
                           <Badge variant="secondary" className="text-xs">
-                            {shape.total_shapes} shapes
+                            {shape.total_shapes} {t('geoCoverage.shapes')}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-muted-foreground">
-                            {shape.occurrences_covered.toLocaleString()} occurrences
+                            {shape.occurrences_covered.toLocaleString()} {t('geoCoverage.occurrences')}
                           </span>
                           <Badge
                             variant="outline"
@@ -345,7 +345,7 @@ export function GeoCoverageView() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <BarChart3 className="h-4 w-4" />
-                  Repartition par shape
+                  {t('geoCoverage.distributionByShape')}
                 </CardTitle>
                 <Button
                   variant="ghost"
@@ -433,8 +433,7 @@ export function GeoCoverageView() {
                     </ScrollArea>
                     {distribution.shapes.filter((s) => s.occurrence_count === 0).length > 0 && (
                       <p className="text-xs text-muted-foreground mt-2">
-                        {distribution.shapes.filter((s) => s.occurrence_count === 0).length} shapes
-                        sans occurrences
+                        {t('geoCoverage.shapesWithoutOccurrences', { count: distribution.shapes.filter((s) => s.occurrence_count === 0).length })}
                       </p>
                     )}
                   </div>
@@ -452,7 +451,7 @@ export function GeoCoverageView() {
             ) : (
               <Play className="mr-2 h-4 w-4" />
             )}
-            Relancer l'analyse
+            {t('geoCoverage.rerunAnalysis')}
           </Button>
         </div>
       </div>
@@ -476,7 +475,7 @@ export function GeoCoverageView() {
                     <div className="text-xl font-bold">
                       {quickData.total_occurrences.toLocaleString()}
                     </div>
-                    <p className="text-xs text-muted-foreground">Total occurrences</p>
+                    <p className="text-xs text-muted-foreground">{t('geoCoverage.totalOccurrences')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -490,7 +489,7 @@ export function GeoCoverageView() {
                     <div className="text-xl font-bold">
                       {quickData.occurrences_with_geo.toLocaleString()}
                     </div>
-                    <p className="text-xs text-muted-foreground">Avec geometrie</p>
+                    <p className="text-xs text-muted-foreground">{t('geoCoverage.withGeometry')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -504,7 +503,7 @@ export function GeoCoverageView() {
                     <div className="text-xl font-bold">
                       {quickData.available_shapes.reduce((sum, s) => sum + s.shape_count, 0)}
                     </div>
-                    <p className="text-xs text-muted-foreground">Shapes disponibles</p>
+                    <p className="text-xs text-muted-foreground">{t('geoCoverage.availableShapes')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -515,7 +514,7 @@ export function GeoCoverageView() {
           {quickData.geo_column && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Database className="h-4 w-4" />
-              <span>Colonne geometrie:</span>
+              <span>{t('geoCoverage.geoColumn')}</span>
               <Badge variant="outline" className="font-mono">
                 {quickData.geo_column}
               </Badge>
@@ -528,7 +527,7 @@ export function GeoCoverageView() {
               <CardHeader className="py-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <Layers className="h-4 w-4" />
-                  Shapes disponibles pour l'analyse
+                  {t('geoCoverage.shapesAvailableForAnalysis')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -562,7 +561,7 @@ export function GeoCoverageView() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{shape.shape_count} shapes</Badge>
+                          <Badge variant="outline">{shape.shape_count} {t('geoCoverage.shapes')}</Badge>
                           {shape.has_geometry ? (
                             <CheckCircle2 className="h-4 w-4 text-green-500" />
                           ) : (
@@ -583,21 +582,20 @@ export function GeoCoverageView() {
       <Card className={quickData?.ready_for_analysis ? 'border-green-200 bg-green-50/30' : 'border-dashed'}>
         <CardContent className="py-8 text-center">
           <Layers className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h3 className="font-medium mb-2">Analyse spatiale</h3>
+          <h3 className="font-medium mb-2">{t('geoCoverage.spatialAnalysis')}</h3>
           <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-            Lancez une analyse spatiale pour verifier la couverture des occurrences
-            par les shapes importees (utilise les geometries, peut prendre du temps).
+            {t('geoCoverage.spatialAnalysisDescription')}
           </p>
           <Button onClick={runAnalysis} disabled={analyzing}>
             {analyzing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analyse en cours...
+                {t('geoCoverage.analysisInProgress')}
               </>
             ) : (
               <>
                 <Play className="mr-2 h-4 w-4" />
-                Lancer l'analyse spatiale
+                {t('geoCoverage.runSpatialAnalysis')}
               </>
             )}
           </Button>

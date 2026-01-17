@@ -1,0 +1,359 @@
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useNavigationStore } from '@/stores/navigationStore'
+import { usePublishStore, selectIsBuilding } from '@/stores/publishStore'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Rocket,
+  Package,
+  CheckCircle,
+  XCircle,
+  Globe,
+  FileJson,
+  Database,
+  Layers,
+  FolderOpen,
+  ExternalLink,
+  RefreshCw
+} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { executeExportAndWait } from '@/lib/api/export'
+import { apiClient } from '@/lib/api/client'
+import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
+
+export default function PublishBuild() {
+  const { t } = useTranslation('publish')
+  const navigate = useNavigate()
+  const { setBreadcrumbs } = useNavigationStore()
+
+  const {
+    currentBuild,
+    buildHistory,
+    startBuild,
+    updateBuild,
+    completeBuild,
+  } = usePublishStore()
+
+  const isBuilding = usePublishStore(selectIsBuilding)
+  const lastBuild = buildHistory[0]
+  const [exportPath, setExportPath] = useState('')
+
+  const totalFilesCounter = useProgressiveCounter(
+    lastBuild?.status === 'completed' && lastBuild.metrics?.totalFiles
+      ? lastBuild.metrics.totalFiles
+      : 0,
+    2000,
+    lastBuild?.status === 'completed'
+  )
+
+  useEffect(() => {
+    setBreadcrumbs([
+      { label: 'Publish', path: '/publish' },
+      { label: t('build.title', 'Build') }
+    ])
+  }, [setBreadcrumbs, t])
+
+  useEffect(() => {
+    const loadWorkingDir = async () => {
+      try {
+        const response = await apiClient.get('/config/project')
+        const workingDir = response.data.working_directory || '.'
+        setExportPath(`${workingDir}/exports`)
+      } catch (error) {
+        console.error('Failed to load working directory:', error)
+        setExportPath('exports')
+      }
+    }
+    loadWorkingDir()
+  }, [])
+
+  const runBuild = async () => {
+    startBuild()
+    const startTime = Date.now()
+
+    try {
+      const result = await executeExportAndWait(
+        { config_path: 'config/export.yml' },
+        (progress) => {
+          const messages = [
+            { min: 0, max: 25, msg: t('build.progress.generating', 'Génération des pages HTML...') },
+            { min: 25, max: 50, msg: t('build.progress.visualizations', 'Création des visualisations...') },
+            { min: 50, max: 75, msg: t('build.progress.assets', 'Optimisation des assets...') },
+            { min: 75, max: 100, msg: t('build.progress.finalizing', 'Finalisation...') },
+          ]
+          const currentMessage = messages.find(m => progress >= m.min && progress < m.max)?.msg || t('build.progress.finalizing', 'Finalisation...')
+          updateBuild({ progress, message: currentMessage })
+        }
+      )
+
+      if (result.result) {
+        const exports = result.result.exports || {}
+        const metrics = result.result.metrics || {}
+
+        const targets: { name: string; files: number }[] = []
+        let totalFiles = 0
+
+        Object.entries(exports).forEach(([name, exportData]: [string, any]) => {
+          if (exportData && exportData.data) {
+            const filesGenerated = exportData.data.files_generated || 0
+            if (filesGenerated > 0) {
+              targets.push({ name, files: filesGenerated })
+              totalFiles += filesGenerated
+            }
+          }
+        })
+
+        if (totalFiles === 0 && metrics.generated_pages) {
+          totalFiles = metrics.generated_pages
+        }
+
+        const duration = metrics.execution_time
+          ? metrics.execution_time
+          : (Date.now() - startTime) / 1000
+
+        completeBuild({
+          totalFiles,
+          duration: parseFloat(duration.toFixed(1)),
+          targets
+        })
+
+        toast.success(t('build.success', 'Build terminé avec succès !'))
+      }
+    } catch (error) {
+      console.error('Build error:', error)
+      completeBuild(undefined, String(error))
+      toast.error(t('build.error', 'Erreur lors du build'))
+    }
+  }
+
+  return (
+    <div className="container mx-auto py-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">{t('build.title', 'Build')}</h1>
+          <p className="text-muted-foreground">{t('build.description', 'Générez le site statique à partir de vos données')}</p>
+        </div>
+      </div>
+
+      {/* Export Targets Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <Globe className="w-8 h-8 text-purple-500" />
+              <Badge variant="secondary">{t('build.targets.web', 'Site Web')}</Badge>
+            </div>
+            <h3 className="font-semibold">{t('build.targets.webTitle', 'Site Web Statique')}</h3>
+            <p className="text-xs text-muted-foreground">
+              {t('build.targets.webDescription', 'Pages HTML avec navigation, cartes et visualisations')}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <FileJson className="w-8 h-8 text-blue-500" />
+              <Badge variant="secondary">{t('build.targets.api', 'API JSON')}</Badge>
+            </div>
+            <h3 className="font-semibold">{t('build.targets.apiTitle', 'API JSON Statique')}</h3>
+            <p className="text-xs text-muted-foreground">
+              {t('build.targets.apiDescription', 'Endpoints JSON pour chaque entité')}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <Database className="w-8 h-8 text-green-500" />
+              <Badge variant="secondary">{t('build.targets.dwc', 'Darwin Core')}</Badge>
+            </div>
+            <h3 className="font-semibold">{t('build.targets.dwcTitle', 'Darwin Core Archive')}</h3>
+            <p className="text-xs text-muted-foreground">
+              {t('build.targets.dwcDescription', 'Export au format standard GBIF')}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Build Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('build.generation', 'Génération du site')}</CardTitle>
+          <CardDescription>{t('build.generationDescription', 'Création du site web statique complet')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Building State */}
+          {isBuilding && currentBuild && (
+            <div className="space-y-4">
+              <div className="flex justify-between text-sm">
+                <span>{currentBuild.message}</span>
+                <span>{currentBuild.progress}%</span>
+              </div>
+              <Progress value={currentBuild.progress} />
+            </div>
+          )}
+
+          {/* Success State */}
+          {!isBuilding && lastBuild?.status === 'completed' && (
+            <div className="space-y-4">
+              <Alert className="border-green-500/20 bg-green-500/10">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <AlertDescription>
+                  {t('build.success', 'Build terminé avec succès !')}
+                </AlertDescription>
+              </Alert>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-primary">
+                      {totalFilesCounter.value.toLocaleString()}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t('build.metrics.files', 'Fichiers générés')}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-primary">
+                      {lastBuild.metrics?.duration}s
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t('build.metrics.duration', 'Temps de génération')}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Target Breakdown */}
+              {lastBuild.metrics?.targets && lastBuild.metrics.targets.length > 0 && (
+                <div className="pt-4 border-t">
+                  <h4 className="text-sm font-medium mb-3">{t('build.metrics.breakdown', 'Détail par cible')}</h4>
+                  <div className="space-y-2">
+                    {lastBuild.metrics.targets.map((target) => (
+                      <div key={target.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          {target.name === 'web_pages' && <Globe className="w-4 h-4 text-purple-500" />}
+                          {target.name === 'json_api' && <FileJson className="w-4 h-4 text-blue-500" />}
+                          {target.name.includes('dwc') && <Database className="w-4 h-4 text-green-500" />}
+                          {!['web_pages', 'json_api'].includes(target.name) && !target.name.includes('dwc') && (
+                            <Layers className="w-4 h-4 text-muted-foreground" />
+                          )}
+                          <span className="text-sm font-medium capitalize">
+                            {target.name.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <Badge variant="secondary">
+                          {target.files.toLocaleString()} {t('files', 'fichiers')}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Output Path */}
+              {exportPath && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                  <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">{t('build.outputPath', 'Répertoire')} :</span>
+                  <code className="text-sm">{exportPath}</code>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-4">
+                <Button onClick={() => window.open('/preview', '_blank')} className="flex-1">
+                  <Globe className="w-4 h-4 mr-2" />
+                  {t('build.preview', 'Voir le site')}
+                </Button>
+                <Button variant="secondary" onClick={() => navigate('/publish/deploy')} className="flex-1">
+                  <Rocket className="w-4 h-4 mr-2" />
+                  {t('build.deploy', 'Déployer')}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {!isBuilding && lastBuild?.status === 'failed' && (
+            <Alert variant="destructive">
+              <XCircle className="w-4 h-4" />
+              <AlertDescription>
+                {lastBuild.error || t('build.error', 'Erreur lors du build')}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Ready State */}
+          {!isBuilding && lastBuild?.status !== 'completed' && lastBuild?.status !== 'failed' && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm">{t('build.ready', 'Prêt à générer')}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Build Button */}
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={runBuild}
+            disabled={isBuilding}
+          >
+            {isBuilding ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                {t('build.building', 'Génération en cours...')}
+              </>
+            ) : lastBuild?.status === 'completed' ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                {t('build.rebuild', 'Regénérer le site')}
+              </>
+            ) : (
+              <>
+                <Rocket className="w-4 h-4 mr-2" />
+                {t('build.trigger', 'Générer le site')}
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Preview Section */}
+      {lastBuild?.status === 'completed' && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>{t('build.previewTitle', 'Aperçu du site')}</CardTitle>
+                <CardDescription>{t('build.previewDescription', 'Prévisualisation du site généré')}</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => window.open('/preview', '_blank')}>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                {t('build.openNewTab', 'Nouvel onglet')}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border overflow-hidden">
+              <iframe
+                src="/preview/index.html"
+                className="w-full h-[500px] border-0"
+                title={t('build.previewTitle', 'Aperçu du site')}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}

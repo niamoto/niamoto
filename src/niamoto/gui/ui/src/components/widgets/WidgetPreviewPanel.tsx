@@ -8,6 +8,7 @@
  * Renders actual widgets via iframe from the preview endpoint
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import yaml from 'js-yaml'
 import {
   Info,
@@ -105,6 +106,7 @@ export function WidgetPreviewPanel({
   onUpdateWidget,
   className,
 }: WidgetPreviewPanelProps) {
+  const { t } = useTranslation('widgets')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshCounter, setRefreshCounter] = useState(0)
@@ -153,8 +155,8 @@ export function WidgetPreviewPanel({
   // Handle iframe error
   const handleIframeError = useCallback(() => {
     setLoading(false)
-    setError('Impossible de charger la preview')
-  }, [])
+    setError(t('preview.loadError'))
+  }, [t])
 
   // Reload preview (manual refresh only)
   const handleRefresh = useCallback(() => {
@@ -365,10 +367,10 @@ export function WidgetPreviewPanel({
             <Sparkles className="h-10 w-10 text-muted-foreground/50" />
           </div>
           <h3 className="text-lg font-medium text-muted-foreground">
-            Selectionnez un widget
+            {t('preview.selectWidget')}
           </h3>
           <p className="text-sm text-muted-foreground/70 mt-2 max-w-[240px]">
-            Cliquez sur un widget pour visualiser son rendu
+            {t('preview.selectWidgetHint')}
           </p>
         </div>
       </div>
@@ -433,7 +435,7 @@ export function WidgetPreviewPanel({
                 ) : (
                   <>
                     <Pencil className="h-4 w-4 mr-1" />
-                    Editer
+                    {t('preview.edit')}
                   </>
                 )}
               </Button>
@@ -475,14 +477,14 @@ export function WidgetPreviewPanel({
           {/* CSV source indicator (only for templates) */}
           {activeTemplate?.source === 'class_object' && (
             <Badge variant="outline" className="text-xs border-data-source-secondary/50 bg-data-source-secondary/10 text-data-source-secondary">
-              CSV pre-calcule
+              {t('preview.precomputedCsv')}
             </Badge>
           )}
 
           {/* Configured widget indicator */}
           {isConfiguredMode && (
             <Badge variant="outline" className="text-xs border-primary/50 bg-primary/10 text-primary">
-              Configure
+              {t('preview.configured')}
             </Badge>
           )}
         </div>
@@ -526,7 +528,7 @@ export function WidgetPreviewPanel({
               <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
                 <div className="flex flex-col items-center gap-2">
                   <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Chargement...</span>
+                  <span className="text-sm text-muted-foreground">{t('preview.loading')}</span>
                 </div>
               </div>
             )}
@@ -542,7 +544,7 @@ export function WidgetPreviewPanel({
                   onClick={handleRefresh}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Reessayer
+                  {t('preview.retry')}
                 </Button>
               </div>
             )}
@@ -568,10 +570,10 @@ export function WidgetPreviewPanel({
           <summary className="text-sm font-medium cursor-pointer list-none flex items-center justify-between">
             <span className="flex items-center gap-2">
               <FileCode className="h-4 w-4 text-muted-foreground" />
-              Configuration YAML
+              {t('preview.yamlConfig')}
             </span>
-            <span className="text-xs text-muted-foreground group-open:hidden">Voir</span>
-            <span className="text-xs text-muted-foreground hidden group-open:inline">Masquer</span>
+            <span className="text-xs text-muted-foreground group-open:hidden">{t('preview.show')}</span>
+            <span className="text-xs text-muted-foreground hidden group-open:inline">{t('preview.hide')}</span>
           </summary>
 
           <Tabs defaultValue="transform" className="mt-3">
@@ -593,7 +595,7 @@ export function WidgetPreviewPanel({
                 </pre>
                 <div className="absolute top-1 right-1">
                   <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/30">
-                    Transformation
+                    {t('preview.transformation')}
                   </Badge>
                 </div>
               </div>
@@ -606,7 +608,7 @@ export function WidgetPreviewPanel({
                 </pre>
                 <div className="absolute top-1 right-1">
                   <Badge variant="outline" className="text-[10px] bg-success/10 text-success border-success/30">
-                    Widget
+                    {t('preview.widget')}
                   </Badge>
                 </div>
               </div>

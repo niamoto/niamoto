@@ -21,6 +21,10 @@ import {
   Save,
   Code,
   FileType,
+  Plus,
+  X,
+  Navigation,
+  Menu,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,7 +41,7 @@ import {
 } from '@/components/ui/select'
 import { MarkdownEditor } from './MarkdownEditor'
 import { TemplateSelect } from './TemplateSelect'
-import { useTemplates, useProjectFiles, useUploadFile, useFileContent, useUpdateFileContent, type StaticPage } from '@/hooks/useSiteConfig'
+import { useTemplates, useProjectFiles, useUploadFile, useFileContent, useUpdateFileContent, type StaticPage, type NavigationItem } from '@/hooks/useSiteConfig'
 import {
   hasTemplateForm,
   IndexPageForm,
@@ -59,11 +63,25 @@ interface StaticPageEditorProps {
   onChange: (page: StaticPage) => void
   onDelete?: () => void
   onBack: () => void
+  // Navigation linking
+  navigation?: NavigationItem[]
+  footerNavigation?: NavigationItem[]
+  onUpdateNavigation?: (nav: NavigationItem[]) => void
+  onUpdateFooterNavigation?: (nav: NavigationItem[]) => void
 }
 
 type ContentMode = 'inline' | 'file'
 
-export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPageEditorProps) {
+export function StaticPageEditor({
+  page,
+  onChange,
+  onDelete,
+  onBack,
+  navigation = [],
+  footerNavigation = [],
+  onUpdateNavigation,
+  onUpdateFooterNavigation,
+}: StaticPageEditorProps) {
   const { t } = useTranslation(['site', 'common'])
 
   // Local state for editing (initialized from prop, component remounts on page change via key)
@@ -126,6 +144,71 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
 
   // All templates (default + project)
   const allTemplates = templatesData?.templates ?? []
+
+  // Navigation linking helpers
+  const pageUrl = `/${editedPage.output_file}`
+
+  // Check if page is in a navigation list (recursive for children)
+  const isInNavigation = (items: NavigationItem[]): boolean => {
+    for (const item of items) {
+      if (item.url === pageUrl) return true
+      if (item.children && isInNavigation(item.children)) return true
+    }
+    return false
+  }
+
+  const inMainNav = isInNavigation(navigation)
+  const inFooterNav = isInNavigation(footerNavigation)
+
+  // Add page to main navigation
+  const handleAddToMainNav = () => {
+    if (!onUpdateNavigation || inMainNav) return
+    onUpdateNavigation([
+      ...navigation,
+      { text: editedPage.name, url: pageUrl },
+    ])
+    toast.success(t('navigation.linkAdded'), {
+      description: t('navigation.addedToMain'),
+    })
+  }
+
+  // Add page to footer navigation
+  const handleAddToFooterNav = () => {
+    if (!onUpdateFooterNavigation || inFooterNav) return
+    onUpdateFooterNavigation([
+      ...footerNavigation,
+      { text: editedPage.name, url: pageUrl },
+    ])
+    toast.success(t('navigation.linkAdded'), {
+      description: t('navigation.addedToFooter'),
+    })
+  }
+
+  // Remove page from main navigation (recursive)
+  const removeFromNav = (items: NavigationItem[], url: string): NavigationItem[] => {
+    return items
+      .filter((item) => item.url !== url)
+      .map((item) => ({
+        ...item,
+        children: item.children ? removeFromNav(item.children, url) : undefined,
+      }))
+  }
+
+  const handleRemoveFromMainNav = () => {
+    if (!onUpdateNavigation) return
+    onUpdateNavigation(removeFromNav(navigation, pageUrl))
+    toast.success(t('navigation.linkRemoved'), {
+      description: t('navigation.removedFromMain'),
+    })
+  }
+
+  const handleRemoveFromFooterNav = () => {
+    if (!onUpdateFooterNavigation) return
+    onUpdateFooterNavigation(removeFromNav(footerNavigation, pageUrl))
+    toast.success(t('navigation.linkRemoved'), {
+      description: t('navigation.removedFromFooter'),
+    })
+  }
 
   // Sync changes to parent on every edit
   useEffect(() => {
@@ -286,7 +369,7 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
 
               {/* Template selection */}
               <div className="space-y-2">
-                <Label>Template</Label>
+                <Label>{t('groupViewer.template')}</Label>
                 <TemplateSelect
                   value={editedPage.template}
                   onChange={(v) => updateField('template', v)}
@@ -294,6 +377,80 @@ export function StaticPageEditor({ page, onChange, onDelete, onBack }: StaticPag
                   disabled={templatesLoading}
                 />
               </div>
+
+              {/* Navigation linking */}
+              {(onUpdateNavigation || onUpdateFooterNavigation) && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Menu className="h-4 w-4" />
+                    {t('navigation.menuLinks')}
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {/* Main navigation status/action */}
+                    {inMainNav ? (
+                      <div className="flex items-center gap-1 rounded-full bg-primary/10 pl-3 pr-1 py-1 text-sm">
+                        <Navigation className="h-3 w-3 text-primary" />
+                        <span className="text-primary">{t('navigation.mainMenu')}</span>
+                        {onUpdateNavigation && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 rounded-full hover:bg-destructive/20"
+                            onClick={handleRemoveFromMainNav}
+                          >
+                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    ) : onUpdateNavigation && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1"
+                        onClick={handleAddToMainNav}
+                      >
+                        <Plus className="h-3 w-3" />
+                        {t('navigation.addToMainMenu')}
+                      </Button>
+                    )}
+
+                    {/* Footer navigation status/action */}
+                    {inFooterNav ? (
+                      <div className="flex items-center gap-1 rounded-full bg-muted pl-3 pr-1 py-1 text-sm">
+                        <Navigation className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-muted-foreground">{t('navigation.footerMenu')}</span>
+                        {onUpdateFooterNavigation && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 rounded-full hover:bg-destructive/20"
+                            onClick={handleRemoveFromFooterNav}
+                          >
+                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    ) : onUpdateFooterNavigation && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1"
+                        onClick={handleAddToFooterNav}
+                      >
+                        <Plus className="h-3 w-3" />
+                        {t('navigation.addToFooterMenu')}
+                      </Button>
+                    )}
+
+                    {/* No links indicator */}
+                    {!inMainNav && !inFooterNav && !onUpdateNavigation && !onUpdateFooterNavigation && (
+                      <span className="text-sm text-muted-foreground italic">
+                        {t('navigation.notLinked')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

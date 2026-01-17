@@ -93,6 +93,7 @@ interface QuickEditField {
 interface WidgetPreviewProps {
   templateId: string
   groupBy?: string
+  source?: string
   className?: string
   width?: number
   height?: number
@@ -102,7 +103,7 @@ interface WidgetPreviewProps {
 const IFRAME_BASE_WIDTH = 400
 const IFRAME_BASE_HEIGHT = 300
 
-function WidgetPreview({ templateId, groupBy, className, width = 200, height = 96 }: WidgetPreviewProps) {
+function WidgetPreview({ templateId, groupBy, source, className, width = 200, height = 96 }: WidgetPreviewProps) {
   const { t } = useTranslation(['widgets'])
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
@@ -132,9 +133,17 @@ function WidgetPreview({ templateId, groupBy, className, width = 200, height = 9
   // Calculate scale to fit the container
   const scale = Math.min(width / IFRAME_BASE_WIDTH, height / IFRAME_BASE_HEIGHT)
 
-  const previewUrl = groupBy
-    ? `/api/templates/preview/${templateId}?group_by=${encodeURIComponent(groupBy)}`
-    : `/api/templates/preview/${templateId}`
+  // Build preview URL with optional source parameter
+  const buildPreviewUrl = () => {
+    const params = new URLSearchParams()
+    if (groupBy) params.set('group_by', groupBy)
+    if (source && source !== 'occurrences') params.set('source', source)
+    const queryString = params.toString()
+    return queryString
+      ? `/api/templates/preview/${templateId}?${queryString}`
+      : `/api/templates/preview/${templateId}`
+  }
+  const previewUrl = buildPreviewUrl()
 
   useEffect(() => {
     if (isVisible) {
@@ -142,7 +151,7 @@ function WidgetPreview({ templateId, groupBy, className, width = 200, height = 9
       setHasError(false)
       setKey((k) => k + 1)
     }
-  }, [templateId, groupBy, isVisible])
+  }, [templateId, groupBy, source, isVisible])
 
   return (
     <div
@@ -190,13 +199,14 @@ function WidgetPreview({ templateId, groupBy, className, width = 200, height = 9
 interface LargePreviewProps {
   templateId: string
   groupBy?: string
+  source?: string
 }
 
 // Large preview dimensions
 const LARGE_PREVIEW_WIDTH = 388  // Right panel width (420px) - padding
 const LARGE_PREVIEW_HEIGHT = 291  // 4:3 ratio (388 * 3/4)
 
-function LargePreview({ templateId, groupBy }: LargePreviewProps) {
+function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
   const { t } = useTranslation(['widgets'])
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
@@ -205,15 +215,23 @@ function LargePreview({ templateId, groupBy }: LargePreviewProps) {
   // Calculate scale to fit the container
   const scale = Math.min(LARGE_PREVIEW_WIDTH / IFRAME_BASE_WIDTH, LARGE_PREVIEW_HEIGHT / IFRAME_BASE_HEIGHT)
 
-  const previewUrl = groupBy
-    ? `/api/templates/preview/${templateId}?group_by=${encodeURIComponent(groupBy)}`
-    : `/api/templates/preview/${templateId}`
+  // Build preview URL with optional source parameter
+  const buildPreviewUrl = () => {
+    const params = new URLSearchParams()
+    if (groupBy) params.set('group_by', groupBy)
+    if (source && source !== 'occurrences') params.set('source', source)
+    const queryString = params.toString()
+    return queryString
+      ? `/api/templates/preview/${templateId}?${queryString}`
+      : `/api/templates/preview/${templateId}`
+  }
+  const previewUrl = buildPreviewUrl()
 
   useEffect(() => {
     setIsLoading(true)
     setHasError(false)
     setKey((k) => k + 1)
-  }, [templateId, groupBy])
+  }, [templateId, groupBy, source])
 
   const handleRefresh = () => {
     setIsLoading(true)
@@ -443,6 +461,7 @@ export function AddWidgetModal({
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null)
   const [quickEditFields, setQuickEditFields] = useState<QuickEditField[]>([])
   const [loadingSchema, setLoadingSchema] = useState(false)
 
@@ -487,6 +506,7 @@ export function AddWidgetModal({
       setSearchQuery('')
       setCollapsedSections(new Set())
       setCategoryFilter(null)
+      setSourceFilter(null)
       setQuickEditFields([])
       setInitialRecipe(undefined)
       setSelectedFields([])
@@ -569,6 +589,11 @@ export function AddWidgetModal({
       filtered = filtered.filter((s) => s.category === categoryFilter)
     }
 
+    // Apply source filter
+    if (sourceFilter) {
+      filtered = filtered.filter((s) => s.source_name === sourceFilter)
+    }
+
     // Separate into categories
     const groupWidgets = filtered.filter(
       (s) => s.category === 'navigation' || s.category === 'info'
@@ -627,13 +652,24 @@ export function AddWidgetModal({
     })
 
     return result
-  }, [suggestions, searchQuery, categoryFilter, reference.name])
+  }, [suggestions, searchQuery, categoryFilter, sourceFilter, reference.name])
 
   // Get all unique categories for filter chips
   const availableCategories = useMemo(() => {
     const cats = new Set<string>()
     suggestions.forEach((s) => cats.add(s.category))
     return Array.from(cats)
+  }, [suggestions])
+
+  // Get all unique sources for filter chips
+  const availableSources = useMemo(() => {
+    const sourcesMap: Record<string, { name: string; type: string }> = {}
+    suggestions.forEach((s) => {
+      if (s.source_name && !sourcesMap[s.source_name]) {
+        sourcesMap[s.source_name] = { name: s.source_name, type: s.source || 'auto' }
+      }
+    })
+    return Object.values(sourcesMap)
   }, [suggestions])
 
   // Toggle section collapse
@@ -758,7 +794,8 @@ export function AddWidgetModal({
 
     const result = await generateConfig(templates, reference.name, reference.kind)
     if (result) {
-      await saveConfig(result)
+      // Use 'merge' mode to add widgets to existing config instead of replacing
+      await saveConfig(result, 'merge')
       onWidgetAdded()
     }
   }, [selectedSuggestions, suggestions, getCustomization, generateConfig, saveConfig, reference, onWidgetAdded])
@@ -942,6 +979,40 @@ export function AddWidgetModal({
                         )
                       })}
                     </div>
+
+                    {/* Source filter chips */}
+                    {availableSources.length > 1 && (
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-xs text-muted-foreground mr-1">{t('modal.filterBySource')}:</span>
+                        <Button
+                          variant={sourceFilter === null ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="h-6 text-[11px] px-2"
+                          onClick={() => setSourceFilter(null)}
+                        >
+                          {t('gallery.allSources')}
+                        </Button>
+                        {availableSources.map((source) => {
+                          const SourceIcon = source.type === 'class_object'
+                            ? FileSpreadsheet
+                            : source.name === reference.name
+                              ? GitBranch
+                              : Database
+                          return (
+                            <Button
+                              key={source.name}
+                              variant={sourceFilter === source.name ? 'secondary' : 'ghost'}
+                              size="sm"
+                              className="h-6 text-[11px] px-2"
+                              onClick={() => setSourceFilter(sourceFilter === source.name ? null : source.name)}
+                            >
+                              <SourceIcon className="h-3 w-3 mr-1" />
+                              {source.name}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Suggestions grid with scroll */}
@@ -1022,6 +1093,7 @@ export function AddWidgetModal({
                                             <WidgetPreview
                                               templateId={suggestion.template_id}
                                               groupBy={reference.name}
+                                              source={suggestion.source_name}
                                               width={100}
                                               height={75}
                                             />
@@ -1100,6 +1172,7 @@ export function AddWidgetModal({
                         <LargePreview
                           templateId={previewSuggestion.template_id}
                           groupBy={reference.name}
+                          source={previewSuggestion.source_name}
                         />
 
                         {/* Info */}

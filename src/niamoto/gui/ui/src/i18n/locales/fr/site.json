@@ -28,6 +28,8 @@
     "pageCreatedDesc": "La page \"{{name}}\" a été ajoutée",
     "pageDeleted": "Page supprimée",
     "pageDeletedDesc": "N'oubliez pas de sauvegarder pour appliquer les modifications",
+    "pageDuplicated": "Page dupliquée",
+    "pageDuplicatedDesc": "La page \"{{name}}\" a été créée",
     "contentMd": "Contenu MD",
     "empty": "Vide",
     "edit": "Éditer",
@@ -57,7 +59,24 @@
     "submenus": "sous-menu(s)",
     "untitled": "Sans titre",
     "mainDescription": "Menu de navigation principal du site",
-    "footerDescription": "Liens affichés dans le pied de page"
+    "footerDescription": "Liens affichés dans le pied de page",
+    "createNewPage": "Créer une nouvelle page",
+    "pageName": "Nom de la page",
+    "selectTemplate": "Choisir un template",
+    "createAndLink": "Créer et lier",
+    "inMainMenu": "Dans le menu principal",
+    "inFooterMenu": "Dans le menu footer",
+    "menuLinks": "Menus liés",
+    "mainMenu": "Menu principal",
+    "footerMenu": "Menu footer",
+    "addToMainMenu": "Ajouter au menu principal",
+    "addToFooterMenu": "Ajouter au menu footer",
+    "addedToMain": "Ajouté au menu principal",
+    "addedToFooter": "Ajouté au menu footer",
+    "linkRemoved": "Lien supprimé",
+    "removedFromMain": "Retiré du menu principal",
+    "removedFromFooter": "Retiré du menu footer",
+    "notLinked": "Non lié à un menu"
   },
   "preview": {
     "title": "Aperçu",
@@ -65,7 +84,9 @@
     "previewIndex": "Aperçu Index",
     "selectPageForPreview": "Sélectionnez une page pour voir l'aperçu",
     "noPreviewAvailable": "Aucun aperçu disponible",
-    "generatingPreview": "Génération de l'aperçu..."
+    "generatingPreview": "Génération de l'aperçu...",
+    "groupDetailPage": "Page de détail {{group}}",
+    "groupDetailPageDesc": "Affichage de l'index du groupe (les pages de détail nécessitent des données réelles)"
   },
   "links": {
     "addLink": "Ajouter un lien",

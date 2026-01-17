@@ -264,12 +264,29 @@ def find_entity_by_id(
 
     # Get schema info
     schema = ref_config.get("schema", {})
-    id_field = schema.get("id_field", "id")
+    id_field = schema.get("id_field")
     kind = ref_config.get("kind")  # hierarchical, spatial, or None
 
     # Get entity columns
     columns_df = pd.read_sql(f"SELECT * FROM {entity_table} LIMIT 0", db.engine)
-    columns = columns_df.columns.tolist()
+    columns = [c.lower() for c in columns_df.columns.tolist()]
+
+    # If id_field not in schema, detect it from columns
+    if not id_field or id_field.lower() not in columns:
+        # Handle both plural (plots) and singular (plot) forms
+        singular = (
+            reference_name.rstrip("s")
+            if reference_name.endswith("s")
+            else reference_name
+        )
+        id_candidates = [
+            f"id_{singular}",  # id_plot (for plots)
+            f"{singular}_id",  # plot_id
+            f"id_{reference_name}",  # id_plots
+            f"{reference_name}_id",  # plots_id
+            "id",
+        ]
+        id_field = next((c for c in id_candidates if c in columns), "id")
 
     # Determine name field
     name_candidates = ["full_name", "name", "plot", "label", "title"]

@@ -29,6 +29,8 @@
     "pageCreatedDesc": "Page \"{{name}}\" has been added",
     "pageDeleted": "Page deleted",
     "pageDeletedDesc": "Don't forget to save to apply changes",
+    "pageDuplicated": "Page duplicated",
+    "pageDuplicatedDesc": "Page \"{{name}}\" has been created",
     "contentMd": "MD content",
     "empty": "Empty",
     "edit": "Edit",
@@ -58,7 +60,24 @@
     "submenus": "submenu(s)",
     "untitled": "Untitled",
     "mainDescription": "Main site navigation menu",
-    "footerDescription": "Links displayed in the footer"
+    "footerDescription": "Links displayed in the footer",
+    "createNewPage": "Create new page",
+    "pageName": "Page name",
+    "selectTemplate": "Select template",
+    "createAndLink": "Create and link",
+    "inMainMenu": "In main menu",
+    "inFooterMenu": "In footer menu",
+    "menuLinks": "Linked menus",
+    "mainMenu": "Main menu",
+    "footerMenu": "Footer menu",
+    "addToMainMenu": "Add to main menu",
+    "addToFooterMenu": "Add to footer menu",
+    "addedToMain": "Added to main menu",
+    "addedToFooter": "Added to footer menu",
+    "linkRemoved": "Link removed",
+    "removedFromMain": "Removed from main menu",
+    "removedFromFooter": "Removed from footer menu",
+    "notLinked": "Not linked to a menu"
   },
   "preview": {
     "title": "Preview",
@@ -66,7 +85,9 @@
     "previewIndex": "Index Preview",
     "selectPageForPreview": "Select a page to see preview",
     "noPreviewAvailable": "No preview available",
-    "generatingPreview": "Generating preview..."
+    "generatingPreview": "Generating preview...",
+    "groupDetailPage": "{{group}} detail page",
+    "groupDetailPageDesc": "Showing group index (detail pages require actual data)"
   },
   "links": {
     "addLink": "Add link",

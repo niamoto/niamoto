@@ -88,6 +88,18 @@ export const navigationSections: NavigationSection[] = [
     ]
   },
   {
+    id: 'publish',
+    label: 'Publish',
+    defaultOpen: true,
+    dynamic: true, // Badge will show last build/deploy status
+    items: [
+      { id: 'publish-overview', label: 'Vue d\'ensemble', path: '/publish' },
+      { id: 'publish-build', label: 'Build', path: '/publish/build' },
+      { id: 'publish-deploy', label: 'Deploy', path: '/publish/deploy' },
+      { id: 'publish-history', label: 'Historique', path: '/publish/history' },
+    ]
+  },
+  {
     id: 'tools',
     label: 'Outils',
     defaultOpen: false,

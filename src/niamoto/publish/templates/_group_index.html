@@ -548,6 +548,14 @@
         renderPagination();
     }
 
+    // Trouver le champ de titre/nom pour afficher dans les cartes
+    // Priorité: 1) champ nommé 'name', 2) champ avec is_title: true, 3) premier champ searchable de type text
+    function getTitleField() {
+        return indexConfig.display_fields.find(f => f.name === 'name')
+            || indexConfig.display_fields.find(f => f.is_title === true)
+            || indexConfig.display_fields.find(f => f.searchable === true && f.type === 'text');
+    }
+
     // Vue grille générique
     function renderGridView(items) {
         itemsContainer.className = "items-grid";
@@ -561,7 +569,7 @@
         itemsContainer.innerHTML = items.map(item => {
             const imageField = indexConfig.display_fields.find(f => f.display === 'image_preview' || f.type === 'json_array');
             const imageUrl = getImageUrl(item, imageField);
-            const nameField = indexConfig.display_fields.find(f => f.name === 'name');
+            const nameField = getTitleField();
             const itemName = getFieldValue(item, nameField) || item[indexConfig.id_column];
 
             // Ne pas afficher la section image si aucun champ d'image n'est configuré
@@ -615,7 +623,7 @@
         itemsContainer.innerHTML = items.map(item => {
             const imageField = indexConfig.display_fields.find(f => f.display === 'image_preview' || f.type === 'json_array');
             const imageUrl = getImageUrl(item, imageField);
-            const nameField = indexConfig.display_fields.find(f => f.name === 'name');
+            const nameField = getTitleField();
             const itemName = getFieldValue(item, nameField) || item[indexConfig.id_column];
 
             // Ne pas afficher la section image si aucun champ d'image n'est configuré
