@@ -150,12 +150,16 @@ async function fetchRepresentatives(groupBy: string): Promise<RepresentativesRes
 interface NavigationSidebarProps {
   groupBy: string
   navigationWidget: NavigationWidgetInfo
+  refreshKey?: number
 }
 
-function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps) {
+function NavigationSidebar({ groupBy, navigationWidget, refreshKey = 0 }: NavigationSidebarProps) {
   const { t } = useTranslation(['widgets', 'common'])
   const [isLoading, setIsLoading] = useState(true)
-  const [iframeKey, setIframeKey] = useState(0)
+  const [localRefreshKey, setLocalRefreshKey] = useState(0)
+
+  // Combined key for iframe refresh
+  const iframeKey = `${refreshKey}-${localRefreshKey}`
 
   const handleIframeLoad = useCallback(() => {
     setIsLoading(false)
@@ -163,7 +167,7 @@ function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps
 
   const handleRefresh = useCallback(() => {
     setIsLoading(true)
-    setIframeKey((k) => k + 1)
+    setLocalRefreshKey((k) => k + 1)
   }, [])
 
   const referential = navigationWidget.params?.referential_data as string || groupBy
@@ -236,6 +240,7 @@ interface SortableWidgetCardProps {
   isDragging: boolean
   onColspanToggle: () => void
   onSelect: () => void
+  refreshKey?: number
 }
 
 function SortableWidgetCard({
@@ -247,15 +252,44 @@ function SortableWidgetCard({
   isDragging,
   onColspanToggle,
   onSelect,
+  refreshKey = 0,
 }: SortableWidgetCardProps) {
   const { t } = useTranslation(['widgets', 'common'])
   const [isLoading, setIsLoading] = useState(true)
-  const [iframeKey, setIframeKey] = useState(0)
+  const [localRefreshKey, setLocalRefreshKey] = useState(0)
+  const [isVisible, setIsVisible] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  // Combined key for iframe refresh
+  const iframeKey = `${refreshKey}-${localRefreshKey}`
 
   // Track previous values to avoid unnecessary reloads
   const prevColspanRef = useRef(widget.colspan)
   const prevEntityIdRef = useRef(entityId)
   const prevShowPreviewRef = useRef(showPreview)
+
+  // Lazy loading: only load preview when card is visible in viewport
+  useEffect(() => {
+    const element = cardRef.current
+    if (!element) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // Once visible, stay visible (don't unload when scrolling away)
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+        }
+      },
+      {
+        root: null, // viewport
+        rootMargin: '100px', // Start loading slightly before visible
+        threshold: 0,
+      }
+    )
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   const {
     attributes,
@@ -290,7 +324,7 @@ function SortableWidgetCard({
     // Only reload if something actually changed that requires reload
     if (showPreview && (colspanChanged || entityIdChanged || previewTurnedOn)) {
       setIsLoading(true)
-      setIframeKey((k) => k + 1)
+      setLocalRefreshKey((k) => k + 1)
     }
   }, [widget.colspan, entityId, showPreview])
 
@@ -318,9 +352,18 @@ function SortableWidgetCard({
     }
   }
 
+  // Combine refs for both sortable and intersection observer
+  const combinedRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node)
+      ;(cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+    },
+    [setNodeRef]
+  )
+
   return (
     <div
-      ref={setNodeRef}
+      ref={combinedRef}
       style={style}
       className={cn(
         colSpanClass,
@@ -371,7 +414,8 @@ function SortableWidgetCard({
         className={cn('relative bg-background cursor-pointer', getHeightClass())}
         onClick={onSelect}
       >
-        {showPreview && !isDragging ? (
+        {/* Lazy load: wait for visibility AND entityId before loading preview */}
+        {showPreview && !isDragging && entityId && isVisible ? (
           <>
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
@@ -384,6 +428,7 @@ function SortableWidgetCard({
               className="w-full h-full border-0 pointer-events-none"
               onLoad={handleIframeLoad}
               title={widget.title}
+              loading="lazy"
             />
             {/* Selection overlay on hover */}
             <div className="absolute inset-0 bg-primary/0 hover:bg-primary/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
@@ -393,6 +438,11 @@ function SortableWidgetCard({
               </div>
             </div>
           </>
+        ) : showPreview && !isDragging && (!entityId || !isVisible) ? (
+          /* Loading state while waiting for entityId or visibility */
+          <div className="h-full flex items-center justify-center bg-muted/20">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
             <Badge variant="outline" className="text-xs">
@@ -456,6 +506,7 @@ export function LayoutOverview({
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [globalRefreshKey, setGlobalRefreshKey] = useState(0)
 
   // Reset entity selection when group changes
   useEffect(() => {
@@ -679,7 +730,10 @@ export function LayoutOverview({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetch()}
+              onClick={() => {
+                refetch()
+                setGlobalRefreshKey((k) => k + 1)
+              }}
               disabled={saveMutation.isPending}
             >
               <RefreshCw className="h-4 w-4" />
@@ -724,6 +778,7 @@ export function LayoutOverview({
             <NavigationSidebar
               groupBy={groupBy}
               navigationWidget={layout.navigation_widget}
+              refreshKey={globalRefreshKey}
             />
           </div>
         )}
@@ -751,6 +806,7 @@ export function LayoutOverview({
                       isDragging={isDragging}
                       onColspanToggle={() => handleColspanToggle(widget.index)}
                       onSelect={() => handleSelectWidget(widget)}
+                      refreshKey={globalRefreshKey}
                     />
                   ))}
                 </div>

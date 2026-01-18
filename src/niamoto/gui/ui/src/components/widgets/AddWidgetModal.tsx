@@ -1070,14 +1070,14 @@ export function AddWidgetModal({
                               {!isCollapsed && (
                                 <div className="p-2 border-t bg-background">
                                   <div className="grid grid-cols-2 gap-2">
-                                    {group.suggestions.map((suggestion) => {
+                                    {group.suggestions.map((suggestion, suggestionIdx) => {
                                       const Icon = CATEGORY_ICONS[suggestion.category] || BarChart3
                                       const isSelected = selectedSuggestions.has(suggestion.template_id)
                                       const isFocused = focusedSuggestion === suggestion.template_id
 
                                       return (
                                         <div
-                                          key={suggestion.template_id}
+                                          key={`${suggestion.template_id}-${suggestionIdx}`}
                                           className={cn(
                                             'flex border rounded-md overflow-hidden cursor-pointer transition-all hover:shadow-sm group',
                                             isSelected && isFocused

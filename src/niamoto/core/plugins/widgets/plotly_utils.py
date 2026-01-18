@@ -116,7 +116,12 @@ def render_plotly_figure(fig, config: Dict[str, Any] = None) -> str:
                     "{div_id}",
                     {fig_json},
                     {config_json}
-                );
+                ).then(function() {{
+                    // Resize after initial render to fix container sizing issues
+                    setTimeout(function() {{
+                        Plotly.Plots.resize("{div_id}");
+                    }}, 100);
+                }});
             }};
 
             if (typeof Plotly !== 'undefined') {{
@@ -130,6 +135,15 @@ def render_plotly_figure(fig, config: Dict[str, Any] = None) -> str:
                     }}
                 }}, 100);
             }}
+
+            // Also resize on window load to handle iframe sizing
+            window.addEventListener('load', function() {{
+                if (typeof Plotly !== 'undefined') {{
+                    setTimeout(function() {{
+                        Plotly.Plots.resize("{div_id}");
+                    }}, 200);
+                }}
+            }});
         }})();
     </script>
     '''
