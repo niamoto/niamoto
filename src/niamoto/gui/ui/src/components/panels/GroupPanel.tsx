@@ -4,7 +4,7 @@
  * Three tabs (Option A: Hybride):
  * - Sources de donnees: Configure data sources (occurrences + stats files)
  * - Contenu: Widget management with contextual panel (list + layout/details)
- * - Index: Index configuration
+ * - Liste: Index/listing page configuration
  */
 
 import { useState } from 'react'
