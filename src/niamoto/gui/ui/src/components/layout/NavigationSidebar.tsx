@@ -108,6 +108,7 @@ const sectionLabelKeys: Record<string, string> = {
   sources: 'sidebar.sections.sources',
   groups: 'sidebar.sections.groups',
   site: 'sidebar.sections.site',
+  publish: 'sidebar.sections.publish',
   tools: 'sidebar.sections.tools',
   // labs: keep English (will be removed)
 }
@@ -121,6 +122,10 @@ const itemLabelKeys: Record<string, string> = {
   'site-navigation': 'sidebar.items.navigation',
   'site-apparence': 'sidebar.items.appearance',
   'site-theme': 'sidebar.items.theme',
+  'publish-overview': 'sidebar.items.overview',
+  'publish-build': 'sidebar.items.build',
+  'publish-deploy': 'sidebar.items.deploy',
+  'publish-history': 'sidebar.items.history',
   'data-explorer': 'sidebar.items.dataExplorer',
   'live-preview': 'sidebar.items.livePreview',
   showcase: 'sidebar.items.showcase',

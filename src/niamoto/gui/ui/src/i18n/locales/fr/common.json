@@ -20,6 +20,7 @@
       "sources": "Sources",
       "groups": "Groupes",
       "site": "Site",
+      "publish": "Publication",
       "tools": "Outils",
       "labs": "Labs"
     },
@@ -31,6 +32,9 @@
       "navigation": "Navigation",
       "appearance": "Apparence",
       "theme": "Thème",
+      "build": "Build",
+      "deploy": "Déploiement",
+      "history": "Historique",
       "dataExplorer": "Data Explorer",
       "livePreview": "Live Preview",
       "showcase": "Showcase",
@@ -79,7 +83,9 @@
     "start": "Lancer",
     "addNew": "Ajouter",
     "hidePreview": "Masquer l'aperçu",
-    "duplicate": "Dupliquer"
+    "duplicate": "Dupliquer",
+    "preview": "Aperçu",
+    "refresh": "Actualiser"
   },
   "status": {
     "loading": "Chargement...",

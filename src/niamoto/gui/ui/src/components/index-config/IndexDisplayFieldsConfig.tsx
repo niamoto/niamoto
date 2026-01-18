@@ -3,7 +3,6 @@
  *
  * Allows adding/editing/removing/reordering display fields for the index generator.
  */
-import { useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -20,17 +19,17 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, Trash2, Pencil, Search, Badge as BadgeIcon, EyeOff } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Search, Badge as BadgeIcon, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { IndexDisplayField } from './useIndexConfig'
-import { DisplayFieldEditor } from './DisplayFieldEditor'
 
 interface IndexDisplayFieldsConfigProps {
   fields: IndexDisplayField[]
+  selectedIndex: number | null
   onAdd: () => void
-  onUpdate: (index: number, field: Partial<IndexDisplayField>) => void
+  onSelect: (index: number) => void
   onRemove: (index: number) => void
   onReorder: (fromIndex: number, toIndex: number) => void
 }
@@ -39,11 +38,12 @@ interface IndexDisplayFieldsConfigProps {
 interface SortableFieldItemProps {
   field: IndexDisplayField
   index: number
-  onEdit: () => void
+  isSelected: boolean
+  onClick: () => void
   onRemove: () => void
 }
 
-function SortableFieldItem({ field, index, onEdit, onRemove }: SortableFieldItemProps) {
+function SortableFieldItem({ field, index, isSelected, onClick, onRemove }: SortableFieldItemProps) {
   const {
     attributes,
     listeners,
@@ -63,14 +63,17 @@ function SortableFieldItem({ field, index, onEdit, onRemove }: SortableFieldItem
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-2 p-3 rounded-lg border bg-card',
-        isDragging && 'opacity-50 shadow-lg'
+        'flex items-center gap-2 p-3 rounded-lg border bg-card cursor-pointer transition-colors',
+        isDragging && 'opacity-50 shadow-lg',
+        isSelected && 'ring-2 ring-primary border-primary bg-primary/5'
       )}
+      onClick={onClick}
     >
       {/* Drag handle */}
       <button
         type="button"
         className="touch-none cursor-grab active:cursor-grabbing p-1 text-muted-foreground hover:text-foreground"
+        onClick={(e) => e.stopPropagation()}
         {...attributes}
         {...listeners}
       >
@@ -120,16 +123,11 @@ function SortableFieldItem({ field, index, onEdit, onRemove }: SortableFieldItem
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
-          onClick={onEdit}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
           className="h-8 w-8 text-destructive hover:text-destructive"
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -140,13 +138,12 @@ function SortableFieldItem({ field, index, onEdit, onRemove }: SortableFieldItem
 
 export function IndexDisplayFieldsConfig({
   fields,
+  selectedIndex,
   onAdd,
-  onUpdate,
+  onSelect,
   onRemove,
   onReorder,
 }: IndexDisplayFieldsConfigProps) {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -166,19 +163,6 @@ export function IndexDisplayFieldsConfig({
     }
   }
 
-  // Handle edit
-  const handleEdit = (index: number) => {
-    setEditingIndex(index)
-  }
-
-  // Handle save from editor
-  const handleSaveField = (field: Partial<IndexDisplayField>) => {
-    if (editingIndex !== null) {
-      onUpdate(editingIndex, field)
-      setEditingIndex(null)
-    }
-  }
-
   if (fields.length === 0) {
     return (
       <div className="text-center py-6">
@@ -194,52 +178,39 @@ export function IndexDisplayFieldsConfig({
   }
 
   return (
-    <>
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground mb-3">
-          Glissez-deposez pour reordonner les champs
-        </p>
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground mb-3">
+        Cliquez sur un champ pour le modifier. Glissez-deposez pour reordonner.
+      </p>
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={fields.map((_, i) => `field-${i}`)}
+          strategy={verticalListSortingStrategy}
         >
-          <SortableContext
-            items={fields.map((_, i) => `field-${i}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-2">
-              {fields.map((field, index) => (
-                <SortableFieldItem
-                  key={`field-${index}`}
-                  field={field}
-                  index={index}
-                  onEdit={() => handleEdit(index)}
-                  onRemove={() => onRemove(index)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+          <div className="space-y-2">
+            {fields.map((field, index) => (
+              <SortableFieldItem
+                key={`field-${index}`}
+                field={field}
+                index={index}
+                isSelected={selectedIndex === index}
+                onClick={() => onSelect(index)}
+                onRemove={() => onRemove(index)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
-        <Button variant="outline" size="sm" onClick={onAdd} className="mt-4">
-          <Plus className="mr-2 h-4 w-4" />
-          Ajouter un champ
-        </Button>
-      </div>
-
-      {/* Field editor modal */}
-      {editingIndex !== null && fields[editingIndex] && (
-        <DisplayFieldEditor
-          field={fields[editingIndex]}
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) setEditingIndex(null)
-          }}
-          onSave={handleSaveField}
-        />
-      )}
-    </>
+      <Button variant="outline" size="sm" onClick={onAdd} className="mt-4">
+        <Plus className="mr-2 h-4 w-4" />
+        Ajouter un champ
+      </Button>
+    </div>
   )
 }

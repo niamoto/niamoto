@@ -202,30 +202,8 @@
     <!-- Barre de stats et toggle de vue -->
     <div class="flex justify-between items-center mb-6">
         <div id="resultCount" class="text-sm text-gray-600">Chargement...</div>
-        <div class="flex gap-2">
-            <button id="gridViewBtn"
-                    class="p-2 border border-gray-300 rounded-md bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-primary"
-                    title="Vue en grille">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path
-                        d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7zM1 12a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2z">
-                    </path>
-                </svg>
-            </button>
-            <button id="listViewBtn"
-                    class="p-2 border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-primary"
-                    title="Vue en liste">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path fill-rule="evenodd"
-                        d="M2 2.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5V3a.5.5 0 0 0-.5-.5H2zM3 3H2v1h1V3z"></path>
-                    <path
-                        d="M5 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM5.5 7a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9zm0 4a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9z">
-                    </path>
-                    <path fill-rule="evenodd"
-                        d="M1.5 7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V7zM2 7h1v1H2V7zm0 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5H2zm1 .5H2v1h1v-1z">
-                    </path>
-                </svg>
-            </button>
+        <div id="viewToggleContainer" class="flex gap-2">
+            <!-- Les boutons seront générés par JavaScript selon la configuration views -->
         </div>
     </div>
 
@@ -326,23 +304,79 @@
     const paginationElement = document.getElementById('pagination');
     const resultCountElement = document.getElementById('resultCount');
     const noResultsElement = document.getElementById('noResults');
-    const gridViewBtn = document.getElementById('gridViewBtn');
-    const listViewBtn = document.getElementById('listViewBtn');
+    const viewToggleContainer = document.getElementById('viewToggleContainer');
+
+    // Configuration des vues (avec fallback par défaut)
+    const viewsConfig = indexConfig.views || [
+        { type: 'grid', default: true },
+        { type: 'list', default: false }
+    ];
+    const hasGridView = viewsConfig.some(v => v.type === 'grid');
+    const hasListView = viewsConfig.some(v => v.type === 'list');
+    const defaultView = viewsConfig.find(v => v.default)?.type || viewsConfig[0]?.type || 'grid';
+
+    // Détecter si on est dans un contexte de preview (iframe)
+    const isPreviewMode = window.parent !== window;
 
     // Initialisation
     document.addEventListener('DOMContentLoaded', function() {
+        generateViewToggleButtons();
         generateFilters();
         setupEventListeners();
         applyFiltersAndSort();
 
-        // Restaurer la vue sauvegardée ou initialiser par défaut
-        const savedView = localStorage.getItem(`${indexConfig.group_by}ViewPreference`);
-        if (savedView) {
-            setView(savedView);
+        // En mode preview, toujours utiliser la vue par défaut configurée
+        // En mode normal, restaurer la préférence utilisateur si elle existe
+        if (isPreviewMode) {
+            setView(defaultView);
         } else {
-            setView('grid'); // Vue par défaut
+            const savedView = localStorage.getItem(`${indexConfig.group_by}ViewPreference`);
+            if (savedView && viewsConfig.some(v => v.type === savedView)) {
+                setView(savedView);
+            } else {
+                setView(defaultView);
+            }
         }
     });
+
+    // Génération des boutons de vue selon la configuration
+    function generateViewToggleButtons() {
+        // Si une seule vue est configurée, pas besoin de boutons
+        if (viewsConfig.length <= 1) {
+            viewToggleContainer.innerHTML = '';
+            return;
+        }
+
+        let buttonsHTML = '';
+
+        if (hasGridView) {
+            buttonsHTML += `
+                <button id="gridViewBtn"
+                        class="p-2 border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-primary"
+                        title="Vue en grille">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7zM1 12a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-2z"></path>
+                    </svg>
+                </button>
+            `;
+        }
+
+        if (hasListView) {
+            buttonsHTML += `
+                <button id="listViewBtn"
+                        class="p-2 border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-primary"
+                        title="Vue en liste">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M2 2.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5V3a.5.5 0 0 0-.5-.5H2zM3 3H2v1h1V3z"></path>
+                        <path d="M5 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM5.5 7a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9zm0 4a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9z"></path>
+                        <path fill-rule="evenodd" d="M1.5 7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V7zM2 7h1v1H2V7zm0 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5H2zm1 .5H2v1h1v-1z"></path>
+                    </svg>
+                </button>
+            `;
+        }
+
+        viewToggleContainer.innerHTML = buttonsHTML;
+    }
 
     // Génération dynamique des filtres
     function generateFilters() {
@@ -427,8 +461,11 @@
         // Event listeners pour tous les filtres
         filtersContainer.addEventListener('change', applyFiltersAndSort);
 
-        gridViewBtn.addEventListener('click', () => setView('grid'));
-        listViewBtn.addEventListener('click', () => setView('list'));
+        // Event listeners pour les boutons de vue (si présents)
+        const gridViewBtn = document.getElementById('gridViewBtn');
+        const listViewBtn = document.getElementById('listViewBtn');
+        if (gridViewBtn) gridViewBtn.addEventListener('click', () => setView('grid'));
+        if (listViewBtn) listViewBtn.addEventListener('click', () => setView('list'));
     }
 
     // Extraction de valeur de champ avec chemins complexes
@@ -800,16 +837,28 @@
     function setView(viewType) {
         currentView = viewType;
 
-        if (viewType === 'grid') {
-            gridViewBtn.classList.add('bg-green-600', 'text-white');
-            gridViewBtn.classList.remove('bg-white', 'text-gray-700');
-            listViewBtn.classList.remove('bg-green-600', 'text-white');
-            listViewBtn.classList.add('bg-white', 'text-gray-700');
-        } else {
-            listViewBtn.classList.add('bg-green-600', 'text-white');
-            listViewBtn.classList.remove('bg-white', 'text-gray-700');
-            gridViewBtn.classList.remove('bg-green-600', 'text-white');
-            gridViewBtn.classList.add('bg-white', 'text-gray-700');
+        // Mettre à jour les styles des boutons (si présents)
+        const gridViewBtn = document.getElementById('gridViewBtn');
+        const listViewBtn = document.getElementById('listViewBtn');
+
+        if (gridViewBtn) {
+            if (viewType === 'grid') {
+                gridViewBtn.classList.add('bg-green-600', 'text-white');
+                gridViewBtn.classList.remove('bg-white', 'text-gray-700');
+            } else {
+                gridViewBtn.classList.remove('bg-green-600', 'text-white');
+                gridViewBtn.classList.add('bg-white', 'text-gray-700');
+            }
+        }
+
+        if (listViewBtn) {
+            if (viewType === 'list') {
+                listViewBtn.classList.add('bg-green-600', 'text-white');
+                listViewBtn.classList.remove('bg-white', 'text-gray-700');
+            } else {
+                listViewBtn.classList.remove('bg-green-600', 'text-white');
+                listViewBtn.classList.add('bg-white', 'text-gray-700');
+            }
         }
 
         localStorage.setItem(`${indexConfig.group_by}ViewPreference`, viewType);

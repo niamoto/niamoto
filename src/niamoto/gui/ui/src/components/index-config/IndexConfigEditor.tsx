@@ -7,8 +7,9 @@
  * - Filters configuration
  * - Display fields configuration with drag-and-drop
  * - Views configuration (grid/list)
+ * - Live preview panel
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -47,9 +48,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable'
+import { PreviewFrame, type DeviceSize } from '@/components/ui/preview-frame'
+import { useGroupIndexPreview } from '@/hooks/useSiteConfig'
 import { useIndexConfig, createDefaultDisplayField } from './useIndexConfig'
 import { IndexFiltersConfig } from './IndexFiltersConfig'
 import { IndexDisplayFieldsConfig } from './IndexDisplayFieldsConfig'
+import { DisplayFieldEditorPanel } from './DisplayFieldEditorPanel'
 
 interface IndexConfigEditorProps {
   groupBy: string
@@ -83,6 +92,31 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [detecting, setDetecting] = useState(false)
   const [showAutoDetectConfirm, setShowAutoDetectConfirm] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewDevice, setPreviewDevice] = useState<DeviceSize>('desktop')
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const [editingFieldIndex, setEditingFieldIndex] = useState<number | null>(null)
+  const previewMutation = useGroupIndexPreview()
+
+  // Load preview when enabled and showPreview is true
+  useEffect(() => {
+    if (showPreview && config.enabled) {
+      loadPreview()
+    }
+  }, [showPreview, config.enabled, groupBy])
+
+  // Function to load/refresh preview
+  const loadPreview = () => {
+    if (config.enabled) {
+      previewMutation.mutate(
+        { groupName: groupBy },
+        {
+          onSuccess: (data) => setPreviewHtml(data.html),
+          onError: () => setPreviewHtml(null),
+        }
+      )
+    }
+  }
 
   // Handle save
   const handleSave = async () => {
@@ -93,6 +127,10 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
     if (success) {
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
+      // Recharger la preview si elle est visible
+      if (showPreview) {
+        loadPreview()
+      }
     }
   }
 
@@ -134,11 +172,43 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
 
   // Handle add display field
   const handleAddDisplayField = () => {
+    const newIndex = config.display_fields.length
     addDisplayField(createDefaultDisplayField({
-      name: `field_${config.display_fields.length + 1}`,
+      name: `field_${newIndex + 1}`,
       source: '',
     }))
+    // Auto-select the new field for editing
+    setEditingFieldIndex(newIndex)
+    setShowPreview(false)
   }
+
+  // Handle field selection
+  const handleSelectField = (index: number) => {
+    setEditingFieldIndex(index)
+    setShowPreview(false)
+  }
+
+  // Handle field save from panel
+  const handleSaveField = (field: Partial<typeof config.display_fields[0]>) => {
+    if (editingFieldIndex !== null) {
+      updateDisplayField(editingFieldIndex, field)
+    }
+  }
+
+  // Handle field removal with index adjustment
+  const handleRemoveField = (index: number) => {
+    removeDisplayField(index)
+    // If we're editing the removed field, close the editor
+    if (editingFieldIndex === index) {
+      setEditingFieldIndex(null)
+    } else if (editingFieldIndex !== null && index < editingFieldIndex) {
+      // Adjust index if a field before the edited one is removed
+      setEditingFieldIndex(editingFieldIndex - 1)
+    }
+  }
+
+  // Determine if side panel should be visible
+  const showSidePanel = showPreview || editingFieldIndex !== null
 
   // Loading state or config not ready
   if (loading || !config) {
@@ -169,24 +239,39 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
             </Badge>
           )}
           {config.enabled && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAutoDetectClick}
-              disabled={detecting || saving}
-            >
-              {detecting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Detection...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Auto-detecter
-                </>
-              )}
-            </Button>
+            <>
+              <Button
+                variant={showPreview ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setShowPreview(!showPreview)
+                  if (!showPreview) {
+                    setEditingFieldIndex(null)
+                  }
+                }}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                {t('common:actions.preview')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAutoDetectClick}
+                disabled={detecting || saving}
+              >
+                {detecting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Detection...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Auto-detecter
+                  </>
+                )}
+              </Button>
+            </>
           )}
           <Button
             variant="outline"
@@ -254,9 +339,11 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
         </Alert>
       )}
 
-      {/* Main content */}
-      <div className="flex-1 overflow-auto p-4">
-        <div className="space-y-4 max-w-4xl">
+      {/* Main content with optional side panel */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanel defaultSize={showSidePanel ? 55 : 100} minSize={40}>
+          <div className="h-full overflow-auto p-4">
+            <div className="space-y-4 max-w-4xl">
           {/* Enable/disable toggle */}
           <Card>
             <CardContent className="pt-6">
@@ -392,9 +479,10 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
                 <AccordionContent className="px-4 pb-4">
                   <IndexDisplayFieldsConfig
                     fields={config.display_fields}
+                    selectedIndex={editingFieldIndex}
                     onAdd={handleAddDisplayField}
-                    onUpdate={updateDisplayField}
-                    onRemove={removeDisplayField}
+                    onSelect={handleSelectField}
+                    onRemove={handleRemoveField}
                     onReorder={reorderDisplayFields}
                   />
                 </AccordionContent>
@@ -483,8 +571,39 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
               </AccordionItem>
             </Accordion>
           )}
-        </div>
-      </div>
+            </div>
+          </div>
+        </ResizablePanel>
+
+        {/* Side panel: Field editor or Preview */}
+        {showSidePanel && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={45} minSize={30}>
+              {editingFieldIndex !== null && config.display_fields[editingFieldIndex] ? (
+                <DisplayFieldEditorPanel
+                  field={config.display_fields[editingFieldIndex]}
+                  fieldIndex={editingFieldIndex}
+                  onSave={handleSaveField}
+                  onClose={() => setEditingFieldIndex(null)}
+                />
+              ) : showPreview ? (
+                <PreviewFrame
+                  html={previewHtml}
+                  isLoading={previewMutation.isPending}
+                  device={previewDevice}
+                  onDeviceChange={setPreviewDevice}
+                  onRefresh={loadPreview}
+                  onClose={() => setShowPreview(false)}
+                  title={`${t('common:actions.preview')} - ${groupBy}`}
+                  loadingMessage={t('indexConfig:preview.generating')}
+                  emptyMessage={t('indexConfig:preview.noPreview')}
+                />
+              ) : null}
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
     </div>
   )
 }
