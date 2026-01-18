@@ -105,6 +105,11 @@ from niamoto.core.plugins.registry import PluginRegistry  # noqa: E402
 from niamoto.core.plugins.base import PluginType  # noqa: E402
 from niamoto.gui.api.context import get_database_path, get_working_directory  # noqa: E402
 from niamoto.gui.api.services import PreviewService  # noqa: E402
+from niamoto.gui.api.services.map_renderer import (  # noqa: E402
+    MapRenderer,
+    MapConfig,
+    MapStyle,
+)
 from niamoto.common.database import Database  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -1745,7 +1750,6 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
     Returns:
         HTMLResponse with the rendered widget
     """
-    import json
     from pathlib import Path
 
     try:
@@ -2622,32 +2626,7 @@ async def _preview_entity_map(
 
         geojson = {"type": "FeatureCollection", "features": features}
 
-        # Calculate center from features
-        lons = []
-        lats = []
-        for f in features:
-            geom = f["geometry"]
-            if geom["type"] == "Point":
-                lons.append(geom["coordinates"][0])
-                lats.append(geom["coordinates"][1])
-            elif geom["type"] == "Polygon":
-                for coord in geom["coordinates"][0]:
-                    lons.append(coord[0])
-                    lats.append(coord[1])
-            elif geom["type"] == "MultiPolygon":
-                for polygon in geom["coordinates"]:
-                    for ring in polygon:
-                        for coord in ring:
-                            lons.append(coord[0])
-                            lats.append(coord[1])
-
-        center_lon = sum(lons) / len(lons) if lons else 165.5
-        center_lat = sum(lats) / len(lats) if lats else -21.5
-
-        # Determine zoom based on mode
-        zoom = 10 if mode == "single" else 7
-
-        # Generate map HTML
+        # Generate map title
         if mode == "single":
             title = "Position du plot" if reference == "plots" else "Polygone du shape"
         elif mode == "type" and entity_type_filter:
@@ -2655,65 +2634,27 @@ async def _preview_entity_map(
         else:
             title = f"Tous les {reference}"
 
-        map_html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{title}</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        html, body {{ margin: 0; padding: 0; height: 100%; }}
-        #map {{ width: 100%; height: 100%; }}
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <script>
-        const geojson = {json.dumps(geojson)};
-        const map = L.map('map').setView([{center_lat}, {center_lon}], {zoom});
+        # Configure map rendering
+        map_config = MapConfig(
+            title=title,
+            zoom=10.0 if mode == "single" else 7.0,
+            auto_zoom=True,
+            style=MapStyle(
+                color="#3b82f6",
+                fill_color="#3b82f6",
+                fill_opacity=0.3,
+                stroke_width=2,
+                point_radius=8,
+            ),
+        )
 
-        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            attribution: '&copy; OpenStreetMap contributors'
-        }}).addTo(map);
+        # Render map using MapRenderer (Plotly by default)
+        map_html = MapRenderer.render(geojson, map_config, engine="plotly")
 
-        const geojsonLayer = L.geoJSON(geojson, {{
-            style: function(feature) {{
-                return {{
-                    color: '#3b82f6',
-                    weight: 2,
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.3
-                }};
-            }},
-            pointToLayer: function(feature, latlng) {{
-                return L.circleMarker(latlng, {{
-                    radius: 8,
-                    fillColor: '#3b82f6',
-                    color: '#1e40af',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.7
-                }});
-            }},
-            onEachFeature: function(feature, layer) {{
-                if (feature.properties && feature.properties.name) {{
-                    layer.bindPopup('<strong>' + feature.properties.name + '</strong>');
-                }}
-            }}
-        }}).addTo(map);
-
-        // Fit bounds to show all features
-        if (geojson.features.length > 0) {{
-            map.fitBounds(geojsonLayer.getBounds(), {{ padding: [20, 20] }});
-        }}
-    </script>
-</body>
-</html>
-"""
-        return HTMLResponse(content=map_html)
+        # Wrap in HTML document for iframe display
+        return HTMLResponse(
+            content=PreviewService.wrap_html_response(map_html, title=title)
+        )
 
     except Exception as e:
         logger.exception(f"Error generating entity map preview: {e}")

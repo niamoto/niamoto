@@ -126,7 +126,7 @@ export const FieldGroup = memo(function FieldGroup({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
             {group.suggestions.map((suggestion, idx) => (
               <WidgetOptionCard
-                key={suggestion.template_id}
+                key={`${suggestion.template_id}-${idx}`}
                 suggestion={suggestion}
                 selected={selectedIds.has(suggestion.template_id)}
                 isPrimary={idx === 0}

@@ -400,8 +400,10 @@ async def preview_widget(
         # The data_source is the template_id used in transform.yml
         # e.g., "geo_pt_geospatial_extractor_interactive_map"
         # Pass entity_id if provided to show data for a specific entity
+        # Note: source=None must be passed explicitly because Query() defaults
+        # don't work when calling the function directly (not via HTTP)
         return await preview_template(
-            data_source, group_by=group_by, entity_id=entity_id
+            data_source, group_by=group_by, entity_id=entity_id, source=None
         )
 
     except HTTPException:
