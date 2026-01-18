@@ -7,7 +7,7 @@
 export { IndexConfigEditor } from './IndexConfigEditor'
 export { IndexFiltersConfig } from './IndexFiltersConfig'
 export { IndexDisplayFieldsConfig } from './IndexDisplayFieldsConfig'
-export { DisplayFieldEditor } from './DisplayFieldEditor'
+export { DisplayFieldEditorPanel } from './DisplayFieldEditorPanel'
 export {
   useIndexConfig,
   createDefaultDisplayField,

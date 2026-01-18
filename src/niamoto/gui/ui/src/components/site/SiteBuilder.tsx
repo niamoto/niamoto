@@ -7,7 +7,7 @@
  * - Right panel: Live preview (toggleable)
  */
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Settings,
@@ -21,9 +21,6 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Smartphone,
-  Tablet,
-  Monitor,
   Plus,
   ExternalLink as ExternalLinkIcon,
   Home,
@@ -62,7 +59,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { PreviewFrame, type DeviceSize } from '@/components/ui/preview-frame'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,8 +102,6 @@ interface Selection {
   type: SelectionType
   id?: string
 }
-
-type DeviceSize = 'mobile' | 'tablet' | 'desktop'
 
 // =============================================================================
 // TEMPLATE ICONS CONFIGURATION
@@ -659,63 +654,17 @@ interface SitePreviewProps {
   fileContent?: string
   // Callback when a link is clicked in the preview
   onLinkClick?: (href: string) => void
+  // Callback to close/hide the preview
+  onClose?: () => void
 }
 
-function SitePreview({ page, site, navigation, footerNavigation, device, onDeviceChange, fileContent, onLinkClick }: SitePreviewProps) {
+function SitePreview({ page, site, navigation, footerNavigation, device, onDeviceChange, fileContent, onLinkClick, onClose }: SitePreviewProps) {
   const { t } = useTranslation(['site', 'common'])
   const previewMutation = useTemplatePreview()
   const [html, setHtml] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
 
-  // Device dimensions (real viewport sizes)
-  const deviceDimensions = {
-    mobile: { width: 375, height: 667 },
-    tablet: { width: 768, height: 1024 },
-    desktop: { width: 1440, height: 900 },
-  }
-
-  // Calculate scale based on container size (with ResizeObserver for panel resizing)
-  useEffect(() => {
-    const updateScale = () => {
-      if (containerRef.current) {
-        const containerWidth = containerRef.current.clientWidth - 32 // padding
-        const containerHeight = containerRef.current.clientHeight - 32
-        const targetWidth = deviceDimensions[device].width
-        const targetHeight = deviceDimensions[device].height
-
-        // Scale to fit both width and height
-        const scaleX = containerWidth / targetWidth
-        const scaleY = containerHeight / targetHeight
-        const newScale = Math.min(scaleX, scaleY, 1) // Don't scale up, only down
-
-        setScale(newScale)
-      }
-    }
-
-    updateScale()
-
-    // Use ResizeObserver for panel resizing
-    const resizeObserver = new ResizeObserver(updateScale)
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current)
-    }
-
-    return () => resizeObserver.disconnect()
-  }, [device])
-
-  // Listen for messages from iframe (link clicks)
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'preview-link-click' && event.data?.href) {
-        onLinkClick?.(event.data.href)
-      }
-    }
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [onLinkClick])
-
-  useEffect(() => {
+  // Function to load preview
+  const loadPreview = () => {
     if (page) {
       // Build context for template preview
       const context: Record<string, unknown> = { ...page.context }
@@ -754,81 +703,25 @@ function SitePreview({ page, site, navigation, footerNavigation, device, onDevic
     } else {
       setHtml('')
     }
+  }
+
+  // Load preview when dependencies change
+  useEffect(() => {
+    loadPreview()
   }, [page, site, navigation, footerNavigation, fileContent])
 
-  const currentDimensions = deviceDimensions[device]
-
   return (
-    <div className="flex h-full flex-col bg-muted/30">
-      {/* Preview Header */}
-      <div className="flex items-center justify-between border-b bg-background px-4 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{t('preview.title')}</span>
-          <span className="text-xs text-muted-foreground">
-            {currentDimensions.width}x{currentDimensions.height} ({Math.round(scale * 100)}%)
-          </span>
-        </div>
-        <ToggleGroup
-          type="single"
-          value={device}
-          onValueChange={(v) => v && onDeviceChange(v as DeviceSize)}
-          size="sm"
-        >
-          <ToggleGroupItem value="mobile" aria-label="Mobile">
-            <Smartphone className="h-4 w-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="tablet" aria-label={t('responsive.tablet')}>
-            <Tablet className="h-4 w-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="desktop" aria-label="Desktop">
-            <Monitor className="h-4 w-4" />
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
-      {/* Preview Content */}
-      <div ref={containerRef} className="flex-1 p-4 overflow-hidden flex items-center justify-center">
-        {previewMutation.isPending ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : html ? (
-          <div
-            className="relative flex items-center justify-center"
-            style={{
-              width: currentDimensions.width * scale,
-              height: currentDimensions.height * scale,
-            }}
-          >
-            <div
-              className="absolute rounded-lg border bg-white shadow-sm overflow-hidden"
-              style={{
-                width: currentDimensions.width,
-                height: currentDimensions.height,
-                transform: `scale(${scale})`,
-                transformOrigin: 'top left',
-                top: 0,
-                left: 0,
-              }}
-            >
-              <iframe
-                srcDoc={html}
-                className="w-full h-full border-0"
-                title={t('builder.templatePreview')}
-                sandbox="allow-same-origin allow-scripts"
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Eye className="h-10 w-10 text-muted-foreground/50 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              {t('preview.selectPageForPreview')}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+    <PreviewFrame
+      html={html}
+      isLoading={previewMutation.isPending}
+      device={device}
+      onDeviceChange={onDeviceChange}
+      onRefresh={loadPreview}
+      onClose={onClose}
+      onLinkClick={onLinkClick}
+      title={t('preview.title')}
+      emptyMessage={t('preview.selectPageForPreview')}
+    />
   )
 }
 
@@ -843,6 +736,7 @@ interface GroupIndexPreviewPanelProps {
   onDeviceChange: (device: DeviceSize) => void
   groupName: string
   onLinkClick?: (href: string) => void
+  onRefresh?: () => void
 }
 
 function GroupIndexPreviewPanel({
@@ -852,121 +746,20 @@ function GroupIndexPreviewPanel({
   onDeviceChange,
   groupName,
   onLinkClick,
+  onRefresh,
 }: GroupIndexPreviewPanelProps) {
   const { t } = useTranslation(['site', 'common'])
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
-
-  // Listen for messages from iframe (link clicks)
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'preview-link-click' && event.data?.href) {
-        onLinkClick?.(event.data.href)
-      }
-    }
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [onLinkClick])
-
-  // Device dimensions
-  const deviceDimensions = {
-    mobile: { width: 375, height: 667 },
-    tablet: { width: 768, height: 1024 },
-    desktop: { width: 1440, height: 900 },
-  }
-
-  // Calculate scale based on container size
-  useEffect(() => {
-    const updateScale = () => {
-      if (containerRef.current) {
-        const containerWidth = containerRef.current.clientWidth - 32
-        const containerHeight = containerRef.current.clientHeight - 32
-        const targetWidth = deviceDimensions[device].width
-        const targetHeight = deviceDimensions[device].height
-        const scaleX = containerWidth / targetWidth
-        const scaleY = containerHeight / targetHeight
-        setScale(Math.min(scaleX, scaleY, 1))
-      }
-    }
-    updateScale()
-    const resizeObserver = new ResizeObserver(updateScale)
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current)
-    }
-    return () => resizeObserver.disconnect()
-  }, [device])
-
-  const currentDimensions = deviceDimensions[device]
 
   return (
-    <div className="flex h-full flex-col bg-muted/30">
-      {/* Preview Header */}
-      <div className="flex items-center justify-between border-b bg-background px-4 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{t('preview.previewIndex')}</span>
-          <span className="text-xs text-muted-foreground">
-            {groupName} - {currentDimensions.width}x{currentDimensions.height} ({Math.round(scale * 100)}%)
-          </span>
-        </div>
-        <ToggleGroup
-          type="single"
-          value={device}
-          onValueChange={(v) => v && onDeviceChange(v as DeviceSize)}
-          size="sm"
-        >
-          <ToggleGroupItem value="mobile" aria-label="Mobile">
-            <Smartphone className="h-4 w-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="tablet" aria-label={t('responsive.tablet')}>
-            <Tablet className="h-4 w-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="desktop" aria-label="Desktop">
-            <Monitor className="h-4 w-4" />
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
-      {/* Preview Content */}
-      <div ref={containerRef} className="flex-1 p-4 overflow-hidden flex items-center justify-center">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">{t('preview.generatingPreview')}</span>
-          </div>
-        ) : html ? (
-          <div
-            className="relative flex items-center justify-center"
-            style={{
-              width: currentDimensions.width * scale,
-              height: currentDimensions.height * scale,
-            }}
-          >
-            <div
-              className="absolute rounded-lg border bg-white shadow-sm overflow-hidden"
-              style={{
-                width: currentDimensions.width,
-                height: currentDimensions.height,
-                transform: `scale(${scale})`,
-                transformOrigin: 'top left',
-                top: 0,
-                left: 0,
-              }}
-            >
-              <iframe
-                srcDoc={html}
-                className="w-full h-full border-0"
-                title={t('builder.groupIndexPreview')}
-                sandbox="allow-same-origin allow-scripts"
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="text-center text-muted-foreground">
-            <p>{t('preview.noPreviewAvailable')}</p>
-          </div>
-        )}
-      </div>
-    </div>
+    <PreviewFrame
+      html={html}
+      isLoading={isLoading}
+      device={device}
+      onDeviceChange={onDeviceChange}
+      onRefresh={onRefresh}
+      onLinkClick={onLinkClick}
+      title={`${t('preview.previewIndex')} - ${groupName}`}
+    />
   )
 }
 
@@ -1040,9 +833,9 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     : previewPageForTheme?.context?.content_source ?? null
   const { data: previewFileData } = useFileContent(previewFilePath)
 
-  // Load group index preview when group is selected and preview is enabled
-  useEffect(() => {
-    if (selection?.type === 'group' && groupHasIndex && previewEnabled && selection.id) {
+  // Function to load/refresh group index preview
+  const loadGroupIndexPreview = () => {
+    if (selection?.type === 'group' && groupHasIndex && selection.id) {
       groupIndexPreviewMutation.mutate(
         { groupName: selection.id },
         {
@@ -1052,6 +845,13 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           },
         }
       )
+    }
+  }
+
+  // Load group index preview when group is selected and preview is enabled
+  useEffect(() => {
+    if (selection?.type === 'group' && groupHasIndex && previewEnabled && selection.id) {
+      loadGroupIndexPreview()
     } else if (selection?.type !== 'group') {
       setGroupIndexHtml(null)
     }
@@ -1548,6 +1348,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
                   onDeviceChange={setPreviewDevice}
                   groupName={selection.id ?? ''}
                   onLinkClick={handlePreviewLinkClick}
+                  onRefresh={loadGroupIndexPreview}
                 />
               ) : (
                 <SitePreview
