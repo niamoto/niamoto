@@ -476,3 +476,82 @@ def load_configured_widget(widget_id: str, group_by: str) -> Optional[Dict[str, 
     except Exception as e:
         logger.warning(f"Error loading configured widget '{widget_id}': {e}")
         return None
+
+
+def load_widget_params_from_export(
+    data_source: str, group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Load widget params from export.yml for a given data_source.
+
+    This is useful for previewing dynamic templates with custom widget params
+    (like custom_tiles_url for interactive maps).
+
+    Args:
+        data_source: The data_source value in export.yml (matches template_id)
+        group_by: Reference name (group_by value)
+
+    Returns:
+        Dict with widget params or None if not found.
+    """
+    work_dir = get_working_directory()
+    if not work_dir:
+        return None
+
+    work_dir = Path(work_dir)
+    export_path = work_dir / "config" / "export.yml"
+
+    if not export_path.exists():
+        return None
+
+    try:
+        with open(export_path, "r", encoding="utf-8") as f:
+            export_config = yaml.safe_load(f) or {}
+
+        # Find export config for this group
+        group_export = None
+
+        # Handle exports wrapper
+        exports = export_config.get("exports", [])
+        if isinstance(exports, list):
+            for export_entry in exports:
+                if isinstance(export_entry, dict):
+                    groups = export_entry.get("groups", [])
+                    if isinstance(groups, list):
+                        for item in groups:
+                            if (
+                                isinstance(item, dict)
+                                and item.get("group_by") == group_by
+                            ):
+                                group_export = item
+                                break
+                if group_export:
+                    break
+
+        # Also check legacy formats
+        if not group_export:
+            if isinstance(export_config, list):
+                for item in export_config:
+                    if isinstance(item, dict) and item.get("group_by") == group_by:
+                        group_export = item
+                        break
+            elif isinstance(export_config, dict):
+                groups = export_config.get("groups", [])
+                if isinstance(groups, list):
+                    for item in groups:
+                        if isinstance(item, dict) and item.get("group_by") == group_by:
+                            group_export = item
+                            break
+
+        if group_export:
+            widgets_export = group_export.get("widgets", [])
+            for w in widgets_export:
+                if w.get("data_source") == data_source:
+                    return w.get("params", {})
+
+        return None
+
+    except Exception as e:
+        logger.warning(
+            f"Error loading widget params from export.yml for '{data_source}': {e}"
+        )
+        return None

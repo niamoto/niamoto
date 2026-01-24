@@ -11,7 +11,6 @@ import {
   Map,
   FolderTree,
   FileText,
-  Palette,
   Search,
   Eye,
   Settings,
@@ -66,8 +65,7 @@ const itemIconMap: Record<string, LucideIcon> = {
   // Site
   'site-pages': FileText,
   'site-navigation': Menu,
-  'site-apparence': Settings,
-  'site-theme': Palette,
+  'site-settings': Settings,
   // Tools
   'data-explorer': Search,
   'live-preview': Eye,
@@ -120,8 +118,7 @@ const itemLabelKeys: Record<string, string> = {
   'groups-index': 'sidebar.items.overview',
   'site-pages': 'sidebar.items.pages',
   'site-navigation': 'sidebar.items.navigation',
-  'site-apparence': 'sidebar.items.appearance',
-  'site-theme': 'sidebar.items.theme',
+  'site-settings': 'sidebar.items.settings',
   'publish-overview': 'sidebar.items.overview',
   'publish-build': 'sidebar.items.build',
   'publish-deploy': 'sidebar.items.deploy',

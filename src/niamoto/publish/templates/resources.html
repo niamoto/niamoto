@@ -24,6 +24,11 @@
             {% if introduction %}
             <p class="text-lg text-gray-600 max-w-3xl">{{ introduction }}</p>
             {% endif %}
+            {% if page_content_html %}
+            <div class="mt-6 prose max-w-none text-gray-600">
+                {{ page_content_html | safe }}
+            </div>
+            {% endif %}
         </header>
 
         <!-- Category Filter -->
@@ -107,13 +112,6 @@
                     </div>
                 </article>
                 {% endfor %}
-            </div>
-            {% elif page_content_html %}
-            <!-- Fallback to markdown content -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-8">
-                <div class="resources-content prose max-w-none">
-                    {{ page_content_html | safe }}
-                </div>
             </div>
             {% else %}
             <div class="text-center py-16">

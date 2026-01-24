@@ -33,7 +33,7 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
   name,
   label,
   description,
-  value = [],
+  value: rawValue,
   onChange,
   required = false,
   disabled = false,
@@ -45,6 +45,8 @@ const ArrayField: React.FC<ArrayFieldProps> = ({
   maxItems,
   availableFields = []
 }) => {
+  // Ensure value is always an array (handle null/undefined)
+  const value = Array.isArray(rawValue) ? rawValue : [];
   const handleAddItem = () => {
     const newValue = [...value];
     let defaultValue: any;

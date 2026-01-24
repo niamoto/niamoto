@@ -25,6 +25,11 @@
             {% if introduction %}
             <p class="text-lg text-gray-600 max-w-3xl mx-auto">{{ introduction }}</p>
             {% endif %}
+            {% if page_content_html %}
+            <div class="mt-6 prose max-w-3xl mx-auto text-gray-600">
+                {{ page_content_html | safe }}
+            </div>
+            {% endif %}
         </header>
 
         <!-- Team Section -->
@@ -160,15 +165,6 @@
                 </div>
             </div>
         </section>
-        {% endif %}
-
-        <!-- Markdown Content Fallback -->
-        {% if page_content_html and not team and not partners %}
-        <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-8">
-            <div class="team-content prose max-w-none">
-                {{ page_content_html | safe }}
-            </div>
-        </div>
         {% endif %}
 
         <!-- Back -->

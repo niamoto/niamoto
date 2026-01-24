@@ -24,8 +24,8 @@ const GroupDetailPage = lazy(() => import('@/pages/groups/[name]'))
 const SiteIndexPage = lazy(() => import('@/pages/site'))
 const SitePagesPage = lazy(() => import('@/pages/site/pages'))
 const SiteNavigationPage = lazy(() => import('@/pages/site/navigation'))
-const SiteApparencePage = lazy(() => import('@/pages/site/apparence'))
-const SiteThemePage = lazy(() => import('@/pages/site/theme'))
+const SiteGeneralPage = lazy(() => import('@/pages/site/general'))
+const SiteAppearancePage = lazy(() => import('@/pages/site/appearance'))
 
 // Tools pages
 const DataExplorer = lazy(() => import('@/pages/tools/explorer').then(m => ({ default: m.DataExplorer })))
@@ -214,14 +214,14 @@ function App() {
                 <SiteNavigationPage />
               </Suspense>
             } />
-            <Route path="site/apparence" element={
+            <Route path="site/general" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SiteApparencePage />
+                <SiteGeneralPage />
               </Suspense>
             } />
-            <Route path="site/theme" element={
+            <Route path="site/appearance" element={
               <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SiteThemePage />
+                <SiteAppearancePage />
               </Suspense>
             } />
 

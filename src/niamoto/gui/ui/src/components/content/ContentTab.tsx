@@ -26,10 +26,18 @@ import {
   useSuggestions,
   type ConfiguredWidget,
 } from '@/components/widgets'
+import type { LocalizedString } from '@/components/ui/localized-input'
 import { WidgetListPanel } from './WidgetListPanel'
 import { ContentRightPanel } from './ContentRightPanel'
 import { AddWidgetModal } from '@/components/widgets/AddWidgetModal'
 import type { ReferenceInfo } from '@/hooks/useReferences'
+
+// Helper to resolve LocalizedString for search
+function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  return value[defaultLang] || Object.values(value)[0] || ''
+}
 
 interface ContentTabProps {
   reference: ReferenceInfo
@@ -68,12 +76,21 @@ export function ContentTab({ reference }: ContentTabProps) {
     'occurrences'
   )
 
+  // Extract available fields from suggestions (for field-select widgets)
+  const availableFields = useMemo(() => {
+    const fields = new Set<string>()
+    suggestions.forEach((s) => {
+      if (s.matched_column) fields.add(s.matched_column)
+    })
+    return Array.from(fields).sort()
+  }, [suggestions])
+
   // Filter widgets by search
   const filteredWidgets = useMemo(() => {
     if (!searchQuery.trim()) return configuredWidgets
     const query = searchQuery.toLowerCase()
     return configuredWidgets.filter(w =>
-      w.title.toLowerCase().includes(query) ||
+      resolveLocalizedString(w.title).toLowerCase().includes(query) ||
       w.id.toLowerCase().includes(query) ||
       w.widgetPlugin.toLowerCase().includes(query)
     )
@@ -218,6 +235,7 @@ export function ContentTab({ reference }: ContentTabProps) {
             selectedWidget={selectedWidget}
             allWidgets={configuredWidgets}
             groupBy={reference.name}
+            availableFields={availableFields}
             onSelectWidget={handleSelectWidget}
             onBack={handleBackToLayout}
             onUpdateWidget={handleUpdateWidget}

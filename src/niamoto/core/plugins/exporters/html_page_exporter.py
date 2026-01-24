@@ -29,6 +29,7 @@ from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.common.config import Config
 from niamoto.common.utils.emoji import emoji
+from niamoto.common.i18n import I18nResolver
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, WidgetPlugin, register
 from niamoto.core.plugins.models import (
     TargetConfig,
@@ -64,6 +65,10 @@ class HtmlPageExporter(ExporterPlugin):
             "output_path": None,
         }
 
+        # I18n resolver (initialized during export)
+        self._i18n_resolver: Optional[I18nResolver] = None
+        self._current_lang: Optional[str] = None
+
     def _get_nested_data(
         self, data_dict: Dict[str, Any], key_path: str
     ) -> Optional[Any]:
@@ -81,6 +86,128 @@ class HtmlPageExporter(ExporterPlugin):
                 return None  # Tried to access key on non-dict
         return current_data
 
+    def _resolve_localized(self, value: Any, lang: Optional[str] = None) -> Any:
+        """
+        Resolve a potentially localized value for the current language.
+
+        Args:
+            value: Value that may be a localized dict or simple value
+            lang: Target language (uses current lang if not specified)
+
+        Returns:
+            Resolved value for the target language
+        """
+        if self._i18n_resolver is None:
+            return (
+                value
+                if not isinstance(value, dict)
+                else next(iter(value.values()), value)
+            )
+
+        target_lang = lang or self._current_lang
+        return self._i18n_resolver.resolve(value, target_lang)
+
+    def _resolve_navigation(
+        self, navigation: List[Any], lang: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Resolve localized strings in navigation items.
+
+        Args:
+            navigation: List of NavigationItem objects or dicts
+            lang: Target language
+
+        Returns:
+            List of navigation dicts with resolved strings
+        """
+        resolved = []
+        for item in navigation:
+            if hasattr(item, "model_dump"):
+                item_dict = item.model_dump()
+            else:
+                item_dict = (
+                    dict(item) if isinstance(item, dict) else {"text": str(item)}
+                )
+
+            # Resolve text
+            if "text" in item_dict:
+                item_dict["text"] = self._resolve_localized(item_dict["text"], lang)
+
+            # Recursively resolve children
+            if "children" in item_dict and item_dict["children"]:
+                item_dict["children"] = self._resolve_navigation(
+                    item_dict["children"], lang
+                )
+
+            resolved.append(item_dict)
+        return resolved
+
+    def _get_site_context(
+        self, html_params: HtmlExporterParams, lang: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Build site context with resolved localized strings.
+
+        Args:
+            html_params: HTML exporter parameters
+            lang: Target language
+
+        Returns:
+            Site context dict with resolved strings
+        """
+        site_dict = html_params.site.model_dump() if html_params.site else {}
+
+        # Resolve localized title
+        if "title" in site_dict:
+            site_dict["title"] = self._resolve_localized(site_dict["title"], lang)
+
+        # Add current language info
+        site_dict["current_lang"] = lang or site_dict.get("lang", "en")
+
+        return site_dict
+
+    def _generate_language_redirect(
+        self, output_dir: Path, default_lang: str, languages: List[str]
+    ) -> None:
+        """
+        Generate a redirect page at the root that redirects to the default language.
+
+        Args:
+            output_dir: Base output directory
+            default_lang: Default language to redirect to
+            languages: List of available languages
+        """
+        redirect_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url=/{default_lang}/">
+    <script>
+        // Detect browser language and redirect
+        (function() {{
+            var supportedLangs = {json.dumps(languages)};
+            var browserLang = navigator.language || navigator.userLanguage;
+            var shortLang = browserLang.split('-')[0].toLowerCase();
+
+            if (supportedLangs.indexOf(shortLang) !== -1) {{
+                window.location.href = '/' + shortLang + '/';
+            }} else {{
+                window.location.href = '/{default_lang}/';
+            }}
+        }})();
+    </script>
+    <title>Redirecting...</title>
+</head>
+<body>
+    <p>Redirecting to <a href="/{default_lang}/">default language</a>...</p>
+</body>
+</html>"""
+
+        redirect_path = output_dir / "index.html"
+        redirect_path.write_text(redirect_html, encoding="utf-8")
+        self.stats["total_files_generated"] += 1
+        logger.info(f"Generated language redirect page: {redirect_path}")
+
     def export(
         self,
         target_config: TargetConfig,
@@ -89,6 +216,10 @@ class HtmlPageExporter(ExporterPlugin):
     ) -> None:
         """
         Executes the HTML export process.
+
+        Supports multi-language generation when site.languages is configured with
+        multiple languages. In that case, generates separate directories for each
+        language (e.g., /fr/, /en/) and a redirect page at the root.
 
         Args:
             target_config: The validated configuration for this HTML export target.
@@ -114,6 +245,24 @@ class HtmlPageExporter(ExporterPlugin):
 
             # Store output path for summary display
             self.stats["output_path"] = str(output_dir.resolve())
+
+            # Initialize I18n resolver
+            default_lang = html_params.site.lang if html_params.site else "en"
+            languages = (
+                html_params.site.languages
+                if html_params.site and html_params.site.languages
+                else [default_lang]
+            )
+            self._i18n_resolver = I18nResolver(
+                default_lang=default_lang, available_languages=languages
+            )
+
+            # Determine if multi-language generation is enabled
+            # Multi-lang is enabled if there's more than one language
+            multi_lang_enabled = len(languages) > 1
+            language_switcher = (
+                html_params.site.language_switcher if html_params.site else False
+            )
 
             # --- Modified Directory Clearing Logic ---
             if (
@@ -209,26 +358,74 @@ class HtmlPageExporter(ExporterPlugin):
             md = MarkdownIt()
             logger.debug("Markdown parser initialized.")
 
-            # 4. Copy static assets (default and user-specified)
+            # 4. Copy static assets (default and user-specified) - once at root level
             self._copy_static_assets(html_params, output_dir)
 
-            # 5. Process static pages defined in the target config
-            logger.info(
-                f"Processing {len(target_config.static_pages)} static page configurations..."
-            )
-            self._process_static_pages(
-                target_config.static_pages, jinja_env, html_params, output_dir, md
-            )
+            # 5. Generate content for each language
+            if multi_lang_enabled:
+                logger.info(f"Multi-language export enabled for languages: {languages}")
 
-            # 6. Process data groups (index and detail pages)
-            self._process_groups(
-                target_config.groups,
-                jinja_env,
-                html_params,
-                output_dir,
-                repository,
-                group_filter,
-            )
+                # Generate content for each language in its subdirectory
+                for lang in languages:
+                    self._current_lang = lang
+                    lang_output_dir = output_dir / lang
+
+                    # Create language directory
+                    lang_output_dir.mkdir(parents=True, exist_ok=True)
+                    logger.info(f"Generating content for language: {lang}")
+
+                    # Reset navigation cache for each language
+                    self._navigation_js_generated = set()
+
+                    # Process static pages for this language
+                    self._process_static_pages(
+                        target_config.static_pages,
+                        jinja_env,
+                        html_params,
+                        lang_output_dir,
+                        md,
+                        lang=lang,
+                        languages=languages,
+                        language_switcher=language_switcher,
+                    )
+
+                    # Process data groups for this language
+                    self._process_groups(
+                        target_config.groups,
+                        jinja_env,
+                        html_params,
+                        lang_output_dir,
+                        repository,
+                        group_filter,
+                        lang=lang,
+                        languages=languages,
+                        language_switcher=language_switcher,
+                    )
+
+                # Generate root redirect page
+                self._generate_language_redirect(output_dir, default_lang, languages)
+
+            else:
+                # Single language mode (backward compatible)
+                self._current_lang = default_lang
+
+                # Process static pages
+                logger.info(
+                    f"Processing {len(target_config.static_pages)} static page configurations..."
+                )
+                self._process_static_pages(
+                    target_config.static_pages, jinja_env, html_params, output_dir, md
+                )
+
+                # Process data groups
+                self._process_groups(
+                    target_config.groups,
+                    jinja_env,
+                    html_params,
+                    output_dir,
+                    repository,
+                    group_filter,
+                )
 
             # Mark completion time
             self.stats["end_time"] = datetime.now()
@@ -404,6 +601,53 @@ class HtmlPageExporter(ExporterPlugin):
 
         logger.info("User-specified assets copy process finished.")
 
+    def _resolve_content_source(
+        self, content_source: str, lang: Optional[str], md: MarkdownIt
+    ) -> Optional[str]:
+        """
+        Resolve a content source path, supporting language-specific files.
+
+        For a content_source like "pages/about", tries in order:
+        1. pages/about.{lang}.md (e.g., pages/about.fr.md)
+        2. pages/about.md (fallback)
+        3. The literal path if it's a direct file reference
+
+        Args:
+            content_source: Base path or file path
+            lang: Target language code
+            md: Markdown parser
+
+        Returns:
+            Rendered HTML content or None if not found
+        """
+        content_path = Path(content_source)
+
+        # If it's already a file with extension, try it directly
+        if content_path.suffix:
+            paths_to_try = [content_path]
+        else:
+            # Try language-specific file first, then generic
+            paths_to_try = []
+            if lang:
+                paths_to_try.append(Path(f"{content_source}.{lang}.md"))
+            paths_to_try.append(Path(f"{content_source}.md"))
+
+        for path in paths_to_try:
+            if path.is_file():
+                try:
+                    content_raw = path.read_text(encoding="utf-8")
+                    if path.suffix.lower() in [".md", ".markdown"]:
+                        return md.render(content_raw)
+                    return content_raw
+                except Exception as read_err:
+                    logger.error(f"Error reading content file '{path}': {read_err}")
+                    return f"<p><em>Error loading content from {path}.</em></p>"
+
+        logger.warning(
+            f"Content source file not found for any tried paths: {paths_to_try}"
+        )
+        return f"<p><em>Content file not found: {content_source}</em></p>"
+
     def _process_static_pages(
         self,
         static_pages: List[StaticPageConfig],
@@ -411,8 +655,23 @@ class HtmlPageExporter(ExporterPlugin):
         html_params: HtmlExporterParams,
         output_dir: Path,
         md: MarkdownIt,
+        lang: Optional[str] = None,
+        languages: Optional[List[str]] = None,
+        language_switcher: bool = False,
     ) -> None:
-        """Processes each static page configuration."""
+        """
+        Processes each static page configuration.
+
+        Args:
+            static_pages: List of static page configurations
+            jinja_env: Jinja2 environment
+            html_params: HTML export parameters
+            output_dir: Output directory
+            md: Markdown parser
+            lang: Current language code (for multi-language mode)
+            languages: List of all supported languages
+            language_switcher: Whether to enable language switcher
+        """
         logger.info(f"Processing {len(static_pages)} static pages...")
         if not static_pages:
             return
@@ -425,73 +684,65 @@ class HtmlPageExporter(ExporterPlugin):
                 template_name = page_config.template or "page.html"
                 template = jinja_env.get_template(template_name)
 
-                # Prepare context
-                context = {
-                    "site": html_params.site.model_dump() if html_params.site else {},
-                    "navigation": html_params.navigation
-                    if html_params.navigation
-                    else [],
-                    "footer_navigation": html_params.footer_navigation
+                # Build site context with resolved localized strings
+                site_context = self._get_site_context(html_params, lang)
+
+                # Add i18n info to site context
+                if lang:
+                    site_context["current_lang"] = lang
+                if languages:
+                    site_context["languages"] = languages
+                site_context["language_switcher"] = language_switcher
+
+                # Resolve navigation with localized strings
+                navigation = self._resolve_navigation(
+                    html_params.navigation if html_params.navigation else [], lang
+                )
+                footer_navigation = self._resolve_navigation(
+                    html_params.footer_navigation
                     if html_params.footer_navigation
                     else [],
+                    lang,
+                )
+
+                # Build page context with resolved localized strings
+                page_context = (
+                    page_config.context.model_dump() if page_config.context else {}
+                )
+                if "title" in page_context:
+                    page_context["title"] = self._resolve_localized(
+                        page_context["title"], lang
+                    )
+
+                # Prepare full context
+                context = {
+                    "site": site_context,
+                    "navigation": navigation,
+                    "footer_navigation": footer_navigation,
                     "external_links": [
                         link.model_dump() for link in html_params.external_links
                     ]
                     if html_params.external_links
                     else [],
-                    "page": page_config.context.model_dump()
-                    if page_config.context
-                    else {},
+                    "page": page_context,
                     "output_file": page_config.output_file,
+                    "current_lang": lang,
+                    "languages": languages or [],
+                    "language_switcher": language_switcher,
                 }
 
-                # Handle content source or markdown
-                page_content_html = None  # Initialize content variable
+                # Handle content source (external markdown file)
+                page_content_html = None
                 if page_config.context:
-                    if page_config.context.content_markdown:
-                        # Render Markdown content
-                        try:
-                            page_content_html = md.render(
-                                page_config.context.content_markdown
-                            )
-                        except Exception as md_err:
-                            logger.error(
-                                f"Error rendering markdown for static page '{page_config.name}': {md_err}"
-                            )
-                            page_content_html = (
-                                "<p><em>Error rendering Markdown content.</em></p>"
-                            )
-                    elif page_config.context.content_source:
-                        # Load content from file
-                        # Assume content_source is relative to project/config or absolute
-                        # A better approach might involve resolving paths relative to the config file location.
-                        content_path = Path(page_config.context.content_source)
-                        if content_path.is_file():
-                            try:
-                                content_raw = content_path.read_text(encoding="utf-8")
-                                # Check extension to decide if it needs markdown processing
-                                if content_path.suffix.lower() in [
-                                    ".md",
-                                    ".markdown",
-                                ]:
-                                    page_content_html = md.render(content_raw)
-                                else:
-                                    # Assume it's already HTML or text to be included directly
-                                    page_content_html = content_raw  # Might need |safe in template if HTML
-                            except Exception as read_err:
-                                logger.error(
-                                    f"Error reading content file '{content_path}' for static page '{page_config.name}': {read_err}"
-                                )
-                                page_content_html = f"<p><em>Error loading content from {content_path}.</em></p>"
-                        else:
-                            logger.warning(
-                                f"Content source file not found for static page '{page_config.name}': {content_path}"
-                            )
-                            page_content_html = f"<p><em>Content file not found: {content_path}</em></p>"
+                    content_source = page_config.context.content_source
 
-                context["page_content_html"] = (
-                    page_content_html  # Pass rendered/loaded HTML to context
-                )
+                    if content_source:
+                        # Load content from file with language support
+                        page_content_html = self._resolve_content_source(
+                            content_source, lang, md
+                        )
+
+                context["page_content_html"] = page_content_html
 
                 # Determine the template to use
                 template_name = (
@@ -531,8 +782,24 @@ class HtmlPageExporter(ExporterPlugin):
         output_dir: Path,
         repository: Database,
         group_filter: Optional[str] = None,
+        lang: Optional[str] = None,
+        languages: Optional[List[str]] = None,
+        language_switcher: bool = False,
     ) -> None:
-        """Processes each data group to generate index and detail pages."""
+        """
+        Processes each data group to generate index and detail pages.
+
+        Args:
+            groups: List of group configurations
+            jinja_env: Jinja2 environment
+            html_params: HTML export parameters
+            output_dir: Output directory
+            repository: Database instance
+            group_filter: Optional filter to select specific groups
+            lang: Current language code (for multi-language mode)
+            languages: List of all supported languages
+            language_switcher: Whether to enable language switcher
+        """
         logger.info(f"Processing {len(groups)} data groups...")
         if not groups:
             return
@@ -644,6 +911,9 @@ class HtmlPageExporter(ExporterPlugin):
                         html_params,
                         output_dir,
                         group_output_dir,
+                        lang=lang,
+                        languages=languages,
+                        language_switcher=language_switcher,
                     )
             else:
                 # Use traditional index generation
@@ -660,6 +930,9 @@ class HtmlPageExporter(ExporterPlugin):
                     html_params,
                     output_dir,
                     group_output_dir,
+                    lang=lang,
+                    languages=languages,
+                    language_switcher=language_switcher,
                 )
 
             # --- End Render Index Page ---
@@ -908,16 +1181,32 @@ class HtmlPageExporter(ExporterPlugin):
                             # Calculate depth based on output pattern
                             depth = group_config.output_pattern.count("/")
 
-                            detail_context = {
-                                "site": html_params.site.model_dump()
-                                if html_params.site
-                                else {},
-                                "navigation": html_params.navigation
+                            # Build site context with resolved localized strings
+                            site_context = self._get_site_context(html_params, lang)
+                            if lang:
+                                site_context["current_lang"] = lang
+                            if languages:
+                                site_context["languages"] = languages
+                            site_context["language_switcher"] = language_switcher
+
+                            # Resolve navigation with localized strings
+                            navigation = self._resolve_navigation(
+                                html_params.navigation
                                 if html_params.navigation
                                 else [],
-                                "footer_navigation": html_params.footer_navigation
+                                lang,
+                            )
+                            footer_navigation = self._resolve_navigation(
+                                html_params.footer_navigation
                                 if html_params.footer_navigation
                                 else [],
+                                lang,
+                            )
+
+                            detail_context = {
+                                "site": site_context,
+                                "navigation": navigation,
+                                "footer_navigation": footer_navigation,
                                 "external_links": [
                                     link.model_dump()
                                     for link in html_params.external_links
@@ -931,6 +1220,9 @@ class HtmlPageExporter(ExporterPlugin):
                                 "widgets": rendered_widgets,
                                 "dependencies": list(widget_dependencies),
                                 "depth": depth,  # Add depth for relative URLs
+                                "current_lang": lang,
+                                "languages": languages or [],
+                                "language_switcher": language_switcher,
                             }
                             rendered_detail_html = detail_template.render(
                                 detail_context
@@ -1408,6 +1700,9 @@ class HtmlPageExporter(ExporterPlugin):
         html_params,
         output_dir: Path,
         group_output_dir: Path,
+        lang: Optional[str] = None,
+        languages: Optional[List[str]] = None,
+        language_switcher: bool = False,
     ) -> None:
         """
         Generate index page using the traditional method (for backward compatibility).
@@ -1422,6 +1717,9 @@ class HtmlPageExporter(ExporterPlugin):
             html_params: HTML exporter parameters
             output_dir: Base output directory
             group_output_dir: Group-specific output directory
+            lang: Current language code (for multi-language mode)
+            languages: List of all supported languages
+            language_switcher: Whether to enable language switcher
         """
         try:
             # Fetch index data
@@ -1438,12 +1736,27 @@ class HtmlPageExporter(ExporterPlugin):
             index_template = jinja_env.get_template(index_template_name)
             logger.debug(f"Rendering traditional index template: {index_template_name}")
 
+            # Build site context with resolved localized strings
+            site_context = self._get_site_context(html_params, lang)
+            if lang:
+                site_context["current_lang"] = lang
+            if languages:
+                site_context["languages"] = languages
+            site_context["language_switcher"] = language_switcher
+
+            # Resolve navigation with localized strings
+            navigation = self._resolve_navigation(
+                html_params.navigation if html_params.navigation else [], lang
+            )
+            footer_navigation = self._resolve_navigation(
+                html_params.footer_navigation if html_params.footer_navigation else [],
+                lang,
+            )
+
             index_context = {
-                "site": html_params.site,
-                "navigation": html_params.navigation,
-                "footer_navigation": html_params.footer_navigation
-                if html_params.footer_navigation
-                else [],
+                "site": site_context,
+                "navigation": navigation,
+                "footer_navigation": footer_navigation,
                 "external_links": [
                     link.model_dump() for link in html_params.external_links
                 ]
@@ -1453,6 +1766,9 @@ class HtmlPageExporter(ExporterPlugin):
                 "items": index_data,
                 "group_config": group_config,
                 "id_column": id_column,
+                "current_lang": lang,
+                "languages": languages or [],
+                "language_switcher": language_switcher,
             }
 
             # Output index file to the specific group directory

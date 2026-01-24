@@ -8,6 +8,7 @@
  * - Duplicate widgets
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import type { LocalizedString } from '@/components/ui/localized-input'
 
 const API_BASE = '/api/config'
 
@@ -18,8 +19,8 @@ export interface ConfiguredWidget {
   id: string                           // Widget name in transform.yml (e.g., "dbh_distribution")
   transformerPlugin: string            // Transformer plugin name (e.g., "binned_distribution")
   widgetPlugin: string                 // Widget plugin name (e.g., "bar_plot")
-  title: string                        // Display title from export config
-  description?: string                 // Optional description
+  title: LocalizedString               // Display title from export config (supports i18n)
+  description?: LocalizedString        // Optional description (supports i18n)
   dataSource: string                   // Data source key (usually same as id)
   transformerParams: Record<string, unknown>  // Params from transform.yml
   widgetParams: Record<string, unknown>       // Params from export.yml
@@ -43,8 +44,8 @@ interface TransformConfig {
 interface ExportWidgetConfig {
   plugin: string
   data_source: string
-  title?: string
-  description?: string
+  title?: LocalizedString
+  description?: LocalizedString
   params?: Record<string, unknown>
   layout?: {
     colspan?: number

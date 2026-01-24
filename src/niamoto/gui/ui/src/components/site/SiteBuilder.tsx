@@ -67,6 +67,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -91,12 +101,13 @@ import { NavigationBuilder } from './NavigationBuilder'
 import { StaticPageEditor } from './StaticPageEditor'
 import { TemplateList } from './TemplateList'
 import { GroupPageViewer } from './GroupPageViewer'
+import { LanguageProvider } from '@/contexts/LanguageContext'
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-type SelectionType = 'identity' | 'theme' | 'navigation' | 'footer' | 'page' | 'group' | 'new-page'
+type SelectionType = 'general' | 'appearance' | 'navigation' | 'footer' | 'page' | 'group' | 'new-page'
 
 interface Selection {
   type: SelectionType
@@ -178,7 +189,7 @@ function SiteTree({
       <ScrollArea className="flex-1">
         <Accordion
           type="multiple"
-          defaultValue={['pages', 'navigation', 'appearance', 'groups']}
+          defaultValue={['pages', 'navigation', 'settings', 'groups']}
           className="px-2 py-2"
         >
           {/* Pages Section - EN PREMIER */}
@@ -286,12 +297,12 @@ function SiteTree({
             </AccordionContent>
           </AccordionItem>
 
-          {/* Appearance Section (ancien Settings) */}
-          <AccordionItem value="appearance" className="border-none">
+          {/* Settings Section */}
+          <AccordionItem value="settings" className="border-none">
             <AccordionTrigger className="py-2 text-sm hover:no-underline">
               <span className="flex items-center gap-2">
-                <Palette className="h-4 w-4" />
-                {t('tree.appearance')}
+                <Settings className="h-4 w-4" />
+                {t('tree.settings')}
               </span>
             </AccordionTrigger>
             <AccordionContent className="pb-2">
@@ -299,26 +310,26 @@ function SiteTree({
                 <button
                   className={cn(
                     'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isSelected('identity')
+                    isSelected('general')
                       ? 'bg-primary/10 text-primary'
                       : 'hover:bg-muted/50'
                   )}
-                  onClick={() => onSelect({ type: 'identity' })}
+                  onClick={() => onSelect({ type: 'general' })}
                 >
                   <Settings className="h-4 w-4" />
-                  {t('tree.identity')}
+                  {t('tree.general')}
                 </button>
                 <button
                   className={cn(
                     'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                    isSelected('theme')
+                    isSelected('appearance')
                       ? 'bg-primary/10 text-primary'
                       : 'hover:bg-muted/50'
                   )}
-                  onClick={() => onSelect({ type: 'theme' })}
+                  onClick={() => onSelect({ type: 'appearance' })}
                 >
                   <Palette className="h-4 w-4" />
-                  {t('tree.theme')}
+                  {t('tree.appearance')}
                 </button>
               </div>
             </AccordionContent>
@@ -768,7 +779,7 @@ function GroupIndexPreviewPanel({
 // =============================================================================
 
 interface SiteBuilderProps {
-  initialSection?: 'identity' | 'theme' | 'navigation' | 'pages'
+  initialSection?: 'general' | 'appearance' | 'navigation' | 'pages'
 }
 
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
@@ -785,21 +796,25 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const [editedFooterNavigation, setEditedFooterNavigation] = useState<NavigationItem[]>([])
   const [editedPages, setEditedPages] = useState<StaticPage[]>([])
 
+  // Delete confirmation dialog state
+  const [pageToDelete, setPageToDelete] = useState<string | null>(null)
+
   // UI state - initialize based on initialSection prop
   const mapSectionToSelection = (section: string): Selection | null => {
     switch (section) {
-      case 'identity':
-      case 'apparence':
-        return { type: 'identity' }
-      case 'theme':
-        return { type: 'theme' }
+      case 'general':
+      case 'identity': // backward compatibility
+        return { type: 'general' }
+      case 'appearance':
+      case 'theme': // backward compatibility
+        return { type: 'appearance' }
       case 'navigation':
         return { type: 'navigation' }
       case 'pages':
         // For pages, we don't select anything specific - just show the tree
         return null
       default:
-        return { type: 'identity' }
+        return { type: 'general' }
     }
   }
   const [selection, setSelection] = useState<Selection | null>(() => mapSectionToSelection(initialSection))
@@ -809,13 +824,13 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     setSelection(mapSectionToSelection(initialSection))
   }, [initialSection])
 
-  // Preview is available for static pages, theme (if pages exist), and groups with index_generator
+  // Preview is available for static pages, appearance (if pages exist), and groups with index_generator
   const currentGroupForPreview = selection?.type === 'group'
     ? (groupsData?.groups ?? []).find((g) => g.name === selection.id)
     : null
   const groupHasIndex = currentGroupForPreview?.index_generator?.enabled ?? false
   const previewAvailable = selection?.type === 'page'
-    || (selection?.type === 'theme' && editedPages.length > 0)
+    || (selection?.type === 'appearance' && editedPages.length > 0)
     || (selection?.type === 'group' && groupHasIndex)
   const [previewEnabled, setPreviewEnabled] = useState(false)
   const showPreview = previewAvailable && previewEnabled
@@ -826,11 +841,11 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const [groupIndexHtml, setGroupIndexHtml] = useState<string | null>(null)
 
   // Load file content for preview when content_source is used
-  // For theme preview, use the first available page
-  const previewPageForTheme = selection?.type === 'theme' ? editedPages[0] : null
+  // For appearance preview, use the first available page
+  const previewPageForAppearance = selection?.type === 'appearance' ? editedPages[0] : null
   const previewFilePath = selection?.type === 'page'
     ? editedPages.find((p) => p.name === selection.id)?.context?.content_source
-    : previewPageForTheme?.context?.content_source ?? null
+    : previewPageForAppearance?.context?.content_source ?? null
   const { data: previewFileData } = useFileContent(previewFilePath)
 
   // Function to load/refresh group index preview
@@ -992,20 +1007,57 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     }
   }
 
-  // Delete page
+  // Delete page - opens confirmation dialog
   const handleDeletePage = (pageName: string) => {
-    setEditedPages((pages) => pages.filter((p) => p.name !== pageName))
-    // Also remove from navigation if present
-    setEditedNavigation((nav) =>
-      nav.filter((item) => {
-        const page = editedPages.find((p) => p.name === pageName)
-        return page ? item.url !== `/${page.output_file}` : true
-      })
-    )
+    setPageToDelete(pageName)
+  }
+
+  // Confirm delete page (with auto-save)
+  const confirmDeletePage = async () => {
+    if (!pageToDelete || !siteConfig) return
+
+    const pageObj = editedPages.find((p) => p.name === pageToDelete)
+    if (!pageObj) return
+
+    // Calculate new state
+    const newPages = editedPages.filter((p) => p.name !== pageToDelete)
+    const pageUrl = `/${pageObj.output_file}`
+    const newNavigation = editedNavigation.filter((item) => item.url !== pageUrl)
+    const newFooterNavigation = editedFooterNavigation.filter((item) => item.url !== pageUrl)
+
+    // Close dialog and clear selection
+    setPageToDelete(null)
     setSelection(null)
-    toast.success(t('pages.pageDeleted'), {
-      description: t('pages.pageDeletedDesc'),
-    })
+
+    // Update local state immediately for responsive UI
+    setEditedPages(newPages)
+    setEditedNavigation(newNavigation)
+    setEditedFooterNavigation(newFooterNavigation)
+
+    // Persist to backend
+    try {
+      await updateMutation.mutateAsync({
+        site: editedSite,
+        navigation: newNavigation,
+        footer_navigation: newFooterNavigation,
+        external_links: siteConfig.external_links || [],
+        static_pages: newPages,
+        template_dir: siteConfig.template_dir,
+        output_dir: siteConfig.output_dir,
+        copy_assets_from: siteConfig.copy_assets_from,
+      })
+      toast.success(t('pages.pageDeleted'), {
+        description: t('pages.pageDeletedDesc'),
+      })
+    } catch (err) {
+      // Revert on error
+      setEditedPages(editedPages)
+      setEditedNavigation(editedNavigation)
+      setEditedFooterNavigation(editedFooterNavigation)
+      toast.error(t('common:status.error'), {
+        description: err instanceof Error ? err.message : t('messages.saveFailed'),
+      })
+    }
   }
 
   // Duplicate a page
@@ -1043,10 +1095,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   }
 
   // Get current page for preview
-  // For theme preview, use the first available page
+  // For appearance preview, use the first available page
   const currentPage = selection?.type === 'page'
     ? editedPages.find((p) => p.name === selection.id)
-    : selection?.type === 'theme' && editedPages.length > 0
+    : selection?.type === 'appearance' && editedPages.length > 0
       ? editedPages[0]
       : null
 
@@ -1108,7 +1160,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     }
 
     switch (selection.type) {
-      case 'identity':
+      case 'general':
         return (
           <ScrollArea className="h-full">
             <div className="p-6">
@@ -1117,7 +1169,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           </ScrollArea>
         )
 
-      case 'theme':
+      case 'appearance':
         return (
           <ScrollArea className="h-full">
             <div className="p-6">
@@ -1270,6 +1322,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   }
 
   return (
+    <LanguageProvider
+      languages={editedSite.languages || [editedSite.lang]}
+      defaultLang={editedSite.lang}
+    >
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
@@ -1366,7 +1422,31 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!pageToDelete} onOpenChange={(open) => !open && setPageToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t('common:dialogs.deleteConfirm', { item: pageToDelete })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('common:dialogs.cannotUndo')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common:actions.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePage}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t('common:actions.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+    </LanguageProvider>
   )
 }
 

@@ -83,8 +83,7 @@ export const navigationSections: NavigationSection[] = [
     items: [
       { id: 'site-pages', label: 'Pages', path: '/site/pages' },
       { id: 'site-navigation', label: 'Navigation', path: '/site/navigation' },
-      { id: 'site-apparence', label: 'Apparence', path: '/site/apparence' },
-      { id: 'site-theme', label: 'Thème', path: '/site/theme' },
+      { id: 'site-settings', label: 'Paramètres', path: '/site/general' },
     ]
   },
   {

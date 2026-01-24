@@ -68,6 +68,33 @@
                         </a>
                     </li>
                 {% endif %}
+
+                {% if language_switcher and languages and languages|length > 1 %}
+                    <!-- Language Switcher -->
+                    <li class="mr-3 relative group">
+                        <span class="nav-link inline-block py-2 px-3 text-white cursor-pointer">
+                            <i class="fas fa-globe mr-1"></i>
+                            {{ current_lang | upper }}
+                            <i class="fas fa-chevron-down ml-1 text-xs opacity-70"></i>
+                        </span>
+                        <ul class="dropdown-menu absolute right-0 mt-0 w-32 bg-white rounded-md shadow-lg z-50 overflow-hidden">
+                            {% for lang in languages %}
+                                <li>
+                                    {% if lang == current_lang %}
+                                        <span class="block px-4 py-2 text-sm text-green-600 bg-gray-100 font-medium">
+                                            <i class="fas fa-check mr-2"></i>{{ lang | upper }}
+                                        </span>
+                                    {% else %}
+                                        <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-green-600"
+                                           href="{{ '../' * (depth|default(0) + 1) }}{{ lang }}/{{ output_file | default('index.html') }}">
+                                            {{ lang | upper }}
+                                        </a>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% endif %}
             </ul>
         </div>
     </div>

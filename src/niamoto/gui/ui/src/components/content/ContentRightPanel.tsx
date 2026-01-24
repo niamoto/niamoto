@@ -13,6 +13,7 @@ interface ContentRightPanelProps {
   selectedWidget: ConfiguredWidget | null
   allWidgets: ConfiguredWidget[]
   groupBy: string
+  availableFields?: string[]
   onSelectWidget: (widget: ConfiguredWidget | null) => void
   onBack: () => void
   onUpdateWidget: (widgetId: string, config: Partial<ConfiguredWidget>) => Promise<boolean>
@@ -24,6 +25,7 @@ export function ContentRightPanel({
   selectedWidget,
   allWidgets,
   groupBy,
+  availableFields = [],
   onSelectWidget,
   onBack,
   onUpdateWidget,
@@ -47,6 +49,7 @@ export function ContentRightPanel({
     <WidgetDetailPanel
       widget={selectedWidget}
       groupBy={groupBy}
+      availableFields={availableFields}
       onBack={onBack}
       onUpdate={(config) => onUpdateWidget(selectedWidget.id, config)}
       onDelete={() => onDeleteWidget(selectedWidget.id)}

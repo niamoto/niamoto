@@ -6,18 +6,22 @@
  * - Team members (name, role, institution, photo, email, etc.)
  * - Partners (name, logo, url, description)
  * - Funders (name, logo, url)
+ * - Supports externalizing team members to a JSON file for large teams
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Users, Building2, Wallet } from 'lucide-react'
 import { RepeatableField } from './RepeatableField'
 import { ImagePickerField } from './ImagePickerField'
+import { MarkdownContentField } from './MarkdownContentField'
+import { ExternalizableListField } from './ExternalizableListField'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
+import { useDataContent, useUpdateDataContent } from '@/hooks/useSiteConfig'
 
 // Types for team.html context
 interface SocialLink {
@@ -49,9 +53,11 @@ interface Funder {
 }
 
 export interface TeamPageContext {
-  title?: string
-  introduction?: string
+  title?: LocalizedString
+  introduction?: LocalizedString
+  content_source?: string | null
   team?: TeamMember[]
+  team_source?: string | null  // Path to external JSON file for team members
   partners?: Partner[]
   funders?: Funder[]
   [key: string]: unknown // Allow additional fields for compatibility
@@ -60,10 +66,35 @@ export interface TeamPageContext {
 interface TeamFormProps {
   context: TeamPageContext
   onChange: (context: TeamPageContext) => void
+  pageName: string
 }
 
-export function TeamForm({ context, onChange }: TeamFormProps) {
+export function TeamForm({
+  context,
+  onChange,
+  pageName,
+}: TeamFormProps) {
   const { t } = useTranslation('site')
+
+  // Check if using external file for team members
+  const isExternalMode = !!context.team_source
+  const externalFilePath = context.team_source || null
+
+  // Fetch external data when in external mode
+  const { data: externalData } = useDataContent(externalFilePath)
+  const updateDataMutation = useUpdateDataContent()
+
+  // Local state for team members (either from inline or external)
+  const [localTeam, setLocalTeam] = useState<TeamMember[]>(context.team || [])
+
+  // Sync local team with external data when it changes
+  useEffect(() => {
+    if (isExternalMode && externalData?.data) {
+      setLocalTeam(externalData.data as TeamMember[])
+    } else if (!isExternalMode) {
+      setLocalTeam(context.team || [])
+    }
+  }, [isExternalMode, externalData?.data, context.team])
 
   const updateField = useCallback(
     <K extends keyof TeamPageContext>(field: K, value: TeamPageContext[K]) => {
@@ -72,32 +103,56 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
     [context, onChange]
   )
 
+  // Handle team change (for both inline and external modes)
+  const handleTeamChange = useCallback(
+    async (team: TeamMember[]) => {
+      setLocalTeam(team)
+
+      if (isExternalMode && externalFilePath) {
+        // Save to external file
+        await updateDataMutation.mutateAsync({
+          path: externalFilePath,
+          data: team,
+        })
+      } else {
+        // Save inline
+        updateField('team', team)
+      }
+    },
+    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+  )
+
   return (
     <div className="space-y-6">
       {/* Header Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.team.header')}</h3>
 
-        <div className="space-y-2">
-          <Label htmlFor="title">{t('forms.team.pageTitle')}</Label>
-          <Input
-            id="title"
-            value={context.title || ''}
-            onChange={(e) => updateField('title', e.target.value)}
-            placeholder={t('forms.team.pageTitlePlaceholder')}
-          />
-        </div>
+        <LocalizedInput
+          value={context.title}
+          onChange={(val) => updateField('title', val)}
+          placeholder={t('forms.team.pageTitlePlaceholder')}
+          label={t('forms.team.pageTitle')}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="introduction">{t('forms.team.introduction')}</Label>
-          <Textarea
-            id="introduction"
-            value={context.introduction || ''}
-            onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder={t('forms.team.introPlaceholder')}
-            rows={3}
-          />
-        </div>
+        <LocalizedInput
+          value={context.introduction}
+          onChange={(val) => updateField('introduction', val)}
+          placeholder={t('forms.team.introPlaceholder')}
+          label={t('forms.team.introduction')}
+          multiline
+          rows={3}
+        />
+
+        {/* Optional markdown content */}
+        <MarkdownContentField
+          baseName={pageName}
+          contentSource={context.content_source}
+          onContentSourceChange={(source) => updateField('content_source', source)}
+          label={t('forms.common.markdownContent')}
+          description={t('forms.common.markdownContentDesc')}
+          minHeight="150px"
+        />
       </div>
 
       <Separator />
@@ -120,10 +175,20 @@ export function TeamForm({ context, onChange }: TeamFormProps) {
         </TabsList>
 
         {/* Team Members Tab */}
-        <TabsContent value="team" className="mt-4">
+        <TabsContent value="team" className="mt-4 space-y-4">
+          {/* Externalization controls */}
+          <ExternalizableListField<TeamMember>
+            pageName={pageName}
+            listName="team"
+            dataSource={context.team_source}
+            onDataSourceChange={(source) => updateField('team_source', source)}
+            inlineData={context.team || []}
+            onInlineDataChange={(data) => updateField('team', data)}
+          />
+
           <RepeatableField<TeamMember>
-            items={context.team || []}
-            onChange={(team) => updateField('team', team)}
+            items={localTeam}
+            onChange={handleTeamChange}
             createItem={() => ({
               name: '',
               role: '',

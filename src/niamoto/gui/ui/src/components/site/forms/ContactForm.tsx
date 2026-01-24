@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { RepeatableField } from './RepeatableField'
+import { MarkdownContentField } from './MarkdownContentField'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 
 // Types for contact.html context
 interface SocialLink {
@@ -30,8 +32,9 @@ interface SocialLink {
 }
 
 export interface ContactPageContext {
-  title?: string
-  introduction?: string
+  title?: LocalizedString
+  introduction?: LocalizedString
+  content_source?: string | null
   email?: string
   address?: string
   phone?: string
@@ -43,6 +46,7 @@ export interface ContactPageContext {
 interface ContactFormProps {
   context: ContactPageContext
   onChange: (context: ContactPageContext) => void
+  pageName: string
 }
 
 const SOCIAL_PLATFORMS = [
@@ -57,7 +61,11 @@ const SOCIAL_PLATFORMS = [
   { value: 'website', label: 'Site web', icon: 'fas fa-globe' },
 ]
 
-export function ContactForm({ context, onChange }: ContactFormProps) {
+export function ContactForm({
+  context,
+  onChange,
+  pageName,
+}: ContactFormProps) {
   const { t } = useTranslation('site')
 
   const updateField = useCallback(
@@ -71,39 +79,44 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
     <div className="space-y-6">
       {/* Header Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">En-tete</h3>
+        <h3 className="text-lg font-semibold">{t('forms.contact.header')}</h3>
 
-        <div className="space-y-2">
-          <Label htmlFor="title">Titre de la page</Label>
-          <Input
-            id="title"
-            value={context.title || ''}
-            onChange={(e) => updateField('title', e.target.value)}
-            placeholder={t('forms.contact.pageTitlePlaceholder')}
-          />
-        </div>
+        <LocalizedInput
+          value={context.title}
+          onChange={(val) => updateField('title', val)}
+          placeholder={t('forms.contact.pageTitlePlaceholder')}
+          label={t('forms.contact.pageTitle')}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="introduction">Introduction</Label>
-          <Textarea
-            id="introduction"
-            value={context.introduction || ''}
-            onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder={t('forms.contact.introPlaceholder')}
-            rows={3}
-          />
-        </div>
+        <LocalizedInput
+          value={context.introduction}
+          onChange={(val) => updateField('introduction', val)}
+          placeholder={t('forms.contact.introPlaceholder')}
+          label={t('forms.contact.introduction')}
+          multiline
+          rows={3}
+        />
+
+        {/* Optional markdown content */}
+        <MarkdownContentField
+          baseName={pageName}
+          contentSource={context.content_source}
+          onContentSourceChange={(source) => updateField('content_source', source)}
+          label={t('forms.common.markdownContent')}
+          description={t('forms.common.markdownContentDesc')}
+          minHeight="150px"
+        />
       </div>
 
       <Separator />
 
       {/* Contact Info Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Informations de contact</h3>
+        <h3 className="text-lg font-semibold">{t('forms.contact.contactInfo')}</h3>
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('forms.contact.email')}</Label>
             <Input
               id="email"
               type="email"
@@ -114,7 +127,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Telephone</Label>
+            <Label htmlFor="phone">{t('forms.contact.phone')}</Label>
             <Input
               id="phone"
               type="tel"
@@ -126,7 +139,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="address">Adresse</Label>
+          <Label htmlFor="address">{t('forms.contact.address')}</Label>
           <Textarea
             id="address"
             value={context.address || ''}
@@ -135,7 +148,7 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
             rows={3}
           />
           <p className="text-xs text-muted-foreground">
-            Utilisez des retours a la ligne pour separer les lignes de l'adresse
+            {t('forms.contact.addressHint')}
           </p>
         </div>
       </div>
@@ -202,13 +215,13 @@ export function ContactForm({ context, onChange }: ContactFormProps) {
 
       {/* Map Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Carte (optionnel)</h3>
+        <h3 className="text-lg font-semibold">{t('forms.contact.map')}</h3>
         <p className="text-sm text-muted-foreground">
-          Code d'integration Google Maps ou OpenStreetMap
+          {t('forms.contact.mapDesc')}
         </p>
 
         <div className="space-y-2">
-          <Label htmlFor="map_embed">Code embed de la carte</Label>
+          <Label htmlFor="map_embed">{t('forms.contact.mapEmbed')}</Label>
           <Textarea
             id="map_embed"
             value={context.map_embed || ''}

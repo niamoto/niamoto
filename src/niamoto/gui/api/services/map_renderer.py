@@ -49,6 +49,9 @@ class MapConfig:
     map_style: str = "open-street-map"
     height: int = 500
     style: MapStyle = field(default_factory=MapStyle)
+    # Custom XYZ tiles support
+    custom_tiles_url: Optional[str] = None
+    custom_tiles_attribution: str = ""
 
 
 class MapRenderer:
@@ -193,12 +196,27 @@ class MapRenderer:
                 )
 
         # Update layout - explicitly set center and zoom, disable auto-fitting
+        map_layout = dict(
+            center=dict(lat=config.center_lat, lon=config.center_lon),
+            zoom=config.zoom,
+        )
+
+        # Use custom tiles if URL is provided, otherwise use predefined style
+        if config.custom_tiles_url:
+            # Use white-bg as base style and add custom raster tiles layer
+            map_layout["style"] = "white-bg"
+            map_layout["layers"] = [
+                {
+                    "sourcetype": "raster",
+                    "source": [config.custom_tiles_url],
+                    "below": "traces",
+                }
+            ]
+        else:
+            map_layout["style"] = config.map_style
+
         fig.update_layout(
-            map=dict(
-                style=config.map_style,
-                center=dict(lat=config.center_lat, lon=config.center_lon),
-                zoom=config.zoom,
-            ),
+            map=map_layout,
             margin=dict(r=0, t=0, l=0, b=0),
             autosize=True,
             showlegend=False,

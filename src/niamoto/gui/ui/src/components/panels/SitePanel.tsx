@@ -10,7 +10,7 @@
 import { SiteBuilder } from '@/components/site/SiteBuilder'
 
 interface SitePanelProps {
-  subSection?: 'pages' | 'navigation' | 'apparence' | 'theme'
+  subSection?: 'pages' | 'navigation' | 'general' | 'appearance'
 }
 
 export function SitePanel({ subSection }: SitePanelProps) {
@@ -18,8 +18,8 @@ export function SitePanel({ subSection }: SitePanelProps) {
   const initialSection =
     subSection === 'pages' ? 'pages'
     : subSection === 'navigation' ? 'navigation'
-    : subSection === 'apparence' ? 'identity'
-    : subSection === 'theme' ? 'theme'
+    : subSection === 'general' ? 'general'
+    : subSection === 'appearance' ? 'appearance'
     : 'pages' // Default to pages (most used)
 
   return <SiteBuilder initialSection={initialSection} />

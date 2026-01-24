@@ -58,6 +58,7 @@ from niamoto.gui.api.services.templates.utils.widget_utils import (
     parse_dynamic_template_id,
     find_widget_group,
     load_configured_widget,
+    load_widget_params_from_export,
 )
 
 # Re-export helper functions with underscore prefix for backward compatibility
@@ -76,6 +77,7 @@ _find_widget_for_transformer = find_widget_for_transformer
 _parse_dynamic_template_id = parse_dynamic_template_id
 _find_widget_group = find_widget_group
 _load_configured_widget = load_configured_widget
+_load_widget_params_from_export = load_widget_params_from_export
 
 from niamoto.gui.api.services.templates.suggestion_service import (  # noqa: E402
     generate_navigation_suggestion,
@@ -2753,6 +2755,11 @@ async def preview_template(
     config = template_info["config"]
     template_name = template_info["name"]
 
+    # Load widget params from export.yml if they exist (for custom_tiles_url, etc.)
+    export_widget_params = None
+    if group_by:
+        export_widget_params = _load_widget_params_from_export(template_id, group_by)
+
     # Verify the widget plugin exists
     try:
         PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
@@ -2894,6 +2901,7 @@ async def preview_template(
                             transformer_plugin,
                             config,
                             template_name,
+                            extra_params=export_widget_params,
                         )
 
                         return HTMLResponse(
@@ -2976,6 +2984,7 @@ async def preview_template(
                 transformer_plugin,
                 config,
                 template_name,
+                extra_params=export_widget_params,
             )
 
             return HTMLResponse(
@@ -3352,6 +3361,7 @@ def _render_widget_dynamic(
     transformer: str,
     config: Dict[str, Any],
     title: str,
+    extra_params: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Render a widget for dynamic templates.
 
@@ -3362,6 +3372,7 @@ def _render_widget_dynamic(
         transformer: Name of the transformer plugin (e.g., 'binned_distribution')
         config: Transformer configuration
         title: Title for the widget
+        extra_params: Additional widget params from export.yml (e.g., custom_tiles_url)
     """
     try:
         plugin_class = PluginRegistry.get_plugin(widget_name, PluginType.WIDGET)
@@ -3374,6 +3385,10 @@ def _render_widget_dynamic(
         widget_params = _build_widget_params_dynamic(
             transformer, widget_name, config, title, processed_data
         )
+
+        # Merge extra params from export.yml (they override defaults)
+        if extra_params:
+            widget_params.update(extra_params)
 
         # Validate params if the plugin has a param_schema
         if hasattr(plugin_instance, "param_schema") and plugin_instance.param_schema:

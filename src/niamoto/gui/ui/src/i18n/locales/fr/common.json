@@ -30,8 +30,7 @@
       "overview": "Vue d'ensemble",
       "pages": "Pages",
       "navigation": "Navigation",
-      "appearance": "Apparence",
-      "theme": "Thème",
+      "settings": "Paramètres",
       "build": "Build",
       "deploy": "Déploiement",
       "history": "Historique",
@@ -103,7 +102,9 @@
     "deleting": "Suppression...",
     "saving": "Sauvegarde...",
     "registering": "Enregistrement...",
-    "noFieldsAvailable": "Aucun champ disponible"
+    "noFieldsAvailable": "Aucun champ disponible",
+    "unsavedChanges": "non sauvegardé",
+    "saved": "sauvegardé"
   },
   "validation": {
     "required": "Ce champ est requis",
@@ -147,6 +148,19 @@
   "languages": {
     "fr": "Français",
     "en": "English"
+  },
+  "i18n": {
+    "enableMultilingual": "Activer le contenu multilingue",
+    "multilingual": "Multilingue",
+    "simplify": "Simplifier",
+    "simplifyDescription": "Supprimer les traductions et ne garder qu'une seule valeur",
+    "languageSwitcher": "Sélecteur de langue",
+    "defaultLanguage": "Langue par défaut",
+    "availableLanguages": "Langues disponibles",
+    "addLanguage": "Ajouter une langue",
+    "removeLanguage": "Supprimer la langue",
+    "contentLanguages": "Langues du contenu",
+    "generateForLanguages": "Générer pour ces langues"
   },
   "messages": {
     "noData": "Aucune donnée à afficher",

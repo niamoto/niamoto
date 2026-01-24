@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { ConfiguredWidget } from '@/components/widgets'
 import { WidgetConfigForm } from '@/components/widgets/WidgetConfigForm'
+import type { LocalizedString } from '@/components/ui/localized-input'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -67,9 +68,17 @@ const CATEGORY_COLORS: Record<string, { text: string; bg: string; border: string
   table: { text: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
 }
 
+// Helper to resolve LocalizedString for display
+function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  return value[defaultLang] || Object.values(value)[0] || ''
+}
+
 interface WidgetDetailPanelProps {
   widget: ConfiguredWidget
   groupBy: string
+  availableFields?: string[]
   onBack: () => void
   onUpdate: (config: Partial<ConfiguredWidget>) => Promise<boolean>
   onDelete: () => Promise<boolean>
@@ -78,6 +87,7 @@ interface WidgetDetailPanelProps {
 export function WidgetDetailPanel({
   widget,
   groupBy,
+  availableFields = [],
   onBack,
   onUpdate,
   onDelete,
@@ -207,7 +217,7 @@ export function WidgetDetailPanel({
 
           {/* Title and info */}
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold truncate">{widget.title}</h2>
+            <h2 className="font-semibold truncate">{resolveLocalizedString(widget.title)}</h2>
             <div className="flex items-center gap-2 mt-0.5">
               <Badge variant="secondary" className="text-xs">
                 {widget.widgetPlugin}
@@ -243,7 +253,7 @@ export function WidgetDetailPanel({
         {/* Description if available */}
         {widget.description && (
           <p className="text-sm text-muted-foreground mt-2 ml-11">
-            {widget.description}
+            {resolveLocalizedString(widget.description)}
           </p>
         )}
       </div>
@@ -306,7 +316,7 @@ export function WidgetDetailPanel({
                 className="w-full h-full border-0"
                 onLoad={handleIframeLoad}
                 onError={handleIframeError}
-                title={`Preview: ${widget.title}`}
+                title={`Preview: ${resolveLocalizedString(widget.title)}`}
               />
             </div>
           </div>
@@ -319,6 +329,7 @@ export function WidgetDetailPanel({
               <WidgetConfigForm
                 widget={widget}
                 groupBy={groupBy}
+                availableFields={availableFields}
                 onSave={handleSave}
                 onCancel={handleCancelEdit}
               />
@@ -371,7 +382,7 @@ export function WidgetDetailPanel({
               Supprimer le widget ?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Cela supprimera <strong>"{widget.title}"</strong> de la configuration.
+              Cela supprimera <strong>"{resolveLocalizedString(widget.title)}"</strong> de la configuration.
               Cette action est irreversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
