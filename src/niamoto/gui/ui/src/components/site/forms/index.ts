@@ -6,6 +6,7 @@
  */
 
 export { RepeatableField } from './RepeatableField'
+export { MarkdownContentField } from './MarkdownContentField'
 export { IndexPageForm, type IndexPageContext } from './IndexPageForm'
 export { BibliographyForm, type BibliographyPageContext } from './BibliographyForm'
 export { TeamForm, type TeamPageContext } from './TeamForm'

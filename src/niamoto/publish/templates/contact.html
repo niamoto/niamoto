@@ -27,6 +27,11 @@
             {% if introduction %}
             <p class="text-lg text-gray-600 max-w-2xl mx-auto">{{ introduction }}</p>
             {% endif %}
+            {% if page_content_html %}
+            <div class="mt-6 prose max-w-2xl mx-auto text-gray-600">
+                {{ page_content_html | safe }}
+            </div>
+            {% endif %}
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -114,12 +119,6 @@
                 {% if map_embed %}
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden h-full min-h-[400px]">
                     {{ map_embed | safe }}
-                </div>
-                {% elif page_content_html %}
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 h-full">
-                    <div class="contact-content prose max-w-none">
-                        {{ page_content_html | safe }}
-                    </div>
                 </div>
                 {% else %}
                 <!-- Default illustration -->

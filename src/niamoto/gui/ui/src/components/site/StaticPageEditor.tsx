@@ -25,6 +25,7 @@ import {
   X,
   Navigation,
   Menu,
+  Globe,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,6 +42,9 @@ import {
 } from '@/components/ui/select'
 import { MarkdownEditor } from './MarkdownEditor'
 import { TemplateSelect } from './TemplateSelect'
+import { MultilingualMarkdownEditor } from './MultilingualMarkdownEditor'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
+import { useLanguages } from '@/contexts/LanguageContext'
 import { useTemplates, useProjectFiles, useUploadFile, useFileContent, useUpdateFileContent, type StaticPage, type NavigationItem } from '@/hooks/useSiteConfig'
 import {
   hasTemplateForm,
@@ -70,7 +74,7 @@ interface StaticPageEditorProps {
   onUpdateFooterNavigation?: (nav: NavigationItem[]) => void
 }
 
-type ContentMode = 'inline' | 'file'
+type ContentMode = 'single' | 'multilingual'
 
 export function StaticPageEditor({
   page,
@@ -83,12 +87,19 @@ export function StaticPageEditor({
   onUpdateFooterNavigation,
 }: StaticPageEditorProps) {
   const { t } = useTranslation(['site', 'common'])
+  const { languages } = useLanguages()
 
   // Local state for editing (initialized from prop, component remounts on page change via key)
   const [editedPage, setEditedPage] = useState<StaticPage>(page)
   const [contentMode, setContentMode] = useState<ContentMode>(() => {
-    if (page.context?.content_source) return 'file'
-    return 'inline'
+    const source = page.context?.content_source
+    if (source) {
+      // Check if it's a multilingual path (no extension = multilingual convention)
+      if (!/\.md$/i.test(source)) {
+        return 'multilingual'
+      }
+    }
+    return 'single'
   })
 
   // File content editing state
@@ -104,8 +115,8 @@ export function StaticPageEditor({
   const { data: filesData, isLoading: filesLoading, refetch: refetchFiles } = useProjectFiles('templates/content')
   const uploadMutation = useUploadFile()
 
-  // Fetch file content when a file is selected
-  const selectedFilePath = contentMode === 'file' ? editedPage.context?.content_source : null
+  // Fetch file content when a file is selected (single mode)
+  const selectedFilePath = contentMode === 'single' ? editedPage.context?.content_source : null
   const { data: fileContentData, isLoading: fileContentLoading } = useFileContent(selectedFilePath)
   const updateFileContentMutation = useUpdateFileContent()
 
@@ -115,6 +126,20 @@ export function StaticPageEditor({
       setEditedFileContent(fileContentData.content)
     }
   }, [fileContentData?.content])
+
+  // Auto-initialize content_source for single mode if not set
+  useEffect(() => {
+    if (contentMode === 'single' && editedPage.name && !editedPage.context?.content_source) {
+      const defaultPath = `templates/content/${editedPage.name}.md`
+      setEditedPage((prev) => ({
+        ...prev,
+        context: {
+          ...prev.context,
+          content_source: defaultPath,
+        },
+      }))
+    }
+  }, [contentMode, editedPage.name, editedPage.context?.content_source])
 
   // Filter markdown files
   const markdownFiles =
@@ -234,26 +259,38 @@ export function StaticPageEditor({
     }))
   }
 
+  // Generate default file path for a page
+  const getDefaultFilePath = (pageName: string) => `templates/content/${pageName}.md`
+
   // Handle content mode change
   const handleContentModeChange = (mode: ContentMode) => {
     setContentMode(mode)
     setIsEditingFile(false) // Reset edit mode when switching
-    if (mode === 'inline') {
-      // Clear file source, keep markdown
+
+    if (mode === 'single') {
+      // Set default file path if not already set
+      const currentSource = editedPage.context?.content_source
+      if (!currentSource || !/\.md$/i.test(currentSource)) {
+        const defaultPath = getDefaultFilePath(editedPage.name)
+        setEditedPage((prev) => ({
+          ...prev,
+          context: {
+            ...prev.context,
+            content_source: defaultPath,
+          },
+        }))
+      }
+    } else if (mode === 'multilingual') {
+      // Convert to base path (without .md extension)
+      const currentSource = editedPage.context?.content_source
+      const basePath = currentSource
+        ?.replace(/\.[a-z]{2}\.md$/i, '')
+        .replace(/\.md$/i, '') || `templates/content/${editedPage.name}`
       setEditedPage((prev) => ({
         ...prev,
         context: {
           ...prev.context,
-          content_source: null,
-        },
-      }))
-    } else {
-      // Clear inline markdown when switching to file
-      setEditedPage((prev) => ({
-        ...prev,
-        context: {
-          ...prev.context,
-          content_markdown: null,
+          content_source: basePath,
         },
       }))
     }
@@ -479,6 +516,7 @@ export function StaticPageEditor({
                     onChange={(ctx) =>
                       setEditedPage((prev) => ({ ...prev, context: ctx }))
                     }
+                    pageName={editedPage.name}
                   />
                 )}
                 {editedPage.template === 'team.html' && (
@@ -487,6 +525,7 @@ export function StaticPageEditor({
                     onChange={(ctx) =>
                       setEditedPage((prev) => ({ ...prev, context: ctx }))
                     }
+                    pageName={editedPage.name}
                   />
                 )}
                 {editedPage.template === 'resources.html' && (
@@ -495,6 +534,7 @@ export function StaticPageEditor({
                     onChange={(ctx) =>
                       setEditedPage((prev) => ({ ...prev, context: ctx }))
                     }
+                    pageName={editedPage.name}
                   />
                 )}
                 {editedPage.template === 'contact.html' && (
@@ -503,6 +543,7 @@ export function StaticPageEditor({
                     onChange={(ctx) =>
                       setEditedPage((prev) => ({ ...prev, context: ctx }))
                     }
+                    pageName={editedPage.name}
                   />
                 )}
                 {editedPage.template === 'glossary.html' && (
@@ -511,6 +552,7 @@ export function StaticPageEditor({
                     onChange={(ctx) =>
                       setEditedPage((prev) => ({ ...prev, context: ctx }))
                     }
+                    pageName={editedPage.name}
                   />
                 )}
               </CardContent>
@@ -524,28 +566,31 @@ export function StaticPageEditor({
                   <CardDescription>{t('pageEditor.markdownContent')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Content mode toggle */}
-                  <RadioGroup
-                    value={contentMode}
-                    onValueChange={(v) => handleContentModeChange(v as ContentMode)}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="inline" id="mode-inline" />
-                      <Label htmlFor="mode-inline" className="cursor-pointer">
-                        {t('pageEditor.editDirectly')}
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="file" id="mode-file" />
-                      <Label htmlFor="mode-file" className="cursor-pointer">
-                        {t('pageEditor.fromFile')}
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                  {/* Content mode toggle - only show if multiple languages configured */}
+                  {languages.length > 1 && (
+                    <RadioGroup
+                      value={contentMode}
+                      onValueChange={(v) => handleContentModeChange(v as ContentMode)}
+                      className="flex flex-wrap gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="single" id="mode-single" />
+                        <Label htmlFor="mode-single" className="cursor-pointer">
+                          {t('pageEditor.singleFile')}
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="multilingual" id="mode-multilingual" />
+                        <Label htmlFor="mode-multilingual" className="cursor-pointer flex items-center gap-1">
+                          <Globe className="h-4 w-4" />
+                          {t('pageEditor.multilingualFiles')}
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  )}
 
-                  {/* File selector */}
-                  {contentMode === 'file' && (
+                  {/* Single file mode - direct editing */}
+                  {contentMode === 'single' && (
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="content-source">{t('pageEditor.sourceFile')}</Label>
@@ -691,19 +736,28 @@ export function StaticPageEditor({
                     </div>
                   )}
 
-                  {/* Markdown editor */}
-                  {contentMode === 'inline' && (
-                    <div className="space-y-2">
-                      <Label>{t('pageEditor.editor')}</Label>
-                      <MarkdownEditor
-                        initialContent={editedPage.context?.content_markdown || ''}
-                        onChange={(md) => updateContext('content_markdown', md)}
-                        placeholder={t('pageEditor.markdownPlaceholder')}
-                        className="min-h-[400px]"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {t('pageEditor.editorHint')}
-                      </p>
+                  {/* Multilingual markdown editor */}
+                  {contentMode === 'multilingual' && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>{t('pageEditor.basePath')}</Label>
+                        <Input
+                          value={editedPage.context?.content_source?.replace(/\.[a-z]{2}\.md$/i, '').replace(/\.md$/i, '') || ''}
+                          onChange={(e) => updateContext('content_source', e.target.value || null)}
+                          placeholder="templates/content/about"
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {t('pageEditor.basePathHint')}
+                        </p>
+                      </div>
+
+                      {editedPage.context?.content_source && (
+                        <MultilingualMarkdownEditor
+                          basePath={editedPage.context.content_source.replace(/\.[a-z]{2}\.md$/i, '')}
+                          className="min-h-[350px]"
+                        />
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -717,12 +771,11 @@ export function StaticPageEditor({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <Label htmlFor="page-title">{t('pageEditor.pageTitle')}</Label>
-                    <Input
-                      id="page-title"
-                      value={(editedPage.context?.title as string) || ''}
-                      onChange={(e) => updateContext('title', e.target.value || null)}
+                    <LocalizedInput
+                      value={editedPage.context?.title as LocalizedString | undefined}
+                      onChange={(title) => updateContext('title', title || null)}
                       placeholder={t('pageEditor.pageTitleHint')}
+                      label={t('pageEditor.pageTitle')}
                     />
                     <p className="text-xs text-muted-foreground">
                       {t('pageEditor.pageTitleHint')}

@@ -1464,6 +1464,131 @@ async def get_file_content(path: str):
         raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
 
 
+# =============================================================================
+# Data File Endpoints (JSON for externalized lists)
+# =============================================================================
+
+
+class DataFileResponse(BaseModel):
+    """Response model for JSON data file."""
+
+    data: List[Dict[str, Any]]
+    path: str
+    count: int
+
+
+class DataFileUpdate(BaseModel):
+    """Request model for updating JSON data file."""
+
+    path: str
+    data: List[Dict[str, Any]]
+
+
+@router.get("/data-content", response_model=DataFileResponse)
+async def get_data_content(path: str):
+    """
+    Get the content of a JSON data file.
+
+    Args:
+        path: File path relative to project root (e.g., "data/bibliography-references.json")
+    """
+    import json
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not set")
+
+    # Security: ensure path doesn't escape project directory
+    file_path = work_dir / path
+    try:
+        file_path = file_path.resolve()
+        work_dir_resolved = work_dir.resolve()
+        if not str(file_path).startswith(str(work_dir_resolved)):
+            raise HTTPException(
+                status_code=403, detail="Access denied: path outside project"
+            )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    # Only allow JSON files
+    if file_path.suffix.lower() != ".json":
+        raise HTTPException(status_code=400, detail="Only JSON files are supported")
+
+    if not file_path.exists():
+        # Return empty array if file doesn't exist yet
+        return DataFileResponse(data=[], path=path, count=0)
+
+    if not file_path.is_file():
+        raise HTTPException(status_code=400, detail="Path is not a file")
+
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        data = json.loads(content)
+        if not isinstance(data, list):
+            raise HTTPException(
+                status_code=400, detail="JSON file must contain an array"
+            )
+        return DataFileResponse(data=data, path=path, count=len(data))
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
+
+
+@router.put("/data-content")
+async def update_data_content(update: DataFileUpdate):
+    """
+    Update the content of a JSON data file.
+
+    Creates the file and parent directories if they don't exist.
+
+    Args:
+        update: Contains path and new data array
+    """
+    import json
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not set")
+
+    # Security: ensure path doesn't escape project directory
+    file_path = work_dir / update.path
+    try:
+        file_path = file_path.resolve()
+        work_dir_resolved = work_dir.resolve()
+        if not str(file_path).startswith(str(work_dir_resolved)):
+            raise HTTPException(
+                status_code=403, detail="Access denied: path outside project"
+            )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    # Only allow JSON files
+    if file_path.suffix.lower() != ".json":
+        raise HTTPException(status_code=400, detail="Only JSON files are supported")
+
+    # Create backup before writing
+    if file_path.exists():
+        _create_backup(file_path)
+
+    try:
+        # Ensure parent directory exists
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write JSON with nice formatting
+        content = json.dumps(update.data, ensure_ascii=False, indent=2)
+        file_path.write_text(content, encoding="utf-8")
+
+        return {
+            "success": True,
+            "message": "Data file updated successfully",
+            "path": update.path,
+            "count": len(update.data),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error writing file: {str(e)}")
+
+
 @router.put("/file-content")
 async def update_file_content(update: FileContentUpdate):
     """
@@ -1488,8 +1613,8 @@ async def update_file_content(update: FileContentUpdate):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    # Only allow writing to text files
-    allowed_extensions = {".md", ".markdown", ".txt"}
+    # Only allow writing to text files (markdown, txt, json)
+    allowed_extensions = {".md", ".markdown", ".txt", ".json"}
     if file_path.suffix.lower() not in allowed_extensions:
         raise HTTPException(
             status_code=400,
@@ -1626,3 +1751,251 @@ async def serve_niamoto_assets(filepath: str):
     media_type = media_types.get(extension, "application/octet-stream")
 
     return FileResponse(file_path, media_type=media_type)
+
+
+# =============================================================================
+# Import Endpoints (BibTeX, CSV)
+# =============================================================================
+
+
+class ImportResponse(BaseModel):
+    """Response model for import operations."""
+
+    success: bool
+    data: List[Dict[str, Any]]
+    count: int
+    errors: List[str] = []
+
+
+def _parse_bibtex_entry(entry_text: str) -> Optional[Dict[str, Any]]:
+    """
+    Parse a single BibTeX entry into a reference dictionary.
+
+    Handles common BibTeX fields and maps them to our reference format.
+    """
+    import re
+
+    # Extract entry type and key: @article{key,
+    entry_match = re.match(r"@(\w+)\s*\{\s*([^,]+)\s*,", entry_text, re.IGNORECASE)
+    if not entry_match:
+        return None
+
+    entry_type = entry_match.group(1).lower()
+    # entry_key = entry_match.group(2)
+
+    # Map BibTeX types to our types
+    type_mapping = {
+        "article": "article",
+        "book": "book",
+        "inbook": "chapter",
+        "incollection": "chapter",
+        "phdthesis": "thesis",
+        "mastersthesis": "thesis",
+        "techreport": "report",
+        "inproceedings": "conference",
+        "conference": "conference",
+        "misc": "other",
+        "unpublished": "other",
+    }
+
+    ref_type = type_mapping.get(entry_type, "other")
+
+    # Extract fields using regex
+    # Matches: field = {value} or field = "value" or field = value
+    field_pattern = (
+        r"(\w+)\s*=\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}|\"([^\"]*)\"|(\d+))"
+    )
+    fields = {}
+    for match in re.finditer(field_pattern, entry_text, re.IGNORECASE):
+        field_name = match.group(1).lower()
+        field_value = match.group(2) or match.group(3) or match.group(4) or ""
+        # Clean up the value (remove extra braces, normalize whitespace)
+        field_value = re.sub(r"\s+", " ", field_value.strip())
+        fields[field_name] = field_value
+
+    # Build reference object
+    reference = {
+        "type": ref_type,
+        "title": fields.get("title", ""),
+        "authors": fields.get("author", "").replace(" and ", ", "),
+        "year": fields.get("year", ""),
+    }
+
+    # Add optional fields
+    if "journal" in fields:
+        reference["journal"] = fields["journal"]
+    elif "booktitle" in fields:
+        reference["journal"] = fields["booktitle"]
+    elif "publisher" in fields:
+        reference["journal"] = fields["publisher"]
+
+    if "volume" in fields:
+        vol = fields["volume"]
+        if "number" in fields:
+            vol += f"({fields['number']})"
+        reference["volume"] = vol
+
+    if "pages" in fields:
+        reference["pages"] = fields["pages"].replace("--", "-")
+
+    if "doi" in fields:
+        reference["doi"] = fields["doi"]
+
+    if "url" in fields:
+        reference["url"] = fields["url"]
+
+    return reference
+
+
+@router.post("/import-bibtex", response_model=ImportResponse)
+async def import_bibtex(file: UploadFile = File(...)):
+    """
+    Import references from a BibTeX file.
+
+    Parses a .bib file and converts entries to our reference format.
+
+    Returns:
+        List of parsed references with any parsing errors.
+    """
+    import re
+
+    # Validate file type
+    if not file.filename or not file.filename.endswith(".bib"):
+        raise HTTPException(
+            status_code=400, detail="Invalid file type. Expected .bib file."
+        )
+
+    try:
+        content = await file.read()
+        text = content.decode("utf-8", errors="replace")
+
+        # Split into entries (each starts with @)
+        # This regex finds @type{...} blocks, handling nested braces
+        entries = []
+        errors = []
+
+        # Find all entry starts
+        entry_starts = [m.start() for m in re.finditer(r"@\w+\s*\{", text)]
+
+        for i, start in enumerate(entry_starts):
+            # Find the matching closing brace
+            end = start
+            brace_count = 0
+            in_entry = False
+
+            for j, char in enumerate(text[start:], start):
+                if char == "{":
+                    brace_count += 1
+                    in_entry = True
+                elif char == "}":
+                    brace_count -= 1
+                    if in_entry and brace_count == 0:
+                        end = j + 1
+                        break
+
+            entry_text = text[start:end]
+
+            # Try to parse the entry
+            try:
+                ref = _parse_bibtex_entry(entry_text)
+                if ref and ref.get("title"):  # Valid entry with title
+                    entries.append(ref)
+            except Exception as e:
+                # Extract entry key for error reporting
+                key_match = re.match(r"@\w+\s*\{\s*([^,]+)", entry_text)
+                key = key_match.group(1) if key_match else f"entry_{i + 1}"
+                errors.append(f"Error parsing '{key}': {str(e)}")
+
+        return ImportResponse(
+            success=len(entries) > 0,
+            data=entries,
+            count=len(entries),
+            errors=errors,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error processing BibTeX file: {str(e)}"
+        )
+
+
+@router.post("/import-csv", response_model=ImportResponse)
+async def import_csv(
+    file: UploadFile = File(...),
+    delimiter: str = ",",
+    has_header: bool = True,
+):
+    """
+    Import data from a CSV file.
+
+    Parses a CSV file and returns it as a list of dictionaries.
+
+    Args:
+        file: The CSV file to import
+        delimiter: Column delimiter (default: comma)
+        has_header: Whether the first row contains column names (default: True)
+
+    Returns:
+        List of parsed rows as dictionaries.
+    """
+    import csv
+    import io
+
+    # Validate file type
+    valid_extensions = (".csv", ".tsv", ".txt")
+    if not file.filename or not any(
+        file.filename.endswith(ext) for ext in valid_extensions
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Expected one of: {', '.join(valid_extensions)}",
+        )
+
+    try:
+        content = await file.read()
+        text = content.decode("utf-8", errors="replace")
+
+        # Parse CSV
+        reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+        rows = list(reader)
+
+        if not rows:
+            return ImportResponse(
+                success=False, data=[], count=0, errors=["Empty file"]
+            )
+
+        entries = []
+        errors = []
+
+        if has_header:
+            # Use first row as column names
+            headers = [h.strip().lower().replace(" ", "_") for h in rows[0]]
+            for i, row in enumerate(rows[1:], 2):
+                if len(row) != len(headers):
+                    errors.append(
+                        f"Row {i}: expected {len(headers)} columns, got {len(row)}"
+                    )
+                    # Pad or truncate to match headers
+                    while len(row) < len(headers):
+                        row.append("")
+                    row = row[: len(headers)]
+
+                entry = {headers[j]: val.strip() for j, val in enumerate(row)}
+                entries.append(entry)
+        else:
+            # Use generic column names
+            for i, row in enumerate(rows, 1):
+                entry = {f"col_{j + 1}": val.strip() for j, val in enumerate(row)}
+                entries.append(entry)
+
+        return ImportResponse(
+            success=len(entries) > 0,
+            data=entries,
+            count=len(entries),
+            errors=errors,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error processing CSV file: {str(e)}"
+        )

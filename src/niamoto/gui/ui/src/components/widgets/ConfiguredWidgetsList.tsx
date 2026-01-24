@@ -44,6 +44,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import type { LocalizedString } from '@/components/ui/localized-input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,6 +87,13 @@ const CATEGORY_COLORS: Record<string, { text: string; bg: string; border: string
   gauge: { text: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-200' },
   donut: { text: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
   table: { text: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
+}
+
+// Helper to resolve LocalizedString for display
+function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  return value[defaultLang] || Object.values(value)[0] || ''
 }
 
 interface SortableWidgetItemProps {
@@ -157,7 +165,7 @@ function SortableWidgetItem({
       {/* Widget info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium truncate">{widget.title}</span>
+          <span className="font-medium truncate">{resolveLocalizedString(widget.title)}</span>
         </div>
         <div className="flex items-center gap-2 mt-1">
           <Badge variant="secondary" className="text-xs">

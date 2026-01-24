@@ -75,7 +75,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import type { NavigationItem, StaticPage, GroupInfo, TemplateInfo } from '@/hooks/useSiteConfig'
+import { useLanguages } from '@/contexts/LanguageContext'
 
 // =============================================================================
 // Template Configuration (shared with TemplateList)
@@ -256,12 +258,12 @@ function NavItemEditor({
         <div className="w-4" />
       )}
 
-      {/* Text input */}
-      <Input
+      {/* Text input with i18n support */}
+      <LocalizedInput
         value={item.text}
-        onChange={(e) => onUpdate({ ...item, text: e.target.value })}
+        onChange={(text) => onUpdate({ ...item, text: text || '' })}
         placeholder={isChild ? t('navigation.submenu') : t('navigation.menuText')}
-        className={cn('flex-1', isChild && 'h-8 text-sm')}
+        className={cn('flex-1 min-w-0', isChild && '[&_input]:h-8 [&_input]:text-sm')}
       />
 
       {/* URL with page selector - only if no children or is child */}
@@ -555,11 +557,11 @@ function SortableNavItem({ id, item, availablePages, onUpdate, onRemove, allowSu
               >
                 <GripVertical className="h-4 w-4 text-muted-foreground" />
               </button>
-              <Input
+              <LocalizedInput
                 value={item.text}
-                onChange={(e) => onUpdate({ ...item, text: e.target.value })}
+                onChange={(text) => onUpdate({ ...item, text: text || '' })}
                 placeholder={t('navigation.menuText')}
-                className="flex-1"
+                className="flex-1 min-w-0"
               />
               <span className="text-xs text-muted-foreground px-2">
                 {item.children?.length} {t('navigation.submenus')}
@@ -627,6 +629,7 @@ export function NavigationBuilder({
   allowSubmenus = true,
 }: NavigationBuilderProps) {
   const { t } = useTranslation(['site', 'common'])
+  const { defaultLang } = useLanguages()
   const effectiveTitle = title || t('tree.navigation')
   const effectiveDescription = description || t('navigation.mainDescription')
   // Build available pages list from static pages and groups
@@ -708,13 +711,21 @@ export function NavigationBuilder({
     onChange(items.filter((_, i) => i !== index))
   }
 
+  // Helper to resolve LocalizedString for preview
+  const resolveText = (text: LocalizedString | undefined): string => {
+    if (!text) return ''
+    if (typeof text === 'string') return text
+    return text[defaultLang] || Object.values(text)[0] || ''
+  }
+
   // Render preview item with potential children
   const renderPreviewItem = (item: NavigationItem, index: number) => {
     const hasChildren = item.children && item.children.length > 0
+    const displayText = resolveText(item.text) || t('navigation.untitled')
     return (
       <div key={index} className="flex items-center gap-1">
         <span className="rounded-md bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-          {item.text || t('navigation.untitled')}
+          {displayText}
           {hasChildren && <ChevronDown className="inline-block ml-1 h-3 w-3" />}
         </span>
       </div>

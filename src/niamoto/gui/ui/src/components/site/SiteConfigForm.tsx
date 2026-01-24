@@ -10,11 +10,13 @@
 
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Globe, Image, Upload, Loader2 } from 'lucide-react'
+import { Globe, Image, Upload, Loader2, Languages, Plus, X } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -25,6 +27,16 @@ import {
 import type { SiteSettings } from '@/hooks/useSiteConfig'
 import { useProjectFiles, useUploadFile } from '@/hooks/useSiteConfig'
 import { toast } from 'sonner'
+
+// Available languages for content generation
+const AVAILABLE_LANGUAGES = [
+  { code: 'fr', name: 'Francais' },
+  { code: 'en', name: 'English' },
+  { code: 'es', name: 'Espanol' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'pt', name: 'Portugues' },
+  { code: 'it', name: 'Italiano' },
+]
 
 interface SiteConfigFormProps {
   config: SiteSettings
@@ -244,6 +256,110 @@ export function SiteConfigForm({ config, onChange }: SiteConfigFormProps) {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Content Languages (i18n) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Languages className="h-4 w-4" />
+            {t('siteConfig.contentLanguages')}
+          </CardTitle>
+          <CardDescription>{t('siteConfig.contentLanguagesDesc')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Current languages */}
+          <div className="space-y-2">
+            <Label>{t('siteConfig.generateLanguages')}</Label>
+            <div className="flex flex-wrap gap-2">
+              {(config.languages || [config.lang]).map((lang) => (
+                <Badge
+                  key={lang}
+                  variant={lang === config.lang ? 'default' : 'secondary'}
+                  className="flex items-center gap-1"
+                >
+                  {AVAILABLE_LANGUAGES.find((l) => l.code === lang)?.name || lang.toUpperCase()}
+                  {lang === config.lang && (
+                    <span className="text-xs opacity-70 ml-1">({t('siteConfig.default')})</span>
+                  )}
+                  {(config.languages?.length || 1) > 1 && lang !== config.lang && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newLangs = (config.languages || [config.lang]).filter((l) => l !== lang)
+                        onChange({ ...config, languages: newLangs })
+                      }}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </Badge>
+              ))}
+
+              {/* Add language dropdown */}
+              <Select
+                value=""
+                onValueChange={(newLang) => {
+                  if (newLang) {
+                    const currentLangs = config.languages || [config.lang]
+                    if (!currentLangs.includes(newLang)) {
+                      onChange({ ...config, languages: [...currentLangs, newLang] })
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[140px] h-7">
+                  <div className="flex items-center gap-1 text-xs">
+                    <Plus className="h-3 w-3" />
+                    {t('common:i18n.addLanguage')}
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_LANGUAGES.filter(
+                    (l) => !(config.languages || [config.lang]).includes(l.code)
+                  ).map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t('siteConfig.languagesHint')}
+            </p>
+          </div>
+
+          {/* Language switcher toggle */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="language-switcher">{t('siteConfig.languageSwitcher')}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('siteConfig.languageSwitcherDesc')}
+              </p>
+            </div>
+            <Switch
+              id="language-switcher"
+              checked={config.language_switcher || false}
+              onCheckedChange={(checked) => onChange({ ...config, language_switcher: checked })}
+              disabled={(config.languages?.length || 1) <= 1}
+            />
+          </div>
+
+          {/* Info about multi-language generation */}
+          {(config.languages?.length || 1) > 1 && (
+            <div className="rounded-md bg-muted/50 p-3 text-sm">
+              <p className="text-muted-foreground">
+                <strong>{t('siteConfig.multiLangNote')}:</strong>{' '}
+                {t('siteConfig.multiLangNoteDesc', {
+                  count: config.languages?.length || 1,
+                  languages: (config.languages || [config.lang]).map((l) => l.toUpperCase()).join(', '),
+                })}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

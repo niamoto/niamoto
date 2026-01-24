@@ -15,9 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, Settings2, Palette, Save, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 import {
   Accordion,
   AccordionContent,
@@ -35,6 +33,9 @@ interface WidgetConfigFormProps {
   onCancel: () => void
   onChange?: (config: Partial<ConfiguredWidget>) => void
   className?: string
+  // i18n
+  languages?: string[]
+  defaultLang?: string
 }
 
 export function WidgetConfigForm({
@@ -45,12 +46,16 @@ export function WidgetConfigForm({
   onCancel,
   onChange,
   className,
+  languages = ['fr', 'en'],
+  defaultLang = 'fr',
 }: WidgetConfigFormProps) {
   const { t } = useTranslation('widgets')
 
-  // Local state for form values
-  const [title, setTitle] = useState(widget.title)
-  const [description, setDescription] = useState(widget.description || '')
+  // Local state for form values (title and description support LocalizedString)
+  const [title, setTitle] = useState<LocalizedString | undefined>(widget.title as LocalizedString | undefined)
+  const [description, setDescription] = useState<LocalizedString | undefined>(
+    (widget.description as LocalizedString | undefined) || undefined
+  )
   const [transformerParams, setTransformerParams] = useState<Record<string, unknown>>(
     widget.transformerParams
   )
@@ -64,8 +69,8 @@ export function WidgetConfigForm({
 
   // Reset state when widget changes
   useEffect(() => {
-    setTitle(widget.title)
-    setDescription(widget.description || '')
+    setTitle(widget.title as LocalizedString | undefined)
+    setDescription((widget.description as LocalizedString | undefined) || undefined)
     setTransformerParams(widget.transformerParams)
     setWidgetParams(widget.widgetParams)
     setError(null)
@@ -76,8 +81,8 @@ export function WidgetConfigForm({
 
   // Build current config from state
   const currentConfig = useMemo(() => ({
-    title,
-    description: description || undefined,
+    title: title as string | Record<string, string> | undefined,
+    description: description as string | Record<string, string> | undefined,
     transformerParams,
     widgetParams,
   }), [title, description, transformerParams, widgetParams])
@@ -131,8 +136,8 @@ export function WidgetConfigForm({
   // Check if form has changes
   const hasChanges = useMemo(() => {
     return (
-      title !== widget.title ||
-      description !== (widget.description || '') ||
+      JSON.stringify(title) !== JSON.stringify(widget.title) ||
+      JSON.stringify(description) !== JSON.stringify(widget.description || undefined) ||
       JSON.stringify(transformerParams) !== JSON.stringify(widget.transformerParams) ||
       JSON.stringify(widgetParams) !== JSON.stringify(widget.widgetParams)
     )
@@ -142,26 +147,25 @@ export function WidgetConfigForm({
     <div className={cn('flex flex-col h-full', className)}>
       {/* Basic info */}
       <div className="space-y-4 p-4 border-b">
-        <div className="space-y-2">
-          <Label htmlFor="widget-title">Titre</Label>
-          <Input
-            id="widget-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t('form.titlePlaceholder')}
-          />
-        </div>
+        <LocalizedInput
+          value={title}
+          onChange={setTitle}
+          placeholder={t('form.titlePlaceholder')}
+          languages={languages}
+          defaultLang={defaultLang}
+          label={t('form.title', 'Titre')}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="widget-description">Description (optionnel)</Label>
-          <Textarea
-            id="widget-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={t('form.descriptionPlaceholder')}
-            rows={2}
-          />
-        </div>
+        <LocalizedInput
+          value={description}
+          onChange={setDescription}
+          placeholder={t('form.descriptionPlaceholder')}
+          languages={languages}
+          defaultLang={defaultLang}
+          label={t('form.descriptionOptional', 'Description (optionnel)')}
+          multiline
+          rows={2}
+        />
       </div>
 
       {/* Accordion sections for transformer and widget params */}

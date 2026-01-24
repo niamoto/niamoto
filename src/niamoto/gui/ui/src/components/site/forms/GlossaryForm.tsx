@@ -4,9 +4,10 @@
  * Manages:
  * - Title and introduction
  * - Terms list (term, definition, category, related)
+ * - Supports externalizing terms to a JSON file for large glossaries
  */
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { RepeatableField } from './RepeatableField'
+import { MarkdownContentField } from './MarkdownContentField'
+import { ExternalizableListField } from './ExternalizableListField'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
+import { useDataContent, useUpdateDataContent } from '@/hooks/useSiteConfig'
 
 // Types for glossary.html context
 interface TermItem {
@@ -24,15 +29,18 @@ interface TermItem {
 }
 
 export interface GlossaryPageContext {
-  title?: string
-  introduction?: string
+  title?: LocalizedString
+  introduction?: LocalizedString
+  content_source?: string | null
   terms?: TermItem[]
+  terms_source?: string | null  // Path to external JSON file for terms
   [key: string]: unknown
 }
 
 interface GlossaryFormProps {
   context: GlossaryPageContext
   onChange: (context: GlossaryPageContext) => void
+  pageName: string
 }
 
 // Common categories for ecological glossary
@@ -46,8 +54,32 @@ const SUGGESTED_CATEGORIES = [
   'Conservation',
 ]
 
-export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
+export function GlossaryForm({
+  context,
+  onChange,
+  pageName,
+}: GlossaryFormProps) {
   const { t } = useTranslation('site')
+
+  // Check if using external file for terms
+  const isExternalMode = !!context.terms_source
+  const externalFilePath = context.terms_source || null
+
+  // Fetch external data when in external mode
+  const { data: externalData } = useDataContent(externalFilePath)
+  const updateDataMutation = useUpdateDataContent()
+
+  // Local state for terms (either from inline or external)
+  const [localTerms, setLocalTerms] = useState<TermItem[]>(context.terms || [])
+
+  // Sync local terms with external data when it changes
+  useEffect(() => {
+    if (isExternalMode && externalData?.data) {
+      setLocalTerms(externalData.data as TermItem[])
+    } else if (!isExternalMode) {
+      setLocalTerms(context.terms || [])
+    }
+  }, [isExternalMode, externalData?.data, context.terms])
 
   const updateField = useCallback(
     <K extends keyof GlossaryPageContext>(field: K, value: GlossaryPageContext[K]) => {
@@ -56,14 +88,33 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
     [context, onChange]
   )
 
+  // Handle terms change (for both inline and external modes)
+  const handleTermsChange = useCallback(
+    async (terms: TermItem[]) => {
+      setLocalTerms(terms)
+
+      if (isExternalMode && externalFilePath) {
+        // Save to external file
+        await updateDataMutation.mutateAsync({
+          path: externalFilePath,
+          data: terms,
+        })
+      } else {
+        // Save inline
+        updateField('terms', terms)
+      }
+    },
+    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+  )
+
   // Extract unique categories from existing terms
   const existingCategories = useMemo(() => {
     const categories = new Set<string>()
-    context.terms?.forEach((t) => {
-      if (t.category) categories.add(t.category)
+    localTerms.forEach((term) => {
+      if (term.category) categories.add(term.category)
     })
     return Array.from(categories)
-  }, [context.terms])
+  }, [localTerms])
 
   // Combine suggested and existing categories
   const allCategories = useMemo(() => {
@@ -92,26 +143,31 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.glossary.header')}</h3>
 
-        <div className="space-y-2">
-          <Label htmlFor="title">{t('forms.glossary.pageTitle')}</Label>
-          <Input
-            id="title"
-            value={context.title || ''}
-            onChange={(e) => updateField('title', e.target.value)}
-            placeholder={t('forms.glossary.pageTitlePlaceholder')}
-          />
-        </div>
+        <LocalizedInput
+          value={context.title}
+          onChange={(val) => updateField('title', val)}
+          placeholder={t('forms.glossary.pageTitlePlaceholder')}
+          label={t('forms.glossary.pageTitle')}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="introduction">{t('forms.glossary.introduction')}</Label>
-          <Textarea
-            id="introduction"
-            value={context.introduction || ''}
-            onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder={t('forms.glossary.introPlaceholder')}
-            rows={3}
-          />
-        </div>
+        <LocalizedInput
+          value={context.introduction}
+          onChange={(val) => updateField('introduction', val)}
+          placeholder={t('forms.glossary.introPlaceholder')}
+          label={t('forms.glossary.introduction')}
+          multiline
+          rows={3}
+        />
+
+        {/* Optional markdown content */}
+        <MarkdownContentField
+          baseName={pageName}
+          contentSource={context.content_source}
+          onContentSourceChange={(source) => updateField('content_source', source)}
+          label={t('forms.common.markdownContent')}
+          description={t('forms.common.markdownContentDesc')}
+          minHeight="150px"
+        />
       </div>
 
       <Separator />
@@ -121,9 +177,6 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold">{t('forms.glossary.terms')}</h3>
-            <p className="text-sm text-muted-foreground">
-              {t('forms.glossary.termsDefined', { count: context.terms?.length || 0 })}
-            </p>
           </div>
           {existingCategories.length > 0 && (
             <div className="flex flex-wrap gap-1">
@@ -136,9 +189,20 @@ export function GlossaryForm({ context, onChange }: GlossaryFormProps) {
           )}
         </div>
 
+        {/* Externalization controls */}
+        <ExternalizableListField<TermItem>
+          pageName={pageName}
+          listName="terms"
+          dataSource={context.terms_source}
+          onDataSourceChange={(source) => updateField('terms_source', source)}
+          inlineData={context.terms || []}
+          onInlineDataChange={(data) => updateField('terms', data)}
+          description={t('forms.glossary.termsDefined', { count: localTerms.length })}
+        />
+
         <RepeatableField<TermItem>
-          items={context.terms || []}
-          onChange={(terms) => updateField('terms', terms)}
+          items={localTerms}
+          onChange={handleTermsChange}
           createItem={() => ({
             term: '',
             definition: '',

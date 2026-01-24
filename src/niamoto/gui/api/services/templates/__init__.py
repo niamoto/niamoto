@@ -26,6 +26,7 @@ from niamoto.gui.api.services.templates.utils import (
     parse_dynamic_template_id,
     find_widget_group,
     load_configured_widget,
+    load_widget_params_from_export,
 )
 
 from niamoto.gui.api.services.templates.config_service import (
@@ -67,4 +68,5 @@ __all__ = [
     "parse_dynamic_template_id",
     "find_widget_group",
     "load_configured_widget",
+    "load_widget_params_from_export",
 ]

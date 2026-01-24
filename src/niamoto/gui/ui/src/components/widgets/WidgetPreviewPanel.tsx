@@ -43,6 +43,14 @@ import type { TemplateSuggestion, WidgetCategory } from './types'
 import { CATEGORY_INFO, getPluginLabel, getPluginDescription } from './types'
 import type { ConfiguredWidget } from './useWidgetConfig'
 import { WidgetConfigForm } from './WidgetConfigForm'
+import type { LocalizedString } from '@/components/ui/localized-input'
+
+// Helper to resolve LocalizedString for display
+function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  return value[defaultLang] || Object.values(value)[0] || ''
+}
 
 // Icon mapping
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -380,8 +388,8 @@ export function WidgetPreviewPanel({
   // Determine display info based on mode
   const displayInfo = isConfiguredMode && activeWidget
     ? {
-        name: activeWidget.title,
-        description: activeWidget.description || `Widget ${activeWidget.id}`,
+        name: resolveLocalizedString(activeWidget.title),
+        description: resolveLocalizedString(activeWidget.description) || `Widget ${activeWidget.id}`,
         category: (activeWidget.category || 'chart') as WidgetCategory,
         icon: 'BarChart3',
       }

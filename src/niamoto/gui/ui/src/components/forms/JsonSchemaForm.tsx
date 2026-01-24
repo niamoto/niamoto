@@ -172,8 +172,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
   // Render a single field based on its schema
   const renderField = (fieldName: string, fieldSchema: FieldSchema, required: boolean = false) => {
 
-    // Get UI widget type from json_schema_extra
-    const uiWidget = fieldSchema.json_schema_extra?.['ui:widget'];
+    // Get UI widget type from json_schema_extra or directly from fieldSchema
+    // Pydantic places ui:widget directly in the schema, not nested in json_schema_extra
+    const uiWidget = fieldSchema.json_schema_extra?.['ui:widget'] || (fieldSchema as any)['ui:widget'];
     const fieldValue = form ? form.watch(fieldName) : formData[fieldName];
 
     // Common props for all fields
@@ -208,7 +209,9 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           );
 
         case 'select':
+          // Options can be in json_schema_extra['ui:options'] or directly in fieldSchema['ui:options']
           const options = fieldSchema.json_schema_extra?.['ui:options'] ||
+                         (fieldSchema as any)['ui:options'] ||
                          fieldSchema.enum?.map(val => ({ value: val, label: val })) || [];
           return (
             <SelectField

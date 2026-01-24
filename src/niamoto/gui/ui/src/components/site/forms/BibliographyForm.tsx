@@ -2,16 +2,17 @@
  * BibliographyForm - Dedicated form for bibliography.html template
  *
  * Manages:
- * - Title and introduction
+ * - Title and introduction (with optional markdown content)
  * - References list (authors, year, title, journal, doi, url, type)
+ * - Supports externalizing references to a JSON file for large lists
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -19,7 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { FileUp } from 'lucide-react'
+import { toast } from 'sonner'
 import { RepeatableField } from './RepeatableField'
+import { MarkdownContentField } from './MarkdownContentField'
+import { ExternalizableListField } from './ExternalizableListField'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
+import { useDataContent, useUpdateDataContent, useImportBibtex } from '@/hooks/useSiteConfig'
 
 // Types for bibliography.html context
 interface ReferenceItem {
@@ -35,15 +42,18 @@ interface ReferenceItem {
 }
 
 export interface BibliographyPageContext {
-  title?: string
-  introduction?: string
+  title?: LocalizedString
+  introduction?: LocalizedString
+  content_source?: string | null
   references?: ReferenceItem[]
+  references_source?: string | null  // Path to external JSON file
   [key: string]: unknown // Allow additional fields for compatibility
 }
 
 interface BibliographyFormProps {
   context: BibliographyPageContext
   onChange: (context: BibliographyPageContext) => void
+  pageName: string
 }
 
 const REFERENCE_TYPE_KEYS = [
@@ -56,8 +66,38 @@ const REFERENCE_TYPE_KEYS = [
   'other',
 ] as const
 
-export function BibliographyForm({ context, onChange }: BibliographyFormProps) {
+export function BibliographyForm({
+  context,
+  onChange,
+  pageName,
+}: BibliographyFormProps) {
   const { t } = useTranslation('site')
+
+  // Check if using external file for references
+  const isExternalMode = !!context.references_source
+  const externalFilePath = context.references_source || null
+
+  // Fetch external data when in external mode
+  const { data: externalData } = useDataContent(externalFilePath)
+  const updateDataMutation = useUpdateDataContent()
+  const importBibtexMutation = useImportBibtex()
+
+  // File input ref for BibTeX import
+  const bibtexInputRef = useRef<HTMLInputElement>(null)
+
+  // Local state for references (either from inline or external)
+  const [localReferences, setLocalReferences] = useState<ReferenceItem[]>(
+    context.references || []
+  )
+
+  // Sync local references with external data when it changes
+  useEffect(() => {
+    if (isExternalMode && externalData?.data) {
+      setLocalReferences(externalData.data as ReferenceItem[])
+    } else if (!isExternalMode) {
+      setLocalReferences(context.references || [])
+    }
+  }, [isExternalMode, externalData?.data, context.references])
 
   const updateField = useCallback(
     <K extends keyof BibliographyPageContext>(field: K, value: BibliographyPageContext[K]) => {
@@ -66,32 +106,96 @@ export function BibliographyForm({ context, onChange }: BibliographyFormProps) {
     [context, onChange]
   )
 
+  // Handle references change (for both inline and external modes)
+  const handleReferencesChange = useCallback(
+    async (references: ReferenceItem[]) => {
+      setLocalReferences(references)
+
+      if (isExternalMode && externalFilePath) {
+        // Save to external file
+        await updateDataMutation.mutateAsync({
+          path: externalFilePath,
+          data: references,
+        })
+      } else {
+        // Save inline
+        updateField('references', references)
+      }
+    },
+    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+  )
+
+  // Handle BibTeX import
+  const handleBibtexImport = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      try {
+        const result = await importBibtexMutation.mutateAsync(file)
+
+        if (result.success && result.data.length > 0) {
+          // Merge with existing references
+          const newReferences = [...localReferences, ...(result.data as ReferenceItem[])]
+          await handleReferencesChange(newReferences)
+
+          toast.success(t('forms.common.importBibtexSuccess'), {
+            description: t('forms.common.referencesImported', { count: result.count }),
+          })
+
+          if (result.errors.length > 0) {
+            toast.warning(t('forms.common.importWarnings', { count: result.errors.length }), {
+              description: result.errors.slice(0, 3).join('\n'),
+            })
+          }
+        } else {
+          toast.error(t('forms.common.importBibtexError'), {
+            description: result.errors[0] || 'No references found',
+          })
+        }
+      } catch (error) {
+        toast.error(t('forms.common.importBibtexError'), {
+          description: String(error),
+        })
+      }
+
+      // Reset input
+      event.target.value = ''
+    },
+    [importBibtexMutation, localReferences, handleReferencesChange, t]
+  )
+
   return (
     <div className="space-y-6">
       {/* Header Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.bibliography.header')}</h3>
 
-        <div className="space-y-2">
-          <Label htmlFor="title">{t('forms.bibliography.pageTitle')}</Label>
-          <Input
-            id="title"
-            value={context.title || ''}
-            onChange={(e) => updateField('title', e.target.value)}
-            placeholder={t('forms.bibliography.pageTitlePlaceholder')}
-          />
-        </div>
+        <LocalizedInput
+          value={context.title}
+          onChange={(val) => updateField('title', val)}
+          placeholder={t('forms.bibliography.pageTitlePlaceholder')}
+          label={t('forms.bibliography.pageTitle')}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="introduction">{t('forms.bibliography.introduction')}</Label>
-          <Textarea
-            id="introduction"
-            value={context.introduction || ''}
-            onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder={t('forms.bibliography.introPlaceholder')}
-            rows={3}
-          />
-        </div>
+        <LocalizedInput
+          value={context.introduction}
+          onChange={(val) => updateField('introduction', val)}
+          placeholder={t('forms.bibliography.introPlaceholder')}
+          label={t('forms.bibliography.introduction')}
+          multiline
+          rows={3}
+        />
+
+        {/* Optional markdown content */}
+        <MarkdownContentField
+          baseName={pageName}
+          contentSource={context.content_source}
+          onContentSourceChange={(source) => updateField('content_source', source)}
+          label={t('forms.common.markdownContent')}
+          description={t('forms.common.markdownContentDesc')}
+          minHeight="150px"
+        />
       </div>
 
       <Separator />
@@ -99,13 +203,44 @@ export function BibliographyForm({ context, onChange }: BibliographyFormProps) {
       {/* References Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.bibliography.references')}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t('forms.bibliography.referenceCount', { count: context.references?.length || 0 })}
-        </p>
+
+        {/* Externalization controls */}
+        <ExternalizableListField<ReferenceItem>
+          pageName={pageName}
+          listName="references"
+          dataSource={context.references_source}
+          onDataSourceChange={(source) => updateField('references_source', source)}
+          inlineData={context.references || []}
+          onInlineDataChange={(data) => updateField('references', data)}
+          description={t('forms.bibliography.referenceCount', { count: localReferences.length })}
+        />
+
+        {/* BibTeX Import */}
+        <div className="flex items-center gap-2">
+          <input
+            ref={bibtexInputRef}
+            type="file"
+            accept=".bib"
+            onChange={handleBibtexImport}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => bibtexInputRef.current?.click()}
+            disabled={importBibtexMutation.isPending}
+          >
+            <FileUp className="h-4 w-4 mr-2" />
+            {t('forms.common.importBibtex')}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            {t('forms.bibliography.referenceCount', { count: localReferences.length })}
+          </span>
+        </div>
 
         <RepeatableField<ReferenceItem>
-          items={context.references || []}
-          onChange={(references) => updateField('references', references)}
+          items={localReferences}
+          onChange={handleReferencesChange}
           createItem={() => ({
             authors: '',
             year: new Date().getFullYear().toString(),

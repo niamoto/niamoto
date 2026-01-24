@@ -11,10 +11,10 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { RepeatableField } from './RepeatableField'
 import { LucideIconPicker } from './LucideIconPicker'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 
 // Types for index.html context
 interface StatItem {
@@ -31,8 +31,8 @@ interface FeatureItem {
 }
 
 export interface IndexPageContext {
-  title?: string
-  subtitle?: string
+  title?: LocalizedString
+  subtitle?: LocalizedString
   stats?: StatItem[]
   features?: FeatureItem[]
   content_source?: string
@@ -45,7 +45,10 @@ interface IndexPageFormProps {
   onChange: (context: IndexPageContext) => void
 }
 
-export function IndexPageForm({ context, onChange }: IndexPageFormProps) {
+export function IndexPageForm({
+  context,
+  onChange,
+}: IndexPageFormProps) {
   const { t } = useTranslation('site')
   const updateField = useCallback(
     <K extends keyof IndexPageContext>(field: K, value: IndexPageContext[K]) => {
@@ -60,26 +63,21 @@ export function IndexPageForm({ context, onChange }: IndexPageFormProps) {
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.indexPage.heroSection')}</h3>
 
-        <div className="space-y-2">
-          <Label htmlFor="title">{t('forms.indexPage.mainTitle')}</Label>
-          <Input
-            id="title"
-            value={context.title || ''}
-            onChange={(e) => updateField('title', e.target.value)}
-            placeholder={t('forms.indexPage.mainTitlePlaceholder')}
-          />
-        </div>
+        <LocalizedInput
+          value={context.title}
+          onChange={(val) => updateField('title', val)}
+          placeholder={t('forms.indexPage.mainTitlePlaceholder')}
+          label={t('forms.indexPage.mainTitle')}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="subtitle">{t('forms.indexPage.subtitle')}</Label>
-          <Textarea
-            id="subtitle"
-            value={context.subtitle || ''}
-            onChange={(e) => updateField('subtitle', e.target.value)}
-            placeholder={t('forms.indexPage.subtitlePlaceholder')}
-            rows={2}
-          />
-        </div>
+        <LocalizedInput
+          value={context.subtitle}
+          onChange={(val) => updateField('subtitle', val)}
+          placeholder={t('forms.indexPage.subtitlePlaceholder')}
+          label={t('forms.indexPage.subtitle')}
+          multiline
+          rows={2}
+        />
       </div>
 
       <Separator />

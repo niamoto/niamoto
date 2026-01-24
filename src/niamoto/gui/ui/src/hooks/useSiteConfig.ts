@@ -11,6 +11,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { LocalizedString } from '@/components/ui/localized-input'
 
 const API_BASE = '/api/site'
 
@@ -23,6 +24,9 @@ export interface SiteSettings {
   logo_header?: string | null
   logo_footer?: string | null
   lang: string
+  // i18n settings
+  languages?: string[]
+  language_switcher?: boolean
   // Theme colors
   primary_color: string
   secondary_color?: string
@@ -39,7 +43,7 @@ export interface SiteSettings {
 }
 
 export interface NavigationItem {
-  text: string
+  text: LocalizedString
   url?: string
   children?: NavigationItem[]
 }
@@ -52,9 +56,10 @@ export interface ExternalLink {
 }
 
 export interface StaticPageContext {
-  content_markdown?: string | null
   content_source?: string | null
-  title?: string | null
+  title?: LocalizedString | null
+  introduction?: LocalizedString | null
+  subtitle?: LocalizedString | null
   [key: string]: unknown
 }
 
@@ -219,8 +224,8 @@ export interface TemplatePreviewRequest {
   template: string
   context: Record<string, unknown>
   site?: Record<string, unknown>
-  navigation?: Array<{ text: string; url?: string; children?: unknown[] }>
-  footer_navigation?: Array<{ text: string; url?: string; children?: unknown[] }>
+  navigation?: Array<{ text: LocalizedString; url?: string; children?: unknown[] }>
+  footer_navigation?: Array<{ text: LocalizedString; url?: string; children?: unknown[] }>
 }
 
 /**
@@ -459,6 +464,143 @@ export function useUpdateFileContent() {
       // Invalidate the file content query to refresh
       queryClient.invalidateQueries({ queryKey: ['file-content', variables.path] })
     },
+  })
+}
+
+// =============================================================================
+// DATA FILE HOOKS (JSON for externalized lists)
+// =============================================================================
+
+export interface DataContentResponse {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any[]
+  path: string
+  count: number
+}
+
+async function fetchDataContent(path: string): Promise<DataContentResponse> {
+  const response = await fetch(`${API_BASE}/data-content?path=${encodeURIComponent(path)}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new Error(error.detail || `Failed to fetch data content: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+async function updateDataContent(
+  path: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any[]
+): Promise<{ success: boolean; message: string; path: string; count: number }> {
+  const response = await fetch(`${API_BASE}/data-content`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, data }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new Error(error.detail || 'Update failed')
+  }
+
+  return response.json()
+}
+
+/**
+ * Hook to fetch JSON data content for externalized lists.
+ */
+export function useDataContent(path: string | null | undefined) {
+  return useQuery({
+    queryKey: ['data-content', path],
+    queryFn: () => fetchDataContent(path!),
+    enabled: !!path,
+    staleTime: 10000,
+  })
+}
+
+/**
+ * Hook to update JSON data content for externalized lists.
+ */
+export function useUpdateDataContent() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mutationFn: ({ path, data }: { path: string; data: any[] }) =>
+      updateDataContent(path, data),
+    onSuccess: (_, variables) => {
+      // Invalidate the data content query to refresh
+      queryClient.invalidateQueries({ queryKey: ['data-content', variables.path] })
+    },
+  })
+}
+
+// =============================================================================
+// IMPORT HOOKS (BibTeX, CSV)
+// =============================================================================
+
+export interface ImportResponse {
+  success: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any[]
+  count: number
+  errors: string[]
+}
+
+async function importBibtex(file: File): Promise<ImportResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${API_BASE}/import-bibtex`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new Error(error.detail || 'Import failed')
+  }
+
+  return response.json()
+}
+
+async function importCsv(file: File, delimiter = ',', hasHeader = true): Promise<ImportResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const params = new URLSearchParams()
+  params.append('delimiter', delimiter)
+  params.append('has_header', hasHeader.toString())
+
+  const response = await fetch(`${API_BASE}/import-csv?${params}`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new Error(error.detail || 'Import failed')
+  }
+
+  return response.json()
+}
+
+/**
+ * Hook to import BibTeX files.
+ */
+export function useImportBibtex() {
+  return useMutation({
+    mutationFn: (file: File) => importBibtex(file),
+  })
+}
+
+/**
+ * Hook to import CSV files.
+ */
+export function useImportCsv() {
+  return useMutation({
+    mutationFn: ({ file, delimiter, hasHeader }: { file: File; delimiter?: string; hasHeader?: boolean }) =>
+      importCsv(file, delimiter, hasHeader),
   })
 }
 

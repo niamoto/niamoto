@@ -4,9 +4,10 @@
  * Manages:
  * - Title and introduction
  * - Resources list (title, description, type, url, size, format, license)
+ * - Supports externalizing resources to a JSON file for large lists
  */
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +23,10 @@ import {
 import { RepeatableField } from './RepeatableField'
 import { renderLucideIcon } from './LucideIconPicker'
 import { FilePickerField } from './FilePickerField'
+import { MarkdownContentField } from './MarkdownContentField'
+import { ExternalizableListField } from './ExternalizableListField'
+import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
+import { useDataContent, useUpdateDataContent } from '@/hooks/useSiteConfig'
 
 // Types for resources.html context
 interface ResourceItem {
@@ -33,15 +38,18 @@ interface ResourceItem {
 }
 
 export interface ResourcesPageContext {
-  title?: string
-  introduction?: string
+  title?: LocalizedString
+  introduction?: LocalizedString
+  content_source?: string | null
   resources?: ResourceItem[]
+  resources_source?: string | null  // Path to external JSON file
   [key: string]: unknown
 }
 
 interface ResourcesFormProps {
   context: ResourcesPageContext
   onChange: (context: ResourcesPageContext) => void
+  pageName: string
 }
 
 const RESOURCE_TYPE_KEYS = [
@@ -56,8 +64,34 @@ const RESOURCE_TYPE_KEYS = [
 
 const COMMON_LICENSES = ['CC-BY-4.0', 'CC-BY-SA-4.0', 'CC-BY-NC-4.0', 'CC0', 'MIT', 'GPL-3.0', 'Proprietary']
 
-export function ResourcesForm({ context, onChange }: ResourcesFormProps) {
+export function ResourcesForm({
+  context,
+  onChange,
+  pageName,
+}: ResourcesFormProps) {
   const { t } = useTranslation('site')
+
+  // Check if using external file for resources
+  const isExternalMode = !!context.resources_source
+  const externalFilePath = context.resources_source || null
+
+  // Fetch external data when in external mode
+  const { data: externalData } = useDataContent(externalFilePath)
+  const updateDataMutation = useUpdateDataContent()
+
+  // Local state for resources (either from inline or external)
+  const [localResources, setLocalResources] = useState<ResourceItem[]>(
+    context.resources || []
+  )
+
+  // Sync local resources with external data when it changes
+  useEffect(() => {
+    if (isExternalMode && externalData?.data) {
+      setLocalResources(externalData.data as ResourceItem[])
+    } else if (!isExternalMode) {
+      setLocalResources(context.resources || [])
+    }
+  }, [isExternalMode, externalData?.data, context.resources])
 
   const updateField = useCallback(
     <K extends keyof ResourcesPageContext>(field: K, value: ResourcesPageContext[K]) => {
@@ -66,32 +100,56 @@ export function ResourcesForm({ context, onChange }: ResourcesFormProps) {
     [context, onChange]
   )
 
+  // Handle resources change (for both inline and external modes)
+  const handleResourcesChange = useCallback(
+    async (resources: ResourceItem[]) => {
+      setLocalResources(resources)
+
+      if (isExternalMode && externalFilePath) {
+        // Save to external file
+        await updateDataMutation.mutateAsync({
+          path: externalFilePath,
+          data: resources,
+        })
+      } else {
+        // Save inline
+        updateField('resources', resources)
+      }
+    },
+    [isExternalMode, externalFilePath, updateDataMutation, updateField]
+  )
+
   return (
     <div className="space-y-6">
       {/* Header Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.resources.header')}</h3>
 
-        <div className="space-y-2">
-          <Label htmlFor="title">{t('forms.resources.pageTitle')}</Label>
-          <Input
-            id="title"
-            value={context.title || ''}
-            onChange={(e) => updateField('title', e.target.value)}
-            placeholder={t('forms.resources.pageTitlePlaceholder')}
-          />
-        </div>
+        <LocalizedInput
+          value={context.title}
+          onChange={(val) => updateField('title', val)}
+          placeholder={t('forms.resources.pageTitlePlaceholder')}
+          label={t('forms.resources.pageTitle')}
+        />
 
-        <div className="space-y-2">
-          <Label htmlFor="introduction">{t('forms.resources.introduction')}</Label>
-          <Textarea
-            id="introduction"
-            value={context.introduction || ''}
-            onChange={(e) => updateField('introduction', e.target.value)}
-            placeholder={t('forms.resources.introPlaceholder')}
-            rows={3}
-          />
-        </div>
+        <LocalizedInput
+          value={context.introduction}
+          onChange={(val) => updateField('introduction', val)}
+          placeholder={t('forms.resources.introPlaceholder')}
+          label={t('forms.resources.introduction')}
+          multiline
+          rows={3}
+        />
+
+        {/* Optional markdown content */}
+        <MarkdownContentField
+          baseName={pageName}
+          contentSource={context.content_source}
+          onContentSourceChange={(source) => updateField('content_source', source)}
+          label={t('forms.common.markdownContent')}
+          description={t('forms.common.markdownContentDesc')}
+          minHeight="150px"
+        />
       </div>
 
       <Separator />
@@ -99,13 +157,21 @@ export function ResourcesForm({ context, onChange }: ResourcesFormProps) {
       {/* Resources Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">{t('forms.resources.resources')}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t('forms.resources.resourceCount', { count: context.resources?.length || 0 })}
-        </p>
+
+        {/* Externalization controls */}
+        <ExternalizableListField<ResourceItem>
+          pageName={pageName}
+          listName="resources"
+          dataSource={context.resources_source}
+          onDataSourceChange={(source) => updateField('resources_source', source)}
+          inlineData={context.resources || []}
+          onInlineDataChange={(data) => updateField('resources', data)}
+          description={t('forms.resources.resourceCount', { count: localResources.length })}
+        />
 
         <RepeatableField<ResourceItem>
-          items={context.resources || []}
-          onChange={(resources) => updateField('resources', resources)}
+          items={localResources}
+          onChange={handleResourcesChange}
           createItem={() => ({
             title: '',
             description: '',
