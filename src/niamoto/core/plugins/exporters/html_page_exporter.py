@@ -731,7 +731,7 @@ class HtmlPageExporter(ExporterPlugin):
                     "language_switcher": language_switcher,
                 }
 
-                # Handle content source (external markdown file)
+                # Handle content source (external markdown file) or inline markdown
                 page_content_html = None
                 if page_config.context:
                     content_source = page_config.context.content_source
@@ -741,6 +741,13 @@ class HtmlPageExporter(ExporterPlugin):
                         page_content_html = self._resolve_content_source(
                             content_source, lang, md
                         )
+                    elif hasattr(page_config.context, "content_markdown"):
+                        # Handle inline markdown content
+                        content_markdown = getattr(
+                            page_config.context, "content_markdown", None
+                        )
+                        if content_markdown:
+                            page_content_html = md.render(content_markdown)
 
                 context["page_content_html"] = page_content_html
 
