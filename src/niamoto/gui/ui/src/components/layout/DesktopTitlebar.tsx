@@ -98,47 +98,17 @@ export function DesktopTitlebar({ title = 'Niamoto', className }: DesktopTitleba
   // Don't render in web mode
   if (!isDesktop && !isDesktopMode) return null
 
-  // macOS style controls (traffic lights) - minimal, no title, no border
+  // macOS avec titleBarStyle: "Overlay" - les traffic lights natifs sont affichés automatiquement
+  // On fournit juste une zone de drag
   if (isMac) {
     return (
       <div
+        data-tauri-drag-region
         className={cn(
-          'flex h-10 items-center select-none cursor-default shrink-0',
+          'h-8 w-full select-none cursor-default shrink-0',
           className
         )}
-        onMouseDown={handleMouseDown}
-      >
-        {/* Traffic lights */}
-        <div className="flex items-center gap-2 pl-4 no-drag">
-          <button
-            onClick={closeWindow}
-            className="group flex h-3 w-3 items-center justify-center rounded-full bg-[#ff5f57] hover:bg-[#ff5f57]/80 transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-2 w-2 text-[#4d0000] opacity-0 group-hover:opacity-100" strokeWidth={3} />
-          </button>
-          <button
-            onClick={minimizeWindow}
-            className="group flex h-3 w-3 items-center justify-center rounded-full bg-[#febc2e] hover:bg-[#febc2e]/80 transition-colors"
-            aria-label="Minimize"
-          >
-            <Minus className="h-2 w-2 text-[#995700] opacity-0 group-hover:opacity-100" strokeWidth={3} />
-          </button>
-          <button
-            onClick={toggleMaximize}
-            className="group flex h-3 w-3 items-center justify-center rounded-full bg-[#28c840] hover:bg-[#28c840]/80 transition-colors"
-            aria-label="Maximize"
-          >
-            {isMaximized ? (
-              <Minimize2 className="h-1.5 w-1.5 text-[#006500] opacity-0 group-hover:opacity-100" strokeWidth={3} />
-            ) : (
-              <Maximize2 className="h-1.5 w-1.5 text-[#006500] opacity-0 group-hover:opacity-100" strokeWidth={3} />
-            )}
-          </button>
-        </div>
-        {/* Flexible drag area */}
-        <div className="flex-1 h-full" />
-      </div>
+      />
     )
   }
 
