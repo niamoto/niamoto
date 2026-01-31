@@ -8,7 +8,6 @@
     "devUrl": "http://localhost:5173"
   },
   "app": {
-    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "Niamoto Desktop",
@@ -20,8 +19,9 @@
         "fullscreen": false,
         "center": true,
         "devtools": true,
-        "decorations": false,
-        "transparent": true
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {

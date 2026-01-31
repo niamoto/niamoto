@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect } from 'react'
 import Editor, { type OnMount, type OnChange } from '@monaco-editor/react'
+import type { editor, Position } from 'monaco-editor'
 import * as yaml from 'js-yaml'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -66,7 +67,7 @@ export function YamlEditor({
   const handleEditorMount: OnMount = (editor, monaco) => {
     // Configure YAML language
     monaco.languages.registerCompletionItemProvider('yaml', {
-      provideCompletionItems: (model, position) => {
+      provideCompletionItems: (model: editor.ITextModel, position: Position) => {
         const word = model.getWordUntilPosition(position)
         const range = {
           startLineNumber: position.lineNumber,
