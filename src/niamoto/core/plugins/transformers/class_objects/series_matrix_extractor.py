@@ -17,20 +17,76 @@ log = logging.getLogger(__name__)
 
 
 class SeriesConfig(BaseModel):
-    """Configuration for a single series"""
+    """Configuration for a single series in the matrix."""
 
-    name: str = Field(..., description="Name of the series in the output")
-    class_object: str = Field(..., description="Class object to extract data from")
-    scale: float = Field(1.0, description="Scale factor to apply to values")
-    complement: bool = Field(False, description="If True, return 100 - value")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "ui:order": ["name", "class_object", "scale", "complement"],
+        }
+    )
+
+    name: str = Field(
+        ...,
+        description="Name of the series in the output",
+        json_schema_extra={
+            "ui:placeholder": "e.g., forest_cover, elevation_dist",
+        },
+    )
+    class_object: str = Field(
+        ...,
+        description="Class object to extract data from",
+        json_schema_extra={
+            "ui:placeholder": "e.g., forest_elevation",
+            "ui:help": "Must match a class_object value in the source data",
+        },
+    )
+    scale: float = Field(
+        1.0,
+        description="Scale factor to apply to values",
+        json_schema_extra={
+            "ui:help": "Multiply values by this factor (e.g., 0.01 to convert % to ratio)",
+        },
+    )
+    complement: bool = Field(
+        False,
+        description="If True, return 100 - value",
+        json_schema_extra={
+            "ui:help": "Enable to invert percentage values (useful for 'non-forest' from 'forest')",
+        },
+    )
 
 
 class AxisConfig(BaseModel):
-    """Configuration for the axis"""
+    """Configuration for the matrix axis."""
 
-    field: str = Field(..., description="Field to use for axis values")
-    numeric: bool = Field(True, description="Convert values to numeric")
-    sort: bool = Field(True, description="Sort axis values")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "ui:order": ["field", "numeric", "sort"],
+        }
+    )
+
+    field: str = Field(
+        ...,
+        description="Field to use for axis values (typically class_name)",
+        json_schema_extra={
+            "ui:placeholder": "e.g., class_name",
+            "ui:help": "Column containing axis values (e.g., elevation bins)",
+        },
+    )
+    numeric: bool = Field(
+        True,
+        description="Convert values to numeric",
+        json_schema_extra={
+            "ui:help": "Enable for numeric axes (elevation, counts)",
+        },
+    )
+    sort: bool = Field(
+        True,
+        description="Sort axis values",
+        json_schema_extra={
+            "ui:help": "Sort axis values in ascending order",
+        },
+    )
 
 
 class SeriesMatrixParams(BasePluginParams):
@@ -68,14 +124,19 @@ class SeriesMatrixParams(BasePluginParams):
     axis: AxisConfig = Field(
         ...,
         description="Configuration for the axis",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:help": "Define how axis values are extracted and formatted",
+        },
     )
 
     series: List[SeriesConfig] = Field(
         ...,
         min_length=1,
         description="List of series configurations",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:add_button_text": "Add series",
+            "ui:help": "Each series extracts values from a class_object",
+        },
     )
 
 

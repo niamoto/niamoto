@@ -13,12 +13,47 @@ from niamoto.common.exceptions import DataTransformError
 
 
 class AxisConfig(BaseModel):
-    """Configuration for the axis"""
+    """Configuration for the axis.
 
-    field: str = Field(..., description="Field to use for axis values")
-    output_field: str = Field(..., description="Name of the field in output")
-    numeric: bool = Field(True, description="Convert values to numeric")
-    sort: bool = Field(True, description="Sort axis values")
+    Defines how to extract and format axis values from class_object data.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "ui:order": ["field", "output_field", "numeric", "sort"],
+        }
+    )
+
+    field: str = Field(
+        ...,
+        description="Field to use for axis values (typically class_name)",
+        json_schema_extra={
+            "ui:placeholder": "e.g., class_name",
+            "ui:help": "Column containing axis values (e.g., elevation bins)",
+        },
+    )
+    output_field: str = Field(
+        ...,
+        description="Name of the field in output",
+        json_schema_extra={
+            "ui:placeholder": "e.g., altitudes, months",
+            "ui:help": "Output key for the axis values array",
+        },
+    )
+    numeric: bool = Field(
+        True,
+        description="Convert values to numeric",
+        json_schema_extra={
+            "ui:help": "Enable for numeric axes (elevation, counts), disable for categorical",
+        },
+    )
+    sort: bool = Field(
+        True,
+        description="Sort axis values",
+        json_schema_extra={
+            "ui:help": "Sort axis values in ascending order",
+        },
+    )
 
 
 class ClassObjectSeriesByAxisParams(BasePluginParams):
@@ -60,13 +95,19 @@ class ClassObjectSeriesByAxisParams(BasePluginParams):
             field="class_name", output_field="altitudes", numeric=True, sort=True
         ),
         description="Configuration for the axis",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:help": "Define how axis values are extracted and formatted",
+        },
     )
 
     types: Dict[str, str] = Field(
         default_factory=dict,
         description="Mapping of output names to class_objects",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:widget": "key-value-pairs",
+            "ui:placeholder": "Output name → class_object",
+            "ui:help": "Map output series names to source class_objects (e.g., 'mature' → 'forest_mature_elevation')",
+        },
     )
 
 
