@@ -21,6 +21,8 @@ import ColorField from './fields/ColorField';
 import DirectorySelectField from './fields/DirectorySelectField';
 import TextAreaField from './fields/TextAreaField';
 import ObjectField from './fields/ObjectField';
+import KeyValuePairsField from './fields/KeyValuePairsField';
+import TagsField from './fields/TagsField';
 
 interface JsonSchemaFormProps {
   pluginId: string;
@@ -64,6 +66,7 @@ interface FieldSchema {
   maxItems?: number;
   items?: any;
   properties?: Record<string, any>;
+  additionalProperties?: { type?: string };
   json_schema_extra?: Record<string, any>;
   anyOf?: any[];
   allOf?: any[];
@@ -294,6 +297,12 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         case 'json':
           return <JsonField key={fieldName} {...commonProps} />;
 
+        case 'key-value-pairs':
+          return <KeyValuePairsField key={fieldName} {...commonProps} />;
+
+        case 'tags':
+          return <TagsField key={fieldName} {...commonProps} />;
+
         case 'object':
           return (
             <ObjectField
@@ -350,6 +359,11 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         return <CheckboxField key={fieldName} {...commonProps} />;
 
       case 'array':
+        // Check if it's a simple string array (tags)
+        if (fieldSchema.items?.type === 'string' && !fieldSchema.items.enum) {
+          return <TagsField key={fieldName} {...commonProps} />;
+        }
+
         // Determine the item type based on the items schema
         let itemType = 'text';
         let resolvedItemSchema = fieldSchema.items;
@@ -384,6 +398,10 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
         );
 
       case 'object':
+        // Check if it's a Dict[str, str] (additionalProperties with string type)
+        if (fieldSchema.additionalProperties?.type === 'string') {
+          return <KeyValuePairsField key={fieldName} {...commonProps} />;
+        }
         return (
           <ObjectField
             key={fieldName}
