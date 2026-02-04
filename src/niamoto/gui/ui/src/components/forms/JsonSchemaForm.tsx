@@ -26,6 +26,7 @@ import TagsField from './fields/TagsField';
 import ClassObjectSelectField from './fields/ClassObjectSelectField';
 import FilePickerField from './fields/FilePickerField';
 import FieldListEditor from './fields/FieldListEditor';
+import LayerSelectField from './fields/LayerSelectField';
 
 interface JsonSchemaFormProps {
   pluginId: string;
@@ -356,6 +357,16 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               {...commonProps}
               accept={fileAccept}
               basePath={fileBasePath}
+            />
+          );
+
+        case 'layer-select':
+          const layerAccept = fieldSchema.json_schema_extra?.['ui:accept'] || (fieldSchema as any)['ui:accept'] || 'all';
+          return (
+            <LayerSelectField
+              key={fieldName}
+              {...commonProps}
+              accept={layerAccept}
             />
           );
 
