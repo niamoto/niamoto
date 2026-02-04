@@ -306,9 +306,9 @@ Ces modèles imbriqués utilisent `ui:widget: "json"` ce qui affiche un éditeur
 - [x] S'assurer que le widget `json` reste disponible comme fallback - ✅ Fallback fonctionne
 
 **Limitations identifiées** :
-- `ObjectField.tsx` (ligne 41-91) n'exploite pas `ui:widget` des sous-champs
-- Widgets non implémentés : `key-value-pairs`, `tags` → fallback vers TextField
-- Bug React : `Select.Item` avec valeur vide dans TransformSourceSelectField
+- ~~`ObjectField.tsx` (ligne 41-91) n'exploite pas `ui:widget` des sous-champs~~ ✅ RÉSOLU (04/02/2026) - ObjectField propage maintenant les hints UI
+- ~~Widgets non implémentés : `key-value-pairs`, `tags` → fallback vers TextField~~ ✅ RÉSOLU (04/02/2026) - KeyValuePairsField et TagsField créés avec détection auto
+- ~~Bug React : `Select.Item` avec valeur vide dans TransformSourceSelectField~~ ✅ RÉSOLU (04/02/2026) - Filtrage des valeurs vides
 
 **Fichiers à modifier** :
 ```
@@ -326,7 +326,8 @@ src/niamoto/core/plugins/transformers/
 - `transform-source-select` : Sélecteur de source dynamique
 - `json` : Éditeur JSON (pour structures complexes)
 - `text` : Champ texte simple
-- `tags` : Liste de chaînes (chips)
+- `tags` : Liste de chaînes (chips) ✅ TagsField créé (04/02/2026)
+- `key-value-pairs` : Mapping clé/valeur ✅ KeyValuePairsField créé (04/02/2026)
 - `number` : Entier avec min/max (ge/le)
 - `checkbox` : Booléen
 - `ui:quick_edit` : Édition rapide dans la liste

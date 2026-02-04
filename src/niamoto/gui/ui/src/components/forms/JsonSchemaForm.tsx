@@ -23,6 +23,9 @@ import TextAreaField from './fields/TextAreaField';
 import ObjectField from './fields/ObjectField';
 import KeyValuePairsField from './fields/KeyValuePairsField';
 import TagsField from './fields/TagsField';
+import ClassObjectSelectField from './fields/ClassObjectSelectField';
+import FilePickerField from './fields/FilePickerField';
+import FieldListEditor from './fields/FieldListEditor';
 
 interface JsonSchemaFormProps {
   pluginId: string;
@@ -247,6 +250,19 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
             />
           );
 
+        case 'class-object-select':
+          const coSource = fieldSchema.json_schema_extra?.['ui:source'] || (fieldSchema as any)['ui:source'];
+          const coMultiple = fieldSchema.json_schema_extra?.['ui:multiple'] || (fieldSchema as any)['ui:multiple'];
+          return (
+            <ClassObjectSelectField
+              key={fieldName}
+              {...commonProps}
+              groupBy={groupBy}
+              source={coSource}
+              multiple={coMultiple}
+            />
+          );
+
         case 'transform-source-select':
           const sourceGroupBy = fieldSchema.json_schema_extra?.['ui:groupBy'];
           return (
@@ -254,6 +270,18 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
               key={fieldName}
               {...commonProps}
               groupBy={sourceGroupBy || groupBy}
+            />
+          );
+
+        case 'field-list':
+        case 'field-list-editor':
+          return (
+            <FieldListEditor
+              key={fieldName}
+              {...commonProps}
+              groupBy={groupBy}
+              minItems={fieldSchema.minItems}
+              maxItems={fieldSchema.maxItems}
             />
           );
 
@@ -316,8 +344,20 @@ const JsonSchemaForm: React.FC<JsonSchemaFormProps> = ({
           return <ColorField key={fieldName} {...commonProps} />;
 
         case 'directory-select':
-        case 'file-select':
           return <DirectorySelectField key={fieldName} {...commonProps} />;
+
+        case 'file-select':
+        case 'file-picker':
+          const fileAccept = fieldSchema.json_schema_extra?.['ui:accept'] || (fieldSchema as any)['ui:accept'] || 'all';
+          const fileBasePath = fieldSchema.json_schema_extra?.['ui:basePath'] || (fieldSchema as any)['ui:basePath'] || 'imports/';
+          return (
+            <FilePickerField
+              key={fieldName}
+              {...commonProps}
+              accept={fileAccept}
+              basePath={fileBasePath}
+            />
+          );
 
         case 'hidden':
           return null; // Don't render hidden fields
