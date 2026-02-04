@@ -11,6 +11,7 @@ from .routers import (
     files,
     health,
     imports,
+    layers,
     plugins,
     transform,
     export,
@@ -58,6 +59,9 @@ def create_app() -> FastAPI:
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(database.router, prefix="/api/database", tags=["database"])
     app.include_router(files.router, prefix="/api/files", tags=["files"])
+    app.include_router(
+        layers.router, prefix="/api", tags=["layers"]
+    )  # Geographic layers API
     app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
     app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
     app.include_router(transform.router, prefix="/api/transform", tags=["transform"])
