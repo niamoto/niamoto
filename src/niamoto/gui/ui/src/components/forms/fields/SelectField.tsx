@@ -58,14 +58,16 @@ const SelectField: React.FC<SelectFieldProps> = ({
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
-          {options.map((option, index) => (
-            <SelectItem
-              key={`${option.value}-${index}`}
-              value={option.value?.toString() || ''}
-            >
-              {option.label}
-            </SelectItem>
-          ))}
+          {options
+            .filter(option => option.value !== null && option.value !== undefined && option.value !== '')
+            .map((option, index) => (
+              <SelectItem
+                key={`${option.value}-${index}`}
+                value={option.value.toString()}
+              >
+                {option.label}
+              </SelectItem>
+            ))}
         </SelectContent>
       </Select>
       {description && !error && (

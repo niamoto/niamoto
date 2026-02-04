@@ -59,7 +59,8 @@ const TransformSourceSelectField: React.FC<TransformSourceSelectFieldProps> = ({
         }
 
         const data: TransformSourcesResponse = await response.json();
-        setSources(data.sources);
+        // Filter out empty strings to prevent Select.Item error
+        setSources(data.sources.filter(s => s && s.trim() !== ''));
       } catch (err) {
         console.error('Error fetching transform sources:', err);
         setLoadError(err instanceof Error ? err.message : 'Failed to load sources');
