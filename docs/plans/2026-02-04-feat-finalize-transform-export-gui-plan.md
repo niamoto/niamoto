@@ -588,13 +588,14 @@ Pour la première itération, se concentrer sur les shapes car :
 
 **Actions requises** :
 
-| Priorité | Action | Complexité |
-|----------|--------|------------|
-| P1 | API `/api/layers` listing des layers importés | Faible |
-| P1 | Métadonnées layers (CRS, extent, colonnes) | Moyenne |
-| P2 | `LayerSelectField` composant UI | Moyenne |
-| P2 | Suggestions automatiques basées sur le type de layer | Moyenne |
-| P3 | Interface générique pour tous les groupes | Élevée |
+| Priorité | Action | Complexité | Status |
+|----------|--------|------------|--------|
+| P1 | API `/api/layers` listing des layers importés | Faible | ✅ (04/02/2026) |
+| P1 | Métadonnées layers (CRS, extent, colonnes) | Moyenne | ✅ (04/02/2026) |
+| P2 | `LayerSelectField` composant UI | Moyenne | ✅ (04/02/2026) |
+| P2 | Enrichir plugins `raster_stats` et `land_use` avec `layer-select` | Faible | ✅ (04/02/2026) |
+| P2 | Suggestions automatiques basées sur le type de layer | Moyenne | Backlog |
+| P3 | Interface générique pour tous les groupes | Élevée | Backlog |
 
 ---
 
