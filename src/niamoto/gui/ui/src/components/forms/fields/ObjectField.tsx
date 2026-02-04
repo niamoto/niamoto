@@ -7,6 +7,10 @@ import TextField from './TextField';
 import NumberField from './NumberField';
 import CheckboxField from './CheckboxField';
 import SelectField from './SelectField';
+import TextAreaField from './TextAreaField';
+import JsonField from './JsonField';
+import KeyValuePairsField from './KeyValuePairsField';
+import TagsField from './TagsField';
 
 interface ObjectFieldProps {
   name: string;
@@ -42,16 +46,62 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
     const fieldType = Array.isArray(fieldSchema.type) ? fieldSchema.type[0] : fieldSchema.type;
     const fieldValue = value[fieldName];
 
+    // Check for ui:widget hint (Pydantic places it directly in schema)
+    const uiWidget = fieldSchema['ui:widget'];
+    const uiPlaceholder = fieldSchema['ui:placeholder'];
+    const uiHelp = fieldSchema['ui:help'];
+    const uiOptions = fieldSchema['ui:options'];
+
     const commonProps = {
       name: `${name}.${fieldName}`,
       label: fieldSchema.title || fieldName,
-      description: fieldSchema.description,
+      description: uiHelp || fieldSchema.description,
+      placeholder: uiPlaceholder,
       value: fieldValue,
       onChange: (val: any) => handleFieldChange(fieldName, val),
       disabled,
       required: fieldSchema.required || false
     };
 
+    // First check ui:widget hint
+    if (uiWidget) {
+      switch (uiWidget) {
+        case 'textarea':
+          return <TextAreaField {...commonProps} />;
+
+        case 'select':
+          const selectOptions = uiOptions?.map((opt: string) => ({ value: opt, label: opt })) ||
+                               fieldSchema.enum?.map((val: any) => ({ value: val, label: val })) || [];
+          return <SelectField {...commonProps} options={selectOptions} />;
+
+        case 'checkbox':
+          return <CheckboxField {...commonProps} />;
+
+        case 'json':
+          return <JsonField {...commonProps} />;
+
+        case 'key-value-pairs':
+          return <KeyValuePairsField {...commonProps} />;
+
+        case 'tags':
+          return <TagsField {...commonProps} />;
+
+        case 'number':
+          return (
+            <NumberField
+              {...commonProps}
+              min={fieldSchema.minimum}
+              max={fieldSchema.maximum}
+            />
+          );
+
+        // Fall through for unknown widgets
+        default:
+          break;
+      }
+    }
+
+    // Fallback based on JSON schema type
     switch (fieldType) {
       case 'string':
         if (fieldSchema.enum) {
@@ -78,12 +128,23 @@ const ObjectField: React.FC<ObjectFieldProps> = ({
         return <CheckboxField {...commonProps} />;
 
       case 'object':
+        // Check if it's a Dict[str, str] (additionalProperties with string type)
+        if (fieldSchema.additionalProperties?.type === 'string') {
+          return <KeyValuePairsField {...commonProps} />;
+        }
         return (
           <ObjectField
             {...commonProps}
             properties={fieldSchema.properties || {}}
           />
         );
+
+      case 'array':
+        // Check if it's a simple string array (tags)
+        if (fieldSchema.items?.type === 'string') {
+          return <TagsField {...commonProps} />;
+        }
+        return <JsonField {...commonProps} />;
 
       default:
         return <TextField {...commonProps} />;
