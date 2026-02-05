@@ -449,7 +449,7 @@ def _wrap_html_response(content: str, title: str = "Preview") -> str:
             text-align: center;
         }}
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/plotly.js@2.35.0/dist/plotly.min.js"></script>
+    <script src="/api/site/assets/js/vendor/plotly/3.0.1_plotly.min.js"></script>
 </head>
 <body>
 {content}

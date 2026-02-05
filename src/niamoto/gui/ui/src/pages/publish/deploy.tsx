@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { usePublishStore, selectIsDeploying, selectHasSuccessfulBuild } from '@/stores/publishStore'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -55,6 +56,7 @@ export default function PublishDeploy() {
   const isDeploying = usePublishStore(selectIsDeploying)
   const hasSuccessfulBuild = usePublishStore(selectHasSuccessfulBuild)
   const lastDeploy = deployHistory[0]
+  const { isOffline } = useNetworkStatus()
 
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>(preferredPlatform || 'cloudflare')
 
@@ -228,11 +230,21 @@ export default function PublishDeploy() {
                   </p>
                 </div>
 
+                {isOffline && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {t('deploy.offline_warning', 'Déploiement indisponible hors connexion. Vérifiez votre connexion internet.')}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <Button
                   size="lg"
                   className="w-full"
                   onClick={handleDeployCloudflare}
-                  disabled={!canDeploy || !cloudflareProject.trim()}
+                  disabled={!cloudflareProject.trim() || isOffline}
+                  title={isOffline ? t('deploy.offline_tooltip', 'Connexion internet requise pour le déploiement') : undefined}
                 >
                   <Rocket className="w-4 h-4 mr-2" />
                   {isDeploying ? t('deploy.deploying', 'Déploiement en cours...') : t('deploy.trigger', 'Déployer sur Cloudflare')}

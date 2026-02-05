@@ -63,6 +63,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { apiClient } from '@/lib/api/client'
 import { toast } from 'sonner'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus'
+import { WifiOff } from 'lucide-react'
 
 interface EnrichmentTabProps {
   referenceName: string
@@ -70,7 +72,7 @@ interface EnrichmentTabProps {
 
 interface EnrichmentJob {
   id: string
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+  status: 'pending' | 'running' | 'paused' | 'paused_offline' | 'completed' | 'failed' | 'cancelled'
   total: number
   processed: number
   successful: number
@@ -216,6 +218,7 @@ const renderValue = (value: any): React.ReactNode => {
 
 export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
   const { t } = useTranslation()
+  const { isOffline } = useNetworkStatus()
 
   // State
   const [stats, setStats] = useState<EnrichmentStats | null>(null)
@@ -457,6 +460,8 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
         return <Badge className="bg-blue-500"><Loader2 className="h-3 w-3 mr-1 animate-spin" />En cours</Badge>
       case 'paused':
         return <Badge variant="secondary"><Pause className="h-3 w-3 mr-1" />En pause</Badge>
+      case 'paused_offline':
+        return <Badge variant="secondary"><WifiOff className="h-3 w-3 mr-1" />Pause (hors ligne)</Badge>
       case 'completed':
         return <Badge className="bg-green-500"><CheckCircle2 className="h-3 w-3 mr-1" />Termine</Badge>
       case 'failed':
@@ -553,6 +558,17 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
         </Card>
       </div>
 
+      {/* Offline warning */}
+      {isOffline && (
+        <Alert>
+          <WifiOff className="h-4 w-4" />
+          <AlertTitle>Mode hors connexion</AlertTitle>
+          <AlertDescription>
+            L'enrichissement necessite une connexion internet pour contacter les API externes (GBIF, Endemia, WFO).
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Actions */}
       <Card>
         <CardHeader className="pb-3">
@@ -563,7 +579,11 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {!job || job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' ? (
-            <Button onClick={startJob} disabled={jobLoading || stats?.pending === 0}>
+            <Button
+              onClick={startJob}
+              disabled={jobLoading || stats?.pending === 0 || isOffline}
+              title={isOffline ? 'Connexion internet requise' : undefined}
+            >
               {jobLoading ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
@@ -605,9 +625,11 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
                 </AlertDialogContent>
               </AlertDialog>
             </>
-          ) : job.status === 'paused' ? (
+          ) : job.status === 'paused' || job.status === 'paused_offline' ? (
             <>
-              <Button onClick={resumeJob} disabled={isResuming}>
+              <Button onClick={resumeJob} disabled={isResuming || isOffline}
+                title={isOffline ? 'Connexion internet requise pour reprendre' : undefined}
+              >
                 {isResuming ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (

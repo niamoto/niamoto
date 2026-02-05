@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { Command, Search, Bell, User, HelpCircle, Menu } from 'lucide-react'
+import { Command, Search, Bell, User, HelpCircle, Menu, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
 import { LanguageSwitcher, ProjectSwitcher } from '@/components/common'
 import { useRuntimeMode } from '@/hooks/useRuntimeMode'
+import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 interface TopBarProps {
   className?: string
@@ -22,6 +24,7 @@ export function TopBar({ className }: TopBarProps) {
   const { t } = useTranslation()
   const { setCommandPaletteOpen, sidebarMode, setSidebarMode } = useNavigationStore()
   const { features } = useRuntimeMode()
+  const { isOffline } = useNetworkStatus()
 
   return (
     <header
@@ -70,6 +73,30 @@ export function TopBar({ className }: TopBarProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-2">
+        {/* Offline indicator */}
+        {isOffline && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                <WifiOff className="h-4 w-4" />
+                <span className="hidden text-xs font-medium sm:inline">
+                  {t('network.offline', 'Hors ligne')}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-64">
+              <div className="space-y-1">
+                <p className="font-medium">{t('network.offline_title', 'Mode hors connexion')}</p>
+                <ul className="list-inside list-disc text-xs opacity-80">
+                  <li>{t('network.enrichment_unavailable', 'Enrichissement API : indisponible')}</li>
+                  <li>{t('network.deploy_unavailable', 'Publication : indisponible')}</li>
+                  <li>{t('network.tiles_unavailable', 'Tuiles cartographiques : indisponibles')}</li>
+                </ul>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
         {/* Project switcher (desktop mode only) */}
         {features.project_switching && (
           <div className="hidden md:block">

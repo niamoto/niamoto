@@ -1,6 +1,7 @@
 """Health check endpoint for Tauri desktop app."""
 
 import os
+import time
 from fastapi import APIRouter
 
 from niamoto.gui.api.context import (
@@ -65,6 +66,33 @@ async def reload_project():
         "success": True,
         "project": str(project_path) if project_path else None,
     }
+
+
+@router.get("/connectivity")
+async def check_connectivity():
+    """
+    Check internet connectivity with a lightweight external request.
+
+    Performs a HEAD request to a reliable external service with a 3-second timeout.
+    Returns online status and latency.
+    """
+    import httpx
+
+    start = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.head("https://dns.google")
+            latency_ms = round((time.monotonic() - start) * 1000)
+            return {
+                "online": response.status_code < 500,
+                "latency_ms": latency_ms,
+            }
+    except Exception:
+        latency_ms = round((time.monotonic() - start) * 1000)
+        return {
+            "online": False,
+            "latency_ms": latency_ms,
+        }
 
 
 @router.get("/diagnostic")

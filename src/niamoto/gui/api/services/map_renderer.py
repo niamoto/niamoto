@@ -246,11 +246,16 @@ class MapRenderer:
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{config.title}</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="/api/site/assets/css/vendor/leaflet/1.9.4_leaflet.css" />
+    <script src="/api/site/assets/js/vendor/leaflet/1.9.4_leaflet.js"></script>
     <style>
         html, body {{ margin: 0; padding: 0; height: 100%; }}
         #map {{ width: 100%; height: 100%; }}
+        .tile-offline-notice {{
+            position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(0,0,0,0.7); color: #fff;
+            padding: 4px 12px; border-radius: 4px; font-size: 12px;
+        }}
     </style>
 </head>
 <body>
@@ -259,9 +264,20 @@ class MapRenderer:
         const geojson = {json.dumps(geojson)};
         const map = L.map('map').setView([{config.center_lat}, {config.center_lon}], {config.zoom});
 
-        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+        // Tenter de charger les tuiles OSM, avec fallback fond blanc si offline
+        const tileLayer = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
             attribution: '&copy; OpenStreetMap contributors'
-        }}).addTo(map);
+        }});
+        tileLayer.on('tileerror', function() {{
+            // Premiere erreur de tuile : afficher un avis
+            if (!document.querySelector('.tile-offline-notice')) {{
+                const notice = document.createElement('div');
+                notice.className = 'tile-offline-notice';
+                notice.textContent = 'Fond de carte indisponible hors connexion';
+                document.getElementById('map').appendChild(notice);
+            }}
+        }});
+        tileLayer.addTo(map);
 
         const geojsonLayer = L.geoJSON(geojson, {{
             style: function(feature) {{

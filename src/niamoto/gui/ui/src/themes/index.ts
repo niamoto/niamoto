@@ -181,20 +181,55 @@ function tokenToCssVar(key: string): string {
 
 // Track loaded font URLs to avoid duplicates
 const loadedFonts = new Set<string>()
+let localFontsLoaded = false
 
-export function loadThemeFonts(theme: Theme): void {
-  if (!theme.fontsUrl || loadedFonts.has(theme.fontsUrl)) {
+/**
+ * Load local fonts CSS for desktop mode (offline-ready).
+ * The fonts.css file in /fonts/ contains @font-face rules pointing to
+ * locally bundled WOFF2 files for all theme fonts.
+ */
+function loadLocalFonts(): void {
+  if (localFontsLoaded) return
+
+  const existingLink = document.querySelector('link[href="/fonts/fonts.css"]')
+  if (existingLink) {
+    localFontsLoaded = true
     return
   }
 
-  // Check if link already exists
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = '/fonts/fonts.css'
+  document.head.appendChild(link)
+  localFontsLoaded = true
+}
+
+/**
+ * Detect if running in Tauri desktop mode.
+ * Checks for the __TAURI__ global or the NIAMOTO_RUNTIME_MODE cookie/flag.
+ */
+function isDesktopMode(): boolean {
+  return '__TAURI__' in window || '__TAURI_INTERNALS__' in window
+}
+
+export function loadThemeFonts(theme: Theme): void {
+  if (!theme.fontsUrl) return
+
+  // In desktop mode: use local fonts (offline-ready)
+  if (isDesktopMode()) {
+    loadLocalFonts()
+    return
+  }
+
+  // In web mode: use Google Fonts CDN
+  if (loadedFonts.has(theme.fontsUrl)) return
+
   const existingLink = document.querySelector(`link[href="${theme.fontsUrl}"]`)
   if (existingLink) {
     loadedFonts.add(theme.fontsUrl)
     return
   }
 
-  // Create and append link element
   const link = document.createElement('link')
   link.rel = 'stylesheet'
   link.href = theme.fontsUrl
