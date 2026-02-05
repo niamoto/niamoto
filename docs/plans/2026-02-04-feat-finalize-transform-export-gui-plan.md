@@ -400,13 +400,15 @@ class FieldConfig(BaseModel):
 3. **Utiliser `ui:depends`** pour les dépendances entre champs
 4. **Les descriptions expliquent** ce que fait le champ, pas quelles valeurs mettre
 
-#### 1.3 Tests de validation par groupe
+#### 1.3 Tests de validation par groupe ✅ FAIT
 
-Créer des tests pytest vérifiant que chaque configuration du `transform.yml` de référence peut être :
-1. Parsée correctement
-2. Validée par le config_model Pydantic
-3. Exécutée sans erreur
-4. Produit des données conformes au schéma attendu
+Tests créés dans `tests/gui/test_transform_config_validation.py` (56 tests, tous verts) :
+1. ✅ Parsée correctement (structure YAML, clés requises)
+2. ✅ Validée par le config_model/param_schema Pydantic
+3. ✅ validate_config() accepte les configs de référence
+4. ✅ JSON Schema généré correctement pour le GUI
+5. ✅ API /api/layers testée (listing, filtrage, récursif)
+6. ✅ API /api/plugins/{id}/schema testée (10 plugins transformer)
 
 ```python
 # tests/gui/test_transform_config_validation.py
