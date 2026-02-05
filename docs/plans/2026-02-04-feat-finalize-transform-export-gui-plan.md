@@ -615,16 +615,23 @@ Tests créés dans `tests/e2e/test_gui_config_generation.py` (30 tests, tous ver
 6. ✅ **TestConfigMergeMode** (2 tests) — Mode merge ajoute sans supprimer, mode replace remplace
 7. ✅ **TestExportConfigGeneration** (1 test) — save-config génère aussi export.yml
 
-#### 3.2 Simplifications identifiées
+#### 3.2 Simplifications identifiées ✅ FAIT
 
-Durant l'audit, documenter les simplifications possibles :
+Analyse complète documentée dans `docs/10-roadmaps/gui-finalization/03-simplifications-config.md`.
 
-| Configuration actuelle | Simplification proposée | Impact |
-|------------------------|------------------------|--------|
-| `class_object` nommés explicitement | Auto-détection depuis CSV headers | Moins de config manuelle |
-| Chemins fichiers absolus | Chemins relatifs à `imports/` | Plus portable |
-| Mappings de couleurs répétés | Palettes prédéfinies | Moins de duplication |
-| Relations stats_loader complexes | Convention de nommage (`{group}_stats.csv`) | Zéro config |
+6 simplifications identifiées, triées par priorité :
+
+| # | Simplification | Gain | Priorité |
+|---|----------------|------|----------|
+| 1 | `field_aggregator` raccourci (source implicite quand field=target) | -45 lignes YAML | P1 |
+| 2 | `stats_loader` auto-discovery CSV par convention de nommage | -10 lignes, zéro config | P1 |
+| 3 | `statistical_summary` batch (template → expansion GUI) | -72 lignes | P2 |
+| 4 | Palette couleurs centralisée (`#10b981` dupliqué 5×) | -9 doublons | P2 |
+| 5 | `class_object` inféré depuis le nom du widget | -5 params explicites | P3 |
+| 6 | Normalisation noms loaders (ref_key/ref_field/match_field) | Cohérence API | P3 |
+
+**Gain total estimé** : -127 lignes sur transform.yml (-71% sur les sections concernées).
+**Note** : Les chemins fichiers sont déjà relatifs (`imports/`), pas d'action requise.
 
 #### 3.3 Documentation utilisateur
 
