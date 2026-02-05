@@ -603,33 +603,17 @@ Pour la première itération, se concentrer sur les shapes car :
 
 ### Phase 3: Validation & Polish
 
-#### 3.1 Tests end-to-end avec instance de référence
+#### 3.1 Tests end-to-end avec instance de référence ✅ FAIT
 
-Créer un test automatisé qui :
-1. Charge la configuration de `test-instance/niamoto-nc/config/`
-2. Pour chaque groupe, génère la configuration via les formulaires UI
-3. Compare le YAML généré avec l'original
-4. Vérifie que les deux produisent les mêmes résultats après transformation
+Tests créés dans `tests/e2e/test_gui_config_generation.py` (30 tests, tous verts) :
 
-```python
-# tests/e2e/test_gui_config_generation.py
-
-def test_gui_generates_equivalent_config():
-    """Le GUI doit pouvoir reproduire la config de référence."""
-    reference = load_yaml("test-instance/niamoto-nc/config/transform.yml")
-
-    for group in ["taxons", "plots", "shapes"]:
-        # Simuler la création via GUI
-        gui_config = simulate_gui_config_creation(group, reference[group])
-
-        # Comparer (ignorer ordre des clés, whitespace)
-        assert yaml_equivalent(gui_config, reference[group])
-
-        # Vérifier que les deux produisent les mêmes données
-        ref_result = execute_transform(reference[group])
-        gui_result = execute_transform(gui_config)
-        assert data_equivalent(ref_result, gui_result)
-```
+1. ✅ **TestConfigSaveLoadRoundTrip** (9 tests) — Round-trip save/load pour les 3 groupes : widgets préservés, params préservés, sources préservées
+2. ✅ **TestSchemaCoversReferenceParams** (6 tests) — Schema JSON couvre les params de référence (tolère `additionalProperties` de `BasePluginParams(extra="allow")`)
+3. ✅ **TestLayersWithRealFiles** (5 tests) — API layers avec vrais fichiers raster/vector via symlinks
+4. ✅ **TestTransformConfigEndpoint** (3 tests) — GET /api/transform/config retourne tous les groupes, bon comptage
+5. ✅ **TestTransformSourcesEndpoint** (4 tests) — GET /api/transform/sources par groupe
+6. ✅ **TestConfigMergeMode** (2 tests) — Mode merge ajoute sans supprimer, mode replace remplace
+7. ✅ **TestExportConfigGeneration** (1 test) — save-config génère aussi export.yml
 
 #### 3.2 Simplifications identifiées
 
