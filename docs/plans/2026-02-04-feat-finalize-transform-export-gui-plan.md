@@ -633,12 +633,23 @@ Analyse complète documentée dans `docs/10-roadmaps/gui-finalization/03-simplif
 **Gain total estimé** : -127 lignes sur transform.yml (-71% sur les sections concernées).
 **Note** : Les chemins fichiers sont déjà relatifs (`imports/`), pas d'action requise.
 
-#### 3.3 Documentation utilisateur
+#### 3.3 Documentation utilisateur ✅ FAIT
 
-Créer une documentation interactive dans l'app :
-- Tooltips sur chaque champ de formulaire
-- Exemples de configurations pour chaque type de widget
-- Guide "Comment ajouter un widget pour shapes"
+Documentation créée dans `docs/06-gui/` :
+
+1. **`guide-transform-widgets.md`** — Guide pratique : ajouter/configurer des widgets pour tous les groupes
+   - Concepts (groupes, sources, widgets)
+   - 3 méthodes d'ajout (suggestions, combiné, wizard)
+   - Exemples par groupe (taxons, plots, shapes)
+   - Opérations (réordonner, dupliquer, supprimer)
+   - Sources CSV et layers géographiques
+
+2. **`reference-plugins-transform.md`** — Référence complète des plugins
+   - 12 transformers documentés (params, types, exemples YAML)
+   - 5 widgets de visualisation documentés
+   - Table des types de champs du formulaire GUI
+
+**Note** : Les tooltips sont déjà intégrés via les `description` des champs Pydantic (`json_schema_extra`), affichés automatiquement par `JsonSchemaForm`.
 
 ---
 
