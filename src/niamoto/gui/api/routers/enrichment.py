@@ -32,6 +32,7 @@ class JobStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"
+    PAUSED_OFFLINE = "paused_offline"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -497,6 +498,29 @@ async def _run_enrichment_job(job_id: str, config: EnrichmentConfig):
             },
         }
 
+        # Track consecutive network errors for auto-pause
+        consecutive_network_errors = 0
+        NETWORK_ERROR_THRESHOLD = 5
+
+        # Network error types that indicate offline state
+        network_error_types = (
+            ConnectionError,
+            TimeoutError,
+            OSError,
+        )
+        try:
+            import requests
+
+            network_error_types = (
+                ConnectionError,
+                TimeoutError,
+                OSError,
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+            )
+        except ImportError:
+            pass
+
         # Process each unenriched taxon
         for taxon in taxons:
             # Check cancel flag
@@ -505,9 +529,10 @@ async def _run_enrichment_job(job_id: str, config: EnrichmentConfig):
                 _current_job.updated_at = datetime.now().isoformat()
                 return
 
-            # Check pause flag - wait while paused
-            while _job_pause_flag:
-                _current_job.status = JobStatus.PAUSED
+            # Check pause flag - wait while paused (manual or offline)
+            while _job_pause_flag or _current_job.status == JobStatus.PAUSED_OFFLINE:
+                if _current_job.status != JobStatus.PAUSED_OFFLINE:
+                    _current_job.status = JobStatus.PAUSED
                 if _job_cancel_flag:
                     _current_job.status = JobStatus.CANCELLED
                     _current_job.updated_at = datetime.now().isoformat()
@@ -515,8 +540,9 @@ async def _run_enrichment_job(job_id: str, config: EnrichmentConfig):
                 await asyncio.sleep(0.5)
 
             # Restore running status after pause
-            if _current_job.status == JobStatus.PAUSED:
+            if _current_job.status in (JobStatus.PAUSED, JobStatus.PAUSED_OFFLINE):
                 _current_job.status = JobStatus.RUNNING
+                consecutive_network_errors = 0
 
             taxon_id = taxon.get("id")
             taxon_name = taxon.get("full_name") or taxon.get("name") or str(taxon)
@@ -545,6 +571,44 @@ async def _run_enrichment_job(job_id: str, config: EnrichmentConfig):
                     )
                 )
                 _current_job.successful += 1
+                # Reset consecutive errors on success
+                consecutive_network_errors = 0
+
+            except network_error_types as e:
+                consecutive_network_errors += 1
+                _job_results.append(
+                    EnrichmentResult(
+                        taxon_name=taxon_name,
+                        success=False,
+                        error=f"[Reseau] {str(e)}",
+                        processed_at=datetime.now().isoformat(),
+                    )
+                )
+                _current_job.failed += 1
+
+                # Auto-pause if too many consecutive network errors
+                if consecutive_network_errors >= NETWORK_ERROR_THRESHOLD:
+                    _current_job.status = JobStatus.PAUSED_OFFLINE
+                    _current_job.error = (
+                        f"Pause automatique : {NETWORK_ERROR_THRESHOLD} erreurs "
+                        f"reseau consecutives. Verifiez votre connexion internet."
+                    )
+                    _current_job.updated_at = datetime.now().isoformat()
+                    print(
+                        f"Enrichment auto-paused: {NETWORK_ERROR_THRESHOLD} "
+                        f"consecutive network errors"
+                    )
+                    # Wait in paused state until resumed or cancelled
+                    while _current_job.status == JobStatus.PAUSED_OFFLINE:
+                        if _job_cancel_flag:
+                            _current_job.status = JobStatus.CANCELLED
+                            _current_job.updated_at = datetime.now().isoformat()
+                            return
+                        await asyncio.sleep(0.5)
+                    # Reset counter after resume
+                    consecutive_network_errors = 0
+                    _current_job.status = JobStatus.RUNNING
+                    _current_job.error = None
 
             except Exception as e:
                 _job_results.append(
@@ -556,6 +620,8 @@ async def _run_enrichment_job(job_id: str, config: EnrichmentConfig):
                     )
                 )
                 _current_job.failed += 1
+                # Non-network errors don't count toward auto-pause
+                consecutive_network_errors = 0
 
             _current_job.processed += 1
             _current_job.updated_at = datetime.now().isoformat()
@@ -780,11 +846,15 @@ async def resume_enrichment():
     """Resume a paused enrichment job."""
     global _job_pause_flag, _current_job
 
-    if not _current_job or _current_job.status != JobStatus.PAUSED:
+    if not _current_job or _current_job.status not in (
+        JobStatus.PAUSED,
+        JobStatus.PAUSED_OFFLINE,
+    ):
         raise HTTPException(status_code=400, detail="No paused job to resume")
 
     _job_pause_flag = False
     _current_job.status = JobStatus.RUNNING
+    _current_job.error = None
     _current_job.updated_at = datetime.now().isoformat()
 
     return {"message": "Job resumed", "job": _current_job}
@@ -798,6 +868,7 @@ async def cancel_enrichment():
     if not _current_job or _current_job.status not in [
         JobStatus.RUNNING,
         JobStatus.PAUSED,
+        JobStatus.PAUSED_OFFLINE,
     ]:
         raise HTTPException(status_code=400, detail="No active job to cancel")
 
@@ -841,6 +912,9 @@ async def preview_enrichment(request: PreviewRequest):
         )
 
     try:
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+
         from niamoto.core.plugins.loaders.api_taxonomy_enricher import (
             ApiTaxonomyEnricher,
         )
@@ -867,13 +941,36 @@ async def preview_enrichment(request: PreviewRequest):
         # Create taxon data for query
         taxon_data = {config.query_field: request.taxon_name}
 
-        result = enricher.load_data(taxon_data, plugin_config)
+        # Run with a 10s timeout to handle offline/slow network gracefully
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            result = await asyncio.wait_for(
+                loop.run_in_executor(
+                    executor, enricher.load_data, taxon_data, plugin_config
+                ),
+                timeout=10.0,
+            )
 
         return PreviewResponse(
             success=True,
             taxon_name=request.taxon_name,
             api_enrichment=result.get("api_enrichment", {}),
             config_used={"api_url": config.api_url, "query_field": config.query_field},
+        )
+
+    except asyncio.TimeoutError:
+        return PreviewResponse(
+            success=False,
+            taxon_name=request.taxon_name,
+            error="Impossible de contacter l'API d'enrichissement (timeout 10s). "
+            "Vérifiez votre connexion internet.",
+        )
+
+    except (ConnectionError, TimeoutError, OSError) as e:
+        return PreviewResponse(
+            success=False,
+            taxon_name=request.taxon_name,
+            error=f"Erreur réseau : {e}. Vérifiez votre connexion internet.",
         )
 
     except Exception as e:
@@ -1090,11 +1187,15 @@ async def resume_enrichment_for_reference(reference_name: str):
     """Resume a paused enrichment job."""
     global _job_pause_flag, _current_job
 
-    if not _current_job or _current_job.status != JobStatus.PAUSED:
+    if not _current_job or _current_job.status not in [
+        JobStatus.PAUSED,
+        JobStatus.PAUSED_OFFLINE,
+    ]:
         raise HTTPException(status_code=400, detail="No paused job to resume")
 
     _job_pause_flag = False
     _current_job.status = JobStatus.RUNNING
+    _current_job.error = None
     _current_job.updated_at = datetime.now().isoformat()
 
     return {"message": "Job resumed", "job": _current_job}
@@ -1108,6 +1209,7 @@ async def cancel_enrichment_for_reference(reference_name: str):
     if not _current_job or _current_job.status not in [
         JobStatus.RUNNING,
         JobStatus.PAUSED,
+        JobStatus.PAUSED_OFFLINE,
     ]:
         raise HTTPException(status_code=400, detail="No active job to cancel")
 

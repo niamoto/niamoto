@@ -1055,17 +1055,32 @@ def _generate_mock_items(
             elif "height" in field_name.lower() or "dbh" in field_name.lower():
                 item[field_name] = round(random.uniform(5.0, 30.0), 1)
             elif field.get("display") == "image_preview" or field_type == "json_array":
-                # Generate mock image data with placeholder images
+                # Generate mock image data with inline SVG placeholders (offline-safe)
                 color = random.choice(placeholder_colors)
                 num_images = random.randint(1, 3)
                 images = []
                 for img_idx in range(num_images):
-                    # Use placehold.co for realistic placeholder images
+                    label = f"{i + 1}-{img_idx + 1}"
+                    name_label = sample_names[i].split()[0]
+
+                    # Use data URI SVG placeholders instead of external service
+                    def _svg_placeholder(w, h, bg, text):
+                        return (
+                            f"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
+                            f"width='{w}' height='{h}'%3E%3Crect width='100%25' height='100%25' "
+                            f"fill='%23{bg}'/%3E%3Ctext x='50%25' y='50%25' "
+                            f"dominant-baseline='middle' text-anchor='middle' "
+                            f"fill='white' font-family='sans-serif' font-size='14'%3E"
+                            f"{text}%3C/text%3E%3C/svg%3E"
+                        )
+
                     images.append(
                         {
-                            "small_thumb": f"https://placehold.co/150x150/{color}/white?text={i + 1}-{img_idx + 1}",
-                            "big_thumb": f"https://placehold.co/400x300/{color}/white?text={sample_names[i].split()[0]}",
-                            "url": f"https://placehold.co/800x600/{color}/white?text={sample_names[i].replace(' ', '+')}",
+                            "small_thumb": _svg_placeholder(150, 150, color, label),
+                            "big_thumb": _svg_placeholder(400, 300, color, name_label),
+                            "url": _svg_placeholder(
+                                800, 600, color, sample_names[i].replace(" ", "+")
+                            ),
                         }
                     )
                 item[field_name] = images

@@ -13,6 +13,7 @@ from niamoto.core.plugins.widgets.plotly_utils import (
     get_plotly_dependencies,
     render_plotly_figure,
     get_plotly_config,
+    get_map_tile_fallback_script,
 )
 
 
@@ -829,9 +830,10 @@ class InteractiveMapWidget(WidgetPlugin):
         """
 
         attribution_class = " hide-attribution" if not params.show_attribution else ""
+        tile_fallback = get_map_tile_fallback_script(map_id)
 
         return f"""<div class="map-widget{attribution_class}">
-            <div class="map-container">{html_content}</div>
+            <div class="map-container">{html_content}{tile_fallback}</div>
         </div>"""
 
     def _calculate_zoom_from_bounds(
@@ -1277,7 +1279,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 # Use centralized render function
                 custom_config = get_plotly_config()
                 custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
-                html_content = render_plotly_figure(fig, custom_config)
+                html_content = render_plotly_figure(fig, custom_config, is_map=True)
                 attribution_class = (
                     " hide-attribution" if not params.show_attribution else ""
                 )
@@ -1756,7 +1758,7 @@ class InteractiveMapWidget(WidgetPlugin):
             # Use centralized render function
             custom_config = get_plotly_config()
             custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
-            map_html = render_plotly_figure(fig, custom_config)
+            map_html = render_plotly_figure(fig, custom_config, is_map=True)
             attribution_class = (
                 " hide-attribution" if not params.show_attribution else ""
             )
