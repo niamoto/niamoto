@@ -87,7 +87,9 @@ class HtmlPageExporter(ExporterPlugin):
                 return None  # Tried to access key on non-dict
         return current_data
 
-    def _resolve_registry_entity(self, entity_name: str) -> Tuple[Optional[str], Dict[str, Any]]:
+    def _resolve_registry_entity(
+        self, entity_name: str
+    ) -> Tuple[Optional[str], Dict[str, Any]]:
         """Resolve an entity through registry metadata when available."""
         if not self.registry:
             return None, {}
@@ -120,7 +122,11 @@ class HtmlPageExporter(ExporterPlugin):
                 registry=self.registry,
                 kind="reference",
             )
-            if not table_name and navigation_entity and navigation_entity != group_by_key:
+            if (
+                not table_name
+                and navigation_entity
+                and navigation_entity != group_by_key
+            ):
                 table_name = resolve_entity_table(
                     self.db,
                     navigation_entity,
@@ -139,7 +145,9 @@ class HtmlPageExporter(ExporterPlugin):
         if not table_columns:
             return table_name, id_column
 
-        schema_cfg = entity_config.get("schema", {}) if isinstance(entity_config, dict) else {}
+        schema_cfg = (
+            entity_config.get("schema", {}) if isinstance(entity_config, dict) else {}
+        )
         schema_id = schema_cfg.get("id_field") if isinstance(schema_cfg, dict) else None
 
         id_candidates: List[str] = []
@@ -1822,7 +1830,8 @@ class HtmlPageExporter(ExporterPlugin):
 
             # Convert DB rows to plain dicts (RowMapping is not JSON-serializable).
             normalized_items = [
-                dict(item) if not isinstance(item, dict) else item for item in index_data
+                dict(item) if not isinstance(item, dict) else item
+                for item in index_data
             ]
 
             # Build resilient defaults for legacy/traditional index rendering.
@@ -1832,7 +1841,9 @@ class HtmlPageExporter(ExporterPlugin):
                 (f for f in preferred_name_fields if f in first_item), None
             )
             if not name_field and first_item:
-                name_field = next((k for k in first_item.keys() if k != id_column), None)
+                name_field = next(
+                    (k for k in first_item.keys() if k != id_column), None
+                )
             if not name_field:
                 name_field = id_column
 
@@ -1843,7 +1854,10 @@ class HtmlPageExporter(ExporterPlugin):
             }
 
             index_generator_cfg = {}
-            if hasattr(group_config, "index_generator") and group_config.index_generator:
+            if (
+                hasattr(group_config, "index_generator")
+                and group_config.index_generator
+            ):
                 if hasattr(group_config.index_generator, "model_dump"):
                     index_generator_cfg = group_config.index_generator.model_dump()
                 elif isinstance(group_config.index_generator, dict):

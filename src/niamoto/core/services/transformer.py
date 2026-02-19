@@ -799,9 +799,9 @@ class TransformerService:
         try:
             # Resolve logical entity name to physical table name
             table_name = self._resolve_table_name(source_name)
-            quoted_table_name = inspect(self.db.engine).dialect.identifier_preparer.quote(
-                table_name
-            )
+            quoted_table_name = inspect(
+                self.db.engine
+            ).dialect.identifier_preparer.quote(table_name)
 
             # Load entire table as DataFrame using fetch_all
             # We use fetch_all which properly manages session lifecycle

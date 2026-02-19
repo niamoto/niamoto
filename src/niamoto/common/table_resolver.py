@@ -33,7 +33,9 @@ def resolve_dataset_table_name(
     table_names: Iterable[str], dataset_name: Optional[str]
 ) -> Optional[str]:
     """Resolve a dataset logical name against an in-memory table list."""
-    return resolve_existing_table_name(table_names, dataset_name, ("dataset_", "entity_", ""))
+    return resolve_existing_table_name(
+        table_names, dataset_name, ("dataset_", "entity_", "")
+    )
 
 
 def resolve_reference_table_name(
@@ -98,4 +100,6 @@ def resolve_entity_table(
     if kind == "dataset":
         return resolve_dataset_table(db, entity_name)
 
-    return resolve_existing_table(db, entity_name, ("entity_", "reference_", "dataset_", ""))
+    return resolve_existing_table(
+        db, entity_name, ("entity_", "reference_", "dataset_", "")
+    )
