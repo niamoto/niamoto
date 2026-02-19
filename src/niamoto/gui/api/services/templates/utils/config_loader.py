@@ -17,6 +17,14 @@ from niamoto.gui.api.context import get_working_directory
 logger = logging.getLogger(__name__)
 
 
+def _resolve_default_dataset_name(import_config: Dict[str, Any]) -> str | None:
+    """Return the first configured dataset name, if any."""
+    datasets = import_config.get("entities", {}).get("datasets", {}) or {}
+    if isinstance(datasets, dict) and datasets:
+        return next(iter(datasets))
+    return None
+
+
 def load_import_config(work_dir: Path) -> Dict[str, Any]:
     """Load and parse import.yml configuration."""
     import_path = work_dir / "config" / "import.yml"
@@ -48,7 +56,13 @@ def build_reference_info(
     levels = hierarchy.get("levels", [])
 
     connector = ref_config.get("connector", {})
-    source_dataset = connector.get("source", "occurrences")
+    relation_config = ref_config.get("relation", {})
+
+    # Resolve source dataset from explicit relation first, then connector.
+    # Fallback to the first configured dataset when available.
+    source_dataset = relation_config.get("dataset") or connector.get("source")
+    if not source_dataset:
+        source_dataset = _resolve_default_dataset_name(import_config)
 
     # Get level to column mapping (for hierarchical references)
     level_columns = {}
@@ -60,17 +74,29 @@ def build_reference_info(
     schema = ref_config.get("schema", {})
     id_field = schema.get("id_field", "id")
 
-    # Get relation info from import.yml (for flat references like plots)
-    # This links the reference to occurrences via foreign_key/reference_key
-    relation_config = ref_config.get("relation", {})
     relation = {}
-    if relation_config:
+    if kind == "hierarchical":
+        # Derived hierarchical references usually expose an external identifier
+        # named "<reference>_id" during import (see hierarchy builder).
+        extraction = connector.get("extraction", {})
+        key = extraction.get("id_column")
+        if key:
+            external_id_field = f"{ref_name}_id"
+            relation = {
+                "plugin": "nested_set",
+                "key": key,
+                "ref_key": external_id_field,
+                "ref_field": external_id_field,
+                "fields": {"left": "lft", "right": "rght", "parent": "parent_id"},
+            }
+    elif relation_config:
         # Convert import.yml format to transform.yml compatible format
         # import.yml: { dataset: "occurrences", foreign_key: "plot_name", reference_key: "plot" }
         # transform.yml: { plugin: "direct_reference", key: "plot_name", ref_field: "plot" }
         relation = {
             "plugin": "direct_reference",
             "key": relation_config.get("foreign_key"),  # Column in occurrences
+            "ref_key": relation_config.get("reference_key"),  # Alias used in sources
             "ref_field": relation_config.get("reference_key"),  # Column in reference
         }
 
@@ -110,13 +136,13 @@ def get_hierarchy_info(
     - kind: Type of reference ('hierarchical', 'spatial', or None for flat)
     - is_hierarchical_grouping: True if transform.yml uses nested_set for this reference
     """
-    references = import_config.get("entities", {}).get("references", {})
+    references = import_config.get("entities", {}).get("references", {}) or {}
 
     # If a specific reference is requested, look for it
     if reference_name:
         # First, try to get relation info from transform.yml (needed for filtering occurrences)
         relation = {}
-        source_dataset = "occurrences"
+        source_dataset = _resolve_default_dataset_name(import_config)
         is_hierarchical_grouping = False
         transform_config = []
 
@@ -134,7 +160,9 @@ def get_hierarchy_info(
                             sources = group.get("sources", [])
                             # Look for a database dataset source (not a CSV file path)
                             for source in sources:
-                                data = source.get("data", "occurrences")
+                                data = source.get("data") or source_dataset
+                                if not data:
+                                    continue
                                 # Skip CSV file paths (class_objects), use only database datasets
                                 if "/" in data or data.endswith(".csv"):
                                     continue

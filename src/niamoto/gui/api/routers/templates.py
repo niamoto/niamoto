@@ -18,7 +18,14 @@ import yaml
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
+from sqlalchemy import inspect, text
 
+from niamoto.common.table_resolver import (
+    quote_identifier,
+    resolve_entity_table,
+    resolve_reference_table,
+)
+from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.gui.api.models.templates import (
     TemplateSuggestionResponse,
     SuggestionsResponse,
@@ -400,9 +407,14 @@ async def generate_transform_config(request: GenerateConfigRequest):
             "params": params,
         }
 
-    # Build sources section based on reference kind (not name!)
-    # Try to get relation info from import.yml first
+    # Build sources section based on reference kind and import.yml metadata
     relation_from_import = None
+    source_dataset = "occurrences"
+    ref_config: Dict[str, Any] = {}
+    relation_config: Dict[str, Any] = {}
+    connector_config: Dict[str, Any] = {}
+    datasets_config: Dict[str, Any] = {}
+
     work_dir = get_working_directory()
     if work_dir:
         import_path = Path(work_dir) / "config" / "import.yml"
@@ -410,30 +422,62 @@ async def generate_transform_config(request: GenerateConfigRequest):
             try:
                 with open(import_path, "r", encoding="utf-8") as f:
                     import_config = yaml.safe_load(f) or {}
-                refs = import_config.get("entities", {}).get("references", {})
-                ref_config = refs.get(request.group_by, {})
-                relation_config = ref_config.get("relation", {})
+                entities = import_config.get("entities", {}) or {}
+                datasets_config = entities.get("datasets", {}) or {}
+                refs = entities.get("references", {}) or {}
+                ref_config = (
+                    refs.get(request.group_by, {}) if isinstance(refs, dict) else {}
+                )
+                relation_config = ref_config.get("relation", {}) or {}
+                connector_config = ref_config.get("connector", {}) or {}
+
+                source_dataset = (
+                    relation_config.get("dataset")
+                    or connector_config.get("source")
+                    or (
+                        "occurrences"
+                        if "occurrences" in datasets_config
+                        else (
+                            next(iter(datasets_config))
+                            if datasets_config
+                            else "occurrences"
+                        )
+                    )
+                )
+
                 if relation_config:
                     # Convert import.yml format to transform.yml format
                     relation_from_import = {
                         "plugin": "direct_reference",
                         "key": relation_config.get("foreign_key"),
                         "ref_key": relation_config.get("reference_key"),
+                        "ref_field": relation_config.get("reference_key"),
                     }
             except Exception as e:
                 logger.warning(f"Error reading import.yml for relation: {e}")
 
     if request.reference_kind == "hierarchical":
         # Hierarchical references use nested_set for tree aggregation
+        extraction = connector_config.get("extraction", {}) if connector_config else {}
+        hierarchy_key = (
+            extraction.get("id_column")
+            or (relation_from_import.get("key") if relation_from_import else None)
+            or f"id_{request.group_by}ref"
+        )
+        hierarchy_ref_key = (
+            extraction.get("reference_key")
+            or relation_config.get("reference_key")
+            or f"{request.group_by}_id"
+        )
         sources = [
             {
-                "name": "occurrences",
-                "data": "occurrences",
+                "name": source_dataset,
+                "data": source_dataset,
                 "grouping": request.group_by,
                 "relation": {
                     "plugin": "nested_set",
-                    "key": f"id_{request.group_by}ref",  # Convention: id_<reference>ref
-                    "ref_key": f"{request.group_by}_id",
+                    "key": hierarchy_key,
+                    "ref_key": hierarchy_ref_key,
                     "fields": {"left": "lft", "right": "rght", "parent": "parent_id"},
                 },
             }
@@ -448,8 +492,8 @@ async def generate_transform_config(request: GenerateConfigRequest):
         }
         sources = [
             {
-                "name": "occurrences",
-                "data": "occurrences",
+                "name": source_dataset,
+                "data": source_dataset,
                 "grouping": request.group_by,
                 "relation": relation,
             }
@@ -650,18 +694,13 @@ async def save_transform_config(request: SaveConfigRequest):
         existing_groups: List[Dict[str, Any]] = []
         if transform_path.exists():
             with open(transform_path, "r", encoding="utf-8") as f:
-                loaded = yaml.safe_load(f)
-                if isinstance(loaded, list):
-                    existing_groups = loaded
-                elif isinstance(loaded, dict) and "groups" in loaded:
-                    # Convert old dict format to list format
-                    groups_dict = loaded.get("groups", {})
-                    if isinstance(groups_dict, dict):
-                        for name, config in groups_dict.items():
-                            config["group_by"] = name
-                            existing_groups.append(config)
-                    elif isinstance(groups_dict, list):
-                        existing_groups = groups_dict
+                loaded = yaml.safe_load(f) or []
+                if not isinstance(loaded, list):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="transform.yml must be a list of groups",
+                    )
+                existing_groups = [g for g in loaded if isinstance(g, dict)]
 
         # Find or create the group config
         group_name = request.group_by
@@ -730,7 +769,7 @@ async def save_transform_config(request: SaveConfigRequest):
         # Write updated config as list
         with open(transform_path, "w", encoding="utf-8") as f:
             yaml.dump(
-                existing_groups,
+                validate_transform_config(existing_groups),
                 f,
                 default_flow_style=False,
                 sort_keys=False,
@@ -790,26 +829,23 @@ async def get_configured_widgets(group_by: str):
 
     try:
         with open(transform_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+            config = yaml.safe_load(f) or []
 
         if not config:
             return {"configured_ids": [], "has_config": False}
 
-        # Handle list format (current)
-        if isinstance(config, list):
-            for group in config:
-                if isinstance(group, dict) and group.get("group_by") == group_by:
-                    widgets_data = group.get("widgets_data", {})
-                    return {
-                        "configured_ids": list(widgets_data.keys()),
-                        "has_config": True,
-                    }
+        if not isinstance(config, list):
+            logger.warning(
+                "Invalid transform.yml format: expected list, got %s",
+                type(config).__name__,
+            )
+            return {"configured_ids": [], "has_config": False}
 
-        # Handle dict format (legacy)
-        elif isinstance(config, dict):
-            groups = config.get("groups", {})
-            if isinstance(groups, dict) and group_by in groups:
-                widgets_data = groups[group_by].get("widgets_data", {})
+        for group in config:
+            if not isinstance(group, dict):
+                continue
+            if group.get("group_by") == group_by:
+                widgets_data = group.get("widgets_data", {})
                 return {
                     "configured_ids": list(widgets_data.keys()),
                     "has_config": True,
@@ -1006,22 +1042,20 @@ async def get_widget_suggestions(
     # Find the CSV source for this group
     try:
         with open(transform_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
+            config = yaml.safe_load(f) or []
+
+        if not isinstance(config, list):
+            raise HTTPException(
+                status_code=400, detail="transform.yml must be a list of groups"
+            )
+        config = validate_transform_config(config)
 
         # Find group config
         group_config = None
-        if isinstance(config, list):
-            for g in config:
-                if isinstance(g, dict) and g.get("group_by") == group_by:
-                    group_config = g
-                    break
-        elif isinstance(config, dict):
-            groups = config.get("groups", {})
-            if isinstance(groups, list):
-                for g in groups:
-                    if isinstance(g, dict) and g.get("group_by") == group_by:
-                        group_config = g
-                        break
+        for g in config:
+            if isinstance(g, dict) and g.get("group_by") == group_by:
+                group_config = g
+                break
 
         if not group_config:
             raise HTTPException(
@@ -1269,14 +1303,7 @@ async def _preview_configured_widget(
                     db.close_db_session()
 
         else:
-            # Standard occurrence-based transformer
-            # Load import.yml
-            import_config = _load_import_config(work_dir)
-
-            # Get reference info
-            hierarchy_info = _get_hierarchy_info(import_config, group_by)
-
-            # Get database
+            # Standard transformer flow (occurrence-based or entity-based)
             db_path = get_database_path()
             if not db_path:
                 return HTMLResponse(
@@ -1288,14 +1315,54 @@ async def _preview_configured_widget(
 
             db = Database(str(db_path), read_only=True)
             try:
-                # Find representative entity
-                if entity_id:
-                    representative = _find_entity_by_id(db, hierarchy_info, entity_id)
-                else:
-                    representative = _find_representative_entity(db, hierarchy_info)
+                data_source = transformer_params.get("source", "occurrences")
+                sample_data: pd.DataFrame
+                entity_table: Optional[str] = None
 
-                # Load sample data
-                sample_data = _load_sample_data(db, representative, transformer_params)
+                if data_source and data_source != "occurrences":
+                    # Entity-sourced previews (e.g. shapes) should not query occurrences.
+                    entity_table = resolve_entity_table(db, data_source, kind=None)
+
+                    if not entity_table or not db.has_table(entity_table):
+                        return HTMLResponse(
+                            content=PreviewService.wrap_html_response(
+                                f"<p class='info'>No table found for source '{data_source}'</p>"
+                            )
+                        )
+
+                    preparer = inspect(db.engine).dialect.identifier_preparer
+                    quoted_entity_table = preparer.quote(entity_table)
+
+                    # Build a deterministic representative row.
+                    entity_cols = pd.read_sql(
+                        text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+                    ).columns.tolist()
+                    where_clauses: List[str] = []
+                    query_params: Dict[str, Any] = {}
+                    if entity_id and "id" in entity_cols:
+                        where_clauses.append(f"{preparer.quote('id')} = :entity_id")
+                        query_params["entity_id"] = str(entity_id)
+
+                    query = f"SELECT * FROM {quoted_entity_table}"
+                    if where_clauses:
+                        query += f" WHERE {' AND '.join(where_clauses)}"
+                    query += " LIMIT 1"
+                    sample_data = pd.read_sql(
+                        text(query), db.engine, params=query_params or None
+                    )
+                else:
+                    # Occurrence-based flow.
+                    import_config = _load_import_config(work_dir)
+                    hierarchy_info = _get_hierarchy_info(import_config, group_by)
+                    if entity_id:
+                        representative = _find_entity_by_id(
+                            db, hierarchy_info, entity_id
+                        )
+                    else:
+                        representative = _find_representative_entity(db, hierarchy_info)
+                    sample_data = _load_sample_data(
+                        db, representative, transformer_params
+                    )
 
                 if sample_data.empty:
                     return HTMLResponse(
@@ -1309,11 +1376,37 @@ async def _preview_configured_widget(
                     transformer_plugin, PluginType.TRANSFORMER
                 )
                 transformer = transformer_cls(db=db)
+                effective_params = dict(transformer_params)
+                if entity_table and effective_params.get("source") == data_source:
+                    # Some transformers (e.g. shape_processor) expect a physical table.
+                    effective_params["source"] = entity_table
+                if transformer_plugin == "field_aggregator":
+                    for field_cfg in effective_params.get("fields", []):
+                        if (
+                            isinstance(field_cfg, dict)
+                            and field_cfg.get("source") == data_source
+                            and entity_table
+                        ):
+                            field_cfg["source"] = entity_table
+
                 transform_config = {
                     "plugin": transformer_plugin,
-                    "params": transformer_params,
+                    "params": effective_params,
                 }
-                result = transformer.transform(sample_data, transform_config)
+                if "id" in sample_data.columns and not sample_data.empty:
+                    group_id = sample_data["id"].iloc[0]
+                    if hasattr(group_id, "item"):
+                        group_id = group_id.item()
+                    transform_config["group_id"] = group_id
+
+                transform_input: Any = sample_data
+                if transformer_plugin == "field_aggregator":
+                    transform_input = {"main": sample_data}
+                    for field_cfg in effective_params.get("fields", []):
+                        if isinstance(field_cfg, dict) and field_cfg.get("source"):
+                            transform_input[field_cfg["source"]] = sample_data
+
+                result = transformer.transform(transform_input, transform_config)
 
                 # Render widget using the correct pattern
                 widget_html = _render_widget_for_configured(
@@ -1352,40 +1445,53 @@ def _extract_class_objects_from_params(params: Dict[str, Any]) -> List[str]:
     - series_extractor: params.class_object
     - categories_extractor: params.class_object
     """
-    class_objects = []
+    class_objects: List[str] = []
+    seen: set[str] = set()
+
+    def add_class_object(value: Any) -> None:
+        """Normalize class_object values (string or list) into a unique list."""
+        if isinstance(value, str):
+            if value and value not in seen:
+                seen.add(value)
+                class_objects.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                add_class_object(item)
 
     # Single class_object
-    if "class_object" in params:
-        class_objects.append(params["class_object"])
+    add_class_object(params.get("class_object"))
 
     # List of fields with class_object
-    if "fields" in params:
-        for field in params["fields"]:
-            if isinstance(field, dict) and "class_object" in field:
-                class_objects.append(field["class_object"])
+    for field in params.get("fields", []):
+        if isinstance(field, dict):
+            add_class_object(field.get("class_object"))
 
     # List of groups with field (binary_aggregator)
-    if "groups" in params:
-        for group in params["groups"]:
-            if isinstance(group, dict) and "field" in group:
-                class_objects.append(group["field"])
+    for group in params.get("groups", []):
+        if isinstance(group, dict):
+            add_class_object(group.get("field"))
 
     # Series config list
-    if "series" in params:
-        for series in params["series"]:
-            if isinstance(series, dict) and "class_object" in series:
-                class_objects.append(series["class_object"])
+    for series in params.get("series", []):
+        if isinstance(series, dict):
+            add_class_object(series.get("class_object"))
 
     # Distributions (ratio aggregator)
-    if "distributions" in params:
-        for dist in params["distributions"].values():
-            if isinstance(dist, dict):
-                if "total" in dist:
-                    class_objects.append(dist["total"])
-                if "subset" in dist:
-                    class_objects.append(dist["subset"])
+    for dist in params.get("distributions", {}).values():
+        if isinstance(dist, dict):
+            add_class_object(dist.get("total"))
+            add_class_object(dist.get("subset"))
 
-    return list(set(class_objects))  # Remove duplicates
+    # Categories mapper
+    for category in params.get("categories", {}).values():
+        if isinstance(category, dict):
+            add_class_object(category.get("class_object"))
+
+    # Series by axis extractor
+    for class_object in params.get("types", {}).values():
+        add_class_object(class_object)
+
+    return class_objects
 
 
 def _execute_configured_transformer(
@@ -1427,25 +1533,35 @@ def _execute_configured_transformer(
         # For field_aggregator, collect scalar values
         elif transformer_plugin == "class_object_field_aggregator":
             fields = params.get("fields", [])
-            result = {"fields": []}
+            result: Dict[str, Any] = {}
 
             for field_config in fields:
-                co_name = field_config.get("class_object", "")
-                target = field_config.get("target", co_name)
+                co_name = field_config.get("class_object")
+                target = field_config.get("target", "value")
+                units = field_config.get("units", "")
+                field_format = field_config.get("format")
 
-                if co_name in class_object_data:
-                    # co_data is in {"tops": [...], "counts": [...]} format
-                    co_data = class_object_data[co_name]
+                value: Any = None
+                if isinstance(co_name, list):
+                    values: List[Any] = []
+                    for name in co_name:
+                        co_data = class_object_data.get(name, {})
+                        counts = co_data.get("counts", [])
+                        values.append(counts[0] if counts else None)
+
+                    if field_format == "range" and len(values) >= 2:
+                        value = {"min": values[0], "max": values[1]}
+                    else:
+                        value = values
+                elif isinstance(co_name, str):
+                    co_data = class_object_data.get(co_name, {})
                     counts = co_data.get("counts", [])
-                    # For scalar, take the first (and only) value
-                    if counts:
-                        result["fields"].append(
-                            {
-                                "name": target,
-                                "value": counts[0],
-                                "label": field_config.get("label", target),
-                            }
-                        )
+                    value = counts[0] if counts else None
+
+                field_result: Dict[str, Any] = {"value": value}
+                if units:
+                    field_result["units"] = units
+                result[target] = field_result
 
             return result
 
@@ -1498,6 +1614,92 @@ def _try_parse_numeric(value: str) -> float:
         return float(value)
     except (ValueError, TypeError):
         return float("inf")
+
+
+def _summarize_info_list(values: List[Any], max_items: int = 5) -> str:
+    """Summarize list values into a compact preview string."""
+    preview = ", ".join(str(v) for v in values[:max_items])
+    if len(values) > max_items:
+        preview += ", ..."
+    return preview
+
+
+def _coerce_info_value(value: Any) -> bool | str | int | float:
+    """Convert arbitrary values to an InfoGrid-compatible scalar."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (str, int, float)):
+        return value
+    if isinstance(value, list):
+        return _summarize_info_list(value)
+    if isinstance(value, dict):
+        if "min" in value and "max" in value:
+            return f"{value.get('min')} - {value.get('max')}"
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def _build_info_grid_items(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Build a safe InfoGrid `items` config from transformer output."""
+    items: List[Dict[str, Any]] = []
+
+    if not isinstance(data, dict):
+        return items
+
+    # Legacy structured output used by earlier preview helpers.
+    if isinstance(data.get("fields"), list):
+        for field in data["fields"]:
+            if not isinstance(field, dict):
+                continue
+            label = str(field.get("label") or field.get("name") or "Value")
+            item: Dict[str, Any] = {"label": label}
+            if "value" in field:
+                item["value"] = _coerce_info_value(field["value"])
+            elif "source" in field:
+                item["source"] = str(field["source"])
+            if field.get("units"):
+                item["unit"] = str(field["units"])
+            items.append(item)
+        if items:
+            return items
+
+    for key, value in data.items():
+        label = str(key).replace("_", " ").title()
+
+        if isinstance(value, dict):
+            if "value" in value:
+                item: Dict[str, Any] = {"label": label, "source": f"{key}.value"}
+                if value.get("units"):
+                    item["unit"] = str(value["units"])
+                items.append(item)
+                continue
+
+            scalar_items = [
+                (sub_key, sub_value)
+                for sub_key, sub_value in value.items()
+                if isinstance(sub_value, (str, int, float, bool))
+            ]
+            if scalar_items:
+                for sub_key, sub_value in scalar_items[:8]:
+                    sub_label = str(sub_key).replace("_", " ").title()
+                    items.append(
+                        {
+                            "label": f"{label} - {sub_label}",
+                            "value": _coerce_info_value(sub_value),
+                        }
+                    )
+            else:
+                items.append({"label": label, "value": _coerce_info_value(value)})
+            continue
+
+        if isinstance(value, list):
+            items.append({"label": label, "value": _coerce_info_value(value)})
+            continue
+
+        if value is not None:
+            items.append({"label": label, "value": _coerce_info_value(value)})
+
+    return items
 
 
 def _render_widget_for_configured(
@@ -1600,8 +1802,8 @@ def _build_widget_params_for_configured(
         params.setdefault("labels_field", "labels")
 
     elif widget == "info_grid":
-        # For field aggregator
-        pass  # info_grid uses data directly
+        params.setdefault("items", _build_info_grid_items(data))
+        params.setdefault("grid_columns", 2)
 
     elif widget == "radial_gauge":
         params.setdefault("auto_range", True)
@@ -1766,24 +1968,19 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
         db = Database(str(db_path), read_only=True)
         try:
             # Find the reference table
-            table_name = f"reference_{reference_name}"
-            if not db.has_table(table_name):
-                for alt_name in [reference_name, f"entity_{reference_name}"]:
-                    if db.has_table(alt_name):
-                        table_name = alt_name
-                        break
-                else:
-                    return HTMLResponse(
-                        content=PreviewService.wrap_html_response(
-                            f"<p class='info'>Table '{reference_name}' non trouvée</p>"
-                        )
+            table_name = resolve_reference_table(db, reference_name)
+            if not table_name:
+                return HTMLResponse(
+                    content=PreviewService.wrap_html_response(
+                        f"<p class='info'>Table '{reference_name}' non trouvée</p>"
                     )
+                )
+
+            quoted_table_name = quote_identifier(db, table_name)
 
             # Get column info to detect hierarchy and exclude geometry columns
-            from sqlalchemy import text
-
             with db.engine.connect() as conn:
-                result = conn.execute(text(f"DESCRIBE {table_name}"))
+                result = conn.execute(text(f"DESCRIBE {quoted_table_name}"))
                 col_info = result.fetchall()
 
             # Build safe columns list (exclude geometry/binary types)
@@ -1794,7 +1991,7 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
                 and not c[0].endswith("_geom")
             ]
             columns = set(safe_columns)
-            safe_columns_sql = ", ".join(f'"{c}"' for c in safe_columns)
+            safe_columns_sql = ", ".join(quote_identifier(db, c) for c in safe_columns)
 
             has_nested_set = "lft" in columns and "rght" in columns
             has_parent = "parent_id" in columns
@@ -1826,35 +2023,35 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
             # Use safe_columns_sql to exclude geometry columns
             if is_hierarchical and has_nested_set:
                 # Get hierarchical sample ordered by nested set
-                query = f"""
+                query = text(f"""
                     SELECT {safe_columns_sql}
-                    FROM {table_name}
-                    WHERE level <= 3
-                    ORDER BY lft
+                    FROM {quoted_table_name}
+                    WHERE {quote_identifier(db, "level")} <= 3
+                    ORDER BY {quote_identifier(db, "lft")}
                     LIMIT 50
-                """
+                """)
             elif is_hierarchical and has_parent:
                 # Get parent-child sample
-                query = f"""
+                query = text(f"""
                     SELECT {safe_columns_sql}
-                    FROM {table_name}
-                    WHERE level <= 3
+                    FROM {quoted_table_name}
+                    WHERE {quote_identifier(db, "level")} <= 3
                     LIMIT 50
-                """
+                """)
             else:
                 # Get flat sample
-                query = f"""
+                query = text(f"""
                     SELECT {safe_columns_sql}
-                    FROM {table_name}
+                    FROM {quoted_table_name}
                     LIMIT 30
-                """
+                """)
 
             sample_df = pd.read_sql(query, db.engine)
             items = sample_df.to_dict(orient="records")
 
             # Get total count for info
             count_df = pd.read_sql(
-                f"SELECT COUNT(*) as cnt FROM {table_name}", db.engine
+                text(f"SELECT COUNT(*) as cnt FROM {quoted_table_name}"), db.engine
             )
             _total_count = int(count_df.iloc[0]["cnt"])  # noqa: F841
 
@@ -2034,10 +2231,12 @@ async def _preview_general_info_widget(
 
             # Get a sample entity - detect the correct ID column
             # Get columns to find the ID field
+            preparer = inspect(db.engine).dialect.identifier_preparer
+            quoted_ref_table = preparer.quote(ref_table)
             columns = [
                 col.lower()
                 for col in pd.read_sql(
-                    f"SELECT * FROM {ref_table} LIMIT 0", db.engine
+                    text(f"SELECT * FROM {quoted_ref_table} LIMIT 0"), db.engine
                 ).columns
             ]
 
@@ -2063,18 +2262,16 @@ async def _preview_general_info_widget(
                 )
 
             if entity_id:
-                # Properly quote entity_id to prevent SQL injection
-                # entity_id can be numeric or string, so we need to handle both
-                if isinstance(entity_id, (int, float)):
-                    safe_entity_id = str(entity_id)
-                else:
-                    # Escape single quotes and wrap in quotes for string values
-                    safe_entity_id = "'" + str(entity_id).replace("'", "''") + "'"
-                sample_query = f'SELECT * FROM {ref_table} WHERE "{id_field}" = {safe_entity_id} LIMIT 1'
+                sample_query = text(
+                    f"SELECT * FROM {quoted_ref_table} "
+                    f"WHERE {preparer.quote(id_field)} = :entity_id LIMIT 1"
+                )
+                sample_df = pd.read_sql(
+                    sample_query, db.engine, params={"entity_id": str(entity_id)}
+                )
             else:
-                sample_query = f"SELECT * FROM {ref_table} LIMIT 1"
-
-            sample_df = pd.read_sql(sample_query, db.engine)
+                sample_query = text(f"SELECT * FROM {quoted_ref_table} LIMIT 1")
+                sample_df = pd.read_sql(sample_query, db.engine)
             if sample_df.empty:
                 return HTMLResponse(
                     content=PreviewService.wrap_html_response(
@@ -2116,7 +2313,7 @@ async def _preview_general_info_widget(
                 if value is None:
                     display_value = "—"
                 elif isinstance(value, bool):
-                    display_value = "Oui" if value else "Non"
+                    display_value = str(value)
                 else:
                     display_value = str(value)[:100]  # Truncate long values
 
@@ -2398,18 +2595,22 @@ async def _preview_entity_map(
     db = Database(str(db_path), read_only=True)
 
     try:
-        entity_table = f"entity_{reference}"
-
-        if not db.has_table(entity_table):
+        entity_table = resolve_reference_table(db, reference)
+        if not entity_table:
             return HTMLResponse(
                 content=PreviewService.wrap_html_response(
-                    f"<p class='error'>Table '{entity_table}' not found</p>"
+                    f"<p class='error'>Table for '{reference}' not found</p>"
                 ),
                 status_code=404,
             )
 
+        preparer = inspect(db.engine).dialect.identifier_preparer
+        quoted_entity_table = preparer.quote(entity_table)
+
         # Get columns to detect name and id fields
-        columns_df = pd.read_sql(f"SELECT * FROM {entity_table} LIMIT 0", db.engine)
+        columns_df = pd.read_sql(
+            text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+        )
         columns = columns_df.columns.tolist()
 
         # Detect name field
@@ -2434,8 +2635,12 @@ async def _preview_entity_map(
             )
 
         # Detect geometry type from sample data
+        quoted_geom_col = preparer.quote(geom_col)
         sample = pd.read_sql(
-            f'SELECT "{geom_col}" FROM {entity_table} WHERE "{geom_col}" IS NOT NULL LIMIT 1',
+            text(
+                f"SELECT {quoted_geom_col} FROM {quoted_entity_table} "
+                f"WHERE {quoted_geom_col} IS NOT NULL LIMIT 1"
+            ),
             db.engine,
         )
         # Detect geometry type (for future use)
@@ -2444,34 +2649,40 @@ async def _preview_entity_map(
             _is_polygon = val.startswith("POLYGON") or val.startswith("MULTIPOLYGON")  # noqa: F841
 
         # Build query based on mode
+        query: str
+        query_params: Dict[str, Any] = {}
+        quoted_id_field = preparer.quote(id_field)
+        quoted_name_field = preparer.quote(name_field)
+
         if mode == "single":
             # For single mode, find a representative entity if no entity_id provided
             if not entity_id:
                 # Get first entity with valid geometry
-                rep_query = f"""
-                    SELECT "{id_field}" as id
-                    FROM {entity_table}
-                    WHERE "{geom_col}" IS NOT NULL
-                    LIMIT 1
-                """
+                rep_query = text(
+                    f"SELECT {quoted_id_field} as id "
+                    f"FROM {quoted_entity_table} "
+                    f"WHERE {quoted_geom_col} IS NOT NULL "
+                    "LIMIT 1"
+                )
                 rep_result = pd.read_sql(rep_query, db.engine)
                 if not rep_result.empty:
                     entity_id = rep_result.iloc[0]["id"]
 
             if entity_id:
-                query = f"""
-                    SELECT "{id_field}" as id, "{name_field}" as name, "{geom_col}" as geom
-                    FROM {entity_table}
-                    WHERE "{id_field}" = '{entity_id}'
-                """
+                query = (
+                    f"SELECT {quoted_id_field} as id, {quoted_name_field} as name, {quoted_geom_col} as geom "
+                    f"FROM {quoted_entity_table} "
+                    f"WHERE {quoted_id_field} = :entity_id"
+                )
+                query_params["entity_id"] = str(entity_id)
             else:
                 # Fallback if no entity found
-                query = f"""
-                    SELECT "{id_field}" as id, "{name_field}" as name, "{geom_col}" as geom
-                    FROM {entity_table}
-                    WHERE "{geom_col}" IS NOT NULL
-                    LIMIT 1
-                """
+                query = (
+                    f"SELECT {quoted_id_field} as id, {quoted_name_field} as name, {quoted_geom_col} as geom "
+                    f"FROM {quoted_entity_table} "
+                    f"WHERE {quoted_geom_col} IS NOT NULL "
+                    "LIMIT 1"
+                )
         elif mode == "type" and entity_type_filter:
             # For type mode, find which column contains the type value
             # Search text columns for a match, preferring columns with multiple occurrences
@@ -2507,9 +2718,12 @@ async def _preview_entity_map(
             for col in sorted_cols:
                 try:
                     # Get values with count
+                    quoted_col = preparer.quote(col)
                     values_df = pd.read_sql(
-                        f'SELECT "{col}", COUNT(*) as cnt FROM {entity_table} '
-                        f'WHERE "{col}" IS NOT NULL GROUP BY "{col}"',
+                        text(
+                            f"SELECT {quoted_col}, COUNT(*) as cnt FROM {quoted_entity_table} "
+                            f"WHERE {quoted_col} IS NOT NULL GROUP BY {quoted_col}"
+                        ),
                         db.engine,
                     )
 
@@ -2534,54 +2748,32 @@ async def _preview_entity_map(
                     continue
 
             if matched_column and matched_value:
-                query = f"""
-                    SELECT "{id_field}" as id, "{name_field}" as name, "{geom_col}" as geom
-                    FROM {entity_table}
-                    WHERE "{geom_col}" IS NOT NULL AND "{matched_column}" = '{matched_value}'
-                    LIMIT 500
-                """
+                quoted_matched_col = preparer.quote(matched_column)
+                query = (
+                    f"SELECT {quoted_id_field} as id, {quoted_name_field} as name, {quoted_geom_col} as geom "
+                    f"FROM {quoted_entity_table} "
+                    f"WHERE {quoted_geom_col} IS NOT NULL AND {quoted_matched_col} = :matched_value "
+                    "LIMIT 500"
+                )
+                query_params["matched_value"] = str(matched_value)
             else:
                 # Fallback to all
-                query = f"""
-                    SELECT "{id_field}" as id, "{name_field}" as name, "{geom_col}" as geom
-                    FROM {entity_table}
-                    WHERE "{geom_col}" IS NOT NULL
-                    LIMIT 500
-                """
+                query = (
+                    f"SELECT {quoted_id_field} as id, {quoted_name_field} as name, {quoted_geom_col} as geom "
+                    f"FROM {quoted_entity_table} "
+                    f"WHERE {quoted_geom_col} IS NOT NULL "
+                    "LIMIT 500"
+                )
         else:
-            # Mode "all" - show all entities, but for shapes filter by type
-            # Check if this is a shapes reference with entity_type column
-            shape_type_filter = None
-            if reference == "shapes" and "type" in columns and "entity_type" in columns:
-                # Find a representative shape to get its type
-                rep_query = f"""
-                    SELECT "type"
-                    FROM {entity_table}
-                    WHERE entity_type = 'shape' AND "{geom_col}" IS NOT NULL
-                    LIMIT 1
-                """
-                rep_result = pd.read_sql(rep_query, db.engine)
-                if not rep_result.empty:
-                    shape_type_filter = rep_result.iloc[0]["type"]
+            # Standard all mode
+            query = (
+                f"SELECT {quoted_id_field} as id, {quoted_name_field} as name, {quoted_geom_col} as geom "
+                f"FROM {quoted_entity_table} "
+                f"WHERE {quoted_geom_col} IS NOT NULL "
+                "LIMIT 500"
+            )
 
-            if shape_type_filter:
-                # Filter by the representative shape's type
-                query = f"""
-                    SELECT "{id_field}" as id, "{name_field}" as name, "{geom_col}" as geom
-                    FROM {entity_table}
-                    WHERE "{geom_col}" IS NOT NULL AND entity_type = 'shape' AND "type" = '{shape_type_filter}'
-                    LIMIT 500
-                """
-            else:
-                # Standard all mode
-                query = f"""
-                    SELECT "{id_field}" as id, "{name_field}" as name, "{geom_col}" as geom
-                    FROM {entity_table}
-                    WHERE "{geom_col}" IS NOT NULL
-                    LIMIT 500
-                """
-
-        result = pd.read_sql(query, db.engine)
+        result = pd.read_sql(text(query), db.engine, params=query_params or None)
 
         if result.empty:
             return HTMLResponse(
@@ -2630,7 +2822,7 @@ async def _preview_entity_map(
 
         # Generate map title
         if mode == "single":
-            title = "Position du plot" if reference == "plots" else "Polygone du shape"
+            title = f"Position {reference.rstrip('s')}"
         elif mode == "type" and entity_type_filter:
             title = f"Carte {entity_type_filter.replace('_', ' ').title()}"
         else:
@@ -2842,19 +3034,33 @@ async def preview_template(
             db = Database(str(db_path), read_only=True)
             try:
                 # Check for entity table
-                entity_table = f"entity_{data_source}"
-                if not db.has_table(entity_table):
-                    # Try reference table
-                    entity_table = f"reference_{data_source}"
-                    if not db.has_table(entity_table):
-                        entity_table = data_source
-
-                if db.has_table(entity_table):
+                entity_table = resolve_entity_table(db, data_source, kind=None)
+                if entity_table and db.has_table(entity_table):
                     # Load data from entity table
                     field = config.get("field", column)
+                    preparer = inspect(db.engine).dialect.identifier_preparer
+                    quoted_entity_table = preparer.quote(entity_table)
                     try:
+                        entity_columns = set(
+                            pd.read_sql(
+                                text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"),
+                                db.engine,
+                            ).columns.tolist()
+                        )
+                        if field not in entity_columns:
+                            return HTMLResponse(
+                                content=PreviewService.wrap_html_response(
+                                    f"<p class='info'>Field '{field}' not found in {entity_table}</p>"
+                                )
+                            )
+
+                        quoted_field = preparer.quote(field)
                         sample_data = pd.read_sql(
-                            f'SELECT "{field}" FROM {entity_table} WHERE "{field}" IS NOT NULL',
+                            text(
+                                f"SELECT {quoted_field} "
+                                f"FROM {quoted_entity_table} "
+                                f"WHERE {quoted_field} IS NOT NULL"
+                            ),
                             db.engine,
                         )
 
@@ -3233,15 +3439,15 @@ def _build_dynamic_template_info(
         config = {
             "source": data_source,
             "field": column,
-            "true_label": "Oui",
-            "false_label": "Non",
+            "true_label": "true",
+            "false_label": "false",
             "include_percentages": True,
         }
         name = f"Distribution {col_name}"
 
     elif transformer == "geospatial_extractor":
         config = {
-            "source": "occurrences",
+            "source": data_source,
             "field": column,
             "format": "geojson",
             "group_by_coordinates": True,
@@ -3249,10 +3455,10 @@ def _build_dynamic_template_info(
         name = f"Carte {col_name}"
 
     elif transformer == "field_aggregator":
-        # Standard field_aggregator for occurrences data
+        # Standard field_aggregator for source data
         config = {
-            "source": "occurrences",
-            "fields": [{"source": "occurrences", "field": column, "target": column}],
+            "source": data_source,
+            "fields": [{"source": data_source, "field": column, "target": column}],
         }
         name = f"Info {col_name}"
 
@@ -3286,7 +3492,7 @@ def _build_dynamic_template_info(
         name = f"Catégories {col_name}"
 
     else:
-        config = {"source": "occurrences", "field": column}
+        config = {"source": data_source, "field": column}
         name = col_name
 
     return {

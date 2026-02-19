@@ -10,6 +10,7 @@ Provides background job execution for API-based data enrichment with:
 import asyncio
 import json
 import uuid
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from enum import Enum
@@ -17,10 +18,13 @@ from enum import Enum
 import yaml
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
+from sqlalchemy import text
 
 from ..context import get_working_directory
+from niamoto.common.table_resolver import quote_identifier, resolve_entity_table
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -148,8 +152,8 @@ def _load_enrichment_config() -> Optional[EnrichmentConfig]:
             import_config = yaml.safe_load(f) or {}
 
         # Check EntityRegistry v2 format first
-        entities = import_config.get("entities", {})
-        references = entities.get("references", {})
+        entities = import_config.get("entities", {}) or {}
+        references = entities.get("references", {}) or {}
 
         # Look for enrichment in taxons reference
         for ref_name, ref_config in references.items():
@@ -238,16 +242,42 @@ def _load_enrichment_config() -> Optional[EnrichmentConfig]:
 
         return None
     except Exception as e:
-        print(f"Error loading enrichment config: {e}")
+        logger.warning("Error loading enrichment config: %s", e)
         return None
 
 
-def _get_taxons_table_name() -> Optional[str]:
-    """Get the taxons table name from database.
+def _resolve_reference_table_from_db(
+    db: "Database", reference_name: str
+) -> Optional[str]:
+    """Resolve reference table using registry first, then naming conventions."""
+    try:
+        from niamoto.core.imports.registry import EntityRegistry
 
-    Returns:
-        Table name or None if not found
-    """
+        registry = (
+            EntityRegistry(db) if db.has_table(EntityRegistry.ENTITIES_TABLE) else None
+        )
+    except Exception:
+        registry = None
+
+    resolved = resolve_entity_table(
+        db, reference_name, registry=registry, kind="reference"
+    )
+    if resolved:
+        return resolved
+
+    # Last fallback for older projects.
+    for candidate in (
+        f"entity_{reference_name}",
+        f"reference_{reference_name}",
+        reference_name,
+    ):
+        if db.has_table(candidate):
+            return candidate
+    return None
+
+
+def _resolve_reference_table(reference_name: str) -> Optional[str]:
+    """Resolve table name for a reference from the project database."""
     work_dir = get_working_directory()
     if not work_dir:
         return None
@@ -261,35 +291,23 @@ def _get_taxons_table_name() -> Optional[str]:
 
         db = Database(str(db_path), read_only=True)
         try:
-            table_name = None
-
-            # Try to get table name from EntityRegistry
-            try:
-                from niamoto.core.imports.registry import EntityRegistry
-
-                if db.has_table(EntityRegistry.ENTITIES_TABLE):
-                    registry = EntityRegistry(db)
-                    for entity in registry.list_entities():
-                        if entity.name == "taxons":
-                            table_name = entity.table_name
-                            break
-            except Exception:
-                pass
-
-            # Fallback: try common naming patterns
-            if not table_name:
-                patterns = ["entity_taxons", "reference_taxons", "taxons", "taxonomy"]
-                for pattern in patterns:
-                    if db.has_table(pattern):
-                        table_name = pattern
-                        break
-
-            return table_name
+            return _resolve_reference_table_from_db(db, reference_name)
         finally:
             db.close_db_session()
     except Exception as e:
-        print(f"Error getting taxons table: {e}")
+        logger.warning(
+            "Error resolving table for reference '%s': %s", reference_name, e
+        )
         return None
+
+
+def _get_taxons_table_name() -> Optional[str]:
+    """Get the taxons table name from database.
+
+    Returns:
+        Table name or None if not found
+    """
+    return _resolve_reference_table("taxons")
 
 
 def _get_taxons_to_enrich(only_unenriched: bool = True) -> List[Dict[str, Any]]:
@@ -319,23 +337,34 @@ def _get_taxons_to_enrich(only_unenriched: bool = True) -> List[Dict[str, Any]]:
 
         db = Database(str(db_path), read_only=True)
         try:
+            quoted_table_name = quote_identifier(db, table_name)
+            table_cols = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            has_extra_data = "extra_data" in table_cols
+
             if only_unenriched:
                 # Only get taxons that don't have enrichment data yet
                 # Use LIKE to check for api_enrichment key presence
-                query = f"""
-                    SELECT * FROM {table_name}
-                    WHERE extra_data IS NULL
-                       OR CAST(extra_data AS VARCHAR) NOT LIKE '%api_enrichment%'
-                """
+                if has_extra_data:
+                    query = text(
+                        f"""
+                        SELECT * FROM {quoted_table_name}
+                        WHERE extra_data IS NULL
+                           OR CAST(extra_data AS VARCHAR) NOT LIKE '%api_enrichment%'
+                    """
+                    )
+                else:
+                    query = text(f"SELECT * FROM {quoted_table_name}")
             else:
-                query = f"SELECT * FROM {table_name}"
+                query = text(f"SELECT * FROM {quoted_table_name}")
 
             df = pd.read_sql(query, db.engine)
             return df.to_dict("records")
         finally:
             db.close_db_session()
     except Exception as e:
-        print(f"Error loading taxons: {e}")
+        logger.warning("Error loading taxons: %s", e)
         return []
 
 
@@ -364,6 +393,7 @@ def _save_enrichment_to_db(taxon_id: int, enrichment_data: Dict[str, Any]) -> bo
 
         db = Database(str(db_path))
         try:
+            quoted_table_name = quote_identifier(db, table_name)
             # Build extra_data JSON with enrichment
             extra_data = {
                 "api_enrichment": enrichment_data,
@@ -374,7 +404,10 @@ def _save_enrichment_to_db(taxon_id: int, enrichment_data: Dict[str, Any]) -> bo
             # Use parameterized query to avoid SQL injection and escaping issues
             with db.engine.connect() as conn:
                 conn.execute(
-                    text(f"UPDATE {table_name} SET extra_data = :data WHERE id = :id"),
+                    text(
+                        f"UPDATE {quoted_table_name} "
+                        "SET extra_data = :data WHERE id = :id"
+                    ),
                     {"data": extra_data_json, "id": taxon_id},
                 )
                 conn.commit()
@@ -382,7 +415,7 @@ def _save_enrichment_to_db(taxon_id: int, enrichment_data: Dict[str, Any]) -> bo
         finally:
             db.close_db_session()
     except Exception as e:
-        print(f"Error saving enrichment for taxon {taxon_id}: {e}")
+        logger.warning("Error saving enrichment for taxon %s: %s", taxon_id, e)
         return False
 
 
@@ -407,28 +440,38 @@ def _get_enrichment_stats() -> Dict[str, int]:
 
         db = Database(str(db_path), read_only=True)
         try:
+            quoted_table_name = quote_identifier(db, table_name)
+            table_cols = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            has_extra_data = "extra_data" in table_cols
+
             # Count total
             total_df = pd.read_sql(
-                f"SELECT COUNT(*) as count FROM {table_name}", db.engine
+                text(f"SELECT COUNT(*) as count FROM {quoted_table_name}"), db.engine
             )
             total = int(total_df.iloc[0]["count"])
 
-            # Count enriched - use LIKE to check for api_enrichment key
-            enriched_df = pd.read_sql(
-                f"""
-                SELECT COUNT(*) as count FROM {table_name}
-                WHERE extra_data IS NOT NULL
-                  AND CAST(extra_data AS VARCHAR) LIKE '%api_enrichment%'
-                """,
-                db.engine,
-            )
-            enriched = int(enriched_df.iloc[0]["count"])
+            enriched = 0
+            if has_extra_data:
+                # Count enriched - use LIKE to check for api_enrichment key
+                enriched_df = pd.read_sql(
+                    text(
+                        f"""
+                        SELECT COUNT(*) as count FROM {quoted_table_name}
+                        WHERE extra_data IS NOT NULL
+                          AND CAST(extra_data AS VARCHAR) LIKE '%api_enrichment%'
+                    """
+                    ),
+                    db.engine,
+                )
+                enriched = int(enriched_df.iloc[0]["count"])
 
             return {"total": total, "enriched": enriched, "pending": total - enriched}
         finally:
             db.close_db_session()
     except Exception as e:
-        print(f"Error getting enrichment stats: {e}")
+        logger.warning("Error getting enrichment stats: %s", e)
         return {"total": 0, "enriched": 0, "pending": 0}
 
 
@@ -558,8 +601,8 @@ async def _run_enrichment_job(job_id: str, config: EnrichmentConfig):
                 if enrichment_data and taxon_id is not None:
                     saved = _save_enrichment_to_db(taxon_id, enrichment_data)
                     if not saved:
-                        print(
-                            f"Warning: Could not save enrichment for taxon {taxon_id}"
+                        logger.warning(
+                            "Could not save enrichment for taxon %s", taxon_id
                         )
 
                 _job_results.append(
@@ -594,9 +637,9 @@ async def _run_enrichment_job(job_id: str, config: EnrichmentConfig):
                         f"reseau consecutives. Verifiez votre connexion internet."
                     )
                     _current_job.updated_at = datetime.now().isoformat()
-                    print(
-                        f"Enrichment auto-paused: {NETWORK_ERROR_THRESHOLD} "
-                        f"consecutive network errors"
+                    logger.warning(
+                        "Enrichment auto-paused after %s consecutive network errors",
+                        NETWORK_ERROR_THRESHOLD,
                     )
                     # Wait in paused state until resumed or cancelled
                     while _current_job.status == JobStatus.PAUSED_OFFLINE:
@@ -667,8 +710,8 @@ def _load_enrichment_config_for_reference(
         with open(config_path, "r", encoding="utf-8") as f:
             import_config = yaml.safe_load(f) or {}
 
-        entities = import_config.get("entities", {})
-        references = entities.get("references", {})
+        entities = import_config.get("entities", {}) or {}
+        references = entities.get("references", {}) or {}
 
         ref_config = references.get(reference_name)
         if not ref_config or not isinstance(ref_config, dict):
@@ -729,7 +772,11 @@ def _load_enrichment_config_for_reference(
 
         return None
     except Exception as e:
-        print(f"Error loading enrichment config for {reference_name}: {e}")
+        logger.warning(
+            "Error loading enrichment config for reference '%s': %s",
+            reference_name,
+            e,
+        )
         return None
 
 
@@ -993,52 +1040,7 @@ def _get_reference_table_name(reference_name: str) -> Optional[str]:
     Returns:
         Table name or None if not found
     """
-    work_dir = get_working_directory()
-    if not work_dir:
-        return None
-
-    db_path = work_dir / "db" / "niamoto.duckdb"
-    if not db_path.exists():
-        return None
-
-    try:
-        from niamoto.common.database import Database
-
-        db = Database(str(db_path), read_only=True)
-        try:
-            table_name = None
-
-            # Try to get table name from EntityRegistry
-            try:
-                from niamoto.core.imports.registry import EntityRegistry
-
-                if db.has_table(EntityRegistry.ENTITIES_TABLE):
-                    registry = EntityRegistry(db)
-                    for entity in registry.list_entities():
-                        if entity.name == reference_name:
-                            table_name = entity.table_name
-                            break
-            except Exception:
-                pass
-
-            # Fallback: try common naming patterns
-            if not table_name:
-                patterns = [
-                    f"entity_{reference_name}",
-                    f"reference_{reference_name}",
-                    reference_name,
-                ]
-                for pattern in patterns:
-                    if db.has_table(pattern):
-                        table_name = pattern
-                        break
-
-            return table_name
-        finally:
-            db.close_db_session()
-    except Exception as e:
-        print(f"Error getting table for {reference_name}: {e}")
-        return None
+    return _resolve_reference_table(reference_name)
 
 
 def _get_enrichment_stats_for_reference(reference_name: str) -> Dict[str, int]:
@@ -1065,28 +1067,39 @@ def _get_enrichment_stats_for_reference(reference_name: str) -> Dict[str, int]:
 
         db = Database(str(db_path), read_only=True)
         try:
+            quoted_table_name = quote_identifier(db, table_name)
+            table_cols = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            has_extra_data = "extra_data" in table_cols
+
             # Count total
             total_df = pd.read_sql(
-                f"SELECT COUNT(*) as count FROM {table_name}", db.engine
+                text(f"SELECT COUNT(*) as count FROM {quoted_table_name}"),
+                db.engine,
             )
             total = int(total_df.iloc[0]["count"])
 
-            # Count enriched - use LIKE to check for api_enrichment key
-            enriched_df = pd.read_sql(
-                f"""
-                SELECT COUNT(*) as count FROM {table_name}
-                WHERE extra_data IS NOT NULL
-                  AND CAST(extra_data AS VARCHAR) LIKE '%api_enrichment%'
-                """,
-                db.engine,
-            )
-            enriched = int(enriched_df.iloc[0]["count"])
+            enriched = 0
+            if has_extra_data:
+                # Count enriched - use LIKE to check for api_enrichment key
+                enriched_df = pd.read_sql(
+                    text(
+                        f"""
+                        SELECT COUNT(*) as count FROM {quoted_table_name}
+                        WHERE extra_data IS NOT NULL
+                          AND CAST(extra_data AS VARCHAR) LIKE '%api_enrichment%'
+                    """
+                    ),
+                    db.engine,
+                )
+                enriched = int(enriched_df.iloc[0]["count"])
 
             return {"total": total, "enriched": enriched, "pending": total - enriched}
         finally:
             db.close_db_session()
     except Exception as e:
-        print(f"Error getting enrichment stats for {reference_name}: {e}")
+        logger.warning("Error getting enrichment stats for '%s': %s", reference_name, e)
         return {"total": 0, "enriched": 0, "pending": 0}
 
 
@@ -1386,38 +1399,68 @@ async def get_entities_for_reference(
 
         db = Database(str(db_path), read_only=True)
         try:
-            # Build search clause
-            search_clause = ""
+            quoted_table_name = quote_identifier(db, table_name)
+            table_cols = pd.read_sql(
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"), db.engine
+            ).columns.tolist()
+            if not table_cols:
+                return {"entities": [], "total": 0, "query_field": query_field}
+
+            id_field = "id" if "id" in table_cols else table_cols[0]
+            if query_field not in table_cols:
+                for candidate in ("full_name", "name", "label", "title"):
+                    if candidate in table_cols:
+                        query_field = candidate
+                        break
+                else:
+                    query_field = id_field
+
+            quoted_id_field = quote_identifier(db, id_field)
+            quoted_query_field = quote_identifier(db, query_field)
+            has_extra_data = "extra_data" in table_cols
+
+            params: Dict[str, Any] = {
+                "limit": max(1, int(limit)),
+                "offset": max(0, int(offset)),
+            }
+            where_clause = ""
             if search:
-                search_clause = f"WHERE {query_field} ILIKE '%{search}%'"
+                where_clause = (
+                    f"WHERE CAST({quoted_query_field} AS VARCHAR) ILIKE :search"
+                )
+                params["search"] = f"%{search}%"
 
             # Count total
-            count_query = f"SELECT COUNT(*) as count FROM {table_name} {search_clause}"
-            total_df = pd.read_sql(count_query, db.engine)
+            count_query = text(
+                f"SELECT COUNT(*) as count FROM {quoted_table_name} {where_clause}"
+            )
+            total_df = pd.read_sql(count_query, db.engine, params=params)
             total = int(total_df.iloc[0]["count"])
 
             # Get entities with enriched status
-            query = f"""
+            enriched_expr = (
+                "CASE WHEN extra_data IS NOT NULL "
+                "AND CAST(extra_data AS VARCHAR) LIKE '%api_enrichment%' "
+                "THEN true ELSE false END"
+                if has_extra_data
+                else "false"
+            )
+            query = text(f"""
                 SELECT
-                    id,
-                    {query_field} as name,
-                    CASE
-                        WHEN extra_data IS NOT NULL
-                             AND CAST(extra_data AS VARCHAR) LIKE '%api_enrichment%'
-                        THEN true
-                        ELSE false
-                    END as enriched
-                FROM {table_name}
-                {search_clause}
-                ORDER BY {query_field}
-                LIMIT {limit} OFFSET {offset}
-            """
-            df = pd.read_sql(query, db.engine)
+                    {quoted_id_field} as id,
+                    {quoted_query_field} as name,
+                    {enriched_expr} as enriched
+                FROM {quoted_table_name}
+                {where_clause}
+                ORDER BY {quoted_query_field}
+                LIMIT :limit OFFSET :offset
+            """)
+            df = pd.read_sql(query, db.engine, params=params)
             entities = df.to_dict("records")
 
             return {"entities": entities, "total": total, "query_field": query_field}
         finally:
             db.close_db_session()
     except Exception as e:
-        print(f"Error getting entities for {reference_name}: {e}")
+        logger.warning("Error getting entities for '%s': %s", reference_name, e)
         return {"entities": [], "total": 0, "error": str(e)}

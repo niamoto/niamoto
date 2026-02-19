@@ -6,13 +6,19 @@ across different endpoints (recipes, templates, layout).
 """
 
 import logging
+import html
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 import yaml
+from sqlalchemy import text
 
 from niamoto.common.database import Database
+from niamoto.common.table_resolver import (
+    quote_identifier as shared_quote_identifier,
+    resolve_dataset_table as shared_resolve_dataset_table,
+)
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 
@@ -27,6 +33,16 @@ class PreviewService:
     # ==========================================================================
 
     @staticmethod
+    def _quote_identifier(db: Database, name: str) -> str:
+        """Safely quote a SQL identifier (table or column name)."""
+        return shared_quote_identifier(db, name)
+
+    @staticmethod
+    def _error_html(message: str) -> str:
+        """Render a safe error paragraph for iframe previews."""
+        return f"<p class='error'>{html.escape(message)}</p>"
+
+    @staticmethod
     def wrap_html_response(content: str, title: str = "Preview") -> str:
         """Wrap widget HTML in a complete HTML document for iframe display.
 
@@ -37,12 +53,13 @@ class PreviewService:
         Returns:
             Complete HTML document string
         """
+        safe_title = html.escape(title, quote=True)
         return f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{title}</title>
+    <title>{safe_title}</title>
     <style>
         html, body {{
             margin: 0;
@@ -164,7 +181,7 @@ class PreviewService:
             return plugin_instance.render(data, validated_params)
         except Exception as e:
             logger.exception(f"Error rendering widget '{plugin_name}': {e}")
-            return f"<p class='error'>Widget render error: {str(e)}</p>"
+            return PreviewService._error_html(f"Widget render error: {e}")
 
     # ==========================================================================
     # DATA LOADING
@@ -197,17 +214,33 @@ class PreviewService:
             group_by: Reference name to look for
 
         Returns:
-            Dictionary with reference_name, table_name, id_field, parent_field, fk_column
+            Dictionary with reference_name, table_name, id_field, parent_field,
+            fk_column, source_dataset, and relation.
         """
-        entities = import_config.get("entities", {})
-        references = entities.get("references", {})
+        entities = import_config.get("entities", {}) or {}
+        references = entities.get("references", {}) or {}
+        datasets = entities.get("datasets", {}) or {}
+
+        def _resolve_default_dataset() -> Optional[str]:
+            if isinstance(datasets, dict) and datasets:
+                return next(iter(datasets))
+            return None
 
         # Find reference that matches group_by
         if group_by and group_by in references:
             ref = references[group_by]
-            # Get FK column from connector.extraction.id_column
-            extraction = ref.get("connector", {}).get("extraction", {})
-            fk_column = extraction.get("id_column", "id_taxonref")
+            relation = ref.get("relation", {}) or {}
+            connector = ref.get("connector", {}) or {}
+            extraction = connector.get("extraction", {}) or {}
+
+            source_dataset = (
+                relation.get("dataset")
+                or connector.get("source")
+                or _resolve_default_dataset()
+            )
+
+            # FK can come from explicit relation (flat/spatial) or derived extraction.
+            fk_column = relation.get("foreign_key") or extraction.get("id_column")
             return {
                 "reference_name": group_by,
                 "table_name": f"entity_{group_by}",
@@ -216,13 +249,22 @@ class PreviewService:
                     "parent_field", "id_parent"
                 ),
                 "fk_column": fk_column,
+                "source_dataset": source_dataset,
+                "relation": relation,
             }
 
         # Fallback to first hierarchical reference
         for ref_name, ref in references.items():
             if ref.get("hierarchy"):
-                extraction = ref.get("connector", {}).get("extraction", {})
-                fk_column = extraction.get("id_column", "id_taxonref")
+                relation = ref.get("relation", {}) or {}
+                connector = ref.get("connector", {}) or {}
+                extraction = connector.get("extraction", {}) or {}
+                source_dataset = (
+                    relation.get("dataset")
+                    or connector.get("source")
+                    or _resolve_default_dataset()
+                )
+                fk_column = relation.get("foreign_key") or extraction.get("id_column")
                 return {
                     "reference_name": ref_name,
                     "table_name": f"entity_{ref_name}",
@@ -231,15 +273,69 @@ class PreviewService:
                         "parent_field", "id_parent"
                     ),
                     "fk_column": fk_column,
+                    "source_dataset": source_dataset,
+                    "relation": relation,
                 }
 
+        # Last fallback: return a generic structure instead of taxon-specific defaults.
+        first_ref_name = next(iter(references), group_by or "")
+        first_dataset = _resolve_default_dataset()
         return {
-            "reference_name": "taxon",
-            "table_name": "entity_taxon",
+            "reference_name": first_ref_name,
+            "table_name": f"entity_{first_ref_name}" if first_ref_name else "",
             "id_field": "id",
             "parent_field": "id_parent",
-            "fk_column": "id_taxonref",
+            "fk_column": None,
+            "source_dataset": first_dataset,
+            "relation": {},
         }
+
+    @staticmethod
+    def _resolve_dataset_table(
+        db: Database, dataset_name: Optional[str]
+    ) -> Optional[str]:
+        """Resolve a logical dataset name to an existing physical table."""
+        return shared_resolve_dataset_table(db, dataset_name)
+
+    @staticmethod
+    def _list_user_tables(db: Database) -> list[str]:
+        """List user tables excluding internal DuckDB/system tables."""
+        tables = db.execute_sql("SHOW TABLES", fetch_all=True)
+        table_names = [t[0] for t in tables] if tables else []
+        return [
+            name
+            for name in table_names
+            if not name.startswith("_") and not name.startswith("sqlite")
+        ]
+
+    @staticmethod
+    def _resolve_fallback_dataset_table(
+        db: Database, preferred_dataset: Optional[str]
+    ) -> Optional[str]:
+        """Fallback resolver when config metadata is incomplete."""
+        resolved = PreviewService._resolve_dataset_table(db, preferred_dataset)
+        if resolved:
+            return resolved
+
+        table_names = PreviewService._list_user_tables(db)
+        if not table_names:
+            return None
+
+        # Prefer conventionally named dataset tables first.
+        dataset_tables = sorted(t for t in table_names if t.startswith("dataset_"))
+        if dataset_tables:
+            return dataset_tables[0]
+
+        # Then prefer non-reference-like tables.
+        candidate_tables = sorted(
+            t
+            for t in table_names
+            if not t.startswith("entity_") and not t.startswith("reference_")
+        )
+        if candidate_tables:
+            return candidate_tables[0]
+
+        return sorted(table_names)[0]
 
     @staticmethod
     def load_sample_occurrences(
@@ -259,38 +355,51 @@ class PreviewService:
         Returns:
             DataFrame with occurrence data
         """
-        # Get the foreign key column
-        fk_column = hierarchy_info.get("fk_column", "id_taxonref")
+        # Resolve source dataset/table from configuration.
+        source_dataset = hierarchy_info.get("source_dataset")
+        occ_table = PreviewService._resolve_dataset_table(db, source_dataset)
+        fk_column = hierarchy_info.get("fk_column")
 
         try:
-            # First, check which occurrence table exists
-            tables = db.execute_sql("SHOW TABLES", fetch_all=True)
-            table_names = [t[0] for t in tables] if tables else []
+            if not occ_table:
+                occ_table = PreviewService._resolve_fallback_dataset_table(
+                    db, source_dataset
+                )
 
-            occ_table = (
-                "dataset_occurrences"
-                if "dataset_occurrences" in table_names
-                else "occurrences"
+            if not occ_table:
+                return pd.DataFrame()
+
+            safe_limit = max(1, int(limit))
+            quoted_occ_table = PreviewService._quote_identifier(db, occ_table)
+            occ_columns = set(
+                pd.read_sql(
+                    text(f"SELECT * FROM {quoted_occ_table} LIMIT 0"), db.engine
+                ).columns
             )
 
             # For preview, load occurrences grouped by a single FK value
             # This gives us a realistic sample for a single taxon/entity
-            query = f"""
-                SELECT * FROM {occ_table}
-                WHERE {fk_column} = (
-                    SELECT {fk_column} FROM {occ_table}
-                    WHERE {fk_column} IS NOT NULL
-                    GROUP BY {fk_column}
-                    HAVING COUNT(*) >= 10
-                    LIMIT 1
-                )
-                LIMIT {limit}
-            """
-            df = pd.read_sql(query, db.engine)
+            df = pd.DataFrame()
+            if fk_column and fk_column in occ_columns:
+                quoted_fk_column = PreviewService._quote_identifier(db, fk_column)
+                query = text(f"""
+                    SELECT * FROM {quoted_occ_table}
+                    WHERE {quoted_fk_column} = (
+                        SELECT {quoted_fk_column} FROM {quoted_occ_table}
+                        WHERE {quoted_fk_column} IS NOT NULL
+                        GROUP BY {quoted_fk_column}
+                        HAVING COUNT(*) >= 10
+                        LIMIT 1
+                    )
+                    LIMIT {safe_limit}
+                """)
+                df = pd.read_sql(query, db.engine)
 
             if df.empty:
                 # Fallback: just get some occurrences
-                simple_query = f"SELECT * FROM {occ_table} LIMIT {limit}"
+                simple_query = text(
+                    f"SELECT * FROM {quoted_occ_table} LIMIT {safe_limit}"
+                )
                 df = pd.read_sql(simple_query, db.engine)
 
             return df
@@ -464,7 +573,7 @@ class PreviewService:
                 db, transformer_plugin, transformer_params, csv_data
             )
         except ValueError as e:
-            return cls.wrap_html_response(f"<p class='error'>{str(e)}</p>")
+            return cls.wrap_html_response(cls._error_html(str(e)))
 
         if not result:
             return cls.wrap_html_response(
@@ -512,7 +621,7 @@ class PreviewService:
                 db, transformer_plugin, transformer_params, sample_data
             )
         except ValueError as e:
-            return cls.wrap_html_response(f"<p class='error'>{str(e)}</p>")
+            return cls.wrap_html_response(cls._error_html(str(e)))
 
         if not result:
             return cls.wrap_html_response(

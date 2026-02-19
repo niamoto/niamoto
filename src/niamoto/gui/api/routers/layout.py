@@ -531,7 +531,13 @@ async def get_representatives(
     """
     import pandas as pd
     from niamoto.common.database import Database
+    from niamoto.common.table_resolver import (
+        quote_identifier,
+        resolve_dataset_table,
+        resolve_reference_table,
+    )
     from niamoto.gui.api.context import get_database_path
+    from sqlalchemy import text
 
     work_dir = get_working_directory()
     if not work_dir:
@@ -544,18 +550,20 @@ async def get_representatives(
     db = Database(str(db_path), read_only=True)
 
     try:
-        # Entity table is entity_{group_by}
-        entity_table = f"entity_{group_by}"
+        # Resolve reference table from logical group name
+        entity_table = resolve_reference_table(db, group_by)
 
-        if not db.has_table(entity_table):
+        if not entity_table:
             return RepresentativesResponse(
                 group_by=group_by,
                 entities=[],
                 total=0,
             )
+        quoted_entity_table = quote_identifier(db, entity_table)
 
         # Check if we have occurrences to count
-        has_occurrences = db.has_table("dataset_occurrences")
+        occurrences_table = resolve_dataset_table(db, "occurrences")
+        has_occurrences = occurrences_table is not None
 
         entities = []
 
@@ -567,12 +575,12 @@ async def get_representatives(
             # - species/subspecies: join via taxons_id -> id_taxonref
 
             # First, get the distinct rank names
-            ranks_query = f"""
+            ranks_query = text(f"""
                 SELECT DISTINCT rank_name, level
-                FROM {entity_table}
+                FROM {quoted_entity_table}
                 WHERE rank_name IS NOT NULL
                 ORDER BY level
-            """
+            """)
             ranks_result = pd.read_sql(ranks_query, db.engine)
             ranks = ranks_result["rank_name"].tolist()
 
@@ -582,14 +590,16 @@ async def get_representatives(
             for rank in ranks:
                 # For family and genus, join via rank_value column
                 if rank in ("family", "genus"):
+                    quoted_occurrences_table = quote_identifier(db, occurrences_table)
+                    quoted_rank = quote_identifier(db, rank)
                     query = f"""
                         SELECT
                             e.id as id,
                             e.full_name as name,
                             e.rank_name as rank,
                             COUNT(o.id) as count
-                        FROM {entity_table} e
-                        LEFT JOIN dataset_occurrences o ON o.{rank} = e.rank_value
+                        FROM {quoted_entity_table} e
+                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_rank} = e.rank_value
                         WHERE e.full_name IS NOT NULL AND e.full_name != ''
                           AND e.rank_name = '{rank}'
                         GROUP BY e.id, e.full_name, e.rank_name
@@ -599,14 +609,15 @@ async def get_representatives(
                     """
                 else:
                     # For species/subspecies, join via taxons_id
+                    quoted_occurrences_table = quote_identifier(db, occurrences_table)
                     query = f"""
                         SELECT
                             e.id as id,
                             e.full_name as name,
                             e.rank_name as rank,
                             COUNT(o.id) as count
-                        FROM {entity_table} e
-                        LEFT JOIN dataset_occurrences o ON o.id_taxonref = e.taxons_id
+                        FROM {quoted_entity_table} e
+                        LEFT JOIN {quoted_occurrences_table} o ON o.id_taxonref = e.taxons_id
                         WHERE e.full_name IS NOT NULL AND e.full_name != ''
                           AND e.rank_name = '{rank}'
                           AND e.taxons_id IS NOT NULL
@@ -638,7 +649,9 @@ async def get_representatives(
                 try:
                     with open(import_path, "r", encoding="utf-8") as f:
                         import_config = yaml.safe_load(f) or {}
-                    references = import_config.get("entities", {}).get("references", {})
+                    references = (
+                        import_config.get("entities", {}).get("references", {}) or {}
+                    )
                     ref_config = references.get(group_by, {})
                 except Exception:
                     pass
@@ -648,7 +661,9 @@ async def get_representatives(
             id_field = schema.get("id_field", "id")
 
             # Get entity columns to detect name field
-            columns_df = pd.read_sql(f"SELECT * FROM {entity_table} LIMIT 0", db.engine)
+            columns_df = pd.read_sql(
+                text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+            )
             columns = columns_df.columns.tolist()
 
             # Detect name field
@@ -657,24 +672,19 @@ async def get_representatives(
             if not name_field:
                 name_field = next((c for c in columns if "name" in c.lower()), id_field)
 
-            # For spatial references (shapes), filter out category rows
-            kind = ref_config.get("kind")
-            where_clause = ""
-            if kind == "spatial" and "entity_type" in columns:
-                # Only show actual shapes, not category rows
-                where_clause = "WHERE entity_type = 'shape'"
-
             # Build query
-            query = f"""
+            quoted_id_field = quote_identifier(db, id_field)
+            quoted_name_field = quote_identifier(db, name_field)
+            query = text(f"""
                 SELECT
-                    "{id_field}" as id,
-                    COALESCE("{name_field}", CAST("{id_field}" AS VARCHAR)) as name
-                FROM {entity_table}
-                {where_clause}
-                ORDER BY "{name_field}"
-                LIMIT {limit}
-            """
-            result = pd.read_sql(query, db.engine)
+                    {quoted_id_field} as id,
+                    COALESCE({quoted_name_field}, CAST({quoted_id_field} AS VARCHAR)) as name
+                FROM {quoted_entity_table}
+                ORDER BY {quoted_name_field}
+                LIMIT :limit
+            """)
+            safe_limit = max(1, int(limit))
+            result = pd.read_sql(query, db.engine, params={"limit": safe_limit})
             for _, row in result.iterrows():
                 entities.append(
                     RepresentativeEntity(

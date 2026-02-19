@@ -31,6 +31,7 @@ from niamoto.gui.api.services.templates.config_service import (
     save_export_config,
     find_transform_group,
 )
+from niamoto.common.table_resolver import quote_identifier, resolve_entity_table
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +251,13 @@ def _get_table_columns(db: Database, table_name: str) -> list[str]:
     """Get column names from a database table."""
     try:
         cols = db.execute_sql(
-            f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}' ORDER BY ordinal_position",
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = :table_name
+            ORDER BY ordinal_position
+            """,
+            params={"table_name": table_name},
             fetch_all=True,
         )
         return [c[0] for c in cols] if cols else []
@@ -380,8 +387,9 @@ def _get_all_sources(
 
                 if not columns:
                     # Fallback: try as direct table name
-                    columns = _get_table_columns(db, data_path)
-                    table_name = data_path
+                    resolved_table = resolve_entity_table(db, data_path)
+                    table_name = resolved_table or data_path
+                    columns = _get_table_columns(db, table_name)
 
                 sources.append(
                     SourceInfo(
@@ -870,7 +878,8 @@ def _build_column_tree(db: Database, source_info: SourceInfo) -> list[ColumnNode
 
     # Get column types from database
     try:
-        schema_sql = f"DESCRIBE {source_info.table_name}"
+        quoted_table_name = quote_identifier(db, source_info.table_name)
+        schema_sql = f"DESCRIBE {quoted_table_name}"
         result = db.execute_sql(schema_sql, fetch=True)
 
         if result:
@@ -925,11 +934,13 @@ def _extract_json_fields(
     seen_keys = set()
 
     try:
+        quoted_table_name = quote_identifier(db, table_name)
+        quoted_json_column = quote_identifier(db, json_column)
         # Sample some rows to discover JSON keys
         sample_sql = f"""
-            SELECT DISTINCT json_keys({json_column}) as keys
-            FROM {table_name}
-            WHERE {json_column} IS NOT NULL
+            SELECT DISTINCT json_keys({quoted_json_column}) as keys
+            FROM {quoted_table_name}
+            WHERE {quoted_json_column} IS NOT NULL
             LIMIT 100
         """
         result = db.execute_sql(sample_sql, fetch=True)

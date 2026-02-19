@@ -17,8 +17,11 @@ import pandas as pd
 import yaml
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from niamoto.common.database import Database
+from niamoto.common.table_resolver import quote_identifier, resolve_reference_table
+from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.core.imports.class_object_analyzer import ClassObjectAnalyzer
 from niamoto.gui.api.context import get_database_path, get_working_directory
 
@@ -122,27 +125,18 @@ def _load_transform_config(work_dir: Path) -> dict[str, Any]:
         return {"groups": {}}
 
     with open(transform_path, "r", encoding="utf-8") as f:
-        raw_config = yaml.safe_load(f)
+        raw_config = yaml.safe_load(f) or []
 
-    if raw_config is None:
-        return {"groups": {}}
+    if not isinstance(raw_config, list):
+        raise HTTPException(
+            status_code=400, detail="transform.yml must be a list of groups"
+        )
 
-    # If it's already a dict with "groups", return as-is
-    if isinstance(raw_config, dict) and "groups" in raw_config:
-        return raw_config
-
-    # Convert list format to dict format
-    if isinstance(raw_config, list):
-        groups = {}
-        for item in raw_config:
-            if isinstance(item, dict) and "group_by" in item:
-                group_name = item["group_by"]
-                # Copy all keys except "group_by"
-                group_config = {k: v for k, v in item.items() if k != "group_by"}
-                groups[group_name] = group_config
-        return {"groups": groups}
-
-    return {"groups": {}}
+    groups: dict[str, dict[str, Any]] = {}
+    for item in validate_transform_config(raw_config):
+        group_name = item["group_by"]
+        groups[group_name] = {k: v for k, v in item.items() if k != "group_by"}
+    return {"groups": groups}
 
 
 def _save_transform_config(work_dir: Path, config: dict[str, Any]) -> None:
@@ -166,7 +160,7 @@ def _save_transform_config(work_dir: Path, config: dict[str, Any]) -> None:
     transform_path = config_dir / "transform.yml"
     with open(transform_path, "w", encoding="utf-8") as f:
         yaml.dump(
-            yaml_config,
+            validate_transform_config(yaml_config),
             f,
             default_flow_style=False,
             sort_keys=False,
@@ -179,14 +173,14 @@ def _get_reference_kind(work_dir: Path, reference_name: str) -> str:
     """Get the kind of a reference from import.yml."""
     import_path = work_dir / "config" / "import.yml"
     if not import_path.exists():
-        return "flat"  # Default
+        return "generic"  # Default
 
     with open(import_path, "r", encoding="utf-8") as f:
         import_config = yaml.safe_load(f) or {}
 
-    references = import_config.get("entities", {}).get("references", {})
+    references = import_config.get("entities", {}).get("references", {}) or {}
     ref_config = references.get(reference_name, {})
-    return ref_config.get("kind", "flat")
+    return ref_config.get("kind", "generic")
 
 
 def _get_reference_entity_info(
@@ -206,13 +200,16 @@ def _get_reference_entity_info(
 
     try:
         db = Database(str(db_path), read_only=True)
-        entity_table = f"entity_{reference_name}"
+        entity_table = resolve_reference_table(db, reference_name)
 
-        if not db.has_table(entity_table):
+        if not entity_table:
             return None
 
         # Get columns from the entity table
-        columns_df = pd.read_sql(f"SELECT * FROM {entity_table} LIMIT 0", db.engine)
+        quoted_entity_table = quote_identifier(db, entity_table)
+        columns_df = pd.read_sql(
+            text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+        )
         columns = columns_df.columns.tolist()
 
         # Filter out internal/geometry columns for cleaner display
@@ -223,7 +220,7 @@ def _get_reference_entity_info(
 
         return ConfiguredSource(
             name=reference_name,
-            data_path=f"entity_{reference_name}",  # Virtual path indicating DB table
+            data_path=entity_table,  # Virtual path indicating DB table
             grouping=reference_name,
             relation_plugin="builtin",
             is_builtin=True,
@@ -276,24 +273,38 @@ def _detect_relation_fields(
         logger.warning("Database not found, using default relation fields")
         return ref_field, match_field
 
+    def _quote_duck_identifier(identifier: str) -> str:
+        return '"' + identifier.replace('"', '""') + '"'
+
+    conn = None
     try:
         conn = duckdb.connect(str(db_path), read_only=True)
-
-        # Get entity table name
-        entity_table = f"entity_{reference_name}"
 
         # Check if table exists
         tables = conn.execute(
             "SELECT table_name FROM information_schema.tables WHERE table_schema='main'"
         ).fetchall()
-        table_names = [t[0] for t in tables]
+        table_lookup = {str(t[0]).lower(): str(t[0]) for t in tables}
+        table_candidates = [
+            f"entity_{reference_name}",
+            f"reference_{reference_name}",
+            reference_name,
+        ]
+        entity_table = next(
+            (
+                table_lookup[candidate.lower()]
+                for candidate in table_candidates
+                if candidate.lower() in table_lookup
+            ),
+            None,
+        )
 
-        if entity_table not in table_names:
-            conn.close()
+        if not entity_table:
             return ref_field, match_field
 
         # Get columns from entity table that could be join keys
-        entity_cols = conn.execute(f"DESCRIBE {entity_table}").fetchall()
+        quoted_entity_table = _quote_duck_identifier(entity_table)
+        entity_cols = conn.execute(f"DESCRIBE {quoted_entity_table}").fetchall()
         # Filter to string/varchar columns that could be used for matching
         matchable_entity_cols = [
             c[0]
@@ -310,8 +321,10 @@ def _detect_relation_fields(
         entity_values: dict[str, set[str]] = {}
         for col in matchable_entity_cols:
             try:
+                quoted_col = _quote_duck_identifier(col)
                 result = conn.execute(
-                    f'SELECT DISTINCT CAST("{col}" AS VARCHAR) FROM {entity_table} LIMIT 1000'
+                    f"SELECT DISTINCT CAST({quoted_col} AS VARCHAR) "
+                    f"FROM {quoted_entity_table} LIMIT 1000"
                 ).fetchall()
                 entity_values[col] = {str(r[0]) for r in result if r[0] is not None}
             except Exception:
@@ -336,18 +349,17 @@ def _detect_relation_fields(
 
         for col in csv_candidates:
             try:
+                quoted_col = _quote_duck_identifier(col)
                 result = conn.execute(
-                    f"""
-                    SELECT DISTINCT CAST("{col}" AS VARCHAR)
-                    FROM read_csv_auto('{csv_path}', delim='{delimiter}', header=true)
-                    LIMIT 1000
-                """
+                    (
+                        f"SELECT DISTINCT CAST({quoted_col} AS VARCHAR) "
+                        "FROM read_csv_auto(?, delim=?, header=true) LIMIT 1000"
+                    ),
+                    [str(csv_path), delimiter],
                 ).fetchall()
                 csv_values[col] = {str(r[0]) for r in result if r[0] is not None}
             except Exception:
                 continue
-
-        conn.close()
 
         # Find best match: compare each CSV column with each entity column
         best_score = 0.0
@@ -389,6 +401,9 @@ def _detect_relation_fields(
     except Exception as e:
         logger.warning(f"Error during smart relation detection: {e}")
         return ref_field, match_field
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # =============================================================================

@@ -151,7 +151,7 @@ class ReferenceInfo(BaseModel):
 
     name: str
     table_name: str  # Actual table name from EntityRegistry
-    kind: str  # "hierarchical" | "flat" | "spatial"
+    kind: str  # "hierarchical" | "generic" | "spatial"
     description: Optional[str] = None
     schema_fields: List[Dict[str, Any]] = []
     entity_count: Optional[int] = None
@@ -236,7 +236,7 @@ async def get_references():
             if not isinstance(ref_config, dict):
                 continue
 
-            kind = ref_config.get("kind", "flat")
+            kind = ref_config.get("kind", "generic")
             description = ref_config.get("description")
 
             # Get actual table name from registry, fallback to convention
@@ -1070,10 +1070,10 @@ async def validate_import_v2(request: ImportConfigValidateRequest):
                     elif entity_config["kind"] not in [
                         "hierarchical",
                         "spatial",
-                        "flat",
+                        "generic",
                     ]:
                         entity_errors.append(
-                            "Kind must be 'hierarchical', 'spatial', or 'flat'"
+                            "Kind must be 'hierarchical', 'spatial', or 'generic'"
                         )
 
                     # Validate hierarchical specific
@@ -1255,7 +1255,7 @@ async def get_import_v2_schema():
                 "properties": {
                     "kind": {
                         "type": "string",
-                        "enum": ["hierarchical", "spatial", "flat"],
+                        "enum": ["hierarchical", "spatial", "generic"],
                     },
                     "description": {"type": "string"},
                     "connector": {"$ref": "#/definitions/Connector"},
@@ -2455,7 +2455,9 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
     try:
         import pandas as pd
         from niamoto.common.database import Database
+        from niamoto.common.table_resolver import quote_identifier, resolve_entity_table
         from niamoto.core.imports.registry import EntityRegistry
+        from sqlalchemy import text
 
         db_path = get_working_directory() / "db" / "niamoto.duckdb"
         if not db_path.exists():
@@ -2498,17 +2500,9 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         # Fallback to common patterns
         if not source_table:
-            possible_tables = [
-                f"entity_{source_entity}",
-                f"reference_{source_entity}",
-                source_entity,
-            ]
             db = Database(str(db_path), read_only=True)
             try:
-                for table_name in possible_tables:
-                    if db.has_table(table_name):
-                        source_table = table_name
-                        break
+                source_table = resolve_entity_table(db, source_entity)
             finally:
                 db.close_db_session()
 
@@ -2535,9 +2529,13 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             # Use the actual transformed data
             db = Database(str(db_path), read_only=True)
             try:
-                df = pd.read_sql(f"SELECT * FROM {stats_table} LIMIT 100", db.engine)
+                quoted_stats_table = quote_identifier(db, stats_table)
+                df = pd.read_sql(
+                    text(f"SELECT * FROM {quoted_stats_table} LIMIT 100"), db.engine
+                )
                 total_count = pd.read_sql(
-                    f"SELECT COUNT(*) as cnt FROM {stats_table}", db.engine
+                    text(f"SELECT COUNT(*) as cnt FROM {quoted_stats_table}"),
+                    db.engine,
                 ).iloc[0]["cnt"]
 
                 # Analyze each column
@@ -2599,11 +2597,14 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
             # Infer schema from transform.yml using source data
             db = Database(str(db_path), read_only=True)
             try:
+                quoted_source_table = quote_identifier(db, source_table)
                 source_df = pd.read_sql(
-                    f"SELECT * FROM {source_table} LIMIT 100", db.engine
+                    text(f"SELECT * FROM {quoted_source_table} LIMIT 100"),
+                    db.engine,
                 )
                 total_count = pd.read_sql(
-                    f"SELECT COUNT(*) as cnt FROM {source_table}", db.engine
+                    text(f"SELECT COUNT(*) as cnt FROM {quoted_source_table}"),
+                    db.engine,
                 ).iloc[0]["cnt"]
 
                 # Infer schema from transform config
@@ -2623,7 +2624,10 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         hierarchy_info = {"is_hierarchical": False}
         db = Database(str(db_path), read_only=True)
         try:
-            check_df = pd.read_sql(f"SELECT * FROM {source_table} LIMIT 10", db.engine)
+            quoted_source_table = quote_identifier(db, source_table)
+            check_df = pd.read_sql(
+                text(f"SELECT * FROM {quoted_source_table} LIMIT 10"), db.engine
+            )
             hierarchy_info = _detect_hierarchical_structure(check_df)
         except Exception:
             pass
