@@ -5,8 +5,9 @@ The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
 
-from typing import TypeVar, Any, Optional, List, Dict
+from typing import TypeVar, Any, Optional, List, Dict, Set
 import warnings
+import time
 from sqlalchemy import create_engine, event, exc, text, inspect
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
@@ -113,6 +114,8 @@ class Database:
 
             self.session_factory = sessionmaker(bind=self.engine)
             self.session = scoped_session(self.session_factory)
+            self._table_names_cache: Optional[Set[str]] = None
+            self._table_names_cache_ts: float = 0.0
 
             # Apply engine-specific optimizations
             if optimize and self.is_sqlite:
@@ -445,8 +448,25 @@ class Database:
         Returns:
             bool: True if the table exists, False otherwise.
         """
-        inspector = inspect(self.engine)
-        return table_name in inspector.get_table_names()
+        return table_name in self._get_table_names_cached()
+
+    def _get_table_names_cached(self, max_age_seconds: float = 2.0) -> Set[str]:
+        """Return cached table names, refreshing periodically."""
+        now = time.monotonic()
+        should_refresh = (
+            self._table_names_cache is None
+            or (now - self._table_names_cache_ts) > max_age_seconds
+        )
+        if should_refresh:
+            inspector = inspect(self.engine)
+            self._table_names_cache = set(inspector.get_table_names())
+            self._table_names_cache_ts = now
+        return self._table_names_cache
+
+    def invalidate_table_names_cache(self) -> None:
+        """Invalidate cached table names (call after DDL operations)."""
+        self._table_names_cache = None
+        self._table_names_cache_ts = 0.0
 
     @error_handler(log=True, raise_error=True)
     def get_new_session(self) -> scoped_session[Session]:
