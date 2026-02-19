@@ -11,12 +11,128 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import yaml
+from sqlalchemy import text
 
+from niamoto.common.table_resolver import (
+    quote_identifier,
+    resolve_entity_table as shared_resolve_entity_table,
+)
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.core.imports.widget_generator import WidgetGenerator
 from niamoto.core.imports.class_object_suggester import suggest_widgets_for_source
 
 logger = logging.getLogger(__name__)
+
+
+def _load_import_config() -> Dict[str, Any]:
+    """Load import.yml from current working directory when available."""
+    work_dir = get_working_directory()
+    if not work_dir:
+        return {}
+
+    import_path = Path(work_dir) / "config" / "import.yml"
+    if not import_path.exists():
+        return {}
+
+    try:
+        with open(import_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return {}
+
+
+def _get_entity_registry(db: Any):
+    """Create an EntityRegistry when metadata table is available."""
+    try:
+        from niamoto.core.imports.registry import EntityRegistry
+
+        return EntityRegistry(db)
+    except Exception:
+        return None
+
+
+def _resolve_entity_table(
+    db: Any, entity_name: str, registry: Any = None, kind: Optional[str] = None
+) -> Optional[str]:
+    """Resolve entity table using shared resolver."""
+    return shared_resolve_entity_table(db, entity_name, registry=registry, kind=kind)
+
+
+def _get_reference_config(
+    reference_name: str, import_config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Return reference config from import.yml when available."""
+    references = import_config.get("entities", {}).get("references", {})
+    if isinstance(references, dict):
+        cfg = references.get(reference_name)
+        if isinstance(cfg, dict):
+            return cfg
+    return {}
+
+
+def _get_first_dataset_name(
+    import_config: Dict[str, Any], registry: Any = None
+) -> Optional[str]:
+    """Resolve default dataset name from registry metadata, then import.yml."""
+    if registry:
+        try:
+            from niamoto.core.imports.registry import EntityKind
+
+            datasets = registry.list_entities(kind=EntityKind.DATASET)
+            if datasets:
+                return datasets[0].name
+        except Exception:
+            pass
+
+    datasets_cfg = import_config.get("entities", {}).get("datasets", {})
+    if isinstance(datasets_cfg, dict) and datasets_cfg:
+        return next(iter(datasets_cfg))
+    return None
+
+
+def _pick_identifier_column(
+    columns: List[str],
+    entity_name: Optional[str] = None,
+    preferred: Optional[str] = None,
+) -> Optional[str]:
+    """Pick a likely identifier column."""
+    if not columns:
+        return None
+
+    lowered = {c.lower(): c for c in columns}
+    candidates: List[str] = []
+    if preferred:
+        candidates.append(preferred)
+    if entity_name:
+        candidates.extend([f"id_{entity_name}", f"{entity_name}_id", entity_name])
+    candidates.extend(["id", "uuid"])
+
+    for candidate in candidates:
+        resolved = lowered.get(candidate.lower())
+        if resolved:
+            return resolved
+
+    return next((c for c in columns if c.lower().endswith("_id")), columns[0])
+
+
+def _pick_name_column(columns: List[str], id_field: str, entity_name: str) -> str:
+    """Pick a likely display name column."""
+    lowered = {c.lower(): c for c in columns}
+    candidates = ["full_name", "name", "label", "title", entity_name]
+    for candidate in candidates:
+        resolved = lowered.get(candidate.lower())
+        if resolved:
+            return resolved
+
+    return next(
+        (
+            c
+            for c in columns
+            if c != id_field
+            and any(token in c.lower() for token in ("name", "label", "title"))
+        ),
+        id_field,
+    )
 
 
 def generate_navigation_suggestion(reference_name: str) -> Optional[Dict[str, Any]]:
@@ -44,57 +160,47 @@ def generate_navigation_suggestion(reference_name: str) -> Optional[Dict[str, An
 
         db = Database(str(db_path), read_only=True)
         try:
-            # Try to find the reference table
-            table_name = f"reference_{reference_name}"
-            if not db.has_table(table_name):
-                # Try other naming conventions
-                for alt_name in [reference_name, f"entity_{reference_name}"]:
-                    if db.has_table(alt_name):
-                        table_name = alt_name
-                        break
-                else:
-                    # No table found - return basic suggestion
-                    return WidgetGenerator.generate_navigation_suggestion(
-                        reference_name=reference_name,
-                        is_hierarchical=False,
-                        hierarchy_fields=None,
-                    )
+            import_config = _load_import_config()
+            ref_config = _get_reference_config(reference_name, import_config)
+            registry = _get_entity_registry(db)
+
+            table_name = _resolve_entity_table(
+                db, reference_name, registry=registry, kind="reference"
+            )
+            if not table_name:
+                return WidgetGenerator.generate_navigation_suggestion(
+                    reference_name=reference_name,
+                    is_hierarchical=False,
+                    hierarchy_fields=None,
+                )
 
             # Get column names from the table
+            quoted_table_name = quote_identifier(db, table_name)
             columns_df = pd.read_sql(
-                f"SELECT * FROM {table_name} LIMIT 0",
+                text(f"SELECT * FROM {quoted_table_name} LIMIT 0"),
                 db.engine,
             )
-            columns = set(columns_df.columns.tolist())
+            columns = columns_df.columns.tolist()
+            columns_set = set(columns)
 
             # Detect hierarchy structure
-            has_nested_set = "lft" in columns and "rght" in columns
-            has_parent = "parent_id" in columns
-            has_level = "level" in columns
+            has_nested_set = "lft" in columns_set and "rght" in columns_set
+            has_parent = "parent_id" in columns_set
+            has_level = "level" in columns_set
 
             is_hierarchical = has_nested_set or (has_parent and has_level)
 
             # Detect ID field
-            id_candidates = [f"id_{reference_name}", f"{reference_name}_id", "id"]
-            id_field = next((c for c in id_candidates if c in columns), None)
+            schema = (
+                ref_config.get("schema", {}) if isinstance(ref_config, dict) else {}
+            )
+            preferred_id = schema.get("id_field") if isinstance(schema, dict) else None
+            id_field = _pick_identifier_column(
+                columns, entity_name=reference_name, preferred=preferred_id
+            )
             if not id_field:
-                id_field = next((c for c in columns if "id" in c.lower()), "id")
-
-            # Detect name field
-            name_candidates = [
-                "full_name",
-                "name",
-                "plot",
-                "label",
-                "title",
-                reference_name,
-            ]
-            name_field = next((c for c in name_candidates if c in columns), None)
-            if not name_field:
-                name_field = next(
-                    (c for c in columns if c != id_field and "name" in c.lower()),
-                    id_field,
-                )
+                id_field = "id"
+            name_field = _pick_name_column(columns, id_field, reference_name)
 
             hierarchy_fields = {
                 "has_nested_set": has_nested_set,
@@ -150,30 +256,26 @@ def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, 
             return None
 
         from niamoto.common.database import Database
-        from niamoto.core.imports.registry import EntityRegistry, EntityKind
 
         db = Database(str(db_path), read_only=True)
         try:
-            registry = EntityRegistry(db)
+            import_config = _load_import_config()
+            ref_config = _get_reference_config(reference_name, import_config)
+            registry = _get_entity_registry(db)
 
-            # Try to find the reference table
-            ref_table = f"reference_{reference_name}"
-            if not db.has_table(ref_table):
-                for alt_name in [reference_name, f"entity_{reference_name}"]:
-                    if db.has_table(alt_name):
-                        ref_table = alt_name
-                        break
-                else:
-                    return None
+            ref_table = _resolve_entity_table(
+                db, reference_name, registry=registry, kind="reference"
+            )
+            if not ref_table:
+                return None
 
             # Get column info to exclude geometry columns (binary WKB causes encoding errors)
-            from sqlalchemy import text
-
+            quoted_ref_table = quote_identifier(db, ref_table)
             with db.engine.connect() as conn:
-                result = conn.execute(text(f"DESCRIBE {ref_table}"))
+                result = conn.execute(text(f"DESCRIBE {quoted_ref_table}"))
                 col_info = result.fetchall()
             safe_columns = [
-                f'"{c[0]}"'
+                quote_identifier(db, c[0])
                 for c in col_info
                 if c[1].upper() not in ("GEOMETRY", "BLOB", "BYTEA")
                 and not c[0].endswith("_geom")
@@ -184,7 +286,8 @@ def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, 
             # Get sample data to analyze columns (excluding geometry)
             columns_sql = ", ".join(safe_columns)
             sample_df = pd.read_sql(
-                f"SELECT {columns_sql} FROM {ref_table} LIMIT 100", db.engine
+                text(f"SELECT {columns_sql} FROM {quoted_ref_table} LIMIT 100"),
+                db.engine,
             )
             if sample_df.empty:
                 return None
@@ -320,16 +423,45 @@ def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, 
                 except Exception:
                     pass
 
-            # Add occurrence count if available
+            # Add source dataset count if available
             try:
-                datasets = registry.list_entities(kind=EntityKind.DATASET)
-                has_occurrences = any(d.name == "occurrences" for d in datasets)
-                if has_occurrences:
+                relation = (
+                    ref_config.get("relation", {})
+                    if isinstance(ref_config, dict)
+                    else {}
+                )
+                connector = (
+                    ref_config.get("connector", {})
+                    if isinstance(ref_config, dict)
+                    else {}
+                )
+                source_dataset = relation.get("dataset") or connector.get("source")
+                if not source_dataset:
+                    source_dataset = _get_first_dataset_name(import_config, registry)
+
+                source_table = _resolve_entity_table(
+                    db, source_dataset or "", registry=registry, kind="dataset"
+                )
+                if source_dataset and source_table:
+                    quoted_source_table = quote_identifier(db, source_table)
+                    dataset_cols = pd.read_sql(
+                        text(f"SELECT * FROM {quoted_source_table} LIMIT 0"), db.engine
+                    ).columns.tolist()
+                    count_field = _pick_identifier_column(
+                        dataset_cols, entity_name=source_dataset
+                    )
+                    if not count_field and dataset_cols:
+                        count_field = dataset_cols[0]
+                    if count_field:
+                        count_target = f"{source_dataset}_count"
+                    else:
+                        count_target = "records_count"
+
                     field_configs.append(
                         {
-                            "source": "occurrences",
-                            "field": "id",
-                            "target": "occurrences_count",
+                            "source": source_dataset,
+                            "field": count_field or "id",
+                            "target": count_target,
                             "transformation": "count",
                         }
                     )
@@ -408,14 +540,20 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
     db = Database(str(db_path), read_only=True)
 
     try:
-        entity_table = f"entity_{reference_name}"
+        import_config = _load_import_config()
+        reference_config = _get_reference_config(reference_name, import_config)
+        registry = _get_entity_registry(db)
 
-        if not db.has_table(entity_table):
+        entity_table = _resolve_entity_table(
+            db, reference_name, registry=registry, kind="reference"
+        )
+        if not entity_table:
             return suggestions
 
+        quoted_entity_table = quote_identifier(db, entity_table)
         # Get columns from entity table
         columns_df = pd.read_sql(
-            f"SELECT * FROM {entity_table} LIMIT 0",
+            text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"),
             db.engine,
         )
         columns = columns_df.columns.tolist()
@@ -424,18 +562,35 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
         # STEP 1: Read import.yml for declared geometry fields
         # =====================================================================
         declared_geometry_fields = set()
-        reference_config = {}
 
-        if work_dir:
+        schema_cfg = (
+            reference_config.get("schema", {})
+            if isinstance(reference_config, dict)
+            else {}
+        )
+        schema_fields = (
+            schema_cfg.get("fields", []) if isinstance(schema_cfg, dict) else []
+        )
+        for field in schema_fields:
+            if isinstance(field, dict) and field.get("type") == "geometry":
+                field_name = field.get("name")
+                if field_name:
+                    declared_geometry_fields.add(field_name)
+
+        if work_dir and not reference_config:
             import_path = Path(work_dir) / "config" / "import.yml"
             if import_path.exists():
                 try:
                     with open(import_path, "r", encoding="utf-8") as f:
                         import_config = yaml.safe_load(f) or {}
 
-                    references = import_config.get("entities", {}).get("references", {})
+                    references = (
+                        import_config.get("entities", {}).get("references", {}) or {}
+                    )
                     ref_config = references.get(reference_name, {})
-                    reference_config = ref_config
+                    reference_config = (
+                        ref_config if isinstance(ref_config, dict) else {}
+                    )
                     schema = ref_config.get("schema", {})
                     fields = schema.get("fields", [])
 
@@ -457,8 +612,12 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
         def _validate_wkt_column(col_name: str) -> Optional[str]:
             """Check if column contains valid WKT geometry. Returns geometry type or None."""
             try:
+                quoted_col_name = quote_identifier(db, col_name)
                 sample = pd.read_sql(
-                    f'SELECT "{col_name}" FROM {entity_table} WHERE "{col_name}" IS NOT NULL LIMIT 1',
+                    text(
+                        f"SELECT {quoted_col_name} FROM {quoted_entity_table} "
+                        f"WHERE {quoted_col_name} IS NOT NULL LIMIT 1"
+                    ),
                     db.engine,
                 )
                 if not sample.empty:
@@ -505,32 +664,18 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
         # =====================================================================
 
         # Detect ID field from schema or by pattern
-        id_field = reference_config.get("schema", {}).get("id_field")
+        schema = (
+            reference_config.get("schema", {})
+            if isinstance(reference_config, dict)
+            else {}
+        )
+        preferred_id = schema.get("id_field") if isinstance(schema, dict) else None
+        id_field = _pick_identifier_column(
+            columns, entity_name=reference_name, preferred=preferred_id
+        )
         if not id_field:
-            id_candidates = [
-                f"id_{reference_name}",
-                f"{reference_name}_id",
-                "id",
-                "id_plot",
-            ]
-            id_field = next((c for c in id_candidates if c in columns), None)
-            if not id_field:
-                id_field = next(
-                    (c for c in columns if c.lower().startswith("id")), "id"
-                )
-
-        # Detect name field for display
-        name_candidates = [
-            "full_name",
-            "name",
-            "plot",
-            "label",
-            "title",
-            reference_name,
-        ]
-        name_field = next((c for c in name_candidates if c in columns), None)
-        if not name_field:
-            name_field = next((c for c in columns if "name" in c.lower()), id_field)
+            id_field = "id"
+        name_field = _pick_name_column(columns, id_field, reference_name)
 
         # =====================================================================
         # STEP 4: Generate suggestions
@@ -724,14 +869,17 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
     db = Database(str(db_path), read_only=True)
 
     try:
-        entity_table = f"entity_{reference_name}"
-
-        if not db.has_table(entity_table):
+        registry = _get_entity_registry(db)
+        entity_table = _resolve_entity_table(
+            db, reference_name, registry=registry, kind="reference"
+        )
+        if not entity_table:
             return suggestions
 
+        quoted_entity_table = quote_identifier(db, entity_table)
         # Get sample data to analyze column types
         sample_df = pd.read_sql(
-            f"SELECT * FROM {entity_table} LIMIT 100",
+            text(f"SELECT * FROM {quoted_entity_table} LIMIT 100"),
             db.engine,
         )
 

@@ -1,5 +1,6 @@
 """Generic import API endpoints using entity registry and typed configurations."""
 
+import logging
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form
 from pydantic import BaseModel
@@ -12,9 +13,11 @@ from niamoto.common.exceptions import (
 )
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.common.table_resolver import quote_identifier
 from ..utils.database import open_database
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Import status tracking (in production, use a database)
 import_jobs: Dict[str, Dict[str, Any]] = {}
@@ -291,12 +294,15 @@ async def delete_entity(
                     ]
                     for table_name in table_names:
                         if db.has_table(table_name):
-                            db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+                            quoted_table = quote_identifier(db, table_name)
+                            db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
                             table_dropped = True
                             break
             except Exception as e:
                 # Log but don't fail - config was already updated
-                print(f"Warning: Could not drop table: {e}")
+                logger.warning(
+                    "Could not drop table for entity '%s': %s", entity_name, e
+                )
 
         return {
             "success": True,
@@ -323,7 +329,7 @@ async def list_entities() -> Dict[str, Any]:
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
-        generic_config = config.get_imports_config
+        generic_config = config.get_imports_config()
 
         # Get table names from EntityRegistry if available
         table_name_map: Dict[str, str] = {}
@@ -336,8 +342,8 @@ async def list_entities() -> Dict[str, Any]:
                         registry = EntityRegistry(db)
                         for entity in registry.list_entities():
                             table_name_map[entity.name] = entity.table_name
-        except Exception:
-            pass  # Continue without registry data
+        except Exception as exc:
+            logger.debug("Could not read entity registry for list_entities: %s", exc)
 
         references = []
         datasets = []
@@ -418,13 +424,19 @@ async def get_import_status() -> ImportStatusResponse:
 
                 if db.has_table(entity.table_name):
                     try:
+                        quoted_table_name = quote_identifier(db, entity.table_name)
                         count_row = db.execute_sql(
-                            f"SELECT COUNT(*) FROM {entity.table_name}", fetch=True
+                            f"SELECT COUNT(*) FROM {quoted_table_name}", fetch=True
                         )
                         row_count = count_row[0] if count_row else 0
                         is_imported = row_count > 0
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(
+                            "Could not count rows for entity '%s' (table '%s'): %s",
+                            entity.name,
+                            entity.table_name,
+                            exc,
+                        )
 
                 status = ImportStatus(
                     entity_name=entity.name,
@@ -476,7 +488,7 @@ async def process_generic_import_all(
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
-        generic_config = config.get_imports_config
+        generic_config = config.get_imports_config()
         importer = ImporterService(config.database_path)
 
         try:
@@ -518,10 +530,7 @@ async def process_generic_import_all(
         job["errors"].append(str(e))
         job["message"] = f"Import failed: {str(e)}"
 
-        import traceback
-
-        print(f"Import failed: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.exception("Import-all job '%s' failed: %s", job_id, e)
 
 
 async def process_generic_import_entity(
@@ -554,7 +563,7 @@ async def process_generic_import_entity(
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
-        generic_config = config.get_imports_config
+        generic_config = config.get_imports_config()
         importer = ImporterService(config.database_path)
 
         try:
@@ -615,7 +624,10 @@ async def process_generic_import_entity(
         job["errors"].append(str(e))
         job["message"] = f"Import failed: {str(e)}"
 
-        import traceback
-
-        print(f"Import failed: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.exception(
+            "Import job '%s' failed for %s '%s': %s",
+            job_id,
+            entity_type,
+            entity_name,
+            e,
+        )

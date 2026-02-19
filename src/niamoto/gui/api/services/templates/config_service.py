@@ -10,29 +10,31 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from niamoto.common.transform_config_models import validate_transform_config
+
 logger = logging.getLogger(__name__)
 
 
 def load_transform_config(work_dir: Path) -> List[Dict[str, Any]]:
-    """Load transform.yml configuration as list format.
+    """Load canonical transform.yml configuration (list of groups).
 
     Args:
         work_dir: Working directory containing config/transform.yml
 
     Returns:
-        List of transform group configurations, empty list if file doesn't exist
+        List of validated transform group configurations
     """
     transform_path = work_dir / "config" / "transform.yml"
     if not transform_path.exists():
         return []
 
     with open(transform_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+        config = yaml.safe_load(f) or []
 
-    # Handle both list and dict formats
-    if isinstance(config, list):
-        return config
-    return []
+    if not isinstance(config, list):
+        raise ValueError("transform.yml must be a list of groups")
+
+    return validate_transform_config(config)
 
 
 def save_transform_config(
@@ -40,7 +42,7 @@ def save_transform_config(
     config: List[Dict[str, Any]],
     create_backup: bool = False,
 ) -> None:
-    """Save transform.yml configuration in list format.
+    """Save transform.yml configuration in canonical list format.
 
     Args:
         work_dir: Working directory containing config/transform.yml
@@ -56,9 +58,11 @@ def save_transform_config(
     if create_backup and transform_path.exists():
         _create_backup_file(transform_path)
 
+    canonical_config = validate_transform_config(config)
+
     with open(transform_path, "w", encoding="utf-8") as f:
         yaml.dump(
-            config,
+            canonical_config,
             f,
             default_flow_style=False,
             sort_keys=False,
@@ -141,8 +145,6 @@ def find_export_group(
 ) -> Optional[Dict[str, Any]]:
     """Find export group by group_by value.
 
-    Handles both new format (exports[].groups[]) and legacy format.
-
     Args:
         export_config: Export configuration dict
         group_by: The group_by value to search for
@@ -152,11 +154,7 @@ def find_export_group(
     """
     exports = export_config.get("exports", [])
     for export_entry in exports:
-        # Try new format: exports[].groups[]
         groups = export_entry.get("groups", [])
-        if not groups:
-            # Try legacy format: exports[].params.groups[]
-            groups = export_entry.get("params", {}).get("groups", [])
         for group in groups:
             if group.get("group_by") == group_by:
                 return group
@@ -183,7 +181,7 @@ def find_or_create_transform_group(
     new_group = {
         "group_by": group_by,
         "sources": [],
-        "widgets": [],
+        "widgets_data": {},
     }
     groups.append(new_group)
     return new_group

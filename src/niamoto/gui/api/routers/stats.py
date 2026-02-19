@@ -2,17 +2,26 @@
 
 import csv
 import io
-from typing import Any, Dict, List, Optional
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import inspect, text
+import yaml
 
+from niamoto.common.table_resolver import (
+    resolve_dataset_table_name,
+    resolve_entity_table_name,
+    resolve_reference_table_name,
+)
 from ..utils.database import open_database
 from ..context import get_working_directory
 from .database import get_database_path
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -171,7 +180,7 @@ class SpatialAnalysisResult(BaseModel):
 class ShapeOccurrenceCount(BaseModel):
     """Occurrence count for a single shape."""
 
-    shape_id: int
+    shape_id: str
     shape_name: str
     shape_type: str
     occurrence_count: int
@@ -208,35 +217,15 @@ class ValidationRules(BaseModel):
 # =============================================================================
 
 
-def get_entity_tables() -> Dict[str, str]:
-    """Map entity types to their expected table names."""
-    # Standard Niamoto table patterns
-    return {
-        "occurrences": "dataset",
-        "taxon": "reference",
-        "taxons": "reference",
-        "plots": "dataset",
-        "plot_occurrences": "dataset",
-        "shapes": "reference",
-    }
-
-
 def classify_table_type(table_name: str) -> str:
-    """Classify a table as dataset, reference, or layer."""
+    """Classify a table as dataset, reference, or layer (fallback heuristics)."""
     table_lower = table_name.lower()
-
-    # References
-    if any(
-        ref in table_lower
-        for ref in ["taxon", "taxonomy", "reference", "shapes", "communes", "provinces"]
-    ):
-        return "reference"
 
     # Layers (metadata)
     if any(layer in table_lower for layer in ["layer", "raster", "vector", "dem"]):
         return "layer"
 
-    # Default to dataset
+    # Conservative fallback: treat unknown business tables as dataset.
     return "dataset"
 
 
@@ -282,19 +271,11 @@ def detect_coordinate_columns(columns: List[str]) -> Dict[str, str]:
 
 def find_table_by_pattern(table_names: List[str], pattern: str) -> Optional[str]:
     """Find a table matching a pattern (handles dataset_*, entity_* prefixes)."""
+    resolved = resolve_entity_table_name(table_names, pattern)
+    if resolved:
+        return resolved
+
     pattern_lower = pattern.lower()
-
-    # Exact match first
-    for t in table_names:
-        if t.lower() == pattern_lower:
-            return t
-
-    # Then with prefixes
-    prefixes = ["dataset_", "entity_", "ref_", ""]
-    for prefix in prefixes:
-        for t in table_names:
-            if t.lower() == f"{prefix}{pattern_lower}":
-                return t
 
     # Partial match
     for t in table_names:
@@ -302,6 +283,307 @@ def find_table_by_pattern(table_names: List[str], pattern: str) -> Optional[str]
             return t
 
     return None
+
+
+def _load_import_entities_config() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Load datasets/references definitions from import.yml when available."""
+    try:
+        work_dir = get_working_directory()
+        if not work_dir:
+            return {}, {}
+
+        import_path = Path(work_dir) / "config" / "import.yml"
+        if not import_path.exists():
+            return {}, {}
+
+        with open(import_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+        entities = config.get("entities", {}) or {}
+        datasets = entities.get("datasets", {}) or {}
+        references = entities.get("references", {}) or {}
+
+        if not isinstance(datasets, dict):
+            datasets = {}
+        if not isinstance(references, dict):
+            references = {}
+
+        return datasets, references
+    except Exception as exc:
+        logger.debug("Failed to load entities from import.yml: %s", exc)
+        return {}, {}
+
+
+def _resolve_physical_table_name(
+    table_names: List[str], logical_name: Optional[str]
+) -> Optional[str]:
+    """Resolve logical entity name to an existing physical table."""
+    return resolve_entity_table_name(table_names, logical_name)
+
+
+def _resolve_occurrence_table(
+    table_names: List[str], occurrence_entity: str, datasets: Dict[str, Any]
+) -> Optional[str]:
+    """Resolve occurrence dataset table from explicit query param, then config."""
+    # 1) Explicit entity/table requested by caller.
+    resolved = resolve_dataset_table_name(table_names, occurrence_entity)
+    if resolved:
+        return resolved
+
+    # 2) Preferred dataset from import config.
+    preferred_dataset = None
+    if occurrence_entity in datasets:
+        preferred_dataset = occurrence_entity
+    elif "occurrences" in datasets:
+        preferred_dataset = "occurrences"
+    elif datasets:
+        preferred_dataset = next(iter(datasets))
+
+    resolved = resolve_dataset_table_name(table_names, preferred_dataset)
+    if resolved:
+        return resolved
+
+    # 3) Last-resort fuzzy match for backward compatibility.
+    for table in table_names:
+        if occurrence_entity.lower() in table.lower():
+            return table
+    return None
+
+
+def _resolve_entity_table(
+    table_names: List[str],
+    entity_name: str,
+    datasets: Dict[str, Any],
+    references: Dict[str, Any],
+) -> Optional[str]:
+    """Resolve any dataset/reference logical name to a physical table."""
+    if entity_name in references:
+        resolved = resolve_reference_table_name(table_names, entity_name)
+        if resolved:
+            return resolved
+    if entity_name in datasets:
+        resolved = resolve_dataset_table_name(table_names, entity_name)
+        if resolved:
+            return resolved
+
+    resolved = resolve_entity_table_name(table_names, entity_name)
+    if resolved:
+        return resolved
+
+    # Special case: default occurrence entity with project-specific dataset naming.
+    if entity_name == "occurrences":
+        resolved = _resolve_occurrence_table(table_names, entity_name, datasets)
+        if resolved:
+            return resolved
+
+    # Backward-compatible fuzzy fallback.
+    return find_table_by_pattern(table_names, entity_name)
+
+
+def _build_entity_type_map(
+    table_names: List[str], datasets: Dict[str, Any], references: Dict[str, Any]
+) -> Dict[str, str]:
+    """Build table->entity_type mapping from config metadata."""
+    type_map: Dict[str, str] = {}
+
+    for dataset_name in datasets:
+        table = resolve_dataset_table_name(table_names, dataset_name)
+        if table:
+            type_map[table] = "dataset"
+
+    for ref_name in references:
+        table = resolve_reference_table_name(table_names, ref_name)
+        if table:
+            type_map[table] = "reference"
+
+    return type_map
+
+
+def _resolve_taxonomy_table_name(
+    table_names: List[str], references: Dict[str, Any], requested: str
+) -> Optional[str]:
+    """Resolve taxonomy reference table from explicit request/config metadata."""
+    # 1) Explicit reference name from query.
+    resolved = resolve_reference_table_name(table_names, requested)
+    if resolved:
+        return resolved
+
+    # 2) If requested matches a configured reference, use it.
+    if requested in references:
+        resolved = resolve_reference_table_name(table_names, requested)
+        if resolved:
+            return resolved
+
+    # 3) Prefer first hierarchical reference from config.
+    for ref_name, ref_cfg in references.items():
+        if isinstance(ref_cfg, dict) and ref_cfg.get("kind") == "hierarchical":
+            resolved = resolve_reference_table_name(table_names, ref_name)
+            if resolved:
+                return resolved
+
+    # 4) Fallback to legacy fuzzy match for compatibility with older DBs.
+    return find_table_by_pattern(table_names, requested)
+
+
+def _find_geometry_column(
+    columns_info: List[Dict[str, Any]],
+) -> Tuple[Optional[str], bool]:
+    """Detect geometry column and whether it's native GEOMETRY/BYTEA."""
+    native_patterns = ["_geom", "geometry", "the_geom", "wkb_geometry"]
+    wkt_patterns = ["geo_pt", "geo", "geom", "location", "wkt"]
+
+    wkt_candidate = None
+    for col in columns_info:
+        col_name = col["name"].lower()
+        col_type = str(col.get("type", "")).upper()
+
+        if "GEOMETRY" in col_type or "BYTEA" in col_type:
+            if any(col_name.endswith(p) or col_name == p for p in native_patterns):
+                return col["name"], True
+        elif wkt_candidate is None and any(p in col_name for p in wkt_patterns):
+            wkt_candidate = col["name"]
+
+    return wkt_candidate, False
+
+
+def _pick_first_existing(
+    columns_by_lower: Dict[str, str], candidates: List[Optional[str]]
+) -> Optional[str]:
+    """Return first candidate column that exists in table columns."""
+    for candidate in candidates:
+        if not candidate:
+            continue
+        resolved = columns_by_lower.get(str(candidate).lower())
+        if resolved:
+            return resolved
+    return None
+
+
+def _resolve_spatial_reference_tables(
+    table_names: List[str],
+    inspector: Any,
+    references: Dict[str, Any],
+    occurrence_table: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Resolve spatial reference tables from config first, then fallback by geometry."""
+    spatial_tables: List[Dict[str, Any]] = []
+    seen_tables: set[str] = set()
+
+    # Config-first resolution: explicit spatial references from import.yml.
+    for ref_name, ref_cfg in references.items():
+        if not isinstance(ref_cfg, dict):
+            continue
+
+        connector = ref_cfg.get("connector", {}) or {}
+        is_spatial = (
+            ref_cfg.get("kind") == "spatial"
+            or connector.get("type") == "file_multi_feature"
+        )
+        if not is_spatial:
+            continue
+
+        table_name = resolve_reference_table_name(table_names, ref_name)
+        if not table_name or table_name in seen_tables:
+            continue
+        seen_tables.add(table_name)
+
+        columns_info = inspector.get_columns(table_name)
+        geo_column, is_native = _find_geometry_column(columns_info)
+        column_names = [col["name"] for col in columns_info]
+        columns_by_lower = {c.lower(): c for c in column_names}
+        schema = (
+            ref_cfg.get("schema", {}) if isinstance(ref_cfg.get("schema"), dict) else {}
+        )
+
+        id_column = _pick_first_existing(
+            columns_by_lower,
+            [
+                schema.get("id_field"),
+                "id",
+                f"{ref_name}_id",
+                f"id_{ref_name.rstrip('s')}",
+            ],
+        ) or (column_names[0] if column_names else None)
+
+        name_column = (
+            _pick_first_existing(
+                columns_by_lower,
+                [
+                    "name",
+                    "full_name",
+                    "label",
+                    "title",
+                    ref_name.rstrip("s"),
+                    id_column,
+                ],
+            )
+            or id_column
+        )
+
+        type_column = _pick_first_existing(
+            columns_by_lower,
+            ["shape_type", "type", "entity_type", "category", "group"],
+        )
+
+        spatial_tables.append(
+            {
+                "reference_name": ref_name,
+                "table_name": table_name,
+                "display_name": (
+                    ref_cfg.get("description") or ref_name.replace("_", " ").title()
+                ),
+                "has_geometry": bool(geo_column),
+                "geo_column": geo_column,
+                "is_native": is_native,
+                "id_column": id_column,
+                "name_column": name_column,
+                "type_column": type_column,
+            }
+        )
+
+    # Fallback resolution for projects without/partial import.yml metadata.
+    if not spatial_tables:
+        for table_name in table_names:
+            if table_name in seen_tables:
+                continue
+            if occurrence_table and table_name == occurrence_table:
+                continue
+            if table_name.startswith("_") or table_name.startswith("sqlite"):
+                continue
+
+            columns_info = inspector.get_columns(table_name)
+            geo_column, is_native = _find_geometry_column(columns_info)
+            if not geo_column:
+                continue
+
+            column_names = [col["name"] for col in columns_info]
+            columns_by_lower = {c.lower(): c for c in column_names}
+            id_column = (
+                _pick_first_existing(columns_by_lower, ["id"]) or column_names[0]
+            )
+            name_column = _pick_first_existing(
+                columns_by_lower, ["name", "full_name", "label", "title", id_column]
+            )
+            type_column = _pick_first_existing(
+                columns_by_lower,
+                ["shape_type", "type", "entity_type", "category", "group"],
+            )
+
+            spatial_tables.append(
+                {
+                    "reference_name": table_name,
+                    "table_name": table_name,
+                    "display_name": table_name.replace("_", " ").title(),
+                    "has_geometry": True,
+                    "geo_column": geo_column,
+                    "is_native": is_native,
+                    "id_column": id_column,
+                    "name_column": name_column,
+                    "type_column": type_column,
+                }
+            )
+
+    return spatial_tables
 
 
 # =============================================================================
@@ -332,6 +614,8 @@ async def get_import_summary():
             preparer = db.engine.dialect.identifier_preparer
 
             table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
+            entity_type_map = _build_entity_type_map(table_names, datasets, references)
             entities = []
             total_rows = 0
             alerts = []
@@ -367,13 +651,20 @@ async def get_import_summary():
                             non_null = result.scalar() or 0
                             if row_count > 0:
                                 completeness_values.append(non_null / row_count)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug(
+                                "Completeness query failed for %s.%s: %s",
+                                table_name,
+                                col,
+                                exc,
+                            )
 
                     quality_score = calculate_quality_score(completeness_values)
                     quality_scores.append(quality_score)
 
-                    entity_type = classify_table_type(table_name)
+                    entity_type = entity_type_map.get(
+                        table_name, classify_table_type(table_name)
+                    )
 
                     entities.append(
                         EntitySummary(
@@ -529,9 +820,12 @@ async def get_spatial_stats(
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
-            # Find the entity using improved matching
+            datasets, references = _load_import_entities_config()
+            # Resolve table from config metadata first.
             table_names = inspector.get_table_names() or []
-            target_table = find_table_by_pattern(table_names, entity)
+            target_table = _resolve_entity_table(
+                table_names, entity, datasets, references
+            )
 
             if not target_table:
                 return SpatialStats(
@@ -599,7 +893,12 @@ async def get_spatial_stats(
                                 "max_x": float(row[2]),
                                 "max_y": float(row[3]),
                             }
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug(
+                            "Failed to compute WKT bounding box for table '%s': %s",
+                            target_table,
+                            exc,
+                        )
                         bbox = None
 
                     return SpatialStats(
@@ -677,7 +976,7 @@ async def get_spatial_stats(
 
 @router.get("/taxonomy-consistency", response_model=TaxonomyConsistency)
 async def get_taxonomy_consistency(
-    entity: str = Query(default="taxon", description="Taxonomy entity name"),
+    entity: str = Query(default="taxons", description="Taxonomy reference name"),
 ):
     """
     Get taxonomy consistency analysis.
@@ -695,14 +994,11 @@ async def get_taxonomy_consistency(
         with open_database(db_path, read_only=True) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
+            _, references = _load_import_entities_config()
 
             # Find taxonomy table
             table_names = inspector.get_table_names() or []
-            target_table = None
-            for t in table_names:
-                if entity.lower() in t.lower() or "taxon" in t.lower():
-                    target_table = t
-                    break
+            target_table = _resolve_taxonomy_table_name(table_names, references, entity)
 
             if not target_table:
                 return TaxonomyConsistency(
@@ -922,7 +1218,13 @@ async def get_value_validation(
                             )
                             median_val = result.scalar()
                             median_val = float(median_val) if median_val else None
-                        except Exception:
+                        except Exception as exc:
+                            logger.debug(
+                                "Median computation failed for %s.%s: %s",
+                                entity,
+                                col_name,
+                                exc,
+                            )
                             median_val = None
 
                         # Outlier detection - initialize variables
@@ -1043,8 +1345,13 @@ async def get_value_validation(
                                                     is_outlier_zone=is_outlier,
                                                 )
                                             )
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.warning(
+                                    "IQR outlier analysis failed for %s.%s: %s",
+                                    entity,
+                                    col_name,
+                                    exc,
+                                )
 
                         elif method == "zscore":
                             # Z-score: outlier if |z| > threshold (z = (x - mean) / std)
@@ -1153,8 +1460,13 @@ async def get_value_validation(
                                                         is_outlier_zone=is_outlier,
                                                     )
                                                 )
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.warning(
+                                    "Z-score outlier analysis failed for %s.%s: %s",
+                                    entity,
+                                    col_name,
+                                    exc,
+                                )
 
                         elif method == "percentile":
                             # Percentile: outlier if value < P(threshold) or > P(100-threshold)
@@ -1260,8 +1572,13 @@ async def get_value_validation(
                                                     is_outlier_zone=is_outlier,
                                                 )
                                             )
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.warning(
+                                    "Percentile outlier analysis failed for %s.%s: %s",
+                                    entity,
+                                    col_name,
+                                    exc,
+                                )
 
                         validations.append(
                             ColumnValidation(
@@ -1485,13 +1802,12 @@ async def get_geo_coverage(
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
 
-            # Find occurrence table
-            occ_table = None
-            for t in table_names:
-                if occurrence_entity.lower() in t.lower():
-                    occ_table = t
-                    break
+            # Resolve occurrence table from explicit param/config.
+            occ_table = _resolve_occurrence_table(
+                table_names, occurrence_entity, datasets
+            )
 
             if not occ_table:
                 return GeoCoverage(
@@ -1511,24 +1827,7 @@ async def get_geo_coverage(
 
             # Find geo column in occurrences
             columns_info = inspector.get_columns(occ_table)
-            geo_column = None
-            native_geo_patterns = ["_geom", "geometry", "the_geom", "wkb_geometry"]
-            wkt_patterns = ["geo_pt", "geo", "geom", "location", "wkt"]
-
-            for col in columns_info:
-                col_name = col["name"].lower()
-                col_type = str(col.get("type", "")).upper()
-
-                if "GEOMETRY" in col_type or "BYTEA" in col_type:
-                    if any(
-                        col_name.endswith(p) or col_name == p
-                        for p in native_geo_patterns
-                    ):
-                        geo_column = col["name"]
-                        break
-                elif any(p in col_name for p in wkt_patterns):
-                    if geo_column is None:
-                        geo_column = col["name"]
+            geo_column, _ = _find_geometry_column(columns_info)
 
             # Count occurrences with geometry
             occ_with_geo = 0
@@ -1542,82 +1841,59 @@ async def get_geo_coverage(
                     )
                     occ_with_geo = result.scalar() or 0
 
-            # Find shape tables and their info
-            shape_keywords = [
-                "shape",
-                "commune",
-                "province",
-                "foret",
-                "forest",
-                "zone",
-                "region",
-                "limite",
-            ]
-            native_shape_geo_patterns = [
-                "_geom",
-                "geometry",
-                "the_geom",
-                "wkb_geometry",
-            ]
-            wkt_shape_geo_patterns = ["geo", "geom", "wkt", "location"]
-
+            # Resolve spatial references from config (kind=spatial), fallback to geometry scan.
+            spatial_tables = _resolve_spatial_reference_tables(
+                table_names, inspector, references, occurrence_table=occ_table
+            )
             available_shapes = []
 
-            for t in table_names:
-                t_lower = t.lower()
-                if any(kw in t_lower for kw in shape_keywords):
-                    t_columns = inspector.get_columns(t)
-                    has_geo = False
+            for ref in spatial_tables:
+                table_name = ref["table_name"]
+                quoted_t = preparer.quote(table_name)
+                has_geo = ref.get("has_geometry", False)
+                type_column = ref.get("type_column")
 
-                    for col in t_columns:
-                        col_type = str(col.get("type", "")).upper()
-                        col_name = col["name"].lower()
+                # Get row count and distinct shape types (if available)
+                shape_count = 0
+                shape_types: List[str] = []
+                with db.engine.connect() as conn:
+                    result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_t}"))
+                    shape_count = result.scalar() or 0
 
-                        if "GEOMETRY" in col_type or "BYTEA" in col_type:
-                            if any(
-                                col_name.endswith(p) or col_name == p
-                                for p in native_shape_geo_patterns
-                            ):
-                                has_geo = True
-                                break
-                        elif col_name in wkt_shape_geo_patterns:
-                            has_geo = True
-                            break
-
-                    # Get shape count and types
-                    quoted_t = preparer.quote(t)
-                    with db.engine.connect() as conn:
-                        result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_t}"))
-                        shape_count = result.scalar() or 0
-
-                        # Try to get distinct shape types
-                        shape_types = []
+                    if type_column:
+                        quoted_type = preparer.quote(type_column)
                         try:
                             result = conn.execute(
                                 text(
                                     f"""
-                                    SELECT DISTINCT COALESCE(shape_type, type, 'unknown')
+                                    SELECT DISTINCT CAST({quoted_type} AS VARCHAR)
                                     FROM {quoted_t}
-                                    WHERE COALESCE(shape_type, type, 'unknown') != 'unknown'
+                                    WHERE {quoted_type} IS NOT NULL
+                                      AND CAST({quoted_type} AS VARCHAR) != ''
                                     LIMIT 10
                                 """
                                 )
                             )
-                            shape_types = [row[0] for row in result.fetchall()]
-                        except Exception:
-                            pass
+                            shape_types = [
+                                row[0] for row in result.fetchall() if row[0]
+                            ]
+                        except Exception as exc:
+                            logger.debug(
+                                "Failed to fetch shape types for table '%s': %s",
+                                table_name,
+                                exc,
+                            )
+                            shape_types = []
 
-                    available_shapes.append(
-                        ShapeInfo(
-                            table_name=t,
-                            display_name=t.replace("_", " ")
-                            .replace("entity ", "")
-                            .title(),
-                            shape_count=shape_count,
-                            has_geometry=has_geo,
-                            shape_types=shape_types,
-                        )
+                available_shapes.append(
+                    ShapeInfo(
+                        table_name=table_name,
+                        display_name=ref.get("display_name", table_name),
+                        shape_count=shape_count,
+                        has_geometry=has_geo,
+                        shape_types=shape_types,
                     )
+                )
 
             ready = bool(
                 geo_column
@@ -1666,13 +1942,12 @@ async def analyze_spatial_coverage(
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
 
-            # Find occurrence table
-            occ_table = None
-            for t in table_names:
-                if occurrence_entity.lower() in t.lower():
-                    occ_table = t
-                    break
+            # Resolve occurrence table from explicit param/config.
+            occ_table = _resolve_occurrence_table(
+                table_names, occurrence_entity, datasets
+            )
 
             if not occ_table:
                 return SpatialAnalysisResult(
@@ -1686,41 +1961,9 @@ async def analyze_spatial_coverage(
                     message=f"Occurrence table '{occurrence_entity}' not found",
                 )
 
-            # Find geo column in occurrences
-            # Priority: native GEOMETRY columns (BYTEA in SQLAlchemy) > WKT text columns
+            # Find geo column in occurrences.
             columns_info = inspector.get_columns(occ_table)
-            geo_column = None
-            wkt_column = None
-            occ_geo_is_native = False
-
-            # Patterns for native geometry columns (ending in _geom or named geometry)
-            native_geo_patterns = ["_geom", "geometry", "the_geom", "wkb_geometry"]
-            # Patterns for WKT text columns
-            wkt_patterns = ["geo_pt", "geo", "geom", "location", "wkt"]
-
-            for col in columns_info:
-                col_name = col["name"].lower()
-                col_type = str(col.get("type", "")).upper()
-
-                # Check for native GEOMETRY (reported as BYTEA or GEOMETRY by SQLAlchemy)
-                if "GEOMETRY" in col_type or "BYTEA" in col_type:
-                    # Only treat as native geometry if name matches expected patterns
-                    if any(
-                        col_name.endswith(p) or col_name == p
-                        for p in native_geo_patterns
-                    ):
-                        geo_column = col["name"]
-                        occ_geo_is_native = True
-                        break
-                # Track potential WKT columns as fallback
-                elif any(p in col_name for p in wkt_patterns):
-                    if wkt_column is None:
-                        wkt_column = col["name"]
-
-            # Use WKT column if no native GEOMETRY found
-            if not geo_column and wkt_column:
-                geo_column = wkt_column
-                occ_geo_is_native = False
+            geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
 
             if not geo_column:
                 return SpatialAnalysisResult(
@@ -1731,68 +1974,21 @@ async def analyze_spatial_coverage(
                     analysis_time_seconds=time.time() - start_time,
                     geo_column=None,
                     status="no_geo_column",
-                    message="No geometry column found in occurrences. Expected: geo, geom, geometry, location",
+                    message=f"No geometry column found in '{occ_table}'",
                 )
 
             quoted_occ = preparer.quote(occ_table)
             quoted_geo = preparer.quote(geo_column)
 
-            # Find shape tables with geometry columns
-            # Each entry: (table_name, geo_column, is_native_geometry)
-            shape_tables = []
-            shape_tables_without_geo = []
-            shape_keywords = [
-                "shape",
-                "commune",
-                "province",
-                "foret",
-                "forest",
-                "zone",
-                "region",
-                "limite",
+            spatial_tables = _resolve_spatial_reference_tables(
+                table_names, inspector, references, occurrence_table=occ_table
+            )
+            shape_tables = [s for s in spatial_tables if s.get("has_geometry")]
+            shape_tables_without_geo = [
+                s.get("table_name", "")
+                for s in spatial_tables
+                if not s.get("has_geometry")
             ]
-
-            # Patterns for detecting geometry columns
-            native_shape_geo_patterns = [
-                "_geom",
-                "geometry",
-                "the_geom",
-                "wkb_geometry",
-            ]
-            wkt_shape_geo_patterns = ["geo", "geom", "wkt", "location"]
-
-            for t in table_names:
-                t_lower = t.lower()
-                if any(kw in t_lower for kw in shape_keywords):
-                    # Check if it has a geometry column
-                    # Priority: native GEOMETRY type (BYTEA) > WKT column names
-                    t_columns = inspector.get_columns(t)
-                    native_geo_col = None
-                    wkt_geo_col = None
-
-                    for col in t_columns:
-                        col_type = str(col.get("type", "")).upper()
-                        col_name = col["name"].lower()
-
-                        # Native GEOMETRY type (BYTEA in SQLAlchemy, highest priority)
-                        if "GEOMETRY" in col_type or "BYTEA" in col_type:
-                            if any(
-                                col_name.endswith(p) or col_name == p
-                                for p in native_shape_geo_patterns
-                            ):
-                                native_geo_col = col["name"]
-                                break
-                        # WKT column names (fallback)
-                        elif col_name in wkt_shape_geo_patterns:
-                            if wkt_geo_col is None:
-                                wkt_geo_col = col["name"]
-
-                    if native_geo_col:
-                        shape_tables.append((t, native_geo_col, True))  # is_native=True
-                    elif wkt_geo_col:
-                        shape_tables.append((t, wkt_geo_col, False))  # is_native=False
-                    else:
-                        shape_tables_without_geo.append(t)
 
             if not shape_tables:
                 # No shape tables with geometry found
@@ -1839,7 +2035,10 @@ async def analyze_spatial_coverage(
                 with_geo = result.scalar() or 0
 
                 # For each shape table, count occurrences that intersect
-                for shape_table, shape_geo_col, shape_is_native in shape_tables:
+                for shape_meta in shape_tables:
+                    shape_table = shape_meta["table_name"]
+                    shape_geo_col = shape_meta["geo_column"]
+                    shape_is_native = shape_meta["is_native"]
                     quoted_shape = preparer.quote(shape_table)
                     quoted_shape_geo = preparer.quote(shape_geo_col)
 
@@ -1885,7 +2084,12 @@ async def analyze_spatial_coverage(
                             )
                         )
                         covered = result.scalar() or 0
-                    except Exception:
+                    except Exception as exc:
+                        logger.debug(
+                            "ST_Intersects failed for shape table '%s': %s",
+                            shape_table,
+                            exc,
+                        )
                         # Fallback: try with ST_Contains
                         try:
                             result = conn.execute(
@@ -1903,7 +2107,12 @@ async def analyze_spatial_coverage(
                                 )
                             )
                             covered = result.scalar() or 0
-                        except Exception:
+                        except Exception as exc:
+                            logger.debug(
+                                "ST_Contains fallback failed for shape table '%s': %s",
+                                shape_table,
+                                exc,
+                            )
                             # Spatial functions not available or query failed
                             covered = 0
 
@@ -1911,7 +2120,7 @@ async def analyze_spatial_coverage(
 
                     shape_coverage.append(
                         ShapeCoverageDetail(
-                            shape_type=shape_table.replace("_", " ").title(),
+                            shape_type=shape_meta.get("display_name", shape_table),
                             shape_table=shape_table,
                             total_shapes=total_shapes,
                             occurrences_covered=covered,
@@ -1970,13 +2179,12 @@ async def get_shape_distribution(
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
 
-            # Find occurrence table
-            occ_table = None
-            for t in table_names:
-                if occurrence_entity.lower() in t.lower():
-                    occ_table = t
-                    break
+            # Resolve occurrence table from explicit param/config.
+            occ_table = _resolve_occurrence_table(
+                table_names, occurrence_entity, datasets
+            )
 
             if not occ_table:
                 return ShapeDistributionResult(
@@ -1987,28 +2195,9 @@ async def get_shape_distribution(
                     message=f"Occurrence table '{occurrence_entity}' not found",
                 )
 
-            # Find geo column in occurrences (prioritize native GEOMETRY)
+            # Find geo column in occurrences.
             columns_info = inspector.get_columns(occ_table)
-            geo_column = None
-            occ_geo_is_native = False
-            native_geo_patterns = ["_geom", "geometry", "the_geom", "wkb_geometry"]
-            wkt_patterns = ["geo_pt", "geo", "geom", "location", "wkt"]
-
-            for col in columns_info:
-                col_name = col["name"].lower()
-                col_type = str(col.get("type", "")).upper()
-
-                if "GEOMETRY" in col_type or "BYTEA" in col_type:
-                    if any(
-                        col_name.endswith(p) or col_name == p
-                        for p in native_geo_patterns
-                    ):
-                        geo_column = col["name"]
-                        occ_geo_is_native = True
-                        break
-                elif any(p in col_name for p in wkt_patterns):
-                    if geo_column is None:
-                        geo_column = col["name"]
+            geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
 
             if not geo_column:
                 return ShapeDistributionResult(
@@ -2016,57 +2205,15 @@ async def get_shape_distribution(
                     shapes=[],
                     analysis_time_seconds=time.time() - start_time,
                     status="no_geo_column",
-                    message="No geometry column found in occurrences",
+                    message=f"No geometry column found in '{occ_table}'",
                 )
 
-            # Find shape table with geometry
-            shape_table = None
-            shape_geo_col = None
-            shape_is_native = False
-            shape_keywords = [
-                "shape",
-                "commune",
-                "province",
-                "foret",
-                "forest",
-                "zone",
-                "region",
-                "limite",
-            ]
-            native_shape_geo_patterns = [
-                "_geom",
-                "geometry",
-                "the_geom",
-                "wkb_geometry",
-            ]
-            wkt_shape_geo_patterns = ["geo", "geom", "wkt", "location"]
+            spatial_tables = _resolve_spatial_reference_tables(
+                table_names, inspector, references, occurrence_table=occ_table
+            )
+            shape_candidates = [s for s in spatial_tables if s.get("has_geometry")]
 
-            for t in table_names:
-                t_lower = t.lower()
-                if any(kw in t_lower for kw in shape_keywords):
-                    t_columns = inspector.get_columns(t)
-                    for col in t_columns:
-                        col_type = str(col.get("type", "")).upper()
-                        col_name = col["name"].lower()
-
-                        if "GEOMETRY" in col_type or "BYTEA" in col_type:
-                            if any(
-                                col_name.endswith(p) or col_name == p
-                                for p in native_shape_geo_patterns
-                            ):
-                                shape_table = t
-                                shape_geo_col = col["name"]
-                                shape_is_native = True
-                                break
-                        elif col_name in wkt_shape_geo_patterns:
-                            if shape_geo_col is None:
-                                shape_table = t
-                                shape_geo_col = col["name"]
-
-                    if shape_table:
-                        break
-
-            if not shape_table:
+            if not shape_candidates:
                 return ShapeDistributionResult(
                     total_occurrences_with_geo=0,
                     shapes=[],
@@ -2075,10 +2222,44 @@ async def get_shape_distribution(
                     message="No shape table with geometry found",
                 )
 
+            # Deterministic choice: first configured spatial reference.
+            shape_meta = shape_candidates[0]
+            shape_table = shape_meta["table_name"]
+            shape_geo_col = shape_meta["geo_column"]
+            shape_is_native = shape_meta["is_native"]
+
+            # Resolve id/name/type columns dynamically (no hardcoded `id`/`name`).
+            shape_columns = [c["name"] for c in inspector.get_columns(shape_table)]
+            shape_cols_by_lower = {c.lower(): c for c in shape_columns}
+            shape_id_col = shape_meta.get("id_column") or _pick_first_existing(
+                shape_cols_by_lower, ["id", "name"]
+            )
+            shape_name_col = shape_meta.get("name_column") or _pick_first_existing(
+                shape_cols_by_lower, ["name", "label", "title", shape_id_col]
+            )
+            shape_type_col = shape_meta.get("type_column")
+
+            if not shape_id_col:
+                return ShapeDistributionResult(
+                    total_occurrences_with_geo=0,
+                    shapes=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    status="error",
+                    message=f"Unable to resolve an identifier column for '{shape_table}'",
+                )
+
+            if not shape_name_col:
+                shape_name_col = shape_id_col
+
             quoted_occ = preparer.quote(occ_table)
             quoted_geo = preparer.quote(geo_column)
             quoted_shape = preparer.quote(shape_table)
             quoted_shape_geo = preparer.quote(shape_geo_col)
+            quoted_shape_id = preparer.quote(shape_id_col)
+            quoted_shape_name = preparer.quote(shape_name_col)
+            quoted_shape_type = (
+                preparer.quote(shape_type_col) if shape_type_col else None
+            )
 
             # Build geometry expressions
             if occ_geo_is_native:
@@ -2105,21 +2286,26 @@ async def get_shape_distribution(
 
                 # Get occurrence count per shape
                 # Using a lateral join approach for performance
+                shape_type_expr = (
+                    f"COALESCE(CAST(s.{quoted_shape_type} AS VARCHAR), 'unknown')"
+                    if quoted_shape_type
+                    else "'unknown'"
+                )
                 result = conn.execute(
                     text(
                         f"""
                         SELECT
-                            s.id as shape_id,
-                            s.name as shape_name,
-                            COALESCE(s.shape_type, s.type, 'unknown') as shape_type,
-                            COUNT(o.id) as occurrence_count
+                            CAST(s.{quoted_shape_id} AS VARCHAR) as shape_id,
+                            CAST(s.{quoted_shape_name} AS VARCHAR) as shape_name,
+                            {shape_type_expr} as shape_type,
+                            SUM(CASE WHEN o.{quoted_geo} IS NOT NULL THEN 1 ELSE 0 END) as occurrence_count
                         FROM {quoted_shape} s
                         LEFT JOIN {quoted_occ} o
                             ON o.{quoted_geo} IS NOT NULL
                             AND s.{quoted_shape_geo} IS NOT NULL
                             AND ST_Intersects({occ_geom_expr}, {shape_geom_expr})
                         WHERE s.{quoted_shape_geo} IS NOT NULL
-                        GROUP BY s.id, s.name, COALESCE(s.shape_type, s.type, 'unknown')
+                        GROUP BY 1, 2, 3
                         ORDER BY occurrence_count DESC
                     """
                     )
@@ -2132,7 +2318,7 @@ async def get_shape_distribution(
                     pct = (count / total_with_geo * 100) if total_with_geo > 0 else 0
                     shapes.append(
                         ShapeOccurrenceCount(
-                            shape_id=row[0],
+                            shape_id=str(row[0]),
                             shape_name=row[1] or f"Shape {row[0]}",
                             shape_type=row[2] or "unknown",
                             occurrence_count=count,

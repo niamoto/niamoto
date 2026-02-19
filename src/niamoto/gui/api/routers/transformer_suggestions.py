@@ -97,7 +97,9 @@ class ReferenceInfo(BaseModel):
     """Information about a reference entity that can be used as group_by target."""
 
     name: str = Field(..., description="Reference entity name")
-    kind: str = Field(..., description="Reference kind (hierarchical, spatial, flat)")
+    kind: str = Field(
+        ..., description="Reference kind (hierarchical, spatial, generic)"
+    )
     description: Optional[str] = Field(None, description="Reference description")
     relation: RelationConfig = Field(
         ..., description="Default relation config for transform.yml"
@@ -254,7 +256,7 @@ async def get_available_references():
                     key=f"{ref_name}_id",
                     ref_key="id",
                 )
-            else:  # flat or default
+            else:  # generic/default
                 return RelationConfig(
                     plugin="direct_reference",
                     key=key_field,
@@ -276,10 +278,10 @@ async def get_available_references():
             # Extract references
             if "references" in entities and isinstance(entities["references"], dict):
                 for name, config in entities["references"].items():
-                    kind = "flat"  # default
+                    kind = "generic"  # default
                     description = None
                     if isinstance(config, dict):
-                        kind = config.get("kind", "flat")
+                        kind = config.get("kind", "generic")
                         description = config.get("description")
 
                     relation = build_relation_config(name, kind, config)

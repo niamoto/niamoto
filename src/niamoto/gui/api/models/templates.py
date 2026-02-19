@@ -87,7 +87,8 @@ class GenerateConfigRequest(BaseModel):
         ..., description="Reference name for group_by (from import.yml)"
     )
     reference_kind: str = Field(
-        default="flat", description="Reference kind: hierarchical | flat | spatial"
+        default="generic",
+        description="Reference kind: hierarchical | generic | spatial",
     )
 
 

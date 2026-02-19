@@ -11,8 +11,10 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import yaml
 from fastapi import HTTPException
+from sqlalchemy import text
 
 from niamoto.common.database import Database
+from niamoto.common.table_resolver import quote_identifier, resolve_dataset_table
 
 logger = logging.getLogger(__name__)
 
@@ -48,20 +50,21 @@ def load_sample_data(
     # For spatial references with geometry, use ST_Contains
     if representative.get("spatial_query") and representative.get("geometry"):
         geometry = representative["geometry"]
-        occurrences_table = "dataset_occurrences"
+        occurrences_table = resolve_dataset_table(db, "occurrences")
 
         # Check if occurrences table exists
-        if not db.has_table(occurrences_table):
-            occurrences_table = "occurrences"
-            if not db.has_table(occurrences_table):
-                # No occurrences table, return entity data if available
-                entity_data = representative.get("entity_data")
-                if entity_data:
-                    return pd.DataFrame([entity_data])
-                return pd.DataFrame()
+        if not occurrences_table:
+            # No occurrences table, return entity data if available
+            entity_data = representative.get("entity_data")
+            if entity_data:
+                return pd.DataFrame([entity_data])
+            return pd.DataFrame()
 
         # Find the geometry column in occurrences (usually geo_pt)
-        cols_df = pd.read_sql(f"SELECT * FROM {occurrences_table} LIMIT 0", db.engine)
+        quoted_occurrences_table = quote_identifier(db, occurrences_table)
+        cols_df = pd.read_sql(
+            text(f"SELECT * FROM {quoted_occurrences_table} LIMIT 0"), db.engine
+        )
         geo_candidates = ["geo_pt", "geometry", "geom", "location", "point"]
         geo_col = next((c for c in geo_candidates if c in cols_df.columns), None)
 
@@ -72,18 +75,14 @@ def load_sample_data(
 
         # Build the SELECT clause
         if required_field != "*":
-            select_clause = f'"{required_field}"'
+            select_clause = quote_identifier(db, required_field)
         else:
             select_clause = "*"
 
-        # Build spatial query with ST_Contains
-        # Note: Shape is a polygon, occurrence is a point
-        # Escape single quotes in geometry
-        escaped_geometry = geometry.replace("'", "''")
+        # Build spatial query with ST_Contains (shape polygon contains occurrence point)
+        quoted_geo_col = quote_identifier(db, geo_col)
 
         try:
-            from sqlalchemy import text
-
             # Use raw connection to execute multi-statement query
             with db.engine.connect() as conn:
                 # Load spatial extension first (using text() for raw SQL)
@@ -91,17 +90,20 @@ def load_sample_data(
                 conn.execute(text("LOAD spatial"))
 
                 # Then run the actual query
-                select_query = f"""
-                    SELECT {select_clause}
-                    FROM {occurrences_table}
-                    WHERE ST_Contains(
-                        ST_GeomFromText('{escaped_geometry}'),
-                        ST_GeomFromText("{geo_col}")
-                    )
-                """
+                select_query = (
+                    f"SELECT {select_clause} "
+                    f"FROM {quoted_occurrences_table} "
+                    f"WHERE ST_Contains("
+                    f"ST_GeomFromText(:geom_wkt), "
+                    f"ST_GeomFromText({quoted_geo_col})"
+                    f")"
+                )
                 if limit:
-                    select_query += f" ORDER BY RANDOM() LIMIT {limit}"
-                return pd.read_sql(text(select_query), conn)
+                    safe_limit = max(1, int(limit))
+                    select_query += f" ORDER BY RANDOM() LIMIT {safe_limit}"
+                return pd.read_sql(
+                    text(select_query), conn, params={"geom_wkt": geometry}
+                )
         except Exception as e:
             logger.warning(f"Spatial query failed: {e}, trying simpler approach")
             # If spatial query fails, return empty (shape without occurrences)
@@ -111,38 +113,46 @@ def load_sample_data(
     table_name = representative["table_name"]
     column = representative["column"]
     value = representative["value"]
+    if hasattr(value, "item"):
+        try:
+            value = value.item()
+        except Exception:
+            pass
+    if not db.has_table(table_name):
+        raise HTTPException(status_code=400, detail=f"Unknown table: {table_name}")
 
-    # Escape single quotes in value for SQL
-    escaped_value = str(value).replace("'", "''")
+    quoted_table_name = quote_identifier(db, table_name)
+    quoted_column = quote_identifier(db, column)
 
     # Build query - with optional random sampling
+    params: Dict[str, Any] = {"match_value": value}
     if required_field != "*":
+        quoted_required_field = quote_identifier(db, required_field)
         # Avoid selecting the same column twice
         if required_field == column:
-            query = f"""
-                SELECT "{required_field}"
-                FROM {table_name}
-                WHERE "{column}" = '{escaped_value}'
-            """
+            query = text(
+                f"SELECT {quoted_required_field} "
+                f"FROM {quoted_table_name} "
+                f"WHERE {quoted_column} = :match_value"
+            )
         else:
-            query = f"""
-                SELECT "{required_field}", "{column}"
-                FROM {table_name}
-                WHERE "{column}" = '{escaped_value}'
-            """
+            query = text(
+                f"SELECT {quoted_required_field}, {quoted_column} "
+                f"FROM {quoted_table_name} "
+                f"WHERE {quoted_column} = :match_value"
+            )
     else:
-        query = f"""
-            SELECT *
-            FROM {table_name}
-            WHERE "{column}" = '{escaped_value}'
-        """
+        query = text(
+            f"SELECT * FROM {quoted_table_name} WHERE {quoted_column} = :match_value"
+        )
 
     # Add random sampling if limit is specified
     if limit:
-        query += f" ORDER BY RANDOM() LIMIT {limit}"
+        safe_limit = max(1, int(limit))
+        query = text(f"{query.text} ORDER BY RANDOM() LIMIT {safe_limit}")
 
     try:
-        return pd.read_sql(query, db.engine)
+        return pd.read_sql(query, db.engine, params=params)
     except Exception as e:
         logger.exception(f"Error loading sample data: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,6 @@
 """FastAPI application for Niamoto GUI."""
 
+import os
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,10 +46,26 @@ def create_app() -> FastAPI:
         redoc_url="/api/redoc",
     )
 
+    configured_origins = os.getenv("NIAMOTO_CORS_ORIGINS")
+    if configured_origins:
+        allow_origins = [
+            origin.strip() for origin in configured_origins.split(",") if origin.strip()
+        ]
+    else:
+        # Safe defaults for local development + Tauri desktop runtime.
+        allow_origins = [
+            "http://localhost",
+            "http://127.0.0.1",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "tauri://localhost",
+            "http://tauri.localhost",
+        ]
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # In production, replace with specific origins
+        allow_origins=allow_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
