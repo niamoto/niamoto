@@ -16,18 +16,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: src/niamoto/gui/ui/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
+
+      - name: Enable pnpm
+        run: corepack enable
 
       - name: Install dependencies
         run: |
           cd src/niamoto/gui/ui
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Build React
         run: |
           cd src/niamoto/gui/ui
-          npm run build
+          pnpm run build
 
       - name: Upload React build
         uses: actions/upload-artifact@v4

@@ -17,9 +17,9 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# Check if npm is installed
-if ! command -v npm &> /dev/null; then
-    echo "Error: npm is not installed. Please install npm first."
+# Check if pnpm is installed
+if ! command -v pnpm &> /dev/null; then
+    echo "Error: pnpm is not installed. Please install pnpm first."
     exit 1
 fi
 
@@ -29,12 +29,12 @@ cd "$GUI_DIR"
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
     echo "Installing GUI dependencies..."
-    npm install
+    pnpm install
 fi
 
 # Build the GUI
 echo "Building GUI..."
-npm run build
+pnpm run build
 
 # Check if build was successful
 if [ -d "dist" ]; then

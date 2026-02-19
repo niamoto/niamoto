@@ -60,7 +60,7 @@ if ui_dist.exists():
     print(f"  Added {len([d for d in datas if 'gui/ui/dist' in str(d[0])])} files from React build")
 else:
     print(f"[WARN] React build not found at {ui_dist}")
-    print("  Run 'cd gui/ui && npm run build' before building with PyInstaller")
+    print("  Run 'cd gui/ui && pnpm run build' before building with PyInstaller")
 
 # Hidden imports - modules that PyInstaller might miss
 hiddenimports = [
