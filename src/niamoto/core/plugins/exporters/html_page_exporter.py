@@ -17,7 +17,7 @@ import shutil
 import json
 import pandas as pd
 from pathlib import Path
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Dict, List, Set, Optional, Tuple
 import importlib.resources
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape, ChoiceLoader
@@ -30,6 +30,7 @@ from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.common.config import Config
 from niamoto.common.utils.emoji import emoji
 from niamoto.common.i18n import I18nResolver
+from niamoto.common.table_resolver import resolve_entity_table, resolve_reference_table
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, WidgetPlugin, register
 from niamoto.core.plugins.models import (
     TargetConfig,
@@ -85,6 +86,80 @@ class HtmlPageExporter(ExporterPlugin):
                 # logger.debug(f"Cannot access key '{key}' on non-dict element in path '{key_path}'")
                 return None  # Tried to access key on non-dict
         return current_data
+
+    def _resolve_registry_entity(self, entity_name: str) -> Tuple[Optional[str], Dict[str, Any]]:
+        """Resolve an entity through registry metadata when available."""
+        if not self.registry:
+            return None, {}
+
+        try:
+            entity_meta = self.registry.get(entity_name)
+            table_name = getattr(entity_meta, "table_name", None)
+            if table_name and self.db.has_table(table_name):
+                config = getattr(entity_meta, "config", {}) or {}
+                if isinstance(config, dict):
+                    return table_name, config
+                return table_name, {}
+        except Exception:
+            pass
+
+        return None, {}
+
+    def _resolve_group_table_and_id(
+        self, group_by_key: str, navigation_entity: Optional[str] = None
+    ) -> Tuple[str, str]:
+        """Resolve group table and identifier column from registry/config/conventions."""
+        table_name, entity_config = self._resolve_registry_entity(group_by_key)
+        if not table_name and navigation_entity and navigation_entity != group_by_key:
+            table_name, entity_config = self._resolve_registry_entity(navigation_entity)
+
+        if not table_name:
+            table_name = resolve_entity_table(
+                self.db,
+                group_by_key,
+                registry=self.registry,
+                kind="reference",
+            )
+            if not table_name and navigation_entity and navigation_entity != group_by_key:
+                table_name = resolve_entity_table(
+                    self.db,
+                    navigation_entity,
+                    registry=self.registry,
+                    kind="reference",
+                )
+            if not table_name:
+                table_name = group_by_key
+
+        id_column = f"{group_by_key}_id"
+        try:
+            table_columns = self.db.get_table_columns(table_name) or []
+        except Exception:
+            return table_name, id_column
+
+        if not table_columns:
+            return table_name, id_column
+
+        schema_cfg = entity_config.get("schema", {}) if isinstance(entity_config, dict) else {}
+        schema_id = schema_cfg.get("id_field") if isinstance(schema_cfg, dict) else None
+
+        id_candidates: List[str] = []
+        if schema_id:
+            id_candidates.append(schema_id)
+        id_candidates.extend([f"{group_by_key}_id", f"id_{group_by_key}", "id"])
+        id_candidates.extend([c for c in table_columns if c.endswith("_id")])
+
+        resolved_id = next((c for c in id_candidates if c in table_columns), None)
+        if resolved_id:
+            return table_name, resolved_id
+        return table_name, id_column
+
+    def _resolve_reference_table_name(self, entity_name: str) -> str:
+        """Resolve reference table with registry-first strategy and safe fallback."""
+        table_name, _ = self._resolve_registry_entity(entity_name)
+        if table_name:
+            return table_name
+
+        return resolve_reference_table(self.db, entity_name) or f"entity_{entity_name}"
 
     def _resolve_localized(self, value: Any, lang: Optional[str] = None) -> Any:
         """
@@ -823,8 +898,9 @@ class HtmlPageExporter(ExporterPlugin):
 
             group_by_key = group_config.group_by
             logger.info(f"Processing group: '{group_by_key}'")
-            id_column = f"{group_by_key}_id"
-            table_name = group_by_key
+            table_name, id_column = self._resolve_group_table_and_id(
+                group_by_key, group_config.navigation_entity
+            )
 
             # Generate navigation JS file for this group (only once)
             self._generate_navigation_js(group_config, output_dir)
@@ -1442,10 +1518,6 @@ class HtmlPageExporter(ExporterPlugin):
                 # Add any custom fields that might be needed
                 if "shape_type_field" in params:
                     required_fields.add(params["shape_type_field"])
-                # Also add shape_type if we're dealing with shapes
-                ref_data = params.get("referential_data", "")
-                if ref_data in ("shape_ref", "shapes"):
-                    required_fields.add("shape_type")
 
         # If no hierarchical widgets found, use default minimal set
         if not required_fields:
@@ -1473,19 +1545,7 @@ class HtmlPageExporter(ExporterPlugin):
         # Use navigation_entity if specified, otherwise fall back to group_by
         entity_name = group_config.navigation_entity or group_by_key
 
-        # Resolve the entity table via the registry when available
-        if self.registry:
-            try:
-                reference_table = self.registry.get(entity_name).table_name
-            except Exception as exc:  # pragma: no cover - defensive logging
-                logger.debug(
-                    "Failed to resolve entity '%s' from registry (%s); falling back to conventional name",
-                    entity_name,
-                    exc,
-                )
-                reference_table = f"entity_{entity_name}"
-        else:
-            reference_table = f"entity_{entity_name}"
+        reference_table = self._resolve_reference_table_name(entity_name)
 
         # Extract required fields from hierarchical navigation widgets
         required_fields = self._extract_navigation_fields(group_config)
@@ -1760,6 +1820,57 @@ class HtmlPageExporter(ExporterPlugin):
                 lang,
             )
 
+            # Convert DB rows to plain dicts (RowMapping is not JSON-serializable).
+            normalized_items = [
+                dict(item) if not isinstance(item, dict) else item for item in index_data
+            ]
+
+            # Build resilient defaults for legacy/traditional index rendering.
+            first_item = normalized_items[0] if normalized_items else {}
+            preferred_name_fields = ["name", "full_name", "label", "title"]
+            name_field = next(
+                (f for f in preferred_name_fields if f in first_item), None
+            )
+            if not name_field and first_item:
+                name_field = next((k for k in first_item.keys() if k != id_column), None)
+            if not name_field:
+                name_field = id_column
+
+            default_page_config = {
+                "title": group_by_key.replace("_", " ").title(),
+                "description": "",
+                "items_per_page": 24,
+            }
+
+            index_generator_cfg = {}
+            if hasattr(group_config, "index_generator") and group_config.index_generator:
+                if hasattr(group_config.index_generator, "model_dump"):
+                    index_generator_cfg = group_config.index_generator.model_dump()
+                elif isinstance(group_config.index_generator, dict):
+                    index_generator_cfg = group_config.index_generator
+
+            page_config = index_generator_cfg.get("page_config", default_page_config)
+            display_fields = index_generator_cfg.get(
+                "display_fields",
+                [
+                    {
+                        "name": name_field,
+                        "source": name_field,
+                        "type": "text",
+                        "label": str(name_field).replace("_", " ").title(),
+                        "searchable": True,
+                    }
+                ],
+            )
+            views = index_generator_cfg.get(
+                "views",
+                [
+                    {"type": "grid", "default": True},
+                    {"type": "list", "default": False},
+                ],
+            )
+            filters = index_generator_cfg.get("filters", [])
+
             index_context = {
                 "site": site_context,
                 "navigation": navigation,
@@ -1770,12 +1881,25 @@ class HtmlPageExporter(ExporterPlugin):
                 if html_params.external_links
                 else [],
                 "group_by": group_by_key,
-                "items": index_data,
+                "items": normalized_items,
                 "group_config": group_config,
                 "id_column": id_column,
                 "current_lang": lang,
                 "languages": languages or [],
                 "language_switcher": language_switcher,
+                # Backward-compatible variables expected by _group_index.html
+                "page_config": page_config,
+                "index_config": {
+                    "group_by": group_by_key,
+                    "page_config": page_config,
+                    "display_fields": display_fields,
+                    "filters": filters,
+                    "views": views,
+                },
+                "items_data": normalized_items,
+                "depth": group_config.output_pattern.count("/")
+                if group_config.output_pattern
+                else 0,
             }
 
             # Output index file to the specific group directory

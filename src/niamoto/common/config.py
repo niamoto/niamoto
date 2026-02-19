@@ -5,6 +5,7 @@ import yaml
 from typing import Any, Dict, Optional, List
 
 from niamoto.core.imports.config_models import GenericImportConfig
+from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.common.exceptions import (
     ConfigurationError,
     FileReadError,
@@ -44,6 +45,7 @@ class Config:
             self.transforms: Any = {}
             self.exports: Any = {}
             self._generic_import_config: Optional[GenericImportConfig] = None
+            self._validated_transforms_config: Optional[List[Dict[str, Any]]] = None
 
             self._load_files(create_default)
 
@@ -881,14 +883,37 @@ exports:
         Returns:
             List[Dict[str, Any]]: transformations config
         """
-
         if not self.transforms:
             raise ConfigurationError(
                 config_key="transforms",
                 message="No transforms configuration found",
                 details={"transforms_file": "transform.yml"},
             )
-        return self.transforms
+        if not isinstance(self.transforms, list):
+            raise ConfigurationError(
+                config_key="transforms",
+                message="Invalid transform configuration - transform.yml must be a list",
+                details={
+                    "transforms_file": "transform.yml",
+                    "current_type": type(self.transforms).__name__,
+                },
+            )
+        # Keep compatibility with non-group-based transform configs used by legacy tests/tools.
+        if not all(
+            isinstance(item, dict) and "group_by" in item for item in self.transforms
+        ):
+            return self.transforms
+        if self._validated_transforms_config is not None:
+            return self._validated_transforms_config
+        try:
+            self._validated_transforms_config = validate_transform_config(self.transforms)
+        except Exception as e:
+            raise ConfigurationError(
+                config_key="transforms",
+                message="Invalid transform configuration",
+                details={"transforms_file": "transform.yml", "error": str(e)},
+            ) from e
+        return self._validated_transforms_config
 
     @error_handler(log=True, raise_error=True)
     def get_exports_config(self) -> List[Dict[str, Any]]:

@@ -4,12 +4,12 @@ Service for transforming data based on YAML configuration.
 
 from typing import Dict, Any, List, Optional, Callable
 import logging
-import difflib
 import json
 import numpy as np
 import pandas as pd
 from datetime import datetime
 from rich.console import Console
+from sqlalchemy import inspect
 from sqlalchemy.sql import quoted_name
 from pydantic import ValidationError as PydanticValidationError
 from niamoto.common.config import Config
@@ -27,6 +27,7 @@ from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.common.transform_config_models import TransformGroupConfig
 
 # Check if we're in CLI context for progress display
 try:
@@ -495,7 +496,7 @@ class TransformerService:
         return results
 
     def _filter_configs(self, group_by: Optional[str]) -> List[Dict[str, Any]]:
-        """Filter configurations by group, attempting various matching strategies."""
+        """Filter configurations by exact group_by match."""
         if not self.transforms_config:
             raise ConfigurationError(
                 "transforms",
@@ -511,53 +512,20 @@ class TransformerService:
             for config in self.transforms_config
             if config.get("group_by")
         ]
-        filtered = []
+        filtered = [
+            config
+            for config in self.transforms_config
+            if config.get("group_by") == group_by
+        ]
 
-        # Single pass through configurations with prioritized checks
-        for config in self.transforms_config:
-            config_group = config.get("group_by")
-            if not config_group:
-                continue
-
-            # Exact match
-            if config_group == group_by:
-                filtered.append(config)
-                break
-            # Case-insensitive match
-            elif config_group.lower() == group_by.lower():
-                filtered.append(config)
-                self.console.print(
-                    f"[yellow]Using group '{config_group}' instead of '{group_by}'[/yellow]"
-                )
-                break
-            # Singular/plural match
-            elif group_by.endswith("s") and config_group == group_by[:-1]:
-                filtered.append(config)
-                self.console.print(
-                    f"[yellow]Using singular form '{config_group}' instead of '{group_by}'[/yellow]"
-                )
-                break
-            elif not group_by.endswith("s") and config_group == f"{group_by}s":
-                filtered.append(config)
-                self.console.print(
-                    f"[yellow]Using plural form '{config_group}' instead of '{group_by}'[/yellow]"
-                )
-                break
-
-        # If no match, raise an error with a suggestion
         if not filtered:
-            suggestion = ""
-            if available_groups:
-                matches = difflib.get_close_matches(group_by, available_groups, n=1)
-                if matches:
-                    suggestion = f" Did you mean '{matches[0]}'?"
             raise ConfigurationError(
                 "transforms",
                 f"No configuration found for group: {group_by}",
                 details={
                     "group": group_by,
                     "available_groups": available_groups,
-                    "help": f"Available groups are: {', '.join(available_groups)}.{suggestion}",
+                    "help": f"Available groups are: {', '.join(available_groups)}.",
                 },
             )
 
@@ -611,6 +579,14 @@ class TransformerService:
         Raises:
             ValidationError: If configuration is invalid
         """
+        try:
+            TransformGroupConfig.model_validate(config)
+        except PydanticValidationError as exc:
+            raise ConfigurationError(
+                "transforms",
+                "Invalid transform group configuration",
+                details={"errors": exc.errors()},
+            ) from exc
         self._validate_sources_config(config)
 
     def _validate_sources_config(self, config: Dict[str, Any]) -> None:
@@ -656,13 +632,11 @@ class TransformerService:
 
             # Validate relation
             relation = source_config["relation"]
-            if (
-                "plugin" not in relation and "type" not in relation
-            ) or "key" not in relation:
+            if "plugin" not in relation or "key" not in relation:
                 raise ConfigurationError(
                     f"sources[{idx}].relation",
                     f"Missing required relation fields in source '{source_name}'",
-                    details={"required": ["plugin or type", "key"]},
+                    details={"required": ["plugin", "key"]},
                 )
 
     def _get_group_ids(self, group_config: Dict[str, Any]) -> List[int]:
@@ -825,10 +799,13 @@ class TransformerService:
         try:
             # Resolve logical entity name to physical table name
             table_name = self._resolve_table_name(source_name)
+            quoted_table_name = inspect(self.db.engine).dialect.identifier_preparer.quote(
+                table_name
+            )
 
             # Load entire table as DataFrame using fetch_all
             # We use fetch_all which properly manages session lifecycle
-            sql_query = f"SELECT * FROM {table_name}"
+            sql_query = f"SELECT * FROM {quoted_table_name}"
             rows = self.db.fetch_all(sql_query)
 
             # Convert list of dicts to DataFrame
