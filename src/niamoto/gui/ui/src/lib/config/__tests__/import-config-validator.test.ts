@@ -85,7 +85,7 @@ describe('validateEntityConfig', () => {
           id: 'e1',
           name: 'taxonomy',
           type: 'reference',
-          kind: 'flat',
+          kind: 'generic',
           connector: { type: 'file', format: 'csv' },
           schema: { fields: [] },
           links: []
@@ -94,7 +94,7 @@ describe('validateEntityConfig', () => {
           id: 'e2',
           name: 'taxonomy', // Duplicate!
           type: 'reference',
-          kind: 'flat',
+          kind: 'generic',
           connector: { type: 'file', format: 'csv' },
           schema: { fields: [] },
           links: []
@@ -119,7 +119,7 @@ describe('validateEntityConfig', () => {
           id: 'e1',
           name: 'My Taxonomy', // Invalid: contains spaces and capitals
           type: 'reference',
-          kind: 'flat',
+          kind: 'generic',
           connector: { type: 'file', format: 'csv' },
           schema: { fields: [] },
           links: []
@@ -144,7 +144,7 @@ describe('validateEntityConfig', () => {
           id: 'e1',
           name: 'metadata', // Reserved name
           type: 'reference',
-          kind: 'flat',
+          kind: 'generic',
           connector: { type: 'file', format: 'csv' },
           schema: { fields: [] },
           links: []
@@ -362,7 +362,7 @@ describe('validateEntityConfig', () => {
           id: 'tax-1',
           name: 'taxonomy',
           type: 'reference', // Only reference, no dataset
-          kind: 'flat',
+          kind: 'generic',
           connector: { type: 'file', format: 'csv' },
           schema: { fields: [] },
           links: []

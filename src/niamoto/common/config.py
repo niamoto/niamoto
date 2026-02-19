@@ -906,7 +906,9 @@ exports:
         if self._validated_transforms_config is not None:
             return self._validated_transforms_config
         try:
-            self._validated_transforms_config = validate_transform_config(self.transforms)
+            self._validated_transforms_config = validate_transform_config(
+                self.transforms
+            )
         except Exception as e:
             raise ConfigurationError(
                 config_key="transforms",
