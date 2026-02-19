@@ -43,14 +43,14 @@ uv run python scripts/data/query_db.py --interactive                   # SQL REP
 python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
 
 # Terminal 2: Frontend
-cd src/niamoto/gui/ui && npm run dev
+cd src/niamoto/gui/ui && pnpm run dev
 ```
 
 ### Production Mode
 
 ```bash
-cd src/niamoto/gui/ui && npm install       # Install dependencies
-cd src/niamoto/gui/ui && npm run build     # Build for production
+cd src/niamoto/gui/ui && pnpm install      # Install dependencies
+cd src/niamoto/gui/ui && pnpm run build    # Build for production
 niamoto gui --port 8080 --no-browser       # Launch (serves from dist/)
 ```
 

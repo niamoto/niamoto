@@ -28,7 +28,7 @@ uv pip install -e ".[dev]"
 
 # Install GUI dependencies
 cd src/niamoto/gui/ui
-npm install
+pnpm install
 
 # Run tests
 uv run pytest
