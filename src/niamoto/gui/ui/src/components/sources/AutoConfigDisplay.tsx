@@ -110,7 +110,7 @@ export function AutoConfigDisplay({
     const newReferences = {
       ...result.entities.references,
       [name]: {
-        kind: 'flat',
+        kind: 'generic',
         connector: datasetConfig.connector,
         schema: datasetConfig.schema || { id_field: 'id', fields: [] },
       },

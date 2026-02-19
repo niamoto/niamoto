@@ -507,10 +507,6 @@ export function MarkdownEditor({
         },
       }),
       ImageResize.configure({
-        HTMLAttributes: {
-          class: 'editor-image rounded-md max-w-full h-auto my-4',
-        },
-        allowBase64: true,
         inline: false,
       }),
       slashCommand,

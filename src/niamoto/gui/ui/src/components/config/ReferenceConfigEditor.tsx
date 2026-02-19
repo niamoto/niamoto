@@ -2,7 +2,7 @@
  * ReferenceConfigEditor - Edit reference entity configuration
  *
  * Allows editing:
- * - Kind (hierarchical, flat, spatial)
+ * - Kind (hierarchical, generic, spatial)
  * - Connector settings (path, format)
  * - Hierarchy configuration (levels, id_column, name_column)
  * - API Enrichment configuration
@@ -256,7 +256,7 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
   const getApiCategory = (): ApiCategory => {
     if (isHierarchical) return 'taxonomy'
     if (isSpatial) return 'spatial'
-    return 'all'  // For flat references, show all options
+    return 'all'  // For generic references, show all options
   }
 
   return (
@@ -294,14 +294,14 @@ export function ReferenceConfigEditor({ referenceName, onSaved }: ReferenceConfi
             <div className="space-y-2">
               <Label>{t('configEditor.type')}</Label>
               <Select
-                value={localConfig.kind || 'flat'}
+                value={localConfig.kind || 'generic'}
                 onValueChange={(value) => updateConfig({ kind: value })}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="flat">
+                  <SelectItem value="generic">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
                       {t('configEditor.flatSimple')}

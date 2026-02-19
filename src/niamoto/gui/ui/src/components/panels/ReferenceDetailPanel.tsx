@@ -157,7 +157,7 @@ export function ReferenceDetailPanel({
               {referenceName}
             </h1>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <span>{t('reference.referenceKind', { kind: kind || 'flat' })}</span>
+              <span>{t('reference.referenceKind', { kind: kind || 'generic' })}</span>
               {entityCount !== undefined && (
                 <Badge variant="outline">
                   {entityCount.toLocaleString()} {t('reference.entities')}

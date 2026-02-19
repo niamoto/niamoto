@@ -138,7 +138,7 @@ export function useGenerateConfig(): UseGenerateConfigReturn {
   const generate = useCallback(async (
     templates: SelectedTemplate[],
     groupBy: string = 'taxons',
-    referenceKind: string = 'flat'
+    referenceKind: string = 'generic'
   ): Promise<GenerateConfigResponse | null> => {
     setLoading(true)
     setError(null)
