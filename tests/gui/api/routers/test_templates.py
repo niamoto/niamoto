@@ -55,7 +55,7 @@ def test_work_dir():
                     "hierarchy": {"levels": ["family", "genus", "species"]},
                 },
                 "plots": {
-                    "kind": "flat",
+                    "kind": "generic",
                     "connector": {
                         "type": "file",
                         "format": "csv",
@@ -74,15 +74,21 @@ def test_work_dir():
     transform_config = [
         {
             "group_by": "taxons",
-            "sources": [{"name": "occurrences", "relation": {"type": "nested_set"}}],
-            "widgets": [
+            "sources": [
                 {
-                    "template_id": "elevation_binned_distribution_bar_plot",
-                    "plugin": "binned_distribution",
-                    "field": "elevation",
-                    "title": "Distribution - Elevation",
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "taxons",
+                    "relation": {"plugin": "nested_set", "key": "id_taxonref"},
                 }
             ],
+            "widgets_data": {
+                "elevation_binned_distribution_bar_plot": {
+                    "plugin": "binned_distribution",
+                    "field": "elevation",
+                    "params": {},
+                }
+            },
         }
     ]
 
@@ -186,6 +192,88 @@ class TestTemplatesEndpoints:
             data = response.json()
             assert "group_by" in data
             assert "sources" in data
+
+    def test_generate_config_uses_import_relation_and_dataset(
+        self, client, test_work_dir
+    ):
+        """Generate-config must use dataset/relation from import.yml when provided."""
+        import_path = Path(test_work_dir) / "config" / "import.yml"
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        import_config["entities"]["datasets"]["observations"] = import_config[
+            "entities"
+        ]["datasets"].pop("occurrences")
+        import_config["entities"]["references"]["plots"]["relation"] = {
+            "dataset": "observations",
+            "foreign_key": "plot_fk",
+            "reference_key": "plot_code",
+        }
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "plot_test",
+                        "plugin": "top_ranking",
+                        "config": {"field": "plot_fk"},
+                    }
+                ],
+                "group_by": "plots",
+                "reference_kind": "generic",
+            },
+        )
+        assert response.status_code == 200, response.text
+        source = response.json()["sources"][0]
+        assert source["name"] == "observations"
+        assert source["data"] == "observations"
+        assert source["relation"]["key"] == "plot_fk"
+        assert source["relation"]["ref_key"] == "plot_code"
+
+    def test_generate_config_hierarchical_uses_extraction_id_column(
+        self, client, test_work_dir
+    ):
+        """Hierarchical source relation key must come from extraction.id_column."""
+        import_path = Path(test_work_dir) / "config" / "import.yml"
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+
+        import_config["entities"]["datasets"]["observations"] = import_config[
+            "entities"
+        ]["datasets"].pop("occurrences")
+        taxons_connector = import_config["entities"]["references"]["taxons"][
+            "connector"
+        ]
+        taxons_connector["source"] = "observations"
+        taxons_connector["extraction"]["id_column"] = "taxon_ref_custom"
+
+        with open(import_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(import_config, f, sort_keys=False)
+
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "taxons_test",
+                        "plugin": "binned_distribution",
+                        "config": {"field": "elevation"},
+                    }
+                ],
+                "group_by": "taxons",
+                "reference_kind": "hierarchical",
+            },
+        )
+        assert response.status_code == 200, response.text
+        source = response.json()["sources"][0]
+        assert source["name"] == "observations"
+        assert source["data"] == "observations"
+        assert source["relation"]["key"] == "taxon_ref_custom"
+        assert source["relation"]["ref_key"] == "taxons_id"
 
     def test_save_config_requires_body(self, client):
         """Test POST /api/templates/save-config requires request body."""
@@ -306,6 +394,31 @@ class TestTemplatesHelperFunctions:
                 hierarchy_info["levels"] == []
                 or hierarchy_info.get("kind") != "hierarchical"
             )
+
+    def test_dynamic_template_info_uses_explicit_source(self):
+        """Dynamic template config must propagate source instead of forcing occurrences."""
+        from niamoto.gui.api.routers.templates import _build_dynamic_template_info
+
+        parsed_geo = {
+            "column": "location",
+            "transformer": "geospatial_extractor",
+            "widget": "interactive_map",
+        }
+        geo_info = _build_dynamic_template_info(
+            parsed_geo, "location_geospatial_extractor_interactive_map", source="plots"
+        )
+        assert geo_info["config"]["source"] == "plots"
+
+        parsed_info = {
+            "column": "name",
+            "transformer": "field_aggregator",
+            "widget": "info_grid",
+        }
+        info = _build_dynamic_template_info(
+            parsed_info, "name_field_aggregator_info_grid", source="shapes"
+        )
+        assert info["config"]["source"] == "shapes"
+        assert info["config"]["fields"][0]["source"] == "shapes"
 
 
 class TestPreviewEndpoint:

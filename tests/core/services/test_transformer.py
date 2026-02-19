@@ -173,32 +173,16 @@ class TestTransformerService:
         assert result[0]["group_by"] == "plots"
 
     def test_filter_configs_case_insensitive_match(self, transformer_service):
-        """Test _filter_configs with case-insensitive match."""
-        # Mock console to verify warning message
-        transformer_service.console = Mock()
-
-        result = transformer_service._filter_configs("PLOTS")
-
-        assert len(result) == 1
-        assert result[0]["group_by"] == "plots"
-        transformer_service.console.print.assert_called_once()
-        assert "Using group 'plots' instead of 'PLOTS'" in str(
-            transformer_service.console.print.call_args
-        )
+        """Test _filter_configs rejects case-insensitive match in strict mode."""
+        with pytest.raises(ConfigurationError) as exc_info:
+            transformer_service._filter_configs("PLOTS")
+        assert "No configuration found for group: PLOTS" in str(exc_info.value)
 
     def test_filter_configs_singular_plural_match(self, transformer_service):
-        """Test _filter_configs with singular/plural matching."""
-        # Mock console to verify warning message
-        transformer_service.console = Mock()
-
-        # Test singular form when config has plural
-        result = transformer_service._filter_configs("plot")
-
-        assert len(result) == 1
-        assert result[0]["group_by"] == "plots"
-        assert "Using plural form 'plots' instead of 'plot'" in str(
-            transformer_service.console.print.call_args
-        )
+        """Test _filter_configs rejects singular/plural approximations in strict mode."""
+        with pytest.raises(ConfigurationError) as exc_info:
+            transformer_service._filter_configs("plot")
+        assert "No configuration found for group: plot" in str(exc_info.value)
 
     def test_filter_configs_no_match(self, transformer_service):
         """Test _filter_configs with no matching group."""
@@ -221,6 +205,7 @@ class TestTransformerService:
     def test_validate_configuration_valid(self, transformer_service):
         """Test validate_configuration with valid config."""
         config = {
+            "group_by": "plots",
             "sources": [
                 {
                     "name": "occurrences",
@@ -228,7 +213,8 @@ class TestTransformerService:
                     "grouping": "plot_ref",
                     "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
                 }
-            ]
+            ],
+            "widgets_data": {},
         }
 
         # Should not raise any exception
@@ -236,7 +222,7 @@ class TestTransformerService:
 
     def test_validate_configuration_missing_sources(self, transformer_service):
         """Test validate_configuration with missing sources."""
-        config = {}
+        config = {"group_by": "plots", "widgets_data": {}}
 
         with pytest.raises(ConfigurationError) as exc_info:
             transformer_service.validate_configuration(config)
@@ -247,24 +233,27 @@ class TestTransformerService:
     def test_validate_configuration_missing_source_fields(self, transformer_service):
         """Test validate_configuration with missing source fields."""
         config = {
+            "group_by": "plots",
             "sources": [
                 {
                     "name": "occurrences",
                     "data": "occurrences",
                     # Missing "grouping" and "relation"
                 }
-            ]
+            ],
+            "widgets_data": {},
         }
 
         with pytest.raises(ConfigurationError) as exc_info:
             transformer_service.validate_configuration(config)
 
-        assert "Missing required fields in source" in str(exc_info.value)
-        assert exc_info.value.config_key == "sources[0]"
+        assert "Invalid transform group configuration" in str(exc_info.value)
+        assert exc_info.value.config_key == "transforms"
 
     def test_validate_configuration_missing_relation_fields(self, transformer_service):
         """Test validate_configuration with missing relation fields."""
         config = {
+            "group_by": "plots",
             "sources": [
                 {
                     "name": "occurrences",
@@ -274,17 +263,19 @@ class TestTransformerService:
                         # Missing "plugin" and "key"
                     },
                 }
-            ]
+            ],
+            "widgets_data": {},
         }
 
         with pytest.raises(ConfigurationError) as exc_info:
             transformer_service.validate_configuration(config)
 
-        assert "Missing required relation fields" in str(exc_info.value)
+        assert "Invalid transform group configuration" in str(exc_info.value)
 
     def test_validate_configuration_duplicate_source_names(self, transformer_service):
         """Test validate_configuration with duplicate source names."""
         config = {
+            "group_by": "plots",
             "sources": [
                 {
                     "name": "occurrences",
@@ -298,7 +289,8 @@ class TestTransformerService:
                     "grouping": "plot_ref",
                     "relation": {"plugin": "direct_reference", "key": "plot_ref_id"},
                 },
-            ]
+            ],
+            "widgets_data": {},
         }
 
         with pytest.raises(ConfigurationError) as exc_info:
@@ -811,9 +803,10 @@ class TestTransformerService:
     @pytest.mark.parametrize(
         "group_name,search_term,expected_match",
         [
-            ("plots", "plot", True),  # Singular/plural
-            ("taxa", "taxas", True),  # Plural/singular
-            ("PLOTS", "plots", True),  # Case insensitive
+            ("plots", "plots", True),  # Exact match
+            ("plots", "plot", False),  # Singular/plural no longer supported
+            ("taxa", "taxas", False),  # Plural/singular no longer supported
+            ("PLOTS", "plots", False),  # Case-insensitive no longer supported
             ("plot_data", "plot-data", False),  # No match for different separators
         ],
     )
