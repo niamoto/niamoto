@@ -268,8 +268,8 @@ This script:
 
 ```bash
 cd src/niamoto/gui/ui
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 Outputs to: `src/niamoto/gui/ui/dist/`
@@ -318,7 +318,7 @@ cargo tauri dev
 ```bash
 # Terminal 1: React dev server
 cd src/niamoto/gui/ui
-npm run dev
+pnpm run dev
 
 # Terminal 2: Tauri app pointing to dev server
 cd src-tauri
@@ -390,7 +390,7 @@ cargo tauri dev
 **Solution**: Run `./build_scripts/prepare_tauri_bins.sh`
 
 **Issue**: React build not found
-**Solution**: `cd src/niamoto/gui/ui && npm run build`
+**Solution**: `cd src/niamoto/gui/ui && pnpm run build`
 
 **Issue**: Server fails to start
 **Solution**: Check that niamoto binary is executable and in PATH or bundled correctly

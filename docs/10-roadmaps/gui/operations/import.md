@@ -398,7 +398,7 @@ When developing the import interface, use the two-server setup:
 2. **React Dev Server** (port 5173):
    ```bash
    cd src/niamoto/gui/ui
-   npm run dev
+   pnpm run dev
    ```
 
 The Vite config includes a proxy that forwards `/api/*` requests to port 8080.
