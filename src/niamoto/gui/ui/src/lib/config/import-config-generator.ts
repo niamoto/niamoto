@@ -114,6 +114,8 @@ function buildConnectorConfig(connector: ConnectorConfig): any {
 
   switch (connector.type) {
     case 'file':
+    case 'duckdb_csv':
+    case 'vector':
       if (connector.format) {
         config.format = connector.format
       }
@@ -141,21 +143,18 @@ function buildConnectorConfig(connector: ConnectorConfig): any {
       }
       break
 
-    case 'database':
-      if (connector.connection_string) {
-        config.connection_string = connector.connection_string
-      }
-      if (connector.query) {
-        config.query = connector.query
-      }
-      break
-
     case 'api':
       if (connector.url) {
         config.url = connector.url
       }
       if (connector.params) {
         config.params = connector.params
+      }
+      break
+
+    case 'plugin':
+      if (connector.params) {
+        config.options = connector.params
       }
       break
   }
@@ -174,10 +173,10 @@ function buildSchemaConfig(entity: EntityConfig): any {
   }
 
   if (entity.schema.fields && entity.schema.fields.length > 0) {
-    config.fields = entity.schema.fields.reduce((acc, field) => {
-      acc[field.target] = field.source
-      return acc
-    }, {} as Record<string, string>)
+    config.fields = entity.schema.fields.map((field) => ({
+      name: field.target,
+      type: field.type || 'string'
+    }))
   }
 
   if (entity.schema.geometry_field) {
@@ -192,16 +191,8 @@ function buildSchemaConfig(entity: EntityConfig): any {
  */
 function buildHierarchyConfig(hierarchy: HierarchyConfig): any {
   const config: any = {
-    strategy: hierarchy.strategy,
+    type: hierarchy.strategy,
     levels: hierarchy.levels
-  }
-
-  if (hierarchy.incomplete_rows) {
-    config.incomplete_rows = hierarchy.incomplete_rows
-  }
-
-  if (hierarchy.id_strategy) {
-    config.id_strategy = hierarchy.id_strategy
   }
 
   if (hierarchy.id_column) {
@@ -357,7 +348,7 @@ export function parseYAMLForDisplay(yaml: string): YAMLLine[] {
  */
 export function generateExampleYAML(
   entityType: 'dataset' | 'reference',
-  entityKind?: 'hierarchical' | 'spatial' | 'flat'
+  entityKind?: 'hierarchical' | 'spatial' | 'generic'
 ): string {
   const examples: Record<string, any> = {
     dataset: {
@@ -373,11 +364,11 @@ export function generateExampleYAML(
             },
             schema: {
               id_field: 'id',
-              fields: {
-                taxon_id: 'taxon',
-                location: 'location',
-                date: 'observation_date'
-              }
+              fields: [
+                { name: 'taxon_id', type: 'string' },
+                { name: 'location', type: 'string' },
+                { name: 'date', type: 'date' }
+              ]
             },
             links: [
               {
@@ -402,16 +393,15 @@ export function generateExampleYAML(
               path: 'imports/taxonomy.csv'
             },
             schema: {
-              fields: {
-                family: 'family',
-                genus: 'genus',
-                species: 'species'
-              }
+              fields: [
+                { name: 'family', type: 'string' },
+                { name: 'genus', type: 'string' },
+                { name: 'species', type: 'string' }
+              ]
             },
             hierarchy: {
-              strategy: 'adjacency_list',
-              levels: ['family', 'genus', 'species'],
-              incomplete_rows: 'skip'
+              type: 'adjacency_list',
+              levels: ['family', 'genus', 'species']
             }
           }
         }
@@ -437,12 +427,12 @@ export function generateExampleYAML(
         }
       }
     },
-    'reference-flat': {
+    'reference-generic': {
       version: '1.0',
       entities: {
         references: {
           plots: {
-            kind: 'flat',
+            kind: 'generic',
             connector: {
               type: 'file',
               format: 'csv',
@@ -450,10 +440,10 @@ export function generateExampleYAML(
             },
             schema: {
               id_field: 'plot_id',
-              fields: {
-                name: 'plot_name',
-                location: 'location'
-              }
+              fields: [
+                { name: 'name', type: 'string' },
+                { name: 'location', type: 'string' }
+              ]
             }
           }
         }
@@ -461,7 +451,7 @@ export function generateExampleYAML(
     }
   }
 
-  const key = entityType === 'dataset' ? 'dataset' : `reference-${entityKind}`
+  const key = entityType === 'dataset' ? 'dataset' : `reference-${entityKind || 'generic'}`
   const example = examples[key] || examples.dataset
 
   return objectToYAML(example)

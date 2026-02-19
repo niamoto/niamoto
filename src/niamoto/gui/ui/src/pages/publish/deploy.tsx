@@ -134,8 +134,6 @@ export default function PublishDeploy() {
     }
   }
 
-  const canDeploy = hasSuccessfulBuild && !isDeploying
-
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}

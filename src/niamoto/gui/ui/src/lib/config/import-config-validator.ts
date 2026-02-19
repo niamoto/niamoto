@@ -187,6 +187,8 @@ function validateConnector(
   // Type-specific validation
   switch (connector.type) {
     case 'file':
+    case 'duckdb_csv':
+    case 'vector':
       if (!connector.format) {
         errors.push({
           field: 'connector.format',
@@ -248,16 +250,6 @@ function validateConnector(
       }
       break
 
-    case 'database':
-      if (!connector.connection_string) {
-        errors.push({
-          field: 'connector.connection_string',
-          message: 'Connection string is required for database connector',
-          severity: 'error'
-        })
-      }
-      break
-
     case 'api':
       if (!connector.url) {
         errors.push({
@@ -266,6 +258,10 @@ function validateConnector(
           severity: 'error'
         })
       }
+      break
+
+    case 'plugin':
+      // No required fields at this level.
       break
   }
 }
@@ -282,7 +278,7 @@ function validateReference(
   if (!entity.kind) {
     errors.push({
       field: 'kind',
-      message: 'Kind is required for reference entities (hierarchical, spatial, or flat)',
+      message: 'Kind is required for reference entities (hierarchical, spatial, categorical, or generic)',
       severity: 'error'
     })
     return
@@ -298,8 +294,9 @@ function validateReference(
       validateSpatialReference(entity, errors, warnings)
       break
 
-    case 'flat':
-      // Flat references have no special requirements
+    case 'categorical':
+    case 'generic':
+      // Generic/categorical references have no special requirements.
       break
   }
 }

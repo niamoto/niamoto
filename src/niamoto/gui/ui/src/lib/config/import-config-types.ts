@@ -13,7 +13,7 @@ export type EntityType = 'reference' | 'dataset'
 /**
  * Entity kind classification (for references)
  */
-export type EntityKind = 'hierarchical' | 'spatial' | 'flat'
+export type EntityKind = 'hierarchical' | 'spatial' | 'categorical' | 'generic'
 
 /**
  * Import mode
@@ -23,22 +23,29 @@ export type ImportMode = 'replace' | 'append'
 /**
  * Hierarchy strategy
  */
-export type HierarchyStrategy = 'adjacency_list' | 'nested_set'
+export type HierarchyStrategy = 'adjacency_list' | 'nested_set' | 'hybrid'
 
 /**
  * Incomplete rows handling
  */
-export type IncompleteRowsStrategy = 'skip' | 'keep'
+export type IncompleteRowsStrategy = 'skip' | 'fill_unknown' | 'error'
 
 /**
  * ID generation strategy
  */
-export type IdStrategy = 'hash' | 'auto'
+export type IdStrategy = 'hash' | 'sequence' | 'external'
 
 /**
  * Connector type
  */
-export type ConnectorType = 'file' | 'derived' | 'file_multi_feature' | 'database' | 'api'
+export type ConnectorType =
+  | 'file'
+  | 'duckdb_csv'
+  | 'vector'
+  | 'api'
+  | 'plugin'
+  | 'derived'
+  | 'file_multi_feature'
 
 /**
  * File format
@@ -92,7 +99,7 @@ export interface ExtractionConfig {
 export interface ConnectorConfig {
   type: ConnectorType
 
-  // For type: file
+  // For type: file/duckdb_csv/vector
   format?: FileFormat
   path?: string
 
@@ -102,10 +109,6 @@ export interface ConnectorConfig {
 
   // For type: file_multi_feature
   sources?: MultiFeatureSource[]
-
-  // For type: database
-  connection_string?: string
-  query?: string
 
   // For type: api
   url?: string
@@ -337,7 +340,7 @@ export const ENTITY_TEMPLATES: EntityTemplate[] = [
     label: 'Sites / Parcelles',
     description: 'Study sites or plots',
     type: 'reference',
-    kind: 'flat',
+    kind: 'generic',
     icon: 'map-pin',
     defaultName: 'plots',
     suggestedFields: ['name', 'location', 'area']

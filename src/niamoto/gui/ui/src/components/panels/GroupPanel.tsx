@@ -31,7 +31,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
     hierarchical: t('groupPanel.kinds.hierarchical'),
-    flat: t('groupPanel.kinds.flat'),
+    generic: t('groupPanel.kinds.flat'),
     spatial: t('groupPanel.kinds.spatial'),
   }
 

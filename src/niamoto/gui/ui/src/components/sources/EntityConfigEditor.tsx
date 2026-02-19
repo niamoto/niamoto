@@ -24,7 +24,7 @@ export interface DatasetConfig {
 }
 
 export interface ReferenceConfig {
-  kind?: 'hierarchical' | 'flat' | 'spatial'
+  kind?: 'hierarchical' | 'generic' | 'spatial'
   description?: string
   connector: {
     type: string // 'derived' | 'file' | 'file_multi_feature'

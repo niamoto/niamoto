@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 export interface ReferenceInfo {
   name: string
   table_name: string
-  kind: 'hierarchical' | 'flat' | 'spatial'
+  kind: 'hierarchical' | 'generic' | 'spatial'
   description?: string
   schema_fields: Array<{
     name: string
