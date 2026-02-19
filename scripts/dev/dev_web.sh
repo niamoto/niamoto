@@ -15,8 +15,8 @@
 #
 # Requirements:
 #   - Python with niamoto installed
-#   - Node.js and npm
-#   - Frontend dependencies installed (cd src/niamoto/gui/ui && npm install)
+#   - Node.js and pnpm
+#   - Frontend dependencies installed (cd src/niamoto/gui/ui && pnpm install)
 
 set -e  # Exit on error
 
@@ -107,9 +107,9 @@ fi
 UI_DIR="$REPO_ROOT/src/niamoto/gui/ui"
 if [ ! -d "$UI_DIR/node_modules" ]; then
     print_warning "Frontend dependencies not found"
-    print_info "Installing npm dependencies..."
+    print_info "Installing pnpm dependencies..."
     cd "$UI_DIR"
-    npm install
+    pnpm install
     cd "$REPO_ROOT"
     print_success "Dependencies installed"
 fi
@@ -149,7 +149,7 @@ print_success "Backend started (PID: $BACKEND_PID)"
 # Start frontend (Vite)
 print_info "Starting Vite frontend development server..."
 cd "$UI_DIR"
-npm run dev > /tmp/niamoto-frontend.log 2>&1 &
+pnpm run dev > /tmp/niamoto-frontend.log 2>&1 &
 FRONTEND_PID=$!
 
 # Wait a bit for frontend to start
@@ -167,7 +167,7 @@ print_success "Frontend started (PID: $FRONTEND_PID)"
 echo ""
 print_header "✨ READY FOR DEVELOPMENT"
 echo ""
-print_success "Open http://127.0.0.1:5173 in your browser"
+print_success "Open http://localhost:5173 in your browser"
 print_info "Backend logs: tail -f /tmp/niamoto-backend.log"
 print_info "Frontend logs: tail -f /tmp/niamoto-frontend.log"
 echo ""

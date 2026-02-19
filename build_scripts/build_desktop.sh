@@ -50,12 +50,12 @@ if ! command -v pyinstaller &> /dev/null; then
 fi
 echo -e "${GREEN}✓ PyInstaller found${NC}"
 
-# Check Node/npm
-if ! command -v npm &> /dev/null; then
-    echo -e "${RED}❌ npm not found. Please install Node.js.${NC}"
+# Check Node/pnpm
+if ! command -v pnpm &> /dev/null; then
+    echo -e "${RED}❌ pnpm not found. Please install pnpm.${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ npm found${NC}"
+echo -e "${GREEN}✓ pnpm found${NC}"
 
 # Check Rust/Cargo
 if ! command -v cargo &> /dev/null; then
@@ -117,12 +117,12 @@ cd src/niamoto/gui/ui
 
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then
-    echo "Installing npm dependencies..."
-    npm install
+    echo "Installing pnpm dependencies..."
+    pnpm install
 fi
 
 # Build
-npm run build
+pnpm run build
 
 if [ ! -d "dist" ]; then
     echo -e "${RED}❌ React build failed${NC}"

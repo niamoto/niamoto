@@ -67,7 +67,7 @@ echo -e "${BLUE}📦 Step 1: Preparing Tauri binaries...${NC}"
 echo ""
 echo -e "${BLUE}⚛️  Step 2: Starting Vite dev server...${NC}"
 cd src/niamoto/gui/ui
-npm run dev &
+pnpm run dev &
 VITE_PID=$!
 
 # Wait for Vite to be ready
