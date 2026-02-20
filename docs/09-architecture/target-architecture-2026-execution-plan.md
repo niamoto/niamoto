@@ -1,8 +1,8 @@
 # Niamoto - Plan d'Execution Architecture (2026-2027)
 
-**Date**: 2026-02-11  
-**Perimetre**: GUI, API, Core, operations techniques  
-**Horizon**: T1 2026 -> T1 2027  
+**Date**: 2026-02-11
+**Perimetre**: GUI, API, Core, operations techniques
+**Horizon**: T1 2026 -> T1 2027
 **But**: executer la cible architecture sans ralentir la roadmap produit
 
 ---
@@ -43,7 +43,7 @@ Note: les owners sont proposes par role; a mapper sur des noms lors du kickoff.
 - Definir conventions de dependances.
 - Mettre en place revues d'architecture sur nouveaux modules.
 
-**Owner principal**: Owner B  
+**Owner principal**: Owner B
 **Co-owners**: Owner A, Owner C
 
 ### EPIC 2 - Jobs resilients
@@ -51,7 +51,7 @@ Note: les owners sont proposes par role; a mapper sur des noms lors du kickoff.
 - Persister etat/progression/erreurs.
 - Uniformiser start/pause/resume/cancel/retry.
 
-**Owner principal**: Owner B  
+**Owner principal**: Owner B
 **Co-owner**: Owner D
 
 ### EPIC 3 - Securite structurelle
@@ -59,7 +59,7 @@ Note: les owners sont proposes par role; a mapper sur des noms lors du kickoff.
 - Durcir validation des acces reseau/externes.
 - Ajouter tests de securite automatises.
 
-**Owner principal**: Owner B  
+**Owner principal**: Owner B
 **Co-owners**: Owner D, Owner E
 
 ### EPIC 4 - Contrats et versioning
@@ -67,7 +67,7 @@ Note: les owners sont proposes par role; a mapper sur des noms lors du kickoff.
 - Introduire politique de compatibilite et de deprecation.
 - Publier changelog de contrat.
 
-**Owner principal**: Owner A  
+**Owner principal**: Owner A
 **Co-owners**: Owner B, Owner C
 
 ### EPIC 5 - Observabilite et fiabilite
@@ -75,7 +75,7 @@ Note: les owners sont proposes par role; a mapper sur des noms lors du kickoff.
 - Dashboard technique et alertes minimales.
 - Postmortem standardises sur incidents.
 
-**Owner principal**: Owner D  
+**Owner principal**: Owner D
 **Co-owner**: Owner E
 
 ### EPIC 6 - Qualite et tests
@@ -83,7 +83,7 @@ Note: les owners sont proposes par role; a mapper sur des noms lors du kickoff.
 - Ajouter e2e front sur parcours critiques.
 - Definir gates CI sur risques architecturels.
 
-**Owner principal**: Owner E  
+**Owner principal**: Owner E
 **Co-owners**: Owner B, Owner C
 
 ---
@@ -298,7 +298,7 @@ Capitaliser sur la base assainie pour accelerer les evolutions metier.
 
 ## 7. Prochaines actions (30 jours)
 
-1. Nommer les owners (noms reels) pour A/B/C/D/E/F.  
-2. Prioriser 5 use-cases cibles pour la vague T1 2026.  
-3. Ouvrir et arbitrer les 2 premieres ADR (frontieres couches, modele de jobs).  
+1. Nommer les owners (noms reels) pour A/B/C/D/E/F.
+2. Prioriser 5 use-cases cibles pour la vague T1 2026.
+3. Ouvrir et arbitrer les 2 premieres ADR (frontieres couches, modele de jobs).
 4. Definir les KPIs baseline (valeurs initiales) pour mesure d'impact.

@@ -151,6 +151,8 @@ def test_resolve_taxonomy_table_name_prefers_hierarchical_reference():
         "admin_areas": {"kind": "spatial"},
     }
 
-    resolved = _resolve_taxonomy_table_name(table_names, references, requested="taxonomy")
+    resolved = _resolve_taxonomy_table_name(
+        table_names, references, requested="taxonomy"
+    )
 
     assert resolved == "entity_plants"

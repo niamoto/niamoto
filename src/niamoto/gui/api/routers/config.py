@@ -16,6 +16,7 @@ from niamoto.gui.api.services.templates.config_service import (
     save_export_config as _save_export_config_impl,
     find_transform_group as _find_transform_group_impl,
     find_export_group as _find_export_group_impl,
+    find_or_create_transform_group as _find_or_create_transform_group_impl,
 )
 
 router = APIRouter()
@@ -54,6 +55,21 @@ def _find_export_group(
 ) -> Optional[Dict[str, Any]]:
     """Find export group by group_by value using centralized service."""
     return _find_export_group_impl(export_config, group_by)
+
+
+def _is_known_reference(group_by: str) -> bool:
+    """Vérifie que group_by correspond à une référence déclarée dans import.yml."""
+    try:
+        work_dir = get_working_directory()
+        import_path = work_dir / "config" / "import.yml"
+        if not import_path.exists():
+            return False
+        with open(import_path, "r", encoding="utf-8") as f:
+            import_config = yaml.safe_load(f) or {}
+        references = import_config.get("entities", {}).get("references", {}) or {}
+        return group_by in references
+    except Exception:
+        return False
 
 
 class ConfigUpdate(BaseModel):
@@ -1480,7 +1496,13 @@ async def update_transform_widget(
         group = _find_transform_group(groups, group_by)
 
         if not group:
-            raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
+            # Auto-créer seulement si le group_by est une référence connue
+            if not _is_known_reference(group_by):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{group_by}' not found and is not a known reference in import.yml",
+                )
+            group = _find_or_create_transform_group_impl(groups, group_by)
 
         if "widgets_data" not in group:
             group["widgets_data"] = {}
@@ -1602,9 +1624,28 @@ async def update_export_widget(
                 break
 
         if not target_group:
-            raise HTTPException(
-                status_code=404, detail=f"Group '{group_by}' not found in export config"
-            )
+            # Auto-créer seulement si le group_by est une référence connue
+            if not _is_known_reference(group_by):
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{group_by}' not found in export config and is not a known reference in import.yml",
+                )
+            exports = export_config.setdefault("exports", [])
+            web_export = None
+            for entry in exports:
+                if isinstance(entry, dict) and entry.get("name") == "web_pages":
+                    web_export = entry
+                    break
+            if not web_export:
+                web_export = {
+                    "name": "web_pages",
+                    "enabled": True,
+                    "exporter": "html_page_exporter",
+                    "groups": [],
+                }
+                exports.append(web_export)
+            target_group = {"group_by": group_by, "widgets": []}
+            web_export.setdefault("groups", []).append(target_group)
 
         # Ensure widgets list exists
         if "widgets" not in target_group:
@@ -2833,3 +2874,31 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing data: {str(e)}")
+
+
+@router.post("/scaffold")
+async def scaffold_configs_endpoint() -> Dict[str, Any]:
+    """Scaffold les configs transform.yml et export.yml à partir de import.yml.
+
+    Crée des groupes minimaux pour chaque référence absente.
+    Idempotent : les groupes existants ne sont pas modifiés.
+    Utile après ajout d'une nouvelle référence dans import.yml.
+    """
+    from niamoto.gui.api.services.templates.config_scaffold import scaffold_configs
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    try:
+        changed, message = scaffold_configs(work_dir)
+        return {
+            "success": True,
+            "changed": changed,
+            "message": message,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Scaffold error: {str(e)}",
+        )

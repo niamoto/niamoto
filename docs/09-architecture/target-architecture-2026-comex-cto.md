@@ -1,14 +1,14 @@
 # Niamoto - Dossier de Decision Architecture 2026-2027 (COMEX/CTO)
 
-**Date**: 2026-02-11  
-**Horizon**: 12 mois  
+**Date**: 2026-02-11
+**Horizon**: 12 mois
 **Decision attendue**: GO sur la trajectoire d'evolution architecture
 
 ---
 
 ## 1. Message cle (en 30 secondes)
 
-Niamoto a une base saine et operationnelle.  
+Niamoto a une base saine et operationnelle.
 Le sujet n'est pas de reconstruire, mais de **fiabiliser et structurer** pour tenir la croissance produit.
 
 Decision recommandee:
@@ -36,7 +36,7 @@ En synthese: le produit peut continuer d'ajouter des features, mais le risque d'
 
 ### Ce que nous faisons
 
-1. **Evolution incrementale du monolithe modulaire** (pas de big bang).  
+1. **Evolution incrementale du monolithe modulaire** (pas de big bang).
 2. **Structuration interne**:
 - Domain: regles metier,
 - Application: use-cases et orchestration,
@@ -118,20 +118,19 @@ KPIs suivis trimestriellement:
 
 ## 8. Gouvernance et responsabilites
 
-- **Sponsor**: CTO  
-- **Pilotage**: Architecture + Product + Engineering  
-- **Rythme**: revue trimestrielle COMEX/CTO  
+- **Sponsor**: CTO
+- **Pilotage**: Architecture + Product + Engineering
+- **Rythme**: revue trimestrielle COMEX/CTO
 - **Mecanisme de decision**: backlog ADR + KPI trimestriels
 
 ---
 
 ## 9. Decision demandee au COMEX/CTO
 
-1. **Valider le GO** sur l'evolution incrementale du monolithe modulaire.  
+1. **Valider le GO** sur l'evolution incrementale du monolithe modulaire.
 2. **Valider la priorisation 2026**:
 - fiabilite jobs,
 - securite structurelle,
 - observabilite,
 - contrats versionnes.
 3. **Mandater la gouvernance trimestrielle** avec arbitrages ADR et suivi KPI.
-
