@@ -1,7 +1,7 @@
 # Template — Rapport de Parité (`niamoto-nc` vs `niamoto-test`)
 
-Date d'exécution : `____/____/______`  
-Auteur(s) : `______________________`  
+Date d'exécution : `____/____/______`
+Auteur(s) : `______________________`
 Version app/branche : `______________________`
 
 ## 1) Contexte

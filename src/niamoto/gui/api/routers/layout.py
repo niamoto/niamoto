@@ -227,9 +227,13 @@ async def get_layout(group_by: str):
         group_config = _find_group_config(export_config, group_by)
 
         if not group_config:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Group '{group_by}' not found in export.yml",
+            # Dégradation gracieuse : retourner une structure vide
+            # au lieu d'un 404 quand le groupe n'existe pas encore
+            return LayoutResponse(
+                group_by=group_by,
+                widgets=[],
+                navigation_widget=None,
+                total_widgets=0,
             )
 
         widgets = group_config.get("widgets", [])
@@ -281,7 +285,7 @@ async def update_layout(group_by: str, request: LayoutUpdateRequest):
         if not result:
             raise HTTPException(
                 status_code=404,
-                detail=f"Group '{group_by}' not found in export.yml",
+                detail=f"Group '{group_by}' has no export configuration yet. Import data first or run scaffold.",
             )
 
         export_idx, group_idx, group_config = result

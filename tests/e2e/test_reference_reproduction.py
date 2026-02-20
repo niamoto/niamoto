@@ -70,7 +70,9 @@ def reference_transform() -> dict[str, dict[str, Any]]:
     assert transform_path.exists(), f"Missing reference transform.yml: {transform_path}"
     with open(transform_path, encoding="utf-8") as f:
         config = yaml.safe_load(f) or []
-    assert isinstance(config, list), "Reference transform.yml should be a list of groups"
+    assert isinstance(config, list), (
+        "Reference transform.yml should be a list of groups"
+    )
     return {group["group_by"]: group for group in config if isinstance(group, dict)}
 
 
@@ -159,7 +161,9 @@ class TestReferenceParity:
             "widgets_data": ref_group["widgets_data"],
             "mode": "replace",
         }
-        save_response = test_client.post("/api/templates/save-config", json=save_request)
+        save_response = test_client.post(
+            "/api/templates/save-config", json=save_request
+        )
         assert save_response.status_code == 200, save_response.text
         assert save_response.json().get("success") is True
 
@@ -192,7 +196,9 @@ class TestShapesExportGeneration:
             "widgets_data": ref_shapes["widgets_data"],
             "mode": "replace",
         }
-        save_response = test_client.post("/api/templates/save-config", json=save_request)
+        save_response = test_client.post(
+            "/api/templates/save-config", json=save_request
+        )
         assert save_response.status_code == 200, save_response.text
 
         export_path = working_directory / "config" / "export.yml"
@@ -203,7 +209,10 @@ class TestShapesExportGeneration:
 
         html_exporter = None
         for export in export_config.get("exports", []):
-            if isinstance(export, dict) and export.get("exporter") == "html_page_exporter":
+            if (
+                isinstance(export, dict)
+                and export.get("exporter") == "html_page_exporter"
+            ):
                 html_exporter = export
                 break
         assert html_exporter is not None, "html_page_exporter is missing in export.yml"
@@ -239,7 +248,9 @@ class TestShapesPreviewSmoke:
             "widgets_data": ref_shapes["widgets_data"],
             "mode": "replace",
         }
-        save_response = test_client.post("/api/templates/save-config", json=save_request)
+        save_response = test_client.post(
+            "/api/templates/save-config", json=save_request
+        )
         assert save_response.status_code == 200, save_response.text
         return list(ref_shapes["widgets_data"].keys())
 
@@ -313,7 +324,9 @@ class TestPublicationPipeline:
             "widgets_data": ref_group["widgets_data"],
             "mode": "replace",
         }
-        save_response = test_client.post("/api/templates/save-config", json=save_request)
+        save_response = test_client.post(
+            "/api/templates/save-config", json=save_request
+        )
         assert save_response.status_code == 200, (
             f"save-config failed for {group}: {save_response.text}"
         )
@@ -387,7 +400,9 @@ class TestPublicationPipeline:
         )
 
         web_output = Path(
-            web_export_data.get("output_path", str(working_directory / "exports" / "web"))
+            web_export_data.get(
+                "output_path", str(working_directory / "exports" / "web")
+            )
         )
         assert web_output.exists(), "exports/web was not generated"
         generated_html = list(web_output.rglob("*.html"))

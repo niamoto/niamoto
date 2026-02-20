@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from niamoto.common.database import Database
 from ..context import get_working_directory
 from niamoto.common.table_resolver import quote_identifier, resolve_entity_table
 
@@ -246,9 +247,7 @@ def _load_enrichment_config() -> Optional[EnrichmentConfig]:
         return None
 
 
-def _resolve_reference_table_from_db(
-    db: "Database", reference_name: str
-) -> Optional[str]:
+def _resolve_reference_table_from_db(db: Database, reference_name: str) -> Optional[str]:
     """Resolve reference table using registry first, then naming conventions."""
     try:
         from niamoto.core.imports.registry import EntityRegistry
@@ -287,8 +286,6 @@ def _resolve_reference_table(reference_name: str) -> Optional[str]:
         return None
 
     try:
-        from niamoto.common.database import Database
-
         db = Database(str(db_path), read_only=True)
         try:
             return _resolve_reference_table_from_db(db, reference_name)
@@ -788,13 +785,14 @@ async def get_enrichment_config_for_reference(reference_name: str):
         reference_name: Name of the reference to get config for
 
     Returns:
-        EnrichmentConfig if found
+        EnrichmentConfig with enabled=False if no config found
     """
     config = _load_enrichment_config_for_reference(reference_name)
     if not config:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No enrichment configuration found for reference '{reference_name}'",
+        return EnrichmentConfig(
+            plugin="none",
+            enabled=False,
+            api_url="",
         )
     return config
 
@@ -804,8 +802,10 @@ async def get_enrichment_config():
     """Get current enrichment configuration from import.yml (first enabled config found)."""
     config = _load_enrichment_config()
     if not config:
-        raise HTTPException(
-            status_code=404, detail="No enrichment configuration found in import.yml"
+        return EnrichmentConfig(
+            plugin="none",
+            enabled=False,
+            api_url="",
         )
     return config
 

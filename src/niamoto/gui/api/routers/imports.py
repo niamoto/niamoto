@@ -329,7 +329,7 @@ async def list_entities() -> Dict[str, Any]:
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
-        generic_config = config.get_imports_config()
+        generic_config = config.get_imports_config
 
         # Get table names from EntityRegistry if available
         table_name_map: Dict[str, str] = {}
@@ -488,7 +488,7 @@ async def process_generic_import_all(
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
-        generic_config = config.get_imports_config()
+        generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 
         try:
@@ -518,6 +518,18 @@ async def process_generic_import_all(
             job["processed_entities"] = total_entities
             job["message"] = "Import completed successfully"
             job["result"] = {"summary": result}
+
+            # Auto-scaffold transform.yml et export.yml (non-fatal)
+            try:
+                from niamoto.gui.api.services.templates.config_scaffold import (
+                    scaffold_configs,
+                )
+
+                changed, msg = scaffold_configs(work_dir)
+                if changed:
+                    logger.info("Auto-scaffold configs: %s", msg)
+            except Exception as e:
+                logger.warning("Config scaffold failed (non-fatal): %s", e)
 
         finally:
             # Always close database connections
@@ -563,7 +575,7 @@ async def process_generic_import_entity(
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
-        generic_config = config.get_imports_config()
+        generic_config = config.get_imports_config
         importer = ImporterService(config.database_path)
 
         try:

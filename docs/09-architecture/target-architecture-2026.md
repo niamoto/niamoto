@@ -1,14 +1,14 @@
 # Architecture Cible Niamoto (2026-2027)
 
-**Date**: 2026-02-11  
-**Portee**: GUI, API, Core pipeline, extensibilite plugins  
+**Date**: 2026-02-11
+**Portee**: GUI, API, Core pipeline, extensibilite plugins
 **Horizon**: 6 a 12 mois
 
 ---
 
 ## 1. Resume Executif
 
-Niamoto repose aujourd'hui sur un **monolithe modulaire solide**: le coeur metier (pipeline + plugins), une API FastAPI d'orchestration, et un frontend React/Tauri.  
+Niamoto repose aujourd'hui sur un **monolithe modulaire solide**: le coeur metier (pipeline + plugins), une API FastAPI d'orchestration, et un frontend React/Tauri.
 Cette base est pertinente et ne justifie pas une re-ecriture.
 
 La trajectoire recommandee est:

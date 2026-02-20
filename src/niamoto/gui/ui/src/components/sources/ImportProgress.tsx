@@ -4,7 +4,7 @@
  * With steps indicator and current entity display
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -38,6 +38,9 @@ export function ImportProgress({
     processedEntities: number
     currentEntity?: string
   }>({ totalEntities: 0, processedEntities: 0 })
+
+  // Guard against React 18 StrictMode double-mount
+  const importStarted = useRef(false)
 
   const executeImport = useCallback(async () => {
     try {
@@ -101,7 +104,8 @@ export function ImportProgress({
   }, [config, onComplete, onError])
 
   useEffect(() => {
-    if (autoStart && step === 'idle') {
+    if (autoStart && step === 'idle' && !importStarted.current) {
+      importStarted.current = true
       executeImport()
     }
   }, [autoStart, step, executeImport])
