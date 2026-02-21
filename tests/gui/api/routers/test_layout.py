@@ -101,8 +101,9 @@ class TestPreviewTemplateSignatureSync:
 
         # Get all preview_template parameters
         for param_name, param in preview_sig.parameters.items():
-            if param_name == "template_id":
-                # First positional arg, always passed
+            if param_name in ("template_id", "request"):
+                # template_id: first positional arg, always passed
+                # request: injecté automatiquement par FastAPI
                 continue
 
             # Parameter must either be passed explicitly or have a default
