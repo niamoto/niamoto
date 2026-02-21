@@ -523,6 +523,12 @@ export function LayoutOverview({
   // Initialize local widgets from layout data
   useEffect(() => {
     if (layout?.widgets) {
+      // Détecter si l'ordre des widgets a changé pour forcer le refresh des iframes
+      const newIds = layout.widgets.map(w => w.data_source).join(',')
+      const oldIds = localWidgets.map(w => w.data_source).join(',')
+      if (oldIds && newIds !== oldIds) {
+        setGlobalRefreshKey(k => k + 1)
+      }
       setLocalWidgets([...layout.widgets])
       setHasChanges(false)
     }
