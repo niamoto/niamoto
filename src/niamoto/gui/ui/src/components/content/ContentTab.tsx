@@ -112,41 +112,30 @@ export function ContentTab({ reference }: ContentTabProps) {
     setSelectedWidgetId(null)
   }, [])
 
-  // Handle widget update
+  // Handle widget update (updateWidget fait déjà fetchConfigs en interne)
   const handleUpdateWidget = useCallback(async (
     widgetId: string,
     config: Partial<ConfiguredWidget>
   ): Promise<boolean> => {
-    const success = await updateWidget(widgetId, config)
-    if (success) {
-      refetchWidgets()
-    }
-    return success
-  }, [updateWidget, refetchWidgets])
+    return await updateWidget(widgetId, config)
+  }, [updateWidget])
 
-  // Handle widget delete
+  // Handle widget delete (deleteWidget fait déjà fetchConfigs en interne)
   const handleDeleteWidget = useCallback(async (widgetId: string): Promise<boolean> => {
     const success = await deleteWidget(widgetId)
-    if (success) {
-      if (selectedWidgetId === widgetId) {
-        setSelectedWidgetId(null)
-      }
-      refetchWidgets()
+    if (success && selectedWidgetId === widgetId) {
+      setSelectedWidgetId(null)
     }
     return success
-  }, [deleteWidget, selectedWidgetId, refetchWidgets])
+  }, [deleteWidget, selectedWidgetId])
 
-  // Handle widget duplicate
+  // Handle widget duplicate (duplicateWidget fait déjà fetchConfigs en interne)
   const handleDuplicateWidget = useCallback(async (
     widgetId: string,
     newId: string
   ): Promise<boolean> => {
-    const success = await duplicateWidget(widgetId, newId)
-    if (success) {
-      refetchWidgets()
-    }
-    return success
-  }, [duplicateWidget, refetchWidgets])
+    return await duplicateWidget(widgetId, newId)
+  }, [duplicateWidget])
 
   // Handle widget reorder
   const handleReorderWidgets = useCallback(async (widgetIds: string[]): Promise<boolean> => {

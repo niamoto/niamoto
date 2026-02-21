@@ -6,7 +6,7 @@
  * - Combined: Semantic groups + manual field selection
  * - Custom: 4-step wizard with YAML preview
  */
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -63,6 +63,7 @@ import {
   type CombinedWidgetSuggestion,
 } from '@/lib/api/widget-suggestions'
 import type { ReferenceInfo } from '@/hooks/useReferences'
+import { usePreviewHtml, cancelAllPreviews, refreshPreview } from './usePreviewQueue'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -103,11 +104,8 @@ interface WidgetPreviewProps {
 const IFRAME_BASE_WIDTH = 400
 const IFRAME_BASE_HEIGHT = 300
 
-function WidgetPreview({ templateId, groupBy, source, className, width = 200, height = 96 }: WidgetPreviewProps) {
+const WidgetPreview = memo(function WidgetPreview({ templateId, groupBy, source, className, width = 200, height = 96 }: WidgetPreviewProps) {
   const { t } = useTranslation(['widgets'])
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
-  const [key, setKey] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -120,10 +118,10 @@ function WidgetPreview({ templateId, groupBy, source, className, width = 200, he
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsVisible(true)
-          observer.disconnect() // Once visible, stop observing
+          observer.disconnect()
         }
       },
-      { rootMargin: '100px' } // Start loading slightly before visible
+      { rootMargin: '100px' }
     )
 
     observer.observe(element)
@@ -133,8 +131,8 @@ function WidgetPreview({ templateId, groupBy, source, className, width = 200, he
   // Calculate scale to fit the container
   const scale = Math.min(width / IFRAME_BASE_WIDTH, height / IFRAME_BASE_HEIGHT)
 
-  // Build preview URL with optional source parameter
-  const buildPreviewUrl = () => {
+  // Build preview URL
+  const previewUrl = useMemo(() => {
     const params = new URLSearchParams()
     if (groupBy) params.set('group_by', groupBy)
     if (source && source !== 'occurrences') params.set('source', source)
@@ -142,16 +140,10 @@ function WidgetPreview({ templateId, groupBy, source, className, width = 200, he
     return queryString
       ? `/api/templates/preview/${templateId}?${queryString}`
       : `/api/templates/preview/${templateId}`
-  }
-  const previewUrl = buildPreviewUrl()
+  }, [templateId, groupBy, source])
 
-  useEffect(() => {
-    if (isVisible) {
-      setIsLoading(true)
-      setHasError(false)
-      setKey((k) => k + 1)
-    }
-  }, [templateId, groupBy, source, isVisible])
+  // Utiliser la queue avec concurrence limitée + cache LRU
+  const { html, loading, error } = usePreviewHtml(previewUrl, isVisible)
 
   return (
     <div
@@ -160,40 +152,38 @@ function WidgetPreview({ templateId, groupBy, source, className, width = 200, he
       style={{ width, height }}
     >
       {!isVisible ? (
-        // Placeholder before becoming visible
         <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
           <div className="w-8 h-8 rounded bg-muted/50" />
         </div>
       ) : (
         <>
-          {isLoading && !hasError && (
+          {loading && !error && (
             <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           )}
-          {hasError && (
+          {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 z-10">
               <span className="text-[10px] text-muted-foreground">{t('preview.error')}</span>
             </div>
           )}
-          <iframe
-            key={key}
-            src={previewUrl}
-            className="pointer-events-none origin-top-left border-0"
-            style={{
-              width: IFRAME_BASE_WIDTH,
-              height: IFRAME_BASE_HEIGHT,
-              transform: `scale(${scale})`,
-            }}
-            onLoad={() => setIsLoading(false)}
-            onError={() => setHasError(true)}
-            title={`Preview ${templateId}`}
-          />
+          {html && (
+            <iframe
+              srcDoc={html}
+              className="pointer-events-none origin-top-left border-0"
+              style={{
+                width: IFRAME_BASE_WIDTH,
+                height: IFRAME_BASE_HEIGHT,
+                transform: `scale(${scale})`,
+              }}
+              title={`Preview ${templateId}`}
+            />
+          )}
         </>
       )}
     </div>
   )
-}
+})
 
 // Large preview component for right panel (with scaling)
 interface LargePreviewProps {
@@ -208,15 +198,12 @@ const LARGE_PREVIEW_HEIGHT = 291  // 4:3 ratio (388 * 3/4)
 
 function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
   const { t } = useTranslation(['widgets'])
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
-  const [key, setKey] = useState(0)
 
   // Calculate scale to fit the container
   const scale = Math.min(LARGE_PREVIEW_WIDTH / IFRAME_BASE_WIDTH, LARGE_PREVIEW_HEIGHT / IFRAME_BASE_HEIGHT)
 
-  // Build preview URL with optional source parameter
-  const buildPreviewUrl = () => {
+  // Build preview URL (même URL que la miniature → même clé de cache)
+  const previewUrl = useMemo(() => {
     const params = new URLSearchParams()
     if (groupBy) params.set('group_by', groupBy)
     if (source && source !== 'occurrences') params.set('source', source)
@@ -224,20 +211,14 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
     return queryString
       ? `/api/templates/preview/${templateId}?${queryString}`
       : `/api/templates/preview/${templateId}`
-  }
-  const previewUrl = buildPreviewUrl()
-
-  useEffect(() => {
-    setIsLoading(true)
-    setHasError(false)
-    setKey((k) => k + 1)
   }, [templateId, groupBy, source])
 
-  const handleRefresh = () => {
-    setIsLoading(true)
-    setHasError(false)
-    setKey((k) => k + 1)
-  }
+  // Réutilise le cache LRU — si la miniature a déjà chargé, pas de 2e requête
+  const { html, loading, error } = usePreviewHtml(previewUrl, true)
+
+  const handleRefresh = useCallback(() => {
+    refreshPreview(previewUrl)
+  }, [previewUrl])
 
   return (
     <div className="relative">
@@ -245,12 +226,12 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
         className="bg-background border rounded-md overflow-hidden"
         style={{ width: LARGE_PREVIEW_WIDTH, height: LARGE_PREVIEW_HEIGHT }}
       >
-        {isLoading && !hasError && (
+        {loading && !error && (
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
-        {hasError && (
+        {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
             <Eye className="h-8 w-8 text-muted-foreground/30 mb-2" />
             <span className="text-sm text-muted-foreground">{t('preview.unavailable')}</span>
@@ -260,28 +241,27 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
             </Button>
           </div>
         )}
-        <iframe
-          key={key}
-          src={previewUrl}
-          className="pointer-events-none origin-top-left border-0"
-          style={{
-            width: IFRAME_BASE_WIDTH,
-            height: IFRAME_BASE_HEIGHT,
-            transform: `scale(${scale})`,
-          }}
-          onLoad={() => setIsLoading(false)}
-          onError={() => setHasError(true)}
-          title={`Preview ${templateId}`}
-        />
+        {html && (
+          <iframe
+            srcDoc={html}
+            className="pointer-events-none origin-top-left border-0"
+            style={{
+              width: IFRAME_BASE_WIDTH,
+              height: IFRAME_BASE_HEIGHT,
+              transform: `scale(${scale})`,
+            }}
+            title={`Preview ${templateId}`}
+          />
+        )}
       </div>
-      {!hasError && (
+      {!error && (
         <Button
           variant="ghost"
           size="icon"
           className="absolute top-2 right-2 h-7 w-7 bg-background/80 hover:bg-background z-20"
           onClick={handleRefresh}
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
+          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
         </Button>
       )}
     </div>
@@ -660,6 +640,9 @@ export function AddWidgetModal({
       setSelectedFields([])
       setSelectedCombined(null)
       setWizardStep(1)
+    } else {
+      // Annuler les previews en attente quand la modale se ferme
+      cancelAllPreviews()
     }
   }, [open, defaultTab])
 
