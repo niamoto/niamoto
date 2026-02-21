@@ -161,12 +161,8 @@ class TestBooleanComparisonTransform:
 
     def test_transform_multiple_fields(self, boolean_plugin):
         """Trois champs booléens comparés ensemble."""
-        data = pd.DataFrame(
-            {"f1": [1, 1, 0], "f2": [0, 0, 0], "f3": [1, 1, 1]}
-        )
-        result = boolean_plugin.transform(
-            data, _make_config(fields=["f1", "f2", "f3"])
-        )
+        data = pd.DataFrame({"f1": [1, 1, 0], "f2": [0, 0, 0], "f3": [1, 1, 1]})
+        result = boolean_plugin.transform(data, _make_config(fields=["f1", "f2", "f3"]))
 
         # 6 lignes : 2 par champ (Oui + Non)
         assert len(result) == 6

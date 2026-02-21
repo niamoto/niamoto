@@ -247,7 +247,9 @@ def _load_enrichment_config() -> Optional[EnrichmentConfig]:
         return None
 
 
-def _resolve_reference_table_from_db(db: Database, reference_name: str) -> Optional[str]:
+def _resolve_reference_table_from_db(
+    db: Database, reference_name: str
+) -> Optional[str]:
     """Resolve reference table using registry first, then naming conventions."""
     try:
         from niamoto.core.imports.registry import EntityRegistry

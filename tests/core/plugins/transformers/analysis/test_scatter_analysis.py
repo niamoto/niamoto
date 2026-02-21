@@ -132,7 +132,9 @@ class TestScatterAnalysisTransform:
         result1 = scatter_plugin.transform(data.copy(), config)
         result2 = scatter_plugin.transform(data.copy(), config)
 
-        pd.testing.assert_frame_equal(result1.reset_index(drop=True), result2.reset_index(drop=True))
+        pd.testing.assert_frame_equal(
+            result1.reset_index(drop=True), result2.reset_index(drop=True)
+        )
 
     def test_transform_preserves_numeric_values(self, scatter_plugin):
         """Les valeurs numériques sont préservées correctement."""

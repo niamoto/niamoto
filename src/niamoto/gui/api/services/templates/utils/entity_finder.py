@@ -422,9 +422,7 @@ def find_entity_by_id(
                             "entity_name": entity_name,
                         }
                 except Exception as e:
-                    logger.warning(
-                        f"Level column query failed for {entity_rank}: {e}"
-                    )
+                    logger.warning(f"Level column query failed for {entity_rank}: {e}")
                     # Fall through to relation_key
 
         if relation_key:
