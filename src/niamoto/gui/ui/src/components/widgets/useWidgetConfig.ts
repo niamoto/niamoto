@@ -444,7 +444,11 @@ export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
 
   const reorderMutation = useMutation({
     mutationFn: (widgetIds: string[]) => performReorder(widgetIds, groupBy),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate()
+      // Invalider aussi le layout preview qui dépend de l'ordre des widgets
+      queryClient.invalidateQueries({ queryKey: ['layout'] })
+    },
   })
 
   // Wrappers conservant l'interface Promise<boolean>

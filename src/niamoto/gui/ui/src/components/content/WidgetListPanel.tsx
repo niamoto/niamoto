@@ -7,7 +7,7 @@
  * - Delete and duplicate actions
  * - Simplified item display (no inline expansion)
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   DndContext,
@@ -227,6 +227,12 @@ export function WidgetListPanel({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
 
+  // État local pour affichage optimiste lors du drag & drop
+  const [localWidgets, setLocalWidgets] = useState(widgets)
+  useEffect(() => {
+    setLocalWidgets(widgets)
+  }, [widgets])
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -244,17 +250,23 @@ export function WidgetListPanel({
       const { active, over } = event
 
       if (over && active.id !== over.id) {
-        const oldIndex = widgets.findIndex((w) => w.id === active.id)
-        const newIndex = widgets.findIndex((w) => w.id === over.id)
+        const oldIndex = localWidgets.findIndex((w) => w.id === active.id)
+        const newIndex = localWidgets.findIndex((w) => w.id === over.id)
 
         if (oldIndex !== -1 && newIndex !== -1 && onReorder) {
-          const reorderedWidgets = arrayMove(widgets, oldIndex, newIndex)
+          const reorderedWidgets = arrayMove(localWidgets, oldIndex, newIndex)
+          // Mise à jour optimiste immédiate — pas de snap-back
+          setLocalWidgets(reorderedWidgets)
           const widgetIds = reorderedWidgets.map((w) => w.id)
-          await onReorder(widgetIds)
+          const success = await onReorder(widgetIds)
+          if (!success) {
+            // Rollback si le serveur échoue
+            setLocalWidgets(widgets)
+          }
         }
       }
     },
-    [widgets, onReorder]
+    [localWidgets, widgets, onReorder]
   )
 
   const handleDeleteClick = (e: React.MouseEvent, widget: ConfiguredWidget) => {
@@ -314,7 +326,7 @@ export function WidgetListPanel({
     )
   }
 
-  const widgetIds = widgets.map((w) => w.id)
+  const widgetIds = localWidgets.map((w) => w.id)
 
   return (
     <>
@@ -327,7 +339,7 @@ export function WidgetListPanel({
           >
             <SortableContext items={widgetIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
-                {widgets.map((widget) => (
+                {localWidgets.map((widget) => (
                   <SortableWidgetItem
                     key={widget.id}
                     widget={widget}
