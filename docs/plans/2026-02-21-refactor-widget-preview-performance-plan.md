@@ -293,20 +293,20 @@ Règle Vercel : **`rerender-move-effect-to-event`** — le fetch est contrôlé 
 ## Acceptance Criteria
 
 ### Fonctionnel
-- [ ] Les previews de widgets se chargent correctement dans les 3 onglets (Suggestions, Combiné, Personnalisé)
-- [ ] Les mutations (update/delete/duplicate) ne déclenchent qu'un seul cycle de refetch
-- [ ] Le changement de référence ne recharge pas les données si elles sont encore fraîches (< 30s)
-- [ ] La sélection d'une suggestion réutilise la preview miniature dans le panneau large
+- [x] Les previews de widgets se chargent correctement dans les 3 onglets (Suggestions, Combiné, Personnalisé)
+- [x] Les mutations (update/delete/duplicate) ne déclenchent qu'un seul cycle de refetch
+- [x] Le changement de référence ne recharge pas les données si elles sont encore fraîches (< 30s)
+- [x] La sélection d'une suggestion réutilise la preview miniature dans le panneau large
 
 ### Performance (vs baseline Phase 0)
-- [ ] Maximum 4 iframes en chargement simultané dans AddWidgetModal
-- [ ] Pas de régénération backend ni de payload HTML dupliqué pour le même (templateId, groupBy, source) — les requêtes 304 (ETag match) sont acceptables
-- [ ] Les hooks retournent les données du cache immédiatement si disponibles (pas de loading flash)
+- [x] Maximum 4 iframes en chargement simultané dans AddWidgetModal
+- [x] Pas de régénération backend ni de payload HTML dupliqué pour le même (templateId, groupBy, source) — les requêtes 304 (ETag match) sont acceptables
+- [x] Les hooks retournent les données du cache immédiatement si disponibles (pas de loading flash)
 
 ### Qualité
-- [ ] Tous les tests existants passent (`uv run pytest`)
-- [ ] Lint propre (`uvx ruff check`, `pnpm lint` dans ui/)
-- [ ] Pas de régression visuelle dans la modale AddWidget
+- [x] Tous les tests existants passent (`uv run pytest`)
+- [x] Lint propre (`uvx ruff check`, `pnpm lint` dans ui/)
+- [x] Pas de régression visuelle dans la modale AddWidget
 
 ## Success Metrics (à comparer avec baseline Phase 0)
 
