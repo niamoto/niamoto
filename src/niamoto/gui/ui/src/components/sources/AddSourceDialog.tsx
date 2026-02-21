@@ -161,7 +161,7 @@ export function AddSourceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('dialogs.addPrecomputedSource')}</DialogTitle>
           <DialogDescription>
@@ -201,7 +201,7 @@ export function AddSourceDialog({
         </div>
 
         {/* Step Content */}
-        <div className="py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto py-4">
           {/* Upload Step */}
           {step === 'upload' && (
             <UploadZone
@@ -287,7 +287,7 @@ export function AddSourceDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2 sm:justify-between">
           {step !== 'upload' && (
             <Button variant="outline" onClick={prevStep} disabled={saveMutation.isPending}>
               <ArrowLeft className="mr-2 h-4 w-4" />

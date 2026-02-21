@@ -60,6 +60,16 @@ def _detect_geometry_column(columns: List[str]) -> Optional[str]:
     return None
 
 
+def _as_wkt_sql(quoted_geo_col: str) -> str:
+    """Return SQL expression that normalizes geometry/varchar columns to WKT."""
+    return (
+        f"COALESCE("
+        f"ST_AsText(TRY_CAST({quoted_geo_col} AS GEOMETRY)), "
+        f"CAST({quoted_geo_col} AS VARCHAR)"
+        f")"
+    )
+
+
 def find_representative_entity(
     db: Database, hierarchy_info: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -142,7 +152,7 @@ def find_representative_entity(
             except Exception as e:
                 logger.warning(f"Error finding entity via relation: {e}")
 
-        # Fallback: return first entity from reference table
+        # Fallback: return entity from reference table
         entity_table = _resolve_reference_table(db, reference_name)
         if entity_table and db.has_table(entity_table):
             quoted_entity_table = _quote_identifier(db, entity_table)
@@ -154,14 +164,69 @@ def find_representative_entity(
             name_candidates = ["full_name", "name", "label", "title"]
             name_field = next((c for c in name_candidates if c in columns), id_field)
 
-            query = text(f"SELECT * FROM {quoted_entity_table} LIMIT 1")
-            result = pd.read_sql(query, db.engine)
+            # For spatial references, prefer a moderate-sized shape to avoid
+            # expensive ST_Contains queries on huge polygons (provinces).
+            # Also convert geometry to WKT so data_loader can use ST_GeomFromText.
+            result = pd.DataFrame()
+            geo_col = _detect_geometry_column(columns) if kind == "spatial" else None
+            if kind == "spatial" and geo_col:
+                quoted_geo = _quote_identifier(db, geo_col)
+                geom_wkt_expr = _as_wkt_sql(quoted_geo)
+                try:
+                    with db.engine.connect() as conn:
+                        conn.execute(text("LOAD spatial"))
+                        # Pick a shape near the 25th percentile of area
+                        total = pd.read_sql(
+                            text(
+                                f"SELECT COUNT(*) as cnt "
+                                f"FROM {quoted_entity_table} "
+                                f"WHERE {quoted_geo} IS NOT NULL "
+                                f"AND TRY_CAST({quoted_geo} AS GEOMETRY) IS NOT NULL"
+                            ),
+                            conn,
+                        ).iloc[0]["cnt"]
+                        offset = max(0, int(total * 0.25))
+                        result = pd.read_sql(
+                            text(
+                                f"SELECT *, {geom_wkt_expr} AS _geom_wkt "
+                                f"FROM {quoted_entity_table} "
+                                f"WHERE {quoted_geo} IS NOT NULL "
+                                f"AND TRY_CAST({quoted_geo} AS GEOMETRY) IS NOT NULL "
+                                f"ORDER BY ST_Area(TRY_CAST({quoted_geo} AS GEOMETRY)) ASC "
+                                f"LIMIT 1 OFFSET {offset}"
+                            ),
+                            conn,
+                        )
+                except Exception as e:
+                    logger.debug("Spatial area ranking failed: %s", e)
+
+            if result.empty:
+                if kind == "spatial" and geo_col:
+                    # Still need WKT conversion for fallback
+                    quoted_geo = _quote_identifier(db, geo_col)
+                    geom_wkt_expr = _as_wkt_sql(quoted_geo)
+                    try:
+                        with db.engine.connect() as conn:
+                            conn.execute(text("LOAD spatial"))
+                            result = pd.read_sql(
+                                text(
+                                    f"SELECT *, {geom_wkt_expr} AS _geom_wkt "
+                                    f"FROM {quoted_entity_table} "
+                                    f"WHERE {quoted_geo} IS NOT NULL "
+                                    f"LIMIT 1"
+                                ),
+                                conn,
+                            )
+                    except Exception:
+                        pass
+                if result.empty:
+                    query = text(f"SELECT * FROM {quoted_entity_table} LIMIT 1")
+                    result = pd.read_sql(query, db.engine)
 
             if not result.empty:
                 entity = result.iloc[0]
                 entity_id = entity.get(id_field, entity.get("id"))
 
-                # For spatial references, include geometry for ST_Contains queries
                 result_dict = {
                     "level": reference_name,
                     "column": id_field,
@@ -172,13 +237,12 @@ def find_representative_entity(
                 }
 
                 if kind == "spatial":
-                    geo_col = _detect_geometry_column(columns)
-                    if geo_col:
-                        geo_value = entity.get(geo_col)
-                        if geo_value:
-                            result_dict["geometry"] = str(geo_value)
-                            result_dict["spatial_query"] = True
-                            result_dict["kind"] = "spatial"
+                    # Use pre-computed WKT if available, otherwise skip
+                    geom_wkt = entity.get("_geom_wkt")
+                    if geom_wkt:
+                        result_dict["geometry"] = str(geom_wkt)
+                        result_dict["spatial_query"] = True
+                        result_dict["kind"] = "spatial"
 
                     for type_candidate in ("shape_type", "type", "entity_type"):
                         if type_candidate in columns:
@@ -475,15 +539,34 @@ def find_entity_by_id(
             "source_type": "entity",
         }
 
-        # For spatial references, include geometry for ST_Contains queries
+        # For spatial references, convert geometry to WKT for ST_Contains queries
         if kind == "spatial":
             geo_col = _detect_geometry_column(entity.index.tolist())
             if geo_col:
-                geo_value = entity.get(geo_col)
-                if geo_value:
-                    result["geometry"] = str(geo_value)
-                    result["spatial_query"] = True
-                    result["kind"] = "spatial"
+                try:
+                    quoted_et = _quote_identifier(db, entity_table)
+                    quoted_id = _quote_identifier(db, id_field)
+                    quoted_geo = _quote_identifier(db, geo_col)
+                    geom_wkt_expr = _as_wkt_sql(quoted_geo)
+                    with db.engine.connect() as conn:
+                        conn.execute(text("LOAD spatial"))
+                        wkt_result = pd.read_sql(
+                            text(
+                                f"SELECT {geom_wkt_expr} AS wkt "
+                                f"FROM {quoted_et} "
+                                f"WHERE {quoted_id} = :eid LIMIT 1"
+                            ),
+                            conn,
+                            params={"eid": str(entity_id)},
+                        )
+                        if not wkt_result.empty and wkt_result.iloc[0]["wkt"]:
+                            result["geometry"] = wkt_result.iloc[0]["wkt"]
+                            result["spatial_query"] = True
+                            result["kind"] = "spatial"
+                except Exception as e:
+                    logger.debug(
+                        "WKT conversion failed for entity %s: %s", entity_id, e
+                    )
 
             for type_candidate in ("shape_type", "type", "entity_type"):
                 if type_candidate in entity.index:

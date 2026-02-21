@@ -65,7 +65,12 @@ import {
 } from '@/lib/api/widget-suggestions'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
-import { usePreviewHtml, cancelAllPreviews, refreshPreview } from './usePreviewQueue'
+import {
+  usePreviewHtml,
+  usePreviewQueueStats,
+  cancelAllPreviews,
+  refreshPreview,
+} from './usePreviewQueue'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -97,6 +102,8 @@ interface WidgetPreviewProps {
   templateId: string
   groupBy?: string
   source?: string
+  disablePreview?: boolean
+  useDirectSrc?: boolean
   className?: string
   width?: number
   height?: number
@@ -106,9 +113,35 @@ interface WidgetPreviewProps {
 const IFRAME_BASE_WIDTH = 400
 const IFRAME_BASE_HEIGHT = 300
 
-const WidgetPreview = memo(function WidgetPreview({ templateId, groupBy, source, className, width = 200, height = 96 }: WidgetPreviewProps) {
+function isHeavyMapSuggestion(
+  templateId: string,
+  plugin?: string,
+  category?: string
+): boolean {
+  return category === 'map' && plugin === 'entity_map_extractor' && templateId.endsWith('_all_map')
+}
+
+function isAllMapSuggestion(
+  templateId: string,
+  plugin?: string,
+  category?: string
+): boolean {
+  return category === 'map' && plugin === 'entity_map_extractor' && templateId.endsWith('_all_map')
+}
+
+const WidgetPreview = memo(function WidgetPreview({
+  templateId,
+  groupBy,
+  source,
+  disablePreview = false,
+  useDirectSrc = false,
+  className,
+  width = 200,
+  height = 96,
+}: WidgetPreviewProps) {
   const { t } = useTranslation(['widgets'])
   const [isVisible, setIsVisible] = useState(false)
+  const [directLoadError, setDirectLoadError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Lazy loading: only load preview when visible
@@ -116,14 +149,18 @@ const WidgetPreview = memo(function WidgetPreview({ templateId, groupBy, source,
     const element = containerRef.current
     if (!element) return
 
+    const scrollViewport = element.closest('[data-radix-scroll-area-viewport]') as Element | null
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true)
-          observer.disconnect()
-        }
+        // Keep previews mounted only while close to viewport to avoid
+        // accumulating many active Plotly iframes.
+        setIsVisible(entry.isIntersecting)
       },
-      { rootMargin: '100px' }
+      {
+        root: scrollViewport,
+        rootMargin: '120px',
+        threshold: 0.01,
+      }
     )
 
     observer.observe(element)
@@ -144,8 +181,10 @@ const WidgetPreview = memo(function WidgetPreview({ templateId, groupBy, source,
       : `/api/templates/preview/${templateId}`
   }, [templateId, groupBy, source])
 
+  const canRenderPreview = isVisible && !disablePreview
+
   // Utiliser la queue avec concurrence limitée + cache LRU
-  const { html, loading, error } = usePreviewHtml(previewUrl, isVisible)
+  const { html, loading, error } = usePreviewHtml(previewUrl, canRenderPreview)
 
   return (
     <div
@@ -153,23 +192,44 @@ const WidgetPreview = memo(function WidgetPreview({ templateId, groupBy, source,
       className={cn('relative bg-muted/30 overflow-hidden', className)}
       style={{ width, height }}
     >
-      {!isVisible ? (
+      {disablePreview ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+          <Map className="h-4 w-4 text-muted-foreground/60" />
+        </div>
+      ) : !isVisible ? (
         <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
           <div className="w-8 h-8 rounded bg-muted/50" />
         </div>
+      ) : !canRenderPreview ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+          <div className="w-6 h-6 rounded bg-muted/60" />
+        </div>
       ) : (
         <>
-          {loading && !error && (
+          {loading && !error && !useDirectSrc && (
             <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           )}
-          {error && (
+          {(error || directLoadError) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 z-10">
               <span className="text-[10px] text-muted-foreground">{t('preview.error')}</span>
             </div>
           )}
-          {html && (
+          {useDirectSrc ? (
+            <iframe
+              src={previewUrl}
+              className="pointer-events-none origin-top-left border-0"
+              style={{
+                width: IFRAME_BASE_WIDTH,
+                height: IFRAME_BASE_HEIGHT,
+                transform: `scale(${scale})`,
+              }}
+              loading="lazy"
+              onError={() => setDirectLoadError(true)}
+              title={`Preview ${templateId}`}
+            />
+          ) : html && (
             <iframe
               srcDoc={html}
               className="pointer-events-none origin-top-left border-0"
@@ -178,6 +238,7 @@ const WidgetPreview = memo(function WidgetPreview({ templateId, groupBy, source,
                 height: IFRAME_BASE_HEIGHT,
                 transform: `scale(${scale})`,
               }}
+              loading="lazy"
               title={`Preview ${templateId}`}
             />
           )}
@@ -192,14 +253,24 @@ interface LargePreviewProps {
   templateId: string
   groupBy?: string
   source?: string
+  disablePreview?: boolean
+  useDirectSrc?: boolean
 }
 
 // Large preview dimensions
 const LARGE_PREVIEW_WIDTH = 388  // Right panel width (420px) - padding
 const LARGE_PREVIEW_HEIGHT = 291  // 4:3 ratio (388 * 3/4)
 
-function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
+function LargePreview({
+  templateId,
+  groupBy,
+  source,
+  disablePreview = false,
+  useDirectSrc = false,
+}: LargePreviewProps) {
   const { t } = useTranslation(['widgets'])
+  const [directRefreshKey, setDirectRefreshKey] = useState(0)
+  const [directLoadError, setDirectLoadError] = useState(false)
 
   // Calculate scale to fit the container
   const scale = Math.min(LARGE_PREVIEW_WIDTH / IFRAME_BASE_WIDTH, LARGE_PREVIEW_HEIGHT / IFRAME_BASE_HEIGHT)
@@ -216,11 +287,22 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
   }, [templateId, groupBy, source])
 
   // Réutilise le cache LRU — si la miniature a déjà chargé, pas de 2e requête
-  const { html, loading, error } = usePreviewHtml(previewUrl, true)
+  const { html, loading, error } = usePreviewHtml(previewUrl, !disablePreview)
 
   const handleRefresh = useCallback(() => {
+    if (useDirectSrc) {
+      setDirectLoadError(false)
+      setDirectRefreshKey((k) => k + 1)
+      return
+    }
     refreshPreview(previewUrl)
-  }, [previewUrl])
+  }, [previewUrl, useDirectSrc])
+
+  const directSrc = useMemo(() => {
+    if (!useDirectSrc) return previewUrl
+    const sep = previewUrl.includes('?') ? '&' : '?'
+    return `${previewUrl}${sep}_pv=${directRefreshKey}`
+  }, [previewUrl, useDirectSrc, directRefreshKey])
 
   return (
     <div className="relative">
@@ -228,12 +310,19 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
         className="bg-background border rounded-md overflow-hidden"
         style={{ width: LARGE_PREVIEW_WIDTH, height: LARGE_PREVIEW_HEIGHT }}
       >
-        {loading && !error && (
+        {disablePreview ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
+            <Map className="h-8 w-8 text-muted-foreground/40 mb-2" />
+            <span className="text-sm text-muted-foreground text-center px-4">
+              Preview carte complete desactivee dans la modale
+            </span>
+          </div>
+        ) : loading && !error && !useDirectSrc && (
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
-        {error && (
+        {(error || directLoadError) && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
             <Eye className="h-8 w-8 text-muted-foreground/30 mb-2" />
             <span className="text-sm text-muted-foreground">{t('preview.unavailable')}</span>
@@ -243,7 +332,19 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
             </Button>
           </div>
         )}
-        {html && (
+        {useDirectSrc ? (
+          <iframe
+            src={directSrc}
+            className="pointer-events-none origin-top-left border-0"
+            style={{
+              width: IFRAME_BASE_WIDTH,
+              height: IFRAME_BASE_HEIGHT,
+              transform: `scale(${scale})`,
+            }}
+            onError={() => setDirectLoadError(true)}
+            title={`Preview ${templateId}`}
+          />
+        ) : html && (
           <iframe
             srcDoc={html}
             className="pointer-events-none origin-top-left border-0"
@@ -256,14 +357,14 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
           />
         )}
       </div>
-      {!error && (
+      {!(error || directLoadError) && !disablePreview && (
         <Button
           variant="ghost"
           size="icon"
           className="absolute top-2 right-2 h-7 w-7 bg-background/80 hover:bg-background z-20"
           onClick={handleRefresh}
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+          <RefreshCw className={cn('h-3.5 w-3.5', !useDirectSrc && loading && 'animate-spin')} />
         </Button>
       )}
     </div>
@@ -590,6 +691,7 @@ export function AddWidgetModal({
   const [customizations, setCustomizations] = useState<Record<string, Customization>>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<string | null>(null)
   const [quickEditFields, setQuickEditFields] = useState<QuickEditField[]>([])
@@ -602,6 +704,7 @@ export function AddWidgetModal({
   // Custom tab state
   const [wizardStep, setWizardStep] = useState(1)
   const [initialRecipe, setInitialRecipe] = useState<WidgetRecipe | undefined>(undefined)
+  const previewQueueStats = usePreviewQueueStats()
 
   // Hooks for generating and saving config
   const { generate: generateConfig, loading: generating } = useGenerateConfig()
@@ -620,13 +723,22 @@ export function AddWidgetModal({
   } = useCombinedWidgetSuggestions(reference.name, debouncedFields, 'occurrences')
 
   // Get available fields from suggestions
+  const visibleSuggestions = useMemo(
+    () =>
+      suggestions.filter(
+        (s) => !isAllMapSuggestion(s.template_id, s.plugin, s.category)
+      ),
+    [suggestions]
+  )
+
+  // Get available fields from suggestions
   const availableFields = useMemo(() => {
     const fields = new Set<string>()
-    suggestions.forEach((s) => {
+    visibleSuggestions.forEach((s) => {
       if (s.matched_column) fields.add(s.matched_column)
     })
     return Array.from(fields).sort()
-  }, [suggestions])
+  }, [visibleSuggestions])
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -637,6 +749,7 @@ export function AddWidgetModal({
       setCustomizations({})
       setSearchQuery('')
       setCollapsedSections(new Set())
+      setExpandedGroups(new Set())
       setCategoryFilter(null)
       setSourceFilter(null)
       setQuickEditFields([])
@@ -660,7 +773,15 @@ export function AddWidgetModal({
 
   // Get the suggestion to preview (only when clicked/focused)
   const previewSuggestionId = focusedSuggestion || null
-  const previewSuggestion = suggestions.find((s) => s.template_id === previewSuggestionId)
+  const previewSuggestion = visibleSuggestions.find((s) => s.template_id === previewSuggestionId)
+  const isMapPreview = previewSuggestion?.category === 'map'
+  const isHeavyMapPreview = previewSuggestion
+    ? isHeavyMapSuggestion(
+        previewSuggestion.template_id,
+        previewSuggestion.plugin,
+        previewSuggestion.category
+      )
+    : false
 
   // Fetch plugin schema when a suggestion is focused for quick edit
   useEffect(() => {
@@ -705,12 +826,12 @@ export function AddWidgetModal({
   const groupedSuggestions = useMemo(() => {
     // Apply search filter
     let filtered = searchQuery
-      ? suggestions.filter(
+      ? visibleSuggestions.filter(
           (s) =>
             s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             s.matched_column?.toLowerCase().includes(searchQuery.toLowerCase())
         )
-      : suggestions
+      : visibleSuggestions
 
     // Apply category filter
     if (categoryFilter) {
@@ -780,25 +901,25 @@ export function AddWidgetModal({
     })
 
     return result
-  }, [suggestions, searchQuery, categoryFilter, sourceFilter, reference.name])
+  }, [visibleSuggestions, searchQuery, categoryFilter, sourceFilter, reference.name])
 
   // Get all unique categories for filter chips
   const availableCategories = useMemo(() => {
     const cats = new Set<string>()
-    suggestions.forEach((s) => cats.add(s.category))
+    visibleSuggestions.forEach((s) => cats.add(s.category))
     return Array.from(cats)
-  }, [suggestions])
+  }, [visibleSuggestions])
 
   // Get all unique sources for filter chips
   const availableSources = useMemo(() => {
     const sourcesMap: Record<string, { name: string; type: string }> = {}
-    suggestions.forEach((s) => {
+    visibleSuggestions.forEach((s) => {
       if (s.source_name && !sourcesMap[s.source_name]) {
         sourcesMap[s.source_name] = { name: s.source_name, type: s.source || 'auto' }
       }
     })
     return Object.values(sourcesMap)
-  }, [suggestions])
+  }, [visibleSuggestions])
 
   // Toggle section collapse
   const toggleSection = useCallback((key: string) => {
@@ -826,12 +947,12 @@ export function AddWidgetModal({
   const getCustomization = useCallback(
     (id: string): Customization => {
       if (customizations[id]) return customizations[id]
-      const suggestion = suggestions.find((s) => s.template_id === id)
+      const suggestion = visibleSuggestions.find((s) => s.template_id === id)
       return {
         title: suggestion?.name || '',
       }
     },
-    [customizations, suggestions]
+    [customizations, visibleSuggestions]
   )
 
   // Update customization
@@ -878,7 +999,7 @@ export function AddWidgetModal({
 
     const templates = selectedSuggestions
       .map((id) => {
-        const suggestion = suggestions.find((s) => s.template_id === id)
+        const suggestion = visibleSuggestions.find((s) => s.template_id === id)
         if (!suggestion) return null
         const customization = getCustomization(id)
 
@@ -924,7 +1045,7 @@ export function AddWidgetModal({
       await saveConfig(result, 'merge')
       onWidgetAdded()
     }
-  }, [selectedSuggestions, suggestions, getCustomization, generateConfig, saveConfig, reference, onWidgetAdded])
+  }, [selectedSuggestions, visibleSuggestions, getCustomization, generateConfig, saveConfig, reference, onWidgetAdded])
 
   // Handle adding a combined widget (via generateConfig + saveConfig like suggestions)
   const handleAddCombined = useCallback(async () => {
@@ -1002,7 +1123,7 @@ export function AddWidgetModal({
                 <Sparkles className="h-4 w-4 mr-2" />
                 Suggestions
                 <Badge variant="secondary" className="ml-2 text-xs">
-                  {suggestions.length}
+                  {visibleSuggestions.length}
                 </Badge>
               </TabsTrigger>
               <TabsTrigger
@@ -1032,7 +1153,7 @@ export function AddWidgetModal({
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 <p className="mt-3 text-sm text-muted-foreground">{t('analysis.analyzing')}</p>
               </div>
-            ) : suggestions.length === 0 ? (
+            ) : visibleSuggestions.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full">
                 <Sparkles className="h-12 w-12 text-muted-foreground/50" />
                 <h3 className="mt-4 font-medium">{t('gallery.noWidgets')}</h3>
@@ -1146,6 +1267,12 @@ export function AddWidgetModal({
                         })}
                       </div>
                     )}
+
+                    {import.meta.env.DEV && (
+                      <div className="text-[10px] text-muted-foreground font-mono border rounded px-2 py-1 bg-muted/30">
+                        previews net:{previewQueueStats.active}/{previewQueueStats.queued} cache:{previewQueueStats.cacheSize} p95:{Math.round(previewQueueStats.p95Ms)}ms avg:{Math.round(previewQueueStats.avgMs)}ms
+                      </div>
+                    )}
                   </div>
 
                   {/* Suggestions grid with scroll */}
@@ -1200,10 +1327,18 @@ export function AddWidgetModal({
                               </button>
 
                               {/* Section content */}
-                              {!isCollapsed && (
+                              {!isCollapsed && (() => {
+                                const VISIBLE_LIMIT = 6
+                                const isExpanded = expandedGroups.has(group.key)
+                                const visible = isExpanded
+                                  ? group.suggestions
+                                  : group.suggestions.slice(0, VISIBLE_LIMIT)
+                                const hiddenCount = group.suggestions.length - VISIBLE_LIMIT
+
+                                return (
                                 <div className="p-2 border-t bg-background">
                                   <div className="grid grid-cols-2 gap-2">
-                                    {group.suggestions.map((suggestion, suggestionIdx) => {
+                                    {visible.map((suggestion, suggestionIdx) => {
                                       const Icon = CATEGORY_ICONS[suggestion.category] || BarChart3
                                       const isSelected = selectedSuggestions.includes(suggestion.template_id)
                                       const isFocused = focusedSuggestion === suggestion.template_id
@@ -1232,6 +1367,12 @@ export function AddWidgetModal({
                                               templateId={suggestion.template_id}
                                               groupBy={reference.name}
                                               source={suggestion.source_name}
+                                              useDirectSrc={suggestion.category === 'map'}
+                                              disablePreview={isHeavyMapSuggestion(
+                                                suggestion.template_id,
+                                                suggestion.plugin,
+                                                suggestion.category
+                                              )}
                                               width={100}
                                               height={75}
                                             />
@@ -1274,8 +1415,21 @@ export function AddWidgetModal({
                                       )
                                     })}
                                   </div>
+                                  {hiddenCount > 0 && !isExpanded && (
+                                    <button
+                                      className="w-full mt-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                      onClick={() => setExpandedGroups(prev => {
+                                        const next = new Set(prev)
+                                        next.add(group.key)
+                                        return next
+                                      })}
+                                    >
+                                      +{hiddenCount} more...
+                                    </button>
+                                  )}
                                 </div>
-                              )}
+                                )
+                              })()}
                             </div>
                           )
                         })}
@@ -1311,6 +1465,8 @@ export function AddWidgetModal({
                           templateId={previewSuggestion.template_id}
                           groupBy={reference.name}
                           source={previewSuggestion.source_name}
+                          useDirectSrc={isMapPreview}
+                          disablePreview={isHeavyMapPreview}
                         />
 
                         {/* Info */}
