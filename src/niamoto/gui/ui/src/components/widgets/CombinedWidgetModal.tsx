@@ -5,7 +5,7 @@
  * the user to select one to add to their configuration.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Loader2,
   Combine,
@@ -75,6 +75,7 @@ export function CombinedWidgetModal({
     suggestions,
     loading,
     error,
+    fetchSuggestions,
   } = useCombinedWidgetSuggestions(referenceName, selectedFields, sourceName)
 
   // Auto-select the recommended suggestion

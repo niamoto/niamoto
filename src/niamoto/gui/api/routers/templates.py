@@ -3209,10 +3209,11 @@ async def preview_template(
                     db, widget_plugin, co_data, transformer, template_name
                 )
 
-                return HTMLResponse(
-                    content=PreviewService.wrap_html_response(
+                return _html_response_with_etag(
+                    PreviewService.wrap_html_response(
                         widget_html, title=template_name
-                    )
+                    ),
+                    etag,
                 )
             finally:
                 if db:
@@ -3310,10 +3311,11 @@ async def preview_template(
                             extra_params=export_widget_params,
                         )
 
-                        return HTMLResponse(
-                            content=PreviewService.wrap_html_response(
+                        return _html_response_with_etag(
+                            PreviewService.wrap_html_response(
                                 widget_html, title=template_name
-                            )
+                            ),
+                            etag,
                         )
                     except Exception as e:
                         logger.warning(f"Error loading entity data: {e}")
@@ -3393,10 +3395,11 @@ async def preview_template(
                 extra_params=export_widget_params,
             )
 
-            return HTMLResponse(
-                content=PreviewService.wrap_html_response(
+            return _html_response_with_etag(
+                PreviewService.wrap_html_response(
                     widget_html, title=template_name
-                )
+                ),
+                etag,
             )
 
         finally:

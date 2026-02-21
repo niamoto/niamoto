@@ -6,7 +6,7 @@
  * - Le hook `usePreviewHtml` permet à chaque composant de s'abonner à l'état d'une URL
  * - Le cache LRU global (`previewHtmlCache`) déduplique miniature ↔ preview large
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { previewHtmlCache } from '@/lib/lru-cache'
 
 const MAX_CONCURRENT = 4
@@ -82,18 +82,6 @@ function enqueue(url: string) {
   processQueue()
 }
 
-/** Annuler une requête en attente ou en cours */
-function cancel(url: string) {
-  const idx = queue.indexOf(url)
-  if (idx !== -1) queue.splice(idx, 1)
-
-  const active = activeFetches.get(url)
-  if (active) {
-    active.controller.abort()
-    activeFetches.delete(url)
-  }
-}
-
 /**
  * Hook pour s'abonner à l'état d'une preview HTML.
  * Déclenche le chargement quand visible (via isVisible).
@@ -139,10 +127,10 @@ export function usePreviewHtml(url: string | null, isVisible: boolean) {
   }
 }
 
-/** Forcer le rechargement d'une preview (invalider le cache) */
+/** Forcer le rechargement d'une preview (invalider le cache puis re-fetcher) */
 export function refreshPreview(url: string) {
   errorUrls.delete(url)
-  // Ne pas supprimer du cache LRU ici, juste re-fetcher
+  previewHtmlCache.delete(url)
   enqueue(url)
 }
 

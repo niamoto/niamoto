@@ -4,8 +4,11 @@
  */
 export class LRUCache<T> {
   private cache = new Map<string, T>()
+  private maxSize: number
 
-  constructor(private maxSize: number = 64) {}
+  constructor(maxSize: number = 64) {
+    this.maxSize = maxSize
+  }
 
   get(key: string): T | undefined {
     const value = this.cache.get(key)
@@ -32,6 +35,10 @@ export class LRUCache<T> {
 
   has(key: string): boolean {
     return this.cache.has(key)
+  }
+
+  delete(key: string): boolean {
+    return this.cache.delete(key)
   }
 
   clear(): void {
