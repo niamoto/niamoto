@@ -131,10 +131,18 @@ class BooleanComparison(TransformerPlugin):
                 false_count = len(col) - true_count
 
                 rows.append(
-                    {"category": field_name, "count": true_count, "label": params.true_label}
+                    {
+                        "category": field_name,
+                        "count": true_count,
+                        "label": params.true_label,
+                    }
                 )
                 rows.append(
-                    {"category": field_name, "count": false_count, "label": params.false_label}
+                    {
+                        "category": field_name,
+                        "count": false_count,
+                        "label": params.false_label,
+                    }
                 )
 
             return pd.DataFrame(rows, columns=["category", "count", "label"])
