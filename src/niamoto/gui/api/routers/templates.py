@@ -8,15 +8,18 @@ Provides endpoints for:
 - Live preview of widgets on sample data
 """
 
+import hashlib
 import json
 import logging
 import math
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from cachetools import TTLCache
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy import inspect, text
 
@@ -163,6 +166,62 @@ WIDGET_CATEGORIES = {
 # using output_structure/compatible_structures declared on plugins
 
 router = APIRouter(prefix="/templates", tags=["templates"])
+
+
+# =============================================================================
+# CACHE PREVIEW
+# =============================================================================
+
+# Cache TTL pour les previews POST (inline)
+_preview_cache: TTLCache = TTLCache(maxsize=128, ttl=300)
+
+
+def invalidate_preview_cache():
+    """Vider le cache après un import de données ou un save config."""
+    _preview_cache.clear()
+
+
+def _compute_preview_etag(
+    template_id: str, group_by: str, source: str, entity_id: str
+) -> str:
+    """Calculer l'ETag basé sur les paramètres et la fraîcheur des données."""
+    db_path = get_database_path()
+    db_mtime = os.path.getmtime(str(db_path)) if db_path and db_path.exists() else 0
+
+    work_dir = get_working_directory()
+    config_mtime = 0
+    if work_dir:
+        for config_name in ("transform.yml", "export.yml"):
+            config_path = Path(work_dir) / config_name
+            if config_path.exists():
+                config_mtime = max(config_mtime, os.path.getmtime(str(config_path)))
+
+    key = f"{template_id}:{group_by}:{source}:{entity_id}:{config_mtime}:{db_mtime}"
+    return hashlib.md5(key.encode()).hexdigest()
+
+
+def _compute_post_cache_key(params: dict) -> str:
+    """Clé de cache pour les previews POST (inline)."""
+    db_path = get_database_path()
+    db_mtime = os.path.getmtime(str(db_path)) if db_path and db_path.exists() else 0
+    params_with_version = {**params, "_db_mtime": db_mtime}
+    return hashlib.sha256(
+        json.dumps(params_with_version, sort_keys=True).encode()
+    ).hexdigest()
+
+
+def _html_response_with_etag(
+    content: str, etag: str, status_code: int = 200
+) -> HTMLResponse:
+    """Créer une HTMLResponse avec les headers Cache-Control et ETag."""
+    return HTMLResponse(
+        content=content,
+        status_code=status_code,
+        headers={
+            "ETag": f'"{etag}"',
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 # =============================================================================
@@ -814,6 +873,9 @@ async def save_transform_config(request: SaveConfigRequest):
         logger.info(
             f"Saved transform config for group '{group_name}' to {transform_path}"
         )
+
+        # Invalider le cache des previews après sauvegarde
+        invalidate_preview_cache()
 
         return SaveConfigResponse(
             success=True,
@@ -2958,9 +3020,15 @@ async def preview_inline(request: InlinePreviewRequest):
     """Génère une preview HTML à partir d'une config inline (sans template_id).
 
     Utilisé par l'onglet Combined pour prévisualiser les widgets combinés
-    avant leur ajout au dashboard.
+    avant leur ajout au dashboard. Résultats cachés en mémoire (TTLCache 5min).
     """
     _ensure_plugins_loaded()
+
+    # Vérifier le cache mémoire
+    cache_key = _compute_post_cache_key(request.model_dump())
+    cached_html = _preview_cache.get(cache_key)
+    if cached_html is not None:
+        return HTMLResponse(content=cached_html)
 
     work_dir = get_working_directory()
     if not work_dir:
@@ -2984,6 +3052,8 @@ async def preview_inline(request: InlinePreviewRequest):
             widget_params=request.widget_params,
             widget_title=request.widget_title,
         )
+        # Stocker dans le cache
+        _preview_cache[cache_key] = html
         return HTMLResponse(content=html)
     except Exception as e:
         logger.exception(f"Erreur preview inline: {e}")
@@ -3000,6 +3070,7 @@ async def preview_inline(request: InlinePreviewRequest):
 
 @router.get("/preview/{template_id}", response_class=HTMLResponse)
 async def preview_template(
+    request: Request,
     template_id: str,
     group_by: str = Query(
         default=None, description="Group by reference (auto-detected if not provided)"
@@ -3015,26 +3086,19 @@ async def preview_template(
     """
     Generate a live preview of a template widget on sample data.
 
-    This endpoint:
-    1. Parses the dynamic template ID to get column, transformer, and widget
-    2. Finds a representative entity from a hierarchical reference
-    3. Loads sample data for that entity
-    4. Executes the transformer to generate widget data
-    5. Renders the widget to HTML
-
-    Template ID formats:
-    - Navigation: {reference}_hierarchical_nav_widget (e.g., 'taxons_hierarchical_nav_widget')
-    - Standard: {column}_{transformer}_{widget} (e.g., 'height_binned_distribution_bar_plot')
-
-    Args:
-        template_id: ID of the template to preview
-        group_by: Reference to group by (auto-detected from import.yml if not provided)
-
-    Returns:
-        HTML content of the rendered widget
+    Supports ETag/Cache-Control: le navigateur revalide via If-None-Match,
+    le serveur retourne 304 si les données n'ont pas changé.
     """
     # Ensure plugins are loaded
     _ensure_plugins_loaded()
+
+    # ETag : vérifier si le client a déjà la version courante
+    etag = _compute_preview_etag(
+        template_id, group_by or "", source or "", entity_id or ""
+    )
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip('"') == etag:
+        return Response(status_code=304, headers={"ETag": f'"{etag}"'})
 
     # Check for navigation widget (special format: {reference}_hierarchical_nav_widget)
     if template_id.endswith("_hierarchical_nav_widget"):
