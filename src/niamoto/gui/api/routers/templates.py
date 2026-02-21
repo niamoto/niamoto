@@ -2224,6 +2224,52 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
         .search-wrapper {{
             margin-bottom: 16px;
         }}
+
+        /* Tailwind utility classes utilisées par niamoto_hierarchical_nav.js */
+        .flex {{ display: flex; }}
+        .flex-1 {{ flex: 1 1 0%; }}
+        .items-center {{ align-items: center; }}
+        .inline-block {{ display: inline-block; }}
+        .truncate {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+        .rounded {{ border-radius: 0.25rem; }}
+        .cursor-pointer {{ cursor: pointer; }}
+        .font-semibold {{ font-weight: 600; }}
+        .no-underline {{ text-decoration: none; }}
+        .w-4 {{ width: 1rem; }}
+        .px-2 {{ padding-left: 0.5rem; padding-right: 0.5rem; }}
+        .py-1 {{ padding-top: 0.25rem; padding-bottom: 0.25rem; }}
+        .ml-2 {{ margin-left: 0.5rem; }}
+        .ml-10 {{ margin-left: 2.5rem; }}
+        .mb-1 {{ margin-bottom: 0.25rem; }}
+        .text-xs {{ font-size: 0.75rem; line-height: 1rem; }}
+        .text-sm {{ font-size: 0.875rem; line-height: 1.25rem; }}
+        .text-gray-500 {{ color: #6b7280; }}
+        .text-gray-700 {{ color: #374151; }}
+        .text-gray-900 {{ color: #111827; }}
+        .text-primary {{ color: #3b82f6; }}
+        .bg-gray-50 {{ background-color: #f9fafb; }}
+        .bg-gray-100 {{ background-color: #f3f4f6; }}
+        .transition-colors {{ transition-property: color, background-color, border-color; transition-timing-function: ease; transition-duration: 150ms; }}
+        .transition-transform {{ transition-property: transform; transition-timing-function: ease; transition-duration: 150ms; }}
+        .duration-150 {{ transition-duration: 150ms; }}
+        .duration-200 {{ transition-duration: 200ms; }}
+        .rotate-90 {{ transform: rotate(90deg); }}
+        [class*="bg-primary/10"] {{ background-color: rgba(59, 130, 246, 0.1); }}
+        .hover\:bg-gray-100:hover {{ background-color: #f3f4f6; }}
+        .hover\:text-primary:hover {{ color: #3b82f6; }}
+
+        /* Font Awesome chevron — remplacement par CSS pur */
+        .fas.fa-chevron-right::before {{
+            content: "";
+            display: inline-block;
+            width: 0.4em;
+            height: 0.4em;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(-45deg);
+        }}
+        .chevron {{ font-style: normal; }}
+
         /* Widget styles */
         {css_content}
         /* Override for preview */
