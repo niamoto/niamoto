@@ -2191,8 +2191,6 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
 <html>
 <head>
     <meta charset="UTF-8">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {{
             margin: 0;
@@ -2210,6 +2208,22 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
             overflow: auto;
             padding: 16px;
         }}
+        .search-input {{
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+        }}
+        .search-input:focus {{
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }}
+        .search-wrapper {{
+            margin-bottom: 16px;
+        }}
         /* Widget styles */
         {css_content}
         /* Override for preview */
@@ -2223,10 +2237,10 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
     <div class="preview-container">
         <div class="preview-content">
             <!-- Search input -->
-            <div class="mb-4">
+            <div class="search-wrapper">
                 <input type="text"
                        id="{search_id}"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                       class="search-input"
                        placeholder="Rechercher...">
             </div>
             <!-- Tree container -->
@@ -2496,7 +2510,6 @@ async def _preview_general_info_widget(
 <html>
 <head>
     <meta charset="UTF-8">
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {{
             margin: 0;
