@@ -230,3 +230,19 @@ class SemanticGroupsResponse(BaseModel):
     """Response with detected semantic groups for proactive suggestions."""
 
     groups: List[Dict[str, Any]]
+
+
+# =============================================================================
+# INLINE PREVIEW MODELS
+# =============================================================================
+
+
+class InlinePreviewRequest(BaseModel):
+    """Request for generating an inline widget preview (POST)."""
+
+    group_by: str
+    transformer_plugin: str
+    transformer_params: Dict[str, Any] = {}
+    widget_plugin: str
+    widget_params: Optional[Dict[str, Any]] = None
+    widget_title: str = "Preview"

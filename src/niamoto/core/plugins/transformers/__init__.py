@@ -32,6 +32,9 @@ __all__ = [
     "SeriesExtractor",
     "SeriesMatrixExtractor",
     "SeriesRatioAggregator",
+    # Analysis
+    "ScatterAnalysis",
+    "BooleanComparison",
     # Format conversion transformers
     "NiamotoToDwcOccurrenceTransformer",
 ]

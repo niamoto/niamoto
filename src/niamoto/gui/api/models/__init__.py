@@ -81,6 +81,7 @@ from niamoto.gui.api.models.templates import (  # noqa: E402
     CombinedWidgetSuggestion,
     CombinedWidgetResponse,
     SemanticGroupsResponse,
+    InlinePreviewRequest,
 )
 
 __all__ = [
@@ -111,4 +112,5 @@ __all__ = [
     "CombinedWidgetSuggestion",
     "CombinedWidgetResponse",
     "SemanticGroupsResponse",
+    "InlinePreviewRequest",
 ]

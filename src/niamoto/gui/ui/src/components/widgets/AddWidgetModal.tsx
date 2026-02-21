@@ -288,6 +288,154 @@ function LargePreview({ templateId, groupBy, source }: LargePreviewProps) {
   )
 }
 
+// Combined widget preview via POST /api/templates/preview
+interface CombinedPreviewProps {
+  suggestion: CombinedWidgetSuggestion
+  groupBy: string
+}
+
+// Combined preview dimensions (fits in 340px panel with p-4 padding)
+const COMBINED_PREVIEW_WIDTH = 308
+const COMBINED_PREVIEW_HEIGHT = 231  // 4:3 ratio
+
+function CombinedPreview({ suggestion, groupBy }: CombinedPreviewProps) {
+  const { t } = useTranslation(['widgets'])
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+  const [htmlContent, setHtmlContent] = useState<string | null>(null)
+  const [key, setKey] = useState(0)
+
+  const scale = Math.min(COMBINED_PREVIEW_WIDTH / IFRAME_BASE_WIDTH, COMBINED_PREVIEW_HEIGHT / IFRAME_BASE_HEIGHT)
+
+  useEffect(() => {
+    setIsLoading(true)
+    setHasError(false)
+    setHtmlContent(null)
+    setKey((k) => k + 1)
+
+    const transformerConfig = suggestion.transformer_config as Record<string, unknown>
+    const widgetConfig = suggestion.widget_config as Record<string, unknown>
+
+    const body = {
+      group_by: groupBy,
+      transformer_plugin: transformerConfig.plugin as string,
+      transformer_params: transformerConfig.params ?? {},
+      widget_plugin: widgetConfig.plugin as string,
+      widget_params: widgetConfig.params ?? null,
+      widget_title: suggestion.name,
+    }
+
+    const controller = new AbortController()
+    fetch('/api/templates/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.text()
+      })
+      .then((html) => {
+        setHtmlContent(html)
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          setHasError(true)
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [suggestion, groupBy])
+
+  const handleRefresh = () => {
+    setKey((k) => k + 1)
+    setIsLoading(true)
+    setHasError(false)
+    setHtmlContent(null)
+    // Re-trigger fetch by updating suggestion ref
+    const transformerConfig = suggestion.transformer_config as Record<string, unknown>
+    const widgetConfig = suggestion.widget_config as Record<string, unknown>
+    const body = {
+      group_by: groupBy,
+      transformer_plugin: transformerConfig.plugin as string,
+      transformer_params: transformerConfig.params ?? {},
+      widget_plugin: widgetConfig.plugin as string,
+      widget_params: widgetConfig.params ?? null,
+      widget_title: suggestion.name,
+    }
+    fetch('/api/templates/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.text()
+      })
+      .then((html) => {
+        setHtmlContent(html)
+      })
+      .catch(() => {
+        setHasError(true)
+        setIsLoading(false)
+      })
+  }
+
+  return (
+    <div className="relative">
+      <div
+        className="bg-background border rounded-md overflow-hidden"
+        style={{ width: COMBINED_PREVIEW_WIDTH, height: COMBINED_PREVIEW_HEIGHT }}
+      >
+        {isLoading && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {hasError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
+            <Eye className="h-8 w-8 text-muted-foreground/30 mb-2" />
+            <span className="text-sm text-muted-foreground">{t('preview.unavailable')}</span>
+            <Button variant="ghost" size="sm" className="mt-2" onClick={handleRefresh}>
+              <RefreshCw className="h-3 w-3 mr-1" />
+              {t('preview.retry')}
+            </Button>
+          </div>
+        )}
+        {htmlContent && (
+          <iframe
+            key={key}
+            srcDoc={htmlContent}
+            className="pointer-events-none origin-top-left border-0"
+            style={{
+              width: IFRAME_BASE_WIDTH,
+              height: IFRAME_BASE_HEIGHT,
+              transform: `scale(${scale})`,
+            }}
+            onLoad={() => setIsLoading(false)}
+            onError={() => setHasError(true)}
+            title={`Preview ${suggestion.name}`}
+          />
+        )}
+      </div>
+      {!hasError && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 h-7 w-7 bg-background/80 hover:bg-background z-20"
+          onClick={handleRefresh}
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
+        </Button>
+      )}
+    </div>
+  )
+}
+
 interface AddWidgetModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -455,7 +603,7 @@ export function AddWidgetModal({
   const [activeTab, setActiveTab] = useState(defaultTab)
 
   // Suggestions tab state
-  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set())
+  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([])
   const [focusedSuggestion, setFocusedSuggestion] = useState<string | null>(null)
   const [customizations, setCustomizations] = useState<Record<string, Customization>>({})
   const [searchQuery, setSearchQuery] = useState('')
@@ -500,7 +648,7 @@ export function AddWidgetModal({
   useEffect(() => {
     if (open) {
       setActiveTab(defaultTab)
-      setSelectedSuggestions(new Set())
+      setSelectedSuggestions([])
       setFocusedSuggestion(null)
       setCustomizations({})
       setSearchQuery('')
@@ -536,7 +684,7 @@ export function AddWidgetModal({
 
   // Fetch plugin schema when a suggestion is focused for quick edit
   useEffect(() => {
-    if (!previewSuggestion || !selectedSuggestions.has(previewSuggestion.template_id)) {
+    if (!previewSuggestion || !selectedSuggestions.includes(previewSuggestion.template_id)) {
       setQuickEditFields([])
       return
     }
@@ -717,14 +865,12 @@ export function AddWidgetModal({
   // Toggle suggestion selection
   const toggleSuggestion = useCallback((id: string) => {
     setSelectedSuggestions((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
+      if (prev.includes(id)) {
+        return prev.filter((s) => s !== id)
       } else {
-        next.add(id)
         setFocusedSuggestion(id)
+        return [...prev, id]
       }
-      return next
     })
   }, [])
 
@@ -748,9 +894,9 @@ export function AddWidgetModal({
 
   // Handle adding suggestion widgets
   const handleAddSuggestions = useCallback(async () => {
-    if (selectedSuggestions.size === 0) return
+    if (selectedSuggestions.length === 0) return
 
-    const templates = Array.from(selectedSuggestions)
+    const templates = selectedSuggestions
       .map((id) => {
         const suggestion = suggestions.find((s) => s.template_id === id)
         if (!suggestion) return null
@@ -800,34 +946,37 @@ export function AddWidgetModal({
     }
   }, [selectedSuggestions, suggestions, getCustomization, generateConfig, saveConfig, reference, onWidgetAdded])
 
-  // Handle adding a combined widget
+  // Handle adding a combined widget (via generateConfig + saveConfig like suggestions)
   const handleAddCombined = useCallback(async () => {
     if (!selectedCombined) return
 
     const widgetId = `combined_${selectedCombined.pattern_type}_${Date.now()}`
 
-    const response = await fetch('/api/config/widgets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        widget_id: widgetId,
-        group_by: reference.name,
-        transform: {
-          plugin: selectedCombined.transformer_config.plugin,
-          params: selectedCombined.transformer_config.params,
-        },
-        export: {
-          plugin: selectedCombined.widget_config.plugin,
-          title: selectedCombined.name,
-          params: selectedCombined.widget_config.params,
-        },
-      }),
-    })
+    const templates = [{
+      template_id: widgetId,
+      plugin: selectedCombined.transformer_config.plugin as string,
+      config: {
+        ...(selectedCombined.transformer_config.params as Record<string, unknown>),
+        title: selectedCombined.name,
+      },
+    }]
 
-    if (response.ok) {
+    const result = await generateConfig(templates, reference.name, reference.kind)
+    if (result) {
+      // Inject export override so save-config uses the correct widget plugin & params
+      const widgetConfig = selectedCombined.widget_config as Record<string, unknown>
+      const widgetData = result.widgets_data[widgetId] as Record<string, unknown> | undefined
+      if (widgetData) {
+        widgetData.export_override = {
+          plugin: widgetConfig.plugin,
+          title: selectedCombined.name,
+          params: widgetConfig.params,
+        }
+      }
+      await saveConfig(result, 'merge')
       onWidgetAdded()
     }
-  }, [selectedCombined, reference, onWidgetAdded])
+  }, [selectedCombined, reference, generateConfig, saveConfig, onWidgetAdded])
 
   // Handle recipe editor save
   const handleRecipeSave = useCallback(() => {
@@ -1072,7 +1221,7 @@ export function AddWidgetModal({
                                   <div className="grid grid-cols-2 gap-2">
                                     {group.suggestions.map((suggestion, suggestionIdx) => {
                                       const Icon = CATEGORY_ICONS[suggestion.category] || BarChart3
-                                      const isSelected = selectedSuggestions.has(suggestion.template_id)
+                                      const isSelected = selectedSuggestions.includes(suggestion.template_id)
                                       const isFocused = focusedSuggestion === suggestion.template_id
 
                                       return (
@@ -1090,6 +1239,11 @@ export function AddWidgetModal({
                                         >
                                           {/* Preview area - left side (4:3 ratio) */}
                                           <div className="relative shrink-0">
+                                            {isSelected && (
+                                              <div className="absolute top-1 left-1 z-10 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold">
+                                                {selectedSuggestions.indexOf(suggestion.template_id) + 1}
+                                              </div>
+                                            )}
                                             <WidgetPreview
                                               templateId={suggestion.template_id}
                                               groupBy={reference.name}
@@ -1160,7 +1314,7 @@ export function AddWidgetModal({
                             })()}
                             <span className="font-medium text-sm">{previewSuggestion.name}</span>
                           </div>
-                          {selectedSuggestions.has(previewSuggestion.template_id) && (
+                          {selectedSuggestions.includes(previewSuggestion.template_id) && (
                             <Badge variant="outline" className="text-xs">
                               <Check className="h-3 w-3 mr-1" />
                               {t('common:status.selected')}
@@ -1198,7 +1352,7 @@ export function AddWidgetModal({
                         <Separator className="my-4" />
 
                         {/* Quick customization (only when selected) */}
-                        {selectedSuggestions.has(previewSuggestion.template_id) ? (
+                        {selectedSuggestions.includes(previewSuggestion.template_id) ? (
                           <div>
                             <div className="flex items-center gap-2 mb-3">
                               <Settings2 className="h-4 w-4 text-muted-foreground" />
@@ -1503,15 +1657,13 @@ export function AddWidgetModal({
               </ScrollArea>
 
               {/* Right column - Preview */}
-              <div className="w-[380px] bg-muted/20 flex flex-col items-center justify-center text-center p-6 shrink-0">
+              <div className="w-[340px] bg-muted/20 flex flex-col items-center justify-center text-center p-4 shrink-0 overflow-hidden">
                 {selectedCombined ? (
                   <div className="w-full">
-                    <h4 className="font-medium mb-2">{selectedCombined.name}</h4>
-                    <p className="text-sm text-muted-foreground mb-4">{selectedCombined.description}</p>
-                    <div className="h-40 bg-background border rounded-lg flex items-center justify-center mb-4">
-                      <BarChart3 className="h-12 w-12 text-muted-foreground/30" />
-                    </div>
-                    <div className="flex flex-wrap gap-1 justify-center">
+                    <h4 className="font-medium mb-1 text-sm">{selectedCombined.name}</h4>
+                    <p className="text-xs text-muted-foreground mb-3">{selectedCombined.description}</p>
+                    <CombinedPreview suggestion={selectedCombined} groupBy={reference.name} />
+                    <div className="flex flex-wrap gap-1 justify-center mt-4">
                       {selectedCombined.fields.map((field) => (
                         <Badge key={field} variant="outline" className="text-xs font-mono">
                           {field}
@@ -1589,10 +1741,10 @@ export function AddWidgetModal({
         {/* Modal footer */}
         <div className="px-6 py-4 border-t flex items-center justify-between shrink-0">
           <div className="text-sm text-muted-foreground">
-            {activeTab === 'suggestions' && selectedSuggestions.size > 0 && (
+            {activeTab === 'suggestions' && selectedSuggestions.length > 0 && (
               <span className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-primary" />
-                {t('selection.fieldsSelected', { count: selectedSuggestions.size })}
+                {t('selection.fieldsSelected', { count: selectedSuggestions.length })}
               </span>
             )}
             {activeTab === 'combined' && selectedFields.length > 0 && (
@@ -1609,14 +1761,14 @@ export function AddWidgetModal({
             {activeTab === 'suggestions' && (
               <Button
                 onClick={handleAddSuggestions}
-                disabled={selectedSuggestions.size === 0 || isBusy}
+                disabled={selectedSuggestions.length === 0 || isBusy}
               >
                 {isBusy ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Plus className="mr-2 h-4 w-4" />
                 )}
-                {t('selection.addWidgets', { count: selectedSuggestions.size })}
+                {t('selection.addWidgets', { count: selectedSuggestions.length })}
               </Button>
             )}
             {activeTab === 'combined' && (

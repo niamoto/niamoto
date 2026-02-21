@@ -514,6 +514,9 @@ class MultiFieldPatternDetector:
             widget_plugin="bar_plot",
             widget_params={
                 "title": "Comparaison d'états",
+                "x_axis": "category",
+                "y_axis": "count",
+                "color_field": "label",
                 "orientation": "h",
                 "barmode": "group",
             },
@@ -553,7 +556,7 @@ class MultiFieldPatternDetector:
                 y_field.name: "y_axis",
             },
             confidence=0.75,
-            transformer_plugin="correlation_analysis",
+            transformer_plugin="scatter_analysis",
             transformer_params={
                 "source": source_name,
                 "x_field": x_field.name,

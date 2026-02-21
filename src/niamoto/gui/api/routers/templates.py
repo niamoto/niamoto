@@ -42,6 +42,7 @@ from niamoto.gui.api.models.templates import (
     CombinedWidgetSuggestion,
     CombinedWidgetResponse,
     SemanticGroupsResponse,
+    InlinePreviewRequest,
 )
 from niamoto.gui.api.services.templates.utils.config_loader import (
     load_import_config,
@@ -600,26 +601,45 @@ def _generate_export_config(
         plugin = widget_config.get("plugin", "")
         params = widget_config.get("params", {})
 
-        # Map transformer plugins to widget plugins
-        widget_plugin = _map_transformer_to_widget(plugin, widget_id)
+        # Use explicit export override if provided (combined widgets)
+        export_override = widget_config.get("export_override")
+        if export_override and isinstance(export_override, dict):
+            export_widget: Dict[str, Any] = {
+                "plugin": export_override.get(
+                    "plugin", _map_transformer_to_widget(plugin, widget_id)
+                ),
+                "title": export_override.get(
+                    "title", _generate_widget_title(widget_id, plugin, params)
+                ),
+                "data_source": widget_id,
+                "layout": {
+                    "colspan": 1,
+                    "order": widget_order,
+                },
+            }
+            if export_override.get("params"):
+                export_widget["params"] = export_override["params"]
+        else:
+            # Map transformer plugins to widget plugins
+            widget_plugin = _map_transformer_to_widget(plugin, widget_id)
 
-        # Build widget config for export
-        export_widget: Dict[str, Any] = {
-            "plugin": widget_plugin,
-            "title": _generate_widget_title(widget_id, plugin, params),
-            "data_source": widget_id,  # Links to widgets_data key in transform.yml
-            "layout": {
-                "colspan": 1,  # Default: half width (2 widgets per row)
-                "order": widget_order,
-            },
-        }
+            # Build widget config for export
+            export_widget = {
+                "plugin": widget_plugin,
+                "title": _generate_widget_title(widget_id, plugin, params),
+                "data_source": widget_id,  # Links to widgets_data key in transform.yml
+                "layout": {
+                    "colspan": 1,  # Default: half width (2 widgets per row)
+                    "order": widget_order,
+                },
+            }
+
+            # Add widget-specific params based on type
+            widget_params = _generate_widget_params(widget_plugin, plugin, params)
+            if widget_params:
+                export_widget["params"] = widget_params
+
         widget_order += 1
-
-        # Add widget-specific params based on type
-        widget_params = _generate_widget_params(widget_plugin, plugin, params)
-        if widget_params:
-            export_widget["params"] = widget_params
-
         export_widgets.append(export_widget)
 
     # Update group widgets based on mode
@@ -766,6 +786,20 @@ async def save_transform_config(request: SaveConfigRequest):
         # Update the group in the list
         existing_groups[group_index] = group_config
 
+        # Generate export.yml BEFORE cleaning export_override (shared references)
+        _generate_export_config(
+            work_dir,
+            group_name,
+            request.widgets_data,
+            group_config.get("sources", []),
+            mode=request.mode,
+        )
+
+        # Clean export_override from widgets_data before writing to transform.yml
+        for wid, wcfg in group_config.get("widgets_data", {}).items():
+            if isinstance(wcfg, dict):
+                wcfg.pop("export_override", None)
+
         # Write updated config as list
         with open(transform_path, "w", encoding="utf-8") as f:
             yaml.dump(
@@ -779,15 +813,6 @@ async def save_transform_config(request: SaveConfigRequest):
 
         logger.info(
             f"Saved transform config for group '{group_name}' to {transform_path}"
-        )
-
-        # Also generate export.yml configuration
-        _generate_export_config(
-            work_dir,
-            group_name,
-            request.widgets_data,
-            group_config.get("sources", []),
-            mode=request.mode,
         )
 
         return SaveConfigResponse(
@@ -1177,6 +1202,10 @@ def _ensure_plugins_loaded():
     from niamoto.core.plugins.transformers.extraction import (  # noqa: F401
         geospatial_extractor,
     )
+    from niamoto.core.plugins.transformers.analysis import (  # noqa: F401
+        scatter_analysis,
+        boolean_comparison,
+    )
 
     # Import widget plugins
     from niamoto.core.plugins.widgets import (  # noqa: F401
@@ -1185,6 +1214,7 @@ def _ensure_plugins_loaded():
         interactive_map,
         radial_gauge,
         info_grid,
+        scatter_plot,
     )
 
 
@@ -2270,8 +2300,69 @@ async def _preview_general_info_widget(
                     sample_query, db.engine, params={"entity_id": str(entity_id)}
                 )
             else:
-                sample_query = text(f"SELECT * FROM {quoted_ref_table} LIMIT 1")
-                sample_df = pd.read_sql(sample_query, db.engine)
+                # Utiliser find_representative_entity pour la cohérence avec
+                # les autres widgets (même entité représentative partout)
+                work_dir = get_working_directory()
+                if work_dir:
+                    try:
+                        import_config = _load_import_config(Path(work_dir))
+                        hierarchy_info = _get_hierarchy_info(
+                            import_config, reference_name
+                        )
+                        representative = _find_representative_entity(db, hierarchy_info)
+                        rep_value = representative.get("value")
+                        rep_level = representative.get("level")
+                        rep_column = representative.get("column")
+
+                        # Chercher l'entité correspondante dans la table de référence
+                        # Pour les hiérarchiques, le level (ex: family) est une colonne
+                        # de la table de référence
+                        if rep_level and rep_level != reference_name and rep_column:
+                            # Hiérarchique : chercher par colonne de level (ex: family = 'Myrtaceae')
+                            col_name = rep_column
+                            if col_name.lower() in columns:
+                                sample_query = text(
+                                    f"SELECT * FROM {quoted_ref_table} "
+                                    f"WHERE {preparer.quote(col_name)} = :rep_value LIMIT 1"
+                                )
+                                sample_df = pd.read_sql(
+                                    sample_query,
+                                    db.engine,
+                                    params={"rep_value": str(rep_value)},
+                                )
+                            else:
+                                # Colonne de level non présente, fallback LIMIT 1
+                                sample_query = text(
+                                    f"SELECT * FROM {quoted_ref_table} LIMIT 1"
+                                )
+                                sample_df = pd.read_sql(sample_query, db.engine)
+                        else:
+                            # Non-hiérarchique : chercher par id
+                            sample_query = text(
+                                f"SELECT * FROM {quoted_ref_table} "
+                                f"WHERE {preparer.quote(id_field)} = :rep_value LIMIT 1"
+                            )
+                            sample_df = pd.read_sql(
+                                sample_query,
+                                db.engine,
+                                params={"rep_value": str(rep_value)},
+                            )
+                            if sample_df.empty:
+                                # Fallback si l'id ne matche pas
+                                sample_query = text(
+                                    f"SELECT * FROM {quoted_ref_table} LIMIT 1"
+                                )
+                                sample_df = pd.read_sql(sample_query, db.engine)
+                    except Exception as e:
+                        logger.warning(
+                            f"Impossible de trouver l'entité représentative "
+                            f"pour general_info '{reference_name}': {e}"
+                        )
+                        sample_query = text(f"SELECT * FROM {quoted_ref_table} LIMIT 1")
+                        sample_df = pd.read_sql(sample_query, db.engine)
+                else:
+                    sample_query = text(f"SELECT * FROM {quoted_ref_table} LIMIT 1")
+                    sample_df = pd.read_sql(sample_query, db.engine)
             if sample_df.empty:
                 return HTMLResponse(
                     content=PreviewService.wrap_html_response(
@@ -2860,6 +2951,51 @@ async def _preview_entity_map(
         )
     finally:
         db.close_db_session()
+
+
+@router.post("/preview", response_class=HTMLResponse)
+async def preview_inline(request: InlinePreviewRequest):
+    """Génère une preview HTML à partir d'une config inline (sans template_id).
+
+    Utilisé par l'onglet Combined pour prévisualiser les widgets combinés
+    avant leur ajout au dashboard.
+    """
+    _ensure_plugins_loaded()
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        return HTMLResponse(
+            content=PreviewService.wrap_html_response(
+                "<p class='error'>Working directory not configured</p>"
+            ),
+            status_code=500,
+        )
+
+    db_path = get_database_path()
+    db = Database(str(db_path), read_only=True) if db_path else None
+    try:
+        html = PreviewService.generate_preview(
+            db=db,
+            work_dir=Path(work_dir),
+            group_by=request.group_by,
+            transformer_plugin=request.transformer_plugin,
+            transformer_params=request.transformer_params,
+            widget_plugin=request.widget_plugin,
+            widget_params=request.widget_params,
+            widget_title=request.widget_title,
+        )
+        return HTMLResponse(content=html)
+    except Exception as e:
+        logger.exception(f"Erreur preview inline: {e}")
+        return HTMLResponse(
+            content=PreviewService.wrap_html_response(
+                f"<p class='error'>Erreur: {str(e)}</p>"
+            ),
+            status_code=500,
+        )
+    finally:
+        if db:
+            db.close_db_session()
 
 
 @router.get("/preview/{template_id}", response_class=HTMLResponse)
@@ -3653,10 +3789,12 @@ def _render_widget_for_class_object(
                     # Numeric bins: sort by bin value descending (largest bins first)
                     paired = sorted(
                         zip(tops, counts),
-                        key=lambda x: float(x[0])
-                        if isinstance(x[0], (int, float))
-                        or x[0].replace(".", "").replace("-", "").isdigit()
-                        else 0,
+                        key=lambda x: (
+                            float(x[0])
+                            if isinstance(x[0], (int, float))
+                            or x[0].replace(".", "").replace("-", "").isdigit()
+                            else 0
+                        ),
                         reverse=True,
                     )
                     tops, counts = zip(*paired) if paired else ([], [])
