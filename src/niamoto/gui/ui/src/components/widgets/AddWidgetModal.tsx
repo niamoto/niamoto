@@ -40,6 +40,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -980,6 +981,10 @@ export function AddWidgetModal({
             <Plus className="h-5 w-5" />
             {t('actions.addWidget')}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Ajouter un ou plusieurs widgets a partir des suggestions, des combinaisons
+            ou d&apos;une configuration personnalisee.
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs

@@ -1284,6 +1284,7 @@ async def _preview_configured_widget(
     configured_widget: Dict[str, Any],
     group_by: str,
     entity_id: Optional[str] = None,
+    etag: Optional[str] = None,
 ) -> HTMLResponse:
     """Preview a widget that was configured via the wizard.
 
@@ -1385,11 +1386,13 @@ async def _preview_configured_widget(
                     widget_params,
                 )
 
-                return HTMLResponse(
-                    content=PreviewService.wrap_html_response(
-                        widget_html, title=widget_title
-                    )
+                full_html = PreviewService.wrap_html_response(
+                    widget_html, title=widget_title
                 )
+                resp_etag = etag or hashlib.md5(
+                    full_html.encode()
+                ).hexdigest()[:12]
+                return _html_response_with_etag(full_html, resp_etag)
             finally:
                 if db:
                     db.close_db_session()
@@ -1510,11 +1513,13 @@ async def _preview_configured_widget(
                     widget_params,
                 )
 
-                return HTMLResponse(
-                    content=PreviewService.wrap_html_response(
-                        widget_html, title=widget_title
-                    )
+                full_html = PreviewService.wrap_html_response(
+                    widget_html, title=widget_title
                 )
+                resp_etag = etag or hashlib.md5(
+                    full_html.encode()
+                ).hexdigest()[:12]
+                return _html_response_with_etag(full_html, resp_etag)
             finally:
                 db.close_db_session()
 
@@ -3190,7 +3195,8 @@ async def preview_template(
             configured_widget = _load_configured_widget(template_id, detected_group_by)
             if configured_widget:
                 return await _preview_configured_widget(
-                    configured_widget, detected_group_by, entity_id
+                    configured_widget, detected_group_by, entity_id,
+                    etag=etag,
                 )
 
         return HTMLResponse(
@@ -3200,7 +3206,34 @@ async def preview_template(
             status_code=400,
         )
 
-    template_info = _build_dynamic_template_info(parsed, template_id, source=source)
+    # When dynamic parsing succeeds, check transform.yml for the authoritative
+    # source parameter. IDs like "biomass_statistical_summary_radial_gauge" match
+    # the dynamic pattern but their source (e.g. "plots") is only in transform.yml.
+    effective_source = source
+    if not effective_source:
+        cfg_group_by = group_by or _find_widget_group(template_id)
+        if cfg_group_by:
+            configured_widget = _load_configured_widget(template_id, cfg_group_by)
+            if configured_widget:
+                cfg_source = (configured_widget.get("transformer_params") or {}).get(
+                    "source"
+                )
+                # Redirect to configured-widget path only for entity-sourced
+                # widgets (e.g. source="plots" -> entity_plots).  Class-object
+                # widgets (series_extractor, etc.) use CSV data and must stay
+                # on the dynamic path which handles them via
+                # _load_class_object_data_for_preview.
+                if (
+                    cfg_source
+                    and cfg_source != "occurrences"
+                    and not _is_class_object_template(parsed["transformer"])
+                ):
+                    return await _preview_configured_widget(
+                        configured_widget, cfg_group_by, entity_id,
+                        etag=etag,
+                    )
+
+    template_info = _build_dynamic_template_info(parsed, template_id, source=effective_source)
     transformer_plugin = template_info["plugin"]
     widget_plugin = template_info["widget"]  # Widget is now part of the template ID
     config = template_info["config"]

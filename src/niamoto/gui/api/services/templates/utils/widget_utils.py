@@ -402,15 +402,41 @@ def load_configured_widget(widget_id: str, group_by: str) -> Optional[Dict[str, 
 
         widget_config = widgets_data[widget_id]
         transformer_plugin = widget_config.get("plugin")
-        transformer_params = widget_config.get("params", {})
+        raw_params = widget_config.get("params") or {}
 
         if not transformer_plugin:
             return None
 
+        # Handle nested format where params contains transformer/widget sub-dicts:
+        #   params:
+        #     transformer: {plugin: ..., params: {source: plots, field: biomass}}
+        #     widget: {plugin: radial_gauge, params: {...}}
+        #     title: "..."
+        # vs flat format where params are directly the transformer params:
+        #   params: {source: plots, field: biomass, ...}
+        transformer_params = raw_params
+        nested_widget_plugin = None
+        nested_widget_params = None
+        nested_title = None
+
+        if "transformer" in raw_params and isinstance(raw_params["transformer"], dict):
+            nested_transformer = raw_params["transformer"]
+            transformer_params = nested_transformer.get("params", {})
+            if nested_transformer.get("plugin"):
+                transformer_plugin = nested_transformer["plugin"]
+
+            if "widget" in raw_params and isinstance(raw_params["widget"], dict):
+                nested_widget = raw_params["widget"]
+                nested_widget_plugin = nested_widget.get("plugin")
+                nested_widget_params = nested_widget.get("params", {})
+
+            if "title" in raw_params:
+                nested_title = raw_params["title"]
+
         # Try to load export.yml for widget display info
-        widget_plugin = "info_grid"  # Default
-        widget_params = {}
-        widget_title = widget_id.replace("_", " ").title()
+        widget_plugin = nested_widget_plugin or "info_grid"
+        widget_params = nested_widget_params or {}
+        widget_title = nested_title or widget_id.replace("_", " ").title()
 
         if export_path.exists():
             with open(export_path, "r", encoding="utf-8") as f:

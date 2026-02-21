@@ -424,31 +424,32 @@ export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
     [queryClient]
   )
 
+  const invalidateAll = useCallback(() => {
+    invalidate()
+    queryClient.invalidateQueries({ queryKey: ['layout'] })
+  }, [invalidate, queryClient])
+
   // Mutations
   const updateMutation = useMutation({
     mutationFn: ({ widgetId, config }: { widgetId: string; config: Partial<ConfiguredWidget> }) =>
       performUpdate(widgetId, config, configuredWidgets, groupBy),
-    onSuccess: invalidate,
+    onSuccess: invalidateAll,
   })
 
   const deleteMutation = useMutation({
     mutationFn: (widgetId: string) => performDelete(widgetId, groupBy),
-    onSuccess: invalidate,
+    onSuccess: invalidateAll,
   })
 
   const duplicateMutation = useMutation({
     mutationFn: ({ widgetId, newId }: { widgetId: string; newId: string }) =>
       performDuplicate(widgetId, newId, configuredWidgets, groupBy),
-    onSuccess: invalidate,
+    onSuccess: invalidateAll,
   })
 
   const reorderMutation = useMutation({
     mutationFn: (widgetIds: string[]) => performReorder(widgetIds, groupBy),
-    onSuccess: () => {
-      invalidate()
-      // Invalider aussi le layout preview qui dépend de l'ordre des widgets
-      queryClient.invalidateQueries({ queryKey: ['layout'] })
-    },
+    onSuccess: invalidateAll,
   })
 
   // Wrappers conservant l'interface Promise<boolean>
@@ -502,6 +503,6 @@ export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
     deleteWidget,
     duplicateWidget,
     reorderWidgets,
-    refetch: invalidate
+    refetch: invalidateAll
   }
 }

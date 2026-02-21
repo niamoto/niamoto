@@ -202,20 +202,39 @@ def render_plotly_figure(
     config_json = json.dumps(plotly_config)
 
     # Create HTML that waits for Plotly to be loaded
+    is_map_js = "true" if is_map else "false"
     html = f'''
     <div id="{div_id}" class="plotly-graph-div" style="height:100%; width:100%;"></div>
     <script type="text/javascript">
         (function() {{
+            var isPreview = !!window.__NIAMOTO_PREVIEW__;
+            var isMap = {is_map_js};
+            var hasRendered = false;
+            var plotConfig = {config_json};
+
+            // Preview mode: keep rendering cheap and stable.
+            if (isPreview) {{
+                plotConfig.displayModeBar = false;
+                plotConfig.responsive = false;
+                if (!isMap) {{
+                    plotConfig.staticPlot = true;
+                }}
+            }}
+
             var plotlyReady = function() {{
+                if (hasRendered) return;
+                hasRendered = true;
                 Plotly.newPlot(
                     "{div_id}",
                     {fig_json},
-                    {config_json}
-                ).then(function() {{
-                    // Resize after initial render to fix container sizing issues
-                    setTimeout(function() {{
-                        Plotly.Plots.resize("{div_id}");
-                    }}, 100);
+                    plotConfig
+                ).then(function(gd) {{
+                    // Keep one post-render resize in non-preview contexts only.
+                    if (!isPreview && gd) {{
+                        requestAnimationFrame(function() {{
+                            Plotly.Plots.resize(gd);
+                        }});
+                    }}
                 }});
             }};
 
@@ -223,22 +242,34 @@ def render_plotly_figure(
                 plotlyReady();
             }} else {{
                 // Wait for Plotly to load
+                var attempts = 0;
                 var checkPlotly = setInterval(function() {{
+                    attempts++;
                     if (typeof Plotly !== 'undefined') {{
                         clearInterval(checkPlotly);
                         plotlyReady();
+                    }} else if (attempts > 100) {{
+                        clearInterval(checkPlotly);
                     }}
                 }}, 100);
             }}
 
-            // Also resize on window load to handle iframe sizing
-            window.addEventListener('load', function() {{
-                if (typeof Plotly !== 'undefined') {{
-                    setTimeout(function() {{
-                        Plotly.Plots.resize("{div_id}");
-                    }}, 200);
-                }}
-            }});
+            // Resize only when the host window actually resizes (non-preview).
+            if (!isPreview) {{
+                var resizeRaf = null;
+                window.addEventListener('resize', function() {{
+                    if (resizeRaf !== null) {{
+                        cancelAnimationFrame(resizeRaf);
+                    }}
+                    resizeRaf = requestAnimationFrame(function() {{
+                        var gd = document.getElementById("{div_id}");
+                        if (gd && typeof Plotly !== 'undefined') {{
+                            Plotly.Plots.resize(gd);
+                        }}
+                        resizeRaf = null;
+                    }});
+                }});
+            }}
         }})();
     </script>
     '''

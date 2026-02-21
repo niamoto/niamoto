@@ -85,6 +85,9 @@ class PreviewService:
             text-align: center;
         }}
     </style>
+    <script>
+        window.__NIAMOTO_PREVIEW__ = true;
+    </script>
     <script src="/api/site/assets/js/vendor/plotly/3.0.1_plotly.min.js"></script>
 </head>
 <body>
