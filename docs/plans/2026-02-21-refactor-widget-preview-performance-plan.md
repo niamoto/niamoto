@@ -221,9 +221,9 @@ Règles Vercel React à appliquer :
 - **`client-swr-dedup`** : React Query déduplique automatiquement les requêtes avec le même queryKey
 - **`async-parallel`** : les 2 fetch configs (`transform` + `export`) doivent rester en `Promise.all()`
 
-- [ ] Créer `useWidgetConfig` avec `useQuery` pour le fetch — `useWidgetConfig.ts`
-- [ ] Créer les mutations avec `useMutation` et `invalidateQueries` — `useWidgetConfig.ts`
-- [ ] Supprimer `fetchConfigs`, `useState` loading/error — `useWidgetConfig.ts`
+- [x] Créer `useWidgetConfig` avec `useQuery` pour le fetch — `useWidgetConfig.ts`
+- [x] Créer les mutations avec `useMutation` et `invalidateQueries` — `useWidgetConfig.ts`
+- [x] Supprimer `fetchConfigs`, `useState` loading/error — `useWidgetConfig.ts`
 
 ### 3.2 Migrer useSuggestions vers React Query
 
@@ -232,8 +232,8 @@ Règles Vercel React à appliquer :
 - `useQuery` avec `queryKey: ['suggestions', groupBy, entity]` et `staleTime: 60_000`
 - Les suggestions ne changent pas pendant une session (données stables après import)
 
-- [ ] Convertir `useSuggestions` en `useQuery` — `useTemplates.ts`
-- [ ] Supprimer `useState` suggestions/loading/error — `useTemplates.ts`
+- [x] Convertir `useSuggestions` en `useQuery` — `useTemplates.ts`
+- [x] Supprimer `useState` suggestions/loading/error — `useTemplates.ts`
 
 ### 3.3 Migrer les hooks de widget-suggestions.ts
 
@@ -252,10 +252,10 @@ Règles Vercel React à appliquer :
 
 **Important :** Tous les `queryFn` de cette migration doivent utiliser le pattern `({ signal }) => fetch(url, { signal })` pour que l'annulation fonctionne.
 
-- [ ] Convertir `useClassObjectSuggestions` en `useQuery` — `widget-suggestions.ts`
-- [ ] Convertir `useSemanticGroups` en `useQuery` — `widget-suggestions.ts`
-- [ ] Convertir `useCombinedWidgetSuggestions` en `useQuery` avec `enabled` + `normalizedFields` — `widget-suggestions.ts`
-- [ ] Tous les `queryFn` utilisent `({ signal }) => fetch(url, { signal })` — tous les hooks migrés
+- [x] Convertir `useClassObjectSuggestions` en `useQuery` — `widget-suggestions.ts`
+- [x] Convertir `useSemanticGroups` en `useQuery` — `widget-suggestions.ts`
+- [x] Convertir `useCombinedWidgetSuggestions` en `useQuery` avec `enabled` + `normalizedFields` — `widget-suggestions.ts`
+- [x] Tous les `queryFn` utilisent `({ signal }) => fetch(url, { signal })` — tous les hooks migrés
 
 ---
 
@@ -276,8 +276,8 @@ const { data: combinedSuggestions } = useCombinedWidgetSuggestions(
 
 Règle Vercel : **`rerender-move-effect-to-event`** — le fetch est contrôlé par le debounce, pas un effect naïf.
 
-- [ ] Créer ou importer `useDebouncedValue` — utilitaire
-- [ ] Utiliser `debouncedFields` comme paramètre de `useCombinedWidgetSuggestions` — `AddWidgetModal.tsx`
+- [x] Créer ou importer `useDebouncedValue` — utilitaire
+- [x] Utiliser `debouncedFields` comme paramètre de `useCombinedWidgetSuggestions` — `AddWidgetModal.tsx`
 
 ### 4.2 AbortController sur les fetches manuels restants
 
@@ -285,8 +285,8 @@ Règle Vercel : **`rerender-move-effect-to-event`** — le fetch est contrôlé 
 - Pour tout autre fetch non migré vers React Query, ajouter un AbortController dans le cleanup du `useEffect`
 - Après migration React Query (Phase 3), la plupart des fetches manuels auront disparu
 
-- [ ] Audit des fetches manuels restants après Phase 3
-- [ ] Ajouter AbortController si nécessaire
+- [x] Audit des fetches manuels restants après Phase 3
+- [x] Ajouter AbortController si nécessaire
 
 ---
 

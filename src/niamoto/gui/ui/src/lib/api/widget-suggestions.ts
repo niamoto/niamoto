@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { apiClient } from './client'
 
 /**
@@ -166,43 +166,22 @@ export async function getWidgetSuggestions(
  * Hook to fetch class_object suggestions for a group
  */
 export function useClassObjectSuggestions(groupBy: string, sourceName?: string) {
-  const [data, setData] = useState<WidgetSuggestionsResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchSuggestions = useCallback(async () => {
-    if (!groupBy) {
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await getWidgetSuggestions(groupBy, sourceName)
-      setData(response)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erreur lors du chargement'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [groupBy, sourceName])
-
-  useEffect(() => {
-    fetchSuggestions()
-  }, [fetchSuggestions])
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['class-object-suggestions', groupBy, sourceName],
+    queryFn: () => getWidgetSuggestions(groupBy, sourceName),
+    enabled: !!groupBy,
+    staleTime: 60_000,
+  })
 
   return {
-    data,
+    data: data ?? null,
     classObjects: data?.class_objects ?? [],
     pluginSchemas: data?.plugin_schemas ?? {},
     patternGroups: data?.pattern_groups ?? {},
     categoriesSummary: data?.categories_summary ?? {},
-    loading,
-    error,
-    refetch: fetchSuggestions,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { refetch() },
   }
 }
 
@@ -347,48 +326,28 @@ export async function getSemanticGroups(
 }
 
 /**
- * Hook for combined widget suggestions
+ * Hook for combined widget suggestions.
+ * Auto-fetch quand selectedFields >= 2 et enabled est true.
  */
 export function useCombinedWidgetSuggestions(
   referenceName: string,
   selectedFields: string[],
   sourceName: string = 'occurrences'
 ) {
-  const [data, setData] = useState<CombinedWidgetResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchSuggestions = useCallback(async () => {
-    if (!referenceName || selectedFields.length < 2) {
-      setData(null)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await getCombinedWidgetSuggestions(
-        referenceName,
-        selectedFields,
-        sourceName
-      )
-      setData(response)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erreur lors du chargement'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [referenceName, selectedFields, sourceName])
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['combined-suggestions', referenceName, selectedFields, sourceName],
+    queryFn: () => getCombinedWidgetSuggestions(referenceName, selectedFields, sourceName),
+    enabled: !!referenceName && selectedFields.length >= 2,
+    staleTime: 30_000,
+  })
 
   return {
-    data,
+    data: data ?? null,
     suggestions: data?.suggestions ?? [],
     semanticGroups: data?.semantic_groups ?? [],
-    loading,
-    error,
-    fetchSuggestions,
+    loading: isLoading,
+    error: error?.message ?? null,
+    fetchSuggestions: () => { refetch() },
   }
 }
 
@@ -396,39 +355,18 @@ export function useCombinedWidgetSuggestions(
  * Hook for semantic groups (proactive detection)
  */
 export function useSemanticGroups(referenceName: string, entity: string = 'occurrences') {
-  const [data, setData] = useState<SemanticGroupsResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchGroups = useCallback(async () => {
-    if (!referenceName) {
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await getSemanticGroups(referenceName, entity)
-      setData(response)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erreur lors du chargement'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [referenceName, entity])
-
-  useEffect(() => {
-    fetchGroups()
-  }, [fetchGroups])
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['semantic-groups', referenceName, entity],
+    queryFn: () => getSemanticGroups(referenceName, entity),
+    enabled: !!referenceName,
+    staleTime: 60_000,
+  })
 
   return {
     groups: data?.groups ?? [],
-    loading,
-    error,
-    refetch: fetchGroups,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { refetch() },
   }
 }
 

@@ -5,7 +5,7 @@
  * the user to select one to add to their configuration.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Loader2,
   Combine,
@@ -70,19 +70,12 @@ export function CombinedWidgetModal({
 }: CombinedWidgetModalProps) {
   const [selectedSuggestion, setSelectedSuggestion] = useState<CombinedWidgetSuggestion | null>(null)
 
+  // React Query auto-fetch quand selectedFields >= 2
   const {
     suggestions,
     loading,
     error,
-    fetchSuggestions,
   } = useCombinedWidgetSuggestions(referenceName, selectedFields, sourceName)
-
-  // Fetch suggestions when modal opens
-  useEffect(() => {
-    if (isOpen && selectedFields.length >= 2) {
-      fetchSuggestions()
-    }
-  }, [isOpen, selectedFields, fetchSuggestions])
 
   // Auto-select the recommended suggestion
   useEffect(() => {
