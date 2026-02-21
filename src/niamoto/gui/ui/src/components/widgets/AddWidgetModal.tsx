@@ -63,6 +63,7 @@ import {
   type CombinedWidgetSuggestion,
 } from '@/lib/api/widget-suggestions'
 import type { ReferenceInfo } from '@/hooks/useReferences'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { usePreviewHtml, cancelAllPreviews, refreshPreview } from './usePreviewQueue'
 
 // Category icons
@@ -608,12 +609,14 @@ export function AddWidgetModal({
   // Semantic groups for combined widgets
   const { groups: semanticGroups } = useSemanticGroups(reference.name, 'occurrences')
 
-  // Combined widget suggestions based on selected fields
+  // Debounce des champs sélectionnés pour throttle les appels combined (300ms)
+  const debouncedFields = useDebouncedValue(selectedFields, 300)
+
+  // Combined widget suggestions — React Query auto-fetch quand debouncedFields >= 2
   const {
     suggestions: combinedSuggestions,
     loading: combinedLoading,
-    fetchSuggestions: fetchCombinedSuggestions,
-  } = useCombinedWidgetSuggestions(reference.name, selectedFields, 'occurrences')
+  } = useCombinedWidgetSuggestions(reference.name, debouncedFields, 'occurrences')
 
   // Get available fields from suggestions
   const availableFields = useMemo(() => {
@@ -645,13 +648,6 @@ export function AddWidgetModal({
       cancelAllPreviews()
     }
   }, [open, defaultTab])
-
-  // Fetch combined suggestions when fields change
-  useEffect(() => {
-    if (selectedFields.length >= 2) {
-      fetchCombinedSuggestions()
-    }
-  }, [selectedFields, fetchCombinedSuggestions])
 
   // Auto-select first combined suggestion
   useEffect(() => {

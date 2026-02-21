@@ -1,13 +1,13 @@
 /**
- * Hook for managing configured widgets in transform.yml and export.yml
+ * Hook pour la gestion des widgets configurés dans transform.yml et export.yml
  *
- * Provides CRUD operations for widgets:
- * - Fetch all configured widgets for a group
- * - Update widget parameters (transform + export)
- * - Delete widgets
- * - Duplicate widgets
+ * Architecture React Query :
+ * - `useQuery` pour le fetch parallèle des deux configs (staleTime: 30s)
+ * - `useMutation` + `invalidateQueries` pour les opérations CRUD
+ * - Dérivation client-side de `configuredWidgets` via `useMemo`
  */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { LocalizedString } from '@/components/ui/localized-input'
 
 const API_BASE = '/api/config'
@@ -81,6 +81,12 @@ export interface UseWidgetConfigReturn {
   duplicateWidget: (widgetId: string, newId: string) => Promise<boolean>
   reorderWidgets: (widgetIds: string[]) => Promise<boolean>
   refetch: () => void
+}
+
+/** Données brutes retournées par le fetch parallèle */
+interface RawConfigs {
+  transformData: TransformConfig[]
+  exportData: ExportConfig
 }
 
 /**
@@ -226,269 +232,272 @@ function mergeWidgetData(
   return merged
 }
 
-/**
- * Hook for managing configured widgets
- */
-export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
-  const [transformData, setTransformData] = useState<TransformConfig[] | null>(null)
-  const [exportData, setExportData] = useState<ExportConfig | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+/** Fetch parallèle des deux configs */
+async function fetchWidgetConfigs({ signal }: { signal: AbortSignal }): Promise<RawConfigs> {
+  const [transformRes, exportRes] = await Promise.all([
+    fetch(`${API_BASE}/transform`, { signal }),
+    fetch(`${API_BASE}/export`, { signal })
+  ])
 
-  // Fetch both configs
-  const fetchConfigs = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  if (!transformRes.ok) {
+    throw new Error(`Failed to fetch transform config: ${transformRes.statusText}`)
+  }
+  if (!exportRes.ok) {
+    throw new Error(`Failed to fetch export config: ${exportRes.statusText}`)
+  }
 
-    try {
-      const [transformRes, exportRes] = await Promise.all([
-        fetch(`${API_BASE}/transform`),
-        fetch(`${API_BASE}/export`)
-      ])
+  const transformJson = await transformRes.json()
+  const exportJson = await exportRes.json()
 
-      if (!transformRes.ok) {
-        throw new Error(`Failed to fetch transform config: ${transformRes.statusText}`)
-      }
-      if (!exportRes.ok) {
-        throw new Error(`Failed to fetch export config: ${exportRes.statusText}`)
-      }
+  return {
+    transformData: transformJson.content || transformJson,
+    exportData: exportJson.content || exportJson
+  }
+}
 
-      const transformJson = await transformRes.json()
-      const exportJson = await exportRes.json()
+/** Mutation : mise à jour d'un widget (transform + export) */
+async function performUpdate(
+  widgetId: string,
+  config: Partial<ConfiguredWidget>,
+  currentWidgets: ConfiguredWidget[],
+  groupBy: string
+): Promise<void> {
+  if (config.transformerParams !== undefined || config.transformerPlugin !== undefined) {
+    const currentWidget = currentWidgets.find(w => w.id === widgetId)
+    if (!currentWidget) throw new Error(`Widget ${widgetId} not found`)
 
-      // Extract content from response (API returns { content: {...} })
-      setTransformData(transformJson.content || transformJson)
-      setExportData(exportJson.content || exportJson)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchConfigs()
-  }, [fetchConfigs, groupBy])
-
-  // Compute configured widgets from both configs
-  const configuredWidgets = useMemo(() => {
-    if (!transformData) return []
-
-    const transformWidgets = parseTransformWidgets(transformData, groupBy)
-    const exportWidgets = exportData
-      ? parseExportWidgets(exportData, groupBy)
-      : { map: new Map<string, ExportWidgetConfig>(), order: [] }
-
-    return mergeWidgetData(transformWidgets, exportWidgets)
-  }, [transformData, exportData, groupBy])
-
-  // Update a widget's configuration
-  const updateWidget = useCallback(async (
-    widgetId: string,
-    config: Partial<ConfiguredWidget>
-  ): Promise<boolean> => {
-    try {
-      // Build updated transform config
-      if (config.transformerParams !== undefined || config.transformerPlugin !== undefined) {
-        const currentWidget = configuredWidgets.find(w => w.id === widgetId)
-        if (!currentWidget) {
-          throw new Error(`Widget ${widgetId} not found`)
-        }
-
-        // Update transform.yml via dedicated endpoint
-        const transformPayload = {
-          plugin: config.transformerPlugin || currentWidget.transformerPlugin,
-          params: config.transformerParams !== undefined
-            ? config.transformerParams
-            : currentWidget.transformerParams
-        }
-
-        const transformRes = await fetch(
-          `${API_BASE}/transform/${groupBy}/widgets/${widgetId}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(transformPayload)
-          }
-        )
-
-        if (!transformRes.ok) {
-          const errorData = await transformRes.json().catch(() => ({}))
-          throw new Error(errorData.detail || `Failed to update transform config`)
-        }
-      }
-
-      // Update export.yml if export params changed
-      if (config.widgetParams !== undefined || config.widgetPlugin !== undefined ||
-          config.title !== undefined || config.description !== undefined) {
-        const currentWidget = configuredWidgets.find(w => w.id === widgetId)
-        if (!currentWidget) {
-          throw new Error(`Widget ${widgetId} not found`)
-        }
-
-        const exportPayload = {
-          plugin: config.widgetPlugin || currentWidget.widgetPlugin,
-          data_source: widgetId,
-          title: config.title !== undefined ? config.title : currentWidget.title,
-          description: config.description !== undefined ? config.description : currentWidget.description,
-          params: config.widgetParams !== undefined
-            ? config.widgetParams
-            : currentWidget.widgetParams
-        }
-
-        const exportRes = await fetch(
-          `${API_BASE}/export/${groupBy}/widgets/${widgetId}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(exportPayload)
-          }
-        )
-
-        if (!exportRes.ok) {
-          const errorData = await exportRes.json().catch(() => ({}))
-          throw new Error(errorData.detail || `Failed to update export config`)
-        }
-      }
-
-      // Refetch to sync state
-      await fetchConfigs()
-      return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      return false
-    }
-  }, [configuredWidgets, groupBy, fetchConfigs])
-
-  // Delete a widget from both configs
-  const deleteWidget = useCallback(async (widgetId: string): Promise<boolean> => {
-    try {
-      // Delete from transform.yml
-      const transformRes = await fetch(
-        `${API_BASE}/transform/${groupBy}/widgets/${widgetId}`,
-        { method: 'DELETE' }
-      )
-
-      if (!transformRes.ok && transformRes.status !== 404) {
-        const errorData = await transformRes.json().catch(() => ({}))
-        throw new Error(errorData.detail || `Failed to delete from transform config`)
-      }
-
-      // Delete from export.yml
-      const exportRes = await fetch(
-        `${API_BASE}/export/${groupBy}/widgets/${widgetId}`,
-        { method: 'DELETE' }
-      )
-
-      if (!exportRes.ok && exportRes.status !== 404) {
-        const errorData = await exportRes.json().catch(() => ({}))
-        throw new Error(errorData.detail || `Failed to delete from export config`)
-      }
-
-      // Refetch to sync state
-      await fetchConfigs()
-      return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      return false
-    }
-  }, [groupBy, fetchConfigs])
-
-  // Duplicate a widget with a new ID
-  const duplicateWidget = useCallback(async (
-    widgetId: string,
-    newId: string
-  ): Promise<boolean> => {
-    const sourceWidget = configuredWidgets.find(w => w.id === widgetId)
-    if (!sourceWidget) {
-      setError(`Widget ${widgetId} not found`)
-      return false
+    const transformPayload = {
+      plugin: config.transformerPlugin || currentWidget.transformerPlugin,
+      params: config.transformerParams !== undefined
+        ? config.transformerParams
+        : currentWidget.transformerParams
     }
 
-    try {
-      // Create new widget in transform.yml
-      const transformPayload = {
+    const res = await fetch(
+      `${API_BASE}/transform/${groupBy}/widgets/${widgetId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(transformPayload)
+      }
+    )
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}))
+      throw new Error(errorData.detail || 'Failed to update transform config')
+    }
+  }
+
+  if (config.widgetParams !== undefined || config.widgetPlugin !== undefined ||
+      config.title !== undefined || config.description !== undefined) {
+    const currentWidget = currentWidgets.find(w => w.id === widgetId)
+    if (!currentWidget) throw new Error(`Widget ${widgetId} not found`)
+
+    const exportPayload = {
+      plugin: config.widgetPlugin || currentWidget.widgetPlugin,
+      data_source: widgetId,
+      title: config.title !== undefined ? config.title : currentWidget.title,
+      description: config.description !== undefined ? config.description : currentWidget.description,
+      params: config.widgetParams !== undefined
+        ? config.widgetParams
+        : currentWidget.widgetParams
+    }
+
+    const res = await fetch(
+      `${API_BASE}/export/${groupBy}/widgets/${widgetId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportPayload)
+      }
+    )
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}))
+      throw new Error(errorData.detail || 'Failed to update export config')
+    }
+  }
+}
+
+/** Mutation : suppression d'un widget (transform + export) */
+async function performDelete(widgetId: string, groupBy: string): Promise<void> {
+  const transformRes = await fetch(
+    `${API_BASE}/transform/${groupBy}/widgets/${widgetId}`,
+    { method: 'DELETE' }
+  )
+  if (!transformRes.ok && transformRes.status !== 404) {
+    const errorData = await transformRes.json().catch(() => ({}))
+    throw new Error(errorData.detail || 'Failed to delete from transform config')
+  }
+
+  const exportRes = await fetch(
+    `${API_BASE}/export/${groupBy}/widgets/${widgetId}`,
+    { method: 'DELETE' }
+  )
+  if (!exportRes.ok && exportRes.status !== 404) {
+    const errorData = await exportRes.json().catch(() => ({}))
+    throw new Error(errorData.detail || 'Failed to delete from export config')
+  }
+}
+
+/** Mutation : duplication d'un widget */
+async function performDuplicate(
+  widgetId: string,
+  newId: string,
+  currentWidgets: ConfiguredWidget[],
+  groupBy: string
+): Promise<void> {
+  const sourceWidget = currentWidgets.find(w => w.id === widgetId)
+  if (!sourceWidget) throw new Error(`Widget ${widgetId} not found`)
+
+  const transformRes = await fetch(
+    `${API_BASE}/transform/${groupBy}/widgets/${newId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         plugin: sourceWidget.transformerPlugin,
         params: { ...sourceWidget.transformerParams }
-      }
+      })
+    }
+  )
+  if (!transformRes.ok) {
+    const errorData = await transformRes.json().catch(() => ({}))
+    throw new Error(errorData.detail || 'Failed to create transform config')
+  }
 
-      const transformRes = await fetch(
-        `${API_BASE}/transform/${groupBy}/widgets/${newId}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(transformPayload)
-        }
-      )
-
-      if (!transformRes.ok) {
-        const errorData = await transformRes.json().catch(() => ({}))
-        throw new Error(errorData.detail || `Failed to create transform config`)
-      }
-
-      // Create new widget in export.yml
-      const exportPayload = {
+  const exportRes = await fetch(
+    `${API_BASE}/export/${groupBy}/widgets/${newId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         plugin: sourceWidget.widgetPlugin,
         data_source: newId,
         title: `${sourceWidget.title} (copie)`,
         description: sourceWidget.description,
         params: { ...sourceWidget.widgetParams }
-      }
+      })
+    }
+  )
+  if (!exportRes.ok) {
+    const errorData = await exportRes.json().catch(() => ({}))
+    throw new Error(errorData.detail || 'Failed to create export config')
+  }
+}
 
-      const exportRes = await fetch(
-        `${API_BASE}/export/${groupBy}/widgets/${newId}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(exportPayload)
-        }
-      )
+/** Mutation : réordonnancement des widgets */
+async function performReorder(widgetIds: string[], groupBy: string): Promise<void> {
+  const res = await fetch(`/api/recipes/${groupBy}/reorder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ widget_ids: widgetIds })
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || 'Failed to reorder widgets')
+  }
+}
 
-      if (!exportRes.ok) {
-        const errorData = await exportRes.json().catch(() => ({}))
-        throw new Error(errorData.detail || `Failed to create export config`)
-      }
+/**
+ * Hook pour la gestion des widgets configurés.
+ * Utilise React Query pour le cache et la synchronisation.
+ */
+export function useWidgetConfig(groupBy: string): UseWidgetConfigReturn {
+  const queryClient = useQueryClient()
 
-      // Refetch to sync state
-      await fetchConfigs()
+  // Fetch parallèle des deux configs avec React Query
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['widget-config'],
+    queryFn: fetchWidgetConfigs,
+    staleTime: 30_000,
+  })
+
+  // Dérivation client-side : fusionner transform + export pour le groupe courant
+  const configuredWidgets = useMemo(() => {
+    if (!data) return []
+    const transformWidgets = parseTransformWidgets(data.transformData, groupBy)
+    const exportWidgets = parseExportWidgets(data.exportData, groupBy)
+    return mergeWidgetData(transformWidgets, exportWidgets)
+  }, [data, groupBy])
+
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['widget-config'] }),
+    [queryClient]
+  )
+
+  // Mutations
+  const updateMutation = useMutation({
+    mutationFn: ({ widgetId, config }: { widgetId: string; config: Partial<ConfiguredWidget> }) =>
+      performUpdate(widgetId, config, configuredWidgets, groupBy),
+    onSuccess: invalidate,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (widgetId: string) => performDelete(widgetId, groupBy),
+    onSuccess: invalidate,
+  })
+
+  const duplicateMutation = useMutation({
+    mutationFn: ({ widgetId, newId }: { widgetId: string; newId: string }) =>
+      performDuplicate(widgetId, newId, configuredWidgets, groupBy),
+    onSuccess: invalidate,
+  })
+
+  const reorderMutation = useMutation({
+    mutationFn: (widgetIds: string[]) => performReorder(widgetIds, groupBy),
+    onSuccess: invalidate,
+  })
+
+  // Wrappers conservant l'interface Promise<boolean>
+  const updateWidget = useCallback(async (
+    widgetId: string,
+    config: Partial<ConfiguredWidget>
+  ): Promise<boolean> => {
+    try {
+      await updateMutation.mutateAsync({ widgetId, config })
       return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+    } catch {
       return false
     }
-  }, [configuredWidgets, groupBy, fetchConfigs])
+  }, [updateMutation.mutateAsync])
 
-  // Reorder widgets in export.yml
+  const deleteWidget = useCallback(async (widgetId: string): Promise<boolean> => {
+    try {
+      await deleteMutation.mutateAsync(widgetId)
+      return true
+    } catch {
+      return false
+    }
+  }, [deleteMutation.mutateAsync])
+
+  const duplicateWidget = useCallback(async (
+    widgetId: string,
+    newId: string
+  ): Promise<boolean> => {
+    try {
+      await duplicateMutation.mutateAsync({ widgetId, newId })
+      return true
+    } catch {
+      return false
+    }
+  }, [duplicateMutation.mutateAsync])
+
   const reorderWidgets = useCallback(async (widgetIds: string[]): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/recipes/${groupBy}/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ widget_ids: widgetIds })
-      })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to reorder widgets')
-      }
-
-      // Refetch to sync state
-      await fetchConfigs()
+      await reorderMutation.mutateAsync(widgetIds)
       return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+    } catch {
       return false
     }
-  }, [groupBy, fetchConfigs])
+  }, [reorderMutation.mutateAsync])
 
   return {
     configuredWidgets,
-    loading,
-    error,
+    loading: isLoading,
+    error: error?.message ?? null,
     updateWidget,
     deleteWidget,
     duplicateWidget,
     reorderWidgets,
-    refetch: fetchConfigs
+    refetch: invalidate
   }
 }

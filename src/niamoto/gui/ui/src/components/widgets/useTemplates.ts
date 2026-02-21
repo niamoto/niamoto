@@ -1,7 +1,14 @@
 /**
- * Hook for fetching and managing widget templates
+ * Hooks pour les templates et suggestions de widgets.
+ *
+ * Architecture React Query :
+ * - `useTemplates` — cache des templates disponibles (staleTime: 60s)
+ * - `useSuggestions` — suggestions par groupe/entité (staleTime: 60s)
+ * - `useConfiguredWidgets` — IDs déjà configurés (staleTime: 30s)
+ * - `useGenerateConfig` / `useSaveConfig` — actions impératives (useMutation)
  */
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
   TemplatesListResponse,
   SuggestionsResponse,
@@ -52,167 +59,170 @@ interface UseSaveConfigReturn {
   error: string | null
 }
 
+/** Fetch des templates disponibles */
+async function fetchTemplates({ signal }: { signal: AbortSignal }): Promise<TemplatesListResponse> {
+  const response = await fetch(`${API_BASE}/taxons`, { signal })
+  if (!response.ok) {
+    throw new Error(`Failed to fetch templates: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 /**
  * Fetch all available templates
  */
 export function useTemplates(): UseTemplatesReturn {
-  const [templates, setTemplates] = useState<TemplatesListResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['templates'],
+    queryFn: fetchTemplates,
+    staleTime: 60_000,
+  })
 
-  const fetchTemplates = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch(`${API_BASE}/taxons`)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch templates: ${response.statusText}`)
-      }
-      const data = await response.json()
-      setTemplates(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  return {
+    templates: data ?? null,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { refetch() }
+  }
+}
 
-  useEffect(() => {
-    fetchTemplates()
-  }, [fetchTemplates])
-
-  return { templates, loading, error, refetch: fetchTemplates }
+/** Fetch des suggestions par groupe et entité */
+async function fetchSuggestions(
+  groupBy: string,
+  entity: string,
+  signal: AbortSignal
+): Promise<SuggestionsResponse> {
+  const response = await fetch(
+    `${API_BASE}/${groupBy}/suggestions?entity=${entity}`,
+    { signal }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Failed to fetch suggestions: ${response.statusText}`)
+  }
+  return response.json()
 }
 
 /**
  * Fetch template suggestions based on data analysis
- * @param groupBy - The reference/group to get suggestions for (e.g., 'taxons', 'plots', 'shapes')
- * @param entity - The data source entity (default: 'occurrences')
  */
 export function useSuggestions(
   groupBy: string = 'taxons',
   entity: string = 'occurrences'
 ): UseSuggestionsReturn {
-  const [suggestions, setSuggestions] = useState<TemplateSuggestion[]>([])
-  const [columnsAnalyzed, setColumnsAnalyzed] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['suggestions', groupBy, entity],
+    queryFn: ({ signal }) => fetchSuggestions(groupBy, entity, signal),
+    staleTime: 60_000,
+  })
 
-  const fetchSuggestions = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      // Use dynamic groupBy in the API path (no max_suggestions = use API default of 50)
-      const response = await fetch(
-        `${API_BASE}/${groupBy}/suggestions?entity=${entity}`
-      )
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || `Failed to fetch suggestions: ${response.statusText}`)
-      }
-      const data: SuggestionsResponse = await response.json()
-      setSuggestions(data.suggestions)
-      setColumnsAnalyzed(data.columns_analyzed)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setSuggestions([])
-    } finally {
-      setLoading(false)
-    }
-  }, [groupBy, entity])
-
-  useEffect(() => {
-    fetchSuggestions()
-  }, [fetchSuggestions])
-
-  return { suggestions, columnsAnalyzed, loading, error, refetch: fetchSuggestions }
+  return {
+    suggestions: data?.suggestions ?? [],
+    columnsAnalyzed: data?.columns_analyzed ?? 0,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { refetch() }
+  }
 }
 
 /**
  * Generate transform config from selected templates
  */
 export function useGenerateConfig(): UseGenerateConfigReturn {
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const generate = useCallback(async (
-    templates: SelectedTemplate[],
-    groupBy: string = 'taxons',
-    referenceKind: string = 'generic'
-  ): Promise<GenerateConfigResponse | null> => {
-    setLoading(true)
-    setError(null)
-    try {
+  const mutation = useMutation({
+    mutationFn: async (vars: {
+      templates: SelectedTemplate[]
+      groupBy: string
+      referenceKind: string
+    }) => {
       const response = await fetch(`${API_BASE}/generate-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templates: templates,
-          group_by: groupBy,
-          reference_kind: referenceKind
+          templates: vars.templates,
+          group_by: vars.groupBy,
+          reference_kind: vars.referenceKind
         })
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.detail || `Failed to generate config: ${response.statusText}`)
       }
-      return await response.json()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      return null
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+      return response.json() as Promise<GenerateConfigResponse>
+    },
+    onError: (err: Error) => setError(err.message),
+  })
 
-  return { generate, loading, error }
+  const generate = useCallback(async (
+    templates: SelectedTemplate[],
+    groupBy: string = 'taxons',
+    referenceKind: string = 'generic'
+  ): Promise<GenerateConfigResponse | null> => {
+    setError(null)
+    try {
+      return await mutation.mutateAsync({ templates, groupBy, referenceKind })
+    } catch {
+      return null
+    }
+  }, [mutation.mutateAsync])
+
+  return { generate, loading: mutation.isPending, error }
 }
 
 /**
  * Save generated config to transform.yml
- * @param mode - 'merge' to add widgets to existing config, 'replace' to overwrite all widgets
  */
 export function useSaveConfig(): UseSaveConfigReturn {
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const save = useCallback(async (
-    config: GenerateConfigResponse,
-    mode: 'merge' | 'replace' = 'replace'
-  ): Promise<SaveConfigResponse | null> => {
-    setLoading(true)
-    setError(null)
-    try {
+  const mutation = useMutation({
+    mutationFn: async (vars: {
+      config: GenerateConfigResponse
+      mode: 'merge' | 'replace'
+    }) => {
       const response = await fetch(`${API_BASE}/save-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          group_by: config.group_by,
-          sources: config.sources,
-          widgets_data: config.widgets_data,
-          mode: mode
+          group_by: vars.config.group_by,
+          sources: vars.config.sources,
+          widgets_data: vars.config.widgets_data,
+          mode: vars.mode
         })
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.detail || `Failed to save config: ${response.statusText}`)
       }
-      return await response.json()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      return null
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+      return response.json() as Promise<SaveConfigResponse>
+    },
+    onSuccess: () => {
+      // Invalider les configs après sauvegarde
+      queryClient.invalidateQueries({ queryKey: ['widget-config'] })
+      queryClient.invalidateQueries({ queryKey: ['configured-widgets'] })
+    },
+    onError: (err: Error) => setError(err.message),
+  })
 
-  return { save, loading, error }
+  const save = useCallback(async (
+    config: GenerateConfigResponse,
+    mode: 'merge' | 'replace' = 'replace'
+  ): Promise<SaveConfigResponse | null> => {
+    setError(null)
+    try {
+      return await mutation.mutateAsync({ config, mode })
+    } catch {
+      return null
+    }
+  }, [mutation.mutateAsync])
+
+  return { save, loading: mutation.isPending, error }
 }
 
-/**
- * Fetch configured widgets from transform.yml
- * Returns the template_ids that are already saved in configuration
- */
+/** Fetch des widgets configurés */
 interface ConfiguredWidgetsResponse {
   configured_ids: string[]
   has_config: boolean
@@ -226,48 +236,35 @@ interface UseConfiguredWidgetsReturn {
   refetch: () => void
 }
 
+async function fetchConfiguredWidgets(
+  groupBy: string,
+  signal: AbortSignal
+): Promise<ConfiguredWidgetsResponse> {
+  const response = await fetch(`${API_BASE}/${groupBy}/configured`, { signal })
+  if (!response.ok) {
+    throw new Error(`Failed to fetch configured widgets: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 export function useConfiguredWidgets(groupBy: string): UseConfiguredWidgetsReturn {
-  const [data, setData] = useState<ConfiguredWidgetsResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchConfigured = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch(`${API_BASE}/${groupBy}/configured`)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch configured widgets: ${response.statusText}`)
-      }
-      const result: ConfiguredWidgetsResponse = await response.json()
-      setData(result)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setData({ configured_ids: [], has_config: false })
-    } finally {
-      setLoading(false)
-    }
-  }, [groupBy])
-
-  useEffect(() => {
-    fetchConfigured()
-  }, [fetchConfigured])
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['configured-widgets', groupBy],
+    queryFn: ({ signal }) => fetchConfiguredWidgets(groupBy, signal),
+    staleTime: 30_000,
+  })
 
   return {
-    configuredIds: data?.configured_ids || [],
-    hasConfig: data?.has_config || false,
-    loading,
-    error,
-    refetch: fetchConfigured
+    configuredIds: data?.configured_ids ?? [],
+    hasConfig: data?.has_config ?? false,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => { refetch() }
   }
 }
 
 /**
  * Selection management hook
- *
- * @param initialSuggestions - List of suggestions to select from
- * @param existingIds - Optional Set of template IDs already configured (from transform.yml)
- *                      If provided and non-empty, these will be pre-selected instead of auto-selection
  */
 export function useTemplateSelection(
   initialSuggestions: TemplateSuggestion[] = [],
@@ -279,7 +276,6 @@ export function useTemplateSelection(
   useEffect(() => {
     if (existingIds && existingIds.size > 0) {
       // Mode édition: use existing configured IDs
-      // Only select IDs that are also in the suggestions list
       const validExisting = new Set(
         Array.from(existingIds).filter(id =>
           initialSuggestions.some(s => s.template_id === id)
