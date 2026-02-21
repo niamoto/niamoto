@@ -3070,8 +3070,8 @@ async def preview_inline(request: InlinePreviewRequest):
 
 @router.get("/preview/{template_id}", response_class=HTMLResponse)
 async def preview_template(
-    request: Request,
     template_id: str,
+    request: Request = None,
     group_by: str = Query(
         default=None, description="Group by reference (auto-detected if not provided)"
     ),
@@ -3096,7 +3096,7 @@ async def preview_template(
     etag = _compute_preview_etag(
         template_id, group_by or "", source or "", entity_id or ""
     )
-    if_none_match = request.headers.get("if-none-match")
+    if_none_match = request.headers.get("if-none-match") if request else None
     if if_none_match and if_none_match.strip('"') == etag:
         return Response(status_code=304, headers={"ETag": f'"{etag}"'})
 
@@ -3210,9 +3210,7 @@ async def preview_template(
                 )
 
                 return _html_response_with_etag(
-                    PreviewService.wrap_html_response(
-                        widget_html, title=template_name
-                    ),
+                    PreviewService.wrap_html_response(widget_html, title=template_name),
                     etag,
                 )
             finally:
@@ -3396,9 +3394,7 @@ async def preview_template(
             )
 
             return _html_response_with_etag(
-                PreviewService.wrap_html_response(
-                    widget_html, title=template_name
-                ),
+                PreviewService.wrap_html_response(widget_html, title=template_name),
                 etag,
             )
 
