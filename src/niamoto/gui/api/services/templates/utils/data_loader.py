@@ -95,12 +95,15 @@ def load_sample_data(
                     f"FROM {quoted_occurrences_table} "
                     f"WHERE ST_Contains("
                     f"ST_GeomFromText(:geom_wkt), "
-                    f"ST_GeomFromText({quoted_geo_col})"
+                    f"TRY_CAST({quoted_geo_col} AS GEOMETRY)"
                     f")"
                 )
-                if limit:
-                    safe_limit = max(1, int(limit))
-                    select_query += f" ORDER BY RANDOM() LIMIT {safe_limit}"
+                # Always cap spatial queries for previews — full-table
+                # ST_Contains scans are expensive and large shapes can
+                # return thousands of rows.
+                effective_limit = limit or 500
+                safe_limit = max(1, int(effective_limit))
+                select_query += f" LIMIT {safe_limit}"
                 return pd.read_sql(
                     text(select_query), conn, params={"geom_wkt": geometry}
                 )
@@ -248,15 +251,45 @@ def load_class_object_data_for_preview(
                     if co_data.empty:
                         continue
 
-                    # Extract labels and values (aggregate across all entities for preview)
-                    # Group by class_name and sum values for a representative view
-                    aggregated = (
-                        co_data.groupby("class_name", sort=False)["class_value"]
-                        .sum()
-                        .reset_index()
+                    normalized = co_data.copy()
+                    normalized["class_value"] = pd.to_numeric(
+                        normalized["class_value"], errors="coerce"
                     )
-                    labels = aggregated["class_name"].tolist()
-                    values = aggregated["class_value"].tolist()
+                    normalized = normalized.dropna(subset=["class_value"])
+                    if normalized.empty:
+                        continue
+
+                    # Scalars often come with empty class_name.
+                    # Handle them explicitly to avoid empty outputs that lead
+                    # to blank gauge previews.
+                    class_names = (
+                        normalized["class_name"]
+                        .fillna("")
+                        .astype(str)
+                        .str.strip()
+                    )
+                    has_named_classes = (class_names != "").any()
+
+                    if not has_named_classes:
+                        # Use a representative scalar value for preview.
+                        # Median avoids extreme values when multiple entities exist.
+                        scalar_value = float(normalized["class_value"].median())
+                        labels = ["value"]
+                        values = [scalar_value]
+                    else:
+                        normalized["class_name"] = class_names
+                        named_data = normalized[normalized["class_name"] != ""]
+                        if named_data.empty:
+                            continue
+
+                        # For distribution-like class_objects, aggregate classes.
+                        aggregated = (
+                            named_data.groupby("class_name", sort=False)["class_value"]
+                            .sum()
+                            .reset_index()
+                        )
+                        labels = aggregated["class_name"].tolist()
+                        values = aggregated["class_value"].tolist()
 
                     return {
                         "tops": labels,

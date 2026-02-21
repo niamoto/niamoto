@@ -449,3 +449,134 @@ class TestPreviewEndpoint:
         if response.status_code == 200:
             content_type = response.headers.get("content-type", "")
             assert "text/html" in content_type
+
+    def test_preview_legacy_class_object_scalar_template_id(
+        self, client, test_work_dir
+    ):
+        """Legacy *_field_aggregator_* IDs must resolve to class_object previews."""
+        transform_path = Path(test_work_dir) / "config" / "transform.yml"
+        with open(transform_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        transform_config.append(
+            {
+                "group_by": "shapes",
+                "sources": [
+                    {
+                        "name": "shape_stats",
+                        "data": "imports/raw_shape_stats.csv",
+                        "grouping": "shapes",
+                    }
+                ],
+                "widgets_data": {},
+            }
+        )
+        with open(transform_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(transform_config, f, sort_keys=False)
+
+        imports_dir = Path(test_work_dir) / "imports"
+        imports_dir.mkdir(exist_ok=True)
+        csv_path = imports_dir / "raw_shape_stats.csv"
+        csv_path.write_text(
+            "class_object,class_name,class_value\nforest_reserve_ha,value,11800\n",
+            encoding="utf-8",
+        )
+
+        response = client.get(
+            "/api/templates/preview/forest_reserve_ha_field_aggregator_radial_gauge",
+            params={"group_by": "shapes", "source": "shape_stats"},
+        )
+
+        assert response.status_code == 200, response.text
+        assert "<p class='error'>" not in response.text.lower()
+
+    def test_field_aggregator_radial_gauge_preprocesses_scalar_value(self):
+        """field_aggregator output must be flattened for radial_gauge."""
+        from niamoto.gui.api.routers.templates import _preprocess_data_for_widget
+
+        processed = _preprocess_data_for_widget(
+            {"elevation_median": {"value": "123.5", "units": "m"}},
+            "field_aggregator",
+            "radial_gauge",
+        )
+
+        assert isinstance(processed, dict)
+        assert processed.get("value") == "123.5"
+        assert processed.get("unit") == "m"
+
+    def test_field_aggregator_radial_gauge_builds_value_params(self):
+        """field_aggregator radial gauge must target flattened 'value' field."""
+        from niamoto.gui.api.routers.templates import _build_widget_params_dynamic
+
+        params = _build_widget_params_dynamic(
+            "field_aggregator",
+            "radial_gauge",
+            {},
+            "Elevation Median",
+            {"value": 123.5, "unit": "m"},
+        )
+
+        assert params["value_field"] == "value"
+        assert params["unit"] == "m"
+        assert params["max_value"] > 123.5
+
+    def test_field_aggregator_radial_gauge_preprocess_keeps_string_values(self):
+        """Non-float scalar values should still be flattened to avoid blank pages."""
+        from niamoto.gui.api.routers.templates import _preprocess_data_for_widget
+
+        processed = _preprocess_data_for_widget(
+            {"elevation_median": {"value": "123,5", "units": "m"}},
+            "field_aggregator",
+            "radial_gauge",
+        )
+
+        assert processed.get("value") == "123,5"
+        assert processed.get("unit") == "m"
+
+    def test_class_object_scalar_loader_handles_empty_class_name(self, test_work_dir):
+        """Scalar class_objects with empty class_name must still produce a value."""
+        from niamoto.gui.api.services.templates.utils.data_loader import (
+            load_class_object_data_for_preview,
+        )
+
+        transform_path = Path(test_work_dir) / "config" / "transform.yml"
+        with open(transform_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+
+        transform_config.append(
+            {
+                "group_by": "shapes",
+                "sources": [
+                    {
+                        "name": "shape_stats",
+                        "data": "imports/raw_shape_stats.csv",
+                        "grouping": "shapes",
+                    }
+                ],
+                "widgets_data": {},
+            }
+        )
+        with open(transform_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(transform_config, f, sort_keys=False)
+
+        imports_dir = Path(test_work_dir) / "imports"
+        imports_dir.mkdir(exist_ok=True)
+        csv_path = imports_dir / "raw_shape_stats.csv"
+        csv_path.write_text(
+            "\n".join(
+                [
+                    "id;label;class_object;class_name;class_value",
+                    "s1;Shape A;elevation_median;;214",
+                    "s2;Shape B;elevation_median;;218",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        loaded = load_class_object_data_for_preview(
+            Path(test_work_dir), "elevation_median", "shapes"
+        )
+        assert loaded is not None
+        assert loaded["tops"] == ["value"]
+        assert loaded["counts"][0] == pytest.approx(216.0)

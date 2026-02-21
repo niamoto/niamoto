@@ -181,6 +181,65 @@ def invalidate_preview_cache():
     _preview_cache.clear()
 
 
+def _is_csv_source_for_group(
+    work_dir: Path, source_name: Optional[str], group_by: Optional[str]
+) -> bool:
+    """Return True when source_name maps to a CSV source in transform.yml."""
+    if not source_name:
+        return False
+
+    transform_path = work_dir / "config" / "transform.yml"
+    if not transform_path.exists():
+        return False
+
+    try:
+        with open(transform_path, "r", encoding="utf-8") as f:
+            transform_config = yaml.safe_load(f) or []
+    except Exception:
+        return False
+
+    groups: List[Dict[str, Any]] = []
+    if isinstance(transform_config, list):
+        groups = [g for g in transform_config if isinstance(g, dict)]
+    elif isinstance(transform_config, dict):
+        raw_groups = transform_config.get("groups", [])
+        if isinstance(raw_groups, list):
+            groups = [g for g in raw_groups if isinstance(g, dict)]
+        elif isinstance(raw_groups, dict):
+            groups = [
+                {"group_by": name, **cfg}
+                for name, cfg in raw_groups.items()
+                if isinstance(cfg, dict)
+            ]
+
+    for group in groups:
+        if group_by and group.get("group_by") != group_by:
+            continue
+        for src in group.get("sources", []):
+            if not isinstance(src, dict):
+                continue
+            if src.get("name") != source_name:
+                continue
+            data_path = str(src.get("data", "")).strip().lower()
+            if data_path.endswith(".csv"):
+                return True
+
+    return False
+
+
+def _is_missing_column_error(err: Exception) -> bool:
+    """Best-effort check for SQL missing-column failures."""
+    message = str(getattr(err, "detail", err)).lower()
+    patterns = (
+        "referenced column",
+        "column with name",
+        "does not exist",
+        "unknown column",
+        "no such column",
+    )
+    return any(p in message for p in patterns)
+
+
 def _compute_preview_etag(
     template_id: str, group_by: str, source: str, entity_id: str
 ) -> str:
@@ -1389,9 +1448,7 @@ async def _preview_configured_widget(
                 full_html = PreviewService.wrap_html_response(
                     widget_html, title=widget_title
                 )
-                resp_etag = etag or hashlib.md5(
-                    full_html.encode()
-                ).hexdigest()[:12]
+                resp_etag = etag or hashlib.md5(full_html.encode()).hexdigest()[:12]
                 return _html_response_with_etag(full_html, resp_etag)
             finally:
                 if db:
@@ -1516,9 +1573,7 @@ async def _preview_configured_widget(
                 full_html = PreviewService.wrap_html_response(
                     widget_html, title=widget_title
                 )
-                resp_etag = etag or hashlib.md5(
-                    full_html.encode()
-                ).hexdigest()[:12]
+                resp_etag = etag or hashlib.md5(full_html.encode()).hexdigest()[:12]
                 return _html_response_with_etag(full_html, resp_etag)
             finally:
                 db.close_db_session()
@@ -2013,6 +2068,31 @@ def _build_widget_params_dynamic(
                 "auto_range": True,  # Use max_value from data
                 "title": title,
             }
+        elif transformer == "field_aggregator":
+            params: Dict[str, Any] = {
+                "value_field": "value",
+                "auto_range": True,
+                "title": title,
+            }
+
+            if isinstance(data, dict):
+                unit_value = data.get("unit") or data.get("units")
+                if isinstance(unit_value, str) and unit_value:
+                    params["unit"] = unit_value
+
+                raw_value = data.get("value")
+                try:
+                    actual_value = float(raw_value)
+                except (TypeError, ValueError):
+                    actual_value = None
+
+                if actual_value is not None and actual_value > 0:
+                    magnitude = 10 ** max(1, len(str(int(actual_value))))
+                    params["max_value"] = int(
+                        ((actual_value // magnitude) + 1) * magnitude
+                    )
+
+            return params
 
     elif widget == "interactive_map":
         if transformer == "geospatial_extractor":
@@ -3195,7 +3275,9 @@ async def preview_template(
             configured_widget = _load_configured_widget(template_id, detected_group_by)
             if configured_widget:
                 return await _preview_configured_widget(
-                    configured_widget, detected_group_by, entity_id,
+                    configured_widget,
+                    detected_group_by,
+                    entity_id,
                     etag=etag,
                 )
 
@@ -3229,31 +3311,16 @@ async def preview_template(
                     and not _is_class_object_template(parsed["transformer"])
                 ):
                     return await _preview_configured_widget(
-                        configured_widget, cfg_group_by, entity_id,
+                        configured_widget,
+                        cfg_group_by,
+                        entity_id,
                         etag=etag,
                     )
-
-    template_info = _build_dynamic_template_info(parsed, template_id, source=effective_source)
-    transformer_plugin = template_info["plugin"]
-    widget_plugin = template_info["widget"]  # Widget is now part of the template ID
-    config = template_info["config"]
-    template_name = template_info["name"]
 
     # Load widget params from export.yml if they exist (for custom_tiles_url, etc.)
     export_widget_params = None
     if group_by:
         export_widget_params = _load_widget_params_from_export(template_id, group_by)
-
-    # Verify the widget plugin exists
-    try:
-        PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
-    except Exception:
-        return HTMLResponse(
-            content=PreviewService.wrap_html_response(
-                f"<p class='error'>Widget plugin '{widget_plugin}' not found</p>"
-            ),
-            status_code=400,
-        )
 
     # Get working directory and load config
     work_dir = get_working_directory()
@@ -3268,6 +3335,35 @@ async def preview_template(
     work_dir = Path(work_dir)
     column = parsed["column"]
     transformer = parsed["transformer"]
+    # Backward compatibility: class_object scalar suggestions historically used
+    # template ids ending with "..._field_aggregator_..." while the real
+    # transformer is class_object_field_aggregator.
+    if (
+        transformer == "field_aggregator"
+        and effective_source
+        and _is_csv_source_for_group(work_dir, effective_source, group_by)
+    ):
+        parsed = {**parsed, "transformer": "class_object_field_aggregator"}
+        transformer = parsed["transformer"]
+
+    template_info = _build_dynamic_template_info(
+        parsed, template_id, source=effective_source
+    )
+    transformer_plugin = template_info["plugin"]
+    widget_plugin = template_info["widget"]  # Widget is now part of the template ID
+    config = template_info["config"]
+    template_name = template_info["name"]
+
+    # Verify the widget plugin exists
+    try:
+        PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
+    except Exception:
+        return HTMLResponse(
+            content=PreviewService.wrap_html_response(
+                f"<p class='error'>Widget plugin '{widget_plugin}' not found</p>"
+            ),
+            status_code=400,
+        )
 
     try:
         # Check if this is a class_object template (pre-calculated CSV data)
@@ -3386,8 +3482,16 @@ async def preview_template(
                             )
 
                         # Execute transformer
+                        transform_input: Any = sample_data
+                        if transformer_plugin == "field_aggregator":
+                            # field_aggregator expects multi-source payloads keyed by
+                            # source name. Passing raw DataFrame forces DB fallback
+                            # (WHERE id=...), which breaks for non-id-based tables
+                            # like shape_stats.
+                            transform_input = {data_source: sample_data}
+
                         transformed_data = PreviewService.execute_transformer(
-                            db, transformer_plugin, config, sample_data
+                            db, transformer_plugin, config, transform_input
                         )
 
                         # Render widget
@@ -3439,7 +3543,32 @@ async def preview_template(
                 representative = _find_representative_entity(db, hierarchy_info)
 
             # Load sample data
-            sample_data = _load_sample_data(db, representative, config)
+            try:
+                sample_data = _load_sample_data(db, representative, config)
+            except HTTPException as load_err:
+                if not _is_missing_column_error(load_err):
+                    raise
+                field = config.get("field", column)
+                logger.warning(
+                    "Column '%s' not found for '%s': %s", field, template_id, load_err
+                )
+                return HTMLResponse(
+                    content=PreviewService.wrap_html_response(
+                        f"<p class='info'>Column '{field}' not found in data source</p>"
+                    )
+                )
+            except Exception as load_err:
+                if not _is_missing_column_error(load_err):
+                    raise
+                field = config.get("field", column)
+                logger.warning(
+                    "Column '%s' not found for '%s': %s", field, template_id, load_err
+                )
+                return HTMLResponse(
+                    content=PreviewService.wrap_html_response(
+                        f"<p class='info'>Column '{field}' not found in data source</p>"
+                    )
+                )
 
             if sample_data.empty:
                 return HTMLResponse(
@@ -3848,6 +3977,34 @@ def _preprocess_data_for_widget(data: Any, transformer: str, widget: str) -> Any
                 result["percentages"] = percentages
             return result
 
+    # field_aggregator -> radial_gauge: flatten dynamic field payload
+    # {"elevation_median": {"value": 123, "units": "m"}} -> {"value": 123, "unit": "m"}
+    if transformer == "field_aggregator" and widget == "radial_gauge":
+        if "value" in data:
+            return data
+
+        scalar_value: Any = None
+        scalar_unit: Optional[str] = None
+
+        for field_payload in data.values():
+            if not isinstance(field_payload, dict):
+                continue
+            candidate = field_payload.get("value")
+            if candidate is None:
+                continue
+            scalar_value = candidate
+
+            units = field_payload.get("units") or field_payload.get("unit")
+            if isinstance(units, str) and units:
+                scalar_unit = units
+            break
+
+        if scalar_value is not None:
+            flattened: Dict[str, Any] = {"value": scalar_value}
+            if scalar_unit:
+                flattened["unit"] = scalar_unit
+            return flattened
+
     return data
 
 
@@ -3965,6 +4122,37 @@ def _render_widget_for_class_object(
                     "_is_numeric": is_numeric,
                 }
 
+        # class_object_field_aggregator outputs a dict keyed by target fields:
+        # {"elevation_max": {"value": 1234, "units": "m"}}.
+        # radial_gauge expects a flat structure with a direct numeric value.
+        if (
+            extractor == "class_object_field_aggregator"
+            and widget_name == "radial_gauge"
+            and isinstance(render_data, dict)
+            and "value" not in render_data
+        ):
+            scalar_value: Any = None
+            scalar_units: Optional[str] = None
+
+            counts = render_data.get("counts")
+            if isinstance(counts, list) and counts:
+                scalar_value = counts[0]
+            else:
+                for field_payload in render_data.values():
+                    if isinstance(field_payload, dict):
+                        candidate = field_payload.get("value")
+                        if candidate is not None:
+                            scalar_value = candidate
+                            units = field_payload.get("units")
+                            if isinstance(units, str) and units:
+                                scalar_units = units
+                            break
+
+            if scalar_value is not None:
+                render_data = {"value": scalar_value}
+                if scalar_units:
+                    render_data["units"] = scalar_units
+
         # Build widget params based on extractor type
         widget_params = _build_widget_params_for_class_object(
             extractor, widget_name, render_data, title
@@ -4047,20 +4235,34 @@ def _build_widget_params_for_class_object(
     elif widget == "radial_gauge":
         # For scalar values, use the first (and usually only) value
         max_value = 100
+        actual_value: Optional[float] = None
         counts = data.get("counts", [])
         if counts:
-            # Estimate max_value from the value
-            actual_value = counts[0] if counts else 0
-            if actual_value > 0:
-                # Round to nice number above the value
-                magnitude = 10 ** len(str(int(actual_value)))
-                max_value = int(((actual_value // magnitude) + 1) * magnitude)
+            try:
+                actual_value = float(counts[0])
+            except (TypeError, ValueError):
+                actual_value = None
+        elif "value" in data:
+            try:
+                actual_value = float(data.get("value"))
+            except (TypeError, ValueError):
+                actual_value = None
 
-        return {
+        if actual_value is not None and actual_value > 0:
+            # Round to a "nice" upper bound above the value
+            magnitude = 10 ** max(1, len(str(int(actual_value))))
+            max_value = int(((actual_value // magnitude) + 1) * magnitude)
+
+        unit_value = data.get("units") or data.get("unit")
+
+        params = {
             "value_field": "value",  # We'll need to adjust data structure
             "max_value": max_value,
             "title": title,
         }
+        if isinstance(unit_value, str) and unit_value:
+            params["unit"] = unit_value
+        return params
 
     elif widget == "info_grid":
         return {

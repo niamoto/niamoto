@@ -273,17 +273,17 @@ function SortableWidgetCard({
     const element = cardRef.current
     if (!element) return
 
+    const scrollViewport = element.closest('[data-radix-scroll-area-viewport]') as Element | null
     const observer = new IntersectionObserver(
       ([entry]) => {
-        // Once visible, stay visible (don't unload when scrolling away)
-        if (entry.isIntersecting) {
-          setIsVisible(true)
-        }
+        // Keep iframe mounted only near viewport to prevent dozens of
+        // concurrent Plotly redraw loops while scrolling long layouts.
+        setIsVisible(entry.isIntersecting)
       },
       {
-        root: null, // viewport
-        rootMargin: '100px', // Start loading slightly before visible
-        threshold: 0,
+        root: scrollViewport,
+        rootMargin: '120px',
+        threshold: 0.01,
       }
     )
 
@@ -361,6 +361,8 @@ function SortableWidgetCard({
     [setNodeRef]
   )
 
+  const shouldRenderIframe = showPreview && !isDragging && isVisible
+
   return (
     <div
       ref={combinedRef}
@@ -414,8 +416,8 @@ function SortableWidgetCard({
         className={cn('relative bg-background cursor-pointer', getHeightClass())}
         onClick={onSelect}
       >
-        {/* Lazy load: wait for visibility AND entityId before loading preview */}
-        {showPreview && !isDragging && entityId && isVisible ? (
+        {/* Lazy load: only render iframe when card is visible */}
+        {shouldRenderIframe ? (
           <>
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
@@ -438,10 +440,10 @@ function SortableWidgetCard({
               </div>
             </div>
           </>
-        ) : showPreview && !isDragging && (!entityId || !isVisible) ? (
-          /* Loading state while waiting for entityId or visibility */
+        ) : showPreview && !isDragging && !isVisible ? (
+          /* Keep placeholders cheap while waiting for visibility */
           <div className="h-full flex items-center justify-center bg-muted/20">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Eye className="h-5 w-5 text-muted-foreground/50" />
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
@@ -515,8 +517,12 @@ export function LayoutOverview({
 
   // Set default entity when representatives are loaded
   useEffect(() => {
-    if (representatives?.default_entity && !selectedEntityId) {
-      setSelectedEntityId(representatives.default_entity.id)
+    if (!selectedEntityId && representatives) {
+      const fallbackEntityId =
+        representatives.default_entity?.id ?? representatives.entities[0]?.id ?? null
+      if (fallbackEntityId) {
+        setSelectedEntityId(fallbackEntityId)
+      }
     }
   }, [representatives, selectedEntityId])
 

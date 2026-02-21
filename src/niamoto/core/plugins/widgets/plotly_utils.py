@@ -210,14 +210,26 @@ def render_plotly_figure(
             var isPreview = !!window.__NIAMOTO_PREVIEW__;
             var isMap = {is_map_js};
             var hasRendered = false;
+            var figure = {fig_json};
             var plotConfig = {config_json};
 
             // Preview mode: keep rendering cheap and stable.
             if (isPreview) {{
                 plotConfig.displayModeBar = false;
                 plotConfig.responsive = false;
+                // Keep maps in their native autosize path, but freeze non-map
+                // charts to avoid heavy redraw loops in tiny iframes.
                 if (!isMap) {{
                     plotConfig.staticPlot = true;
+                    figure.layout = figure.layout || {{}};
+                    // Avoid autosize/automargin feedback loops in tiny preview iframes.
+                    figure.layout.autosize = false;
+                    if (typeof figure.layout.width !== 'number') {{
+                        figure.layout.width = 400;
+                    }}
+                    if (typeof figure.layout.height !== 'number') {{
+                        figure.layout.height = 300;
+                    }}
                 }}
             }}
 
@@ -226,14 +238,24 @@ def render_plotly_figure(
                 hasRendered = true;
                 Plotly.newPlot(
                     "{div_id}",
-                    {fig_json},
+                    figure.data || [],
+                    figure.layout || {{}},
                     plotConfig
                 ).then(function(gd) {{
-                    // Keep one post-render resize in non-preview contexts only.
+                    // Keep one post-render resize in non-preview contexts.
+                    // For preview maps, run a delayed resize to ensure markers
+                    // are positioned correctly after iframe layout settles.
                     if (!isPreview && gd) {{
                         requestAnimationFrame(function() {{
                             Plotly.Plots.resize(gd);
                         }});
+                    }} else if (isPreview && isMap && gd) {{
+                        requestAnimationFrame(function() {{
+                            Plotly.Plots.resize(gd);
+                        }});
+                        setTimeout(function() {{
+                            Plotly.Plots.resize(gd);
+                        }}, 120);
                     }}
                 }});
             }};
