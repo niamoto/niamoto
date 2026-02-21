@@ -192,9 +192,9 @@ def find_representative_entity(
             detail=f"No representative entity found for '{reference_name}'",
         )
 
-    # For hierarchical references, prefer relation key when available.
-    relation = hierarchy_info.get("relation", {})
-    relation_key = relation.get("key")
+    # For hierarchical references with levels, prefer the first level (e.g., family)
+    # which gives a rich entity. The relation_key (e.g., id_taxonref) returns
+    # individual species (leaves), not families.
     table_name = _resolve_source_dataset_table(db, source_dataset)
 
     if not table_name:
@@ -203,6 +203,39 @@ def find_representative_entity(
             detail=f"Source dataset '{source_dataset}' not found",
         )
 
+    # Strategy 1: Use first hierarchy level (family → Myrtaceae)
+    if levels:
+        first_level = levels[0]
+        column_name = level_columns.get(first_level, first_level)
+        try:
+            quoted_column_name = _quote_identifier(db, column_name)
+            quoted_table_name = _quote_identifier(db, table_name)
+            query = text(f"""
+                SELECT {quoted_column_name}, COUNT(*) as cnt
+                FROM {quoted_table_name}
+                WHERE {quoted_column_name} IS NOT NULL AND {quoted_column_name} != ''
+                GROUP BY {quoted_column_name}
+                ORDER BY cnt DESC
+                LIMIT 1
+            """)
+            result = pd.read_sql(query, db.engine)
+
+            if not result.empty:
+                return {
+                    "level": first_level,
+                    "column": column_name,
+                    "value": result.iloc[0][column_name],
+                    "count": int(result.iloc[0]["cnt"]),
+                    "table_name": table_name,
+                }
+        except Exception as e:
+            logger.warning(
+                f"Error finding representative entity via first level '{first_level}': {e}"
+            )
+
+    # Strategy 2 (fallback): Use relation_key for hierarchical refs without levels
+    relation = hierarchy_info.get("relation", {})
+    relation_key = relation.get("key")
     if relation_key:
         try:
             quoted_relation_key = _quote_identifier(db, relation_key)
@@ -227,42 +260,10 @@ def find_representative_entity(
         except Exception as e:
             logger.warning(f"Error finding representative entity via relation key: {e}")
 
-    # Fallback: infer representative value from first configured hierarchy level.
-    first_level = levels[0]
-    column_name = level_columns.get(first_level, first_level)
-
-    # Find entity with most occurrences at first level
-    try:
-        quoted_column_name = _quote_identifier(db, column_name)
-        quoted_table_name = _quote_identifier(db, table_name)
-        query = text(f"""
-            SELECT {quoted_column_name}, COUNT(*) as cnt
-            FROM {quoted_table_name}
-            WHERE {quoted_column_name} IS NOT NULL AND {quoted_column_name} != ''
-            GROUP BY {quoted_column_name}
-            ORDER BY cnt DESC
-            LIMIT 1
-        """)
-        result = pd.read_sql(query, db.engine)
-
-        if result.empty:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No data found for level '{first_level}'",
-            )
-
-        return {
-            "level": first_level,
-            "column": column_name,
-            "value": result.iloc[0][column_name],
-            "count": int(result.iloc[0]["cnt"]),
-            "table_name": table_name,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error finding representative entity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(
+        status_code=400,
+        detail=f"No data found for hierarchical reference '{reference_name}'",
+    )
 
 
 def find_entity_by_id(
@@ -382,6 +383,49 @@ def find_entity_by_id(
 
         entity = entity_result.iloc[0]
         entity_name = str(entity.get(name_field, entity_id))
+
+        # Pour les hiérarchiques avec levels, utiliser la colonne de niveau
+        # au lieu de relation_key (qui ne fonctionne que pour les feuilles)
+        levels = hierarchy_info.get("levels", [])
+        level_columns = hierarchy_info.get("level_columns", {})
+        if levels and kind == "hierarchical":
+            entity_rank = entity.get("rank_name")
+            entity_rank_value = entity.get("rank_value")
+
+            if entity_rank and entity_rank in levels and entity_rank_value:
+                occ_column = level_columns.get(entity_rank, entity_rank)
+
+                try:
+                    quoted_occ_col = _quote_identifier(db, occ_column)
+                    quoted_table = _quote_identifier(db, table_name)
+                    count_result = pd.read_sql(
+                        text(
+                            f"SELECT COUNT(*) as cnt FROM {quoted_table} "
+                            f"WHERE {quoted_occ_col} = :val"
+                        ),
+                        db.engine,
+                        params={"val": str(entity_rank_value)},
+                    )
+                    count = (
+                        int(count_result.iloc[0]["cnt"])
+                        if not count_result.empty
+                        else 0
+                    )
+
+                    if count > 0:
+                        return {
+                            "level": entity_rank,
+                            "column": occ_column,
+                            "value": entity_rank_value,
+                            "count": count,
+                            "table_name": table_name,
+                            "entity_name": entity_name,
+                        }
+                except Exception as e:
+                    logger.warning(
+                        f"Level column query failed for {entity_rank}: {e}"
+                    )
+                    # Fall through to relation_key
 
         if relation_key:
             ref_field = relation.get("ref_field") or relation.get("ref_key")

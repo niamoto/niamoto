@@ -163,6 +163,7 @@ export function ContentTab({ reference }: ContentTabProps) {
   const handleWidgetAdded = useCallback(() => {
     refetchWidgets()
     setAddModalOpen(false)
+    setSelectedWidgetId(null)
   }, [refetchWidgets])
 
   return (
