@@ -232,7 +232,7 @@ class MapRenderer:
         custom_config = get_plotly_config()
         custom_config["toImageButtonOptions"]["filename"] = "niamoto_map"
 
-        return render_plotly_figure(fig, custom_config)
+        return render_plotly_figure(fig, custom_config, is_map=True)
 
     @classmethod
     def _render_leaflet(cls, geojson: Dict[str, Any], config: MapConfig) -> str:
