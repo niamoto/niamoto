@@ -3,10 +3,14 @@ Shared preview service for widget previews.
 
 This service centralizes the common logic for generating widget previews
 across different endpoints (recipes, templates, layout).
+
+Note: The core utility functions (wrap_html_response, execute_transformer,
+render_widget, error_html) have been extracted to preview_utils.py.
+This class keeps backward-compatible wrappers that delegate to those
+module-level functions.
 """
 
 import logging
-import html
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -19,8 +23,12 @@ from niamoto.common.table_resolver import (
     quote_identifier as shared_quote_identifier,
     resolve_dataset_table as shared_resolve_dataset_table,
 )
-from niamoto.core.plugins.registry import PluginRegistry
-from niamoto.core.plugins.base import PluginType
+from niamoto.gui.api.services.preview_utils import (
+    error_html as _utils_error_html,
+    execute_transformer as _utils_execute_transformer,
+    render_widget as _utils_render_widget,
+    wrap_html_response as _utils_wrap_html_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +48,7 @@ class PreviewService:
     @staticmethod
     def _error_html(message: str) -> str:
         """Render a safe error paragraph for iframe previews."""
-        return f"<p class='error'>{html.escape(message)}</p>"
+        return _utils_error_html(message)
 
     @staticmethod
     def wrap_html_response(content: str, title: str = "Preview") -> str:
@@ -53,47 +61,7 @@ class PreviewService:
         Returns:
             Complete HTML document string
         """
-        safe_title = html.escape(title, quote=True)
-        return f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{safe_title}</title>
-    <style>
-        html, body {{
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, sans-serif;
-            background: transparent;
-        }}
-        .plotly-graph-div {{
-            width: 100% !important;
-            height: 100% !important;
-        }}
-        .error {{
-            color: #ef4444;
-            padding: 1rem;
-            text-align: center;
-        }}
-        .info {{
-            color: #6b7280;
-            padding: 1rem;
-            text-align: center;
-        }}
-    </style>
-    <script>
-        window.__NIAMOTO_PREVIEW__ = true;
-    </script>
-    <script src="/api/site/assets/js/vendor/plotly/3.0.1_plotly.min.js"></script>
-</head>
-<body>
-{content}
-</body>
-</html>"""
+        return _utils_wrap_html_response(content, title=title)
 
     # ==========================================================================
     # TRANSFORMER EXECUTION
@@ -108,34 +76,9 @@ class PreviewService:
     ) -> Dict[str, Any]:
         """Execute a transformer plugin on data.
 
-        Args:
-            db: Database instance (can be None for some transformers)
-            plugin_name: Name of the transformer plugin
-            params: Transformer parameters
-            data: Input data (DataFrame or dict for class_object transformers)
-
-        Returns:
-            Transformed data dictionary
-
-        Raises:
-            ValueError: If transformer execution fails
+        Delegates to preview_utils.execute_transformer.
         """
-        try:
-            plugin_class = PluginRegistry.get_plugin(
-                plugin_name, PluginType.TRANSFORMER
-            )
-            plugin_instance = plugin_class(db=db)
-
-            # Build config in expected format
-            transform_config = {
-                "plugin": plugin_name,
-                "params": params,
-            }
-
-            return plugin_instance.transform(data, transform_config)
-        except Exception as e:
-            logger.exception(f"Error executing transformer '{plugin_name}': {e}")
-            raise ValueError(f"Transformer error: {str(e)}")
+        return _utils_execute_transformer(db, plugin_name, params, data)
 
     # ==========================================================================
     # WIDGET RENDERING
@@ -151,40 +94,9 @@ class PreviewService:
     ) -> str:
         """Render a widget with the given data.
 
-        Args:
-            db: Database instance (can be None)
-            plugin_name: Name of the widget plugin
-            data: Data to render
-            params: Widget parameters
-            title: Widget title
-
-        Returns:
-            HTML string of rendered widget
+        Delegates to preview_utils.render_widget.
         """
-        try:
-            plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.WIDGET)
-            plugin_instance = plugin_class(db=db)
-
-            # Build widget params
-            widget_params: Dict[str, Any] = {"title": title}
-            if params:
-                widget_params.update(params)
-
-            # Validate params if the plugin has a param_schema
-            if (
-                hasattr(plugin_instance, "param_schema")
-                and plugin_instance.param_schema
-            ):
-                validated_params = plugin_instance.param_schema.model_validate(
-                    widget_params
-                )
-            else:
-                validated_params = widget_params
-
-            return plugin_instance.render(data, validated_params)
-        except Exception as e:
-            logger.exception(f"Error rendering widget '{plugin_name}': {e}")
-            return PreviewService._error_html(f"Widget render error: {e}")
+        return _utils_render_widget(db, plugin_name, data, params, title)
 
     # ==========================================================================
     # DATA LOADING
