@@ -242,9 +242,10 @@ class InfoGridWidget(WidgetPlugin):
 
             # Apply formatting if specified
             if item.format == "map" and item.mapping:
-                display_value = item.mapping.get(
-                    str(item_value), display_value
-                )  # Use str(item_value) for lookup
+                mapped = item.mapping.get(str(item_value))
+                display_value = (
+                    html.escape(str(mapped)) if mapped is not None else display_value
+                )
             elif item.format == "number":
                 # Check if value is nested in a dict like {'value': 123}
                 value_to_format = item_value
@@ -374,8 +375,9 @@ class InfoGridWidget(WidgetPlugin):
         # Format mean as the main value
         mean_val = stats_data.get("mean")
         if mean_val is not None:
+            safe_mean = html.escape(str(mean_val))
             parts.append(
-                f'<span style="font-size: 1.5rem; font-weight: 600; color: #111827;">{mean_val}</span>'
+                f'<span style="font-size: 1.5rem; font-weight: 600; color: #111827;">{safe_mean}</span>'
             )
 
         # Build secondary stats line
@@ -383,18 +385,22 @@ class InfoGridWidget(WidgetPlugin):
         min_val = stats_data.get("min")
         max_val = stats_data.get("max")
         if min_val is not None and max_val is not None:
+            safe_min = html.escape(str(min_val))
+            safe_max = html.escape(str(max_val))
             secondary_parts.append(
-                f"<span style='color: #6b7280;'>{min_val} - {max_val}</span>"
+                f"<span style='color: #6b7280;'>{safe_min} - {safe_max}</span>"
             )
 
         std_val = stats_data.get("std")
         if std_val is not None:
-            secondary_parts.append(f"<span style='color: #9ca3af;'>σ={std_val}</span>")
+            safe_std = html.escape(str(std_val))
+            secondary_parts.append(f"<span style='color: #9ca3af;'>σ={safe_std}</span>")
 
         count_val = stats_data.get("count")
         if count_val is not None:
+            safe_count = html.escape(str(count_val))
             secondary_parts.append(
-                f"<span style='color: #9ca3af;'>n={count_val}</span>"
+                f"<span style='color: #9ca3af;'>n={safe_count}</span>"
             )
 
         if secondary_parts:

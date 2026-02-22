@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import Any, Dict, List, Optional, Set
 
@@ -199,7 +200,7 @@ class DonutChartWidget(WidgetPlugin):
                 )
             except Exception as e:
                 logger.error(f"Error creating subplots: {e}", exc_info=True)
-                return f"<p class='error'>Error setting up subplots: {e}</p>"
+                return f"<p class='error'>Error setting up subplots: {html.escape(str(e))}</p>"
 
             default_colors = params.color_discrete_sequence or [
                 "blue",
@@ -309,7 +310,7 @@ class DonutChartWidget(WidgetPlugin):
                 missing_cols = required_cols - set(data.columns)
                 if missing_cols:
                     logger.error(f"DataFrame missing required columns: {missing_cols}")
-                    return f"<p class='error'>DataFrame missing columns: {missing_cols}</p>"
+                    return f"<p class='error'>DataFrame missing columns: {html.escape(str(missing_cols))}</p>"
 
                 try:
                     # ... (aggregation, type conversion)
@@ -327,7 +328,7 @@ class DonutChartWidget(WidgetPlugin):
                         effective_values_field = params.values_field
                 except Exception as e:
                     logger.error(f"Error processing DataFrame: {e}", exc_info=True)
-                    return f"<p class='error'>Error preparing DataFrame data: {e}</p>"
+                    return f"<p class='error'>Error preparing DataFrame data: {html.escape(str(e))}</p>"
 
             # 2. Dictionary Input (Non-subplot cases)
             elif isinstance(data, dict):
@@ -375,7 +376,7 @@ class DonutChartWidget(WidgetPlugin):
                         )
 
                 # 2b. Dict with _percent keys and label_mapping (fallback)
-                elif not df_plot:  # Only try if 2a failed/inapplicable
+                if df_plot is None:  # Fallback si 2a n'a pas produit de résultat
                     logger.debug("Processing dict using _percent keys and mapping.")
                     plot_labels = []
                     plot_values = []
@@ -465,7 +466,7 @@ class DonutChartWidget(WidgetPlugin):
                     logger.error(
                         f"Error creating single donut chart: {e}", exc_info=True
                     )
-                    return f"<p class='error'>Error generating chart: {e}</p>"
+                    return f"<p class='error'>Error generating chart: {html.escape(str(e))}</p>"
             elif (
                 not isinstance(data, dict) or not params.subplots
             ):  # Avoid error if subplot logic was intended
@@ -483,7 +484,7 @@ class DonutChartWidget(WidgetPlugin):
                 logger.error(
                     f"Error converting Plotly figure to HTML: {e}", exc_info=True
                 )
-                return f"<p class='error'>Error displaying chart: {e}</p>"
+                return f"<p class='error'>Error displaying chart: {html.escape(str(e))}</p>"
         else:
             # This case should be covered by earlier returns, but as a fallback:
             logger.error(

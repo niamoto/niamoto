@@ -4,6 +4,7 @@ Extraites de templates.py pour être partagées entre le routeur templates
 et le moteur de preview (engine.py).
 """
 
+import html
 import json
 import logging
 from typing import Any
@@ -507,7 +508,7 @@ def _render_widget_for_configured(
         return plugin_instance.render(data, validated_params)
     except Exception as e:
         logger.exception(f"Error rendering configured widget '{widget_name}': {e}")
-        return f"<p class='error'>Widget render error: {str(e)}</p>"
+        return f"<p class='error'>Widget render error: {html.escape(str(e))}</p>"
 
 
 # ---------------------------------------------------------------------------
@@ -626,4 +627,4 @@ def _render_widget_for_class_object(
         return plugin_instance.render(render_data, validated_params)
     except Exception as e:
         logger.exception(f"Error rendering class_object widget '{widget_name}': {e}")
-        return f"<p class='error'>Widget render error: {str(e)}</p>"
+        return f"<p class='error'>Widget render error: {html.escape(str(e))}</p>"

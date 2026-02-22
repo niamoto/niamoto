@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import Dict, List, Optional, Set
 
@@ -170,7 +171,7 @@ class ScatterPlotWidget(WidgetPlugin):
             logger.error(
                 f"Missing required columns for ScatterPlotWidget: {missing_cols}"
             )
-            return f"<p class='error'>Configuration Error: Missing columns {missing_cols}.</p>"
+            return f"<p class='error'>Configuration Error: Missing columns {html.escape(str(missing_cols))}.</p>"
 
         # Check data types for numeric axes/size
         numeric_cols = {params.x_axis, params.y_axis}
@@ -187,10 +188,10 @@ class ScatterPlotWidget(WidgetPlugin):
                             f"Column '{col}' used for numeric axis/size contains non-numeric values or NaNs after conversion."
                         )
                         # Decide whether to dropna or return error. Returning error for now.
-                        return f"<p class='error'>Data Error: Column '{col}' contains non-numeric values.</p>"
+                        return f"<p class='error'>Data Error: Column '{html.escape(str(col))}' contains non-numeric values.</p>"
                 except Exception as e:
                     logger.error(f"Failed to convert column '{col}' to numeric: {e}")
-                    return f"<p class='error'>Data Error: Could not process numeric column '{col}'.</p>"
+                    return f"<p class='error'>Data Error: Could not process numeric column '{html.escape(str(col))}'.</p>"
 
         try:
             # Prepare arguments for px.scatter, filtering out None values
@@ -235,4 +236,4 @@ class ScatterPlotWidget(WidgetPlugin):
 
         except Exception as e:
             logger.exception(f"Error rendering ScatterPlotWidget: {e}")
-            return f"<p class='error'>Error generating scatter plot: {e}</p>"
+            return f"<p class='error'>Error generating scatter plot: {html.escape(str(e))}</p>"
