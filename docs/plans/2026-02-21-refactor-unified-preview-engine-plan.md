@@ -897,7 +897,7 @@ Cache stale-while-revalidate au niveau Service Worker pour la persistance cross-
 - [x] `await run_in_threadpool(engine.render, req)` dans tous les endpoints
 - [x] ETag via fingerprint fichiers (mtime DB + configs, calculé à l'init et après invalidate)
 - [x] Suppression de l'import cross-router dans layout.py (délègue au engine)
-- [ ] **Sécurité** : `html.escape()` sur toutes les données interpolées dans les widgets non-Plotly
+- [x] **Sécurité** : `html.escape()` sur toutes les données interpolées dans les widgets non-Plotly
 - [x] Tests : modèles, router intégration, layout délégation (20 tests)
 - [x] Suppression de `layout.py._wrap_html_response()` — remplacé par import depuis `preview_utils`
 
@@ -1092,9 +1092,9 @@ Remplacer les limites globales (50 lignes, 10 features) par des limites définie
 
 ## Plan de documentation
 
-- [ ] Mettre à jour `docs/06-gui/` avec l'architecture preview unifiée
-- [ ] Documenter le contrat API preview dans `docs/06-gui/preview-api.md`
-- [ ] Ajouter le guide de création de widgets thumbnails dans `docs/04-plugin-development/building-widgets.md`
+- [x] Mettre à jour `docs/06-gui/` avec l'architecture preview unifiée
+- [x] Documenter le contrat API preview dans `docs/06-gui/preview-api.md`
+- [x] Ajouter le guide de création de widgets thumbnails dans `docs/04-plugin-development/building-widgets.md`
 
 ---
 

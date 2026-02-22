@@ -73,14 +73,11 @@ niamoto gui --no-browser     # Ne pas ouvrir le navigateur
 
 ## Documentation
 
-- [Guide de démarrage](getting-started.md) - Installation et premier projet
-- [Parcours utilisateur](user-workflow.md) - Workflow détaillé avec exemples
-- [POC actuel](../10-roadmaps/gui/poc-implementation.md) - État et limitations du prototype
-- [Référence API](../10-roadmaps/gui/api-reference.md) - Documentation des endpoints
-- [Guide de développement](../10-roadmaps/gui/development.md) - Architecture et workflow de développement
-- [Architecture](../10-roadmaps/gui/development/architecture.md) - Détails techniques
-- [Contribution](../10-roadmaps/gui/development/contributing.md) - Guide pour les développeurs
-- [Roadmap](../10-roadmaps/gui/development/roadmap.md) - Évolutions prévues
+- [Architecture preview](preview-architecture.md) - Moteur de preview unifié (deux niveaux, bundles Plotly, sécurité)
+- [API Preview — Référence](preview-api.md) - Endpoints GET/POST, types, cache, invalidation
+- [Guide transforms & widgets](guide-transform-widgets.md) - Configuration des transformers et widgets
+- [Référence plugins transform](reference-plugins-transform.md) - Référence des plugins transformers
+- [Architecture FastAPI](fastapi-dual-purpose-architecture.md) - Architecture dual-purpose (CLI + GUI)
 
 ## Support
 
