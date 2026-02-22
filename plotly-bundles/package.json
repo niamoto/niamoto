@@ -1,0 +1,13 @@
+{
+  "name": "niamoto-plotly-bundles",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Custom Plotly.js bundles for Niamoto — core (no maps) and maps (with maplibre-gl)",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "plotly.js": "3.0.1",
+    "esbuild": "^0.24.0"
+  }
+}

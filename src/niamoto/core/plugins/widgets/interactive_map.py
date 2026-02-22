@@ -10,7 +10,7 @@ from pydantic import Field, ConfigDict
 from niamoto.core.plugins.base import WidgetPlugin, PluginType, register
 from niamoto.core.plugins.models import BasePluginParams
 from niamoto.core.plugins.widgets.plotly_utils import (
-    get_plotly_dependencies,
+    get_plotly_map_dependencies,
     render_plotly_figure,
     get_plotly_config,
     get_map_tile_fallback_script,
@@ -252,7 +252,7 @@ class InteractiveMapWidget(WidgetPlugin):
     def get_dependencies(self) -> Set[str]:
         """Return the set of CSS/JS dependencies."""
         # Get Plotly from centralized dependency
-        deps = get_plotly_dependencies()
+        deps = get_plotly_map_dependencies()
         # Add topojson-client; it is ~7 kB minified and cached.
         deps.add("/assets/js/vendor/topojson/3.1.0_topojson.js")
         return deps

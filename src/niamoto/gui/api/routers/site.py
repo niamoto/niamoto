@@ -1765,7 +1765,12 @@ async def serve_niamoto_assets(filepath: str):
     }
     media_type = media_types.get(extension, "application/octet-stream")
 
-    return FileResponse(file_path, media_type=media_type)
+    # Versioned vendor bundles are immutable — cache aggressively.
+    headers = {}
+    if "/vendor/" in filepath and file_path.suffix == ".js":
+        headers["Cache-Control"] = "public, max-age=31536000, immutable"
+
+    return FileResponse(file_path, media_type=media_type, headers=headers)
 
 
 # =============================================================================
