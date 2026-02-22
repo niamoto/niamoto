@@ -1382,72 +1382,45 @@ async def preview_recipe(request: PreviewRecipeRequest):
     """
     Preview a widget recipe without saving.
 
-    Executes the transformer and renders the widget with sample data.
-    Returns HTML content suitable for iframe display.
+    Délègue au moteur de preview unifié via config inline.
     """
-    work_dir = get_working_directory()
-    if not work_dir:
+    from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
+    from niamoto.gui.api.services.preview_engine.models import PreviewRequest
+    from starlette.concurrency import run_in_threadpool
+
+    engine = get_preview_engine()
+    if engine is None:
         return HTMLResponse(
             content=PreviewService.wrap_html_response(
-                "<p class='error'>Working directory not configured</p>"
+                "<p class='error'>Projet Niamoto non configuré</p>"
             ),
             status_code=500,
         )
 
-    work_dir = Path(work_dir)
     recipe = request.recipe
-    group_by = request.group_by
-
-    transformer_plugin = recipe.transformer.plugin
-    transformer_params = recipe.transformer.params
-    widget_plugin = recipe.widget.plugin
-    widget_params = recipe.widget.params
     widget_title = recipe.widget.title or recipe.widget_id.replace("_", " ").title()
 
-    # Verify plugins exist
-    try:
-        PluginRegistry.get_plugin(transformer_plugin, PluginType.TRANSFORMER)
-    except Exception:
-        return HTMLResponse(
-            content=PreviewService.wrap_html_response(
-                f"<p class='error'>Transformer '{transformer_plugin}' not found</p>"
-            ),
-            status_code=400,
-        )
+    req = PreviewRequest(
+        group_by=request.group_by,
+        inline={
+            "transformer_plugin": recipe.transformer.plugin,
+            "transformer_params": recipe.transformer.params,
+            "widget_plugin": recipe.widget.plugin,
+            "widget_params": recipe.widget.params,
+            "widget_title": widget_title,
+        },
+    )
 
     try:
-        PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
-    except Exception:
+        result = await run_in_threadpool(engine.render, req)
         return HTMLResponse(
-            content=PreviewService.wrap_html_response(
-                f"<p class='error'>Widget '{widget_plugin}' not found</p>"
-            ),
-            status_code=400,
+            content=result.html,
+            headers={
+                "ETag": f'"{result.etag}"',
+                "Cache-Control": "no-cache",
+                "X-Preview-Key": result.preview_key,
+            },
         )
-
-    db_path = get_database_path()
-    if not db_path:
-        return HTMLResponse(
-            content=PreviewService.wrap_html_response(
-                "<p class='error'>Database path not configured</p>"
-            ),
-            status_code=500,
-        )
-
-    try:
-        with open_database(db_path, read_only=True) as db:
-            html_content = PreviewService.generate_preview(
-                db=db,
-                work_dir=work_dir,
-                group_by=group_by,
-                transformer_plugin=transformer_plugin,
-                transformer_params=transformer_params,
-                widget_plugin=widget_plugin,
-                widget_params=widget_params,
-                widget_title=widget_title,
-            )
-            return HTMLResponse(content=html_content)
-
     except Exception as e:
         logger.exception(f"Error previewing recipe: {e}")
         return HTMLResponse(
