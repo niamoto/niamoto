@@ -2,11 +2,13 @@
  * Vue complète de preview widget (mode full).
  *
  * Utilisé dans les panneaux de détail et l'éditeur.
+ * Observe les changements de taille du conteneur (ex: colspan toggle)
+ * et force un re-mount de l'iframe pour que Plotly se recalcule.
  */
 
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import type { PreviewDescriptor } from '@/lib/preview/types'
-import { usePreviewFrame } from '@/lib/preview/usePreviewFrame'
+import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
 import { PreviewSkeleton } from './PreviewSkeleton'
 import { PreviewError } from './PreviewError'
 
@@ -16,12 +18,33 @@ interface PreviewPaneProps {
 }
 
 export function PreviewPane({ descriptor, className }: PreviewPaneProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // Compteur incrémenté à chaque changement de largeur du conteneur
+  // pour forcer un re-mount de l'iframe (Plotly re-render à la bonne taille).
+  const [resizeKey, setResizeKey] = useState(0)
+  const widthRef = useRef<number>(0)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const observer = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0].contentRect.width)
+      if (widthRef.current !== 0 && w !== widthRef.current) {
+        setResizeKey((k) => k + 1)
+      }
+      widthRef.current = w
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const fullDescriptor = useMemo(
     () => ({ ...descriptor, mode: 'full' as const }),
-    [descriptor.templateId, descriptor.groupBy, descriptor.source, descriptor.entityId,
-     descriptor.inline ? JSON.stringify(descriptor.inline, Object.keys(descriptor.inline).sort()) : null],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    descriptorDeps(descriptor),
   )
 
   const { html, loading, error } = usePreviewFrame(fullDescriptor, true)
@@ -29,6 +52,7 @@ export function PreviewPane({ descriptor, className }: PreviewPaneProps) {
   // Nettoyage Plotly au démontage
   useEffect(() => {
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (iframeRef.current) {
         iframeRef.current.srcdoc = ''
       }
@@ -36,11 +60,12 @@ export function PreviewPane({ descriptor, className }: PreviewPaneProps) {
   }, [])
 
   return (
-    <div className={className}>
-      {loading && <PreviewSkeleton width={400} height={300} />}
-      {error && <PreviewError message={error} />}
-      {html && (
+    <div ref={containerRef} className={className}>
+      {loading && <PreviewSkeleton descriptor={fullDescriptor} />}
+      {error && !loading && <PreviewError message={error} />}
+      {html && !loading && (
         <iframe
+          key={resizeKey}
           ref={iframeRef}
           srcDoc={html}
           title="Widget preview"
