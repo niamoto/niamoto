@@ -203,8 +203,31 @@ class CategoricalDistribution(TransformerPlugin):
                 categories = sorted(field_data.unique())
 
             # Calculate counts for each category
+            # Handle type mismatches: YAML may store numbers as strings
+            # (e.g. '3.0') while the data column contains numeric values.
             value_counts = field_data.value_counts()
-            counts = [int(value_counts.get(cat, 0)) for cat in categories]
+
+            def _count_for(cat: Any) -> int:
+                c = value_counts.get(cat, None)
+                if c is not None:
+                    return int(c)
+                # Try numeric conversion for string categories
+                if isinstance(cat, str):
+                    for convert in (int, float):
+                        try:
+                            c = value_counts.get(convert(cat), None)
+                            if c is not None:
+                                return int(c)
+                        except (ValueError, TypeError):
+                            pass
+                # Try string conversion for numeric categories
+                else:
+                    c = value_counts.get(str(cat), None)
+                    if c is not None:
+                        return int(c)
+                return 0
+
+            counts = [_count_for(cat) for cat in categories]
 
             result = {
                 "categories": categories,
