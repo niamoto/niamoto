@@ -8,7 +8,8 @@ full PreviewService class.
 
 import html
 import logging
-from typing import Any, Dict, Optional, Union
+import re
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -93,6 +94,25 @@ def wrap_html_response(
             padding: 1rem;
             text-align: center;
         }}
+        /* MapLibre GL attribution — discret et intégré */
+        .maplibregl-ctrl-attrib {{
+            font-size: 10px !important;
+            color: rgba(0, 0, 0, 0.45) !important;
+            background: rgba(255, 255, 255, 0.6) !important;
+            padding: 2px 6px !important;
+            border-radius: 3px 0 0 0 !important;
+        }}
+        .maplibregl-ctrl-attrib a {{
+            color: rgba(0, 0, 0, 0.55) !important;
+            text-decoration: none !important;
+        }}
+        .maplibregl-ctrl-attrib a:hover {{
+            text-decoration: underline !important;
+        }}
+        .maplibregl-ctrl-bottom-right {{
+            bottom: 0 !important;
+            right: 0 !important;
+        }}
     </style>
     <script>
         window.__NIAMOTO_PREVIEW__ = true;
@@ -111,11 +131,11 @@ def wrap_html_response(
 
 
 def execute_transformer(
-    db: Optional[Database],
+    db: Database | None,
     plugin_name: str,
-    params: Dict[str, Any],
-    data: Union[pd.DataFrame, Dict[str, Any]],
-) -> Dict[str, Any]:
+    params: dict[str, Any],
+    data: pd.DataFrame | dict[str, Any],
+) -> dict[str, Any]:
     """Execute a transformer plugin on data.
 
     Args:
@@ -151,10 +171,10 @@ def execute_transformer(
 
 
 def render_widget(
-    db: Optional[Database],
+    db: Database | None,
     plugin_name: str,
-    data: Dict[str, Any],
-    params: Optional[Dict[str, Any]] = None,
+    data: dict[str, Any],
+    params: dict[str, Any] | None = None,
     title: str = "Widget",
 ) -> str:
     """Render a widget with the given data.
@@ -173,7 +193,7 @@ def render_widget(
         plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.WIDGET)
         plugin_instance = plugin_class(db=db)
 
-        widget_params: Dict[str, Any] = {"title": title}
+        widget_params: dict[str, Any] = {"title": title}
         if params:
             widget_params.update(params)
 
@@ -188,3 +208,59 @@ def render_widget(
     except Exception as e:
         logger.exception("Error rendering widget '%s': %s", plugin_name, e)
         return error_html(f"Widget render error: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Geometry helpers
+# ---------------------------------------------------------------------------
+
+
+def parse_wkt_to_geojson(wkt: str) -> Optional[dict[str, Any]]:
+    """Parse WKT geometry string to GeoJSON geometry object.
+
+    Handles POINT, POLYGON, MULTIPOLYGON with optional Z coordinates.
+    """
+    if not wkt or wkt in ("None", "nan", ""):
+        return None
+
+    wkt = wkt.strip()
+
+    if wkt.startswith("POINT"):
+        match = re.search(r"POINT\s*Z?\s*\(\s*([^)]+)\s*\)", wkt)
+        if match:
+            parts = match.group(1).strip().split()
+            if len(parts) >= 2:
+                return {
+                    "type": "Point",
+                    "coordinates": [float(parts[0]), float(parts[1])],
+                }
+        return None
+
+    if wkt.startswith("MULTIPOLYGON"):
+        polygons: list[Any] = []
+        polygon_pattern = r"\(\(([^()]+(?:\([^()]+\)[^()]*)*)\)\)"
+        for poly_coords in re.findall(polygon_pattern, wkt):
+            ring_coords = []
+            for coord_pair in poly_coords.split(","):
+                parts = coord_pair.strip().split()
+                if len(parts) >= 2:
+                    ring_coords.append([float(parts[0]), float(parts[1])])
+            if ring_coords:
+                polygons.append([ring_coords])
+        if polygons:
+            return {"type": "MultiPolygon", "coordinates": polygons}
+        return None
+
+    if wkt.startswith("POLYGON"):
+        match = re.search(r"POLYGON\s*Z?\s*\(\(([^)]+)\)\)", wkt)
+        if match:
+            coords = []
+            for coord_pair in match.group(1).split(","):
+                parts = coord_pair.strip().split()
+                if len(parts) >= 2:
+                    coords.append([float(parts[0]), float(parts[1])])
+            if coords:
+                return {"type": "Polygon", "coordinates": [coords]}
+        return None
+
+    return None
