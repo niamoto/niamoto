@@ -180,6 +180,16 @@ def invalidate_preview_cache():
     """Vider le cache après un import de données ou un save config."""
     _preview_cache.clear()
 
+    # Invalider aussi le moteur de preview unifié
+    try:
+        from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
+
+        engine = get_preview_engine()
+        if engine:
+            engine.invalidate()
+    except Exception:
+        pass  # Non-fatal
+
 
 def _is_csv_source_for_group(
     work_dir: Path, source_name: Optional[str], group_by: Optional[str]

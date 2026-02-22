@@ -531,6 +531,18 @@ async def process_generic_import_all(
             except Exception as e:
                 logger.warning("Config scaffold failed (non-fatal): %s", e)
 
+            # Invalider le cache du moteur de preview (données changées)
+            try:
+                from niamoto.gui.api.services.preview_engine.engine import (
+                    get_preview_engine,
+                )
+
+                engine = get_preview_engine()
+                if engine:
+                    engine.invalidate()
+            except Exception as e:
+                logger.warning("Preview engine invalidation failed (non-fatal): %s", e)
+
         finally:
             # Always close database connections
             importer.close()
@@ -624,6 +636,18 @@ async def process_generic_import_entity(
             job["progress"] = 100
             job["message"] = f"Import of {entity_name} completed successfully"
             job["result"] = {"summary": result}
+
+            # Invalider le cache du moteur de preview (données changées)
+            try:
+                from niamoto.gui.api.services.preview_engine.engine import (
+                    get_preview_engine,
+                )
+
+                engine = get_preview_engine()
+                if engine:
+                    engine.invalidate()
+            except Exception as e:
+                logger.warning("Preview engine invalidation failed (non-fatal): %s", e)
 
         finally:
             # Always close database connections
