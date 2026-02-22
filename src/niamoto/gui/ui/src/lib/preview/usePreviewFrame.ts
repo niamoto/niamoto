@@ -41,6 +41,7 @@ function acquireRenderSlot(): Promise<void> {
 }
 
 function releaseRenderSlot(): void {
+  if (activeRenders <= 0) return
   activeRenders--
   const next = renderQueue.shift()
   if (next) {
@@ -51,8 +52,23 @@ function releaseRenderSlot(): void {
 
 // --- Helpers ---
 
-function stableHash(obj: Record<string, unknown>): string {
-  return JSON.stringify(obj, Object.keys(obj).sort())
+function stableHash(obj: unknown): string {
+  return JSON.stringify(obj, (_key, value) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.keys(value as Record<string, unknown>).sort().reduce((sorted, k) => {
+          sorted[k] = (value as Record<string, unknown>)[k]
+          return sorted
+        }, {} as Record<string, unknown>)
+      : value
+  )
+}
+
+/** Dependances primitives d'un PreviewDescriptor pour useMemo. */
+export function descriptorDeps(d: PreviewDescriptor): unknown[] {
+  return [
+    d.templateId, d.groupBy, d.source, d.entityId,
+    d.inline ? stableHash(d.inline) : null,
+  ]
 }
 
 export function buildQueryKey(d: PreviewDescriptor): readonly unknown[] {
@@ -85,7 +101,7 @@ function buildPreviewUrl(d: PreviewDescriptor): string {
  *
  * @param descriptor - Identifiant du widget (template_id ou inline config)
  * @param visible - true quand le conteneur est dans le viewport
- * @returns PreviewState avec html, loading, error, fromCache
+ * @returns PreviewState avec html, loading, error
  */
 export function usePreviewFrame(
   descriptor: PreviewDescriptor | null,
@@ -112,7 +128,9 @@ export function usePreviewFrame(
       const combinedSignal = AbortSignal.any([signal, controller.signal])
 
       // Sémaphore : limite les rendus Plotly concurrents
+      let slotAcquired = false
       await acquireRenderSlot()
+      slotAcquired = true
       try {
         if (descriptor.inline) {
           const res = await fetch('/api/preview', {
@@ -133,11 +151,11 @@ export function usePreviewFrame(
         }
 
         const url = buildPreviewUrl(descriptor)
-        const res = await fetch(url, { signal: combinedSignal })
+        const res = await fetch(url, { signal: combinedSignal, cache: 'no-store' })
         if (!res.ok) throw new Error(`Preview ${res.status}`)
         return res.text()
       } finally {
-        releaseRenderSlot()
+        if (slotAcquired) releaseRenderSlot()
       }
     },
     enabled: visible && descriptor !== null,
@@ -149,9 +167,8 @@ export function usePreviewFrame(
 
   return {
     html: query.data ?? null,
-    loading: query.isLoading,
+    loading: query.isLoading || query.isFetching,
     error: query.error?.message ?? null,
-    fromCache: query.isStale === false,
   }
 }
 
