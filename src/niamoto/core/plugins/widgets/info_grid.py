@@ -125,7 +125,7 @@ class InfoGridParams(BasePluginParams):
         json_schema_extra={"ui:widget": "textarea"},
     )
     items: List[InfoItem] = Field(
-        ...,
+        default_factory=list,
         description="A list of info items to display in the grid.",
         json_schema_extra={"ui:widget": "array"},
     )
