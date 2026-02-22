@@ -387,27 +387,44 @@ async def preview_widget(
         widget_config = widgets[widget_index]
         plugin_name = widget_config.get("plugin", "")
         data_source = widget_config.get("data_source", "")
-        _title = widget_config.get("title", f"Widget {widget_index}")  # noqa: F841
         params = widget_config.get("params", {})
 
-        # Special handling for navigation widget
+        # Résoudre le template_id pour le moteur de preview
+        # Navigation widget : utiliser le format convention reconnu par le engine
         if plugin_name == "hierarchical_nav_widget":
-            from niamoto.gui.api.routers.templates import _preview_navigation_widget
-
             referential = params.get("referential_data", group_by)
-            return await _preview_navigation_widget(referential)
+            template_id = f"{referential}_hierarchical_nav_widget"
+        else:
+            template_id = data_source
 
-        # Use the same preview system as the gallery (templates.py)
-        # This generates data on-the-fly from occurrences instead of requiring stats table
-        from niamoto.gui.api.routers.templates import preview_template
+        # Déléguer au moteur de preview unifié
+        from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
+        from niamoto.gui.api.services.preview_engine.models import PreviewRequest
+        from starlette.concurrency import run_in_threadpool
 
-        # The data_source is the template_id used in transform.yml
-        # e.g., "geo_pt_geospatial_extractor_interactive_map"
-        # Pass entity_id if provided to show data for a specific entity
-        # Note: source=None must be passed explicitly because Query() defaults
-        # don't work when calling the function directly (not via HTTP)
-        return await preview_template(
-            data_source, group_by=group_by, entity_id=entity_id, source=None
+        engine = get_preview_engine()
+        if engine is None:
+            return HTMLResponse(
+                content=_wrap_html_response(
+                    "<p class='error'>Projet Niamoto non configuré</p>"
+                ),
+                status_code=500,
+            )
+
+        req = PreviewRequest(
+            template_id=template_id,
+            group_by=group_by,
+            entity_id=entity_id,
+            mode="full",
+        )
+        result = await run_in_threadpool(engine.render, req)
+        return HTMLResponse(
+            content=result.html,
+            headers={
+                "ETag": f'"{result.etag}"',
+                "Cache-Control": "no-cache",
+                "X-Preview-Key": result.preview_key,
+            },
         )
 
     except HTTPException:
