@@ -33,6 +33,8 @@ def wrap_html_response(
     content: str,
     title: str = "Preview",
     plotly_bundle: str = "core",
+    *,
+    thumbnail: bool = False,
 ) -> str:
     """Wrap widget HTML in a complete HTML document for iframe display.
 
@@ -40,10 +42,9 @@ def wrap_html_response(
         content: The widget HTML content.
         title: Page title.
         plotly_bundle: Which Plotly bundle to load — ``"core"``, ``"maps"``,
-            or ``"none"``.  Defaults to ``"core"``.  This parameter is a
-            forward-compatible hook for Phase B (Plotly bundle splitting);
-            until the custom bundles are built it resolves to the monolithic
-            bundle.
+            or ``"none"``.  Defaults to ``"core"``.
+        thumbnail: If ``True``, inject a script that disables Plotly
+            interactivity for lightweight thumbnail rendering.
 
     Returns:
         Complete HTML document string.
@@ -54,6 +55,13 @@ def wrap_html_response(
 
     safe_title = html.escape(title, quote=True)
     plotly_script = get_plotly_script_tag(plotly_bundle)
+    thumbnail_js = ""
+    if thumbnail:
+        thumbnail_js = """
+    <script>
+        // Mode thumbnail : désactiver l'interactivité Plotly
+        window.__NIAMOTO_THUMBNAIL__ = true;
+    </script>"""
 
     return f"""<!DOCTYPE html>
 <html>
@@ -88,7 +96,7 @@ def wrap_html_response(
     </style>
     <script>
         window.__NIAMOTO_PREVIEW__ = true;
-    </script>
+    </script>{thumbnail_js}
 {plotly_script}
 </head>
 <body>
@@ -123,9 +131,7 @@ def execute_transformer(
         ValueError: If transformer execution fails.
     """
     try:
-        plugin_class = PluginRegistry.get_plugin(
-            plugin_name, PluginType.TRANSFORMER
-        )
+        plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.TRANSFORMER)
         plugin_instance = plugin_class(db=db)
 
         transform_config = {
@@ -171,10 +177,7 @@ def render_widget(
         if params:
             widget_params.update(params)
 
-        if (
-            hasattr(plugin_instance, "param_schema")
-            and plugin_instance.param_schema
-        ):
+        if hasattr(plugin_instance, "param_schema") and plugin_instance.param_schema:
             validated_params = plugin_instance.param_schema.model_validate(
                 widget_params
             )

@@ -9,7 +9,7 @@ from typing import Dict, Any, Set
 
 # Plotly bundle paths for the exported site.
 # Core bundle — all chart types except maps (~1.3 MB).
-PLOTLY_CDN_URL = "/assets/js/vendor/plotly/plotly-niamoto-core.min.js"
+PLOTLY_CORE_URL = "/assets/js/vendor/plotly/plotly-niamoto-core.min.js"
 # Maps bundle — core + scattermap/choroplethmap (~2.2 MB).
 PLOTLY_MAPS_URL = "/assets/js/vendor/plotly/plotly-niamoto-maps.min.js"
 
@@ -74,7 +74,7 @@ def get_plotly_dependencies() -> Set[str]:
     Returns:
         Set containing the Plotly core bundle URL
     """
-    return {PLOTLY_CDN_URL}
+    return {PLOTLY_CORE_URL}
 
 
 def get_plotly_map_dependencies() -> Set[str]:
