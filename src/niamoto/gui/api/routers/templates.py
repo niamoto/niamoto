@@ -520,21 +520,39 @@ async def generate_transform_config(request: GenerateConfigRequest):
     # Generate widgets_data directly from request
     widgets_data = {}
     for template in request.templates:
-        # Extract params from config - handle both nested and flat structures
-        # Some suggestions have config: {"plugin": ..., "params": {...}}
-        # Others have config: {direct params}
+        # Extract params from config - handle multiple structures:
+        # 1. Combined: {"transformer": {"plugin":..,"params":{..}}, "widget": {"plugin":..,"params":{..}}}
+        # 2. Nested:   {"plugin": ..., "params": {...}}
+        # 3. Flat:     {direct params like "field": "height", "source": "plots", ...}
         cfg = template.config
-        if isinstance(cfg, dict) and "params" in cfg and "plugin" in cfg:
+        export_override = None
+
+        if isinstance(cfg, dict) and "transformer" in cfg and "widget" in cfg:
+            # Combined structure from suggestions — split transformer/widget
+            transformer_cfg = cfg["transformer"]
+            params = transformer_cfg.get("params", {})
+            # Carry widget config as export_override for _generate_export_config
+            widget_cfg = cfg["widget"]
+            export_override = {
+                "plugin": widget_cfg.get("plugin"),
+                "title": cfg.get("title") or template.config.get("title"),
+                "params": widget_cfg.get("params"),
+            }
+        elif isinstance(cfg, dict) and "params" in cfg and "plugin" in cfg:
             # Nested structure - extract just the params
             params = cfg["params"]
         else:
             # Flat structure - use config directly as params
             params = cfg
 
-        widgets_data[template.template_id] = {
+        widget_data: Dict[str, Any] = {
             "plugin": template.plugin,
             "params": params,
         }
+        if export_override:
+            widget_data["export_override"] = export_override
+
+        widgets_data[template.template_id] = widget_data
 
     # Build sources section based on reference kind and import.yml metadata
     relation_from_import = None

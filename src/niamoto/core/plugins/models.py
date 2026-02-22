@@ -290,8 +290,8 @@ class GroupConfigWeb(BaseModel):
     )
     index_template: Optional[str] = None  # Template for the index page, optional
     page_template: Optional[str] = None  # Template for the detail page, optional
-    output_pattern: str
-    index_output_pattern: str
+    output_pattern: str = "{group_by}/{id}.html"
+    index_output_pattern: str = "{group_by}/index.html"
     widgets: List[WidgetConfig]
     index_generator: Optional[IndexGeneratorConfig] = None  # New index generator config
 

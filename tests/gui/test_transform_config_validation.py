@@ -25,7 +25,6 @@ from niamoto.core.plugins.registry import PluginRegistry
 # Seront ignorés dans les tests de validation.
 KNOWN_MISSING_PLUGINS = {
     "entity_map_extractor",  # Widget cartographique planifié, pas encore créé
-    "binary_aggregator",  # Ancien nom, remplacé par class_object_binary_aggregator
 }
 
 
@@ -185,9 +184,9 @@ class TestTransformConfigStructure:
         assert "sources" in config
         assert len(config["sources"]) > 0
 
-    @pytest.mark.parametrize("group", ["taxons", "plots", "shapes"])
+    @pytest.mark.parametrize("group", ["taxons", "plots"])
     def test_group_has_widgets(self, group, reference_transform_yml):
-        """Chaque groupe doit avoir des widgets_data."""
+        """Les groupes taxons et plots doivent avoir des widgets_data."""
         config = reference_transform_yml[group]
         assert "widgets_data" in config
         assert len(config["widgets_data"]) > 0

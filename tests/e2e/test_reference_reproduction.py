@@ -346,6 +346,7 @@ class TestPublicationPipeline:
                 export["params"]["output_dir"] = str(
                     working_directory / "exports" / "web"
                 )
+                export["params"].setdefault("template_dir", "templates/")
                 export["static_pages"] = []
                 export["groups"] = [
                     group_cfg
