@@ -39,10 +39,14 @@ TEST_INSTANCE_PATH = (
     Path(__file__).parent.parent.parent / "test-instance" / "niamoto-test"
 )
 
+pytestmark = pytest.mark.skipif(
+    not TEST_INSTANCE_PATH.exists(),
+    reason="Instance de test locale absente (test-instance/niamoto-test)",
+)
+
 # Plugins manquants connus (cf. Phase 1.3)
 KNOWN_MISSING_PLUGINS = {
     "entity_map_extractor",
-    "binary_aggregator",
 }
 
 

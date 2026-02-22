@@ -21,6 +21,15 @@ from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.registry import PluginRegistry
 
 
+_TEST_INSTANCE_PATH = (
+    Path(__file__).parent.parent.parent / "test-instance" / "niamoto-test"
+)
+
+pytestmark = pytest.mark.skipif(
+    not _TEST_INSTANCE_PATH.exists(),
+    reason="Instance de test locale absente (test-instance/niamoto-test)",
+)
+
 # Plugins référencés dans transform.yml mais pas encore implémentés.
 # Seront ignorés dans les tests de validation.
 KNOWN_MISSING_PLUGINS = {
