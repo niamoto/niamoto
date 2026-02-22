@@ -7,9 +7,11 @@ including consistent configuration and styling.
 
 from typing import Dict, Any, Set
 
-# Define the centralized Plotly dependency
-# Use local file instead of CDN
-PLOTLY_CDN_URL = "/assets/js/vendor/plotly/3.0.1_plotly.min.js"
+# Plotly bundle paths for the exported site.
+# Core bundle — all chart types except maps (~1.3 MB).
+PLOTLY_CDN_URL = "/assets/js/vendor/plotly/plotly-niamoto-core.min.js"
+# Maps bundle — core + scattermap/choroplethmap (~2.2 MB).
+PLOTLY_MAPS_URL = "/assets/js/vendor/plotly/plotly-niamoto-maps.min.js"
 
 
 def get_plotly_config() -> Dict[str, Any]:
@@ -67,12 +69,22 @@ def apply_plotly_defaults(fig, additional_layout: Dict[str, Any] = None):
 
 def get_plotly_dependencies() -> Set[str]:
     """
-    Get the standard Plotly CDN dependency.
+    Get the standard Plotly core dependency (no maps).
 
     Returns:
-        Set containing the Plotly CDN URL
+        Set containing the Plotly core bundle URL
     """
     return {PLOTLY_CDN_URL}
+
+
+def get_plotly_map_dependencies() -> Set[str]:
+    """
+    Get Plotly dependencies including map support.
+
+    Returns:
+        Set containing the Plotly maps bundle URL
+    """
+    return {PLOTLY_MAPS_URL}
 
 
 def get_map_tile_fallback_script(div_id: str) -> str:
