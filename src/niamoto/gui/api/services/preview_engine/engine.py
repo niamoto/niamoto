@@ -31,7 +31,11 @@ from niamoto.gui.api.services.preview_engine.models import (
     PreviewRequest,
     PreviewResult,
 )
-from niamoto.gui.api.services.preview_service import PreviewService
+from niamoto.gui.api.services.preview_engine.plotly_bundle_resolver import (
+    get_plotly_script_tag,
+    resolve_bundle,
+)
+from niamoto.gui.api.services.preview_utils import execute_transformer, render_widget
 from niamoto.gui.api.services.templates.utils.config_loader import (
     get_hierarchy_info,
     load_import_config,
@@ -111,8 +115,11 @@ class PreviewEngine:
 
         # --- Inline (POST) : transformer + widget explicites ---
         if request.inline:
+            widget_plugin = request.inline.get("widget_plugin", "")
             widget_html = self._render_inline(request, warnings)
-            return self._build_result(request, widget_html, warnings)
+            return self._build_result(
+                request, widget_html, warnings, widget_plugin=widget_plugin
+            )
 
         if not template_id:
             return self._error_result(request, "template_id requis", warnings)
@@ -121,7 +128,10 @@ class PreviewEngine:
         if template_id.endswith("_hierarchical_nav_widget"):
             reference = template_id.replace("_hierarchical_nav_widget", "")
             widget_html = self._render_navigation(reference, warnings)
-            return self._build_result(request, widget_html, warnings)
+            return self._build_result(
+                request, widget_html, warnings,
+                widget_plugin="hierarchical_nav_widget",
+            )
 
         # --- Branche 2 : General info widget ---
         if template_id.startswith("general_info_") and template_id.endswith(
@@ -133,14 +143,19 @@ class PreviewEngine:
             widget_html = self._render_general_info(
                 reference, request.entity_id, warnings
             )
-            return self._build_result(request, widget_html, warnings)
+            return self._build_result(
+                request, widget_html, warnings, widget_plugin="info_grid",
+            )
 
         # --- Branche 3 : Entity map ---
         if template_id.endswith("_entity_map") or template_id.endswith("_all_map"):
             widget_html = self._render_entity_map(
                 template_id, request.entity_id, warnings
             )
-            return self._build_result(request, widget_html, warnings)
+            return self._build_result(
+                request, widget_html, warnings,
+                widget_plugin="interactive_map",
+            )
 
         # --- Branche 4-7 : Configured / Dynamic / Class object / Occurrence ---
         widget_html = self._render_standard(request, warnings)
@@ -159,8 +174,14 @@ class PreviewEngine:
         request: PreviewRequest,
         widget_html: str,
         warnings: List[str],
+        *,
+        widget_plugin: Optional[str] = None,
     ) -> PreviewResult:
-        html = self._wrap_html(widget_html, mode=request.mode)
+        bundle = resolve_bundle(
+            widget_plugin=widget_plugin,
+            template_id=request.template_id,
+        )
+        html = self._wrap_html(widget_html, mode=request.mode, bundle=bundle)
         etag = self._compute_etag(request)
         preview_key = request.template_id or "inline"
         return PreviewResult(
@@ -208,9 +229,14 @@ class PreviewEngine:
     # HTML wrapper
     # ------------------------------------------------------------------
 
-    def _wrap_html(self, content: str, mode: PreviewMode = "full") -> str:
+    def _wrap_html(
+        self,
+        content: str,
+        mode: PreviewMode = "full",
+        bundle: str = "core",
+    ) -> str:
         """Document HTML complet pour injection dans un iframe via srcDoc."""
-        plotly_src = "/api/site/assets/js/vendor/plotly/3.0.1_plotly.min.js"
+        plotly_script = get_plotly_script_tag(bundle)
         static_plot_js = ""
         if mode == "thumbnail":
             static_plot_js = """
@@ -253,7 +279,7 @@ class PreviewEngine:
     <script>
         window.__NIAMOTO_PREVIEW__ = true;
     </script>{static_plot_js}
-    <script src="{plotly_src}"></script>
+{plotly_script}
 </head>
 <body>
 {content}
@@ -280,34 +306,40 @@ class PreviewEngine:
 
         db = self._open_db()
         try:
-            html = PreviewService.generate_preview(
-                db=db,
-                work_dir=self._work_dir,
-                group_by=group_by,
-                transformer_plugin=transformer_plugin,
-                transformer_params=transformer_params,
-                widget_plugin=widget_plugin,
-                widget_params=widget_params,
-                widget_title=widget_title,
+            # Charger les données selon le type de transformer
+            if transformer_plugin.startswith("class_object_"):
+                co_data = load_class_object_data_for_preview(
+                    self._work_dir,
+                    transformer_params.get("source", ""),
+                    group_by,
+                )
+                if not co_data:
+                    return self._info_html("Données class_object non trouvées")
+                data = co_data
+            else:
+                import_config = load_import_config(self._work_dir)
+                hierarchy_info = get_hierarchy_info(import_config, group_by)
+                representative = find_representative_entity(db, hierarchy_info)
+                sample = load_sample_data(db, representative, transformer_params)
+                if sample.empty:
+                    return self._info_html("Pas de données disponibles")
+                data = sample
+
+            result = execute_transformer(
+                db, transformer_plugin, transformer_params, data
             )
-            # generate_preview retourne du HTML wrappé — extraire le body
-            # Pour éviter un double wrapping, on retourne le HTML directement
-            # et on skip le _wrap_html dans _build_result
-            return self._extract_body(html)
+            if not result:
+                return self._info_html("Le transformer n'a pas retourné de données")
+
+            return render_widget(
+                db, widget_plugin, result, widget_params, widget_title
+            )
         except Exception as e:
-            logger.exception(f"Erreur preview inline: {e}")
+            logger.exception("Erreur preview inline: %s", e)
             return self._error_html(str(e))
         finally:
             if db:
                 db.close_db_session()
-
-    def _extract_body(self, full_html: str) -> str:
-        """Extrait le contenu <body> d'un document HTML complet."""
-        body_start = full_html.find("<body>")
-        body_end = full_html.find("</body>")
-        if body_start >= 0 and body_end >= 0:
-            return full_html[body_start + 6 : body_end].strip()
-        return full_html
 
     # ------------------------------------------------------------------
     # Branche NAVIGATION
@@ -910,7 +942,7 @@ class PreviewEngine:
             result = transformer_inst.transform(transform_input, transform_config)
 
             # Rendu widget
-            return PreviewService.render_widget(
+            return render_widget(
                 db, widget_plugin, result, widget_params, widget_title
             )
 
@@ -1076,12 +1108,12 @@ class PreviewEngine:
             if transformer_plugin == "field_aggregator":
                 transform_input = {data_source: sample_data}
 
-            result = PreviewService.execute_transformer(
+            result = execute_transformer(
                 db, transformer_plugin, config, transform_input
             )
 
             title = column.replace("_", " ").title()
-            widget_html = PreviewService.render_widget(
+            widget_html = render_widget(
                 db, widget_plugin, result, export_params, title
             )
             return widget_html
@@ -1129,12 +1161,12 @@ class PreviewEngine:
             if sample_data.empty:
                 return self._info_html("Pas de données disponibles")
 
-            result = PreviewService.execute_transformer(
+            result = execute_transformer(
                 db, transformer_plugin, config, sample_data
             )
 
             title = column.replace("_", " ").title()
-            widget_html = PreviewService.render_widget(
+            widget_html = render_widget(
                 db, widget_plugin, result, export_params, title
             )
             return widget_html

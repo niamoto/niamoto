@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from niamoto.gui.api.context import get_working_directory
+from niamoto.gui.api.services.preview_utils import wrap_html_response as _wrap_html_response
 
 logger = logging.getLogger(__name__)
 
@@ -435,47 +436,6 @@ async def preview_widget(
             content=_wrap_html_response(f"<p class='error'>Erreur: {str(e)}</p>"),
             status_code=500,
         )
-
-
-def _wrap_html_response(content: str, title: str = "Preview") -> str:
-    """Wrap widget HTML in a complete HTML document."""
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{title}</title>
-    <style>
-        html, body {{
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, sans-serif;
-            background: transparent;
-        }}
-        .plotly-graph-div {{
-            width: 100% !important;
-            height: 100% !important;
-        }}
-        .error {{
-            color: #ef4444;
-            padding: 1rem;
-            text-align: center;
-        }}
-        .info {{
-            color: #6b7280;
-            padding: 1rem;
-            text-align: center;
-        }}
-    </style>
-    <script src="/api/site/assets/js/vendor/plotly/3.0.1_plotly.min.js"></script>
-</head>
-<body>
-{content}
-</body>
-</html>"""
 
 
 @router.get("/{group_by}/groups")

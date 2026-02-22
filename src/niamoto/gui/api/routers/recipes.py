@@ -23,7 +23,7 @@ from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.utils.database import open_database
 from niamoto.common.database import Database
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
-from niamoto.gui.api.services.preview_service import PreviewService
+from niamoto.gui.api.services.preview_utils import wrap_html_response
 from niamoto.gui.api.services.templates.config_service import (
     load_transform_config,
     save_transform_config,
@@ -1391,7 +1391,7 @@ async def preview_recipe(request: PreviewRecipeRequest):
     engine = get_preview_engine()
     if engine is None:
         return HTMLResponse(
-            content=PreviewService.wrap_html_response(
+            content=wrap_html_response(
                 "<p class='error'>Projet Niamoto non configuré</p>"
             ),
             status_code=500,
@@ -1424,7 +1424,7 @@ async def preview_recipe(request: PreviewRecipeRequest):
     except Exception as e:
         logger.exception(f"Error previewing recipe: {e}")
         return HTMLResponse(
-            content=PreviewService.wrap_html_response(
+            content=wrap_html_response(
                 f"<p class='error'>Preview error: {str(e)}</p>"
             ),
             status_code=500,

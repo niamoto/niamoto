@@ -58,12 +58,10 @@ class InlinePreviewBody(BaseModel):
 
 def _error_html(message: str) -> HTMLResponse:
     """Retourne une réponse HTML d'erreur sans passer par le moteur."""
-    from niamoto.gui.api.services.preview_service import PreviewService
+    from niamoto.gui.api.services.preview_utils import wrap_html_response
 
     return HTMLResponse(
-        content=PreviewService.wrap_html_response(
-            f"<p class='error'>{message}</p>"
-        ),
+        content=wrap_html_response(f"<p class='error'>{message}</p>"),
         status_code=500,
     )
 
