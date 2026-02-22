@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import Any, List, Optional, Set
 
@@ -136,7 +137,7 @@ class DivergingBarPlotWidget(WidgetPlugin):
             logger.error(
                 f"Missing required columns for DivergingBarPlotWidget: {missing_cols}"
             )
-            return f"<p class='error'>Configuration Error: Missing columns {missing_cols}.</p>"
+            return f"<p class='error'>Configuration Error: Missing columns {html.escape(str(missing_cols))}.</p>"
 
         # Prepare data (sorting)
         df_plot = data.copy()
@@ -248,4 +249,4 @@ class DivergingBarPlotWidget(WidgetPlugin):
 
         except Exception as e:
             logger.exception(f"Error rendering DivergingBarPlotWidget: {e}")
-            return f"<p class='error'>Error generating diverging bar plot: {e}</p>"
+            return f"<p class='error'>Error generating diverging bar plot: {html.escape(str(e))}</p>"

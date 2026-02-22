@@ -4,6 +4,7 @@
 A simple widget plugin that displays the raw data it receives.
 """
 
+import html
 import logging
 from typing import List, Optional, Set
 
@@ -96,7 +97,7 @@ class RawDataWidget(WidgetPlugin):
                     logger.error(
                         "None of the specified columns are available in the data."
                     )
-                    return f"<p class='error'>Configuration Error: None of the specified columns {params.columns} found.</p>"
+                    return f"<p class='error'>Configuration Error: None of the specified columns {html.escape(str(params.columns))} found.</p>"
                 df_display = df_display[available_cols]
             else:
                 df_display = df_display[params.columns]
@@ -127,4 +128,4 @@ class RawDataWidget(WidgetPlugin):
             return html_table
         except Exception as e:
             logger.exception(f"Error generating HTML table for RawDataWidget: {e}")
-            return f"<p class='error'>Error displaying data: {e}</p>"
+            return f"<p class='error'>Error displaying data: {html.escape(str(e))}</p>"

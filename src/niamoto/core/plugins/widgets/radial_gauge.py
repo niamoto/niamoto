@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import Any, Dict, List, Optional, Set
 
@@ -269,7 +270,7 @@ class RadialGaugeWidget(WidgetPlugin):
                 return "<p class='info'>No data for gauge.</p>"
             if effective_field not in data.columns:
                 logger.error(f"Value field '{effective_field}' not found in DataFrame.")
-                return f"<p class='error'>Configuration Error: Value field '{effective_field}' missing.</p>"
+                return f"<p class='error'>Configuration Error: Value field '{html.escape(str(effective_field))}' missing.</p>"
             value = data[effective_field].iloc[0]
         elif isinstance(data, pd.Series):
             if data.empty:
@@ -308,7 +309,7 @@ class RadialGaugeWidget(WidgetPlugin):
 
         except Exception as e:
             logger.error(f"Error converting value '{value}' to numeric: {e}")
-            return f"<p class='error'>Error processing gauge value: {e}</p>"
+            return f"<p class='error'>Error processing gauge value: {html.escape(str(e))}</p>"
 
         # Handle deprecated units parameter
         if params.units and not unit:
@@ -465,4 +466,4 @@ class RadialGaugeWidget(WidgetPlugin):
 
         except Exception as e:
             logger.exception(f"Error rendering RadialGaugeWidget: {e}")
-            return f"<p class='error'>Error generating gauge: {e}</p>"
+            return f"<p class='error'>Error generating gauge: {html.escape(str(e))}</p>"

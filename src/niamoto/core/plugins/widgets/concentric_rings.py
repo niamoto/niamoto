@@ -1,5 +1,6 @@
 # src/niamoto/core/plugins/widgets/concentric_rings.py
 
+import html
 import logging
 import plotly.graph_objects as go
 from pydantic import Field, ConfigDict
@@ -257,4 +258,4 @@ class ConcentricRingsWidget(WidgetPlugin):
             logger.error(
                 f"Failed to generate Concentric Rings chart: {e}", exc_info=True
             )
-            return f"<p class='error'>Error generating concentric rings chart: {e}</p>"
+            return f"<p class='error'>Error generating concentric rings chart: {html.escape(str(e))}</p>"

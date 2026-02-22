@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import Any, Dict, List, Optional, Set
 
@@ -285,7 +286,7 @@ class StackedAreaPlotWidget(WidgetPlugin):
             # If x_field is missing, it's a critical error
             if params.x_field in missing_cols:
                 logger.error(f"Missing critical x_field: {params.x_field}")
-                return f"<p class='error'>Missing x-axis field: {params.x_field}</p>"
+                return f"<p class='error'>Missing x-axis field: {html.escape(str(params.x_field))}</p>"
 
         # --- Generate Plot --- #
         try:
@@ -340,4 +341,4 @@ class StackedAreaPlotWidget(WidgetPlugin):
 
         except Exception as e:
             logger.exception(f"Error rendering StackedAreaPlotWidget: {e}")
-            return f"<p class='error'>Error generating stacked area plot: {str(e)}</p>"
+            return f"<p class='error'>Error generating stacked area plot: {html.escape(str(e))}</p>"

@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import List, Optional, Set
 
@@ -102,7 +103,7 @@ class SummaryStatsWidget(WidgetPlugin):
                 logger.error(
                     "None of the specified numeric columns were found in the data."
                 )
-                return f"<p class='error'>Configuration Error: Columns {params.numeric_columns} not found.</p>"
+                return f"<p class='error'>Configuration Error: Columns {html.escape(str(params.numeric_columns))} not found.</p>"
             df_numeric = data[cols_to_use].select_dtypes(include="number")
         else:
             df_numeric = data.select_dtypes(include="number")
@@ -147,7 +148,9 @@ class SummaryStatsWidget(WidgetPlugin):
 
             # Generate HTML table
             html_table = summary.to_html(
-                classes="table table-striped table-hover table-sm", border=0
+                classes="table table-striped table-hover table-sm",
+                border=0,
+                escape=True,
             )
             # Add title and description if provided (handled by container now)
             # title_html = f"<h5>{params.title}</h5>" if params.title else ""
@@ -157,4 +160,4 @@ class SummaryStatsWidget(WidgetPlugin):
 
         except Exception as e:
             logger.exception(f"Error generating summary statistics table: {e}")
-            return f"<p class='error'>Error calculating statistics: {e}</p>"
+            return f"<p class='error'>Error calculating statistics: {html.escape(str(e))}</p>"

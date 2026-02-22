@@ -1,3 +1,4 @@
+import html as html_module
 import json
 import logging
 from typing import Any, List, Optional, Set
@@ -1057,7 +1058,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 logger.error(
                     f"DataFrame missing required coordinate columns ('{latitude_field}', '{longitude_field}') for scatter_map."
                 )
-                return f"<p class='error'>Data Error: Missing coordinate columns ('{latitude_field}', '{longitude_field}').</p>"
+                return f"<p class='error'>Data Error: Missing coordinate columns ('{html_module.escape(str(latitude_field))}', '{html_module.escape(str(longitude_field))}').</p>"
             # Add required columns if they exist (even if check skipped for dummy df)
             if latitude_field in df_plot.columns:
                 required_cols.add(latitude_field)
@@ -1104,7 +1105,7 @@ class InteractiveMapWidget(WidgetPlugin):
                 logger.error(
                     f"Missing required columns for InteractiveMapWidget ({params.map_type or map_mode}): {missing_cols}"
                 )
-                return f"<p class='error'>Configuration Error: Missing columns {missing_cols}.</p>"
+                return f"<p class='error'>Configuration Error: Missing columns {html_module.escape(str(missing_cols))}.</p>"
 
         # Calculate center and zoom from data only for scatter plots with valid data
         calculated_zoom = params.zoom  # Default to params zoom
