@@ -23,7 +23,7 @@ from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.utils.database import open_database
 from niamoto.common.database import Database
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
-from niamoto.gui.api.services.preview_utils import wrap_html_response
+from niamoto.gui.api.services.preview_utils import error_html, wrap_html_response
 from niamoto.gui.api.services.templates.config_service import (
     load_transform_config,
     save_transform_config,
@@ -262,7 +262,7 @@ def _get_table_columns(db: Database, table_name: str) -> list[str]:
         )
         return [c[0] for c in cols] if cols else []
     except Exception as e:
-        logger.warning(f"Could not get columns for table {table_name}: {e}")
+        logger.warning("Could not get columns for table %s: %s", table_name, e)
         return []
 
 
@@ -280,7 +280,7 @@ def _get_entity_columns(db: Database, entity_name: str) -> list[str]:
             # Entity not found in registry
             return []
     except Exception as e:
-        logger.warning(f"Could not get columns for entity {entity_name}: {e}")
+        logger.warning("Could not get columns for entity %s: %s", entity_name, e)
         return []
 
 
@@ -304,7 +304,7 @@ def _get_all_dataset_entities(db: Database) -> list[tuple[str, str, list[str]]]:
 
         return result
     except Exception as e:
-        logger.warning(f"Could not list dataset entities: {e}")
+        logger.warning("Could not list dataset entities: %s", e)
         return []
 
 
@@ -316,7 +316,7 @@ def _get_csv_columns(csv_path: Path) -> list[str]:
             delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
             return [c.strip() for c in first_line.split(delimiter)]
     except Exception as e:
-        logger.warning(f"Could not read CSV columns from {csv_path}: {e}")
+        logger.warning("Could not read CSV columns from %s: %s", csv_path, e)
         return []
 
 
@@ -430,7 +430,7 @@ def _get_reference_source(db: Database, group_by: str) -> Optional[SourceInfo]:
             pass
         return None
     except Exception as e:
-        logger.warning(f"Could not get reference source for {group_by}: {e}")
+        logger.warning("Could not get reference source for %s: %s", group_by, e)
         return None
 
 
@@ -512,7 +512,7 @@ def _get_transformer_schema(plugin_name: str) -> Optional[TransformerSchema]:
                     prop_name, prop_info, param_required
                 )
         except Exception as e:
-            logger.warning(f"Could not get params schema for {plugin_name}: {e}")
+            logger.warning("Could not get params schema for %s: %s", plugin_name, e)
 
     # Strategy 2: Fall back to config_model if no params found
     if not params:
@@ -563,7 +563,7 @@ def _get_transformer_schema(plugin_name: str) -> Optional[TransformerSchema]:
                         prop_name, prop_info, param_required
                     )
             except Exception as e:
-                logger.warning(f"Could not get schema for {plugin_name}: {e}")
+                logger.warning("Could not get schema for %s: %s", plugin_name, e)
 
     # Determine source types
     source_types = []
@@ -706,7 +706,7 @@ def _get_widget_schema(plugin_name: str) -> Optional[WidgetSchema]:
                 )
 
         except Exception as e:
-            logger.warning(f"Could not get schema for widget {plugin_name}: {e}")
+            logger.warning("Could not get schema for widget %s: %s", plugin_name, e)
 
     # Get compatible transformers (reverse lookup from suggested_widgets)
     compatible_transformers = []
@@ -812,7 +812,7 @@ async def get_available_sources(group_by: str):
             return SourcesResponse(group_by=group_by, sources=sources)
 
     except Exception as e:
-        logger.exception(f"Error getting sources: {e}")
+        logger.exception("Error getting sources: %s", e)
         raise HTTPException(status_code=500, detail=f"Error getting sources: {str(e)}")
 
 
@@ -860,7 +860,7 @@ async def get_source_columns(group_by: str, source_name: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error getting source columns: {e}")
+        logger.exception("Error getting source columns: %s", e)
         raise HTTPException(
             status_code=500, detail=f"Error getting source columns: {str(e)}"
         )
@@ -918,7 +918,7 @@ def _build_column_tree(db: Database, source_info: SourceInfo) -> list[ColumnNode
                         )
                     )
     except Exception as e:
-        logger.warning(f"Could not get column types: {e}")
+        logger.warning("Could not get column types: %s", e)
         # Fallback to flat list
         for col in source_info.columns:
             columns.append(ColumnNode(name=col, path=col, type="string", children=[]))
@@ -961,7 +961,7 @@ def _extract_json_fields(
                                 )
                             )
     except Exception as e:
-        logger.warning(f"Could not extract JSON fields from {json_column}: {e}")
+        logger.warning("Could not extract JSON fields from %s: %s", json_column, e)
 
     return sorted(children, key=lambda x: x.name)
 
@@ -1005,7 +1005,7 @@ async def list_transformers():
         plugins = PluginRegistry.get_plugins_by_type(PluginType.TRANSFORMER)
         return list(plugins.keys())
     except Exception as e:
-        logger.exception(f"Error listing transformers: {e}")
+        logger.exception("Error listing transformers: %s", e)
         return []
 
 
@@ -1066,7 +1066,7 @@ async def list_widgets():
             )
         return result
     except Exception as e:
-        logger.exception(f"Error listing widgets: {e}")
+        logger.exception("Error listing widgets: %s", e)
         return []
 
 
@@ -1391,9 +1391,7 @@ async def preview_recipe(request: PreviewRecipeRequest):
     engine = get_preview_engine()
     if engine is None:
         return HTMLResponse(
-            content=wrap_html_response(
-                "<p class='error'>Projet Niamoto non configuré</p>"
-            ),
+            content=wrap_html_response(error_html("Projet Niamoto non configuré")),
             status_code=500,
         )
 
@@ -1418,14 +1416,11 @@ async def preview_recipe(request: PreviewRecipeRequest):
             headers={
                 "ETag": f'"{result.etag}"',
                 "Cache-Control": "no-cache",
-                "X-Preview-Key": result.preview_key,
             },
         )
     except Exception as e:
-        logger.exception(f"Error previewing recipe: {e}")
+        logger.exception("Error previewing recipe: %s", e)
         return HTMLResponse(
-            content=wrap_html_response(
-                f"<p class='error'>Preview error: {str(e)}</p>"
-            ),
+            content=wrap_html_response(error_html(str(e))),
             status_code=500,
         )

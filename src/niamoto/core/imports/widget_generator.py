@@ -421,7 +421,7 @@ class WidgetGenerator:
         elif transformer_name == "binary_counter" and widget_name == "donut_chart":
             return {
                 "labels_field": "labels",
-                "values_field": "values",
+                "values_field": "counts",
             }
         elif (
             transformer_name == "geospatial_extractor"

@@ -7,7 +7,7 @@ Endpoints :
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, Response
@@ -19,6 +19,7 @@ from niamoto.gui.api.services.preview_engine import (
     PreviewRequest,
 )
 from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
+from niamoto.gui.api.services.preview_utils import error_html, wrap_html_response
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +35,21 @@ class InlineConfig(BaseModel):
     """Configuration inline pour preview POST."""
 
     transformer_plugin: str
-    transformer_params: Dict[str, Any] = {}
+    transformer_params: dict[str, Any] = {}
     widget_plugin: str
-    widget_params: Optional[Dict[str, Any]] = None
+    widget_params: dict[str, Any] | None = None
     widget_title: str = "Preview"
 
 
 class InlinePreviewBody(BaseModel):
     """Body pour POST /api/preview."""
 
-    template_id: Optional[str] = None
-    group_by: Optional[str] = None
-    source: Optional[str] = None
-    entity_id: Optional[str] = None
+    template_id: str | None = None
+    group_by: str | None = None
+    source: str | None = None
+    entity_id: str | None = None
     mode: PreviewMode = "full"
-    inline: Optional[InlineConfig] = None
+    inline: InlineConfig | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -58,20 +59,16 @@ class InlinePreviewBody(BaseModel):
 
 def _error_html(message: str) -> HTMLResponse:
     """Retourne une réponse HTML d'erreur sans passer par le moteur."""
-    from niamoto.gui.api.services.preview_utils import wrap_html_response
-
     return HTMLResponse(
-        content=wrap_html_response(f"<p class='error'>{message}</p>"),
+        content=wrap_html_response(error_html(message)),
         status_code=500,
     )
 
 
-def _build_headers(etag: str, preview_key: str, mode: str) -> dict:
+def _build_headers(etag: str) -> dict:
     return {
         "ETag": f'"{etag}"',
         "Cache-Control": "no-cache",
-        "X-Preview-Key": preview_key,
-        "X-Preview-Mode": mode,
     }
 
 
@@ -84,15 +81,15 @@ def _build_headers(etag: str, preview_key: str, mode: str) -> dict:
 async def get_preview(
     template_id: str,
     request: Request,
-    group_by: Optional[str] = Query(
+    group_by: str | None = Query(
         default=None,
         description="Group by reference (auto-detected if not provided)",
     ),
-    source: Optional[str] = Query(
+    source: str | None = Query(
         default=None,
         description="Data source (entity name like 'plots' for entity data)",
     ),
-    entity_id: Optional[str] = Query(
+    entity_id: str | None = Query(
         default=None,
         description="Specific entity ID to use for preview",
     ),
@@ -111,16 +108,18 @@ async def get_preview(
         mode=mode,
     )
 
-    # ETag 304
+    # Vérifier ETag AVANT le rendu complet pour éviter un render inutile
     if_none_match = request.headers.get("if-none-match") if request else None
-    result = await run_in_threadpool(engine.render, req)
+    if if_none_match:
+        etag = engine._compute_etag(req)
+        if if_none_match.strip('"') == etag:
+            return Response(status_code=304, headers={"ETag": f'"{etag}"'})
 
-    if if_none_match and if_none_match.strip('"') == result.etag:
-        return Response(status_code=304, headers={"ETag": f'"{result.etag}"'})
+    result = await run_in_threadpool(engine.render, req)
 
     return HTMLResponse(
         content=result.html,
-        headers=_build_headers(result.etag, result.preview_key, mode),
+        headers=_build_headers(result.etag),
     )
 
 
@@ -152,7 +151,7 @@ async def post_preview(body: InlinePreviewBody):
     result = await run_in_threadpool(engine.render, req)
     return HTMLResponse(
         content=result.html,
-        headers=_build_headers(result.etag, result.preview_key, body.mode),
+        headers=_build_headers(result.etag),
     )
 
 
@@ -166,9 +165,9 @@ async def post_preview(body: InlinePreviewBody):
 async def legacy_get_preview(
     template_id: str,
     request: Request,
-    group_by: Optional[str] = Query(default=None),
-    source: Optional[str] = Query(default=None),
-    entity_id: Optional[str] = Query(default=None),
+    group_by: str | None = Query(default=None),
+    source: str | None = Query(default=None),
+    entity_id: str | None = Query(default=None),
     mode: PreviewMode = Query(default="full"),
 ):
     """Alias rétrocompatible — délègue à get_preview(). À supprimer en Phase 5."""

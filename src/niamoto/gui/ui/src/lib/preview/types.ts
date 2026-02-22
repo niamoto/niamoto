@@ -39,5 +39,4 @@ export interface PreviewState {
   html: string | null
   loading: boolean
   error: string | null
-  fromCache: boolean
 }

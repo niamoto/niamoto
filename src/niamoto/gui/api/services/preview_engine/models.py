@@ -5,8 +5,8 @@ SYNC: les types TypeScript correspondants sont dans
 src/niamoto/gui/ui/src/lib/preview/types.ts
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Literal, Optional
+from dataclasses import dataclass
+from typing import Any, Literal
 
 PreviewMode = Literal["thumbnail", "full"]
 
@@ -20,12 +20,12 @@ class PreviewRequest:
     - Par inline : configuration directe transformer+widget
     """
 
-    template_id: Optional[str] = None
-    group_by: Optional[str] = None
-    source: Optional[str] = None
-    entity_id: Optional[str] = None
+    template_id: str | None = None
+    group_by: str | None = None
+    source: str | None = None
+    entity_id: str | None = None
     mode: PreviewMode = "full"
-    inline: Optional[Dict[str, Any]] = None
+    inline: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,6 @@
 """Tests pour les modèles du moteur de preview."""
 
 from niamoto.gui.api.services.preview_engine.models import (
-    PreviewMode,
     PreviewRequest,
     PreviewResult,
 )

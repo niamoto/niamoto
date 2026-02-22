@@ -94,9 +94,7 @@ def create_app() -> FastAPI:
     app.include_router(
         transformer_suggestions.router
     )  # Already has /api/transformer-suggestions prefix
-    app.include_router(
-        preview.router, prefix="/api"
-    )  # Unified preview engine (new)
+    app.include_router(preview.router, prefix="/api")  # Unified preview engine (new)
     app.include_router(
         templates.router, prefix="/api"
     )  # Templates API for Smart Setup V2
