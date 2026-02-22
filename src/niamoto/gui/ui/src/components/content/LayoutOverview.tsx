@@ -10,9 +10,12 @@
  * - Click to select widget for details
  * - Save changes to layout API
  */
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { PreviewPane } from '@/components/preview'
+import type { PreviewDescriptor } from '@/lib/preview/types'
+import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 import {
   DndContext,
   closestCenter,
@@ -150,28 +153,23 @@ async function fetchRepresentatives(groupBy: string): Promise<RepresentativesRes
 interface NavigationSidebarProps {
   groupBy: string
   navigationWidget: NavigationWidgetInfo
-  refreshKey?: number
 }
 
-function NavigationSidebar({ groupBy, navigationWidget, refreshKey = 0 }: NavigationSidebarProps) {
+function NavigationSidebar({ groupBy, navigationWidget }: NavigationSidebarProps) {
   const { t } = useTranslation(['widgets', 'common'])
-  const [isLoading, setIsLoading] = useState(true)
-  const [localRefreshKey, setLocalRefreshKey] = useState(0)
-
-  // Combined key for iframe refresh
-  const iframeKey = `${refreshKey}-${localRefreshKey}`
-
-  const handleIframeLoad = useCallback(() => {
-    setIsLoading(false)
-  }, [])
-
-  const handleRefresh = useCallback(() => {
-    setIsLoading(true)
-    setLocalRefreshKey((k) => k + 1)
-  }, [])
+  const queryClient = useQueryClient()
 
   const referential = navigationWidget.params?.referential_data as string || groupBy
-  const previewUrl = `/api/templates/preview/${referential}_hierarchical_nav_widget`
+
+  const descriptor: PreviewDescriptor = useMemo(() => ({
+    templateId: `${referential}_hierarchical_nav_widget`,
+    groupBy,
+    mode: 'full' as const,
+  }), [referential, groupBy])
+
+  const handleRefresh = useCallback(() => {
+    invalidateAllPreviews(queryClient)
+  }, [queryClient])
 
   return (
     <div className="h-full flex flex-col rounded-lg border bg-card overflow-hidden">
@@ -193,31 +191,14 @@ function NavigationSidebar({ groupBy, navigationWidget, refreshKey = 0 }: Naviga
           size="icon"
           className="h-7 w-7 shrink-0"
           onClick={handleRefresh}
-          disabled={isLoading}
         >
-          <RefreshCw
-            className={cn(
-              'h-4 w-4 text-muted-foreground',
-              isLoading && 'animate-spin'
-            )}
-          />
+          <RefreshCw className="h-4 w-4 text-muted-foreground" />
         </Button>
       </div>
 
-      {/* Preview iframe */}
+      {/* Preview */}
       <div className="relative flex-1 min-h-0 bg-background">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
-        <iframe
-          key={iframeKey}
-          src={previewUrl}
-          className="w-full h-full border-0"
-          onLoad={handleIframeLoad}
-          title={navigationWidget.title}
-        />
+        <PreviewPane descriptor={descriptor} className="w-full h-full" />
       </div>
 
       {/* Footer */}
@@ -230,7 +211,7 @@ function NavigationSidebar({ groupBy, navigationWidget, refreshKey = 0 }: Naviga
   )
 }
 
-// Sortable Widget Card with iframe preview and selection
+// Sortable Widget Card with preview and selection
 interface SortableWidgetCardProps {
   id: string
   groupBy: string
@@ -240,7 +221,6 @@ interface SortableWidgetCardProps {
   isDragging: boolean
   onColspanToggle: () => void
   onSelect: () => void
-  refreshKey?: number
 }
 
 function SortableWidgetCard({
@@ -252,44 +232,15 @@ function SortableWidgetCard({
   isDragging,
   onColspanToggle,
   onSelect,
-  refreshKey = 0,
 }: SortableWidgetCardProps) {
   const { t } = useTranslation(['widgets', 'common'])
-  const [isLoading, setIsLoading] = useState(true)
-  const [localRefreshKey, setLocalRefreshKey] = useState(0)
-  const [isVisible, setIsVisible] = useState(false)
-  const cardRef = useRef<HTMLDivElement>(null)
 
-  // Combined key for iframe refresh
-  const iframeKey = `${refreshKey}-${localRefreshKey}`
-
-  // Track previous values to avoid unnecessary reloads
-  const prevColspanRef = useRef(widget.colspan)
-  const prevEntityIdRef = useRef(entityId)
-  const prevShowPreviewRef = useRef(showPreview)
-
-  // Lazy loading: only load preview when card is visible in viewport
-  useEffect(() => {
-    const element = cardRef.current
-    if (!element) return
-
-    const scrollViewport = element.closest('[data-radix-scroll-area-viewport]') as Element | null
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        // Keep iframe mounted only near viewport to prevent dozens of
-        // concurrent Plotly redraw loops while scrolling long layouts.
-        setIsVisible(entry.isIntersecting)
-      },
-      {
-        root: scrollViewport,
-        rootMargin: '120px',
-        threshold: 0.01,
-      }
-    )
-
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
+  const descriptor: PreviewDescriptor = useMemo(() => ({
+    templateId: widget.data_source,
+    groupBy,
+    entityId: entityId || undefined,
+    mode: 'full' as const,
+  }), [widget.data_source, groupBy, entityId])
 
   const {
     attributes,
@@ -304,34 +255,6 @@ function SortableWidgetCard({
     transform: CSS.Transform.toString(transform),
     transition,
   }
-
-  // Handle iframe load
-  const handleIframeLoad = useCallback(() => {
-    setIsLoading(false)
-  }, [])
-
-  // Only reload preview when specific conditions change
-  useEffect(() => {
-    const colspanChanged = prevColspanRef.current !== widget.colspan
-    const entityIdChanged = prevEntityIdRef.current !== entityId
-    const previewTurnedOn = !prevShowPreviewRef.current && showPreview
-
-    // Update refs
-    prevColspanRef.current = widget.colspan
-    prevEntityIdRef.current = entityId
-    prevShowPreviewRef.current = showPreview
-
-    // Only reload if something actually changed that requires reload
-    if (showPreview && (colspanChanged || entityIdChanged || previewTurnedOn)) {
-      setIsLoading(true)
-      setLocalRefreshKey((k) => k + 1)
-    }
-  }, [widget.colspan, entityId, showPreview])
-
-  // Preview URL
-  const previewUrl = entityId
-    ? `/api/layout/${groupBy}/preview/${widget.index}?entity_id=${entityId}`
-    : `/api/layout/${groupBy}/preview/${widget.index}`
 
   // Column span class
   const colSpanClass = widget.colspan === 1 ? 'col-span-6' : 'col-span-12'
@@ -352,20 +275,11 @@ function SortableWidgetCard({
     }
   }
 
-  // Combine refs for both sortable and intersection observer
-  const combinedRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      setNodeRef(node)
-      ;(cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node
-    },
-    [setNodeRef]
-  )
-
-  const shouldRenderIframe = showPreview && !isDragging && isVisible
+  const shouldRenderPreview = showPreview && !isDragging
 
   return (
     <div
-      ref={combinedRef}
+      ref={setNodeRef}
       style={style}
       className={cn(
         colSpanClass,
@@ -416,22 +330,9 @@ function SortableWidgetCard({
         className={cn('relative bg-background cursor-pointer', getHeightClass())}
         onClick={onSelect}
       >
-        {/* Lazy load: only render iframe when card is visible */}
-        {shouldRenderIframe ? (
+        {shouldRenderPreview ? (
           <>
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            <iframe
-              key={iframeKey}
-              src={previewUrl}
-              className="w-full h-full border-0 pointer-events-none"
-              onLoad={handleIframeLoad}
-              title={widget.title}
-              loading="lazy"
-            />
+            <PreviewPane descriptor={descriptor} className="w-full h-full" />
             {/* Selection overlay on hover */}
             <div className="absolute inset-0 bg-primary/0 hover:bg-primary/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
               <div className="bg-background/90 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
@@ -440,11 +341,6 @@ function SortableWidgetCard({
               </div>
             </div>
           </>
-        ) : showPreview && !isDragging && !isVisible ? (
-          /* Keep placeholders cheap while waiting for visibility */
-          <div className="h-full flex items-center justify-center bg-muted/20">
-            <Eye className="h-5 w-5 text-muted-foreground/50" />
-          </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
             <Badge variant="outline" className="text-xs">
@@ -508,7 +404,6 @@ export function LayoutOverview({
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [globalRefreshKey, setGlobalRefreshKey] = useState(0)
 
   // Reset entity selection when group changes
   useEffect(() => {
@@ -529,12 +424,6 @@ export function LayoutOverview({
   // Initialize local widgets from layout data
   useEffect(() => {
     if (layout?.widgets) {
-      // Détecter si l'ordre des widgets a changé pour forcer le refresh des iframes
-      const newIds = layout.widgets.map(w => w.data_source).join(',')
-      const oldIds = localWidgets.map(w => w.data_source).join(',')
-      if (oldIds && newIds !== oldIds) {
-        setGlobalRefreshKey(k => k + 1)
-      }
       setLocalWidgets([...layout.widgets])
       setHasChanges(false)
     }
@@ -744,7 +633,7 @@ export function LayoutOverview({
               size="sm"
               onClick={() => {
                 refetch()
-                setGlobalRefreshKey((k) => k + 1)
+                invalidateAllPreviews(queryClient)
               }}
               disabled={saveMutation.isPending}
             >
@@ -790,7 +679,6 @@ export function LayoutOverview({
             <NavigationSidebar
               groupBy={groupBy}
               navigationWidget={layout.navigation_widget}
-              refreshKey={globalRefreshKey}
             />
           </div>
         )}
@@ -818,7 +706,6 @@ export function LayoutOverview({
                       isDragging={isDragging}
                       onColspanToggle={() => handleColspanToggle(widget.index)}
                       onSelect={() => handleSelectWidget(widget)}
-                      refreshKey={globalRefreshKey}
                     />
                   ))}
                 </div>
