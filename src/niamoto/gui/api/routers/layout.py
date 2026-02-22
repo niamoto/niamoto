@@ -15,9 +15,13 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from niamoto.gui.api.context import get_working_directory
-from niamoto.gui.api.services.preview_utils import wrap_html_response as _wrap_html_response
+from niamoto.gui.api.services.preview_utils import (
+    error_html,
+    wrap_html_response as _wrap_html_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +265,7 @@ async def get_layout(group_by: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error getting layout for group '{group_by}': {e}")
+        logger.exception("Error getting layout for group '%s': %s", group_by, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -334,7 +338,7 @@ async def update_layout(group_by: str, request: LayoutUpdateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error updating layout for group '{group_by}': {e}")
+        logger.exception("Error updating layout for group '%s': %s", group_by, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -355,87 +359,92 @@ async def preview_widget(
     work_dir = get_working_directory()
     if not work_dir:
         return HTMLResponse(
-            content=_wrap_html_response(
-                "<p class='error'>Working directory not configured</p>"
-            ),
+            content=_wrap_html_response(error_html("Working directory not configured")),
             status_code=500,
         )
 
     work_dir = Path(work_dir)
 
     try:
-        export_config = _load_export_config(work_dir)
-        group_config = _find_group_config(export_config, group_by)
-
-        if not group_config:
-            return HTMLResponse(
-                content=_wrap_html_response(
-                    f"<p class='error'>Group '{group_by}' not found</p>"
-                ),
-                status_code=404,
-            )
-
-        widgets = group_config.get("widgets", [])
-
-        if widget_index < 0 or widget_index >= len(widgets):
-            return HTMLResponse(
-                content=_wrap_html_response(
-                    f"<p class='error'>Widget index {widget_index} out of range</p>"
-                ),
-                status_code=404,
-            )
-
-        widget_config = widgets[widget_index]
-        plugin_name = widget_config.get("plugin", "")
-        data_source = widget_config.get("data_source", "")
-        params = widget_config.get("params", {})
-
-        # Résoudre le template_id pour le moteur de preview
-        # Navigation widget : utiliser le format convention reconnu par le engine
-        if plugin_name == "hierarchical_nav_widget":
-            referential = params.get("referential_data", group_by)
-            template_id = f"{referential}_hierarchical_nav_widget"
-        else:
-            template_id = data_source
-
-        # Déléguer au moteur de preview unifié
-        from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
-        from niamoto.gui.api.services.preview_engine.models import PreviewRequest
-        from starlette.concurrency import run_in_threadpool
-
-        engine = get_preview_engine()
-        if engine is None:
-            return HTMLResponse(
-                content=_wrap_html_response(
-                    "<p class='error'>Projet Niamoto non configuré</p>"
-                ),
-                status_code=500,
-            )
-
-        req = PreviewRequest(
-            template_id=template_id,
-            group_by=group_by,
-            entity_id=entity_id,
-            mode="full",
+        result = await run_in_threadpool(
+            _preview_widget_sync, work_dir, group_by, widget_index, entity_id
         )
-        result = await run_in_threadpool(engine.render, req)
-        return HTMLResponse(
-            content=result.html,
-            headers={
-                "ETag": f'"{result.etag}"',
-                "Cache-Control": "no-cache",
-                "X-Preview-Key": result.preview_key,
-            },
-        )
+        return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error previewing widget: {e}")
+        logger.exception("Error previewing widget: %s", e)
         return HTMLResponse(
-            content=_wrap_html_response(f"<p class='error'>Erreur: {str(e)}</p>"),
+            content=_wrap_html_response(error_html(str(e))),
             status_code=500,
         )
+
+
+def _preview_widget_sync(
+    work_dir: Path,
+    group_by: str,
+    widget_index: int,
+    entity_id: Optional[str],
+) -> HTMLResponse:
+    """Logique synchrone de preview widget, exécutée dans un threadpool."""
+    export_config = _load_export_config(work_dir)
+    group_config = _find_group_config(export_config, group_by)
+
+    if not group_config:
+        return HTMLResponse(
+            content=_wrap_html_response(error_html(f"Group '{group_by}' not found")),
+            status_code=404,
+        )
+
+    widgets = group_config.get("widgets", [])
+
+    if widget_index < 0 or widget_index >= len(widgets):
+        return HTMLResponse(
+            content=_wrap_html_response(
+                error_html(f"Widget index {widget_index} out of range")
+            ),
+            status_code=404,
+        )
+
+    widget_config = widgets[widget_index]
+    plugin_name = widget_config.get("plugin", "")
+    data_source = widget_config.get("data_source", "")
+    params = widget_config.get("params", {})
+
+    # Résoudre le template_id pour le moteur de preview
+    # Navigation widget : utiliser le format convention reconnu par le engine
+    if plugin_name == "hierarchical_nav_widget":
+        referential = params.get("referential_data", group_by)
+        template_id = f"{referential}_hierarchical_nav_widget"
+    else:
+        template_id = data_source
+
+    # Déléguer au moteur de preview unifié
+    from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
+    from niamoto.gui.api.services.preview_engine.models import PreviewRequest
+
+    engine = get_preview_engine()
+    if engine is None:
+        return HTMLResponse(
+            content=_wrap_html_response(error_html("Projet Niamoto non configuré")),
+            status_code=500,
+        )
+
+    req = PreviewRequest(
+        template_id=template_id,
+        group_by=group_by,
+        entity_id=entity_id,
+        mode="full",
+    )
+    result = engine.render(req)
+    return HTMLResponse(
+        content=result.html,
+        headers={
+            "ETag": f'"{result.etag}"',
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 @router.get("/{group_by}/groups")
@@ -478,7 +487,7 @@ async def list_available_groups():
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error listing groups: {e}")
+        logger.exception("Error listing groups: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -548,61 +557,102 @@ async def get_representatives(
 
         entities = []
 
-        # Build query based on group_by type
-        if group_by == "taxons" and has_occurrences:
-            # For hierarchical taxons, get top entities per rank level
-            # Different join strategies based on rank:
-            # - family/genus: join via rank_value matching the column in occurrences
-            # - species/subspecies: join via taxons_id -> id_taxonref
+        # TODO: GENERICITY — cette branche hardcode les colonnes taxon
+        # (rank_name, rank_value, full_name, id_taxonref, taxons_id) et les
+        # valeurs de rang ("family", "genus"). A généraliser via EntityRegistry
+        # et la configuration d'import pour supporter n'importe quelle
+        # hiérarchie taxonomique ou référentiel hiérarchique.
 
-            # First, get the distinct rank names
+        # Colonnes spécifiques au référentiel taxon (à terme, lire depuis
+        # le schéma d'import ou EntityRegistry)
+        _TAXON_RANK_COL = "rank_name"
+        _TAXON_RANK_VALUE_COL = "rank_value"
+        _TAXON_NAME_COL = "full_name"
+        _TAXON_LEVEL_COL = "level"
+        _TAXON_FK_COL = "taxons_id"
+        _TAXON_OCC_FK_COL = "id_taxonref"
+        # Rangs joignables par colonne homonyme dans les occurrences
+        _TAXON_COLUMN_JOIN_RANKS = ("family", "genus")
+
+        # Détection de la présence de colonnes hiérarchiques pour décider
+        # de la stratégie de requête (au lieu de tester group_by == "taxons")
+        has_hierarchy = False
+        if has_occurrences:
+            try:
+                check_cols = pd.read_sql(
+                    text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
+                )
+                entity_columns = check_cols.columns.tolist()
+                has_hierarchy = (
+                    _TAXON_RANK_COL in entity_columns
+                    and _TAXON_LEVEL_COL in entity_columns
+                    and _TAXON_NAME_COL in entity_columns
+                )
+            except Exception:
+                pass
+
+        # Build query based on group_by type
+        if has_hierarchy and has_occurrences:
+            # Référentiel hiérarchique avec rangs (ex : taxons)
+            # Récupère les entités les plus représentées par niveau de rang
+
+            # Récupérer les rangs distincts
             ranks_query = text(f"""
-                SELECT DISTINCT rank_name, level
+                SELECT DISTINCT {quote_identifier(db, _TAXON_RANK_COL)},
+                       {quote_identifier(db, _TAXON_LEVEL_COL)}
                 FROM {quoted_entity_table}
-                WHERE rank_name IS NOT NULL
-                ORDER BY level
+                WHERE {quote_identifier(db, _TAXON_RANK_COL)} IS NOT NULL
+                ORDER BY {quote_identifier(db, _TAXON_LEVEL_COL)}
             """)
             ranks_result = pd.read_sql(ranks_query, db.engine)
-            ranks = ranks_result["rank_name"].tolist()
+            ranks = ranks_result[_TAXON_RANK_COL].tolist()
 
-            # Get top entities per rank level (distribute limit across ranks)
+            # Distribuer la limite entre les rangs
             per_rank_limit = max(2, limit // max(len(ranks), 1))
 
+            quoted_name_col = quote_identifier(db, _TAXON_NAME_COL)
+            quoted_rank_col = quote_identifier(db, _TAXON_RANK_COL)
+
             for rank in ranks:
-                # For family and genus, join via rank_value column
-                if rank in ("family", "genus"):
+                # Pour les rangs qui ont une colonne homonyme dans les
+                # occurrences (family, genus), joindre via rank_value
+                if rank in _TAXON_COLUMN_JOIN_RANKS:
                     quoted_occurrences_table = quote_identifier(db, occurrences_table)
                     quoted_rank = quote_identifier(db, rank)
+                    quoted_rank_value = quote_identifier(db, _TAXON_RANK_VALUE_COL)
                     query = f"""
                         SELECT
                             e.id as id,
-                            e.full_name as name,
-                            e.rank_name as rank,
+                            e.{quoted_name_col} as name,
+                            e.{quoted_rank_col} as rank,
                             COUNT(o.id) as count
                         FROM {quoted_entity_table} e
-                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_rank} = e.rank_value
-                        WHERE e.full_name IS NOT NULL AND e.full_name != ''
-                          AND e.rank_name = '{rank}'
-                        GROUP BY e.id, e.full_name, e.rank_name
+                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_rank} = e.{quoted_rank_value}
+                        WHERE e.{quoted_name_col} IS NOT NULL AND e.{quoted_name_col} != ''
+                          AND e.{quoted_rank_col} = '{rank}'
+                        GROUP BY e.id, e.{quoted_name_col}, e.{quoted_rank_col}
                         HAVING count > 0
                         ORDER BY count DESC
                         LIMIT {per_rank_limit}
                     """
                 else:
-                    # For species/subspecies, join via taxons_id
+                    # Pour les rangs terminaux (espèce, sous-espèce),
+                    # joindre via la clé étrangère taxons_id -> id_taxonref
                     quoted_occurrences_table = quote_identifier(db, occurrences_table)
+                    quoted_fk = quote_identifier(db, _TAXON_FK_COL)
+                    quoted_occ_fk = quote_identifier(db, _TAXON_OCC_FK_COL)
                     query = f"""
                         SELECT
                             e.id as id,
-                            e.full_name as name,
-                            e.rank_name as rank,
+                            e.{quoted_name_col} as name,
+                            e.{quoted_rank_col} as rank,
                             COUNT(o.id) as count
                         FROM {quoted_entity_table} e
-                        LEFT JOIN {quoted_occurrences_table} o ON o.id_taxonref = e.taxons_id
-                        WHERE e.full_name IS NOT NULL AND e.full_name != ''
-                          AND e.rank_name = '{rank}'
-                          AND e.taxons_id IS NOT NULL
-                        GROUP BY e.id, e.full_name, e.rank_name
+                        LEFT JOIN {quoted_occurrences_table} o ON o.{quoted_occ_fk} = e.{quoted_fk}
+                        WHERE e.{quoted_name_col} IS NOT NULL AND e.{quoted_name_col} != ''
+                          AND e.{quoted_rank_col} = '{rank}'
+                          AND e.{quoted_fk} IS NOT NULL
+                        GROUP BY e.id, e.{quoted_name_col}, e.{quoted_rank_col}
                         HAVING count > 0
                         ORDER BY count DESC
                         LIMIT {per_rank_limit}
@@ -611,7 +661,7 @@ async def get_representatives(
                 result = pd.read_sql(query, db.engine)
 
                 for _, row in result.iterrows():
-                    # Include rank in display name for clarity
+                    # Inclure le rang dans le nom affiché pour plus de clarté
                     display_name = f"[{row['rank'].capitalize()}] {row['name']}"
                     entities.append(
                         RepresentativeEntity(
@@ -687,7 +737,7 @@ async def get_representatives(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error getting representatives for '{group_by}': {e}")
+        logger.exception("Error getting representatives for '%s': %s", group_by, e)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close_db_session()

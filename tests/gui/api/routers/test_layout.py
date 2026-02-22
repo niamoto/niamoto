@@ -26,7 +26,8 @@ class TestLayoutPreviewDelegation:
         """Vérifie que preview_widget utilise get_preview_engine au lieu de templates.py."""
         from niamoto.gui.api.routers import layout
 
-        source_code = inspect.getsource(layout.preview_widget)
+        # La logique sync est extraite dans _preview_widget_sync
+        source_code = inspect.getsource(layout._preview_widget_sync)
 
         # Doit utiliser le moteur de preview unifié
         assert "get_preview_engine" in source_code, (
@@ -37,15 +38,17 @@ class TestLayoutPreviewDelegation:
         )
 
         # Ne doit plus appeler templates.preview_template directement
-        assert "from niamoto.gui.api.routers.templates import preview_template" not in source_code, (
-            "preview_widget ne doit plus importer preview_template de templates.py"
-        )
+        assert (
+            "from niamoto.gui.api.routers.templates import preview_template"
+            not in source_code
+        ), "preview_widget ne doit plus importer preview_template de templates.py"
 
     def test_layout_handles_navigation_widget(self):
         """Vérifie que les navigation widgets sont résolus en template_id convention."""
         from niamoto.gui.api.routers import layout
 
-        source_code = inspect.getsource(layout.preview_widget)
+        # La logique sync est extraite dans _preview_widget_sync
+        source_code = inspect.getsource(layout._preview_widget_sync)
 
         # Le convention pour les navigation widgets est _hierarchical_nav_widget
         assert "hierarchical_nav_widget" in source_code, (

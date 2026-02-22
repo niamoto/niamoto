@@ -109,6 +109,8 @@ export function PreviewFrame({
   // Listen for messages from iframe (link clicks)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Accepter uniquement les messages de notre origine ou des iframes srcDoc (origin null)
+      if (event.origin !== window.location.origin && event.origin !== 'null') return
       if (event.data?.type === 'preview-link-click' && event.data?.href) {
         onLinkClick?.(event.data.href)
       }
@@ -209,7 +211,7 @@ export function PreviewFrame({
                 srcDoc={html}
                 className="w-full h-full border-0"
                 title="Preview"
-                sandbox="allow-same-origin allow-scripts"
+                sandbox="allow-scripts"
               />
             </div>
           </div>

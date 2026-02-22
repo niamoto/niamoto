@@ -6,7 +6,7 @@ Three bundle tiers:
 - ``"none"``  — no Plotly at all (info_grid, hierarchical_nav, etc.)
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 BundleTier = Literal["core", "maps", "none"]
 
@@ -14,13 +14,15 @@ BundleTier = Literal["core", "maps", "none"]
 MAP_WIDGET_PLUGINS: frozenset[str] = frozenset({"interactive_map"})
 
 # Widget plugins that need no Plotly at all.
-NO_PLOTLY_PLUGINS: frozenset[str] = frozenset({
-    "info_grid",
-    "hierarchical_nav_widget",
-    "table_view",
-    "raw_data_widget",
-    "summary_stats",
-})
+NO_PLOTLY_PLUGINS: frozenset[str] = frozenset(
+    {
+        "info_grid",
+        "hierarchical_nav_widget",
+        "table_view",
+        "raw_data_widget",
+        "summary_stats",
+    }
+)
 
 # Template ID suffixes that imply a map widget.
 MAP_TEMPLATE_SUFFIXES = ("_entity_map", "_all_map")
@@ -33,8 +35,8 @@ _BUNDLE_PATHS: dict[BundleTier, str] = {
 
 
 def resolve_bundle(
-    widget_plugin: Optional[str] = None,
-    template_id: Optional[str] = None,
+    widget_plugin: str | None = None,
+    template_id: str | None = None,
 ) -> BundleTier:
     """Determine the lightest Plotly bundle sufficient for a given widget.
 
@@ -67,4 +69,9 @@ def get_plotly_script_tag(bundle: BundleTier) -> str:
     path = _BUNDLE_PATHS.get(bundle)
     if not path:
         return ""
-    return f'    <script src="{path}"></script>'
+    # Polyfill `global` — le bundle custom esbuild référence `global`
+    # qui n'existe pas dans les navigateurs (seulement Node.js).
+    return (
+        "    <script>var global = globalThis;</script>\n"
+        f'    <script src="{path}"></script>'
+    )

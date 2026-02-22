@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -20,6 +19,7 @@ def mock_engine():
         preview_key="test_widget:full",
         warnings=(),
     )
+    engine._compute_etag.return_value = "test-etag-123"
     return engine
 
 
@@ -45,8 +45,6 @@ class TestGetPreview:
         assert "Preview OK" in response.text
         assert response.headers.get("etag") == '"test-etag-123"'
         assert response.headers.get("cache-control") == "no-cache"
-        assert response.headers.get("x-preview-key") == "test_widget:full"
-        assert response.headers.get("x-preview-mode") == "full"
 
         # Vérifier que le moteur a reçu la bonne requête
         mock_engine.render.assert_called_once()

@@ -7,8 +7,6 @@ C'est le point de défaillance récurrent #1 du preview engine : le widget deman
 qui n'existe pas dans la sortie du transformer → "Input dict structure not recognized".
 """
 
-import pytest
-
 from niamoto.gui.api.services.templates.utils.class_object_rendering import (
     _build_widget_params_for_configured,
     _execute_configured_transformer,
@@ -98,7 +96,10 @@ class TestSeriesExtractorBarPlotCoherence:
             self.TRANSFORMER, self._transformer_params(), FAMILY_CSV_DATA, "plots"
         )
         params = _build_widget_params_for_configured(
-            self.TRANSFORMER, self.WIDGET, result, "Title",
+            self.TRANSFORMER,
+            self.WIDGET,
+            result,
+            "Title",
             extra_params={"x_axis": "counts", "y_axis": "tops", "orientation": "h"},
         )
         assert params["x_axis"] == "counts"
@@ -127,7 +128,12 @@ class TestCategoriesExtractorBarPlotCoherence:
     WIDGET = "bar_plot"
 
     def test_axes_match_data_keys(self):
-        co_data = {"strata": {"tops": ["Canopy", "Understory", "Emergent"], "counts": [300, 150, 50]}}
+        co_data = {
+            "strata": {
+                "tops": ["Canopy", "Understory", "Emergent"],
+                "counts": [300, 150, 50],
+            }
+        }
         result = _execute_configured_transformer(
             self.TRANSFORMER,
             {"class_object": "strata"},

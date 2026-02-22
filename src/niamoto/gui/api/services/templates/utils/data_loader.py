@@ -263,10 +263,7 @@ def load_class_object_data_for_preview(
                     # Handle them explicitly to avoid empty outputs that lead
                     # to blank gauge previews.
                     class_names = (
-                        normalized["class_name"]
-                        .fillna("")
-                        .astype(str)
-                        .str.strip()
+                        normalized["class_name"].fillna("").astype(str).str.strip()
                     )
                     has_named_classes = (class_names != "").any()
 

@@ -69,10 +69,12 @@ def bench_post_preview(
     """Benchmark POST /api/preview (inline mode). Retourne le temps en ms."""
     payload = {
         "group_by": group_by,
-        "transformer_plugin": "occurrence_count",
-        "transformer_params": {},
-        "widget_plugin": "bar_plot",
-        "widget_title": "Benchmark test",
+        "inline": {
+            "transformer_plugin": "occurrence_count",
+            "transformer_params": {},
+            "widget_plugin": "bar_plot",
+            "widget_title": "Benchmark test",
+        },
     }
     start = time.perf_counter()
     resp = client.post(f"{base_url}/api/preview", json=payload, timeout=30)
@@ -117,20 +119,26 @@ def print_stats(label: str, times: list[float]) -> None:
 
     # Vérification critère plan : P95 < 1500ms
     if p95 < 1500:
-        print(f"    ✓ P95 < 1500ms (critère plan respecté)")
+        print("    ✓ P95 < 1500ms (critère plan respecté)")
     else:
-        print(f"    ✗ P95 ≥ 1500ms (critère plan NON respecté)")
+        print("    ✗ P95 ≥ 1500ms (critère plan NON respecté)")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark preview engine")
-    parser.add_argument("--base-url", default="http://localhost:8000", help="URL de base de l'API")
-    parser.add_argument("--iterations", type=int, default=20, help="Nombre d'itérations par template")
+    parser.add_argument(
+        "--base-url", default="http://localhost:8000", help="URL de base de l'API"
+    )
+    parser.add_argument(
+        "--iterations", type=int, default=20, help="Nombre d'itérations par template"
+    )
     parser.add_argument("--group-by", default="taxon", help="Groupe de référence")
-    parser.add_argument("--warmup", type=int, default=2, help="Itérations de warmup (non comptées)")
+    parser.add_argument(
+        "--warmup", type=int, default=2, help="Itérations de warmup (non comptées)"
+    )
     args = parser.parse_args()
 
-    print(f"=== Benchmark Preview Engine ===")
+    print("=== Benchmark Preview Engine ===")
     print(f"Base URL    : {args.base_url}")
     print(f"Group by    : {args.group_by}")
     print(f"Itérations  : {args.iterations} (+{args.warmup} warmup)")
@@ -140,10 +148,15 @@ def main() -> None:
     print("Découverte des templates...")
     template_ids = fetch_template_ids(args.base_url)
     if not template_ids:
-        print("Aucun template trouvé. Vérifiez que le serveur est démarré.", file=sys.stderr)
+        print(
+            "Aucun template trouvé. Vérifiez que le serveur est démarré.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    print(f"  {len(template_ids)} templates trouvés : {', '.join(template_ids[:5])}{'...' if len(template_ids) > 5 else ''}")
+    print(
+        f"  {len(template_ids)} templates trouvés : {', '.join(template_ids[:5])}{'...' if len(template_ids) > 5 else ''}"
+    )
     print()
 
     all_get_times: list[float] = []
