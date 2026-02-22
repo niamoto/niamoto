@@ -32,10 +32,14 @@ from niamoto.gui.api.services.preview_engine.models import (
     PreviewResult,
 )
 from niamoto.gui.api.services.preview_engine.plotly_bundle_resolver import (
-    get_plotly_script_tag,
     resolve_bundle,
 )
-from niamoto.gui.api.services.preview_utils import execute_transformer, render_widget
+from niamoto.gui.api.services.preview_utils import (
+    error_html,
+    execute_transformer,
+    render_widget,
+    wrap_html_response,
+)
 from niamoto.gui.api.services.templates.utils.config_loader import (
     get_hierarchy_info,
     load_import_config,
@@ -129,7 +133,9 @@ class PreviewEngine:
             reference = template_id.replace("_hierarchical_nav_widget", "")
             widget_html = self._render_navigation(reference, warnings)
             return self._build_result(
-                request, widget_html, warnings,
+                request,
+                widget_html,
+                warnings,
                 widget_plugin="hierarchical_nav_widget",
             )
 
@@ -144,7 +150,10 @@ class PreviewEngine:
                 reference, request.entity_id, warnings
             )
             return self._build_result(
-                request, widget_html, warnings, widget_plugin="info_grid",
+                request,
+                widget_html,
+                warnings,
+                widget_plugin="info_grid",
             )
 
         # --- Branche 3 : Entity map ---
@@ -153,7 +162,9 @@ class PreviewEngine:
                 template_id, request.entity_id, warnings
             )
             return self._build_result(
-                request, widget_html, warnings,
+                request,
+                widget_html,
+                warnings,
                 widget_plugin="interactive_map",
             )
 
@@ -194,14 +205,13 @@ class PreviewEngine:
     def _error_result(
         self, request: PreviewRequest, message: str, warnings: List[str]
     ) -> PreviewResult:
-        error_html = f"<p class='error'>{html_module.escape(message)}</p>"
-        return self._build_result(request, error_html, warnings)
+        return self._build_result(request, error_html(message), warnings)
 
     def _info_html(self, message: str) -> str:
         return f"<p class='info'>{html_module.escape(message)}</p>"
 
     def _error_html(self, message: str) -> str:
-        return f"<p class='error'>{html_module.escape(message)}</p>"
+        return error_html(message)
 
     # ------------------------------------------------------------------
     # ETag / fingerprint
@@ -236,63 +246,18 @@ class PreviewEngine:
         bundle: str = "core",
     ) -> str:
         """Document HTML complet pour injection dans un iframe via srcDoc."""
-        plotly_script = get_plotly_script_tag(bundle)
-        static_plot_js = ""
-        if mode == "thumbnail":
-            static_plot_js = """
-    <script>
-        // Mode thumbnail : désactiver l'interactivité Plotly
-        window.__NIAMOTO_THUMBNAIL__ = true;
-    </script>"""
-
-        return f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Preview</title>
-    <style>
-        html, body {{
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, sans-serif;
-            background: transparent;
-        }}
-        .plotly-graph-div {{
-            width: 100% !important;
-            height: 100% !important;
-        }}
-        .error {{
-            color: #ef4444;
-            padding: 1rem;
-            text-align: center;
-        }}
-        .info {{
-            color: #6b7280;
-            padding: 1rem;
-            text-align: center;
-        }}
-    </style>
-    <script>
-        window.__NIAMOTO_PREVIEW__ = true;
-    </script>{static_plot_js}
-{plotly_script}
-</head>
-<body>
-{content}
-</body>
-</html>"""
+        return wrap_html_response(
+            content,
+            title="Preview",
+            plotly_bundle=bundle,
+            thumbnail=(mode == "thumbnail"),
+        )
 
     # ------------------------------------------------------------------
     # Branche INLINE (POST)
     # ------------------------------------------------------------------
 
-    def _render_inline(
-        self, request: PreviewRequest, warnings: List[str]
-    ) -> str:
+    def _render_inline(self, request: PreviewRequest, warnings: List[str]) -> str:
         inline = request.inline
         if not inline:
             return self._info_html("Configuration inline manquante")
@@ -331,9 +296,7 @@ class PreviewEngine:
             if not result:
                 return self._info_html("Le transformer n'a pas retourné de données")
 
-            return render_widget(
-                db, widget_plugin, result, widget_params, widget_title
-            )
+            return render_widget(db, widget_plugin, result, widget_params, widget_title)
         except Exception as e:
             logger.exception("Erreur preview inline: %s", e)
             return self._error_html(str(e))
@@ -345,9 +308,7 @@ class PreviewEngine:
     # Branche NAVIGATION
     # ------------------------------------------------------------------
 
-    def _render_navigation(
-        self, reference_name: str, warnings: List[str]
-    ) -> str:
+    def _render_navigation(self, reference_name: str, warnings: List[str]) -> str:
         db = self._open_db()
         if not db:
             return self._info_html("Base de données non configurée")
@@ -393,36 +354,30 @@ class PreviewEngine:
             ]
             id_field = next((c for c in id_candidates if c in columns), None)
             if not id_field:
-                id_field = next(
-                    (c for c in columns if "id" in c.lower()), "id"
-                )
+                id_field = next((c for c in columns if "id" in c.lower()), "id")
 
             # Champ nom
             name_candidates = ["full_name", "name", "plot", "label", "title"]
-            name_field = next(
-                (c for c in name_candidates if c in columns), id_field
-            )
+            name_field = next((c for c in name_candidates if c in columns), id_field)
 
             # Requête sample
             if is_hierarchical and has_nested_set:
                 query = text(
                     f"SELECT {safe_sql} FROM {quoted} "
-                    f'WHERE {quote_identifier(db, "level")} <= 3 '
-                    f'ORDER BY {quote_identifier(db, "lft")} LIMIT 50'
+                    f"WHERE {quote_identifier(db, 'level')} <= 3 "
+                    f"ORDER BY {quote_identifier(db, 'lft')} LIMIT 50"
                 )
             elif is_hierarchical and has_parent:
                 query = text(
                     f"SELECT {safe_sql} FROM {quoted} "
-                    f'WHERE {quote_identifier(db, "level")} <= 3 LIMIT 50'
+                    f"WHERE {quote_identifier(db, 'level')} <= 3 LIMIT 50"
                 )
             else:
                 query = text(f"SELECT {safe_sql} FROM {quoted} LIMIT 30")
 
             df = pd.read_sql(query, db.engine)
             if df.empty:
-                return self._info_html(
-                    f"Aucune donnée dans '{reference_name}'"
-                )
+                return self._info_html(f"Aucune donnée dans '{reference_name}'")
 
             # Rendu via le plugin widget
             try:
@@ -451,9 +406,7 @@ class PreviewEngine:
 
                 return plugin_instance.render(data, widget_params)
             except Exception as e:
-                logger.warning(
-                    "Plugin hierarchical_nav_widget indisponible: %s", e
-                )
+                logger.warning("Plugin hierarchical_nav_widget indisponible: %s", e)
                 return self._render_navigation_fallback(
                     df, reference_name, id_field, name_field, is_hierarchical
                 )
@@ -504,9 +457,7 @@ class PreviewEngine:
 
             suggestion = generate_general_info_suggestion(reference_name)
             if not suggestion:
-                return self._info_html(
-                    f"Aucun champ détecté pour '{reference_name}'"
-                )
+                return self._info_html(f"Aucun champ détecté pour '{reference_name}'")
 
             field_configs = suggestion["config"]["fields"]
 
@@ -523,9 +474,7 @@ class PreviewEngine:
                         ref_table = alt
                         break
                 else:
-                    return self._info_html(
-                        f"Table '{reference_name}' non trouvée"
-                    )
+                    return self._info_html(f"Table '{reference_name}' non trouvée")
 
             preparer = inspect(db.engine).dialect.identifier_preparer
             quoted_table = preparer.quote(ref_table)
@@ -549,9 +498,7 @@ class PreviewEngine:
                 f"id_{reference_name}",
                 f"{reference_name}_id",
             ]
-            id_field = next(
-                (c for c in id_candidates if c in col_names), None
-            )
+            id_field = next((c for c in id_candidates if c in col_names), None)
             if not id_field:
                 id_field = next(
                     (c for c in col_names if c == "id" or c.endswith("_id")),
@@ -573,9 +520,7 @@ class PreviewEngine:
                 )
 
             if sample_df.empty:
-                return self._info_html(
-                    f"Aucune donnée dans '{reference_name}'"
-                )
+                return self._info_html(f"Aucune donnée dans '{reference_name}'")
 
             row = sample_df.iloc[0]
 
@@ -592,26 +537,24 @@ class PreviewEngine:
                 elif hasattr(value, "item"):
                     value = value.item()
 
-                items.append({
-                    "label": label,
-                    "value": value,
-                    "units": units,
-                })
+                items.append(
+                    {
+                        "label": label,
+                        "value": value,
+                        "units": units,
+                    }
+                )
 
             # Rendre via info_grid
             try:
-                plugin_class = PluginRegistry.get_plugin(
-                    "info_grid", PluginType.WIDGET
-                )
+                plugin_class = PluginRegistry.get_plugin("info_grid", PluginType.WIDGET)
                 plugin_instance = plugin_class(db=db)
                 widget_data = {
                     field_cfg.get("target", field_cfg.get("field", f"field_{i}")): {
                         "value": item["value"],
                         "units": item.get("units", ""),
                     }
-                    for i, (field_cfg, item) in enumerate(
-                        zip(field_configs, items)
-                    )
+                    for i, (field_cfg, item) in enumerate(zip(field_configs, items))
                 }
                 widget_params = {
                     "title": f"Informations - {reference_name.title()}",
@@ -674,24 +617,18 @@ class PreviewEngine:
                 mode = "all"
                 prefix = template_id[:-8]
             else:
-                return self._error_html(
-                    f"Format entity map invalide: {template_id}"
-                )
+                return self._error_html(f"Format entity map invalide: {template_id}")
 
             parts = prefix.split("_")
             if len(parts) < 2:
-                return self._error_html(
-                    f"Impossible de parser: {template_id}"
-                )
+                return self._error_html(f"Impossible de parser: {template_id}")
 
             reference = parts[0]
             geom_col = "_".join(parts[1:])
 
             entity_table = resolve_reference_table(db, reference)
             if not entity_table:
-                return self._info_html(
-                    f"Table '{reference}' non trouvée"
-                )
+                return self._info_html(f"Table '{reference}' non trouvée")
 
             # Vérifier que la colonne géométrie existe
             preparer = inspect(db.engine).dialect.identifier_preparer
@@ -714,9 +651,7 @@ class PreviewEngine:
                         break
 
             if not actual_geom_col:
-                return self._info_html(
-                    f"Colonne géométrique '{geom_col}' non trouvée"
-                )
+                return self._info_html(f"Colonne géométrique '{geom_col}' non trouvée")
 
             # Charger les données
             try:
@@ -744,9 +679,7 @@ class PreviewEngine:
     # Branche STANDARD (configured / dynamic / class_object / occurrence)
     # ------------------------------------------------------------------
 
-    def _render_standard(
-        self, request: PreviewRequest, warnings: List[str]
-    ) -> str:
+    def _render_standard(self, request: PreviewRequest, warnings: List[str]) -> str:
         """Gère les cas 4-7 : configured widget, dynamic, class_object, occurrence."""
         template_id = request.template_id
         group_by = request.group_by
@@ -768,9 +701,7 @@ class PreviewEngine:
         # Parser le template_id dynamique
         parsed = parse_dynamic_template_id(template_id)
         if not parsed:
-            return self._error_html(
-                f"Format de template_id invalide: '{template_id}'"
-            )
+            return self._error_html(f"Format de template_id invalide: '{template_id}'")
 
         # Vérifier si la source est dans transform.yml
         effective_source = source
@@ -779,9 +710,9 @@ class PreviewEngine:
             if cfg_group:
                 configured = load_configured_widget(template_id, cfg_group)
                 if configured:
-                    cfg_source = (
-                        configured.get("transformer_params") or {}
-                    ).get("source")
+                    cfg_source = (configured.get("transformer_params") or {}).get(
+                        "source"
+                    )
                     if (
                         cfg_source
                         and cfg_source != "occurrences"
@@ -794,9 +725,7 @@ class PreviewEngine:
         # Charger les params widget depuis export.yml
         export_params = None
         if group_by:
-            export_params = load_widget_params_from_export(
-                template_id, group_by
-            )
+            export_params = load_widget_params_from_export(template_id, group_by)
 
         column = parsed["column"]
         transformer = parsed["transformer"]
@@ -812,14 +741,26 @@ class PreviewEngine:
         # --- Entity table (non-occurrence) ---
         if data_source != "occurrences":
             return self._render_entity_source(
-                data_source, column, transformer, widget_plugin,
-                group_by, entity_id, export_params, warnings,
+                data_source,
+                column,
+                transformer,
+                widget_plugin,
+                group_by,
+                entity_id,
+                export_params,
+                warnings,
             )
 
         # --- Occurrence (standard) ---
         return self._render_occurrence(
-            column, transformer, widget_plugin, data_source,
-            group_by, entity_id, export_params, warnings,
+            column,
+            transformer,
+            widget_plugin,
+            data_source,
+            group_by,
+            entity_id,
+            export_params,
+            warnings,
         )
 
     # ------------------------------------------------------------------
@@ -843,17 +784,20 @@ class PreviewEngine:
         try:
             PluginRegistry.get_plugin(widget_plugin, PluginType.WIDGET)
         except Exception:
-            return self._error_html(
-                f"Plugin widget '{widget_plugin}' non trouvé"
-            )
+            return self._error_html(f"Plugin widget '{widget_plugin}' non trouvé")
 
         db = self._open_db()
         try:
             if transformer_plugin.startswith("class_object_"):
                 return self._render_configured_class_object(
-                    db, transformer_plugin, transformer_params,
-                    widget_plugin, widget_params, widget_title,
-                    group_by, warnings,
+                    db,
+                    transformer_plugin,
+                    transformer_params,
+                    widget_plugin,
+                    widget_params,
+                    widget_title,
+                    group_by,
+                    warnings,
                 )
 
             # Flow standard (occurrence ou entity)
@@ -882,23 +826,15 @@ class PreviewEngine:
                 if where_clauses:
                     query += f" WHERE {' AND '.join(where_clauses)}"
                 query += " LIMIT 1"
-                sample_data = pd.read_sql(
-                    text(query), db.engine, params=params or None
-                )
+                sample_data = pd.read_sql(text(query), db.engine, params=params or None)
             else:
                 import_config = load_import_config(self._work_dir)
                 hierarchy_info = get_hierarchy_info(import_config, group_by)
                 if entity_id:
-                    representative = find_entity_by_id(
-                        db, hierarchy_info, entity_id
-                    )
+                    representative = find_entity_by_id(db, hierarchy_info, entity_id)
                 else:
-                    representative = find_representative_entity(
-                        db, hierarchy_info
-                    )
-                sample_data = load_sample_data(
-                    db, representative, transformer_params
-                )
+                    representative = find_representative_entity(db, hierarchy_info)
+                sample_data = load_sample_data(db, representative, transformer_params)
 
             if sample_data.empty:
                 return self._info_html("Pas de données disponibles")
@@ -942,9 +878,7 @@ class PreviewEngine:
             result = transformer_inst.transform(transform_input, transform_config)
 
             # Rendu widget
-            return render_widget(
-                db, widget_plugin, result, widget_params, widget_title
-            )
+            return render_widget(db, widget_plugin, result, widget_params, widget_title)
 
         except Exception as e:
             logger.exception("Erreur preview configured widget: %s", e)
@@ -977,9 +911,7 @@ class PreviewEngine:
 
         co_data = {}
         for co_name in class_objects:
-            data = load_class_object_data_for_preview(
-                self._work_dir, co_name, group_by
-            )
+            data = load_class_object_data_for_preview(self._work_dir, co_name, group_by)
             if data:
                 co_data[co_name] = data
 
@@ -995,8 +927,12 @@ class PreviewEngine:
             return self._info_html("Le transformer n'a pas retourné de données")
 
         return _render_widget_for_configured(
-            db, widget_plugin, result, transformer_plugin,
-            widget_title, widget_params,
+            db,
+            widget_plugin,
+            result,
+            transformer_plugin,
+            widget_title,
+            widget_params,
         )
 
     # ------------------------------------------------------------------
@@ -1067,9 +1003,7 @@ class PreviewEngine:
         try:
             entity_table = resolve_entity_table(db, data_source, kind=None)
             if not entity_table or not db.has_table(entity_table):
-                return self._info_html(
-                    f"Pas de table pour la source '{data_source}'"
-                )
+                return self._info_html(f"Pas de table pour la source '{data_source}'")
 
             preparer = inspect(db.engine).dialect.identifier_preparer
             quoted_table = preparer.quote(entity_table)
@@ -1113,9 +1047,7 @@ class PreviewEngine:
             )
 
             title = column.replace("_", " ").title()
-            widget_html = render_widget(
-                db, widget_plugin, result, export_params, title
-            )
+            widget_html = render_widget(db, widget_plugin, result, export_params, title)
             return widget_html
 
         except Exception as e:
@@ -1161,14 +1093,10 @@ class PreviewEngine:
             if sample_data.empty:
                 return self._info_html("Pas de données disponibles")
 
-            result = execute_transformer(
-                db, transformer_plugin, config, sample_data
-            )
+            result = execute_transformer(db, transformer_plugin, config, sample_data)
 
             title = column.replace("_", " ").title()
-            widget_html = render_widget(
-                db, widget_plugin, result, export_params, title
-            )
+            widget_html = render_widget(db, widget_plugin, result, export_params, title)
             return widget_html
 
         except Exception as e:

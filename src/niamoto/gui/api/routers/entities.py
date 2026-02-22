@@ -445,10 +445,9 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
 
             cdn_dependencies = set()
             for dep in dependencies:
-                if "plotly" in dep.lower():
-                    cdn_dependencies.add(
-                        "/api/site/assets/js/vendor/plotly/3.0.1_plotly.min.js"
-                    )
+                if dep.startswith("/assets/"):
+                    # Remap exported-site paths to API paths
+                    cdn_dependencies.add(f"/api/site{dep}")
                 elif "topojson" in dep.lower():
                     cdn_dependencies.add(
                         "/api/site/assets/js/vendor/topojson/3.1.0_topojson.js"
