@@ -7,7 +7,7 @@
 
 import { useRef, useState, useEffect, useMemo } from 'react'
 import type { PreviewDescriptor } from '@/lib/preview/types'
-import { usePreviewFrame } from '@/lib/preview/usePreviewFrame'
+import { usePreviewFrame, descriptorDeps } from '@/lib/preview/usePreviewFrame'
 import { PreviewSkeleton } from './PreviewSkeleton'
 import { PreviewError } from './PreviewError'
 
@@ -52,8 +52,8 @@ export function PreviewTile({
   // Stabiliser le descriptor pour éviter les re-renders
   const thumbDescriptor = useMemo(
     () => ({ ...descriptor, mode: 'thumbnail' as const }),
-    [descriptor.templateId, descriptor.groupBy, descriptor.source, descriptor.entityId,
-     descriptor.inline ? JSON.stringify(descriptor.inline, Object.keys(descriptor.inline).sort()) : null],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    descriptorDeps(descriptor),
   )
 
   // Debounce la visibilité pour éviter le strobe au scroll rapide
@@ -69,9 +69,11 @@ export function PreviewTile({
 
   const { html, loading, error } = usePreviewFrame(thumbDescriptor, debouncedVisible)
 
-  // Nettoyage Plotly au démontage
+  // Nettoyage Plotly au démontage — on lit la ref au cleanup car l'iframe
+  // est rendue conditionnellement et n'existe pas encore au mount.
   useEffect(() => {
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (iframeRef.current) {
         iframeRef.current.srcdoc = ''
       }
@@ -89,9 +91,9 @@ export function PreviewTile({
         containIntrinsicSize: `${width}px ${height}px`,
       }}
     >
-      {loading && <PreviewSkeleton width={width} height={height} />}
-      {error && <PreviewError message={error} compact />}
-      {html && (
+      {loading && <PreviewSkeleton width={width} height={height} compact descriptor={thumbDescriptor} />}
+      {error && !loading && <PreviewError message={error} compact />}
+      {html && !loading && (
         <iframe
           ref={iframeRef}
           srcDoc={html}
