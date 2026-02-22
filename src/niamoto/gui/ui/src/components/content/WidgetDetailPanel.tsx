@@ -9,6 +9,7 @@
  */
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import yaml from 'js-yaml'
 import {
   ArrowLeft,
@@ -20,7 +21,6 @@ import {
   Layers,
   FolderTree,
   RefreshCw,
-  AlertTriangle,
   Trash2,
   FileCode,
   Eye,
@@ -45,6 +45,9 @@ import {
 import type { ConfiguredWidget } from '@/components/widgets'
 import { WidgetConfigForm } from '@/components/widgets/WidgetConfigForm'
 import type { LocalizedString } from '@/components/ui/localized-input'
+import { PreviewPane } from '@/components/preview'
+import type { PreviewDescriptor } from '@/lib/preview/types'
+import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -93,10 +96,8 @@ export function WidgetDetailPanel({
   onDelete,
 }: WidgetDetailPanelProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'preview' | 'params' | 'yaml'>('preview')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshCounter, setRefreshCounter] = useState(0)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
@@ -105,17 +106,12 @@ export function WidgetDetailPanel({
   const Icon = CATEGORY_ICONS[category] || BarChart3
   const colors = CATEGORY_COLORS[category] || CATEGORY_COLORS.chart
 
-  // Build preview URL
-  const previewUrl = useMemo(() => {
-    const baseUrl = `/api/templates/preview/${widget.dataSource || widget.id}`
-    if (groupBy) {
-      return `${baseUrl}?group_by=${encodeURIComponent(groupBy)}`
-    }
-    return baseUrl
-  }, [widget.id, widget.dataSource, groupBy])
-
-  // Unique key for iframe refresh
-  const iframeKey = `${widget.id}-${refreshCounter}`
+  // Build PreviewDescriptor
+  const previewDescriptor: PreviewDescriptor = useMemo(() => ({
+    templateId: widget.dataSource || widget.id,
+    groupBy,
+    mode: 'full' as const,
+  }), [widget.id, widget.dataSource, groupBy])
 
   // Generate YAML previews
   const yamlPreviews = useMemo(() => {
@@ -144,37 +140,22 @@ export function WidgetDetailPanel({
     }
   }, [widget])
 
-  // Reset loading state when widget changes
+  // Reset tab when widget changes
   useEffect(() => {
-    setLoading(true)
-    setError(null)
     setActiveTab('preview')
   }, [widget.id])
 
-  // Handlers
-  const handleIframeLoad = useCallback(() => {
-    setLoading(false)
-    setError(null)
-  }, [])
-
-  const handleIframeError = useCallback(() => {
-    setLoading(false)
-    setError('Impossible de charger la preview')
-  }, [])
-
   const handleRefresh = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    setRefreshCounter((prev) => prev + 1)
-  }, [])
+    invalidateAllPreviews(queryClient)
+  }, [queryClient])
 
   const handleSave = useCallback(async (config: Partial<ConfiguredWidget>): Promise<boolean> => {
     const success = await onUpdate(config)
     if (success) {
-      handleRefresh()
+      invalidateAllPreviews(queryClient)
     }
     return success
-  }, [onUpdate, handleRefresh])
+  }, [onUpdate, queryClient])
 
   const handleCancelEdit = useCallback(() => {
     setActiveTab('preview')
@@ -235,9 +216,8 @@ export function WidgetDetailPanel({
               size="icon"
               className="h-8 w-8"
               onClick={handleRefresh}
-              disabled={loading}
             >
-              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+              <RefreshCw className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
@@ -284,40 +264,8 @@ export function WidgetDetailPanel({
         {/* Preview Tab */}
         <TabsContent value="preview" className="flex-1 m-0 min-h-0">
           <div className="h-full p-4">
-            <div className="h-full rounded-xl border bg-card overflow-hidden relative">
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                  <div className="flex flex-col items-center gap-2">
-                    <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Chargement...</span>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
-                  <AlertTriangle className="h-10 w-10 text-warning mb-2" />
-                  <span className="text-sm text-muted-foreground">{error}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={handleRefresh}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Reessayer
-                  </Button>
-                </div>
-              )}
-
-              <iframe
-                key={iframeKey}
-                src={previewUrl}
-                className="w-full h-full border-0"
-                onLoad={handleIframeLoad}
-                onError={handleIframeError}
-                title={`Preview: ${resolveLocalizedString(widget.title)}`}
-              />
+            <div className="h-full rounded-xl border bg-card overflow-hidden">
+              <PreviewPane descriptor={previewDescriptor} className="w-full h-full" />
             </div>
           </div>
         </TabsContent>

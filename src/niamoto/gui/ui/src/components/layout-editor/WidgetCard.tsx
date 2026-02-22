@@ -7,14 +7,14 @@
  * - Colspan toggle button
  * - Editable title
  */
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   GripVertical,
   Columns,
   Columns2,
-  Loader2,
   RefreshCw,
   Pencil,
   Check,
@@ -24,6 +24,9 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { PreviewPane } from '@/components/preview'
+import type { PreviewDescriptor } from '@/lib/preview/types'
+import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 import type { WidgetLayout } from './types'
 
 interface WidgetCardProps {
@@ -45,14 +48,17 @@ export function WidgetCard({
   onColspanToggle,
   onTitleChange,
 }: WidgetCardProps) {
-  const [isLoading, setIsLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState(widget.title)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [iframeKey, setIframeKey] = useState(0)
 
-  // Store previous colspan to detect changes
-  const prevColspanRef = useRef(widget.colspan)
+  const descriptor: PreviewDescriptor = useMemo(() => ({
+    templateId: widget.data_source,
+    groupBy,
+    entityId: entityId || undefined,
+    mode: 'full' as const,
+  }), [widget.data_source, groupBy, entityId])
 
   // Sortable hook
   const {
@@ -69,16 +75,10 @@ export function WidgetCard({
     transition,
   }
 
-  // Handle iframe load
-  const handleIframeLoad = useCallback(() => {
-    setIsLoading(false)
-  }, [])
-
   // Handle refresh
   const handleRefresh = useCallback(() => {
-    setIsLoading(true)
-    setIframeKey((k) => k + 1)
-  }, [])
+    invalidateAllPreviews(queryClient)
+  }, [queryClient])
 
   // Handle title edit
   const startEditing = useCallback(() => {
@@ -106,27 +106,6 @@ export function WidgetCard({
     }
   }, [isEditing])
 
-  // Reload preview when colspan changes
-  useEffect(() => {
-    if (prevColspanRef.current !== widget.colspan) {
-      prevColspanRef.current = widget.colspan
-      // Small delay to let the layout settle before reloading
-      const timer = setTimeout(() => {
-        setIsLoading(true)
-        setIframeKey((k) => k + 1)
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [widget.colspan])
-
-  // Reload preview when entityId changes
-  useEffect(() => {
-    if (showPreview) {
-      setIsLoading(true)
-      setIframeKey((k) => k + 1)
-    }
-  }, [entityId, showPreview])
-
   // Handle keyboard in edit mode
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -138,11 +117,6 @@ export function WidgetCard({
     },
     [saveTitle, cancelEditing]
   )
-
-  // Preview URL with optional entity_id
-  const previewUrl = entityId
-    ? `/api/layout/${groupBy}/preview/${widget.index}?entity_id=${entityId}`
-    : `/api/layout/${groupBy}/preview/${widget.index}`
 
   // Column span class - default to half width (2 widgets per row)
   const colSpanClass = widget.colspan === 1 ? 'col-span-6' : 'col-span-12'
@@ -254,40 +228,21 @@ export function WidgetCard({
           size="icon"
           className="h-7 w-7 shrink-0"
           onClick={handleRefresh}
-          disabled={isLoading}
         >
-          <RefreshCw
-            className={cn(
-              'h-4 w-4 text-muted-foreground',
-              isLoading && 'animate-spin'
-            )}
-          />
+          <RefreshCw className="h-4 w-4 text-muted-foreground" />
         </Button>
       </div>
 
-      {/* Preview iframe or placeholder */}
+      {/* Preview or placeholder */}
       <div className={cn('relative bg-background', heightClass)}>
         {showPreview ? (
-          <>
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            <iframe
-              key={iframeKey}
-              src={previewUrl}
-              className="w-full h-full border-0 pointer-events-none"
-              onLoad={handleIframeLoad}
-              title={widget.title}
-            />
-          </>
+          <PreviewPane descriptor={descriptor} className="w-full h-full" />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
             <Badge variant="outline" className="text-xs">
               {widget.plugin}
             </Badge>
-            <span className="mt-2 text-xs">Preview desactivee</span>
+            <span className="mt-2 text-xs">Preview désactivée</span>
           </div>
         )}
       </div>

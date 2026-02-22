@@ -65,12 +65,11 @@ import {
 } from '@/lib/api/widget-suggestions'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
-import {
-  usePreviewHtml,
-  usePreviewQueueStats,
-  cancelAllPreviews,
-  refreshPreview,
-} from './usePreviewQueue'
+import { useQueryClient } from '@tanstack/react-query'
+import { PreviewTile } from '@/components/preview'
+import { PreviewPane } from '@/components/preview'
+import type { PreviewDescriptor } from '@/lib/preview/types'
+import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -103,25 +102,13 @@ interface WidgetPreviewProps {
   groupBy?: string
   source?: string
   disablePreview?: boolean
-  useDirectSrc?: boolean
   className?: string
   width?: number
   height?: number
 }
 
-// Base iframe dimensions before scaling
-const IFRAME_BASE_WIDTH = 400
-const IFRAME_BASE_HEIGHT = 300
 
 function isHeavyMapSuggestion(
-  templateId: string,
-  plugin?: string,
-  category?: string
-): boolean {
-  return category === 'map' && plugin === 'entity_map_extractor' && templateId.endsWith('_all_map')
-}
-
-function isAllMapSuggestion(
   templateId: string,
   plugin?: string,
   category?: string
@@ -134,61 +121,19 @@ const WidgetPreview = memo(function WidgetPreview({
   groupBy,
   source,
   disablePreview = false,
-  useDirectSrc = false,
   className,
   width = 200,
   height = 96,
 }: WidgetPreviewProps) {
-  const { t } = useTranslation(['widgets'])
-  const [isVisible, setIsVisible] = useState(false)
-  const [directLoadError, setDirectLoadError] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  // Lazy loading: only load preview when visible
-  useEffect(() => {
-    const element = containerRef.current
-    if (!element) return
-
-    const scrollViewport = element.closest('[data-radix-scroll-area-viewport]') as Element | null
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        // Keep previews mounted only while close to viewport to avoid
-        // accumulating many active Plotly iframes.
-        setIsVisible(entry.isIntersecting)
-      },
-      {
-        root: scrollViewport,
-        rootMargin: '120px',
-        threshold: 0.01,
-      }
-    )
-
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-
-  // Calculate scale to fit the container
-  const scale = Math.min(width / IFRAME_BASE_WIDTH, height / IFRAME_BASE_HEIGHT)
-
-  // Build preview URL
-  const previewUrl = useMemo(() => {
-    const params = new URLSearchParams()
-    if (groupBy) params.set('group_by', groupBy)
-    if (source && source !== 'occurrences') params.set('source', source)
-    const queryString = params.toString()
-    return queryString
-      ? `/api/templates/preview/${templateId}?${queryString}`
-      : `/api/templates/preview/${templateId}`
-  }, [templateId, groupBy, source])
-
-  const canRenderPreview = isVisible && !disablePreview
-
-  // Utiliser la queue avec concurrence limitée + cache LRU
-  const { html, loading, error } = usePreviewHtml(previewUrl, canRenderPreview)
+  const descriptor: PreviewDescriptor = useMemo(() => ({
+    templateId,
+    groupBy,
+    source: source && source !== 'occurrences' ? source : undefined,
+    mode: 'thumbnail' as const,
+  }), [templateId, groupBy, source])
 
   return (
     <div
-      ref={containerRef}
       className={cn('relative bg-muted/30 overflow-hidden', className)}
       style={{ width, height }}
     >
@@ -196,53 +141,8 @@ const WidgetPreview = memo(function WidgetPreview({
         <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
           <Map className="h-4 w-4 text-muted-foreground/60" />
         </div>
-      ) : !isVisible ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
-          <div className="w-8 h-8 rounded bg-muted/50" />
-        </div>
-      ) : !canRenderPreview ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
-          <div className="w-6 h-6 rounded bg-muted/60" />
-        </div>
       ) : (
-        <>
-          {loading && !error && !useDirectSrc && (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {(error || directLoadError) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 z-10">
-              <span className="text-[10px] text-muted-foreground">{t('preview.error')}</span>
-            </div>
-          )}
-          {useDirectSrc ? (
-            <iframe
-              src={previewUrl}
-              className="pointer-events-none origin-top-left border-0"
-              style={{
-                width: IFRAME_BASE_WIDTH,
-                height: IFRAME_BASE_HEIGHT,
-                transform: `scale(${scale})`,
-              }}
-              loading="lazy"
-              onError={() => setDirectLoadError(true)}
-              title={`Preview ${templateId}`}
-            />
-          ) : html && (
-            <iframe
-              srcDoc={html}
-              className="pointer-events-none origin-top-left border-0"
-              style={{
-                width: IFRAME_BASE_WIDTH,
-                height: IFRAME_BASE_HEIGHT,
-                transform: `scale(${scale})`,
-              }}
-              loading="lazy"
-              title={`Preview ${templateId}`}
-            />
-          )}
-        </>
+        <PreviewTile descriptor={descriptor} width={width} height={height} />
       )}
     </div>
   )
@@ -254,7 +154,6 @@ interface LargePreviewProps {
   groupBy?: string
   source?: string
   disablePreview?: boolean
-  useDirectSrc?: boolean
 }
 
 // Large preview dimensions
@@ -266,43 +165,19 @@ function LargePreview({
   groupBy,
   source,
   disablePreview = false,
-  useDirectSrc = false,
 }: LargePreviewProps) {
-  const { t } = useTranslation(['widgets'])
-  const [directRefreshKey, setDirectRefreshKey] = useState(0)
-  const [directLoadError, setDirectLoadError] = useState(false)
+  const queryClient = useQueryClient()
 
-  // Calculate scale to fit the container
-  const scale = Math.min(LARGE_PREVIEW_WIDTH / IFRAME_BASE_WIDTH, LARGE_PREVIEW_HEIGHT / IFRAME_BASE_HEIGHT)
-
-  // Build preview URL (même URL que la miniature → même clé de cache)
-  const previewUrl = useMemo(() => {
-    const params = new URLSearchParams()
-    if (groupBy) params.set('group_by', groupBy)
-    if (source && source !== 'occurrences') params.set('source', source)
-    const queryString = params.toString()
-    return queryString
-      ? `/api/templates/preview/${templateId}?${queryString}`
-      : `/api/templates/preview/${templateId}`
-  }, [templateId, groupBy, source])
-
-  // Réutilise le cache LRU — si la miniature a déjà chargé, pas de 2e requête
-  const { html, loading, error } = usePreviewHtml(previewUrl, !disablePreview)
+  const descriptor: PreviewDescriptor = useMemo(() => ({
+    templateId,
+    groupBy,
+    source: source && source !== 'occurrences' ? source : undefined,
+    mode: 'full' as const,
+  }), [templateId, groupBy, source])
 
   const handleRefresh = useCallback(() => {
-    if (useDirectSrc) {
-      setDirectLoadError(false)
-      setDirectRefreshKey((k) => k + 1)
-      return
-    }
-    refreshPreview(previewUrl)
-  }, [previewUrl, useDirectSrc])
-
-  const directSrc = useMemo(() => {
-    if (!useDirectSrc) return previewUrl
-    const sep = previewUrl.includes('?') ? '&' : '?'
-    return `${previewUrl}${sep}_pv=${directRefreshKey}`
-  }, [previewUrl, useDirectSrc, directRefreshKey])
+    invalidateAllPreviews(queryClient)
+  }, [queryClient])
 
   return (
     <div className="relative">
@@ -314,57 +189,21 @@ function LargePreview({
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
             <Map className="h-8 w-8 text-muted-foreground/40 mb-2" />
             <span className="text-sm text-muted-foreground text-center px-4">
-              Preview carte complete desactivee dans la modale
+              Preview carte complète désactivée dans la modale
             </span>
           </div>
-        ) : loading && !error && !useDirectSrc && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
-        {(error || directLoadError) && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
-            <Eye className="h-8 w-8 text-muted-foreground/30 mb-2" />
-            <span className="text-sm text-muted-foreground">{t('preview.unavailable')}</span>
-            <Button variant="ghost" size="sm" className="mt-2" onClick={handleRefresh}>
-              <RefreshCw className="h-3 w-3 mr-1" />
-              {t('preview.retry')}
-            </Button>
-          </div>
-        )}
-        {useDirectSrc ? (
-          <iframe
-            src={directSrc}
-            className="pointer-events-none origin-top-left border-0"
-            style={{
-              width: IFRAME_BASE_WIDTH,
-              height: IFRAME_BASE_HEIGHT,
-              transform: `scale(${scale})`,
-            }}
-            onError={() => setDirectLoadError(true)}
-            title={`Preview ${templateId}`}
-          />
-        ) : html && (
-          <iframe
-            srcDoc={html}
-            className="pointer-events-none origin-top-left border-0"
-            style={{
-              width: IFRAME_BASE_WIDTH,
-              height: IFRAME_BASE_HEIGHT,
-              transform: `scale(${scale})`,
-            }}
-            title={`Preview ${templateId}`}
-          />
+        ) : (
+          <PreviewPane descriptor={descriptor} className="w-full h-full" />
         )}
       </div>
-      {!(error || directLoadError) && !disablePreview && (
+      {!disablePreview && (
         <Button
           variant="ghost"
           size="icon"
           className="absolute top-2 right-2 h-7 w-7 bg-background/80 hover:bg-background z-20"
           onClick={handleRefresh}
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', !useDirectSrc && loading && 'animate-spin')} />
+          <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       )}
     </div>
@@ -382,91 +221,27 @@ const COMBINED_PREVIEW_WIDTH = 308
 const COMBINED_PREVIEW_HEIGHT = 231  // 4:3 ratio
 
 function CombinedPreview({ suggestion, groupBy }: CombinedPreviewProps) {
-  const { t } = useTranslation(['widgets'])
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
-  const [htmlContent, setHtmlContent] = useState<string | null>(null)
-  const [key, setKey] = useState(0)
+  const queryClient = useQueryClient()
 
-  const scale = Math.min(COMBINED_PREVIEW_WIDTH / IFRAME_BASE_WIDTH, COMBINED_PREVIEW_HEIGHT / IFRAME_BASE_HEIGHT)
-
-  useEffect(() => {
-    setIsLoading(true)
-    setHasError(false)
-    setHtmlContent(null)
-    setKey((k) => k + 1)
-
+  const descriptor: PreviewDescriptor = useMemo(() => {
     const transformerConfig = suggestion.transformer_config as Record<string, unknown>
     const widgetConfig = suggestion.widget_config as Record<string, unknown>
-
-    const body = {
-      group_by: groupBy,
-      transformer_plugin: transformerConfig.plugin as string,
-      transformer_params: transformerConfig.params ?? {},
-      widget_plugin: widgetConfig.plugin as string,
-      widget_params: widgetConfig.params ?? null,
-      widget_title: suggestion.name,
-    }
-
-    const controller = new AbortController()
-    fetch('/api/templates/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.text()
-      })
-      .then((html) => {
-        setHtmlContent(html)
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          setHasError(true)
-          setIsLoading(false)
-        }
-      })
-
-    return () => {
-      controller.abort()
+    return {
+      groupBy,
+      mode: 'full' as const,
+      inline: {
+        transformer_plugin: transformerConfig.plugin as string,
+        transformer_params: (transformerConfig.params ?? {}) as Record<string, unknown>,
+        widget_plugin: widgetConfig.plugin as string,
+        widget_params: (widgetConfig.params ?? null) as Record<string, unknown> | null,
+        widget_title: suggestion.name,
+      },
     }
   }, [suggestion, groupBy])
 
-  const handleRefresh = () => {
-    setKey((k) => k + 1)
-    setIsLoading(true)
-    setHasError(false)
-    setHtmlContent(null)
-    // Re-trigger fetch by updating suggestion ref
-    const transformerConfig = suggestion.transformer_config as Record<string, unknown>
-    const widgetConfig = suggestion.widget_config as Record<string, unknown>
-    const body = {
-      group_by: groupBy,
-      transformer_plugin: transformerConfig.plugin as string,
-      transformer_params: transformerConfig.params ?? {},
-      widget_plugin: widgetConfig.plugin as string,
-      widget_params: widgetConfig.params ?? null,
-      widget_title: suggestion.name,
-    }
-    fetch('/api/templates/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.text()
-      })
-      .then((html) => {
-        setHtmlContent(html)
-      })
-      .catch(() => {
-        setHasError(true)
-        setIsLoading(false)
-      })
-  }
+  const handleRefresh = useCallback(() => {
+    invalidateAllPreviews(queryClient)
+  }, [queryClient])
 
   return (
     <div className="relative">
@@ -474,47 +249,16 @@ function CombinedPreview({ suggestion, groupBy }: CombinedPreviewProps) {
         className="bg-background border rounded-md overflow-hidden"
         style={{ width: COMBINED_PREVIEW_WIDTH, height: COMBINED_PREVIEW_HEIGHT }}
       >
-        {isLoading && !hasError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
-        {hasError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
-            <Eye className="h-8 w-8 text-muted-foreground/30 mb-2" />
-            <span className="text-sm text-muted-foreground">{t('preview.unavailable')}</span>
-            <Button variant="ghost" size="sm" className="mt-2" onClick={handleRefresh}>
-              <RefreshCw className="h-3 w-3 mr-1" />
-              {t('preview.retry')}
-            </Button>
-          </div>
-        )}
-        {htmlContent && (
-          <iframe
-            key={key}
-            srcDoc={htmlContent}
-            className="pointer-events-none origin-top-left border-0"
-            style={{
-              width: IFRAME_BASE_WIDTH,
-              height: IFRAME_BASE_HEIGHT,
-              transform: `scale(${scale})`,
-            }}
-            onLoad={() => setIsLoading(false)}
-            onError={() => setHasError(true)}
-            title={`Preview ${suggestion.name}`}
-          />
-        )}
+        <PreviewPane descriptor={descriptor} className="w-full h-full" />
       </div>
-      {!hasError && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 h-7 w-7 bg-background/80 hover:bg-background z-20"
-          onClick={handleRefresh}
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-2 h-7 w-7 bg-background/80 hover:bg-background z-20"
+        onClick={handleRefresh}
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+      </Button>
     </div>
   )
 }
@@ -704,7 +448,7 @@ export function AddWidgetModal({
   // Custom tab state
   const [wizardStep, setWizardStep] = useState(1)
   const [initialRecipe, setInitialRecipe] = useState<WidgetRecipe | undefined>(undefined)
-  const previewQueueStats = usePreviewQueueStats()
+  const queryClient = useQueryClient()
 
   // Hooks for generating and saving config
   const { generate: generateConfig, loading: generating } = useGenerateConfig()
@@ -726,7 +470,7 @@ export function AddWidgetModal({
   const visibleSuggestions = useMemo(
     () =>
       suggestions.filter(
-        (s) => !isAllMapSuggestion(s.template_id, s.plugin, s.category)
+        (s) => !isHeavyMapSuggestion(s.template_id, s.plugin, s.category)
       ),
     [suggestions]
   )
@@ -759,7 +503,7 @@ export function AddWidgetModal({
       setWizardStep(1)
     } else {
       // Annuler les previews en attente quand la modale se ferme
-      cancelAllPreviews()
+      queryClient.cancelQueries({ queryKey: ['preview'] })
     }
   }, [open, defaultTab])
 
@@ -1270,7 +1014,7 @@ export function AddWidgetModal({
 
                     {import.meta.env.DEV && (
                       <div className="text-[10px] text-muted-foreground font-mono border rounded px-2 py-1 bg-muted/30">
-                        previews net:{previewQueueStats.active}/{previewQueueStats.queued} cache:{previewQueueStats.cacheSize} p95:{Math.round(previewQueueStats.p95Ms)}ms avg:{Math.round(previewQueueStats.avgMs)}ms
+                        previews via TanStack Query
                       </div>
                     )}
                   </div>
@@ -1367,7 +1111,6 @@ export function AddWidgetModal({
                                               templateId={suggestion.template_id}
                                               groupBy={reference.name}
                                               source={suggestion.source_name}
-                                              useDirectSrc={suggestion.category === 'map'}
                                               disablePreview={isHeavyMapSuggestion(
                                                 suggestion.template_id,
                                                 suggestion.plugin,
@@ -1465,7 +1208,6 @@ export function AddWidgetModal({
                           templateId={previewSuggestion.template_id}
                           groupBy={reference.name}
                           source={previewSuggestion.source_name}
-                          useDirectSrc={isMapPreview}
                           disablePreview={isHeavyMapPreview}
                         />
 

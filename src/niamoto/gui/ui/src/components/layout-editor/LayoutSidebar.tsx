@@ -4,12 +4,15 @@
  * Shows a preview of the hierarchical navigation widget
  * that will appear in the sidebar of the exported page.
  */
-import { useState, useCallback } from 'react'
+import { useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, RefreshCw, Navigation, List } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useQueryClient } from '@tanstack/react-query'
+import { RefreshCw, Navigation, List } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { PreviewPane } from '@/components/preview'
+import type { PreviewDescriptor } from '@/lib/preview/types'
+import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 import type { NavigationWidgetInfo } from './types'
 
 interface LayoutSidebarProps {
@@ -19,25 +22,20 @@ interface LayoutSidebarProps {
 
 export function LayoutSidebar({ groupBy, navigationWidget }: LayoutSidebarProps) {
   const { t } = useTranslation('common')
-  const [isLoading, setIsLoading] = useState(true)
-  const [iframeKey, setIframeKey] = useState(0)
-
-  // Handle iframe load
-  const handleIframeLoad = useCallback(() => {
-    setIsLoading(false)
-  }, [])
-
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    setIsLoading(true)
-    setIframeKey((k) => k + 1)
-  }, [])
+  const queryClient = useQueryClient()
 
   // Get referential data from params
   const referential = navigationWidget.params?.referential_data as string || groupBy
 
-  // Preview URL - uses the navigation widget preview endpoint
-  const previewUrl = `/api/templates/preview/${referential}_hierarchical_nav_widget`
+  const descriptor: PreviewDescriptor = useMemo(() => ({
+    templateId: `${referential}_hierarchical_nav_widget`,
+    groupBy,
+    mode: 'full' as const,
+  }), [referential, groupBy])
+
+  const handleRefresh = useCallback(() => {
+    invalidateAllPreviews(queryClient)
+  }, [queryClient])
 
   return (
     <div className="h-full flex flex-col rounded-lg border bg-card overflow-hidden">
@@ -62,37 +60,20 @@ export function LayoutSidebar({ groupBy, navigationWidget }: LayoutSidebarProps)
           size="icon"
           className="h-7 w-7 shrink-0"
           onClick={handleRefresh}
-          disabled={isLoading}
         >
-          <RefreshCw
-            className={cn(
-              'h-4 w-4 text-muted-foreground',
-              isLoading && 'animate-spin'
-            )}
-          />
+          <RefreshCw className="h-4 w-4 text-muted-foreground" />
         </Button>
       </div>
 
-      {/* Preview iframe */}
+      {/* Preview */}
       <div className="relative flex-1 min-h-0 bg-background">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
-        <iframe
-          key={iframeKey}
-          src={previewUrl}
-          className="w-full h-full border-0"
-          onLoad={handleIframeLoad}
-          title={navigationWidget.title}
-        />
+        <PreviewPane descriptor={descriptor} className="w-full h-full" />
       </div>
 
       {/* Info footer */}
       <div className="px-3 py-2 border-t bg-muted/30 shrink-0">
         <p className="text-xs text-muted-foreground">
-          Reference: <code className="font-mono">{referential}</code>
+          Référence: <code className="font-mono">{referential}</code>
         </p>
       </div>
     </div>

@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import yaml from 'js-yaml'
 import {
   Info,
@@ -28,7 +29,6 @@ import {
   Maximize2,
   CircleDot,
   Sparkles,
-  AlertTriangle,
   FileCode,
   FileOutput,
   FolderTree,
@@ -44,6 +44,9 @@ import { CATEGORY_INFO, getPluginLabel, getPluginDescription } from './types'
 import type { ConfiguredWidget } from './useWidgetConfig'
 import { WidgetConfigForm } from './WidgetConfigForm'
 import type { LocalizedString } from '@/components/ui/localized-input'
+import { PreviewPane } from '@/components/preview'
+import type { PreviewDescriptor } from '@/lib/preview/types'
+import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 
 // Helper to resolve LocalizedString for display
 function resolveLocalizedString(value: LocalizedString | undefined, defaultLang = 'fr'): string {
@@ -115,9 +118,7 @@ export function WidgetPreviewPanel({
   className,
 }: WidgetPreviewPanelProps) {
   const { t } = useTranslation('widgets')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshCounter, setRefreshCounter] = useState(0)
+  const queryClient = useQueryClient()
   const [editMode, setEditMode] = useState(false)
 
   // Determine which mode we're in
@@ -125,60 +126,34 @@ export function WidgetPreviewPanel({
   const activeWidget = configuredWidget
   const activeTemplate = template
 
-  // Build preview URL with optional group_by parameter
-  const previewUrl = useMemo(() => {
-    // For configured widgets, use the templates preview endpoint with data_source as ID
-    // The data_source in export.yml maps to the key in transform.yml
+  // Build PreviewDescriptor
+  const previewDescriptor: PreviewDescriptor | null = useMemo(() => {
     if (isConfiguredMode && activeWidget) {
-      const baseUrl = `/api/templates/preview/${activeWidget.dataSource || activeWidget.id}`
-      if (groupBy) {
-        return `${baseUrl}?group_by=${encodeURIComponent(groupBy)}`
+      return {
+        templateId: activeWidget.dataSource || activeWidget.id,
+        groupBy,
+        mode: 'full' as const,
       }
-      return baseUrl
     }
-
-    // For templates, use the template preview endpoint
     if (activeTemplate) {
-      const baseUrl = `/api/templates/preview/${activeTemplate.template_id}`
-      if (groupBy) {
-        return `${baseUrl}?group_by=${encodeURIComponent(groupBy)}`
+      return {
+        templateId: activeTemplate.template_id,
+        groupBy,
+        mode: 'full' as const,
       }
-      return baseUrl
     }
-
     return null
   }, [isConfiguredMode, activeWidget, activeTemplate, groupBy])
 
-  // Unique key for iframe: id + refresh counter
-  // This ensures single load on item change, and reload on manual refresh
-  const itemId = isConfiguredMode ? activeWidget?.id : activeTemplate?.template_id
-  const iframeKey = itemId ? `${itemId}-${refreshCounter}` : 'empty'
-
-  // Handle iframe load
-  const handleIframeLoad = useCallback(() => {
-    setLoading(false)
-    setError(null)
-  }, [])
-
-  // Handle iframe error
-  const handleIframeError = useCallback(() => {
-    setLoading(false)
-    setError(t('preview.loadError'))
-  }, [t])
-
   // Reload preview (manual refresh only)
   const handleRefresh = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    setRefreshCounter(prev => prev + 1)
-  }, [])
+    invalidateAllPreviews(queryClient)
+  }, [queryClient])
 
-  // Reset loading state when template or widget changes
+  // Reset edit mode when switching items
   useEffect(() => {
     if (activeTemplate || activeWidget) {
-      setLoading(true)
-      setError(null)
-      setEditMode(false)  // Reset edit mode when switching items
+      setEditMode(false)
     }
   }, [activeTemplate?.template_id, activeWidget?.id])
 
@@ -209,12 +184,11 @@ export function WidgetPreviewPanel({
     if (!activeWidget || !onUpdateWidget) return false
     const success = await onUpdateWidget(activeWidget.id, config)
     if (success) {
-      // Refresh preview after save
-      handleRefresh()
+      invalidateAllPreviews(queryClient)
       setEditMode(false)
     }
     return success
-  }, [activeWidget, onUpdateWidget, handleRefresh])
+  }, [activeWidget, onUpdateWidget, queryClient])
 
   // Handle cancel edit
   const handleCancelEdit = useCallback(() => {
@@ -453,9 +427,8 @@ export function WidgetPreviewPanel({
               size="icon"
               className="h-8 w-8"
               onClick={handleRefresh}
-              disabled={loading}
             >
-              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -529,43 +502,11 @@ export function WidgetPreviewPanel({
           />
         </div>
       ) : (
-        /* Preview area with iframe */
+        /* Preview area */
         <div className="flex-1 min-h-0 p-4 overflow-hidden">
-          <div className="h-full rounded-xl border bg-card overflow-hidden relative">
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                <div className="flex flex-col items-center gap-2">
-                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">{t('preview.loading')}</span>
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-10">
-                <AlertTriangle className="h-10 w-10 text-warning mb-2" />
-                <span className="text-sm text-muted-foreground">{error}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={handleRefresh}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  {t('preview.retry')}
-                </Button>
-              </div>
-            )}
-
-            {previewUrl && (
-              <iframe
-                key={iframeKey}
-                src={previewUrl}
-                className="w-full h-full border-0"
-                onLoad={handleIframeLoad}
-                onError={handleIframeError}
-                title={`Preview: ${displayInfo.name}`}
-              />
+          <div className="h-full rounded-xl border bg-card overflow-hidden">
+            {previewDescriptor && (
+              <PreviewPane descriptor={previewDescriptor} className="w-full h-full" />
             )}
           </div>
         </div>
