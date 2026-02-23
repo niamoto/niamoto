@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
   Rocket,
   Package,
@@ -42,6 +44,8 @@ export default function PublishBuild() {
   const isBuilding = usePublishStore(selectIsBuilding)
   const lastBuild = buildHistory[0]
   const [exportPath, setExportPath] = useState('')
+  const [includeTransform, setIncludeTransform] = useState(true)
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null)
 
   const totalFilesCounter = useProgressiveCounter(
     lastBuild?.status === 'completed' && lastBuild.metrics?.totalFiles
@@ -74,20 +78,18 @@ export default function PublishBuild() {
 
   const runBuild = async () => {
     startBuild()
+    setCurrentPhase(null)
     const startTime = Date.now()
 
     try {
       const result = await executeExportAndWait(
-        { config_path: 'config/export.yml' },
-        (progress) => {
-          const messages = [
-            { min: 0, max: 25, msg: t('build.progress.generating', 'Génération des pages HTML...') },
-            { min: 25, max: 50, msg: t('build.progress.visualizations', 'Création des visualisations...') },
-            { min: 50, max: 75, msg: t('build.progress.assets', 'Optimisation des assets...') },
-            { min: 75, max: 100, msg: t('build.progress.finalizing', 'Finalisation...') },
-          ]
-          const currentMessage = messages.find(m => progress >= m.min && progress < m.max)?.msg || t('build.progress.finalizing', 'Finalisation...')
-          updateBuild({ progress, message: currentMessage })
+        { config_path: 'config/export.yml', include_transform: includeTransform },
+        (progress, message, phase) => {
+          setCurrentPhase(phase ?? null)
+          const phaseLabel = phase === 'transform'
+            ? 'Transformations'
+            : 'Génération du site'
+          updateBuild({ progress, message: `${phaseLabel} · ${message}` })
         }
       )
 
@@ -190,9 +192,34 @@ export default function PublishBuild() {
           <CardDescription>{t('build.generationDescription', 'Création du site web statique complet')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Transform checkbox */}
+          {!isBuilding && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="include-transform"
+                checked={includeTransform}
+                onCheckedChange={(checked) => setIncludeTransform(checked === true)}
+              />
+              <Label htmlFor="include-transform" className="text-sm cursor-pointer">
+                Recalculer les statistiques avant la génération
+              </Label>
+            </div>
+          )}
+
           {/* Building State */}
           {isBuilding && currentBuild && (
             <div className="space-y-4">
+              {/* Phase indicator */}
+              {includeTransform && (
+                <div className="flex gap-4 text-xs text-muted-foreground">
+                  <span className={currentPhase === 'transform' ? 'font-semibold text-foreground' : ''}>
+                    Phase 1/2 : Transformations {currentPhase === 'transform' ? '⏳' : currentPhase === 'export' ? '✓' : ''}
+                  </span>
+                  <span className={currentPhase === 'export' ? 'font-semibold text-foreground' : ''}>
+                    Phase 2/2 : Export {currentPhase === 'export' ? '⏳' : ''}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span>{currentBuild.message}</span>
                 <span>{currentBuild.progress}%</span>

@@ -7,18 +7,26 @@
  * - Liste: Index/listing page configuration
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import { Database, Package, Loader2, ListOrdered, Plus, LayoutGrid } from 'lucide-react'
+import { Database, Package, Loader2, ListOrdered, Plus, LayoutGrid, Play, CheckCircle, XCircle } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { toast } from 'sonner'
 import { useSources, useRemoveSource } from '@/hooks/useSources'
 import { SourcesList, AddSourceDialog } from '@/components/sources'
 import { IndexConfigEditor } from '@/components/index-config'
 import { ContentTab } from '@/components/content'
+import {
+  executeTransformAndWait,
+  getActiveTransformJob,
+  getLastTransformRun,
+  type TransformStatus,
+} from '@/lib/api/transform'
 
 interface GroupPanelProps {
   reference: ReferenceInfo
@@ -28,6 +36,12 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   const { t } = useTranslation(['sources', 'common'])
   const [activeTab, setActiveTab] = useState('sources')
 
+  // Transform job state
+  const [isTransforming, setIsTransforming] = useState(false)
+  const [transformProgress, setTransformProgress] = useState(0)
+  const [transformMessage, setTransformMessage] = useState('')
+  const [lastRun, setLastRun] = useState<TransformStatus | null>(null)
+
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
     hierarchical: t('groupPanel.kinds.hierarchical'),
@@ -35,31 +49,119 @@ export function GroupPanel({ reference }: GroupPanelProps) {
     spatial: t('groupPanel.kinds.spatial'),
   }
 
+  // Load last run info on mount
+  useEffect(() => {
+    getLastTransformRun(reference.name)
+      .then(setLastRun)
+      .catch(() => {})
+
+    // Check if a transform is already running
+    getActiveTransformJob()
+      .then((job) => {
+        if (job && job.status === 'running') {
+          setIsTransforming(true)
+          setTransformProgress(job.progress)
+          setTransformMessage(job.message)
+        }
+      })
+      .catch(() => {})
+  }, [reference.name])
+
+  const runTransform = useCallback(async () => {
+    setIsTransforming(true)
+    setTransformProgress(0)
+    setTransformMessage('Démarrage...')
+
+    try {
+      const result = await executeTransformAndWait(
+        { group_by: reference.name },
+        (progress, message) => {
+          setTransformProgress(progress)
+          setTransformMessage(message)
+        }
+      )
+      setLastRun(result)
+      toast.success(`Calcul terminé pour ${reference.name}`)
+    } catch (error) {
+      toast.error(`Erreur : ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsTransforming(false)
+      setTransformProgress(0)
+      setTransformMessage('')
+    }
+  }, [reference.name])
+
+  // Format relative time for last run
+  const lastRunLabel = lastRun?.completed_at
+    ? formatRelativeTime(lastRun.completed_at)
+    : null
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b bg-background px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Package className="h-5 w-5 text-primary" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">{reference.name}</h1>
+              <p className="text-sm text-muted-foreground">
+                {reference.entity_count ?? '?'} {t('reference.entities')}
+                <span className="mx-2">·</span>
+                <Badge variant="outline" className="text-xs">
+                  {kindLabels[reference.kind] || reference.kind}
+                </Badge>
+                {reference.description && (
+                  <>
+                    <span className="mx-2">·</span>
+                    {reference.description}
+                  </>
+                )}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold">{reference.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {reference.entity_count ?? '?'} {t('reference.entities')}
-              <span className="mx-2">·</span>
-              <Badge variant="outline" className="text-xs">
-                {kindLabels[reference.kind] || reference.kind}
-              </Badge>
-              {reference.description && (
+
+          {/* Transform button */}
+          <div className="flex items-center gap-3">
+            {lastRunLabel && !isTransforming && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                {lastRun?.status === 'completed' ? (
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                ) : lastRun?.status === 'failed' ? (
+                  <XCircle className="h-3 w-3 text-destructive" />
+                ) : null}
+                {lastRunLabel}
+              </span>
+            )}
+            <Button
+              size="sm"
+              onClick={runTransform}
+              disabled={isTransforming}
+            >
+              {isTransforming ? (
                 <>
-                  <span className="mx-2">·</span>
-                  {reference.description}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {transformProgress}%
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Lancer le calcul
                 </>
               )}
-            </p>
+            </Button>
           </div>
         </div>
+
+        {/* Progress bar during transform */}
+        {isTransforming && (
+          <div className="mt-3 space-y-1">
+            <Progress value={transformProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground">{transformMessage}</p>
+          </div>
+        )}
       </div>
 
       {/* Tabs - Option A: Hybride (3 onglets) */}
@@ -230,4 +332,15 @@ function IndexTab({ reference }: { reference: ReferenceInfo }) {
       <IndexConfigEditor groupBy={reference.name} />
     </div>
   )
+}
+
+function formatRelativeTime(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return 'à l\'instant'
+  if (minutes < 60) return `il y a ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `il y a ${hours}h`
+  const days = Math.floor(hours / 24)
+  return `il y a ${days}j`
 }
