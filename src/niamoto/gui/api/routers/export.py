@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel
 
 from niamoto.core.services.exporter import ExporterService
+from niamoto.core.services.transformer import TransformerService
 from niamoto.common.config import Config
 from niamoto.gui.api.context import (
     get_database_path,
@@ -33,6 +34,7 @@ class ExportRequest(BaseModel):
 
     config_path: Optional[str] = "config/export.yml"
     export_types: Optional[List[str]] = None  # Specific exports to run
+    include_transform: bool = False  # Run transform before export
 
 
 class ExportResponse(BaseModel):
@@ -113,8 +115,9 @@ async def execute_export_background(
     job_store: JobFileStore,
     config_path: str,
     export_types: Optional[List[str]] = None,
+    include_transform: bool = False,
 ):
-    """Execute exports in the background."""
+    """Execute exports in the background, optionally preceded by transform."""
 
     try:
         logger.info("Starting export job %s", job_id)
@@ -124,7 +127,7 @@ async def execute_export_background(
         # Load configuration
         config = get_export_config(config_path)
 
-        # Initialize exporter service
+        # Initialize services
         db_path = get_database_path()
         if not db_path:
             raise ValueError(
@@ -146,10 +149,55 @@ async def execute_export_background(
 
         start_time = datetime.now()
 
+        # Phase 1 (optionnelle) : Transform
+        if include_transform:
+            job_store.update_progress(
+                job_id, 0, "Transformations en cours...", phase="transform"
+            )
+            logger.info("Job %s: Running transform phase", job_id)
+
+            transformer_service = TransformerService(
+                str(db_path), app_config, enable_cli_integration=False
+            )
+
+            def transform_progress_callback(update: Dict[str, Any]) -> None:
+                processed = update.get("processed") or 0
+                total = update.get("total") or 1
+                ratio = min(max(processed / total, 0.0), 1.0)
+                pct = int(ratio * 50)  # Transform = 0-50%
+                message = (
+                    f"Transform · {update.get('group', '')} · "
+                    f"{update.get('widget', '')}"
+                )
+                job_store.update_progress(job_id, pct, message, phase="transform")
+
+            await asyncio.to_thread(
+                transformer_service.transform_data,
+                None,
+                None,
+                True,
+                transform_progress_callback,
+            )
+            logger.info("Job %s: Transform phase completed", job_id)
+            job_store.update_progress(
+                job_id, 50, "Génération du site...", phase="export"
+            )
+        else:
+            job_store.update_progress(
+                job_id, 0, "Génération du site...", phase="export"
+            )
+
+        # Phase 2 : Export
+        # Offset de progression : 50-100% si composite, 0-100% si export seul
+        progress_base = 50 if include_transform else 0
+        progress_range = 50 if include_transform else 90
+
         logger.info("Job %s: Creating ExporterService", job_id)
         exporter_service = ExporterService(str(db_path), app_config)
 
-        job_store.update_progress(job_id, 10, "Executing exports...")
+        job_store.update_progress(
+            job_id, progress_base + 10, "Executing exports...", phase="export"
+        )
         logger.info("Job %s: Starting export execution", job_id)
 
         results = {}
@@ -166,10 +214,12 @@ async def execute_export_background(
                 export_types,
             )
             for idx, export_name in enumerate(export_types):
+                pct = progress_base + int((idx) / total_exports * progress_range)
                 job_store.update_progress(
                     job_id,
-                    10 + int((idx) / total_exports * 80),
+                    pct,
                     f"Executing export: {export_name}",
+                    phase="export",
                 )
                 logger.info(
                     "Job %s: Executing export %s (%d/%d)",
@@ -194,11 +244,12 @@ async def execute_export_background(
                     results[export_name] = {"status": "error", "error": str(e)}
                     failed += 1
 
-                progress = 10 + int((idx + 1) / total_exports * 80)
+                pct = progress_base + int((idx + 1) / total_exports * progress_range)
                 job_store.update_progress(
                     job_id,
-                    progress,
+                    pct,
                     f"Export {export_name} terminé ({idx + 1}/{total_exports})",
+                    phase="export",
                 )
         else:
             logger.info("Job %s: Running all exports", job_id)
@@ -207,15 +258,19 @@ async def execute_export_background(
                 asyncio.to_thread(exporter_service.run_export)
             )
 
-            progress_steps = [20, 30, 40, 50, 60, 70, 80, 85, 90]
+            # Progression simulée dans la plage [progress_base, progress_base+progress_range]
+            steps = [0.2, 0.35, 0.5, 0.65, 0.75, 0.85, 0.9, 0.95]
             step_idx = 0
 
             while not export_task.done():
                 await asyncio.sleep(5)
-                if step_idx < len(progress_steps) and not export_task.done():
-                    pct = progress_steps[step_idx]
+                if step_idx < len(steps) and not export_task.done():
+                    pct = progress_base + int(steps[step_idx] * progress_range)
                     job_store.update_progress(
-                        job_id, pct, f"Génération en cours... ({pct}%)"
+                        job_id,
+                        pct,
+                        f"Génération en cours... ({pct}%)",
+                        phase="export",
                     )
                     step_idx += 1
 
@@ -314,6 +369,7 @@ async def execute_export(
         job_store,
         request.config_path,
         request.export_types,
+        request.include_transform,
     )
 
     return ExportResponse(
@@ -443,6 +499,22 @@ async def get_export_config_endpoint():
         raise HTTPException(
             status_code=500, detail=f"Failed to read export configuration: {str(e)}"
         )
+
+
+@router.get("/active")
+async def get_active_export_job(http_request: Request):
+    """
+    Get the currently active job (running or recently completed).
+
+    Returns the active job or null if none.
+    """
+    job_store = _get_job_store(http_request)
+    job = job_store.get_active_job()
+
+    if not job:
+        return None
+
+    return _job_to_status(job)
 
 
 @router.get("/metrics")

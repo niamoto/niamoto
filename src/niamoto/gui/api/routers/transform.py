@@ -29,6 +29,9 @@ class TransformRequest(BaseModel):
 
     config_path: Optional[str] = "config/transform.yml"
     transformations: Optional[List[str]] = None  # Specific transformations to run
+    group_by: Optional[str] = (
+        None  # Filter by aggregation group (taxons, plots, shapes)
+    )
 
 
 class TransformResponse(BaseModel):
@@ -96,6 +99,7 @@ async def execute_transform_background(
     job_store: JobFileStore,
     config_path: str,
     transformations: Optional[List[str]] = None,
+    group_by: Optional[str] = None,
 ):
     """Execute transformations in the background."""
 
@@ -227,7 +231,7 @@ async def execute_transform_background(
 
         transform_results = await asyncio.to_thread(
             transformer_service.transform_data,
-            None,
+            group_by,
             None,
             True,
             handle_progress,
@@ -327,7 +331,7 @@ async def execute_transform(
         )
 
     try:
-        job = job_store.create_job("transform")
+        job = job_store.create_job("transform", group_by=request.group_by)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
@@ -338,6 +342,7 @@ async def execute_transform(
         job_store,
         request.config_path,
         request.transformations,
+        request.group_by,
     )
 
     return TransformResponse(
@@ -509,6 +514,38 @@ async def get_transform_metrics(http_request: Request):
         "last_run": last.get("completed_at"),
         "job_id": last["id"],
     }
+
+
+@router.get("/active")
+async def get_active_transform_job(http_request: Request):
+    """
+    Get the currently active job (running or recently completed).
+
+    Returns the active job or null if none.
+    """
+    job_store = _get_job_store(http_request)
+    job = job_store.get_active_job()
+
+    if not job:
+        return None
+
+    return _job_to_status(job)
+
+
+@router.get("/last-run/{group_by}")
+async def get_last_transform_run(group_by: str, http_request: Request):
+    """
+    Get the last completed transform for a specific group.
+
+    Returns the last terminal job for this group_by or null.
+    """
+    job_store = _get_job_store(http_request)
+    job = job_store.get_last_run("transform", group_by=group_by)
+
+    if not job:
+        return None
+
+    return _job_to_status(job)
 
 
 @router.get("/sources")
