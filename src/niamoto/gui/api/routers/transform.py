@@ -1,13 +1,13 @@
 """Transform API endpoints for executing data transformations."""
 
+import logging
 from typing import Dict, Any, Optional, List
-from uuid import uuid4
 from datetime import datetime
 import asyncio
 import yaml
 import copy
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Request
 from pydantic import BaseModel
 
 from niamoto.core.services.transformer import TransformerService
@@ -17,11 +17,11 @@ from niamoto.gui.api.context import (
     get_config_path,
     get_working_directory,
 )
+from niamoto.gui.api.services.job_file_store import JobFileStore
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Store for background jobs
-transform_jobs: Dict[str, Dict[str, Any]] = {}
 
 
 class TransformRequest(BaseModel):
@@ -83,18 +83,24 @@ def get_transform_config(config_path: str) -> Dict[str, Any]:
         )
 
 
+def _get_job_store(request: Request) -> JobFileStore:
+    """Récupère le JobFileStore depuis app.state."""
+    store = getattr(request.app.state, "job_store", None)
+    if store is None:
+        raise HTTPException(status_code=500, detail="JobFileStore non initialisé")
+    return store
+
+
 async def execute_transform_background(
-    job_id: str, config_path: str, transformations: Optional[List[str]] = None
+    job_id: str,
+    job_store: JobFileStore,
+    config_path: str,
+    transformations: Optional[List[str]] = None,
 ):
     """Execute transformations in the background."""
 
-    job = transform_jobs[job_id]
-
     try:
-        # Update status to running
-        job["status"] = "running"
-        job["progress"] = 0
-        job["message"] = "Loading configuration..."
+        job_store.update_progress(job_id, 0, "Loading configuration...")
 
         # Load configuration
         config = get_transform_config(config_path)
@@ -180,43 +186,44 @@ async def execute_transform_background(
         total_transforms = len(expected_transformations)
 
         if total_transforms == 0:
-            job["status"] = "completed"
-            job["progress"] = 100
-            job["completed_at"] = datetime.now()
-            job["message"] = "No transformations to execute"
-            job["result"] = {
-                "metrics": {
-                    "total_transformations": 0,
-                    "completed_transformations": 0,
-                    "failed_transformations": 0,
-                    "total_widgets": 0,
-                    "generated_files": [],
-                    "execution_time": 0.0,
+            job_store.complete_job(
+                job_id,
+                result={
+                    "metrics": {
+                        "total_transformations": 0,
+                        "completed_transformations": 0,
+                        "failed_transformations": 0,
+                        "total_widgets": 0,
+                        "generated_files": [],
+                        "execution_time": 0.0,
+                    },
+                    "transformations": {},
                 },
-                "transformations": {},
-            }
+            )
             return
 
         # Inject filtered config into service
         transformer_service.transforms_config = prepared_config
         transformer_service.config.transforms = prepared_config
 
-        job["message"] = "Executing transformations from configuration"
-        job["progress"] = 10
+        job_store.update_progress(
+            job_id, 10, "Executing transformations from configuration"
+        )
 
         start_time = datetime.now()
 
         def handle_progress(update: Dict[str, Any]) -> None:
             processed = update.get("processed") or 0
             total = update.get("total") or total_transforms
+            progress_value = 10
             if total:
                 ratio = min(max(processed / total, 0.0), 1.0)
                 progress_value = max(10, 10 + int(ratio * 80))
-                job["progress"] = max(job.get("progress", 10), progress_value)
-            job["message"] = (
+            message = (
                 f"Processing {update.get('group', 'group')} · "
                 f"{update.get('widget', 'widget')}"
             )
+            job_store.update_progress(job_id, progress_value, message)
 
         transform_results = await asyncio.to_thread(
             transformer_service.transform_data,
@@ -263,35 +270,45 @@ async def execute_transform_background(
 
         failed = total_transforms - successful
 
-        # Mark as completed
-        job["status"] = "completed"
-        job["progress"] = 100
-        job["completed_at"] = datetime.now()
-        job["message"] = (
-            f"Transform completed: {successful} successful and {failed} without output"
-        )
-        job["result"] = {
-            "metrics": {
-                "total_transformations": total_transforms,
-                "completed_transformations": successful,
-                "failed_transformations": failed,
-                "total_widgets": total_transforms,
-                "generated_files": [],
-                "execution_time": execution_time,
+        job_store.complete_job(
+            job_id,
+            result={
+                "metrics": {
+                    "total_transformations": total_transforms,
+                    "completed_transformations": successful,
+                    "failed_transformations": failed,
+                    "total_widgets": total_transforms,
+                    "generated_files": [],
+                    "execution_time": execution_time,
+                },
+                "transformations": transformations_status,
             },
-            "transformations": transformations_status,
-        }
+        )
 
     except Exception as e:
-        job["status"] = "failed"
-        job["error"] = str(e)
-        job["completed_at"] = datetime.now()
-        job["message"] = f"Transform failed: {str(e)}"
+        logger.exception("Transform job %s failed", job_id)
+        job_store.fail_job(job_id, str(e))
+
+
+def _job_to_status(job: dict) -> dict:
+    """Convertit un job JobFileStore en format compatible TransformStatus."""
+    return {
+        "job_id": job["id"],
+        "status": job["status"],
+        "progress": job["progress"],
+        "message": job.get("message", ""),
+        "started_at": job["started_at"],
+        "completed_at": job.get("completed_at"),
+        "result": job.get("result"),
+        "error": job.get("error"),
+    }
 
 
 @router.post("/execute", response_model=TransformResponse)
 async def execute_transform(
-    request: TransformRequest, background_tasks: BackgroundTasks
+    request: TransformRequest,
+    background_tasks: BackgroundTasks,
+    http_request: Request,
 ):
     """
     Execute data transformations based on configuration.
@@ -299,98 +316,109 @@ async def execute_transform(
     This starts a background job that processes the transformations
     defined in the transform.yml configuration file.
     """
+    job_store = _get_job_store(http_request)
 
-    # Create job ID
-    job_id = str(uuid4())
+    # Vérifier qu'aucun job n'est déjà en cours
+    running = job_store.get_running_job()
+    if running:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Un calcul est déjà en cours ({running['type']} — {running['progress']}%)",
+        )
 
-    # Initialize job record
-    job = {
-        "job_id": job_id,
-        "status": "pending",
-        "progress": 0,
-        "message": "Transform job created",
-        "started_at": datetime.now(),
-        "completed_at": None,
-        "result": None,
-        "error": None,
-    }
-
-    transform_jobs[job_id] = job
+    try:
+        job = job_store.create_job("transform")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
     # Start background task
     background_tasks.add_task(
         execute_transform_background,
-        job_id,
+        job["id"],
+        job_store,
         request.config_path,
         request.transformations,
     )
 
     return TransformResponse(
-        job_id=job_id,
-        status="pending",
+        job_id=job["id"],
+        status="running",
         message="Transform job started",
         started_at=job["started_at"],
     )
 
 
 @router.get("/status/{job_id}", response_model=TransformStatus)
-async def get_transform_status(job_id: str):
+async def get_transform_status(job_id: str, http_request: Request):
     """
     Get the status of a transform job.
 
     Returns the current status, progress, and result (if completed)
     of the specified transform job.
     """
+    job_store = _get_job_store(http_request)
+    job = job_store.get_job(job_id)
 
-    if job_id not in transform_jobs:
+    if not job:
         raise HTTPException(status_code=404, detail=f"Transform job {job_id} not found")
 
-    job = transform_jobs[job_id]
-
-    return TransformStatus(**job)
+    return TransformStatus(**_job_to_status(job))
 
 
 @router.get("/jobs")
-async def list_transform_jobs():
+async def list_transform_jobs(http_request: Request):
     """
     List all transform jobs.
 
     Returns a list of all transform jobs with their current status.
     """
+    job_store = _get_job_store(http_request)
+    jobs = []
 
-    return {
-        "jobs": [
+    # Job actif
+    active = job_store.get_active_job()
+    if active:
+        jobs.append(
             {
-                "job_id": job["job_id"],
-                "status": job["status"],
-                "started_at": job["started_at"],
-                "completed_at": job.get("completed_at"),
-                "progress": job["progress"],
-                "message": job["message"],
+                "job_id": active["id"],
+                "status": active["status"],
+                "started_at": active["started_at"],
+                "completed_at": active.get("completed_at"),
+                "progress": active["progress"],
+                "message": active.get("message", ""),
             }
-            for job in transform_jobs.values()
-        ]
-    }
+        )
+
+    # Historique récent
+    for entry in job_store.get_history(limit=10):
+        if entry.get("type") == "transform":
+            jobs.append(
+                {
+                    "job_id": entry["id"],
+                    "status": entry["status"],
+                    "started_at": entry["started_at"],
+                    "completed_at": entry.get("completed_at"),
+                    "progress": entry.get("progress", 100),
+                    "message": entry.get("message", ""),
+                }
+            )
+
+    return {"jobs": jobs}
 
 
 @router.delete("/jobs/{job_id}")
-async def cancel_transform_job(job_id: str):
+async def cancel_transform_job(job_id: str, http_request: Request):
     """
     Cancel a running transform job.
     """
+    job_store = _get_job_store(http_request)
+    job = job_store.get_job(job_id)
 
-    if job_id not in transform_jobs:
+    if not job:
         raise HTTPException(status_code=404, detail=f"Transform job {job_id} not found")
 
-    job = transform_jobs[job_id]
-
-    if job["status"] == "running":
-        # TODO: Implement actual cancellation logic
-        job["status"] = "cancelled"
-        job["completed_at"] = datetime.now()
-        job["message"] = "Transform job cancelled"
-
-    return {"message": f"Transform job {job_id} cancelled"}
+    # L'annulation réelle n'est pas implémentée en v1
+    return {"message": f"Transform job {job_id} — annulation non implémentée en v1"}
 
 
 @router.get("/config")
@@ -454,19 +482,16 @@ async def get_transform_config_endpoint():
 
 
 @router.get("/metrics")
-async def get_transform_metrics():
+async def get_transform_metrics(http_request: Request):
     """
     Get metrics from the last completed transform.
 
     Returns statistics about the transformations performed.
     """
+    job_store = _get_job_store(http_request)
+    last = job_store.get_last_run("transform")
 
-    # Find the most recent completed job
-    completed_jobs = [
-        job for job in transform_jobs.values() if job["status"] == "completed"
-    ]
-
-    if not completed_jobs:
+    if not last or not last.get("result"):
         return {
             "metrics": {
                 "total_transformations": 0,
@@ -479,13 +504,10 @@ async def get_transform_metrics():
             "last_run": None,
         }
 
-    # Sort by completion time
-    latest_job = max(completed_jobs, key=lambda j: j["completed_at"])
-
     return {
-        "metrics": latest_job["result"]["metrics"],
-        "last_run": latest_job["completed_at"],
-        "job_id": latest_job["job_id"],
+        "metrics": last["result"]["metrics"],
+        "last_run": last.get("completed_at"),
+        "job_id": last["id"],
     }
 
 
