@@ -1029,8 +1029,33 @@ class HtmlPageExporter(ExporterPlugin):
             # --- End Render Index Page ---
 
             # --- Render Detail Pages ---
-            # Get index data for detail pages (needed for both traditional and new method)
+            # Resolve the transform output table for detail data (widget columns).
+            # The transform stores its output in a table named after the group (e.g., "taxons"),
+            # while the entity table (e.g., "entity_taxons") only has raw entity fields.
+            detail_table_name = table_name
+            detail_id_column = id_column
+            transform_table = group_by_key
+            transform_id_col = f"{group_by_key}_id"
+            if repository.has_table(transform_table) and transform_table != table_name:
+                transform_cols = repository.get_table_columns(transform_table) or []
+                if transform_id_col in transform_cols:
+                    detail_table_name = transform_table
+                    detail_id_column = transform_id_col
+                    logger.info(
+                        f"Using transform output table '{transform_table}' for detail data "
+                        f"(entity table: '{table_name}')"
+                    )
+
+            # Get index data: try entity table first, fallback to transform table
             index_data = self._get_group_index_data(repository, table_name, id_column)
+            if not index_data and detail_table_name != table_name:
+                logger.info(
+                    f"No index data from entity table '{table_name}', "
+                    f"trying transform table '{detail_table_name}'"
+                )
+                index_data = self._get_group_index_data(
+                    repository, detail_table_name, detail_id_column
+                )
             if not index_data:
                 logger.info(
                     f"No items found for group '{group_by_key}', skipping detail pages."
@@ -1077,9 +1102,9 @@ class HtmlPageExporter(ExporterPlugin):
 
                         # Inner try for processing a single item
                         try:
-                            # Get item data
+                            # Get item data from transform output table (has widget columns)
                             item_data = self._get_item_detail_data(
-                                repository, table_name, id_column, item_id
+                                repository, detail_table_name, detail_id_column, item_id
                             )
                             if not item_data:
                                 # Warning already logged in _get_item_detail_data

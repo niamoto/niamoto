@@ -156,6 +156,9 @@
     <!-- Include footer - will use user's _footer.html if available, otherwise fallback to default -->
     {% include '_footer.html' %}
 
+    <!-- Shim Node.js 'global' for Plotly bundle (uses global.matchMedia) -->
+    <script>if(typeof global==="undefined"){var global=globalThis;}</script>
+
     <!-- Block for JavaScript dependencies -->
     {% for js_file in js_dependencies %}
         {% if js_file.startswith('http://') or js_file.startswith('https://') or js_file.startswith('//') %}
