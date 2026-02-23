@@ -138,6 +138,31 @@ def generate_widget_params(
                         "bin": x_label or "Classe",
                         "count": y_label or "%",
                     }
+        elif transformer_plugin == "class_object_series_extractor":
+            size_output = transformer_params.get("size_field", {}).get("output", "tops")
+            value_output = transformer_params.get("value_field", {}).get(
+                "output", "counts"
+            )
+            orientation = transformer_params.get("orientation", "h")
+            params = {
+                "orientation": orientation,
+                "x_axis": transformer_params.get(
+                    "x_axis", value_output if orientation == "h" else size_output
+                ),
+                "y_axis": transformer_params.get(
+                    "y_axis", size_output if orientation == "h" else value_output
+                ),
+            }
+            if transformer_params.get("sort_order"):
+                params["sort_order"] = transformer_params["sort_order"]
+            if transformer_params.get("auto_color"):
+                params["auto_color"] = transformer_params["auto_color"]
+            if transformer_params.get("gradient_color"):
+                params["gradient_color"] = transformer_params["gradient_color"]
+            if transformer_params.get("gradient_mode"):
+                params["gradient_mode"] = transformer_params["gradient_mode"]
+            if "show_legend" in transformer_params:
+                params["show_legend"] = transformer_params["show_legend"]
 
     elif widget_plugin == "donut_chart":
         params = {

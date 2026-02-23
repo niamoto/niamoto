@@ -6,6 +6,7 @@ from typing import Dict, Any, Literal, Optional
 from pydantic import field_validator, Field, ConfigDict
 
 import pandas as pd
+from sqlalchemy import text
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
@@ -157,13 +158,13 @@ class JoinTableLoader(LoaderPlugin):
         if not self._check_table_exists(physical_join):
             raise DatabaseError(f"Join table '{physical_join}' does not exist")
 
-        query = f"""
+        query = text(f"""
             SELECT m.*
             FROM {physical_main} m
             JOIN {physical_join} j
               ON m.id = j.{params.keys["source"]}
             WHERE j.{params.keys["reference"]} = :id
-        """
+        """)
 
         with self.db.engine.connect() as conn:
             return pd.read_sql(query, conn, params={"id": group_id})

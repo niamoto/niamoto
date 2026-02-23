@@ -132,8 +132,11 @@ class TestDirectReferenceLoader(NiamotoTestCase):
             """
         mock_pd_read_sql.assert_called_once()
         call_args = mock_pd_read_sql.call_args
-        # Clean up whitespace for comparison
-        actual_query_cleaned = " ".join(call_args[0][0].split())
+        # Extract text from TextClause or string
+        actual_query = call_args[0][0]
+        if hasattr(actual_query, "text"):
+            actual_query = actual_query.text
+        actual_query_cleaned = " ".join(actual_query.split())
         expected_query_cleaned = " ".join(expected_query.split())
         self.assertEqual(actual_query_cleaned, expected_query_cleaned)
         # Check the second positional argument (engine)

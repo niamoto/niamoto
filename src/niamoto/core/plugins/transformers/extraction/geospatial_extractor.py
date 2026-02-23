@@ -7,6 +7,7 @@ import os
 
 import pandas as pd
 import geopandas as gpd
+from sqlalchemy import text as sa_text
 from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 from shapely.wkb import loads as load_wkb
@@ -222,10 +223,10 @@ class GeospatialExtractor(TransformerPlugin):
             table_name = self._resolve_table_name(source)
             if self.db.has_table(table_name):
                 if id_value is not None:
-                    query = f"SELECT * FROM {table_name} WHERE id = :id"
+                    query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
                     params = {"id": id_value}
                 else:
-                    query = f"SELECT * FROM {table_name}"
+                    query = sa_text(f"SELECT * FROM {table_name}")
                     params = {}
                 return pd.read_sql(query, self.db.engine, params=params or None)
 
@@ -251,7 +252,7 @@ class GeospatialExtractor(TransformerPlugin):
                 # Source exists in registry, try loading from its table
                 table_name = entity_info.table_name
                 try:
-                    query = f"SELECT * FROM {table_name} WHERE id = :id"
+                    query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
                     df = pd.read_sql(query, self.db.engine, params={"id": id_value})
                     if not df.empty:
                         return df
@@ -311,7 +312,9 @@ class GeospatialExtractor(TransformerPlugin):
                     right_field = "rght"
 
             # Get parent entity type
-            type_query = f"SELECT {type_field} FROM {table_name} WHERE id = :id"
+            type_query = sa_text(
+                f"SELECT {type_field} FROM {table_name} WHERE id = :id"
+            )
             type_df = pd.read_sql(type_query, self.db.engine, params={"id": parent_id})
 
             if type_df.empty:
@@ -321,7 +324,7 @@ class GeospatialExtractor(TransformerPlugin):
 
             # If it's already a leaf entity, return itself
             if entity_type == leaf_type:
-                query = f"SELECT * FROM {table_name} WHERE id = :id"
+                query = sa_text(f"SELECT * FROM {table_name} WHERE id = :id")
                 return pd.read_sql(query, self.db.engine, params={"id": parent_id})
 
             # Get all leaf descendants based on hierarchy model
