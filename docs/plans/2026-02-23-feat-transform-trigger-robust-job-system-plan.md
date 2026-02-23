@@ -1,41 +1,53 @@
 ---
-title: "feat: Déclenchement transform dans l'UI + système de jobs robuste"
+title: "feat: Déclenchement transform dans l'UI + jobs persistants légers"
 type: feat
 date: 2026-02-23
+revised: true
+revision_note: "Allégé après revue Codex — scope réduit, fichier JSON au lieu de SQLite, polling conservé"
 ---
 
-# Déclenchement transform dans l'UI + système de jobs robuste
+# Déclenchement transform dans l'UI + jobs persistants légers
 
 ## Overview
 
-Le workflow Niamoto suit le pipeline **Import → Transform → Export → Deploy**. Actuellement, l'import a ses boutons d'exécution, l'export a son bouton "Générer le site" dans Publish/Build, et le deploy Cloudflare fonctionne en SSE. **Mais le transform n'a aucun déclencheur dans l'UI** : l'utilisateur peut configurer les widgets dans `/groups/:name` mais ne peut pas lancer le calcul.
+Le workflow Niamoto suit le pipeline **Import → Transform → Export → Deploy**. Actuellement, l'import a ses boutons d'exécution, l'export a son bouton "Générer le site" dans Publish/Build. **Mais le transform n'a aucun déclencheur dans l'UI** : l'utilisateur peut configurer les widgets dans `/groups/:name` mais ne peut pas lancer le calcul.
 
-De plus, les processus transform et export peuvent durer **30 à 60+ minutes**. Le système actuel (jobs en mémoire + polling HTTP 1s) est fragile : un redémarrage serveur perd tout l'état, aucune annulation possible, pas de reconnexion après fermeture d'onglet.
+Les processus transform et export peuvent durer **30 à 60+ minutes**. Le système actuel (jobs en mémoire + polling HTTP 1s) perd tout état au redémarrage serveur.
 
-Ce plan adresse deux problèmes :
-1. **Ajouter le déclenchement transform** dans Groupes + option combinée dans Publish
-2. **Implémenter un système de jobs robuste** : SSE, persistance SQLite, annulation, historique
+### Scope v1 (ce plan — ~1.5 jour)
 
-> **Hors scope** : La simplification globale de l'interface (trop d'écrans/onglets, workflow pas clair) fera l'objet d'un plan dédié avec brainstorm UX. Ce plan se concentre sur les fondations techniques.
+1. **Ajouter le bouton "Lancer le calcul"** dans GroupPanel
+2. **Ajouter le job composite transform→export** dans Publish/Build
+3. **Persistance légère** via fichier JSON (survit aux redémarrages)
+4. **Fix `os.chdir()`** thread-unsafe dans le router export
+
+### Scope v2 (futur — quand nécessaire)
+
+- Migration vers SQLite + SSE (quand on a besoin d'historique riche, queue, multi-process)
+- Annulation fiable
+- Reconnexion SSE cross-session
+- Simplification UX globale (plan dédié avec brainstorm)
+
+> **Principe directeur** : App desktop mono-utilisateur, un job à la fois. Pas besoin d'un orchestrateur distribué.
+
+---
 
 ## Problem Statement
 
 ### Ce qui manque
 
 1. **Pas de bouton "Lancer le transform"** — L'endpoint `POST /api/transform/execute` existe, le code frontend `executeTransformAndWait()` existe, mais aucune page UI ne l'appelle
-2. **Pas de paramètre `group_by`** dans `TransformRequest` — Le bouton Groupes ne pourrait pas filtrer par groupe même s'il existait
+2. **Pas de paramètre `group_by`** dans `TransformRequest` — Impossible de filtrer par groupe
 3. **Le bouton "Générer le site" dans Publish ne lance que l'export** — Il devrait lancer transform → export en séquence
-4. **Jobs en mémoire (`dict`)** — Perdus au redémarrage, pas d'historique, pas d'annulation réelle
-5. **Polling HTTP 1s** — Gaspille des requêtes, pas de push temps réel (sauf deploy SSE)
-6. **`os.chdir()` thread-unsafe** dans le router export — Dangereux en cas de jobs concurrents
-7. **Pas d'invalidation croisée** — L'utilisateur ne sait pas si les données export sont périmées après un nouveau transform
+4. **Jobs en mémoire (`dict`)** — Perdus au redémarrage, pas d'historique
+5. **`os.chdir()` thread-unsafe** dans le router export
 
-### Ce qui fonctionne déjà
+### Ce qui fonctionne déjà (et qu'on garde)
 
 - Pipeline CLI complet (import/transform/export)
-- Configuration des widgets dans GroupPanel (3 onglets : Sources, Contenu, Index)
-- SSE pour le deploy Cloudflare (pattern réutilisable)
-- Frontend API `executeTransformAndWait()` et `executeExportAndWait()` (à migrer vers SSE)
+- Configuration des widgets dans GroupPanel (3 onglets)
+- Frontend API `executeTransformAndWait()` + `executeExportAndWait()` avec polling 1s
+- Polling HTTP 1s → **suffisant sur loopback pour une app locale**
 - 147+ tests GUI API verts
 
 ---
@@ -44,315 +56,333 @@ Ce plan adresse deux problèmes :
 
 ### Décisions architecturales
 
-| Décision | Choix | Justification |
-|----------|-------|---------------|
-| **Stockage jobs** | SQLite séparé (`niamoto_jobs.sqlite`) | DuckDB a un verrou single-writer ; le job store doit écrire pendant que le transform écrit dans DuckDB |
-| **Concurrence transforms** | Rejet avec erreur explicite | DuckDB single-writer interdit les écritures parallèles ; un seul transform à la fois |
-| **Progression** | SSE (Server-Sent Events) | Pattern déjà implémenté pour le deploy ; push temps réel sans WebSocket |
-| **Job composite** | Un seul job avec 2 phases | Plus simple pour l'utilisateur : une barre de progression, un statut |
-| **Récupération après crash** | Marquer comme `interrupted` | Pas de restart automatique (risque de données partielles) ; l'utilisateur relance manuellement |
-| **Annulation** | `threading.Event` vérifié entre widgets | Point d'interruption naturel : entre chaque widget du transform |
-| **Config pendant exécution** | Warning non-bloquant | L'utilisateur peut éditer mais voit un bandeau "les changements ne s'appliqueront qu'au prochain lancement" |
+| Décision | Choix v1 | Justification |
+|----------|----------|---------------|
+| **Stockage jobs** | Fichier JSON (`active_job.json` + `job_history.jsonl`) | Mono-utilisateur, un job à la fois. Un fichier JSON suffit. |
+| **Progression** | Polling HTTP conservé (existant) | Sur loopback, 1 req/s est négligeable. Ça marche déjà. |
+| **Concurrence** | Rejet avec erreur + verrou fichier | Un seul job à la fois (contrainte DuckDB single-writer) |
+| **Récupération crash** | Détection PID mort au démarrage | Si `active_job.json` existe avec un PID non vivant → `interrupted` |
+| **Annulation** | Best-effort (caché pour v1) | L'annulation coopérative entre widgets est trop lente pour être fiable. On ne montre pas de bouton "Annuler" pour l'instant. |
+| **Job composite** | Séquence transform→export côté backend | Un seul endpoint qui enchaîne les deux |
 
 ---
 
 ## Technical Approach
 
-### Architecture du système de jobs
+### Architecture simplifiée
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Frontend (React)                                            │
-│                                                              │
-│  GroupPanel ─── "Run transform" ──┐                          │
-│                                   │  POST /api/jobs/start    │
-│  Build Page ── "Générer le site" ─┤  { type, group_by }     │
-│                                   │                          │
-│  Import Page ── "Importer" ───────┘                          │
-│                                                              │
-│  ← SSE: GET /api/jobs/{id}/stream ──────────────────────     │
-│                                                              │
-│  JobStore (zustand) ── état local + reconnexion              │
-└─────────────────────────────────────────────────────────────┘
-           │                    ▲
-           ▼                    │ SSE events
-┌─────────────────────────────────────────────────────────────┐
-│  Backend (FastAPI)                                           │
-│                                                              │
-│  /api/jobs/start ── crée job SQLite ── lance BackgroundTask  │
-│  /api/jobs/{id}/stream ── SSE endpoint (poll SQLite)         │
-│  /api/jobs/{id}/cancel ── set cancel flag                    │
-│  /api/jobs/active ── jobs en cours                           │
-│  /api/jobs/history ── historique paginé                      │
-│                                                              │
-│  JobService ── lit/écrit niamoto_jobs.sqlite                 │
-│  BackgroundTask ── exécute transform/export dans thread      │
-│               ── met à jour SQLite via callback              │
-│               ── vérifie cancel_event entre widgets          │
-└─────────────────────────────────────────────────────────────┘
-           │
-           ▼
-┌──────────────────────┐  ┌──────────────────────┐
-│  niamoto_jobs.sqlite │  │  niamoto.duckdb      │
-│  (état des jobs)     │  │  (données métier)    │
-└──────────────────────┘  └──────────────────────┘
+┌───────────────────────────────────────────────────────┐
+│  Frontend (React)                                      │
+│                                                        │
+│  GroupPanel ── "Lancer le calcul" ─┐                   │
+│                                    │ POST /api/transform/execute
+│  Build Page ── "Générer le site" ──┤ POST /api/export/execute
+│                                    │   (ou composite)  │
+│  ← Polling 1s: GET /api/transform/status/{id} ──────  │
+│  ← Polling 1s: GET /api/export/status/{id}   ──────   │
+│                                                        │
+└───────────────────────────────────────────────────────┘
+         │                    ▲
+         ▼                    │ JSON responses
+┌───────────────────────────────────────────────────────┐
+│  Backend (FastAPI)                                      │
+│                                                        │
+│  Routers existants (transform.py, export.py)           │
+│  + JobFileStore → lit/écrit active_job.json            │
+│  + BackgroundTasks (existant, inchangé)                │
+│                                                        │
+└───────────────────────────────────────────────────────┘
+         │
+         ▼
+┌───────────────────┐  ┌──────────────────┐
+│  .niamoto/         │  │  db/niamoto.duckdb│
+│  active_job.json   │  │  (données métier) │
+│  job_history.jsonl │  │                  │
+└───────────────────┘  └──────────────────┘
 ```
 
 ---
 
-### Implementation Phases
+### Phase 1 : JobFileStore — persistance fichier JSON (~0.5 jour)
 
-#### Phase 1 : Système de jobs persistant (backend)
+**Objectif** : Remplacer les dicts en mémoire par un store fichier, sans changer l'API.
 
-**Objectif** : Remplacer les dicts en mémoire par un service de jobs SQLite.
+#### 1.1 JobFileStore
 
-##### 1.1 Schéma `niamoto_jobs.sqlite`
-
-**Fichier** : `src/niamoto/gui/api/services/job_service.py`
-
-```sql
-CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,           -- UUID
-    type TEXT NOT NULL,            -- 'transform' | 'export' | 'import' | 'composite'
-    status TEXT NOT NULL DEFAULT 'queued',
-                                   -- 'queued' | 'running' | 'completed' | 'failed'
-                                   -- | 'cancelled' | 'interrupted'
-    group_by TEXT,                 -- null pour export/import, nom du groupe pour transform
-    progress INTEGER DEFAULT 0,   -- 0-100
-    phase TEXT,                    -- 'transform' | 'export' (pour les jobs composites)
-    message TEXT,                  -- message de progression lisible
-    config_snapshot TEXT,          -- JSON snapshot de la config utilisée
-    result_json TEXT,              -- JSON résultat (métriques, fichiers générés)
-    error TEXT,                    -- message d'erreur si failed
-    created_at TEXT NOT NULL,      -- ISO 8601
-    started_at TEXT,
-    completed_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-CREATE INDEX IF NOT EXISTS idx_jobs_type ON jobs(type);
-CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
-```
-
-##### 1.2 JobService
-
-**Fichier** : `src/niamoto/gui/api/services/job_service.py`
+**Fichier** : `src/niamoto/gui/api/services/job_file_store.py`
 
 ```python
-class JobService:
-    """Service de gestion des jobs avec persistance SQLite."""
+import json
+import os
+from pathlib import Path
+from uuid import uuid4
+from datetime import datetime
 
-    def __init__(self, db_path: Path):
-        """Initialise avec le chemin vers niamoto_jobs.sqlite."""
 
-    def create_job(self, job_type: str, group_by: str | None = None,
-                   config_snapshot: dict | None = None) -> str:
-        """Crée un job en statut 'queued', retourne l'id."""
+class JobFileStore:
+    """Persistance légère des jobs via fichiers JSON.
+
+    - active_job.json : état du job en cours (un seul à la fois)
+    - job_history.jsonl : historique append-only (1 ligne JSON par job terminé)
+
+    Design notes (revue Codex) :
+    - threading.Lock protège toutes les lectures/écritures (multi-onglets)
+    - Les jobs terminés restent dans active_job.json (status terminal)
+      jusqu'au prochain create_job() → évite le 404 sur le dernier poll
+    - updated_at tracké pour détecter les jobs bloqués
+    """
+
+    TERMINAL_STATUSES = ("completed", "failed", "cancelled", "interrupted")
+
+    def __init__(self, work_dir: Path):
+        self._dir = work_dir / ".niamoto"
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._active_path = self._dir / "active_job.json"
+        self._history_path = self._dir / "job_history.jsonl"
+        self._lock = threading.Lock()
+
+    # --- Cycle de vie ---
+
+    def create_job(self, job_type: str, group_by: str | None = None) -> dict:
+        """Crée un job. Échoue si un job non-terminal est déjà actif."""
+        with self._lock:
+            existing = self._read_active()
+            if existing and existing["status"] not in self.TERMINAL_STATUSES:
+                raise RuntimeError("Un job est déjà en cours")
+
+            # Si un job terminal traîne, l'archiver d'abord
+            if existing and existing["status"] in self.TERMINAL_STATUSES:
+                self._archive(existing)
+
+            job = {
+                "id": str(uuid4()),
+                "type": job_type,
+                "group_by": group_by,
+                "status": "running",
+                "progress": 0,
+                "message": "",
+                "phase": None,
+                "pid": os.getpid(),
+                "started_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "completed_at": None,
+                "result": None,
+                "error": None,
+            }
+            self._write_active(job)
+            return job
 
     def update_progress(self, job_id: str, progress: int,
                         message: str, phase: str | None = None) -> None:
-        """Met à jour la progression (appelé par le callback du worker)."""
+        """Met à jour la progression du job actif."""
+        with self._lock:
+            job = self._read_active()
+            if not job or job["id"] != job_id:
+                return
+            job["progress"] = progress
+            job["message"] = message
+            job["updated_at"] = datetime.now().isoformat()
+            if phase:
+                job["phase"] = phase
+            self._write_active(job)
 
-    def complete_job(self, job_id: str, result: dict) -> None:
-        """Marque un job comme terminé avec ses résultats."""
+    def complete_job(self, job_id: str, result: dict | None = None) -> None:
+        """Marque le job comme terminé. Le fichier reste en place
+        pour que le dernier poll puisse lire le statut 'completed'.
+        Il sera archivé au prochain create_job()."""
+        with self._lock:
+            job = self._read_active()
+            if not job or job["id"] != job_id:
+                return
+            job["status"] = "completed"
+            job["progress"] = 100
+            job["completed_at"] = datetime.now().isoformat()
+            job["updated_at"] = datetime.now().isoformat()
+            job["result"] = result
+            self._write_active(job)  # reste en place, pas de suppression
 
     def fail_job(self, job_id: str, error: str) -> None:
-        """Marque un job comme échoué."""
+        """Marque le job comme échoué. Même logique : reste en place."""
+        with self._lock:
+            job = self._read_active()
+            if not job or job["id"] != job_id:
+                return
+            job["status"] = "failed"
+            job["completed_at"] = datetime.now().isoformat()
+            job["updated_at"] = datetime.now().isoformat()
+            job["error"] = error
+            self._write_active(job)
 
-    def cancel_job(self, job_id: str) -> bool:
-        """Marque un job comme annulé. Retourne False si déjà terminé."""
+    # --- Lecture ---
 
-    def get_job(self, job_id: str) -> dict | None:
-        """Récupère l'état complet d'un job."""
+    def get_active_job(self) -> dict | None:
+        """Retourne le job courant (actif ou terminal en attente d'archivage)."""
+        with self._lock:
+            return self._read_active()
 
-    def get_active_jobs(self) -> list[dict]:
-        """Retourne les jobs en cours (queued + running)."""
+    def get_running_job(self) -> dict | None:
+        """Retourne le job seulement s'il est en cours (pas terminal)."""
+        with self._lock:
+            job = self._read_active()
+            if job and job["status"] not in self.TERMINAL_STATUSES:
+                return job
+            return None
 
-    def get_history(self, job_type: str | None = None,
-                    limit: int = 50, offset: int = 0) -> list[dict]:
-        """Retourne l'historique paginé."""
+    def get_history(self, limit: int = 20) -> list[dict]:
+        """Retourne les N derniers jobs terminés (plus récent en premier)."""
+        with self._lock:
+            if not self._history_path.exists():
+                return []
+            lines = self._history_path.read_text().strip().splitlines()
+            entries = [json.loads(line) for line in lines[-limit:]]
+            entries.reverse()
+            return entries
 
-    def mark_interrupted_on_startup(self) -> int:
-        """Au démarrage du serveur, marque tous les jobs 'running' comme 'interrupted'.
-        Retourne le nombre de jobs affectés."""
+    def get_last_run(self, job_type: str,
+                     group_by: str | None = None) -> dict | None:
+        """Retourne le dernier job terminé pour un type/groupe donné.
+        Vérifie aussi le job actif s'il est terminal."""
+        with self._lock:
+            # D'abord vérifier le job actif (peut être completed mais pas encore archivé)
+            active = self._read_active()
+            if active and active["status"] in self.TERMINAL_STATUSES:
+                if active["type"] == job_type:
+                    if group_by is None or active.get("group_by") == group_by:
+                        return active
 
-    def cleanup_old_jobs(self, keep_last: int = 100) -> int:
-        """Supprime les jobs les plus anciens au-delà du seuil."""
-```
+            # Sinon chercher dans l'historique
+            if not self._history_path.exists():
+                return None
+            lines = self._history_path.read_text().strip().splitlines()
+            for line in reversed(lines):
+                entry = json.loads(line)
+                if entry["type"] == job_type:
+                    if group_by is None or entry.get("group_by") == group_by:
+                        return entry
+            return None
 
-##### 1.3 Registre d'annulation
+    # --- Startup : détection de jobs orphelins ---
 
-**Fichier** : `src/niamoto/gui/api/services/job_service.py` (dans la même classe ou module)
-
-```python
-# Registre en mémoire des events d'annulation (non persisté)
-_cancel_events: dict[str, threading.Event] = {}
-
-def register_cancel_event(job_id: str) -> threading.Event:
-    """Crée et enregistre un Event pour ce job."""
-
-def request_cancellation(job_id: str) -> bool:
-    """Set l'event d'annulation. Retourne False si pas trouvé."""
-
-def is_cancelled(job_id: str) -> bool:
-    """Vérifie si l'annulation a été demandée."""
-
-def unregister_cancel_event(job_id: str) -> None:
-    """Nettoie après fin du job."""
-```
-
-##### 1.4 Migration des routers existants
-
-Remplacer les `transform_jobs`, `export_jobs`, `import_jobs` (dicts en mémoire) par des appels à `JobService`. Conserver la compatibilité des endpoints existants le temps de la migration.
-
-**Fichiers impactés** :
-- `src/niamoto/gui/api/routers/transform.py` — remplacer `transform_jobs` dict
-- `src/niamoto/gui/api/routers/export.py` — remplacer `export_jobs` dict
-- `src/niamoto/gui/api/routers/imports.py` — remplacer `import_jobs` dict
-- `src/niamoto/gui/api/app.py` — initialiser `JobService` au démarrage, appeler `mark_interrupted_on_startup()`
-
-**Tests** :
-- `tests/gui/api/services/test_job_service.py` — tests unitaires CRUD, concurrence, cleanup
-- `tests/gui/api/routers/test_transform.py` — vérifier que les endpoints utilisent JobService
-- `tests/gui/api/routers/test_export.py` — idem
-
----
-
-#### Phase 2 : Endpoints SSE + API jobs unifiée (backend)
-
-**Objectif** : Créer un router `/api/jobs` centralisé avec SSE.
-
-##### 2.1 Router jobs
-
-**Fichier** : `src/niamoto/gui/api/routers/jobs.py`
-
-```python
-# POST /api/jobs/start
-# Body: { type: "transform"|"export"|"composite", group_by?: string }
-# Response: { job_id: string, status: "queued" }
-
-# GET /api/jobs/{job_id}/stream
-# Response: SSE stream
-# Events:
-#   data: {"status":"running","progress":25,"message":"Calcul widget forest_cover...","phase":"transform"}
-#   data: {"status":"completed","progress":100,"result":{...}}
-#   data: {"status":"failed","error":"..."}
-#   data: {"status":"cancelled"}
-
-# POST /api/jobs/{job_id}/cancel
-# Response: { cancelled: true } ou 409 si déjà terminé
-
-# GET /api/jobs/active
-# Response: [{ id, type, status, progress, message, group_by, started_at }]
-
-# GET /api/jobs/history?type=transform&limit=50&offset=0
-# Response: { items: [...], total: int }
-
-# GET /api/jobs/{job_id}
-# Response: { id, type, status, progress, message, result_json, error, ... }
-```
-
-##### 2.2 SSE endpoint (pattern)
-
-```python
-@router.get("/jobs/{job_id}/stream")
-async def stream_job_progress(job_id: str):
-    """Stream SSE pour suivre la progression d'un job."""
-
-    async def event_generator():
-        last_progress = -1
-        while True:
-            job = job_service.get_job(job_id)
+    def recover_on_startup(self) -> dict | None:
+        """Au démarrage, détecte un job orphelin (PID mort ou job non-terminal).
+        Retourne le job marqué 'interrupted' ou None."""
+        with self._lock:
+            job = self._read_active()
             if not job:
-                yield f"data: {json.dumps({'error': 'Job not found'})}\n\n"
-                return
+                return None
 
-            # N'émettre que si changement
-            if job["progress"] != last_progress or job["status"] in TERMINAL_STATES:
-                yield f"id: {job['id']}-{job['progress']}\n"
-                yield f"data: {json.dumps(job)}\n\n"
-                last_progress = job["progress"]
+            # Job terminal en attente d'archivage → archiver simplement
+            if job["status"] in self.TERMINAL_STATUSES:
+                self._archive(job)
+                self._active_path.unlink(missing_ok=True)
+                return None
 
-            if job["status"] in ("completed", "failed", "cancelled", "interrupted"):
-                return
+            # Job non-terminal → vérifier si le process est vivant
+            pid = job.get("pid")
+            if pid and pid == os.getpid():
+                return None  # Même process (ne devrait pas arriver)
+            if pid and self._is_pid_alive(pid):
+                return None  # Process encore vivant
 
-            await asyncio.sleep(0.5)  # poll SQLite toutes les 500ms
+            # PID mort ou absent → marquer comme interrupted
+            job["status"] = "interrupted"
+            job["completed_at"] = datetime.now().isoformat()
+            job["updated_at"] = datetime.now().isoformat()
+            job["error"] = "Interrompu par un arrêt du serveur"
+            self._archive(job)
+            self._active_path.unlink(missing_ok=True)
+            return job
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    # --- Maintenance ---
+
+    def purge_history(self, keep_last: int = 100) -> int:
+        """Supprime les entrées les plus anciennes au-delà du seuil.
+        Retourne le nombre d'entrées supprimées."""
+        with self._lock:
+            if not self._history_path.exists():
+                return 0
+            lines = self._history_path.read_text().strip().splitlines()
+            if len(lines) <= keep_last:
+                return 0
+            removed = len(lines) - keep_last
+            kept = lines[-keep_last:]
+            self._history_path.write_text("\n".join(kept) + "\n")
+            return removed
+
+    # --- Internals ---
+
+    def _read_active(self) -> dict | None:
+        """Lecture sans lock (le lock est pris par l'appelant)."""
+        if not self._active_path.exists():
+            return None
+        try:
+            data = json.loads(self._active_path.read_text())
+            return data
+        except (json.JSONDecodeError, OSError):
+            # Fichier corrompu → backup et retourner None
+            backup = self._active_path.with_suffix(".corrupt")
+            try:
+                self._active_path.rename(backup)
+            except OSError:
+                pass
+            return None
+
+    def _write_active(self, job: dict) -> None:
+        """Écriture atomique (write tmp + rename). Sans lock."""
+        tmp = self._active_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(job, ensure_ascii=False, indent=2))
+        tmp.rename(self._active_path)
+
+    def _archive(self, job: dict) -> None:
+        """Append dans l'historique JSONL. Sans lock."""
+        archived = {k: v for k, v in job.items() if k != "pid"}
+        with self._history_path.open("a") as f:
+            f.write(json.dumps(archived, ensure_ascii=False) + "\n")
+
+    @staticmethod
+    def _is_pid_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
 ```
 
-##### 2.3 Job composite (transform → export)
+#### 1.2 Intégration dans les routers existants
 
-```python
-async def execute_composite_job(job_id: str, cancel_event: threading.Event):
-    """Exécute transform puis export en séquence."""
+Remplacer les dicts en mémoire par `JobFileStore` **sans changer les endpoints** (même API, même polling frontend).
 
-    # Phase 1 : Transform
-    job_service.update_progress(job_id, 0, "Démarrage des transformations...", phase="transform")
-    try:
-        await asyncio.to_thread(
-            run_transform_with_progress,
-            job_id, cancel_event, phase_offset=0, phase_weight=60
-        )
-    except CancelledException:
-        job_service.cancel_job(job_id)
-        return
+**Fichier** : `src/niamoto/gui/api/routers/transform.py`
 
-    if cancel_event.is_set():
-        job_service.cancel_job(job_id)
-        return
+Changements :
+- Remplacer `transform_jobs: Dict[str, Dict] = {}` par `job_store.create_job("transform", group_by=...)`
+- `update_progress()` → `job_store.update_progress()`
+- `complete/fail` → `job_store.complete_job()` / `job_store.fail_job()`
+- Endpoint `GET /status/{job_id}` → `job_store.get_active_job()` (vérifier `id` match)
 
-    # Phase 2 : Export
-    job_service.update_progress(job_id, 60, "Génération du site statique...", phase="export")
-    try:
-        await asyncio.to_thread(
-            run_export_with_progress,
-            job_id, cancel_event, phase_offset=60, phase_weight=40
-        )
-    except CancelledException:
-        job_service.cancel_job(job_id)
-        return
+**Fichier** : `src/niamoto/gui/api/routers/export.py`
 
-    job_service.complete_job(job_id, result={...})
-```
+Mêmes changements. Remplacer `export_jobs` dict.
 
-##### 2.4 Annulation via `threading.Event`
+**Fichier** : `src/niamoto/gui/api/app.py`
 
-Modifier le callback de progression pour vérifier le flag d'annulation :
-
-```python
-def make_progress_callback(job_id: str, cancel_event: threading.Event,
-                            phase_offset: int, phase_weight: int):
-    """Crée un callback compatible TransformerService.transform_data()."""
-
-    def callback(current: int, total: int, message: str):
-        if cancel_event.is_set():
-            raise CancelledException(f"Job {job_id} annulé par l'utilisateur")
-
-        progress = phase_offset + int((current / max(total, 1)) * phase_weight)
-        job_service.update_progress(job_id, progress, message)
-
-    return callback
-```
+Au démarrage :
+1. Créer l'instance `JobFileStore(work_dir)`
+2. Appeler `job_store.recover_on_startup()` pour détecter les jobs orphelins
+3. Rendre le store accessible aux routers (via `app.state` ou dependency injection)
 
 **Tests** :
-- `tests/gui/api/routers/test_jobs.py` — tests endpoints, SSE, annulation
-- `tests/gui/api/services/test_job_composite.py` — test du pipeline composite
+- `tests/gui/api/services/test_job_file_store.py` — CRUD, récupération crash, historique, verrou
+- Pas de régression sur les tests de routers existants
 
 ---
 
-#### Phase 3 : Bouton "Run transform" dans GroupPanel (frontend)
+### Phase 2 : Bouton "Lancer le calcul" dans GroupPanel (~0.5 jour)
 
-**Objectif** : Ajouter le déclenchement transform dans chaque page de groupe.
+**Objectif** : Le déclenchement du transform depuis la page de configuration des groupes.
 
-##### 3.1 Ajouter `group_by` à `TransformRequest`
+#### 2.1 Ajouter `group_by` à `TransformRequest`
 
 **Fichier** : `src/niamoto/gui/api/routers/transform.py`
 
@@ -360,30 +390,38 @@ def make_progress_callback(job_id: str, cancel_event: threading.Event,
 class TransformRequest(BaseModel):
     config_path: str | None = None
     transformations: list[str] | None = None
-    group_by: str | None = None  # ← AJOUT : filtrer par groupe
+    group_by: str | None = None  # ← AJOUT
 ```
 
 Propager vers `TransformerService.transform_data(group_by=request.group_by)`.
 
-##### 3.2 Bouton dans le header de GroupPanel
+#### 2.2 Vérifier qu'un job n'est pas déjà en cours
+
+Dans le handler `POST /api/transform/execute` :
+
+```python
+active = job_store.get_active_job()
+if active:
+    raise HTTPException(
+        status_code=409,
+        detail=f"Un calcul est déjà en cours ({active['type']} — {active['progress']}%)"
+    )
+```
+
+#### 2.3 Bouton dans le header de GroupPanel
 
 **Fichier** : `src/niamoto/gui/ui/src/components/panels/GroupPanel.tsx`
 
 Ajouter dans le header (à côté du nom du groupe) :
-- Bouton **"Lancer le calcul"** (icône Play)
-- Indicateur d'état : dernier run (date + statut) ou "Jamais exécuté"
-- Quand un job est en cours : barre de progression + bouton "Annuler"
-- Quand le job est terminé : résumé (durée, widgets traités, erreurs éventuelles)
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Taxons                          [▶ Lancer le calcul]    │
-│  Dernier calcul : il y a 2h ✓   ────────────────────    │
+│  Dernier calcul : il y a 2h ✓                            │
 │                                                          │
 │  ┌─────────┬──────────┬────────┐                         │
 │  │ Sources │ Contenu  │ Index  │                         │
 │  └─────────┴──────────┴────────┘                         │
-│  ...                                                     │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -391,181 +429,161 @@ Pendant l'exécution :
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Taxons                          [⏹ Annuler]             │
+│  Taxons                                                  │
 │  Calcul en cours... 45%          ████████░░░░░░░░░░░░    │
 │  Widget forest_cover (3/12)                              │
 │  ┌─────────┬──────────┬────────┐                         │
-│  │ Sources │ Contenu  │ Index  │  (édition désactivée)   │
+│  │ Sources │ Contenu  │ Index  │                         │
 │  └─────────┴──────────┴────────┘                         │
 └──────────────────────────────────────────────────────────┘
 ```
 
-##### 3.3 Hook `useJobStream`
+**Comportement** :
+- Clic sur "Lancer le calcul" → `POST /api/transform/execute { group_by: "taxons" }`
+- Reçoit `job_id` → lance le polling `GET /api/transform/status/{job_id}` toutes les secondes (utilise `executeTransformAndWait()` existant)
+- Barre de progression shadcn/ui `<Progress>` dans le header
+- Bouton grisé si un job est déjà actif (vérifier via `GET /api/transform/status` ou `GET /api/jobs/active`)
+- Au succès : toast + mise à jour de l'indicateur "Dernier calcul"
+- En cas d'erreur : toast d'erreur avec le message
 
-**Fichier** : `src/niamoto/gui/ui/src/hooks/useJobStream.ts`
+#### 2.4 Endpoint "dernier run" et "job actif"
 
-```typescript
-interface UseJobStreamOptions {
-  jobId: string | null;
-  onProgress?: (data: JobEvent) => void;
-  onComplete?: (data: JobEvent) => void;
-  onError?: (data: JobEvent) => void;
-}
+**Fichier** : `src/niamoto/gui/api/routers/transform.py` (ou nouveau router léger)
 
-function useJobStream({ jobId, onProgress, onComplete, onError }: UseJobStreamOptions) {
-  // Ouvre EventSource vers /api/jobs/{jobId}/stream
-  // Gère reconnexion automatique
-  // Retourne { status, progress, message, phase, isConnected }
-}
+```python
+@router.get("/active")
+async def get_active_job():
+    """Retourne le job actif ou null."""
+    return job_store.get_active_job()
+
+@router.get("/last-run/{group_by}")
+async def get_last_run(group_by: str):
+    """Retourne le dernier transform terminé pour ce groupe."""
+    return job_store.get_last_run("transform", group_by=group_by)
 ```
 
-##### 3.4 Store jobs (zustand)
+**Frontend** : Hook simple `useTransformStatus(groupName)` qui poll `/api/transform/active` au chargement de la page GroupPanel et affiche le dernier run.
 
-**Fichier** : `src/niamoto/gui/ui/src/stores/jobStore.ts`
-
-```typescript
-interface JobState {
-  activeJobs: Record<string, JobInfo>;    // jobs en cours
-  lastRuns: Record<string, JobInfo>;      // dernier run par type+group
-  startJob: (type: string, groupBy?: string) => Promise<string>;
-  cancelJob: (jobId: string) => Promise<void>;
-  fetchActiveJobs: () => Promise<void>;   // appelé au chargement de l'app
-}
-```
-
-Remplace `publishStore.buildState` et les équivalents transform/import.
-
-**Fichiers impactés (frontend)** :
+**Fichiers frontend impactés** :
 - `src/niamoto/gui/ui/src/components/panels/GroupPanel.tsx` — bouton + barre progression
-- `src/niamoto/gui/ui/src/hooks/useJobStream.ts` — nouveau hook SSE
-- `src/niamoto/gui/ui/src/stores/jobStore.ts` — nouveau store
-- `src/niamoto/gui/ui/src/lib/api/jobs.ts` — nouveau client API
-- `src/niamoto/gui/ui/src/lib/api/transform.ts` — adapter pour utiliser le nouveau système
+- `src/niamoto/gui/ui/src/lib/api/transform.ts` — ajouter `getActiveJob()`, `getLastRun(group)`
 
 ---
 
-#### Phase 4 : Job composite dans Publish/Build (frontend)
+### Phase 3 : Job composite transform→export dans Publish/Build (~0.5 jour)
 
 **Objectif** : Le bouton "Générer le site" lance transform → export en séquence.
 
-##### 4.1 Modifier la page Build
+#### 3.1 Endpoint composite
+
+**Fichier** : `src/niamoto/gui/api/routers/export.py`
+
+Ajouter un endpoint ou modifier l'existant pour accepter un flag `include_transform` :
+
+```python
+class ExportRequest(BaseModel):
+    # ... champs existants ...
+    include_transform: bool = False  # ← AJOUT
+
+# Dans execute_export_background :
+if request.include_transform:
+    job_store.update_progress(job_id, 0, "Transformations en cours...", phase="transform")
+    # Lancer transform_data() d'abord
+    transformer_service = TransformerService(str(db_path), app_config)
+    transformer_service.transform_data(progress_callback=make_callback(0, 60))
+
+    # Si transform échoue → job_store.fail_job() → pas d'export
+    job_store.update_progress(job_id, 60, "Génération du site...", phase="export")
+    # Puis lancer l'export (NB: la vraie méthode est run_export(), pas export_data())
+    exporter_service.run_export(progress_callback=make_callback(60, 40))
+else:
+    # Export seul (comportement actuel)
+    exporter_service.run_export(progress_callback=make_callback(0, 100))
+```
+
+**Important** : si le transform échoue (exception), le `except` block doit appeler `job_store.fail_job()` et ne **pas** lancer l'export. Le résultat final doit indiquer clairement quelle phase a échoué via le champ `phase`.
+
+#### 3.2 Modifier la page Build
 
 **Fichier** : `src/niamoto/gui/ui/src/pages/publish/build.tsx`
 
-Remplacer l'appel à `executeExportAndWait()` par :
-
-```typescript
-const runBuild = async () => {
-  const jobId = await jobStore.startJob('composite');
-  // Le hook useJobStream gère le suivi SSE
-  // La barre de progression montre 2 phases :
-  //   0-60% : Transform (phase="transform")
-  //   60-100% : Export (phase="export")
-};
-```
-
-Affichage de la progression en 2 phases :
+Le bouton "Générer le site" envoie `include_transform: true` par défaut :
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Génération du site                                      │
 │                                                          │
-│  Phase 1/2 : Transformations                             │
-│  ████████████████████░░░░░░░░░░  60%                     │
-│  Widget fragmentation (11/12)                            │
+│  [✓] Recalculer les transformations avant export         │
 │                                                          │
-│  Phase 2/2 : Export               (en attente)           │
-│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0%                     │
+│  [▶ Générer le site]                                     │
 │                                                          │
-│  [⏹ Annuler]                                             │
+│  Phase 1/2 : Transformations  ████████████░░░░  60%      │
+│  Widget forest_cover (5/12)                              │
+│                                                          │
+│  Phase 2/2 : Export           ░░░░░░░░░░░░░░░░  —        │
 └──────────────────────────────────────────────────────────┘
 ```
 
-##### 4.2 Indicateur de fraîcheur des données
-
-Ajouter dans le dashboard Publish (`/publish`) un indicateur visuel :
-
-```
-Import ──✓──→ Transform ──⚠──→ Export ──○──→ Deploy
-  il y a 3h      il y a 1h      périmé       jamais
-```
-
-- ✓ = à jour (exécuté après l'étape précédente)
-- ⚠ = exécuté mais l'étape précédente a été relancée depuis
-- ○ = jamais exécuté ou périmé
-
-Basé sur les timestamps `completed_at` des derniers jobs réussis de chaque type.
+- Checkbox "Recalculer les transformations" cochée par défaut
+- Le polling affiche la phase courante via le champ `phase` du job
+- Le même `executeExportAndWait()` existant fonctionne (il poll `/api/export/status/{id}`)
 
 **Fichiers impactés** :
-- `src/niamoto/gui/ui/src/pages/publish/build.tsx` — refactor build
-- `src/niamoto/gui/ui/src/pages/publish/index.tsx` — indicateur pipeline
-- `src/niamoto/gui/ui/src/stores/publishStore.ts` — migration vers jobStore
+- `src/niamoto/gui/ui/src/pages/publish/build.tsx` — checkbox + affichage phases
+- `src/niamoto/gui/api/routers/export.py` — logique composite
 
 ---
 
-#### Phase 5 : Reconnexion et robustesse (frontend + backend)
+### Phase 0 (immédiat) : Fix `os.chdir()` thread-unsafe
 
-**Objectif** : Gérer les déconnexions, redémarrages, et cas limites.
+**Fichier** : `src/niamoto/gui/api/routers/export.py`
 
-##### 5.1 Reconnexion SSE
+Remplacer `os.chdir(work_dir)` par des chemins absolus passés aux services. Si pas possible rapidement, ajouter au minimum un `threading.Lock()` global autour du bloc chdir/restore.
 
-Le hook `useJobStream` doit :
-- Reconnecter automatiquement si `EventSource` est fermé (avec backoff exponentiel)
-- Sur reconnexion, recevoir l'état courant du job (le SSE endpoint envoie l'état immédiatement)
-- Si le job est déjà terminé quand le client se connecte, recevoir l'événement final directement
+```python
+# AVANT (dangereux)
+os.chdir(work_dir)
+try:
+    exporter_service.export_data(...)
+finally:
+    os.chdir(original_cwd)
 
-##### 5.2 Détection de jobs actifs au chargement
+# APRÈS (sûr) — option A : chemins absolus
+exporter_service.export_data(
+    output_dir=str(work_dir / "exports" / "web"),
+    template_dir=str(work_dir / "templates"),
+    ...
+)
 
-Au chargement de l'app (`App.tsx` ou `MainLayout.tsx`) :
-1. Appeler `GET /api/jobs/active`
-2. Si un job est en cours, ouvrir le stream SSE
-3. Afficher un bandeau global : "Un calcul est en cours (Taxons — 45%)" avec lien vers la page concernée
-
-##### 5.3 Indicateur dans la sidebar
-
-**Fichier** : `src/niamoto/gui/ui/src/stores/navigationStore.ts`
-
-Ajouter un badge animé (spinner ou pulsation) sur la section Groupes ou Publish quand un job est en cours.
-
-##### 5.4 Verrou de concurrence côté UI
-
-Quand un job transform/export est en cours :
-- Désactiver les boutons "Lancer" sur les autres groupes
-- Afficher un message : "Un calcul est déjà en cours. Attendez sa fin ou annulez-le."
-- Le bouton "Générer le site" dans Publish est également grisé
-
-##### 5.5 Startup serveur
-
-**Fichier** : `src/niamoto/gui/api/app.py`
-
-Au démarrage du serveur FastAPI :
-1. Initialiser `JobService` avec le chemin SQLite
-2. Appeler `mark_interrupted_on_startup()` pour marquer les jobs orphelins
-3. Appeler `cleanup_old_jobs(keep_last=100)` pour purger l'historique
+# APRÈS (acceptable v1) — option B : lock global
+_export_lock = threading.Lock()
+with _export_lock:
+    os.chdir(work_dir)
+    try:
+        exporter_service.export_data(...)
+    finally:
+        os.chdir(original_cwd)
+```
 
 ---
 
 ## Alternative Approaches Considered
 
-### 1. WebSocket au lieu de SSE
+### 1. SQLite complet (JobService + table `jobs` + SSE + annulation fiable)
 
-**Rejeté** : SSE est plus simple (unidirectionnel, reconnexion native), suffisant pour du push de progression. WebSocket serait over-engineering pour ce cas. De plus, le pattern SSE est déjà implémenté pour le deploy Cloudflare.
+**Reporté en v2** : Over-engineered pour une app desktop mono-utilisateur. Le fichier JSON fait le même travail en 10x moins de code. Codex l'a confirmé : "Vous êtes en train de concevoir un mini orchestrateur distribué pour une app locale."
 
-### 2. Jobs dans DuckDB au lieu de SQLite séparé
+### 2. SSE au lieu du polling
 
-**Rejeté** : DuckDB a un verrou single-writer. Pendant le transform, le worker écrit dans DuckDB (données métier). Si le job store est aussi dans DuckDB, les mises à jour de progression seraient bloquées par le verrou du transform. SQLite séparé évite ce conflit.
+**Reporté en v2** : Sur loopback, 1 req/s est négligeable. Le polling marche déjà côté frontend (`executeTransformAndWait`). Migrer vers SSE ajoute de la complexité sans gain mesurable pour v1.
 
-### 3. Queue de messages (Redis, Celery)
+### 3. Annulation fiable
 
-**Rejeté** : Trop lourd pour une app desktop/locale. Niamoto doit fonctionner offline sans dépendances externes. SQLite + threading.Event est la solution la plus légère.
+**Reporté en v2** : L'annulation via `threading.Event` entre widgets est coopérative et lente (un widget peut durer 10 min). Plutôt que montrer un bouton "Annuler" qui ne répond pas pendant 10 min, on le cache pour v1.
 
-### 4. Ne rien persister, améliorer le polling
+### 4. Queue FIFO avec ordonnancement
 
-**Rejeté** : L'utilisateur veut de la robustesse (choix explicite). Le polling ne résout pas la perte d'état au redémarrage ni l'historique. SSE + SQLite est un investissement modéré pour un gain significatif.
-
-### 5. Transforms parallèles sur différents groupes
-
-**Rejeté pour v1** : DuckDB single-writer rend ça impossible sans architecture complexe (file d'attente, connection pooling). On sérialise : un seul transform à la fois. Les transforms par groupe sont un mode "itération rapide", pas un mode "batch parallèle".
+**Reporté en v2** : Avec un seul job à la fois et une app mono-utilisateur, le rejet avec message d'erreur clair est suffisant.
 
 ---
 
@@ -574,32 +592,33 @@ Au démarrage du serveur FastAPI :
 ### Functional Requirements
 
 - [ ] Un bouton "Lancer le calcul" est visible dans chaque page `/groups/:name`
-- [ ] Cliquer sur le bouton lance le transform pour ce groupe uniquement
-- [ ] La progression s'affiche en temps réel via SSE (pas de polling)
+- [ ] Cliquer sur le bouton lance le transform **pour ce groupe uniquement** (`group_by`)
+- [ ] La progression s'affiche via la barre de progression (polling existant)
 - [ ] Le bouton "Générer le site" dans Publish lance transform → export en séquence
-- [ ] La progression composite montre les 2 phases distinctement
-- [ ] Un job en cours peut être annulé via un bouton "Annuler"
-- [ ] L'annulation est gracieuse (termine le widget en cours, puis s'arrête)
-- [ ] L'historique des jobs est consultable (type, statut, durée, date)
-- [ ] Fermer l'onglet et le rouvrir reconnecte au job en cours
-- [ ] Redémarrer le serveur marque les jobs orphelins comme "interrompus"
-- [ ] Un seul transform/export peut tourner à la fois (les boutons sont grisés sinon)
-- [ ] Le dernier statut transform est visible dans GroupPanel (date + résultat)
+- [ ] Une checkbox permet de skip le transform si déjà à jour
+- [ ] Un seul job à la fois : le bouton est grisé si un job tourne (erreur 409)
+- [ ] Le dernier statut transform est visible dans GroupPanel (date + succès/échec)
+- [ ] Redémarrer le serveur détecte un job orphelin et le marque "interrompu"
+- [ ] L'historique des derniers jobs est consultable (`job_history.jsonl`)
 
 ### Non-Functional Requirements
 
-- [ ] Les mises à jour SSE arrivent en < 1s (latence perçue)
-- [ ] Le fichier `niamoto_jobs.sqlite` ne dépasse pas 10 MB (auto-purge)
-- [ ] L'annulation prend effet en < 5s (fin du widget en cours)
-- [ ] La reconnexion SSE fonctionne en < 3s après perte de connexion
+- [ ] Polling conservé à 1s (aucune régression de latence perçue)
+- [ ] Fichiers JSON < 100 KB (auto-purge historique si > 100 entrées)
+- [ ] Écriture atomique (`write tmp + rename`) pour éviter la corruption
 
 ### Quality Gates
 
-- [ ] Tests unitaires `JobService` : CRUD, concurrence, cleanup
-- [ ] Tests d'intégration : endpoints jobs (start, stream, cancel, history)
-- [ ] Test de reconnexion SSE (simuler déconnexion/reconnexion)
+- [ ] Tests unitaires `JobFileStore` : create, update, complete, fail, recover, history, purge
+- [ ] Test thread-safety : appels concurrents à `create_job` → un seul réussit
+- [ ] Test status post-completion : le polling lit `completed` (pas 404) après `complete_job()`
+- [ ] Test JSON corrompu : fichier actif illisible → backup `.corrupt` + `None` retourné
+- [ ] Test `updated_at` : vérifié présent et mis à jour à chaque `update_progress()`
+- [ ] Tests d'intégration : `POST /api/transform/execute` avec `group_by`
+- [ ] Test de verrou : `POST` quand un job est actif → 409
+- [ ] Test de récupération : simuler un PID mort → job marqué `interrupted`
 - [ ] Pas de régression sur les 147+ tests GUI API existants
-- [ ] `os.chdir()` remplacé par chemins absolus dans le router export
+- [ ] `os.chdir()` sécurisé (chemins absolus ou lock)
 
 ---
 
@@ -607,12 +626,11 @@ Au démarrage du serveur FastAPI :
 
 | Dépendance | Statut | Impact |
 |---|---|---|
-| Endpoint `POST /api/transform/execute` | ✅ Existe | À migrer vers JobService |
-| Frontend `executeTransformAndWait()` | ✅ Existe | À remplacer par SSE |
-| SSE pattern (deploy Cloudflare) | ✅ Implémenté | À généraliser |
-| GroupPanel composant | ✅ Existe | À enrichir avec bouton + progression |
+| Endpoint `POST /api/transform/execute` | ✅ Existe | Ajouter `group_by` |
+| Frontend `executeTransformAndWait()` | ✅ Existe | Réutiliser tel quel |
+| Frontend `executeExportAndWait()` | ✅ Existe | Ajouter `include_transform` |
+| GroupPanel composant | ✅ Existe | Ajouter bouton + progression |
 | `TransformerService.transform_data(group_by)` | ✅ Accepte `group_by` | Juste exposer dans l'API |
-| Plan shapes config workflow | ✅ Plan du jour | Indépendant, pas de conflit |
 
 ---
 
@@ -620,73 +638,72 @@ Au démarrage du serveur FastAPI :
 
 | Risque | Probabilité | Impact | Mitigation |
 |---|---|---|---|
-| DuckDB lock conflict entre transform et job updates | Faible (SQLite séparé) | Élevé | SQLite séparé élimine le risque |
-| SSE bloqué par proxy/reverse-proxy | Moyenne | Moyen | Headers `X-Accel-Buffering: no`, `Cache-Control: no-cache` |
-| `os.chdir()` race condition pendant migration | Élevée | Élevé | Corriger en priorité (Phase 2) : chemins absolus |
-| threading.Event non détecté si widget très long | Faible | Faible | Certains plugins peuvent prendre plusieurs minutes par widget ; acceptable |
-| Migration PublishStore → JobStore casse l'UI | Moyenne | Moyen | Migration progressive : les deux stores coexistent pendant la transition |
-| Tauri webview SSE incompatible | Faible | Élevé | Tester tôt ; fallback polling si nécessaire (mais Tauri 2 supporte EventSource) |
+| Corruption `active_job.json` (crash mid-write) | Faible | Moyen | Écriture atomique (tmp + rename) + backup `.corrupt` si JSON illisible |
+| `os.chdir()` race condition | Élevée | Élevé | Fix immédiat (Phase 0) : chemins absolus ou lock |
+| Double-clic "Lancer" → jobs dupliqués | Moyenne | Faible | `threading.Lock` + vérification `get_running_job()` + 409 |
+| Polling reçoit 404 après completion | Moyenne | Moyen | Jobs terminés restent dans `active_job.json` jusqu'au prochain `create_job()` |
+| PID réutilisé par l'OS après restart | Faible | Faible | Rare en pratique ; acceptable pour v1. Check `pid == os.getpid()` en garde |
+| Polling 1s sur un job de 60 min = 3600 requêtes | Faible | Faible | Sur loopback, négligeable. Backoff possible en v2 |
+| Job bloqué sans progression | Faible | Moyen | `updated_at` tracké → détection possible (timeout stale en v2) |
 
 ---
 
-## Estimation d'effort par phase
+## Estimation d'effort
 
-| Phase | Effort estimé | Priorité |
+| Phase | Effort | Priorité |
 |---|---|---|
-| Phase 1 : JobService SQLite | ~1 jour | P0 — fondation |
-| Phase 2 : Router jobs + SSE | ~1 jour | P0 — fondation |
-| Phase 3 : Bouton transform GroupPanel | ~0.5 jour | P0 — feature principale |
-| Phase 4 : Composite dans Publish/Build | ~0.5 jour | P1 — complète le workflow |
-| Phase 5 : Reconnexion + robustesse | ~1 jour | P1 — robustesse |
-| **Total** | **~4 jours** | |
+| Phase 0 : Fix `os.chdir()` | ~1h | P0 — bug existant |
+| Phase 1 : JobFileStore + intégration routers | ~0.5 jour | P0 — fondation |
+| Phase 2 : Bouton transform GroupPanel | ~0.5 jour | P0 — feature principale |
+| Phase 3 : Composite transform→export dans Build | ~0.5 jour | P1 — complète le workflow |
+| **Total** | **~1.5 jour** | |
+
+---
+
+## Chemin vers v2 (quand le besoin apparaît)
+
+Le `JobFileStore` est conçu pour être remplaçable. L'interface (`create_job`, `update_progress`, `complete_job`, `fail_job`, `get_active_job`, `get_history`) est la même qu'un futur `JobSQLiteStore`. La migration sera :
+
+1. Créer `JobSQLiteStore` avec la même interface
+2. Remplacer l'instanciation dans `app.py`
+3. Ajouter les SSE endpoints (le store est déjà découplé)
+4. Ajouter l'annulation (le store supporte déjà `cancel_job`)
+
+**Signaux pour passer en v2** (au moins 2 parmi) :
+- Besoin d'historique avec recherche/pagination
+- Besoin de reprise cross-session
+- Besoin de queue/ordonnancement
+- Extension multi-processus/instances
+- Observabilité détaillée par phase
 
 ---
 
 ## Future Considerations (hors scope)
 
-- **Simplification UX** : Plan dédié avec brainstorm pour réduire les écrans/onglets et clarifier le workflow (stepper, wizard, fusion de sections). Nécessite des tests utilisateur.
-- **Pipeline visuel** : Vue "canvas" avec nœuds import → transform → export (actuellement en Labs). Pourrait remplacer la navigation par sections.
-- **Transforms parallèles** : Si DuckDB évolue vers le multi-writer, ou si on partitionne par groupe dans des fichiers séparés.
-- **Jobs persistants avec reprise** : Reprendre un transform interrompu là où il s'est arrêté (nécessite un checkpoint par widget).
-- **Notifications desktop** : Via Tauri notifications API quand un job long se termine.
-- **Estimation temps restant** : Basée sur l'historique des durées passées par widget.
+- **Simplification UX** : Plan dédié avec brainstorm pour réduire les écrans/onglets et clarifier le workflow
+- **SSE temps réel** : Remplacer le polling par des Server-Sent Events
+- **Annulation fiable** : Bouton "Annuler" avec feedback < 5s
+- **Notifications desktop** : Notification Tauri quand un job long se termine
+- **Indicateur de fraîcheur pipeline** : Import ✓ → Transform ⚠ → Export ○ → Deploy
 
 ---
 
-## Documentation Plan
+## References
 
-| Document | Action | Priorité |
-|---|---|---|
-| Guide utilisateur "Lancer un calcul" | Créer | P1 |
-| API reference `/api/jobs/*` | Créer | P1 |
-| Architecture job system (ADR) | Créer dans `docs/09-architecture/adr/` | P2 |
-| Migration guide (polling → SSE) | Interne dev | P2 |
+### Internal
 
----
-
-## References & Research
-
-### Internal References
-
-- Plan release v1 : `docs/plans/2026-02-19-feat-release-v1-desktop-app-publication-plan.md`
-- Contrat config v1 : `docs/plans/2026-02-19-contrat-configuration-v1.md`
 - Transform router : `src/niamoto/gui/api/routers/transform.py`
 - Export router : `src/niamoto/gui/api/routers/export.py`
-- Deploy SSE (pattern) : `src/niamoto/gui/api/routers/deploy.py`
 - GroupPanel : `src/niamoto/gui/ui/src/components/panels/GroupPanel.tsx`
 - Build page : `src/niamoto/gui/ui/src/pages/publish/build.tsx`
 - Frontend transform API : `src/niamoto/gui/ui/src/lib/api/transform.ts`
 - Frontend export API : `src/niamoto/gui/ui/src/lib/api/export.ts`
-- Navigation store : `src/niamoto/gui/ui/src/stores/navigationStore.ts`
-- Publish store : `src/niamoto/gui/ui/src/stores/publishStore.ts`
-- Phase transform/export (roadmap) : `docs/10-roadmaps/gui-finalization/02-phase-transform-export.md`
-- Architecture cible 2026 : `docs/09-architecture/target-architecture-2026.md`
-- Error handling roadmap : `docs/10-roadmaps/error-handling.md`
+- Plan release v1 : `docs/plans/2026-02-19-feat-release-v1-desktop-app-publication-plan.md`
+- Contrat config v1 : `docs/plans/2026-02-19-contrat-configuration-v1.md`
 
-### Architecture Decisions clés
+### Revue Codex
 
-- SQLite séparé pour les jobs (pas DuckDB) → évite le conflit single-writer
-- SSE (pas WebSocket) → plus simple, pattern existant
-- Un seul job à la fois (pas de concurrence) → contrainte DuckDB
-- Annulation via `threading.Event` → point d'interruption naturel entre widgets
-- Job composite = 1 job avec 2 phases (pas 2 jobs liés)
+- Revue initiale : architecture validée (SQLite séparé ✅, SSE ✅) mais over-engineered pour v1
+- Suggestion retenue : "job runner minimal persistant sans SQLite" (fichier JSON)
+- Suggestion retenue : "ajouter bouton + améliorer polling, reporter le reste"
+- NFR "<5s annulation" déclaré irréaliste → reporté en v2
