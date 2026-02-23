@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List
 from uuid import uuid4
 from datetime import datetime
 import asyncio
+import os
 import yaml
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -112,6 +113,12 @@ async def execute_export_background(
         work_dir = get_working_directory()
         config_dir = str(work_dir / "config")
         app_config = Config(config_dir=config_dir, create_default=False)
+
+        # Change to working directory so relative paths (output_dir, template_dir)
+        # resolve correctly within the instance
+        original_cwd = os.getcwd()
+        os.chdir(work_dir)
+        logger.info(f"Job {job_id}: Changed cwd to {work_dir}")
 
         logger.info(f"Job {job_id}: Creating ExporterService")
         exporter_service = ExporterService(str(db_path), app_config)
@@ -248,6 +255,12 @@ async def execute_export_background(
         job["completed_at"] = datetime.now()
         job["message"] = f"Export failed: {str(e)}"
         job["progress"] = 0
+    finally:
+        # Restore original working directory
+        try:
+            os.chdir(original_cwd)
+        except Exception:
+            pass
 
 
 @router.post("/execute", response_model=ExportResponse)

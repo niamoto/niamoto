@@ -103,15 +103,16 @@ def create_app() -> FastAPI:
     app.include_router(recipes.router, prefix="/api")  # Widget recipes API
 
     # Serve exported site from exports/web/ directory
+    # Always create the directory so the mount exists even before the first export
     work_dir = get_working_directory()
     if work_dir:
         exports_web_dir = work_dir / "exports" / "web"
-        if exports_web_dir.exists():
-            app.mount(
-                "/preview",
-                StaticFiles(directory=exports_web_dir, html=True),
-                name="exported-site",
-            )
+        exports_web_dir.mkdir(parents=True, exist_ok=True)
+        app.mount(
+            "/preview",
+            StaticFiles(directory=exports_web_dir, html=True),
+            name="exported-site",
+        )
 
     # Serve static files from the React build
     if UI_BUILD_DIR.exists():
