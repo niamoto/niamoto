@@ -5,6 +5,7 @@ from uuid import uuid4
 from datetime import datetime
 import asyncio
 import os
+import threading
 import yaml
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -23,6 +24,9 @@ router = APIRouter()
 
 # Store for background jobs
 export_jobs: Dict[str, Dict[str, Any]] = {}
+
+# Lock global pour protéger os.chdir() (thread-unsafe)
+_cwd_lock = threading.Lock()
 
 
 class ExportRequest(BaseModel):
@@ -115,8 +119,10 @@ async def execute_export_background(
         app_config = Config(config_dir=config_dir, create_default=False)
 
         # Change to working directory so relative paths (output_dir, template_dir)
-        # resolve correctly within the instance
+        # resolve correctly within the instance.
+        # Protégé par un lock car os.chdir() affecte tout le process (thread-unsafe).
         original_cwd = os.getcwd()
+        _cwd_lock.acquire()
         os.chdir(work_dir)
         logger.info(f"Job {job_id}: Changed cwd to {work_dir}")
 
@@ -256,11 +262,16 @@ async def execute_export_background(
         job["message"] = f"Export failed: {str(e)}"
         job["progress"] = 0
     finally:
-        # Restore original working directory
+        # Restaurer le répertoire de travail et libérer le lock
         try:
             os.chdir(original_cwd)
         except Exception:
             pass
+        finally:
+            try:
+                _cwd_lock.release()
+            except RuntimeError:
+                pass  # Lock non acquis (erreur avant acquire)
 
 
 @router.post("/execute", response_model=ExportResponse)
