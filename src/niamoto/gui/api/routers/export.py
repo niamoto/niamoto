@@ -1,15 +1,16 @@
 """Export API endpoints for generating static sites and exports."""
 
-from typing import Dict, Any, Optional, List
-from uuid import uuid4
-from datetime import datetime
-import asyncio
+import logging
 import os
 import threading
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+import asyncio
 import yaml
-import logging
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel
+
 from niamoto.core.services.exporter import ExporterService
 from niamoto.common.config import Config
 from niamoto.gui.api.context import (
@@ -17,13 +18,11 @@ from niamoto.gui.api.context import (
     get_config_path,
     get_working_directory,
 )
+from niamoto.gui.api.services.job_file_store import JobFileStore
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Store for background jobs
-export_jobs: Dict[str, Dict[str, Any]] = {}
 
 # Lock global pour protéger os.chdir() (thread-unsafe)
 _cwd_lock = threading.Lock()
@@ -69,6 +68,28 @@ class ExportMetrics(BaseModel):
     execution_time: float
 
 
+def _get_job_store(request: Request) -> JobFileStore:
+    """Récupère le JobFileStore depuis app.state."""
+    store = getattr(request.app.state, "job_store", None)
+    if store is None:
+        raise HTTPException(status_code=500, detail="JobFileStore non initialisé")
+    return store
+
+
+def _job_to_status(job: dict) -> dict:
+    """Convertit un job JobFileStore en format compatible ExportStatus."""
+    return {
+        "job_id": job["id"],
+        "status": job["status"],
+        "progress": job["progress"],
+        "message": job.get("message", ""),
+        "started_at": job["started_at"],
+        "completed_at": job.get("completed_at"),
+        "result": job.get("result"),
+        "error": job.get("error"),
+    }
+
+
 def get_export_config(config_path: str) -> Dict[str, Any]:
     """Load and parse export configuration."""
     path = get_config_path(config_path)
@@ -88,19 +109,17 @@ def get_export_config(config_path: str) -> Dict[str, Any]:
 
 
 async def execute_export_background(
-    job_id: str, config_path: str, export_types: Optional[List[str]] = None
+    job_id: str,
+    job_store: JobFileStore,
+    config_path: str,
+    export_types: Optional[List[str]] = None,
 ):
     """Execute exports in the background."""
 
-    job = export_jobs[job_id]
-
     try:
-        logger.info(f"Starting export job {job_id}")
-        # Update status to running
-        job["status"] = "running"
-        job["progress"] = 0
-        job["message"] = "Loading configuration..."
-        logger.info(f"Job {job_id}: Loading configuration from {config_path}")
+        logger.info("Starting export job %s", job_id)
+        job_store.update_progress(job_id, 0, "Loading configuration...")
+        logger.info("Job %s: Loading configuration from %s", job_id, config_path)
 
         # Load configuration
         config = get_export_config(config_path)
@@ -112,8 +131,7 @@ async def execute_export_background(
                 "Database not found. Please ensure the database is initialized."
             )
 
-        # Initialize Config with the correct config directory
-        logger.info(f"Job {job_id}: Initializing Config")
+        logger.info("Job %s: Initializing Config", job_id)
         work_dir = get_working_directory()
         config_dir = str(work_dir / "config")
         app_config = Config(config_dir=config_dir, create_default=False)
@@ -124,33 +142,41 @@ async def execute_export_background(
         original_cwd = os.getcwd()
         _cwd_lock.acquire()
         os.chdir(work_dir)
-        logger.info(f"Job {job_id}: Changed cwd to {work_dir}")
+        logger.info("Job %s: Changed cwd to %s", job_id, work_dir)
 
-        logger.info(f"Job {job_id}: Creating ExporterService")
+        start_time = datetime.now()
+
+        logger.info("Job %s: Creating ExporterService", job_id)
         exporter_service = ExporterService(str(db_path), app_config)
 
-        job["message"] = "Executing exports..."
-        job["progress"] = 10
-        logger.info(f"Job {job_id}: Starting export execution")
+        job_store.update_progress(job_id, 10, "Executing exports...")
+        logger.info("Job %s: Starting export execution", job_id)
 
-        # Execute exports using the service's run_export method
-        # If export_types is specified, run each one individually
-        # Otherwise, run all exports at once
         results = {}
         completed = 0
         failed = 0
-        generated_paths = []
+        generated_paths: list[str] = []
 
         if export_types:
-            # Run specific exports one by one
             total_exports = len(export_types)
             logger.info(
-                f"Job {job_id}: Running {total_exports} specific exports: {export_types}"
+                "Job %s: Running %d specific exports: %s",
+                job_id,
+                total_exports,
+                export_types,
             )
             for idx, export_name in enumerate(export_types):
-                job["message"] = f"Executing export: {export_name}"
+                job_store.update_progress(
+                    job_id,
+                    10 + int((idx) / total_exports * 80),
+                    f"Executing export: {export_name}",
+                )
                 logger.info(
-                    f"Job {job_id}: Executing export {export_name} ({idx + 1}/{total_exports})"
+                    "Job %s: Executing export %s (%d/%d)",
+                    job_id,
+                    export_name,
+                    idx + 1,
+                    total_exports,
                 )
 
                 try:
@@ -158,67 +184,54 @@ async def execute_export_background(
                         exporter_service.run_export, target_name=export_name
                     )
                     logger.info(
-                        f"Job {job_id}: Export {export_name} completed successfully"
+                        "Job %s: Export %s completed successfully",
+                        job_id,
+                        export_name,
                     )
-
                     results[export_name] = {"status": "success", "data": result}
                     completed += 1
-
                 except Exception as e:
                     results[export_name] = {"status": "error", "error": str(e)}
                     failed += 1
 
-                # Update progress
                 progress = 10 + int((idx + 1) / total_exports * 80)
-                job["progress"] = progress
+                job_store.update_progress(
+                    job_id,
+                    progress,
+                    f"Export {export_name} terminé ({idx + 1}/{total_exports})",
+                )
         else:
-            # Run all exports at once with progress updates
-            logger.info(f"Job {job_id}: Running all exports")
+            logger.info("Job %s: Running all exports", job_id)
 
-            # Get list of exports from config to estimate progress
-            config_exports = config.get("exports", [])
-            total_exports = (
-                len(config_exports) if isinstance(config_exports, list) else 1
-            )
-
-            # Start export in a separate task and update progress periodically
             export_task = asyncio.create_task(
                 asyncio.to_thread(exporter_service.run_export)
             )
 
-            # Update progress while waiting
             progress_steps = [20, 30, 40, 50, 60, 70, 80, 85, 90]
             step_idx = 0
 
             while not export_task.done():
-                await asyncio.sleep(5)  # Check every 5 seconds
+                await asyncio.sleep(5)
                 if step_idx < len(progress_steps) and not export_task.done():
-                    job["progress"] = progress_steps[step_idx]
-                    job["message"] = (
-                        f"Génération en cours... ({progress_steps[step_idx]}%)"
+                    pct = progress_steps[step_idx]
+                    job_store.update_progress(
+                        job_id, pct, f"Génération en cours... ({pct}%)"
                     )
                     step_idx += 1
-                    logger.info(
-                        f"Job {job_id}: Progress updated to {progress_steps[step_idx - 1]}%"
-                    )
 
             try:
                 result = await export_task
-                logger.info(f"Job {job_id}: All exports completed successfully")
+                logger.info("Job %s: All exports completed successfully", job_id)
 
-                # Process results from run_export
                 for export_name, export_result in result.items():
                     results[export_name] = {"status": "success", "data": export_result}
                     completed += 1
 
-                job["progress"] = 95
-
             except Exception as e:
                 results["all"] = {"status": "error", "error": str(e)}
                 failed += 1
-                job["progress"] = 50
 
-        # Try to determine static site path from config
+        # Determine static site path from config
         static_site_path = None
         try:
             config_exports = config.get("exports", [])
@@ -231,36 +244,30 @@ async def execute_export_background(
                             )
                             break
         except Exception:
-            pass  # Ignore errors getting static site path
+            pass
 
-        # Calculate total exports
         total_exports = completed + failed
+        execution_time = (datetime.now() - start_time).total_seconds()
 
-        # Mark as completed
-        job["status"] = "completed"
-        job["progress"] = 100
-        job["completed_at"] = datetime.now()
-        job["message"] = f"Export completed: {completed} successful, {failed} failed"
-        job["result"] = {
-            "metrics": {
-                "total_exports": total_exports,
-                "completed_exports": completed,
-                "failed_exports": failed,
-                "generated_pages": len(generated_paths),
-                "static_site_path": static_site_path,
-                "execution_time": (datetime.now() - job["started_at"]).total_seconds(),
+        job_store.complete_job(
+            job_id,
+            result={
+                "metrics": {
+                    "total_exports": total_exports,
+                    "completed_exports": completed,
+                    "failed_exports": failed,
+                    "generated_pages": len(generated_paths),
+                    "static_site_path": static_site_path,
+                    "execution_time": execution_time,
+                },
+                "exports": results,
+                "generated_paths": generated_paths,
             },
-            "exports": results,
-            "generated_paths": generated_paths,
-        }
+        )
 
     except Exception as e:
-        logger.exception(f"Export job {job_id} failed with exception")
-        job["status"] = "failed"
-        job["error"] = str(e)
-        job["completed_at"] = datetime.now()
-        job["message"] = f"Export failed: {str(e)}"
-        job["progress"] = 0
+        logger.exception("Export job %s failed with exception", job_id)
+        job_store.fail_job(job_id, str(e))
     finally:
         # Restaurer le répertoire de travail et libérer le lock
         try:
@@ -275,103 +282,116 @@ async def execute_export_background(
 
 
 @router.post("/execute", response_model=ExportResponse)
-async def execute_export(request: ExportRequest, background_tasks: BackgroundTasks):
+async def execute_export(
+    request: ExportRequest,
+    background_tasks: BackgroundTasks,
+    http_request: Request,
+):
     """
     Execute exports based on configuration.
 
     This starts a background job that processes the exports
     defined in the export.yml configuration file.
     """
+    job_store = _get_job_store(http_request)
 
-    # Create job ID
-    job_id = str(uuid4())
+    # Vérifier qu'aucun job n'est déjà en cours
+    running = job_store.get_running_job()
+    if running:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Un calcul est déjà en cours ({running['type']} — {running['progress']}%)",
+        )
 
-    # Initialize job record
-    job = {
-        "job_id": job_id,
-        "status": "pending",
-        "progress": 0,
-        "message": "Export job created",
-        "started_at": datetime.now(),
-        "completed_at": None,
-        "result": None,
-        "error": None,
-    }
+    try:
+        job = job_store.create_job("export")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
-    export_jobs[job_id] = job
-
-    # Start background task
     background_tasks.add_task(
-        execute_export_background, job_id, request.config_path, request.export_types
+        execute_export_background,
+        job["id"],
+        job_store,
+        request.config_path,
+        request.export_types,
     )
 
     return ExportResponse(
-        job_id=job_id,
-        status="pending",
+        job_id=job["id"],
+        status="running",
         message="Export job started",
         started_at=job["started_at"],
     )
 
 
 @router.get("/status/{job_id}", response_model=ExportStatus)
-async def get_export_status(job_id: str):
+async def get_export_status(job_id: str, http_request: Request):
     """
     Get the status of an export job.
 
     Returns the current status, progress, and result (if completed)
     of the specified export job.
     """
+    job_store = _get_job_store(http_request)
+    job = job_store.get_job(job_id)
 
-    if job_id not in export_jobs:
+    if not job:
         raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
 
-    job = export_jobs[job_id]
-
-    # Return the job status without modification (progress updates happen in background task)
-    return ExportStatus(**job)
+    return ExportStatus(**_job_to_status(job))
 
 
 @router.get("/jobs")
-async def list_export_jobs():
+async def list_export_jobs(http_request: Request):
     """
     List all export jobs.
 
     Returns a list of all export jobs with their current status.
     """
+    job_store = _get_job_store(http_request)
+    jobs = []
 
-    return {
-        "jobs": [
+    active = job_store.get_active_job()
+    if active:
+        jobs.append(
             {
-                "job_id": job["job_id"],
-                "status": job["status"],
-                "started_at": job["started_at"],
-                "completed_at": job.get("completed_at"),
-                "progress": job["progress"],
-                "message": job["message"],
+                "job_id": active["id"],
+                "status": active["status"],
+                "started_at": active["started_at"],
+                "completed_at": active.get("completed_at"),
+                "progress": active["progress"],
+                "message": active.get("message", ""),
             }
-            for job in export_jobs.values()
-        ]
-    }
+        )
+
+    for entry in job_store.get_history(limit=10):
+        if entry.get("type") == "export":
+            jobs.append(
+                {
+                    "job_id": entry["id"],
+                    "status": entry["status"],
+                    "started_at": entry["started_at"],
+                    "completed_at": entry.get("completed_at"),
+                    "progress": entry.get("progress", 100),
+                    "message": entry.get("message", ""),
+                }
+            )
+
+    return {"jobs": jobs}
 
 
 @router.delete("/jobs/{job_id}")
-async def cancel_export_job(job_id: str):
+async def cancel_export_job(job_id: str, http_request: Request):
     """
     Cancel a running export job.
     """
+    job_store = _get_job_store(http_request)
+    job = job_store.get_job(job_id)
 
-    if job_id not in export_jobs:
+    if not job:
         raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
 
-    job = export_jobs[job_id]
-
-    if job["status"] == "running":
-        # TODO: Implement actual cancellation logic
-        job["status"] = "cancelled"
-        job["completed_at"] = datetime.now()
-        job["message"] = "Export job cancelled"
-
-    return {"message": f"Export job {job_id} cancelled"}
+    return {"message": f"Export job {job_id} — annulation non implémentée en v1"}
 
 
 @router.get("/config")
@@ -396,18 +416,14 @@ async def get_export_config_endpoint():
             exports = []
 
         if isinstance(exports, list):
-            # If exports is a list (the normal case)
             total_exports = len(exports)
             for idx, export_config in enumerate(exports):
                 if isinstance(export_config, dict):
-                    # Use 'exporter' key instead of 'plugin' for exports
                     exporter_type = export_config.get("exporter", "unknown")
                     export_types[exporter_type] = export_types.get(exporter_type, 0) + 1
-                    # Create a dict from list for consistency
                     export_name = export_config.get("name", f"export_{idx}")
                     all_exports[export_name] = export_config
         elif isinstance(exports, dict):
-            # If exports is a dict, use as is
             all_exports = exports
             total_exports = len(exports)
             for export_config in exports.values():
@@ -415,11 +431,10 @@ async def get_export_config_endpoint():
                     exporter_type = export_config.get("exporter", "unknown")
                     export_types[exporter_type] = export_types.get(exporter_type, 0) + 1
 
-        # Return a unified format that works for the frontend
         return {
             "config": {"exports": all_exports},
             "summary": {"total_exports": total_exports, "export_types": export_types},
-            "raw_config": config,  # Keep raw config for debugging
+            "raw_config": config,
         }
 
     except HTTPException:
@@ -431,19 +446,16 @@ async def get_export_config_endpoint():
 
 
 @router.get("/metrics")
-async def get_export_metrics():
+async def get_export_metrics(http_request: Request):
     """
     Get metrics from the last completed export.
 
     Returns statistics about the exports performed.
     """
+    job_store = _get_job_store(http_request)
+    last = job_store.get_last_run("export")
 
-    # Find the most recent completed job
-    completed_jobs = [
-        job for job in export_jobs.values() if job["status"] == "completed"
-    ]
-
-    if not completed_jobs:
+    if not last or not last.get("result"):
         return {
             "metrics": {
                 "total_exports": 0,
@@ -456,35 +468,44 @@ async def get_export_metrics():
             "last_run": None,
         }
 
-    # Sort by completion time
-    latest_job = max(completed_jobs, key=lambda j: j["completed_at"])
-
     return {
-        "metrics": latest_job["result"]["metrics"],
-        "last_run": latest_job["completed_at"],
-        "job_id": latest_job["job_id"],
+        "metrics": last["result"]["metrics"],
+        "last_run": last.get("completed_at"),
+        "job_id": last["id"],
     }
 
 
 @router.post("/execute-cli")
-async def execute_export_cli(background_tasks: BackgroundTasks):
+async def execute_export_cli(
+    background_tasks: BackgroundTasks,
+    http_request: Request,
+):
     """
     Execute export using the Niamoto CLI command.
 
     This runs 'niamoto export' in the background and returns immediately.
     """
+    job_store = _get_job_store(http_request)
 
-    # Create job ID
-    job_id = str(uuid4())
+    running = job_store.get_running_job()
+    if running:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Un calcul est déjà en cours ({running['type']} — {running['progress']}%)",
+        )
+
+    try:
+        job = job_store.create_job("export-cli")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    job_id = job["id"]
 
     async def run_export_command():
         """Run the niamoto export command."""
         try:
-            # Update job status
-            export_jobs[job_id]["status"] = "running"
-            export_jobs[job_id]["message"] = "Running niamoto export command..."
+            job_store.update_progress(job_id, 0, "Running niamoto export command...")
 
-            # Run the command
             process = await asyncio.create_subprocess_exec(
                 "niamoto",
                 "export",
@@ -495,40 +516,22 @@ async def execute_export_cli(background_tasks: BackgroundTasks):
             stdout, stderr = await process.communicate()
 
             if process.returncode == 0:
-                export_jobs[job_id]["status"] = "completed"
-                export_jobs[job_id]["message"] = "Export completed successfully"
-                export_jobs[job_id]["result"] = {
-                    "stdout": stdout.decode() if stdout else "",
-                    "stderr": stderr.decode() if stderr else "",
-                }
+                job_store.complete_job(
+                    job_id,
+                    result={
+                        "stdout": stdout.decode() if stdout else "",
+                        "stderr": stderr.decode() if stderr else "",
+                    },
+                )
             else:
-                export_jobs[job_id]["status"] = "failed"
-                export_jobs[job_id]["message"] = "Export failed"
-                export_jobs[job_id]["error"] = (
-                    stderr.decode() if stderr else "Unknown error"
+                job_store.fail_job(
+                    job_id,
+                    stderr.decode() if stderr else "Unknown error",
                 )
 
-            export_jobs[job_id]["completed_at"] = datetime.now()
-            export_jobs[job_id]["progress"] = 100
-
         except Exception as e:
-            export_jobs[job_id]["status"] = "failed"
-            export_jobs[job_id]["error"] = str(e)
-            export_jobs[job_id]["completed_at"] = datetime.now()
+            job_store.fail_job(job_id, str(e))
 
-    # Initialize job record
-    export_jobs[job_id] = {
-        "job_id": job_id,
-        "status": "pending",
-        "progress": 0,
-        "message": "Export CLI job created",
-        "started_at": datetime.now(),
-        "completed_at": None,
-        "result": None,
-        "error": None,
-    }
-
-    # Start background task
     background_tasks.add_task(run_export_command)
 
     return {

@@ -1,7 +1,9 @@
 """FastAPI application for Niamoto GUI."""
 
+import logging
 import os
 from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +33,7 @@ from .routers import (
     preview,
 )
 from .context import get_working_directory
+from .services.job_file_store import JobFileStore
 
 # Get the path to the built React app
 # Works in both source and frozen (PyInstaller) modes
@@ -102,9 +105,20 @@ def create_app() -> FastAPI:
     app.include_router(layout.router, prefix="/api")  # Layout editor API
     app.include_router(recipes.router, prefix="/api")  # Widget recipes API
 
+    # Initialiser le JobFileStore et détecter les jobs orphelins
+    logger = logging.getLogger(__name__)
+    work_dir = get_working_directory()
+    if work_dir:
+        job_store = JobFileStore(work_dir)
+        orphan = job_store.recover_on_startup()
+        if orphan:
+            logger.warning("Job orphelin récupéré au démarrage : %s", orphan["id"])
+        app.state.job_store = job_store
+    else:
+        app.state.job_store = None
+
     # Serve exported site from exports/web/ directory
     # Always create the directory so the mount exists even before the first export
-    work_dir = get_working_directory()
     if work_dir:
         exports_web_dir = work_dir / "exports" / "web"
         exports_web_dir.mkdir(parents=True, exist_ok=True)
