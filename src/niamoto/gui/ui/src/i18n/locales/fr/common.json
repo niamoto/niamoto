@@ -231,6 +231,14 @@
     "settings": "Paramètres",
     "previewSite": "Prévisualiser le site"
   },
+  "notifications": {
+    "title": "Notifications",
+    "active_jobs": "En cours",
+    "recent": "Récents",
+    "no_notifications": "Aucune notification",
+    "mark_all_read": "Tout marquer comme lu",
+    "clear_all": "Effacer"
+  },
   "diagnostic": {
     "loadingDiagnostic": "Chargement des informations de diagnostic...",
     "diagnosticError": "Erreur de diagnostic",

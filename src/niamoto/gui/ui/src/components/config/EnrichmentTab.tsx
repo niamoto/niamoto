@@ -63,6 +63,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { apiClient } from '@/lib/api/client'
 import { toast } from 'sonner'
+import { useNotificationStore } from '@/stores/notificationStore'
 import { useNetworkStatus } from '@/hooks/useNetworkStatus'
 import { WifiOff } from 'lucide-react'
 
@@ -284,6 +285,15 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
       const response = await apiClient.post(`/enrichment/start/${referenceName}`)
       setJob(response.data)
       startPolling()
+      useNotificationStore.getState().trackJob({
+        jobId: response.data.id,
+        jobType: 'enrichment',
+        status: 'running',
+        progress: 0,
+        message: `${stats?.pending || 0} entités à traiter`,
+        startedAt: new Date().toISOString(),
+        meta: { referenceName },
+      })
       toast.success('Enrichissement demarre', {
         description: `${stats?.pending || 0} entites a traiter`,
       })

@@ -233,6 +233,14 @@
     "settings": "Settings",
     "previewSite": "Preview site"
   },
+  "notifications": {
+    "title": "Notifications",
+    "active_jobs": "Active",
+    "recent": "Recent",
+    "no_notifications": "No notifications",
+    "mark_all_read": "Mark all as read",
+    "clear_all": "Clear"
+  },
   "diagnostic": {
     "loadingDiagnostic": "Loading diagnostic information...",
     "diagnosticError": "Diagnostic error",
