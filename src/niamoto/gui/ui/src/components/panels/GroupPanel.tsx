@@ -25,6 +25,7 @@ import {
   executeTransformAndWait,
   getActiveTransformJob,
   getLastTransformRun,
+  getTransformStatus,
   type TransformStatus,
 } from '@/lib/api/transform'
 
@@ -49,8 +50,38 @@ export function GroupPanel({ reference }: GroupPanelProps) {
     spatial: t('groupPanel.kinds.spatial'),
   }
 
-  // Load last run info on mount
+  // Poll an already-running job until it completes
+  const pollRunningJob = useCallback((jobId: string) => {
+    setIsTransforming(true)
+    const interval = setInterval(async () => {
+      try {
+        const status = await getTransformStatus(jobId)
+        setTransformProgress(status.progress)
+        setTransformMessage(status.message)
+        if (status.status === 'completed' || status.status === 'failed') {
+          clearInterval(interval)
+          setIsTransforming(false)
+          setTransformProgress(0)
+          setTransformMessage('')
+          if (status.status === 'completed') {
+            setLastRun(status)
+            toast.success(`Calcul terminé pour ${reference.name}`)
+          } else {
+            toast.error(status.error || 'Le calcul a échoué')
+          }
+        }
+      } catch {
+        clearInterval(interval)
+        setIsTransforming(false)
+      }
+    }, 1000)
+    return interval
+  }, [reference.name])
+
+  // Load last run info on mount + resume polling if job is running
   useEffect(() => {
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+
     getLastTransformRun(reference.name)
       .then(setLastRun)
       .catch(() => {})
@@ -59,13 +90,17 @@ export function GroupPanel({ reference }: GroupPanelProps) {
     getActiveTransformJob()
       .then((job) => {
         if (job && job.status === 'running') {
-          setIsTransforming(true)
           setTransformProgress(job.progress)
           setTransformMessage(job.message)
+          pollInterval = pollRunningJob(job.job_id)
         }
       })
       .catch(() => {})
-  }, [reference.name])
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval)
+    }
+  }, [reference.name, pollRunningJob])
 
   const runTransform = useCallback(async () => {
     setIsTransforming(true)

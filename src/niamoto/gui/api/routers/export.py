@@ -193,12 +193,15 @@ async def execute_export_background(
         # Offset de progression : 50-100% si composite, 0-100% si export seul
         progress_base = 50 if include_transform else 0
         progress_range = 50 if include_transform else 90
+        # Réserve les premiers 10% de la plage pour l'initialisation
+        init_offset = int(progress_range * 0.1)
+        export_range = progress_range - init_offset
 
         logger.info("Job %s: Creating ExporterService", job_id)
         exporter_service = ExporterService(str(db_path), app_config)
 
         job_store.update_progress(
-            job_id, progress_base + 10, "Executing exports...", phase="export"
+            job_id, progress_base + init_offset, "Executing exports...", phase="export"
         )
         logger.info("Job %s: Starting export execution", job_id)
 
@@ -216,7 +219,11 @@ async def execute_export_background(
                 export_types,
             )
             for idx, export_name in enumerate(export_types):
-                pct = progress_base + int((idx) / total_exports * progress_range)
+                pct = (
+                    progress_base
+                    + init_offset
+                    + int(idx / total_exports * export_range)
+                )
                 job_store.update_progress(
                     job_id,
                     pct,
@@ -246,7 +253,11 @@ async def execute_export_background(
                     results[export_name] = {"status": "error", "error": str(e)}
                     failed += 1
 
-                pct = progress_base + int((idx + 1) / total_exports * progress_range)
+                pct = (
+                    progress_base
+                    + init_offset
+                    + int((idx + 1) / total_exports * export_range)
+                )
                 job_store.update_progress(
                     job_id,
                     pct,
@@ -260,14 +271,18 @@ async def execute_export_background(
                 asyncio.to_thread(exporter_service.run_export)
             )
 
-            # Progression simulée dans la plage [progress_base, progress_base+progress_range]
+            # Progression simulée dans la plage [progress_base+init_offset, progress_base+progress_range]
             steps = [0.2, 0.35, 0.5, 0.65, 0.75, 0.85, 0.9, 0.95]
             step_idx = 0
 
             while not export_task.done():
                 await asyncio.sleep(5)
                 if step_idx < len(steps) and not export_task.done():
-                    pct = progress_base + int(steps[step_idx] * progress_range)
+                    pct = (
+                        progress_base
+                        + init_offset
+                        + int(steps[step_idx] * export_range)
+                    )
                     job_store.update_progress(
                         job_id,
                         pct,
@@ -409,7 +424,7 @@ async def list_export_jobs(http_request: Request):
     job_store = _get_job_store(http_request)
     jobs = []
 
-    active = job_store.get_active_job()
+    active = job_store.get_active_job(job_type="export")
     if active:
         jobs.append(
             {
@@ -449,7 +464,9 @@ async def cancel_export_job(job_id: str, http_request: Request):
     if not job:
         raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
 
-    return {"message": f"Export job {job_id} — annulation non implémentée en v1"}
+    raise HTTPException(
+        status_code=501, detail=f"Annulation non implémentée en v1 (job {job_id})"
+    )
 
 
 @router.get("/config")
@@ -511,7 +528,7 @@ async def get_active_export_job(http_request: Request):
     Returns the active job or null if none.
     """
     job_store = _get_job_store(http_request)
-    job = job_store.get_active_job()
+    job = job_store.get_active_job(job_type="export")
 
     if not job:
         return None

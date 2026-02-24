@@ -111,10 +111,14 @@ class JobFileStore:
 
     # --- Lecture ---
 
-    def get_active_job(self) -> dict | None:
-        """Retourne le job courant (actif ou terminal en attente d'archivage)."""
+    def get_active_job(self, job_type: str | None = None) -> dict | None:
+        """Retourne le job courant (actif ou terminal en attente d'archivage).
+        Si job_type est spécifié, ne retourne le job que s'il correspond."""
         with self._lock:
-            return self._read_active()
+            job = self._read_active()
+            if job and job_type and job.get("type") != job_type:
+                return None
+            return job
 
     def get_job(self, job_id: str) -> dict | None:
         """Retourne un job par son ID (actif ou dans l'historique)."""
@@ -134,11 +138,14 @@ class JobFileStore:
                     continue
             return None
 
-    def get_running_job(self) -> dict | None:
-        """Retourne le job seulement s'il est en cours (pas terminal)."""
+    def get_running_job(self, job_type: str | None = None) -> dict | None:
+        """Retourne le job seulement s'il est en cours (pas terminal).
+        Si job_type est spécifié, ne retourne le job que s'il correspond."""
         with self._lock:
             job = self._read_active()
             if job and job["status"] not in TERMINAL_STATUSES:
+                if job_type and job.get("type") != job_type:
+                    return None
                 return job
             return None
 
@@ -249,10 +256,10 @@ class JobFileStore:
             return None
 
     def _write_active(self, job: dict) -> None:
-        """Écriture atomique (write tmp + rename). Sans lock."""
+        """Écriture atomique (write tmp + os.replace). Sans lock."""
         tmp = self._active_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(job, ensure_ascii=False, indent=2))
-        tmp.rename(self._active_path)
+        os.replace(str(tmp), str(self._active_path))
 
     def _archive(self, job: dict) -> None:
         """Append dans l'historique JSONL. Sans lock."""
