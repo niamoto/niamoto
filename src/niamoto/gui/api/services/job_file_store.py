@@ -164,15 +164,22 @@ class JobFileStore:
             entries.reverse()
             return entries
 
-    def get_last_run(self, job_type: str, group_by: str | None = None) -> dict | None:
-        """Retourne le dernier job terminé pour un type/groupe donné."""
+    def get_last_run(
+        self,
+        job_type: str,
+        group_by: str | None = None,
+        status: str | None = None,
+    ) -> dict | None:
+        """Retourne le dernier job terminé pour un type/groupe donné.
+        Si *status* est spécifié (ex. "completed"), ne retourne que ce statut."""
         with self._lock:
             # D'abord vérifier le job actif (peut être completed mais pas encore archivé)
             active = self._read_active()
             if active and active["status"] in TERMINAL_STATUSES:
                 if active["type"] == job_type:
                     if group_by is None or active.get("group_by") == group_by:
-                        return active
+                        if status is None or active["status"] == status:
+                            return active
 
             # Sinon chercher dans l'historique
             if not self._history_path.exists():
@@ -185,7 +192,8 @@ class JobFileStore:
                     continue
                 if entry["type"] == job_type:
                     if group_by is None or entry.get("group_by") == group_by:
-                        return entry
+                        if status is None or entry.get("status") == status:
+                            return entry
             return None
 
     # --- Startup : détection de jobs orphelins ---

@@ -7,7 +7,7 @@
  * - Liste: Index/listing page configuration
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import { Database, Package, Loader2, ListOrdered, Plus, LayoutGrid, Play, CheckCircle, XCircle } from 'lucide-react'
@@ -28,6 +28,7 @@ import {
   getTransformStatus,
   type TransformStatus,
 } from '@/lib/api/transform'
+import { getActiveExportJob } from '@/lib/api/export'
 
 interface GroupPanelProps {
   reference: ReferenceInfo
@@ -42,6 +43,9 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   const [transformProgress, setTransformProgress] = useState(0)
   const [transformMessage, setTransformMessage] = useState('')
   const [lastRun, setLastRun] = useState<TransformStatus | null>(null)
+  const [exportRunning, setExportRunning] = useState(false)
+  const cancelledRef = useRef(false)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
@@ -50,16 +54,28 @@ export function GroupPanel({ reference }: GroupPanelProps) {
     spatial: t('groupPanel.kinds.spatial'),
   }
 
-  // Poll an already-running job until it completes
+  // Stop any active polling
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }, [])
+
+  // Poll an already-running job until it completes (guarded by cancelledRef)
   const pollRunningJob = useCallback((jobId: string) => {
     setIsTransforming(true)
+    let polling = false // guard against async overlap
     const interval = setInterval(async () => {
+      if (cancelledRef.current || polling) return
+      polling = true
       try {
         const status = await getTransformStatus(jobId)
+        if (cancelledRef.current) return
         setTransformProgress(status.progress)
         setTransformMessage(status.message)
         if (status.status === 'completed' || status.status === 'failed') {
-          clearInterval(interval)
+          stopPolling()
           setIsTransforming(false)
           setTransformProgress(0)
           setTransformMessage('')
@@ -71,36 +87,52 @@ export function GroupPanel({ reference }: GroupPanelProps) {
           }
         }
       } catch {
-        clearInterval(interval)
-        setIsTransforming(false)
+        if (!cancelledRef.current) {
+          stopPolling()
+          setIsTransforming(false)
+        }
+      } finally {
+        polling = false
       }
     }, 1000)
-    return interval
-  }, [reference.name, t])
+    pollIntervalRef.current = interval
+  }, [reference.name, t, stopPolling])
 
   // Load last run info on mount + resume polling if job is running
   useEffect(() => {
-    let pollInterval: ReturnType<typeof setInterval> | null = null
+    cancelledRef.current = false
 
     getLastTransformRun(reference.name)
-      .then(setLastRun)
+      .then((run) => {
+        if (!cancelledRef.current) setLastRun(run)
+      })
       .catch(() => {})
 
     // Check if a transform is already running
     getActiveTransformJob()
       .then((job) => {
+        if (cancelledRef.current) return
         if (job && job.status === 'running') {
           setTransformProgress(job.progress)
           setTransformMessage(job.message)
-          pollInterval = pollRunningJob(job.job_id)
+          pollRunningJob(job.job_id)
         }
       })
       .catch(() => {})
 
+    // Check if an export is running (disable transform button)
+    getActiveExportJob()
+      .then((job) => {
+        if (cancelledRef.current) return
+        setExportRunning(job != null && job.status === 'running')
+      })
+      .catch(() => {})
+
     return () => {
-      if (pollInterval) clearInterval(pollInterval)
+      cancelledRef.current = true
+      stopPolling()
     }
-  }, [reference.name, pollRunningJob])
+  }, [reference.name, pollRunningJob, stopPolling])
 
   const runTransform = useCallback(async () => {
     setIsTransforming(true)
@@ -173,7 +205,8 @@ export function GroupPanel({ reference }: GroupPanelProps) {
             <Button
               size="sm"
               onClick={runTransform}
-              disabled={isTransforming}
+              disabled={isTransforming || exportRunning}
+              title={exportRunning ? t('groupPanel.transform.exportRunning') : undefined}
             >
               {isTransforming ? (
                 <>

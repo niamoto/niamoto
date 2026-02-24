@@ -47,10 +47,14 @@
     "phaseTransformLabel": "Transformations",
     "phaseExportLabel": "Génération du site",
     "progress": {
-      "generating": "Génération des pages HTML...",
+      "generating": "Génération en cours... ({{pct}}%)",
       "visualizations": "Création des visualisations...",
       "assets": "Optimisation des assets...",
-      "finalizing": "Finalisation..."
+      "finalizing": "Finalisation...",
+      "transform": "Transform · {{group}} · {{widget}}",
+      "transformRunning": "Transformations en cours...",
+      "exportStarting": "Génération du site...",
+      "exportDone": "Export {{name}} terminé ({{count}})"
     },
     "metrics": {
       "files": "Fichiers générés",

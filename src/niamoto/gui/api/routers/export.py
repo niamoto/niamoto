@@ -121,6 +121,9 @@ async def execute_export_background(
 ):
     """Execute exports in the background, optionally preceded by transform."""
 
+    original_cwd: Optional[str] = None
+    cwd_locked = False
+
     try:
         logger.info("Starting export job %s", job_id)
         job_store.update_progress(job_id, 0, "Loading configuration...")
@@ -146,6 +149,7 @@ async def execute_export_background(
         # Protégé par un lock car os.chdir() affecte tout le process (thread-unsafe).
         original_cwd = os.getcwd()
         _cwd_lock.acquire()
+        cwd_locked = True
         os.chdir(work_dir)
         logger.info("Job %s: Changed cwd to %s", job_id, work_dir)
 
@@ -153,9 +157,7 @@ async def execute_export_background(
 
         # Phase 1 (optionnelle) : Transform
         if include_transform:
-            job_store.update_progress(
-                job_id, 0, "Transformations en cours...", phase="transform"
-            )
+            job_store.update_progress(job_id, 0, "transform.running", phase="transform")
             logger.info("Job %s: Running transform phase", job_id)
 
             transformer_service = TransformerService(
@@ -168,8 +170,7 @@ async def execute_export_background(
                 ratio = min(max(processed / total, 0.0), 1.0)
                 pct = int(ratio * 50)  # Transform = 0-50%
                 message = (
-                    f"Transform · {update.get('group', '')} · "
-                    f"{update.get('widget', '')}"
+                    f"transform:{update.get('group', '')}:{update.get('widget', '')}"
                 )
                 job_store.update_progress(job_id, pct, message, phase="transform")
 
@@ -181,13 +182,9 @@ async def execute_export_background(
                 transform_progress_callback,
             )
             logger.info("Job %s: Transform phase completed", job_id)
-            job_store.update_progress(
-                job_id, 50, "Génération du site...", phase="export"
-            )
+            job_store.update_progress(job_id, 50, "export.starting", phase="export")
         else:
-            job_store.update_progress(
-                job_id, 0, "Génération du site...", phase="export"
-            )
+            job_store.update_progress(job_id, 0, "export.starting", phase="export")
 
         # Phase 2 : Export
         # Offset de progression : 50-100% si composite, 0-100% si export seul
@@ -261,7 +258,7 @@ async def execute_export_background(
                 job_store.update_progress(
                     job_id,
                     pct,
-                    f"Export {export_name} terminé ({idx + 1}/{total_exports})",
+                    f"export.done:{export_name}:{idx + 1}/{total_exports}",
                     phase="export",
                 )
         else:
@@ -286,7 +283,7 @@ async def execute_export_background(
                     job_store.update_progress(
                         job_id,
                         pct,
-                        f"Génération en cours... ({pct}%)",
+                        f"export.generating:{pct}",
                         phase="export",
                     )
                     step_idx += 1
@@ -342,15 +339,13 @@ async def execute_export_background(
         job_store.fail_job(job_id, str(e))
     finally:
         # Restaurer le répertoire de travail et libérer le lock
-        try:
-            os.chdir(original_cwd)
-        except Exception:
-            pass
-        finally:
+        if original_cwd is not None:
             try:
-                _cwd_lock.release()
-            except RuntimeError:
-                pass  # Lock non acquis (erreur avant acquire)
+                os.chdir(original_cwd)
+            except Exception:
+                pass
+        if cwd_locked:
+            _cwd_lock.release()
 
 
 @router.post("/execute", response_model=ExportResponse)
@@ -544,7 +539,7 @@ async def get_export_metrics(http_request: Request):
     Returns statistics about the exports performed.
     """
     job_store = _get_job_store(http_request)
-    last = job_store.get_last_run("export")
+    last = job_store.get_last_run("export", status="completed")
 
     if not last or not last.get("result"):
         return {
