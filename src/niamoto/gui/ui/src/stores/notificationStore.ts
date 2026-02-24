@@ -5,6 +5,14 @@ export type JobType = 'import' | 'enrichment' | 'transform' | 'export'
 
 export type TrackedJobStatus = 'running' | 'paused' | 'paused_offline'
 
+/** Labels pour les types de jobs (utilisés dans les titres de notifications) */
+export const JOB_TYPE_LABELS: Record<JobType, string> = {
+  import: 'Import',
+  enrichment: 'Enrichissement',
+  transform: 'Transformation',
+  export: 'Export',
+}
+
 export interface TrackedJob {
   jobId: string
   jobType: JobType
@@ -26,16 +34,13 @@ export interface AppNotification {
   message: string
   timestamp: string
   read: boolean
-  path?: string
 }
 
 const MAX_NOTIFICATIONS = 50
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 jours
 
 interface NotificationState {
   trackedJobs: TrackedJob[]
   notifications: AppNotification[]
-  unreadCount: number
 
   // Actions — jobs en cours
   trackJob: (job: TrackedJob) => void
@@ -50,10 +55,8 @@ interface NotificationState {
   markAsRead: (notificationId: string) => void
   markAllAsRead: () => void
   clearNotifications: () => void
-  clearOldNotifications: () => void
 
   // Sélecteurs
-  hasRunningJob: (jobType?: JobType) => boolean
   isJobKnown: (jobId: string) => boolean
 }
 
@@ -65,11 +68,9 @@ export const useNotificationStore = create<NotificationState>()(
     (set, get) => ({
       trackedJobs: [],
       notifications: [],
-      unreadCount: 0,
 
       trackJob: (job) => {
         set((state) => {
-          // Éviter les doublons
           if (state.trackedJobs.some((j) => j.jobId === job.jobId)) {
             return state
           }
@@ -78,11 +79,20 @@ export const useNotificationStore = create<NotificationState>()(
       },
 
       updateTrackedJob: (jobId, updates) => {
-        set((state) => ({
-          trackedJobs: state.trackedJobs.map((j) =>
-            j.jobId === jobId ? { ...j, ...updates } : j
-          ),
-        }))
+        set((state) => {
+          const idx = state.trackedJobs.findIndex((j) => j.jobId === jobId)
+          if (idx === -1) return state
+
+          const current = state.trackedJobs[idx]
+          const hasChange = (Object.keys(updates) as (keyof TrackedJob)[]).some(
+            (k) => current[k] !== updates[k]
+          )
+          if (!hasChange) return state
+
+          const updated = [...state.trackedJobs]
+          updated[idx] = { ...current, ...updates }
+          return { trackedJobs: updated }
+        })
       },
 
       removeTrackedJob: (jobId) => {
@@ -93,7 +103,6 @@ export const useNotificationStore = create<NotificationState>()(
 
       completeJob: (jobId, notification) => {
         set((state) => {
-          // Éviter les doublons de notification
           if (state.notifications.some((n) => n.jobId === jobId)) {
             return { trackedJobs: state.trackedJobs.filter((j) => j.jobId !== jobId) }
           }
@@ -105,15 +114,12 @@ export const useNotificationStore = create<NotificationState>()(
             read: false,
           }
 
-          const updated = [newNotification, ...state.notifications].slice(
-            0,
-            MAX_NOTIFICATIONS
-          )
-
           return {
             trackedJobs: state.trackedJobs.filter((j) => j.jobId !== jobId),
-            notifications: updated,
-            unreadCount: state.unreadCount + 1,
+            notifications: [newNotification, ...state.notifications].slice(
+              0,
+              MAX_NOTIFICATIONS
+            ),
           }
         })
       },
@@ -126,46 +132,23 @@ export const useNotificationStore = create<NotificationState>()(
             notifications: state.notifications.map((n) =>
               n.id === notificationId ? { ...n, read: true } : n
             ),
-            unreadCount: Math.max(0, state.unreadCount - 1),
           }
         })
       },
 
       markAllAsRead: () => {
-        set((state) => ({
-          notifications: state.notifications.map((n) => ({ ...n, read: true })),
-          unreadCount: 0,
-        }))
-      },
-
-      clearNotifications: () => {
-        set({ notifications: [], unreadCount: 0 })
-      },
-
-      clearOldNotifications: () => {
-        const now = Date.now()
         set((state) => {
-          const fresh = state.notifications.filter(
-            (n) => now - new Date(n.timestamp).getTime() < MAX_AGE_MS
-          )
-          const removedUnread = state.notifications.filter(
-            (n) => !n.read && now - new Date(n.timestamp).getTime() >= MAX_AGE_MS
-          ).length
+          if (state.notifications.every((n) => n.read)) return state
           return {
-            notifications: fresh,
-            unreadCount: Math.max(0, state.unreadCount - removedUnread),
+            notifications: state.notifications.map((n) =>
+              n.read ? n : { ...n, read: true }
+            ),
           }
         })
       },
 
-      hasRunningJob: (jobType) => {
-        const { trackedJobs } = get()
-        if (jobType) {
-          return trackedJobs.some(
-            (j) => j.jobType === jobType && j.status === 'running'
-          )
-        }
-        return trackedJobs.some((j) => j.status === 'running')
+      clearNotifications: () => {
+        set({ notifications: [] })
       },
 
       isJobKnown: (jobId) => {
@@ -180,7 +163,6 @@ export const useNotificationStore = create<NotificationState>()(
       name: 'niamoto-notifications',
       partialize: (state) => ({
         notifications: state.notifications,
-        unreadCount: state.unreadCount,
       }),
     }
   )
