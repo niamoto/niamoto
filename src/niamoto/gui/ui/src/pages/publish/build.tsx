@@ -89,7 +89,7 @@ export default function PublishBuild() {
           const phaseLabel = phase === 'transform'
             ? t('build.phaseTransformLabel', 'Transformations')
             : t('build.phaseExportLabel', 'Génération du site')
-          updateBuild({ progress, message: `${phaseLabel} · ${message}` })
+          updateBuild({ progress, message: `${phaseLabel} · ${localizeBackendMessage(message, t)}` })
         }
       )
 
@@ -383,4 +383,31 @@ export default function PublishBuild() {
       )}
     </div>
   )
+}
+
+/**
+ * Localise les messages structurés envoyés par le backend.
+ * Format: "key" ou "key:param1:param2"
+ */
+function localizeBackendMessage(message: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  if (message.startsWith('transform:')) {
+    const parts = message.split(':')
+    return t('build.progress.transform', { group: parts[1] || '', widget: parts[2] || '', defaultValue: `Transform · ${parts[1]} · ${parts[2]}` })
+  }
+  if (message.startsWith('export.generating:')) {
+    const pct = message.split(':')[1] || ''
+    return t('build.progress.generating', { pct, defaultValue: `Génération en cours... (${pct}%)` })
+  }
+  if (message.startsWith('export.done:')) {
+    const parts = message.split(':')
+    return t('build.progress.exportDone', { name: parts[1] || '', count: parts[2] || '', defaultValue: `Export ${parts[1]} terminé (${parts[2]})` })
+  }
+  if (message === 'transform.running') {
+    return t('build.progress.transformRunning', 'Transformations en cours...')
+  }
+  if (message === 'export.starting') {
+    return t('build.progress.exportStarting', 'Génération du site...')
+  }
+  // Fallback : message brut (anciens jobs ou messages non structurés)
+  return message
 }

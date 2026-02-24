@@ -498,7 +498,7 @@ async def get_transform_metrics(http_request: Request):
     Returns statistics about the transformations performed.
     """
     job_store = _get_job_store(http_request)
-    last = job_store.get_last_run("transform")
+    last = job_store.get_last_run("transform", status="completed")
 
     if not last or not last.get("result"):
         return {

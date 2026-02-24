@@ -110,6 +110,14 @@ export async function getExportMetrics(): Promise<{
 }
 
 /**
+ * Get the currently active export job (running or recently completed)
+ */
+export async function getActiveExportJob(): Promise<ExportStatus | null> {
+  const response = await apiClient.get('/export/active')
+  return response.data
+}
+
+/**
  * Execute export using CLI command
  */
 export async function executeExportCLI(): Promise<{

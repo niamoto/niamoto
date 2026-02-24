@@ -324,7 +324,8 @@
       "starting": "Démarrage...",
       "successToast": "Calcul terminé pour {{name}}",
       "errorToast": "Erreur : {{message}}",
-      "failedToast": "Le calcul a échoué"
+      "failedToast": "Le calcul a échoué",
+      "exportRunning": "Un export est en cours, veuillez patienter"
     },
     "relativeTime": {
       "justNow": "à l'instant",
