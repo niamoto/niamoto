@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 import { useWelcomeScreen } from '@/hooks/useWelcomeScreen'
 import { ThemeProvider } from '@/components/theme'
+import { Toaster } from 'sonner'
 import './App.css'
 
 // Lazy load pages
@@ -159,6 +160,7 @@ function App() {
 
   return (
     <ThemeProvider>
+      <Toaster position="bottom-right" richColors />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>

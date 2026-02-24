@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Command, Search, Bell, User, HelpCircle, Menu, WifiOff } from 'lucide-react'
+import { Command, Search, User, HelpCircle, Menu, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNavigationStore } from '@/stores/navigationStore'
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { NotificationDropdown } from './NotificationDropdown'
 
 interface TopBarProps {
   className?: string
@@ -110,38 +111,7 @@ export function TopBar({ className }: TopBarProps) {
         </div>
 
         {/* Notifications */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>{t('notifications.title', 'Notifications')}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">
-                  {t('notifications.import_complete', 'Import completed')}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {t('notifications.time_ago', '2 minutes ago')}
-                </span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">
-                  {t('notifications.transform_ready', 'Transform ready')}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {t('notifications.time_ago', '1 hour ago')}
-                </span>
-              </div>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <NotificationDropdown />
 
         {/* Help menu */}
         <DropdownMenu>

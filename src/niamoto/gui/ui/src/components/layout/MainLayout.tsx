@@ -9,6 +9,7 @@ import { DesktopTitlebar } from './DesktopTitlebar'
 import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
 import { useRuntimeMode } from '@/hooks/useRuntimeMode'
 import { usePlatform } from '@/hooks/usePlatform'
+import { useJobPolling } from '@/hooks/useJobPolling'
 import { cn } from '@/lib/utils'
 
 export function MainLayout() {
@@ -19,6 +20,9 @@ export function MainLayout() {
 
   // Initialize platform detection (sets data-platform attribute on html)
   usePlatform()
+
+  // Polling global des jobs pour le centre de notifications
+  useJobPolling()
 
   // Update breadcrumbs based on current route
   useEffect(() => {
