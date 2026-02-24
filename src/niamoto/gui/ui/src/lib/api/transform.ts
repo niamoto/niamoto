@@ -120,7 +120,7 @@ export async function getActiveTransformJob(): Promise<TransformStatus | null> {
  * Get the last completed transform for a specific group
  */
 export async function getLastTransformRun(groupBy: string): Promise<TransformStatus | null> {
-  const response = await apiClient.get(`/transform/last-run/${groupBy}`)
+  const response = await apiClient.get(`/transform/last-run/${encodeURIComponent(groupBy)}`)
   return response.data
 }
 

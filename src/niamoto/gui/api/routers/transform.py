@@ -382,8 +382,8 @@ async def list_transform_jobs(http_request: Request):
     job_store = _get_job_store(http_request)
     jobs = []
 
-    # Job actif
-    active = job_store.get_active_job()
+    # Job actif (filtré par type)
+    active = job_store.get_active_job(job_type="transform")
     if active:
         jobs.append(
             {
@@ -425,7 +425,9 @@ async def cancel_transform_job(job_id: str, http_request: Request):
         raise HTTPException(status_code=404, detail=f"Transform job {job_id} not found")
 
     # L'annulation réelle n'est pas implémentée en v1
-    return {"message": f"Transform job {job_id} — annulation non implémentée en v1"}
+    raise HTTPException(
+        status_code=501, detail=f"Annulation non implémentée en v1 (job {job_id})"
+    )
 
 
 @router.get("/config")
@@ -526,7 +528,7 @@ async def get_active_transform_job(http_request: Request):
     Returns the active job or null if none.
     """
     job_store = _get_job_store(http_request)
-    job = job_store.get_active_job()
+    job = job_store.get_active_job(job_type="transform")
 
     if not job:
         return None
