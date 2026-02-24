@@ -41,6 +41,11 @@
     "outputPath": "Directory",
     "success": "Build completed successfully!",
     "error": "Build error",
+    "includeTransform": "Recompute statistics before generation",
+    "phaseTransform": "Phase 1/2: Transformations",
+    "phaseExport": "Phase 2/2: Export",
+    "phaseTransformLabel": "Transformations",
+    "phaseExportLabel": "Site generation",
     "progress": {
       "generating": "Generating HTML pages...",
       "visualizations": "Creating visualizations...",

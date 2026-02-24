@@ -65,9 +65,9 @@ export function GroupPanel({ reference }: GroupPanelProps) {
           setTransformMessage('')
           if (status.status === 'completed') {
             setLastRun(status)
-            toast.success(`Calcul terminé pour ${reference.name}`)
+            toast.success(t('groupPanel.transform.successToast', { name: reference.name }))
           } else {
-            toast.error(status.error || 'Le calcul a échoué')
+            toast.error(status.error || t('groupPanel.transform.failedToast'))
           }
         }
       } catch {
@@ -76,7 +76,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
       }
     }, 1000)
     return interval
-  }, [reference.name])
+  }, [reference.name, t])
 
   // Load last run info on mount + resume polling if job is running
   useEffect(() => {
@@ -105,7 +105,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   const runTransform = useCallback(async () => {
     setIsTransforming(true)
     setTransformProgress(0)
-    setTransformMessage('Démarrage...')
+    setTransformMessage(t('groupPanel.transform.starting'))
 
     try {
       const result = await executeTransformAndWait(
@@ -116,9 +116,9 @@ export function GroupPanel({ reference }: GroupPanelProps) {
         }
       )
       setLastRun(result)
-      toast.success(`Calcul terminé pour ${reference.name}`)
+      toast.success(t('groupPanel.transform.successToast', { name: reference.name }))
     } catch (error) {
-      toast.error(`Erreur : ${error instanceof Error ? error.message : String(error)}`)
+      toast.error(t('groupPanel.transform.errorToast', { message: error instanceof Error ? error.message : String(error) }))
     } finally {
       setIsTransforming(false)
       setTransformProgress(0)
@@ -128,7 +128,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
 
   // Format relative time for last run
   const lastRunLabel = lastRun?.completed_at
-    ? formatRelativeTime(lastRun.completed_at)
+    ? formatRelativeTime(lastRun.completed_at, t)
     : null
 
   return (
@@ -178,12 +178,12 @@ export function GroupPanel({ reference }: GroupPanelProps) {
               {isTransforming ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {transformProgress}%
+                  {t('groupPanel.transform.running', { progress: transformProgress })}
                 </>
               ) : (
                 <>
                   <Play className="mr-2 h-4 w-4" />
-                  Lancer le calcul
+                  {t('groupPanel.transform.trigger')}
                 </>
               )}
             </Button>
@@ -369,13 +369,13 @@ function IndexTab({ reference }: { reference: ReferenceInfo }) {
   )
 }
 
-function formatRelativeTime(isoDate: string): string {
+function formatRelativeTime(isoDate: string, t: (key: string, options?: Record<string, unknown>) => string): string {
   const diff = Date.now() - new Date(isoDate).getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'à l\'instant'
-  if (minutes < 60) return `il y a ${minutes} min`
+  if (minutes < 1) return t('groupPanel.relativeTime.justNow')
+  if (minutes < 60) return t('groupPanel.relativeTime.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `il y a ${hours}h`
+  if (hours < 24) return t('groupPanel.relativeTime.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  return `il y a ${days}j`
+  return t('groupPanel.relativeTime.daysAgo', { count: days })
 }

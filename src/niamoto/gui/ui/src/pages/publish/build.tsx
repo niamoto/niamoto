@@ -87,8 +87,8 @@ export default function PublishBuild() {
         (progress, message, phase) => {
           setCurrentPhase(phase ?? null)
           const phaseLabel = phase === 'transform'
-            ? 'Transformations'
-            : 'Génération du site'
+            ? t('build.phaseTransformLabel', 'Transformations')
+            : t('build.phaseExportLabel', 'Génération du site')
           updateBuild({ progress, message: `${phaseLabel} · ${message}` })
         }
       )
@@ -201,7 +201,7 @@ export default function PublishBuild() {
                 onCheckedChange={(checked) => setIncludeTransform(checked === true)}
               />
               <Label htmlFor="include-transform" className="text-sm cursor-pointer">
-                Recalculer les statistiques avant la génération
+                {t('build.includeTransform', 'Recalculer les statistiques avant la génération')}
               </Label>
             </div>
           )}
@@ -213,10 +213,10 @@ export default function PublishBuild() {
               {includeTransform && (
                 <div className="flex gap-4 text-xs text-muted-foreground">
                   <span className={currentPhase === 'transform' ? 'font-semibold text-foreground' : ''}>
-                    Phase 1/2 : Transformations {currentPhase === 'transform' ? '⏳' : currentPhase === 'export' ? '✓' : ''}
+                    {t('build.phaseTransform', 'Phase 1/2 : Transformations')} {currentPhase === 'transform' ? '⏳' : currentPhase === 'export' ? '✓' : ''}
                   </span>
                   <span className={currentPhase === 'export' ? 'font-semibold text-foreground' : ''}>
-                    Phase 2/2 : Export {currentPhase === 'export' ? '⏳' : ''}
+                    {t('build.phaseExport', 'Phase 2/2 : Export')} {currentPhase === 'export' ? '⏳' : ''}
                   </span>
                 </div>
               )}
