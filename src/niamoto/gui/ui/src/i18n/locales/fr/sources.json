@@ -317,6 +317,20 @@
       "precomputedDesc": "Fichiers CSV de statistiques supplémentaires",
       "schemaFields": "Champs du schéma",
       "schemaFieldsDesc": "Colonnes disponibles pour cette référence"
+    },
+    "transform": {
+      "trigger": "Lancer le calcul",
+      "running": "{{progress}}%",
+      "starting": "Démarrage...",
+      "successToast": "Calcul terminé pour {{name}}",
+      "errorToast": "Erreur : {{message}}",
+      "failedToast": "Le calcul a échoué"
+    },
+    "relativeTime": {
+      "justNow": "à l'instant",
+      "minutesAgo": "il y a {{count}} min",
+      "hoursAgo": "il y a {{count}}h",
+      "daysAgo": "il y a {{count}}j"
     }
   },
   "autoConfig": {

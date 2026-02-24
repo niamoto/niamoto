@@ -317,6 +317,20 @@
       "precomputedDesc": "CSV files with additional statistics",
       "schemaFields": "Schema fields",
       "schemaFieldsDesc": "Available columns for this reference"
+    },
+    "transform": {
+      "trigger": "Run computation",
+      "running": "{{progress}}%",
+      "starting": "Starting...",
+      "successToast": "Computation completed for {{name}}",
+      "errorToast": "Error: {{message}}",
+      "failedToast": "Computation failed"
+    },
+    "relativeTime": {
+      "justNow": "just now",
+      "minutesAgo": "{{count}} min ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
     }
   },
   "autoConfig": {
