@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Bell, CheckCircle2, XCircle, AlertTriangle, Loader2, Pause, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -10,26 +11,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useNotificationStore, type TrackedJob, type AppNotification, type JobType } from '@/stores/notificationStore'
+import { useNotificationStore, JOB_TYPE_LABELS, type TrackedJob, type AppNotification } from '@/stores/notificationStore'
 import { cn } from '@/lib/utils'
 
-const JOB_TYPE_LABELS: Record<JobType, { fr: string; en: string }> = {
-  import: { fr: 'Import', en: 'Import' },
-  enrichment: { fr: 'Enrichissement', en: 'Enrichment' },
-  transform: { fr: 'Transformation', en: 'Transform' },
-  export: { fr: 'Export', en: 'Export' },
-}
-
-function timeAgo(isoDate: string): string {
+function timeAgo(isoDate: string, t: TFunction): string {
   const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000)
-  if (seconds < 60) return 'à l\'instant'
-  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`
-  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)}h`
-  return `il y a ${Math.floor(seconds / 86400)}j`
+  if (seconds < 60) return t('notifications.timeAgo.justNow')
+  if (seconds < 3600) return t('notifications.timeAgo.minutesAgo', { count: Math.floor(seconds / 60) })
+  if (seconds < 86400) return t('notifications.timeAgo.hoursAgo', { count: Math.floor(seconds / 3600) })
+  return t('notifications.timeAgo.daysAgo', { count: Math.floor(seconds / 86400) })
 }
 
-function ActiveJobItem({ job }: { job: TrackedJob }) {
-  const label = JOB_TYPE_LABELS[job.jobType].fr
+function ActiveJobItem({ job, t }: { job: TrackedJob; t: TFunction }) {
+  const label = t(`notifications.jobTypes.${job.jobType}`, JOB_TYPE_LABELS[job.jobType])
 
   return (
     <div className="px-3 py-2.5 space-y-1.5">
@@ -55,12 +49,12 @@ function ActiveJobItem({ job }: { job: TrackedJob }) {
 function NotificationItem({
   notification,
   onMarkAsRead,
+  t,
 }: {
   notification: AppNotification
   onMarkAsRead: (id: string) => void
+  t: TFunction
 }) {
-  const label = JOB_TYPE_LABELS[notification.jobType].fr
-
   const StatusIcon = notification.status === 'completed'
     ? CheckCircle2
     : notification.status === 'failed'
@@ -86,7 +80,7 @@ function NotificationItem({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium truncate">
-              {notification.title || `${label} ${notification.status === 'completed' ? 'terminé' : 'échoué'}`}
+              {notification.title}
             </span>
           </div>
           {notification.message && (
@@ -95,7 +89,7 @@ function NotificationItem({
             </p>
           )}
           <p className="text-xs text-muted-foreground mt-0.5">
-            {timeAgo(notification.timestamp)}
+            {timeAgo(notification.timestamp, t)}
           </p>
         </div>
         {!notification.read && (
@@ -108,15 +102,13 @@ function NotificationItem({
 
 export function NotificationDropdown() {
   const { t } = useTranslation('common')
-  const {
-    trackedJobs,
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-    clearNotifications,
-  } = useNotificationStore()
+  const trackedJobs = useNotificationStore((s) => s.trackedJobs)
+  const notifications = useNotificationStore((s) => s.notifications)
+  const markAsRead = useNotificationStore((s) => s.markAsRead)
+  const markAllAsRead = useNotificationStore((s) => s.markAllAsRead)
+  const clearNotifications = useNotificationStore((s) => s.clearNotifications)
 
+  const unreadCount = notifications.filter((n) => !n.read).length
   const hasActiveJobs = trackedJobs.length > 0
   const showBadge = unreadCount > 0 || hasActiveJobs
   const recentNotifications = notifications.slice(0, 20)
@@ -162,7 +154,7 @@ export function NotificationDropdown() {
               </span>
             </div>
             {trackedJobs.map((job) => (
-              <ActiveJobItem key={job.jobId} job={job} />
+              <ActiveJobItem key={job.jobId} job={job} t={t} />
             ))}
             {recentNotifications.length > 0 && <DropdownMenuSeparator />}
           </>
@@ -184,6 +176,7 @@ export function NotificationDropdown() {
                   key={n.id}
                   notification={n}
                   onMarkAsRead={markAsRead}
+                  t={t}
                 />
               ))}
             </ScrollArea>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useNotificationStore, type TrackedJob, type JobType } from '@/stores/notificationStore'
-import { getActiveTransformJob } from '@/lib/api/transform'
-import { getActiveExportJob } from '@/lib/api/export'
+import { useNotificationStore, JOB_TYPE_LABELS, type TrackedJob, type JobType } from '@/stores/notificationStore'
+import { getActiveTransformJob, type TransformStatus } from '@/lib/api/transform'
+import { getActiveExportJob, type ExportStatus } from '@/lib/api/export'
 import { apiClient } from '@/lib/api/client'
 
 const ACTIVE_POLL_INTERVAL = 1_000  // 1s quand un job est traqué
@@ -12,14 +12,6 @@ const TERMINAL_STATUSES = new Set([
   'completed', 'failed', 'cancelled', 'interrupted',
 ])
 
-/** Labels FR pour les types de jobs */
-const JOB_TYPE_LABELS: Record<JobType, string> = {
-  import: 'Import',
-  enrichment: 'Enrichissement',
-  transform: 'Transformation',
-  export: 'Export',
-}
-
 /**
  * Hook de polling global pour détecter et suivre les jobs du pipeline.
  *
@@ -27,20 +19,21 @@ const JOB_TYPE_LABELS: Record<JobType, string> = {
  * - Découverte (5s) : interroge transform/active, export/active, imports/jobs
  *   pour détecter des jobs en cours non encore traqués
  * - Actif (1s) : suit la progression des jobs traqués et détecte les transitions
- *   vers des statuts terminaux
+ *   vers des statuts terminaux — démarré uniquement quand des jobs sont traqués
  */
 export function useJobPolling() {
   const discoveryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const activeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const pollingRef = useRef(false) // guard contre les overlaps async
+  const discoveryGuard = useRef(false)
+  const activeGuard = useRef(false)
 
   const store = useNotificationStore
 
   // --- Découverte de jobs non traqués ---
 
   const discoverJobs = useCallback(async () => {
-    if (pollingRef.current) return
-    pollingRef.current = true
+    if (discoveryGuard.current || document.hidden) return
+    discoveryGuard.current = true
 
     try {
       await Promise.allSettled([
@@ -50,40 +43,75 @@ export function useJobPolling() {
         pollTrackedEnrichmentJobs(),
       ])
     } finally {
-      pollingRef.current = false
+      discoveryGuard.current = false
     }
   }, [])
 
   // --- Polling actif des jobs traqués ---
 
   const pollActiveJobs = useCallback(async () => {
+    if (activeGuard.current || document.hidden) return
     const { trackedJobs } = store.getState()
     if (trackedJobs.length === 0) return
 
-    await Promise.allSettled(
-      trackedJobs.map((job) => pollSingleJob(job))
-    )
+    activeGuard.current = true
+    try {
+      await Promise.allSettled(trackedJobs.map(pollSingleJob))
+    } finally {
+      activeGuard.current = false
+    }
   }, [])
 
-  // --- Gestion des timers ---
-
+  // Timer de découverte (5s) — toujours actif
   useEffect(() => {
-    // Purger les vieilles notifications au montage
-    store.getState().clearOldNotifications()
-
-    // Découverte immédiate au montage
     discoverJobs()
-
-    // Timer de découverte (5s)
     discoveryTimerRef.current = setInterval(discoverJobs, DISCOVERY_POLL_INTERVAL)
-
-    // Timer actif (1s)
-    activeTimerRef.current = setInterval(pollActiveJobs, ACTIVE_POLL_INTERVAL)
 
     return () => {
       if (discoveryTimerRef.current) clearInterval(discoveryTimerRef.current)
-      if (activeTimerRef.current) clearInterval(activeTimerRef.current)
     }
+  }, [discoverJobs])
+
+  // Timer actif (1s) — conditionnel sur les jobs traqués
+  useEffect(() => {
+    const startActive = () => {
+      if (!activeTimerRef.current) {
+        pollActiveJobs()
+        activeTimerRef.current = setInterval(pollActiveJobs, ACTIVE_POLL_INTERVAL)
+      }
+    }
+    const stopActive = () => {
+      if (activeTimerRef.current) {
+        clearInterval(activeTimerRef.current)
+        activeTimerRef.current = null
+      }
+    }
+
+    // Vérifier état initial
+    if (store.getState().trackedJobs.length > 0) startActive()
+
+    const unsub = store.subscribe((state, prevState) => {
+      const had = prevState.trackedJobs.length > 0
+      const has = state.trackedJobs.length > 0
+      if (has && !had) startActive()
+      else if (!has && had) stopActive()
+    })
+
+    return () => {
+      unsub()
+      stopActive()
+    }
+  }, [pollActiveJobs])
+
+  // Relancer immédiatement au retour de visibilité
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) return
+      discoverJobs()
+      if (store.getState().trackedJobs.length > 0) pollActiveJobs()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [discoverJobs, pollActiveJobs])
 }
 
@@ -93,7 +121,7 @@ async function discoverTransformJob() {
   try {
     const job = await getActiveTransformJob()
     if (!job || TERMINAL_STATUSES.has(job.status)) return
-    autoTrackJob(job.job_id, 'transform', job.status === 'running' ? 'running' : 'running', job.progress, job.message, job.started_at, job.phase)
+    autoTrackJob(job.job_id, 'transform', 'running', job.progress, job.message, job.started_at, job.phase)
   } catch {
     // Endpoint indisponible — ignorer silencieusement
   }
@@ -128,10 +156,11 @@ async function discoverImportJobs() {
 async function pollTrackedEnrichmentJobs() {
   const { trackedJobs } = useNotificationStore.getState()
   const enrichmentJobs = trackedJobs.filter((j) => j.jobType === 'enrichment')
+  if (enrichmentJobs.length === 0) return
 
-  for (const tracked of enrichmentJobs) {
+  await Promise.allSettled(enrichmentJobs.map(async (tracked) => {
     const ref = tracked.meta?.referenceName
-    if (!ref) continue
+    if (!ref) return
 
     try {
       const response = await apiClient.get(`/enrichment/job/${ref}`)
@@ -139,7 +168,7 @@ async function pollTrackedEnrichmentJobs() {
 
       if (!job) {
         handleJobTerminal(tracked.jobId, 'enrichment', 'completed', '')
-        continue
+        return
       }
 
       if (TERMINAL_STATUSES.has(job.status)) {
@@ -158,7 +187,7 @@ async function pollTrackedEnrichmentJobs() {
     } catch {
       // 404 = pas de job → ignorer
     }
-  }
+  }))
 }
 
 // --- Polling d'un job traqué individuel ---
@@ -170,7 +199,6 @@ async function pollSingleJob(tracked: TrackedJob) {
     if (tracked.jobType === 'transform') {
       const job = await getActiveTransformJob()
       if (!job || job.job_id !== tracked.jobId) {
-        // Job disparu → probablement terminé
         handleJobTerminal(tracked.jobId, 'transform', 'completed', '')
         return
       }
@@ -241,7 +269,6 @@ function autoTrackJob(
 ) {
   const state = useNotificationStore.getState()
   if (state.isJobKnown(jobId)) {
-    // Déjà traqué → mettre à jour
     state.updateTrackedJob(jobId, { progress, message, phase })
     return
   }
@@ -264,7 +291,6 @@ function handleJobTerminal(
 ) {
   const state = useNotificationStore.getState()
   if (state.notifications.some((n) => n.jobId === jobId)) {
-    // Notification déjà créée → juste retirer du tracking
     state.removeTrackedJob(jobId)
     return
   }
@@ -285,13 +311,13 @@ function handleJobTerminal(
   })
 }
 
-function formatTransformResult(job: any): string {
+function formatTransformResult(job: TransformStatus): string {
   if (!job.result?.metrics) return ''
   const m = job.result.metrics
   return `${m.completed_transformations ?? 0} transformations, ${m.total_widgets ?? 0} widgets`
 }
 
-function formatExportResult(job: any): string {
+function formatExportResult(job: ExportStatus): string {
   if (!job.result?.metrics) return ''
   const m = job.result.metrics
   return `${m.generated_pages ?? 0} pages générées`

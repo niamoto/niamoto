@@ -237,7 +237,19 @@
     "recent": "Récents",
     "no_notifications": "Aucune notification",
     "mark_all_read": "Tout marquer comme lu",
-    "clear_all": "Effacer"
+    "clear_all": "Effacer",
+    "timeAgo": {
+      "justNow": "à l'instant",
+      "minutesAgo": "il y a {{count}} min",
+      "hoursAgo": "il y a {{count}}h",
+      "daysAgo": "il y a {{count}}j"
+    },
+    "jobTypes": {
+      "import": "Import",
+      "enrichment": "Enrichissement",
+      "transform": "Transformation",
+      "export": "Export"
+    }
   },
   "diagnostic": {
     "loadingDiagnostic": "Chargement des informations de diagnostic...",
