@@ -347,7 +347,7 @@ async def get_reference_suggestions(
                 EnrichedColumnProfile,
             )
 
-            db = Database(str(db_path), read_only=True)
+            db = Database(str(db_path))
             try:
                 registry = EntityRegistry(db)
 
@@ -1448,7 +1448,7 @@ async def _preview_configured_widget(
 
             # Get database for widget rendering
             db_path = get_database_path()
-            db = Database(str(db_path), read_only=True) if db_path else None
+            db = Database(str(db_path)) if db_path else None
 
             try:
                 # Execute the transformer with the loaded data
@@ -1493,7 +1493,7 @@ async def _preview_configured_widget(
                     status_code=404,
                 )
 
-            db = Database(str(db_path), read_only=True)
+            db = Database(str(db_path))
             try:
                 data_source = transformer_params.get("source", "occurrences")
                 sample_data: pd.DataFrame
@@ -1812,7 +1812,7 @@ async def _preview_navigation_widget(reference_name: str) -> HTMLResponse:
                 )
             )
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             # Find the reference table
             table_name = resolve_reference_table(db, reference_name)
@@ -2102,7 +2102,7 @@ async def _preview_general_info_widget(
                 )
             )
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             # Generate the suggestion to get the detected fields
             suggestion = _generate_general_info_suggestion(reference_name)
@@ -2559,7 +2559,7 @@ async def _preview_entity_map(
         # For single/all mode: rest is geom_col
         geom_col = "_".join(parts[1:])
 
-    db = Database(str(db_path), read_only=True)
+    db = Database(str(db_path))
 
     try:
         entity_table = resolve_reference_table(db, reference)
@@ -2854,7 +2854,7 @@ async def preview_inline(request: InlinePreviewRequest):
         )
 
     db_path = get_database_path()
-    db = Database(str(db_path), read_only=True) if db_path else None
+    db = Database(str(db_path)) if db_path else None
     try:
         html = PreviewService.generate_preview(
             db=db,
@@ -3059,7 +3059,7 @@ async def preview_template(
 
             # Get database for widget rendering
             db_path = get_database_path()
-            db = Database(str(db_path), read_only=True) if db_path else None
+            db = Database(str(db_path)) if db_path else None
 
             try:
                 # Render widget directly with class_object data
@@ -3088,7 +3088,7 @@ async def preview_template(
                     status_code=404,
                 )
 
-            db = Database(str(db_path), read_only=True)
+            db = Database(str(db_path))
             try:
                 # Check for entity table
                 entity_table = resolve_entity_table(db, data_source, kind=None)
@@ -3204,7 +3204,7 @@ async def preview_template(
                 status_code=404,
             )
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             # Find representative entity (or use provided entity_id)
             if entity_id:
@@ -3769,7 +3769,7 @@ async def get_combined_widget_suggestions(
             EnrichedColumnProfile,
         )
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             registry = EntityRegistry(db)
 
@@ -3903,7 +3903,7 @@ async def get_semantic_groups(
             EnrichedColumnProfile,
         )
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             registry = EntityRegistry(db)
 

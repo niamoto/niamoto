@@ -222,7 +222,7 @@ async def get_references():
                 from niamoto.common.database import Database
                 from niamoto.core.imports.registry import EntityRegistry
 
-                db = Database(str(db_path), read_only=True)
+                db = Database(str(db_path))
                 try:
                     # Get table names from EntityRegistry (if table exists)
                     if db.has_table(EntityRegistry.ENTITIES_TABLE):
@@ -276,7 +276,7 @@ async def get_references():
                 try:
                     from niamoto.common.database import Database
 
-                    db = Database(str(db_path), read_only=True)
+                    db = Database(str(db_path))
                     try:
                         if db.has_table(actual_table_name):
                             # Get column names from the table
@@ -567,7 +567,7 @@ async def get_datasets():
                 from niamoto.core.imports.registry import EntityRegistry
                 import pandas as pd
 
-                db = Database(str(db_path), read_only=True)
+                db = Database(str(db_path))
                 try:
                     if db.has_table(EntityRegistry.ENTITIES_TABLE):
                         registry = EntityRegistry(db)
@@ -2528,7 +2528,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         # Find source table from EntityRegistry
         source_table = None
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             if db.has_table(EntityRegistry.ENTITIES_TABLE):
                 registry = EntityRegistry(db)
@@ -2541,7 +2541,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         # Fallback to common patterns
         if not source_table:
-            db = Database(str(db_path), read_only=True)
+            db = Database(str(db_path))
             try:
                 source_table = resolve_entity_table(db, source_entity)
             finally:
@@ -2557,7 +2557,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         stats_table = f"{group_by}_stats"
         transformed_table_exists = False
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             transformed_table_exists = db.has_table(stats_table)
         finally:
@@ -2568,7 +2568,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         if transformed_table_exists:
             # Use the actual transformed data
-            db = Database(str(db_path), read_only=True)
+            db = Database(str(db_path))
             try:
                 quoted_stats_table = quote_identifier(db, stats_table)
                 df = pd.read_sql(
@@ -2636,7 +2636,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                 db.close_db_session()
         else:
             # Infer schema from transform.yml using source data
-            db = Database(str(db_path), read_only=True)
+            db = Database(str(db_path))
             try:
                 quoted_source_table = quote_identifier(db, source_table)
                 source_df = pd.read_sql(
@@ -2663,7 +2663,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         # Detect hierarchical structure for smart filtering
         hierarchy_info = {"is_hierarchical": False}
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             quoted_source_table = quote_identifier(db, source_table)
             check_df = pd.read_sql(
@@ -2770,7 +2770,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
                             if path.endswith(".value")
                             else path.split(".")[-1]
                         )
-                        db = Database(str(db_path), read_only=True)
+                        db = Database(str(db_path))
                         try:
                             distinct_df = pd.read_sql(
                                 f"SELECT DISTINCT {rank_col} FROM {source_table} WHERE {rank_col} IS NOT NULL",

@@ -381,7 +381,7 @@ async def list_tables():
         )
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             table_names = inspector.get_table_names()
 
@@ -430,7 +430,7 @@ async def query_table(request: QueryRequest):
         )
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             if request.table not in inspector.get_table_names():
                 raise HTTPException(
@@ -519,7 +519,7 @@ async def get_table_columns_endpoint(table_name: str):
         )
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
 
             if table_name not in inspector.get_table_names():

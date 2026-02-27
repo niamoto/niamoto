@@ -791,7 +791,7 @@ async def get_available_sources(group_by: str):
         return SourcesResponse(group_by=group_by, sources=sources)
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             # Get all sources from transform.yml
             sources = _get_all_sources(work_dir, group_by, db)
 
@@ -837,7 +837,7 @@ async def get_source_columns(group_by: str, source_name: str):
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             # First, find the source in the available sources
             sources = _get_all_sources(work_dir, group_by, db)
             source_info = next((s for s in sources if s.name == source_name), None)

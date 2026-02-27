@@ -199,7 +199,7 @@ def _get_reference_entity_info(
         return None
 
     try:
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         entity_table = resolve_reference_table(db, reference_name)
 
         if not entity_table:
@@ -278,7 +278,7 @@ def _detect_relation_fields(
 
     conn = None
     try:
-        conn = duckdb.connect(str(db_path), read_only=True)
+        conn = duckdb.connect(str(db_path))
 
         # Check if table exists
         tables = conn.execute(

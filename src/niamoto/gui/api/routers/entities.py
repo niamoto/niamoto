@@ -91,7 +91,7 @@ async def get_available_entities(
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
 
-        with open_database(config.database_path, read_only=True) as db:
+        with open_database(config.database_path) as db:
             registry = EntityRegistry(db)
             all_entities = registry.list_entities()
 
@@ -155,7 +155,7 @@ async def list_entities(group_by: str, limit: Optional[int] = None):
     id_column = f"{group_by}_id"
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             with db.session() as session:
                 if limit is not None:
                     query = text(f"""
@@ -224,7 +224,7 @@ async def get_entity_detail(group_by: str, entity_id: str):
     id_column = f"{group_by}_id"
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             with db.session() as session:
                 columns_query = text(f"PRAGMA table_info({group_by})")
                 columns_result = session.execute(columns_query)
@@ -416,7 +416,7 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
         if not db_path or not db_path.exists():
             return HTMLResponse(content="<p class='error'>Database not found</p>")
 
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             plugin_instance = plugin_class(db=db)
 
             widget_params = widget_config.get("params", {})
