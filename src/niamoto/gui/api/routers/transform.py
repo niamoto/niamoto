@@ -303,6 +303,7 @@ def _job_to_status(job: dict) -> dict:
         "progress": job["progress"],
         "message": job.get("message", ""),
         "phase": job.get("phase"),
+        "group_by": job.get("group_by"),
         "started_at": job["started_at"],
         "completed_at": job.get("completed_at"),
         "result": job.get("result"),

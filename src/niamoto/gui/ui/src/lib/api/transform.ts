@@ -19,6 +19,7 @@ export interface TransformStatus {
   progress: number
   message: string
   phase?: string | null
+  group_by?: string | null
   started_at: string
   completed_at?: string | null
   result?: {

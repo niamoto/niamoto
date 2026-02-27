@@ -46,6 +46,8 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   const [exportRunning, setExportRunning] = useState(false)
   const cancelledRef = useRef(false)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Track whether runTransform owns the current job (to avoid double toast)
+  const ownedByRunTransformRef = useRef(false)
 
   // Kind display mapping using i18n
   const kindLabels: Record<string, string> = {
@@ -62,8 +64,12 @@ export function GroupPanel({ reference }: GroupPanelProps) {
     }
   }, [])
 
-  // Poll an already-running job until it completes (guarded by cancelledRef)
+  // Poll an already-running job until it completes (guarded by cancelledRef).
+  // Only used for jobs discovered on mount (not launched by runTransform).
   const pollRunningJob = useCallback((jobId: string) => {
+    // If runTransform owns this job, don't double-poll
+    if (ownedByRunTransformRef.current) return
+
     setIsTransforming(true)
     let polling = false // guard against async overlap
     const interval = setInterval(async () => {
@@ -108,11 +114,11 @@ export function GroupPanel({ reference }: GroupPanelProps) {
       })
       .catch(() => {})
 
-    // Check if a transform is already running
+    // Check if a transform is already running for THIS group
     getActiveTransformJob()
       .then((job) => {
         if (cancelledRef.current) return
-        if (job && job.status === 'running') {
+        if (job && job.status === 'running' && job.group_by === reference.name) {
           setTransformProgress(job.progress)
           setTransformMessage(job.message)
           pollRunningJob(job.job_id)
@@ -120,11 +126,21 @@ export function GroupPanel({ reference }: GroupPanelProps) {
       })
       .catch(() => {})
 
-    // Check if an export is running (disable transform button)
+    // Check if an export or transform on another group is running (disable button)
     getActiveExportJob()
       .then((job) => {
         if (cancelledRef.current) return
         setExportRunning(job != null && job.status === 'running')
+      })
+      .catch(() => {})
+
+    // Also disable if a transform is running on a different group
+    getActiveTransformJob()
+      .then((job) => {
+        if (cancelledRef.current) return
+        if (job && job.status === 'running' && job.group_by !== reference.name) {
+          setExportRunning(true) // reuse flag to disable the button
+        }
       })
       .catch(() => {})
 
@@ -135,6 +151,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
   }, [reference.name, pollRunningJob, stopPolling])
 
   const runTransform = useCallback(async () => {
+    ownedByRunTransformRef.current = true
     setIsTransforming(true)
     setTransformProgress(0)
     setTransformMessage(t('groupPanel.transform.starting'))
@@ -152,6 +169,7 @@ export function GroupPanel({ reference }: GroupPanelProps) {
     } catch (error) {
       toast.error(t('groupPanel.transform.errorToast', { message: error instanceof Error ? error.message : String(error) }))
     } finally {
+      ownedByRunTransformRef.current = false
       setIsTransforming(false)
       setTransformProgress(0)
       setTransformMessage('')
