@@ -113,7 +113,7 @@ async def get_database_schema():
         return DatabaseSchema(tables=[], views=[], total_size=None)
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -255,7 +255,7 @@ async def get_table_preview(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -324,7 +324,7 @@ async def get_table_stats(table_name: str):
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -431,7 +431,7 @@ async def execute_query(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             with db.engine.connect() as conn:
                 params: Dict[str, Any] = {}
                 if not re.search(r"\blimit\b", query_lower):

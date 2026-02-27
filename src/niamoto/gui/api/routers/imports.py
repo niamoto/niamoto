@@ -336,7 +336,7 @@ async def list_entities() -> Dict[str, Any]:
         try:
             db_path = Path(config.database_path)
             if db_path.exists():
-                with open_database(config.database_path, read_only=True) as db:
+                with open_database(config.database_path) as db:
                     # Check if registry table exists before querying
                     if db.has_table(EntityRegistry.ENTITIES_TABLE):
                         registry = EntityRegistry(db)
@@ -415,7 +415,7 @@ async def get_import_status() -> ImportStatusResponse:
         references: List[ImportStatus] = []
         datasets: List[ImportStatus] = []
 
-        with open_database(config.database_path, read_only=True) as db:
+        with open_database(config.database_path) as db:
             registry = EntityRegistry(db)
 
             for entity in registry.list_all():

@@ -609,7 +609,7 @@ async def get_import_summary():
         )
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -725,7 +725,7 @@ async def get_completeness(entity: str):
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -816,7 +816,7 @@ async def get_spatial_stats(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -991,7 +991,7 @@ async def get_taxonomy_consistency(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             _, references = _load_import_entities_config()
@@ -1155,7 +1155,7 @@ async def get_value_validation(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -1645,7 +1645,7 @@ async def export_outliers_csv(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -1798,7 +1798,7 @@ async def get_geo_coverage(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             table_names = inspector.get_table_names() or []
@@ -1938,7 +1938,7 @@ async def analyze_spatial_coverage(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             table_names = inspector.get_table_names() or []
@@ -2175,7 +2175,7 @@ async def get_shape_distribution(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
             table_names = inspector.get_table_names() or []

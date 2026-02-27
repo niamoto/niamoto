@@ -158,7 +158,7 @@ def generate_navigation_suggestion(reference_name: str) -> Optional[Dict[str, An
 
         from niamoto.common.database import Database
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             import_config = _load_import_config()
             ref_config = _get_reference_config(reference_name, import_config)
@@ -257,7 +257,7 @@ def generate_general_info_suggestion(reference_name: str) -> Optional[Dict[str, 
 
         from niamoto.common.database import Database
 
-        db = Database(str(db_path), read_only=True)
+        db = Database(str(db_path))
         try:
             import_config = _load_import_config()
             ref_config = _get_reference_config(reference_name, import_config)
@@ -537,7 +537,7 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
     if not db_path:
         return suggestions
 
-    db = Database(str(db_path), read_only=True)
+    db = Database(str(db_path))
 
     try:
         import_config = _load_import_config()
@@ -866,7 +866,7 @@ def get_reference_field_suggestions(reference_name: str) -> List[Dict[str, Any]]
     if not db_path:
         return suggestions
 
-    db = Database(str(db_path), read_only=True)
+    db = Database(str(db_path))
 
     try:
         registry = _get_entity_registry(db)

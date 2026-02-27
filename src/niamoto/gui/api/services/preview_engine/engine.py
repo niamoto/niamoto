@@ -1435,7 +1435,7 @@ document.addEventListener('DOMContentLoaded', function() {{
         """Ouvrir la base de données en lecture seule."""
         if not os.path.exists(self._db_path):
             return None
-        return Database(self._db_path, read_only=True)
+        return Database(self._db_path)
 
 
 # --------------------------------------------------------------------------
