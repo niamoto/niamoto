@@ -102,7 +102,7 @@ export function DatasetDetailPanel({
             </h1>
             <div className="flex items-center gap-2 text-muted-foreground">
               <span>Dataset</span>
-              {entityCount !== undefined && (
+              {entityCount != null && (
                 <Badge variant="outline">
                   {entityCount.toLocaleString()} {t('file.rows')}
                 </Badge>

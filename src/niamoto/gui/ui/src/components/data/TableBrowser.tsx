@@ -45,6 +45,10 @@ export function TableBrowser({
         offset: page * pageSize,
       }),
     staleTime: 30000,
+    retry: (failureCount, err) => {
+      if ((err as any)?.response?.status === 404) return false
+      return failureCount < 2
+    },
   })
 
   if (isLoading) {
@@ -56,9 +60,17 @@ export function TableBrowser({
   }
 
   if (error) {
+    const is404 = (error as any)?.response?.status === 404
+    if (is404) {
+      return (
+        <div className="py-4 text-center text-sm text-muted-foreground">
+          Table non disponible — lancez un import pour créer les données.
+        </div>
+      )
+    }
     return (
       <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-        Erreur lors du chargement des donnees: {(error as Error).message}
+        Erreur lors du chargement des données : {(error as Error).message}
       </div>
     )
   }

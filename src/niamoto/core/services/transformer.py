@@ -89,6 +89,110 @@ class TransformerService:
         # Registry is used for entity lookups across transform/export
         self.entity_registry = EntityRegistry(self.db)
 
+    @classmethod
+    def for_preview(cls, db: Database, config_dir: str) -> "TransformerService":
+        """Lightweight factory for widget preview.
+
+        Properly initialises all fields and loads plugins via cascade,
+        but reuses an existing Database connection and skips CLI setup.
+        """
+        from pathlib import Path
+
+        svc = cls.__new__(cls)
+        svc.db = db
+        svc.config = Config(config_dir, create_default=False)
+        svc.transforms_config = svc.config.get_transforms_config()
+        svc.console = None
+        svc.transform_metrics = None
+        svc.use_cli_integration = False
+        svc._table_buffers: Dict[str, Dict[int, Dict[str, Any]]] = {}
+        svc._table_flush_modes: Dict[str, bool] = {}
+
+        svc.plugin_loader = PluginLoader()
+        svc.plugin_loader.load_plugins_with_cascade(Path(config_dir).parent)
+
+        svc.entity_registry = EntityRegistry(db)
+        return svc
+
+    def transform_single_widget(
+        self,
+        group_config: Dict[str, Any],
+        widget_name: str,
+        group_id: Any,
+    ) -> Any:
+        """Transform a single widget for a given entity.
+
+        Replicates the per-widget logic from transform_data() so that
+        both the full pipeline and the preview engine share one code path.
+
+        Args:
+            group_config: Full group config dict from transform.yml.
+            widget_name: Key in ``widgets_data``.
+            group_id: The entity ID to process.
+
+        Returns:
+            Transformer result (typically a dict).
+
+        Raises:
+            DataTransformError: On missing widget, source or transform failure.
+        """
+        widgets_config = group_config.get("widgets_data", {})
+        widget_config = widgets_config.get(widget_name)
+        if not widget_config:
+            raise DataTransformError(
+                f"Widget '{widget_name}' not found in group config",
+                details={"available": list(widgets_config.keys())},
+            )
+
+        group_by_name = group_config["group_by"]
+
+        # Load data for this entity using real loaders
+        group_data = self._get_group_data(group_config, None, group_id)
+        if not group_data:
+            raise DataTransformError("No data available for preview")
+
+        # Build config exactly as the main loop does
+        transformer_cls = PluginRegistry.get_plugin(
+            widget_config["plugin"], PluginType.TRANSFORMER
+        )
+        transformer = transformer_cls(self.db, registry=self.entity_registry)
+
+        config = {
+            "plugin": widget_config["plugin"],
+            "params": {
+                "source": widget_config.get("source"),
+                "field": widget_config.get("field"),
+                **widget_config.get("params", {}),
+            },
+            "group_id": group_id,
+            "available_sources": list(group_data.keys()),
+        }
+
+        # Smart source selection (shared with transform_data)
+        source_requested = widget_config.get("params", {}).get("source")
+
+        if source_requested and source_requested not in group_data:
+            if source_requested == group_by_name:
+                group_data[source_requested] = self._load_reference_entity(
+                    group_by_name, group_id
+                )
+            else:
+                group_data[source_requested] = self._load_additional_source(
+                    source_requested
+                )
+
+        if source_requested and source_requested in group_data:
+            data_to_pass = group_data[source_requested]
+        elif len(group_data) == 1:
+            data_to_pass = next(iter(group_data.values()))
+        else:
+            data_to_pass = group_data
+
+        self._validate_plugin_configuration(
+            transformer, config, widget_config["plugin"]
+        )
+        return transformer.transform(data_to_pass, config)
+
     @error_handler(log=True, raise_error=True)
     def transform_data(
         self,

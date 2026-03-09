@@ -500,6 +500,8 @@ async def query_table(request: QueryRequest):
             page_count=len(rows),
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
