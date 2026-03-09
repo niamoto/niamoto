@@ -82,16 +82,19 @@ class TestCreateApp:
         assert any("/preview" in path for path in route_paths)
 
     @patch("niamoto.gui.api.app.get_working_directory")
-    def test_no_preview_mount_when_exports_missing(self, mock_get_work_dir, tmp_path):
-        """Test /preview mount is not added when exports/web doesn't exist."""
+    def test_preview_mount_creates_dir_when_exports_missing(
+        self, mock_get_work_dir, tmp_path
+    ):
+        """Test /preview mount auto-creates exports/web even when missing."""
         mock_get_work_dir.return_value = tmp_path
 
         app = create_app()
 
-        # /preview should not be mounted
+        # /preview should be mounted (directory is auto-created)
         route_paths = [route.path for route in app.routes]
         preview_routes = [path for path in route_paths if path.startswith("/preview")]
-        assert len(preview_routes) == 0
+        assert len(preview_routes) == 1
+        assert (tmp_path / "exports" / "web").exists()
 
     def test_static_files_mount_when_ui_build_exists(self, tmp_path, monkeypatch):
         """Test static files are mounted when UI build exists."""
