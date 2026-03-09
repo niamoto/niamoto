@@ -28,6 +28,7 @@ from niamoto.common.table_resolver import (
     resolve_entity_table,
     resolve_reference_table,
 )
+from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.gui.api.models.templates import (
     TemplateSuggestionResponse,
@@ -3774,7 +3775,11 @@ async def get_combined_widget_suggestions(
             registry = EntityRegistry(db)
 
             # Get the source entity
-            entity_meta = registry.get(request.source_name)
+            try:
+                entity_meta = registry.get(request.source_name)
+            except (DatabaseQueryError, KeyError):
+                logger.warning(f"Entity '{request.source_name}' not found in registry")
+                return CombinedWidgetResponse(suggestions=[], semantic_groups=[])
             semantic_profile = entity_meta.config.get("semantic_profile", {})
             columns = semantic_profile.get("columns", [])
 
@@ -3907,7 +3912,13 @@ async def get_semantic_groups(
         try:
             registry = EntityRegistry(db)
 
-            entity_meta = registry.get(entity)
+            try:
+                entity_meta = registry.get(entity)
+            except (DatabaseQueryError, KeyError):
+                logger.warning(
+                    f"Entity '{entity}' not found in registry, returning empty groups"
+                )
+                return SemanticGroupsResponse(groups=[])
             semantic_profile = entity_meta.config.get("semantic_profile", {})
             columns = semantic_profile.get("columns", [])
 

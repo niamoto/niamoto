@@ -175,7 +175,11 @@ def _execute_configured_transformer(
                     paired = paired[:count_limit]
                 tops, counts = zip(*paired) if paired else ([], [])
 
-            return {"tops": list(tops), "counts": list(counts)}
+            # Use output field names from config (e.g. "bins"/"counts")
+            # to match what the real pipeline produces
+            size_key = (params.get("size_field") or {}).get("output", "tops")
+            value_key = (params.get("value_field") or {}).get("output", "counts")
+            return {size_key: list(tops), value_key: list(counts)}
 
         # For categories_extractor, extract categories
         elif transformer_plugin == "class_object_categories_extractor":

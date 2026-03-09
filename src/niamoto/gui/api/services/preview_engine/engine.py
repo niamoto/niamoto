@@ -7,18 +7,24 @@ Utilise les mêmes utilitaires que templates.py pour la résolution,
 le chargement de données, la transformation et le rendu.
 """
 
+from __future__ import annotations
+
 import hashlib
 import html as html_module
 import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from niamoto.core.services.transformer import TransformerService
 
 import pandas as pd
 from sqlalchemy import inspect, text
 
 from niamoto.common.database import Database
+from niamoto.common.exceptions import DataLoadError, DataTransformError
 from niamoto.common.table_resolver import (
     quote_identifier,
     resolve_entity_table,
@@ -70,42 +76,10 @@ from niamoto.gui.api.services.templates.utils.widget_utils import (
 
 logger = logging.getLogger(__name__)
 
-_plugins_loaded = False
-
-
-def _ensure_plugins_loaded() -> None:
-    """Charger les plugins transformer et widget si nécessaire."""
-    global _plugins_loaded
-    if _plugins_loaded:
-        return
-
-    from niamoto.core.plugins.transformers.distribution import (  # noqa: F401
-        binned_distribution,
-        categorical_distribution,
-    )
-    from niamoto.core.plugins.transformers.aggregation import (  # noqa: F401
-        statistical_summary,
-        field_aggregator,
-        binary_counter,
-        top_ranking,
-    )
-    from niamoto.core.plugins.transformers.extraction import (  # noqa: F401
-        geospatial_extractor,
-    )
-    from niamoto.core.plugins.widgets import (  # noqa: F401
-        bar_plot,
-        donut_chart,
-        info_grid,
-        interactive_map,
-        radial_gauge,
-    )
-
-    try:
-        from niamoto.core.plugins.widgets import hierarchical_nav_widget  # noqa: F401
-    except ImportError:
-        pass
-
-    _plugins_loaded = True
+# Cached TransformerService — shared across preview calls, invalidated
+# when data changes (import, config save, etc.).
+_transformer_svc: "TransformerService | None" = None
+_transformer_svc_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -173,18 +147,45 @@ class PreviewEngine:
         self._data_fingerprint: str = self._compute_data_fingerprint()
 
     # ------------------------------------------------------------------
+    # TransformerService (lazy, cached, shared across requests)
+    # ------------------------------------------------------------------
+
+    def _get_transformer_service(self, db: Database) -> "TransformerService":
+        """Return (or create) a cached TransformerService for preview.
+
+        Uses ``TransformerService.for_preview()`` which properly loads
+        plugins via cascade (system + user + project) and initialises
+        the entity registry.  The instance is cached module-wide and
+        cleared on ``invalidate()``.
+        """
+        global _transformer_svc
+        if _transformer_svc is not None:
+            return _transformer_svc
+
+        with _transformer_svc_lock:
+            if _transformer_svc is not None:
+                return _transformer_svc
+
+            from niamoto.core.services.transformer import TransformerService
+
+            svc = TransformerService.for_preview(db, self._config_dir)
+            _transformer_svc = svc
+            return svc
+
+    # ------------------------------------------------------------------
     # API publique
     # ------------------------------------------------------------------
 
     def render(self, request: PreviewRequest) -> PreviewResult:
         """Point d'entrée unique -- résout, charge, transforme, rend, emballe."""
-        _ensure_plugins_loaded()
-
         warnings: list[str] = []
         template_id = request.template_id
 
         db = self._open_db()
         try:
+            # Ensure plugins are loaded (cascade: system + user + project)
+            self._get_transformer_service(db)
+
             # --- Inline (POST) : transformer + widget explicites ---
             if request.inline:
                 widget_plugin = request.inline.get("widget_plugin", "")
@@ -241,6 +242,13 @@ class PreviewEngine:
             # Extraire le plugin widget pour la résolution du bundle Plotly
             parsed = parse_dynamic_template_id(template_id)
             wp = parsed["widget"] if parsed else None
+            # Fallback : configured widget (template_id simple comme "distribution_map")
+            if not wp:
+                grp = request.group_by or find_widget_group(template_id)
+                if grp:
+                    cfg = load_configured_widget(template_id, grp)
+                    if cfg:
+                        wp = cfg.get("widget_plugin")
             return self._build_result(request, widget_html, warnings, widget_plugin=wp)
         finally:
             if db:
@@ -248,7 +256,62 @@ class PreviewEngine:
 
     def invalidate(self) -> None:
         """Recalcule le fingerprint -- appelé après import ou save config."""
+        global _transformer_svc
+        _transformer_svc = None
         self._data_fingerprint = self._compute_data_fingerprint()
+
+    # ------------------------------------------------------------------
+    # Helpers partagés
+    # ------------------------------------------------------------------
+
+    def _load_group_config(
+        self, group_by: str, svc: "TransformerService | None" = None
+    ) -> dict[str, Any] | None:
+        """Load a single group config from transform.yml."""
+        if svc and hasattr(svc, "transforms_config"):
+            configs = svc.transforms_config
+        else:
+            import yaml as _yaml
+
+            transform_path = self._work_dir / "config" / "transform.yml"
+            if not transform_path.exists():
+                return None
+            with open(transform_path, "r", encoding="utf-8") as _f:
+                configs = _yaml.safe_load(_f) or []
+
+        if isinstance(configs, list):
+            for gc in configs:
+                if isinstance(gc, dict) and gc.get("group_by") == group_by:
+                    return gc
+        return None
+
+    @staticmethod
+    def _resolve_entity_id(entity_id: str | None, group_ids: list[Any]) -> Any:
+        """Resolve entity_id against available group IDs.
+
+        Checks exact match first, then tries numeric conversion for
+        backward compatibility.  When *entity_id* is ``None`` (no
+        preference), falls back to the first available ID.  When an
+        explicit *entity_id* is provided but not found, returns
+        ``None`` so the caller can surface a proper error.
+        """
+        if entity_id is None:
+            return group_ids[0]
+
+        # Exact match (preserves type: str, int, UUID, …)
+        if entity_id in group_ids:
+            return entity_id
+
+        # Numeric fallback — group_ids are often ints from DB
+        try:
+            numeric = int(entity_id)
+            if numeric in group_ids:
+                return numeric
+        except (ValueError, TypeError):
+            pass
+
+        # Explicit ID not found — let caller decide (error / fallback)
+        return None
 
     # ------------------------------------------------------------------
     # Construction du résultat
@@ -1091,6 +1154,7 @@ document.addEventListener('DOMContentLoaded', function() {{
         widget_plugin = configured["widget_plugin"]
         widget_params = configured.get("widget_params", {})
         widget_title = configured["widget_title"]
+        widget_id = configured.get("widget_id", "")
 
         # Vérifier le plugin widget
         try:
@@ -1114,80 +1178,25 @@ document.addEventListener('DOMContentLoaded', function() {{
                     warnings,
                 )
 
-            # Flow standard (occurrence ou entity)
-            data_source = transformer_params.get("source", "occurrences")
-            if data_source and data_source != "occurrences":
-                entity_table = resolve_entity_table(db, data_source, kind=None)
-                if not entity_table or not db.has_table(entity_table):
-                    return self._info_html(
-                        f"Pas de table trouvée pour la source '{data_source}'"
-                    )
+            # Delegate to TransformerService.transform_single_widget()
+            # which shares the exact same code path as `niamoto transform`.
+            svc = self._get_transformer_service(db)
 
-                preparer = inspect(db.engine).dialect.identifier_preparer
-                quoted = preparer.quote(entity_table)
+            group_config = self._load_group_config(group_by, svc)
+            if not group_config:
+                return self._info_html(f"Groupe '{group_by}' non trouvé")
 
-                # Charger un échantillon
-                entity_cols = self._get_column_names(db, quoted)
-                where_clauses: list[str] = []
-                params: dict[str, Any] = {}
-                if entity_id and "id" in entity_cols:
-                    where_clauses.append(f"{preparer.quote('id')} = :entity_id")
-                    params["entity_id"] = str(entity_id)
+            # Pick a representative group_id
+            group_ids = svc._get_group_ids(group_config)
+            if not group_ids:
+                return self._info_html("Pas d'entités disponibles")
+            gid = self._resolve_entity_id(entity_id, group_ids)
+            if gid is None:
+                return self._info_html(
+                    f"Entité '{entity_id}' non trouvée dans {group_by}"
+                )
 
-                query = f"SELECT * FROM {quoted}"
-                if where_clauses:
-                    query += f" WHERE {' AND '.join(where_clauses)}"
-                query += " LIMIT 1"
-                sample_data = pd.read_sql(text(query), db.engine, params=params or None)
-            else:
-                import_config = load_import_config(self._work_dir)
-                hierarchy_info = get_hierarchy_info(import_config, group_by)
-                if entity_id:
-                    representative = find_entity_by_id(db, hierarchy_info, entity_id)
-                else:
-                    representative = find_representative_entity(db, hierarchy_info)
-                sample_data = load_sample_data(db, representative, transformer_params)
-
-            if sample_data.empty:
-                return self._info_html("Pas de données disponibles")
-
-            # Exécuter le transformer
-            effective_params = dict(transformer_params)
-            if data_source != "occurrences":
-                entity_table_name = resolve_entity_table(db, data_source, kind=None)
-                if entity_table_name and effective_params.get("source") == data_source:
-                    effective_params["source"] = entity_table_name
-                if transformer_plugin == "field_aggregator":
-                    for field_cfg in effective_params.get("fields", []):
-                        if (
-                            isinstance(field_cfg, dict)
-                            and field_cfg.get("source") == data_source
-                            and entity_table_name
-                        ):
-                            field_cfg["source"] = entity_table_name
-
-            transform_config = {
-                "plugin": transformer_plugin,
-                "params": effective_params,
-            }
-            if "id" in sample_data.columns and not sample_data.empty:
-                group_id = sample_data["id"].iloc[0]
-                if hasattr(group_id, "item"):
-                    group_id = group_id.item()
-                transform_config["group_id"] = group_id
-
-            transform_input: Any = sample_data
-            if transformer_plugin == "field_aggregator":
-                transform_input = {"main": sample_data}
-                for field_cfg in effective_params.get("fields", []):
-                    if isinstance(field_cfg, dict) and field_cfg.get("source"):
-                        transform_input[field_cfg["source"]] = sample_data
-
-            transformer_cls = PluginRegistry.get_plugin(
-                transformer_plugin, PluginType.TRANSFORMER
-            )
-            transformer_inst = transformer_cls(db=db)
-            result = transformer_inst.transform(transform_input, transform_config)
+            result = svc.transform_single_widget(group_config, widget_id, gid)
 
             # Adapter le format transformer → widget si nécessaire
             result = _preprocess_data_for_widget(
@@ -1197,6 +1206,10 @@ document.addEventListener('DOMContentLoaded', function() {{
             # Rendu widget
             return render_widget(db, widget_plugin, result, widget_params, widget_title)
 
+        except (DataTransformError, DataLoadError) as e:
+            # Data not available yet (e.g. CSV not generated, empty DB)
+            logger.warning("Preview data unavailable for %s: %s", widget_id, e)
+            return self._info_html(f"Données non disponibles : {e}")
         except Exception as e:
             logger.exception("Erreur preview configured widget: %s", e)
             return self._error_html(str(e))
@@ -1476,7 +1489,7 @@ def get_preview_engine() -> PreviewEngine | None:
 
 def reset_preview_engine() -> None:
     """Réinitialiser l'instance -- utile après changement de projet."""
-    global _engine_instance, _plugins_loaded
+    global _engine_instance, _transformer_svc
     with _engine_lock:
         _engine_instance = None
-        _plugins_loaded = False
+        _transformer_svc = None
