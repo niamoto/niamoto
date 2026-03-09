@@ -266,7 +266,7 @@ class JobFileStore:
     def _write_active(self, job: dict) -> None:
         """Écriture atomique (write tmp + os.replace). Sans lock."""
         tmp = self._active_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(job, ensure_ascii=False, indent=2))
+        tmp.write_text(json.dumps(job, ensure_ascii=False, indent=2, default=str))
         os.replace(str(tmp), str(self._active_path))
 
     def _archive(self, job: dict) -> None:
