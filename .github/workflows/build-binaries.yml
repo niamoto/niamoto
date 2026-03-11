@@ -13,14 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable pnpm
+        run: corepack enable
+
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'pnpm'
           cache-dependency-path: src/niamoto/gui/ui/pnpm-lock.yaml
-
-      - name: Enable pnpm
-        run: corepack enable
 
       - name: Install dependencies
         run: |

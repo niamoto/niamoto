@@ -61,7 +61,7 @@ Génère une preview à partir d'une configuration inline (transformer + widget 
 
 Si `inline` est `null`, le `template_id` est utilisé pour la résolution.
 
-**Réponse :** identique au GET.
+**Réponse :** identique au GET, à l'exception du cache HTTP : POST effectue toujours un rendu complet (pas de support ETag/304), tandis que GET supporte les requêtes conditionnelles via `If-None-Match` et peut retourner `304 Not Modified`.
 
 ### GET `/api/templates/preview/{template_id}` (legacy)
 

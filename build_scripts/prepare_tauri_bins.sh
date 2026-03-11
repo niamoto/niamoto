@@ -43,7 +43,12 @@ mkdir -p "$TAURI_BIN_DIR"
 # For production: copy the real niamoto binary
 PLACEHOLDER="$TAURI_BIN_DIR/niamoto-$TARGET"
 
-if [[ -f "$PROJECT_ROOT/.venv/bin/niamoto" ]]; then
+if [[ -f "$PROJECT_ROOT/.venv/Scripts/$EXE_NAME" ]]; then
+    echo "Copying niamoto from .venv/Scripts (Windows)..."
+    cp "$PROJECT_ROOT/.venv/Scripts/$EXE_NAME" "$PLACEHOLDER"
+    chmod +x "$PLACEHOLDER"
+    echo "✓ Copied niamoto to $PLACEHOLDER"
+elif [[ -f "$PROJECT_ROOT/.venv/bin/niamoto" ]]; then
     echo "Copying niamoto from .venv..."
     cp "$PROJECT_ROOT/.venv/bin/niamoto" "$PLACEHOLDER"
     chmod +x "$PLACEHOLDER"

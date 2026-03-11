@@ -115,11 +115,9 @@ echo -e "${BLUE}⚛️  Step 4: Building React frontend...${NC}"
 
 cd src/niamoto/gui/ui
 
-# Install dependencies if needed
-if [ ! -d "node_modules" ]; then
-    echo "Installing pnpm dependencies..."
-    pnpm install
-fi
+# Install dependencies from lockfile
+echo "Installing pnpm dependencies..."
+pnpm install --frozen-lockfile
 
 # Build
 pnpm run build

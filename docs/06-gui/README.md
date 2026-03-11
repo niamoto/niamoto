@@ -73,16 +73,15 @@ niamoto gui --no-browser     # Ne pas ouvrir le navigateur
 
 ## Documentation
 
-- [Architecture preview](preview-architecture.md) - Moteur de preview unifié (deux niveaux, bundles Plotly, sécurité)
-- [API Preview — Référence](preview-api.md) - Endpoints GET/POST, types, cache, invalidation
-- [Guide transforms & widgets](guide-transform-widgets.md) - Configuration des transformers et widgets
-- [Référence plugins transform](reference-plugins-transform.md) - Référence des plugins transformers
-- [Architecture FastAPI](fastapi-dual-purpose-architecture.md) - Architecture dual-purpose (CLI + GUI)
+- [Architecture preview](preview-architecture.md) – Moteur de preview unifié (deux niveaux, bundles Plotly, sécurité)
+- [API Preview — Référence](preview-api.md) – Endpoints GET/POST, types, cache, invalidation
+- [Guide transforms & widgets](guide-transform-widgets.md) – Configuration des transformers et widgets
+- [Référence plugins transform](reference-plugins-transform.md) – Référence des plugins transformers
+- [Architecture FastAPI](fastapi-dual-purpose-architecture.md) – Architecture dual-purpose (CLI + GUI)
 
 ## Support
 
 Pour toute question ou problème :
-- Consultez le [guide de dépannage](../10-roadmaps/gui/troubleshooting.md)
 - Ouvrez une issue sur [GitHub](https://github.com/niamoto/niamoto/issues)
 - Contactez l'équipe de développement
 

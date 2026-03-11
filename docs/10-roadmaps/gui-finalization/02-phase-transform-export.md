@@ -2,7 +2,9 @@
 
 ## Vue d'ensemble
 
-La phase Transform/Export permet de configurer les widgets de visualisation pour chaque groupe d'entités (taxons, plots, shapes). Cette phase est maintenant **complète** avec une architecture hybride offrant une expérience utilisateur fluide.
+La phase Transform/Export permet de configurer les widgets de visualisation pour chaque groupe d'entités (taxons, plots, shapes). Cette phase est majoritairement implémentée, avec une architecture hybride offrant une expérience utilisateur fluide.
+
+> **Note :** Des tests et validations restent à effectuer — voir la Section 8 (Actions Restantes) pour le détail des points en suspens.
 
 ### Fonctionnalités implémentées
 
@@ -22,7 +24,7 @@ La phase Transform/Export permet de configurer les widgets de visualisation pour
 
 ### 1.1 Vue d'ensemble
 
-```
+```text
 GroupPanel.tsx (conteneur principal)
 ├── Tabs
 │   ├── Sources (DataSourceConfig)
@@ -82,7 +84,7 @@ const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
 
 Affiche les détails d'un widget sélectionné avec 3 tabs :
 
-```
+```text
 WidgetDetailPanel
 ├── Preview Tab
 │   └── iframe avec widget rendu
@@ -139,7 +141,7 @@ Vue grille pour la prévisualisation et le réordonnancement :
 
 Modal d'ajout de widgets avec 3 modes :
 
-```
+```text
 AddWidgetModal (90vw × 85vh)
 ├── Suggestions Tab
 │   ├── Filtres (catégorie, source)
@@ -258,6 +260,8 @@ forest_elevation_analysis:
 
 Analyse multi-couches vectorielles :
 
+> **Note :** Les chemins de fichiers dans les exemples ci-dessous (et dans les sections précédentes) sont résolus relativement à la racine du projet Niamoto.
+
 ```yaml
 land_use_summary:
   plugin: land_use
@@ -330,8 +334,15 @@ GET /api/templates/{entity_type}
 POST /api/templates/generate-config
 # Génère la configuration depuis des templates sélectionnés
 
-GET /api/templates/preview/{widget_id}
-# Retourne le HTML du widget pour preview
+# Endpoints preview unifiés (PreviewEngine) :
+GET /api/preview/{template_id}
+# Preview avec support ETag/304 conditionnel
+
+POST /api/preview
+# Preview inline (toujours rendu complet, pas de cache 304)
+
+GET /api/templates/preview/{widget_id}   # DEPRECATED — alias legacy
+# Redirige vers GET /api/preview/{widget_id}
 ```
 
 ### 5.2 Endpoints Config
@@ -392,7 +403,7 @@ export function useSemanticGroups(groupName: string) {
 
 ### Frontend
 
-```
+```text
 src/niamoto/gui/ui/src/
 ├── components/
 │   ├── content/
@@ -417,7 +428,7 @@ src/niamoto/gui/ui/src/
 
 ### Backend
 
-```
+```text
 src/niamoto/gui/api/
 ├── routers/
 │   ├── templates.py                 # Suggestions API
@@ -467,7 +478,7 @@ src/niamoto/core/
 
 ## 9. Dépendances
 
-```
+```text
 Données importées (import.yml)
         │
         ▼

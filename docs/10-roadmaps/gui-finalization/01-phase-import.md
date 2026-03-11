@@ -28,7 +28,7 @@ metadata:
 
 #### Formulaire Principal - Vue d'ensemble
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Configuration Import                                    [YAML] │
 ├─────────────────────────────────────────────────────────────────┤
@@ -81,7 +81,7 @@ interface DatasetFormProps {
 
 Le cas `taxons` est particulier : extraction hiérarchique depuis les occurrences.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Référentiel Taxonomique                                        │
 ├─────────────────────────────────────────────────────────────────┤
@@ -111,7 +111,7 @@ Le cas `taxons` est particulier : extraction hiérarchique depuis les occurrence
 
 #### Formulaire Référentiel Shapes (Multi-sources)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Référentiel Géographique                                       │
 ├─────────────────────────────────────────────────────────────────┤
@@ -139,7 +139,7 @@ Le cas `taxons` est particulier : extraction hiérarchique depuis les occurrence
 
 #### Formulaire Couches Géographiques (Metadata)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Couches Géographiques                                          │
 ├─────────────────────────────────────────────────────────────────┤
@@ -199,7 +199,7 @@ enrichment:
 
 ### 2.2 Interface d'Enrichissement
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Enrichissement Taxonomique                          [Désactivé]│
 ├─────────────────────────────────────────────────────────────────┤
@@ -237,7 +237,7 @@ enrichment:
 
 Pour certains cas, plusieurs APIs doivent être appelées en séquence :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Chaîne d'Enrichissement                                        │
 ├─────────────────────────────────────────────────────────────────┤
@@ -276,7 +276,7 @@ Une fois toutes les sources importées, proposer un dashboard permettant de :
 
 ### 3.2 Vue d'Ensemble du Dashboard
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Dashboard Import                                    Dernière MàJ: 23/12/24 │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -306,7 +306,7 @@ Une fois toutes les sources importées, proposer un dashboard permettant de :
 
 Carte interactive des occurrences avec :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Distribution Spatiale des Occurrences                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -341,7 +341,7 @@ Carte interactive des occurrences avec :
 
 Heatmap de complétude par colonne et par source :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Complétude des Données                                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -377,7 +377,7 @@ Heatmap de complétude par colonne et par source :
 
 Analyse de la hiérarchie taxonomique :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Cohérence Taxonomique                                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -419,7 +419,7 @@ Analyse de la hiérarchie taxonomique :
 
 Détection d'outliers et valeurs aberrantes :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Validation des Valeurs                                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -455,7 +455,7 @@ Les règles de validation doivent être **adaptables au contexte** (région, typ
 
 #### Interface de Configuration des Règles
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Configuration des Règles de Validation                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -507,7 +507,7 @@ Les règles de validation doivent être **adaptables au contexte** (région, typ
 
 Pour faciliter la configuration, proposer des profils adaptés aux contextes courants :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Profils de Validation                                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -575,7 +575,7 @@ validation:
 
 Croisement entre occurrences et shapes de référence (si des shapes sont importés) :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Couverture Géographique                                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -606,7 +606,7 @@ Croisement entre occurrences et shapes de référence (si des shapes sont import
 
 #### Export et Partage
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Exporter le Rapport de Qualité                                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -629,7 +629,7 @@ Croisement entre occurrences et shapes de référence (si des shapes sont import
 
 Pour certaines anomalies, proposer des corrections :
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Corrections Suggérées                                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -657,7 +657,7 @@ Pour certaines anomalies, proposer des corrections :
 | P1 | Composant `ImportDashboard` avec résumé et alertes | Moyenne |
 | P1 | Vue complétude des données (heatmap colonnes) | Moyenne |
 | P1 | Vue distribution spatiale (carte Leaflet) | Moyenne |
-| P1 | API backend `/stats/import-summary` | Moyenne |
+| P1 | API backend `/stats/summary` (servi depuis `routers/stats.py`) | Moyenne |
 | P2 | Vue cohérence taxonomique avec arbre interactif | Élevée |
 | P2 | Vue validation des valeurs (boxplots, outliers) | Moyenne |
 | P2 | Vue couverture géographique (croisement shapes) | Moyenne |
@@ -671,7 +671,7 @@ Pour certaines anomalies, proposer des corrections :
 
 ### 4.1 Composants Frontend
 
-```
+```text
 src/niamoto/gui/ui/src/
 ├── pages/
 │   └── flow/
@@ -765,7 +765,7 @@ class ImportStatsService:
 
 ## 6. Dépendances
 
-```
+```text
 Formulaire Import ──► YAML Parser ──► import.yml
         │
         ▼

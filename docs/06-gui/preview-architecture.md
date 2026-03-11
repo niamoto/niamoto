@@ -6,7 +6,7 @@ Le système de preview permet de prévisualiser les widgets Niamoto dans l'inter
 avant publication. Il utilise une architecture **deux niveaux** (`thumbnail` / `full`)
 avec un moteur backend unique et un hook frontend unifié.
 
-```
+```text
                     ┌─────────────────────────────────────────┐
                     │           Grilles / Listes               │
                     │  ┌───────┐ ┌───────┐ ┌───────┐         │
@@ -28,7 +28,7 @@ avec un moteur backend unique et un hook frontend unifié.
 
 ### Structure des fichiers
 
-```
+```text
 src/niamoto/gui/api/services/preview_engine/
 ├── __init__.py                    # Exports publics
 ├── models.py                      # PreviewRequest, PreviewResult, PreviewMode
@@ -45,11 +45,13 @@ src/niamoto/gui/api/routers/
 
 ### Pipeline de rendu
 
-Le moteur suit un pipeline linéaire synchrone :
+Le moteur suit un pipeline principalement linéaire synchrone :
 
-```
+```text
 resolve → load → transform → render → wrap
 ```
+
+> **Note :** En pratique, `PreviewEngine.render()` comporte plusieurs branches de retour anticipé et des flux spécialisés (navigation widgets, general info, entity maps, etc.). Le pipeline ci-dessus décrit le cas nominal ; certains types de widgets court-circuitent des étapes ou empruntent un chemin de rendu dédié.
 
 1. **Resolve** : identifie le transformer et le widget à partir du `template_id`
    (résolution via `transform.yml` et `export.yml`)
@@ -98,7 +100,7 @@ Le moteur unifie 7 types de widgets :
 
 L'ETag est basé sur un **fingerprint fichiers** (mtime de la DB + configs YAML).
 Il est calculé une seule fois à l'initialisation et recalculé uniquement après
-`engine.invalidate()` — appelé dans le callback de succès d'import.
+`engine.invalidate()` — appelé à la fois dans le callback de succès d'import et lors de la sauvegarde de configuration (config saves).
 
 ### Bundles Plotly
 
@@ -115,7 +117,7 @@ Le choix du bundle est automatique selon le type de widget.
 
 ### Structure des fichiers
 
-```
+```text
 src/niamoto/gui/ui/src/
 ├── lib/preview/
 │   ├── types.ts              # PreviewDescriptor, PreviewMode, PreviewState

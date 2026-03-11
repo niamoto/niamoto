@@ -110,7 +110,7 @@ Le GUI Niamoto est **largement fonctionnel**. Le pipeline complet Import → Tra
 
 ## 3. Routes Frontend — Cartographie Complete
 
-```
+```text
 /                          → redirect /sources
 /sources                   → SourcesPage (liste entites importees)
 /sources/import            → ImportPage (wizard import)
@@ -142,7 +142,7 @@ Le GUI Niamoto est **largement fonctionnel**. Le pipeline complet Import → Tra
 ## 4. Flux Utilisateur Principaux
 
 ### A. Import
-```
+```text
 SourcesPage → ImportWizard
   ├─ FileUploadZone (drag & drop)
   ├─ Auto-configuration (smart_config)
@@ -152,7 +152,7 @@ SourcesPage → ImportWizard
 ```
 
 ### B. Configuration Widgets
-```
+```text
 GroupsPage → GroupPanel
   ├─ SourcesTab (config sources donnees)
   ├─ ContentTab (layout hybride)
@@ -164,7 +164,7 @@ GroupsPage → GroupPanel
 ```
 
 ### C. Site Builder
-```
+```text
 SitePanel → SiteBuilder (tree | editor | preview)
   ├─ SiteTreeView (arborescence)
   ├─ Editeur contextuel (Markdown, Theme, Navigation, etc.)
@@ -172,7 +172,7 @@ SitePanel → SiteBuilder (tree | editor | preview)
 ```
 
 ### D. Publish
-```
+```text
 PublishOverview → PublishBuild → PublishDeploy
   ├─ Build: executeExportAndWait (progress callback)
   ├─ Deploy: Cloudflare Pages (SSE streaming)
