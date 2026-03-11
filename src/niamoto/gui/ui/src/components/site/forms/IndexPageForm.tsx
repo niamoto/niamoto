@@ -2,8 +2,9 @@
  * IndexPageForm - Dedicated form for index.html template
  *
  * Manages:
- * - Title and subtitle
+ * - Hero section (title, subtitle, background image)
  * - Stats list (label, value, icon)
+ * - Content (markdown editor via content_source)
  * - Features list (title, description, icon, url)
  */
 
@@ -14,6 +15,8 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { RepeatableField } from './RepeatableField'
 import { LucideIconPicker } from './LucideIconPicker'
+import { ImagePickerField } from './ImagePickerField'
+import { MarkdownContentField } from './MarkdownContentField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
 
 // Types for index.html context
@@ -30,9 +33,17 @@ interface FeatureItem {
   url: string
 }
 
+interface PartnerItem {
+  name: string
+  logo: string
+  url: string
+}
+
 export interface IndexPageContext {
   title?: LocalizedString
   subtitle?: LocalizedString
+  hero_image?: string
+  partners?: PartnerItem[]
   stats?: StatItem[]
   features?: FeatureItem[]
   content_source?: string
@@ -43,11 +54,13 @@ export interface IndexPageContext {
 interface IndexPageFormProps {
   context: IndexPageContext
   onChange: (context: IndexPageContext) => void
+  pageName?: string
 }
 
 export function IndexPageForm({
   context,
   onChange,
+  pageName = 'home',
 }: IndexPageFormProps) {
   const { t } = useTranslation('site')
   const updateField = useCallback(
@@ -77,6 +90,68 @@ export function IndexPageForm({
           label={t('forms.indexPage.subtitle')}
           multiline
           rows={2}
+        />
+
+        <div className="space-y-2">
+          <Label>{t('forms.indexPage.heroImage')}</Label>
+          <ImagePickerField
+            value={context.hero_image || ''}
+            onChange={(path) => updateField('hero_image', path || undefined)}
+            folder="files"
+            placeholder={t('forms.indexPage.heroImagePlaceholder')}
+          />
+          <p className="text-xs text-muted-foreground">
+            {t('forms.indexPage.heroImageHint')}
+          </p>
+        </div>
+
+      </div>
+
+      <Separator />
+
+      {/* Partners Section */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">{t('forms.indexPage.partners')}</h3>
+        <p className="text-sm text-muted-foreground">
+          {t('forms.indexPage.partnersDescription')}
+        </p>
+
+        <RepeatableField<PartnerItem>
+          items={context.partners || []}
+          onChange={(partners) => updateField('partners', partners)}
+          createItem={() => ({ name: '', logo: '', url: '' })}
+          addLabel={t('forms.indexPage.addPartner')}
+          renderItem={(item, _index, onItemChange) => (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('forms.indexPage.partnerName')}</Label>
+                  <Input
+                    value={item.name}
+                    onChange={(e) => onItemChange({ ...item, name: e.target.value })}
+                    placeholder={t('forms.indexPage.partnerNamePlaceholder')}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">{t('forms.indexPage.partnerUrl')}</Label>
+                  <Input
+                    value={item.url}
+                    onChange={(e) => onItemChange({ ...item, url: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t('forms.indexPage.partnerLogo')}</Label>
+                <ImagePickerField
+                  value={item.logo}
+                  onChange={(path) => onItemChange({ ...item, logo: path || '' })}
+                  folder="files"
+                  placeholder={t('forms.indexPage.partnerLogoPlaceholder')}
+                />
+              </div>
+            </div>
+          )}
         />
       </div>
 
@@ -121,6 +196,20 @@ export function IndexPageForm({
               </div>
             </div>
           )}
+        />
+      </div>
+
+      <Separator />
+
+      {/* Content Section */}
+      <div className="space-y-4">
+        <MarkdownContentField
+          baseName={pageName}
+          contentSource={context.content_source}
+          onContentSourceChange={(source) => updateField('content_source', source ?? undefined)}
+          label={t('forms.indexPage.contentSection')}
+          description={t('forms.indexPage.contentDescription')}
+          minHeight="250px"
         />
       </div>
 

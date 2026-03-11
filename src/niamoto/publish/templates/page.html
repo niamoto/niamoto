@@ -1,10 +1,14 @@
 {% extends "_base.html" %}
 {#
     Template: page.html
-    Description: Page simple avec contenu centre (a propos, mentions legales, etc.)
+    Description: Page avec contenu markdown et detection automatique des sous-pages.
+    Si la page a des children dans la navigation, une section "Acceder aux donnees"
+    s'affiche automatiquement avec des cartes cliquables vers les sous-pages.
     Variables:
         - title: Titre de la page
         - page_content_html: Contenu markdown converti en HTML
+        - navigation: Liste de navigation (injectee automatiquement)
+        - output_file: Nom du fichier de sortie (injecte automatiquement)
 #}
 
 {% block title %}{{ title | default('Page') }} - {{ site.title | default('Niamoto') }}{% endblock %}
@@ -12,26 +16,74 @@
 {% block content %}
 <div class="simple-page py-12">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {# Auto-detect nav children for this page #}
+        {% set ns = namespace(children=[]) %}
+        {% for nav_item in navigation %}
+            {% if nav_item.children and nav_item.url and nav_item.url.lstrip('/') == output_file | default('') %}
+                {% set ns.children = nav_item.children %}
+            {% endif %}
+        {% endfor %}
+
         <!-- Page Header -->
         {% if title %}
         <header class="page-header mb-8">
             <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-4">{{ title }}</h1>
-            <div class="w-20 h-1 bg-green-600"></div>
+            <div class="w-20 h-1 bg-green-600 {% if ns.children %}mb-4{% endif %}"></div>
+            {% if ns.children %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                {% for child in ns.children %}
+                {% set child_url = child.url | default('') | lower %}
+                <a href="{{ child.url | relative_url(depth|default(0)) if child.url else '#' }}"
+                   class="hub-card group block bg-white rounded-xl border border-gray-200 px-6 py-5 hover:shadow-md hover:border-green-300 transition-all duration-200">
+                    <div class="flex items-center gap-4">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition-colors">
+                            {% if child.icon %}
+                                <i data-lucide="{{ child.icon }}" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'taxon' in child_url or 'tree' in child_url or 'arbre' in child_url %}
+                                <i data-lucide="tree-pine" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'plot' in child_url or 'parcelle' in child_url %}
+                                <i data-lucide="map-pin" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'shape' in child_url or 'commune' in child_url or 'province' in child_url %}
+                                <i data-lucide="map" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'forest' in child_url or 'foret' in child_url %}
+                                <i data-lucide="trees" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'biblio' in child_url or 'reference' in child_url %}
+                                <i data-lucide="book-open" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'team' in child_url or 'equipe' in child_url %}
+                                <i data-lucide="users" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'method' in child_url %}
+                                <i data-lucide="flask-conical" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'contact' in child_url %}
+                                <i data-lucide="mail" class="w-5 h-5 text-green-600"></i>
+                            {% elif 'glossary' in child_url or 'glossaire' in child_url %}
+                                <i data-lucide="spell-check" class="w-5 h-5 text-green-600"></i>
+                            {% else %}
+                                <i data-lucide="arrow-right" class="w-5 h-5 text-green-600"></i>
+                            {% endif %}
+                        </div>
+                        <span class="flex-1 text-lg font-semibold text-gray-800 group-hover:text-green-700 transition-colors">
+                            {{ child.text }}
+                        </span>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-gray-300 group-hover:text-green-400 transition-colors"></i>
+                    </div>
+                    {% if child.description %}
+                    <p class="mt-2 ml-14 text-sm text-gray-500">{{ child.description }}</p>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
         </header>
         {% endif %}
 
         <!-- Main Content -->
+        {% if page_content_html %}
         <article class="bg-white rounded-lg shadow-md p-8 lg:p-12">
-            {% if page_content_html %}
             <div class="markdown-content">
                 {{ page_content_html | safe }}
             </div>
-            {% else %}
-            <p class="text-gray-500 italic text-center py-8">
-                (Aucun contenu disponible pour cette page)
-            </p>
-            {% endif %}
         </article>
+        {% endif %}
 
         <!-- Back Navigation -->
         <div class="mt-8">

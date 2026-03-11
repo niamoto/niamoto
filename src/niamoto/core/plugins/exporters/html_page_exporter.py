@@ -13,6 +13,7 @@ within the detail pages.
 """
 
 import logging
+import re
 import shutil
 import json
 import pandas as pd
@@ -223,6 +224,28 @@ class HtmlPageExporter(ExporterPlugin):
                 )
 
             resolved.append(item_dict)
+        return resolved
+
+    def _resolve_footer_sections(
+        self, sections: List[Any], lang: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Resolve localized strings in footer sections."""
+        resolved = []
+        for section in sections:
+            if hasattr(section, "model_dump"):
+                s = section.model_dump()
+            else:
+                s = dict(section) if isinstance(section, dict) else {}
+
+            if "title" in s:
+                s["title"] = self._resolve_localized(s["title"], lang)
+
+            if "links" in s and s["links"]:
+                for link in s["links"]:
+                    if "text" in link:
+                        link["text"] = self._resolve_localized(link["text"], lang)
+
+            resolved.append(s)
         return resolved
 
     def _get_site_context(
@@ -684,6 +707,233 @@ class HtmlPageExporter(ExporterPlugin):
 
         logger.info("User-specified assets copy process finished.")
 
+    @staticmethod
+    def _references_to_bibtex(references: List[Dict[str, Any]]) -> str:
+        """Convert a list of reference dicts to BibTeX format."""
+        type_mapping = {
+            "article": "article",
+            "book": "book",
+            "chapter": "incollection",
+            "thesis": "phdthesis",
+            "report": "techreport",
+            "conference": "inproceedings",
+            "other": "misc",
+        }
+
+        lines = []
+        for ref in references:
+            bib_type = type_mapping.get(ref.get("type", "other"), "misc")
+            authors = ref.get("authors", "unknown")
+            first_author = authors.split(",")[0].strip().split()[-1].lower()
+            year = ref.get("year", "0000")
+            title_word = ref.get("title", "untitled").split()[0].lower()
+            key = f"{first_author}{year}{title_word}"
+
+            lines.append(f"@{bib_type}{{{key},")
+            if ref.get("authors"):
+                bib_authors = ref["authors"].replace(", ", " and ")
+                lines.append(f"  author    = {{{bib_authors}}},")
+            if ref.get("title"):
+                lines.append(f"  title     = {{{ref['title']}}},")
+            if ref.get("year"):
+                lines.append(f"  year      = {{{ref['year']}}},")
+            if ref.get("journal"):
+                if bib_type in ("inproceedings", "incollection"):
+                    lines.append(f"  booktitle = {{{ref['journal']}}},")
+                elif bib_type == "phdthesis":
+                    lines.append(f"  school    = {{{ref['journal']}}},")
+                else:
+                    lines.append(f"  journal   = {{{ref['journal']}}},")
+            if ref.get("volume"):
+                lines.append(f"  volume    = {{{ref['volume']}}},")
+            if ref.get("pages"):
+                lines.append(f"  pages     = {{{ref['pages'].replace('-', '--')}}},")
+            if ref.get("doi"):
+                lines.append(f"  doi       = {{{ref['doi']}}},")
+            if ref.get("url"):
+                lines.append(f"  url       = {{{ref['url']}}},")
+            lines.append("}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _load_bibtex_references(self, bibtex_source: str) -> List[Dict[str, Any]]:
+        """
+        Load and parse a BibTeX file into a list of reference dicts.
+
+        Args:
+            bibtex_source: Path to the .bib file (relative or absolute)
+
+        Returns:
+            List of reference dicts with keys: type, title, authors, year,
+            journal, volume, pages, doi, url
+        """
+        import re
+
+        bib_path = Path(bibtex_source)
+        if not bib_path.is_file():
+            logger.warning(f"BibTeX file not found: {bib_path}")
+            return []
+
+        try:
+            text = bib_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.error(f"Error reading BibTeX file '{bib_path}': {e}")
+            return []
+
+        # Type mapping
+        type_mapping = {
+            "article": "article",
+            "book": "book",
+            "inbook": "chapter",
+            "incollection": "chapter",
+            "phdthesis": "thesis",
+            "mastersthesis": "thesis",
+            "techreport": "report",
+            "inproceedings": "conference",
+            "conference": "conference",
+            "misc": "other",
+            "unpublished": "other",
+        }
+
+        field_pattern = re.compile(
+            r"(\w+)\s*=\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}"
+            r"|\"([^\"]*)\"|(\d+))",
+            re.IGNORECASE,
+        )
+
+        references = []
+        entry_starts = [m.start() for m in re.finditer(r"@\w+\s*\{", text)]
+
+        for start in entry_starts:
+            # Find matching closing brace
+            brace_count = 0
+            end = start
+            in_entry = False
+            for j, char in enumerate(text[start:], start):
+                if char == "{":
+                    brace_count += 1
+                    in_entry = True
+                elif char == "}":
+                    brace_count -= 1
+                    if in_entry and brace_count == 0:
+                        end = j + 1
+                        break
+
+            entry_text = text[start:end]
+
+            # Extract entry type
+            entry_match = re.match(
+                r"@(\w+)\s*\{\s*([^,]+)\s*,", entry_text, re.IGNORECASE
+            )
+            if not entry_match:
+                continue
+
+            entry_type = entry_match.group(1).lower()
+            ref_type = type_mapping.get(entry_type, "other")
+
+            # Extract fields
+            fields = {}
+            for match in field_pattern.finditer(entry_text):
+                field_name = match.group(1).lower()
+                field_value = match.group(2) or match.group(3) or match.group(4) or ""
+                fields[field_name] = re.sub(r"\s+", " ", field_value.strip())
+
+            title = fields.get("title", "")
+            if not title:
+                continue
+
+            ref = {
+                "type": ref_type,
+                "title": title,
+                "authors": fields.get("author", "").replace(" and ", ", "),
+                "year": fields.get("year", ""),
+            }
+
+            # Journal / venue
+            for venue_field in (
+                "journal",
+                "booktitle",
+                "school",
+                "institution",
+                "publisher",
+            ):
+                if venue_field in fields:
+                    ref["journal"] = fields[venue_field]
+                    break
+
+            if "volume" in fields:
+                vol = fields["volume"]
+                if "number" in fields:
+                    vol += f"({fields['number']})"
+                ref["volume"] = vol
+
+            if "pages" in fields:
+                ref["pages"] = fields["pages"].replace("--", "-")
+            if "doi" in fields:
+                ref["doi"] = fields["doi"]
+            if "url" in fields:
+                ref["url"] = fields["url"]
+
+            # Append note for extra context
+            if "note" in fields:
+                if "journal" in ref:
+                    ref["journal"] += f" — {fields['note']}"
+                else:
+                    ref["journal"] = fields["note"]
+
+            references.append(ref)
+
+        # Sort by year descending, then by authors
+        references.sort(
+            key=lambda r: (-int(r.get("year") or "0"), r.get("authors", ""))
+        )
+        return references
+
+    @staticmethod
+    def _postprocess_markdown_html(html: str) -> str:
+        """Post-process markdown-rendered HTML to handle image metadata in alt text.
+
+        Transforms ![alt|300|center](src) rendered as <img alt="alt|300|center">
+        into properly styled <img> with width and alignment.
+        """
+
+        def _replace_img(match: re.Match) -> str:
+            full = match.group(0)
+            alt_match = re.search(r'alt="([^"]*)"', full)
+            if not alt_match:
+                return full
+            alt_raw = alt_match.group(1)
+            parts = alt_raw.split("|")
+            if len(parts) < 2:
+                return full
+            clean_alt = parts[0]
+            img_styles: list[str] = []
+            alignment = None
+            for part in parts[1:]:
+                p = part.strip()
+                if re.match(r"^\d+$", p):
+                    img_styles.append(f"max-width:{p}px")
+                elif p == "center":
+                    alignment = "center"
+                elif p == "right":
+                    alignment = "right"
+            result = full.replace(f'alt="{alt_raw}"', f'alt="{clean_alt}"')
+            if img_styles:
+                style_str = ";".join(img_styles)
+                if 'style="' in result:
+                    result = result.replace('style="', f'style="{style_str};')
+                else:
+                    result = result.replace("<img ", f'<img style="{style_str}" ')
+            # Wrap in flex div for alignment (works with Tailwind's display:block on img)
+            if alignment == "center":
+                return f'<div style="display:flex;justify-content:center;margin:1rem 0">{result}</div>'
+            elif alignment == "right":
+                return f'<div style="display:flex;justify-content:flex-end;margin:1rem 0">{result}</div>'
+            return result
+
+        return re.sub(r"<img\s[^>]+>", _replace_img, html)
+
     def _resolve_content_source(
         self, content_source: str, lang: Optional[str], md: MarkdownIt
     ) -> Optional[str]:
@@ -720,7 +970,7 @@ class HtmlPageExporter(ExporterPlugin):
                 try:
                     content_raw = path.read_text(encoding="utf-8")
                     if path.suffix.lower() in [".md", ".markdown"]:
-                        return md.render(content_raw)
+                        return self._postprocess_markdown_html(md.render(content_raw))
                     return content_raw
                 except Exception as read_err:
                     logger.error(f"Error reading content file '{path}': {read_err}")
@@ -781,7 +1031,7 @@ class HtmlPageExporter(ExporterPlugin):
                 navigation = self._resolve_navigation(
                     html_params.navigation if html_params.navigation else [], lang
                 )
-                footer_navigation = self._resolve_navigation(
+                footer_navigation = self._resolve_footer_sections(
                     html_params.footer_navigation
                     if html_params.footer_navigation
                     else [],
@@ -802,11 +1052,6 @@ class HtmlPageExporter(ExporterPlugin):
                     "site": site_context,
                     "navigation": navigation,
                     "footer_navigation": footer_navigation,
-                    "external_links": [
-                        link.model_dump() for link in html_params.external_links
-                    ]
-                    if html_params.external_links
-                    else [],
                     "page": page_context,
                     "output_file": page_config.output_file,
                     "current_lang": lang,
@@ -830,9 +1075,57 @@ class HtmlPageExporter(ExporterPlugin):
                             page_config.context, "content_markdown", None
                         )
                         if content_markdown:
-                            page_content_html = md.render(content_markdown)
+                            page_content_html = self._postprocess_markdown_html(
+                                md.render(content_markdown)
+                            )
 
                 context["page_content_html"] = page_content_html
+
+                # Handle bibtex_source: load and parse .bib file into references
+                if page_context.get("bibtex_source"):
+                    bibtex_refs = self._load_bibtex_references(
+                        page_context["bibtex_source"]
+                    )
+                    if bibtex_refs:
+                        context["references"] = bibtex_refs
+                        # Also make available in page context
+                        page_context["references"] = bibtex_refs
+                        logger.debug(
+                            f"Loaded {len(bibtex_refs)} references from BibTeX"
+                        )
+
+                # Resolve *_source JSON files (team_source, references_source, etc.)
+                for key in list(page_context.keys()):
+                    if (
+                        key.endswith("_source")
+                        and key != "content_source"
+                        and key != "bibtex_source"
+                    ):
+                        target_key = key[:-7]  # "team_source" → "team"
+                        json_path = Path(page_context[key])
+                        if json_path.is_file():
+                            import json as json_mod
+
+                            data = json_mod.loads(json_path.read_text(encoding="utf-8"))
+                            page_context[target_key] = data
+                            context[target_key] = data
+                            logger.debug(
+                                f"Loaded {len(data)} items from {json_path} into '{target_key}'"
+                            )
+
+                # Pass top-level context keys for bibliography/team templates
+                for key in (
+                    "title",
+                    "introduction",
+                    "references",
+                    "categories",
+                    "team",
+                    "partners",
+                    "funders",
+                    "resources",
+                ):
+                    if key in page_context and key not in context:
+                        context[key] = page_context[key]
 
                 # Determine the template to use
                 template_name = (
@@ -852,6 +1145,18 @@ class HtmlPageExporter(ExporterPlugin):
                 output_file_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(output_file_path, "w", encoding="utf-8") as f:
                     f.write(rendered_html)
+
+                # Generate .bib file alongside bibliography pages
+                if context.get("references") and page_config.template in (
+                    "bibliography.html",
+                ):
+                    bib_path = output_file_path.parent / "references.bib"
+                    bib_content = self._references_to_bibtex(context["references"])
+                    bib_path.write_text(bib_content, encoding="utf-8")
+                    self.stats["total_files_generated"] += 1
+                    logger.debug(
+                        f"Generated BibTeX: {bib_path} ({len(context['references'])} refs)"
+                    )
                 self.stats["total_files_generated"] += 1
                 logger.debug(f"Rendered static page: {output_file_path}")
 
@@ -1312,7 +1617,7 @@ class HtmlPageExporter(ExporterPlugin):
                                 else [],
                                 lang,
                             )
-                            footer_navigation = self._resolve_navigation(
+                            footer_navigation = self._resolve_footer_sections(
                                 html_params.footer_navigation
                                 if html_params.footer_navigation
                                 else [],
@@ -1323,12 +1628,6 @@ class HtmlPageExporter(ExporterPlugin):
                                 "site": site_context,
                                 "navigation": navigation,
                                 "footer_navigation": footer_navigation,
-                                "external_links": [
-                                    link.model_dump()
-                                    for link in html_params.external_links
-                                ]
-                                if html_params.external_links
-                                else [],
                                 "id_column": id_column,
                                 "group_config": group_config,
                                 "group_by": group_by_key,
@@ -1848,7 +2147,7 @@ class HtmlPageExporter(ExporterPlugin):
             navigation = self._resolve_navigation(
                 html_params.navigation if html_params.navigation else [], lang
             )
-            footer_navigation = self._resolve_navigation(
+            footer_navigation = self._resolve_footer_sections(
                 html_params.footer_navigation if html_params.footer_navigation else [],
                 lang,
             )
@@ -1914,11 +2213,6 @@ class HtmlPageExporter(ExporterPlugin):
                 "site": site_context,
                 "navigation": navigation,
                 "footer_navigation": footer_navigation,
-                "external_links": [
-                    link.model_dump() for link in html_params.external_links
-                ]
-                if html_params.external_links
-                else [],
                 "group_by": group_by_key,
                 "items": normalized_items,
                 "group_config": group_config,

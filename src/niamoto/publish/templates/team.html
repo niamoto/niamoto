@@ -35,77 +35,175 @@
         <!-- Team Section -->
         {% if team %}
         <section class="team-section mb-16">
-            <h2 class="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-3">
-                <span class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                    <i class="fas fa-users text-green-600"></i>
-                </span>
-                Equipe
-            </h2>
+            {# Collect unique groups in order of appearance #}
+            {% set seen_groups = [] %}
+            {% for member in team %}
+                {% if member.group is defined and member.group and member.group not in seen_groups %}
+                    {% set _ = seen_groups.append(member.group) %}
+                {% endif %}
+            {% endfor %}
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {% for member in team %}
-                <article class="team-member bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center hover:shadow-lg transition-shadow">
-                    <!-- Photo -->
-                    <div class="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden bg-gray-100">
-                        {% if member.photo %}
-                        <img src="{{ member.photo | relative_url(depth|default(0)) }}"
-                             alt="{{ member.name }}"
-                             class="w-full h-full object-cover">
-                        {% else %}
-                        <div class="w-full h-full flex items-center justify-center text-3xl text-gray-400">
-                            <i class="fas fa-user"></i>
-                        </div>
+            {% if seen_groups | length > 0 %}
+                {# Grouped display #}
+                {% for group_name in seen_groups %}
+                <div class="mb-12">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-4">
+                        <span class="w-10 h-10 flex-shrink-0 rounded-lg bg-green-100 flex items-center justify-center">
+                            <i data-lucide="users" class="w-5 h-5 text-green-600"></i>
+                        </span>
+                        {{ group_name }}
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {% for member in team %}
+                        {% if member.group == group_name %}
+                        <article class="team-member bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center hover:shadow-lg transition-shadow">
+                            <div class="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden bg-gray-100">
+                                {% if member.photo %}
+                                <img src="{{ member.photo | relative_url(depth|default(0)) }}"
+                                     alt="{{ member.name }}"
+                                     class="w-full h-full object-cover">
+                                {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-3xl text-gray-400">
+                                    <i data-lucide="user" class="w-8 h-8"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-1">{{ member.name }}</h3>
+                            {% if member.role %}
+                            <p class="text-sm text-green-600 font-medium mb-2">{{ member.role }}</p>
+                            {% endif %}
+                            {% if member.institution %}
+                            <p class="text-sm text-gray-500 mb-3">{{ member.institution }}</p>
+                            {% endif %}
+                            <div class="flex justify-center gap-3">
+                                {% if member.email %}
+                                <a href="mailto:{{ member.email }}" class="text-gray-400 hover:text-green-600 transition-colors" title="Email">
+                                    <i data-lucide="mail" style="width: 1rem; height: 1rem;"></i>
+                                </a>
+                                {% endif %}
+                                {% if member.orcid %}
+                                <a href="https://orcid.org/{{ member.orcid }}" target="_blank" rel="noopener noreferrer"
+                                   class="text-gray-400 hover:text-green-600 transition-colors" title="ORCID">
+                                    ORCID
+                                </a>
+                                {% endif %}
+                                {% if member.github %}
+                                <a href="https://github.com/{{ member.github }}" target="_blank" rel="noopener noreferrer"
+                                   class="text-gray-400 hover:text-green-600 transition-colors" title="GitHub">
+                                    <i data-lucide="github" class="w-4 h-4"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </article>
                         {% endif %}
+                        {% endfor %}
                     </div>
-
-                    <!-- Info -->
-                    <h3 class="text-lg font-semibold text-gray-800 mb-1">{{ member.name }}</h3>
-                    {% if member.role %}
-                    <p class="text-sm text-green-600 font-medium mb-2">{{ member.role }}</p>
-                    {% endif %}
-                    {% if member.institution %}
-                    <p class="text-sm text-gray-500 mb-3">{{ member.institution }}</p>
-                    {% endif %}
-
-                    <!-- Links -->
-                    <div class="flex justify-center gap-3">
-                        {% if member.email %}
-                        <a href="mailto:{{ member.email }}" class="text-gray-400 hover:text-green-600 transition-colors"
-                           title="Email">
-                            <i class="fas fa-envelope"></i>
-                        </a>
-                        {% endif %}
-                        {% if member.orcid %}
-                        <a href="https://orcid.org/{{ member.orcid }}" target="_blank" rel="noopener noreferrer"
-                           class="text-gray-400 hover:text-green-600 transition-colors" title="ORCID">
-                            <i class="fab fa-orcid"></i>
-                        </a>
-                        {% endif %}
-                        {% if member.twitter %}
-                        <a href="https://twitter.com/{{ member.twitter }}" target="_blank" rel="noopener noreferrer"
-                           class="text-gray-400 hover:text-green-600 transition-colors" title="Twitter">
-                            <i class="fab fa-twitter"></i>
-                        </a>
-                        {% endif %}
-                        {% if member.github %}
-                        <a href="https://github.com/{{ member.github }}" target="_blank" rel="noopener noreferrer"
-                           class="text-gray-400 hover:text-green-600 transition-colors" title="GitHub">
-                            <i class="fab fa-github"></i>
-                        </a>
-                        {% endif %}
-                    </div>
-                </article>
+                </div>
                 {% endfor %}
-            </div>
+
+                {# Members without a group #}
+                {% set ungrouped = [] %}
+                {% for member in team %}
+                    {% if not member.group %}
+                        {% set _ = ungrouped.append(member) %}
+                    {% endif %}
+                {% endfor %}
+                {% if ungrouped | length > 0 %}
+                <div class="mb-12">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-4">
+                        <span class="w-10 h-10 flex-shrink-0 rounded-lg bg-green-100 flex items-center justify-center">
+                            <i data-lucide="users" class="w-5 h-5 text-green-600"></i>
+                        </span>
+                        Equipe
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {% for member in ungrouped %}
+                        <article class="team-member bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center hover:shadow-lg transition-shadow">
+                            <div class="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden bg-gray-100">
+                                {% if member.photo %}
+                                <img src="{{ member.photo | relative_url(depth|default(0)) }}"
+                                     alt="{{ member.name }}"
+                                     class="w-full h-full object-cover">
+                                {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-3xl text-gray-400">
+                                    <i data-lucide="user" class="w-8 h-8"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-1">{{ member.name }}</h3>
+                            {% if member.role %}
+                            <p class="text-sm text-green-600 font-medium mb-2">{{ member.role }}</p>
+                            {% endif %}
+                            {% if member.institution %}
+                            <p class="text-sm text-gray-500 mb-3">{{ member.institution }}</p>
+                            {% endif %}
+                        </article>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+            {% else %}
+                {# Flat display (no groups) #}
+                <h2 class="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-4">
+                    <span class="w-10 h-10 flex-shrink-0 rounded-lg bg-green-100 flex items-center justify-center">
+                        <i data-lucide="users" class="w-5 h-5 text-green-600"></i>
+                    </span>
+                    Equipe
+                </h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {% for member in team %}
+                    <article class="team-member bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center hover:shadow-lg transition-shadow">
+                        <div class="w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden bg-gray-100">
+                            {% if member.photo %}
+                            <img src="{{ member.photo | relative_url(depth|default(0)) }}"
+                                 alt="{{ member.name }}"
+                                 class="w-full h-full object-cover">
+                            {% else %}
+                            <div class="w-full h-full flex items-center justify-center text-3xl text-gray-400">
+                                <i data-lucide="user" class="w-8 h-8"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-1">{{ member.name }}</h3>
+                        {% if member.role %}
+                        <p class="text-sm text-green-600 font-medium mb-2">{{ member.role }}</p>
+                        {% endif %}
+                        {% if member.institution %}
+                        <p class="text-sm text-gray-500 mb-3">{{ member.institution }}</p>
+                        {% endif %}
+                        <div class="flex justify-center gap-3">
+                            {% if member.email %}
+                            <a href="mailto:{{ member.email }}" class="text-gray-400 hover:text-green-600 transition-colors" title="Email">
+                                <i data-lucide="mail" style="width: 1rem; height: 1rem;"></i>
+                            </a>
+                            {% endif %}
+                            {% if member.orcid %}
+                            <a href="https://orcid.org/{{ member.orcid }}" target="_blank" rel="noopener noreferrer"
+                               class="text-gray-400 hover:text-green-600 transition-colors" title="ORCID">
+                                ORCID
+                            </a>
+                            {% endif %}
+                            {% if member.github %}
+                            <a href="https://github.com/{{ member.github }}" target="_blank" rel="noopener noreferrer"
+                               class="text-gray-400 hover:text-green-600 transition-colors" title="GitHub">
+                                <i data-lucide="github" class="w-4 h-4"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            {% endif %}
         </section>
         {% endif %}
 
         <!-- Partners Section -->
         {% if partners %}
         <section class="partners-section mb-16">
-            <h2 class="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-3">
-                <span class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <i class="fas fa-handshake text-blue-600"></i>
+            <h2 class="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-4">
+                <span class="w-10 h-10 flex-shrink-0 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <i data-lucide="handshake" class="w-5 h-5 text-blue-600"></i>
                 </span>
                 Partenaires
             </h2>
@@ -122,7 +220,7 @@
                     </div>
                     {% else %}
                     <div class="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-building text-gray-400 text-xl"></i>
+                        <i data-lucide="building-2" class="w-5 h-5 text-gray-400"></i>
                     </div>
                     {% endif %}
                     <div class="min-w-0">
@@ -140,9 +238,9 @@
         <!-- Funders Section -->
         {% if funders %}
         <section class="funders-section mb-16">
-            <h2 class="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-3">
-                <span class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                    <i class="fas fa-award text-amber-600"></i>
+            <h2 class="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-4">
+                <span class="w-10 h-10 flex-shrink-0 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <i data-lucide="award" class="w-5 h-5 text-amber-600"></i>
                 </span>
                 Financements
             </h2>
@@ -171,7 +269,7 @@
         <div class="mt-8">
             <a href="{{ 'index.html' | relative_url(depth|default(0)) }}"
                class="inline-flex items-center text-green-600 hover:text-green-800">
-                <i class="fas fa-arrow-left mr-2"></i>
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
                 Retour a l'accueil
             </a>
         </div>

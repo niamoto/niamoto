@@ -119,13 +119,19 @@ class NavigationItem(BaseModel):
     children: Optional[List["NavigationItem"]] = None
 
 
-class ExternalLinkConfig(BaseModel):
-    """External link configuration (GitHub, social, etc.)."""
+class FooterLink(BaseModel):
+    """A single link in a footer section."""
 
-    name: str
+    text: LocalizedString
     url: str
-    icon: Optional[str] = None  # Font Awesome class
-    type: Optional[str] = None  # github, twitter, linkedin, etc.
+    external: bool = False
+
+
+class FooterSection(BaseModel):
+    """A footer section with a title and a list of links."""
+
+    title: LocalizedString
+    links: List[FooterLink] = Field(default_factory=list)
 
 
 class StaticPageContext(BaseModel):
@@ -190,8 +196,7 @@ class HtmlExporterParams(BasePluginParams):
     )
     site: SiteConfig = Field(default_factory=SiteConfig)
     navigation: List[NavigationItem] = Field(default_factory=list)
-    footer_navigation: List[NavigationItem] = Field(default_factory=list)
-    external_links: List[ExternalLinkConfig] = Field(default_factory=list)
+    footer_navigation: List[FooterSection] = Field(default_factory=list)
     include_default_assets: bool = Field(
         default=True,
         description="Whether to automatically include Niamoto's default CSS/JS assets",

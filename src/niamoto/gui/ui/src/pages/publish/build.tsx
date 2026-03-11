@@ -403,10 +403,10 @@ function localizeBackendMessage(message: string, t: (key: string, opts?: Record<
     return t('build.progress.exportDone', { name: parts[1] || '', count: parts[2] || '', defaultValue: `Export ${parts[1]} terminé (${parts[2]})` })
   }
   if (message === 'transform.running') {
-    return t('build.progress.transformRunning', 'Transformations en cours...')
+    return t('build.progress.transformRunning', { defaultValue: 'Transformations en cours...' })
   }
   if (message === 'export.starting') {
-    return t('build.progress.exportStarting', 'Génération du site...')
+    return t('build.progress.exportStarting', { defaultValue: 'Génération du site...' })
   }
   // Fallback : message brut (anciens jobs ou messages non structurés)
   return message

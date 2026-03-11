@@ -143,6 +143,7 @@
     {% include '_nav.html' %}
 
     <!-- Main Content -->
+    {% block main_wrapper %}
     <div class="flex flex-col lg:flex-row pt-8">
         {% block sidebar %}
         {% endblock %}
@@ -152,9 +153,14 @@
             {% endblock %}
         </div>
     </div>
+    {% endblock %}
 
     <!-- Include footer - will use user's _footer.html if available, otherwise fallback to default -->
     {% include '_footer.html' %}
+
+    <!-- Lucide Icons -->
+    <script src="{{ '/assets/js/vendor/lucide/0.577.0_lucide.min.js' | relative_url(depth|default(0)) }}"></script>
+    <script>document.addEventListener('DOMContentLoaded',function(){if(window.lucide)lucide.createIcons();});</script>
 
     <!-- Shim Node.js 'global' for Plotly bundle (uses global.matchMedia) -->
     <script>if(typeof global==="undefined"){var global=globalThis;}</script>

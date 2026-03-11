@@ -1,7 +1,7 @@
 """Site configuration API endpoints for managing export.yml site settings."""
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel, ConfigDict
 import yaml
@@ -32,22 +32,29 @@ class SiteSettings(BaseModel):
 
 
 class NavigationItem(BaseModel):
-    """Navigation menu item with optional children for sub-menus."""
+    """Navigation menu item with optional children for sub-menus.
 
-    text: str
+    text can be a plain string or a localized dict like {fr: "Arbres", en: "Trees"}.
+    """
+
+    text: Union[str, Dict[str, str]]
     url: Optional[str] = None
     children: Optional[List["NavigationItem"]] = None
 
 
-class ExternalLink(BaseModel):
-    """External link for footer/header (GitHub, social, etc.)."""
+class FooterLink(BaseModel):
+    """A single link in a footer section."""
 
-    name: str
+    text: Union[str, Dict[str, str]]
     url: str
-    icon: Optional[str] = None  # Font Awesome class or icon name
-    type: Optional[str] = (
-        None  # github, twitter, facebook, linkedin, instagram, website, email
-    )
+    external: bool = False
+
+
+class FooterSection(BaseModel):
+    """A footer section with a title and a list of links."""
+
+    title: Union[str, Dict[str, str]]
+    links: List[FooterLink] = []
 
 
 class StaticPageContext(BaseModel):
@@ -76,8 +83,7 @@ class SiteConfigResponse(BaseModel):
 
     site: SiteSettings
     navigation: List[NavigationItem]
-    footer_navigation: List[NavigationItem] = []
-    external_links: List[ExternalLink] = []
+    footer_navigation: List[FooterSection] = []
     static_pages: List[StaticPage]
     # Additional export params that aren't site-specific
     template_dir: str = "templates/"
@@ -90,8 +96,7 @@ class SiteConfigUpdate(BaseModel):
 
     site: SiteSettings
     navigation: List[NavigationItem]
-    footer_navigation: List[NavigationItem] = []
-    external_links: List[ExternalLink] = []
+    footer_navigation: List[FooterSection] = []
     static_pages: List[StaticPage]
     template_dir: Optional[str] = None
     output_dir: Optional[str] = None
@@ -200,7 +205,9 @@ class TemplatePreviewRequest(BaseModel):
     context: Dict[str, Any] = {}  # Page-specific context (team, references, etc.)
     site: Optional[Dict[str, Any]] = None  # Site settings override
     navigation: Optional[List[Dict[str, Any]]] = None  # Navigation override
-    footer_navigation: Optional[List[Dict[str, Any]]] = None  # Footer nav override
+    footer_navigation: Optional[List[Dict[str, Any]]] = None  # Footer sections
+    output_file: Optional[str] = None  # Actual output filename (e.g., "resources.html")
+    gui_lang: Optional[str] = None  # GUI language for resolving localized strings
 
 
 class TemplatePreviewResponse(BaseModel):
@@ -347,14 +354,12 @@ async def get_site_config():
     site_config = params.get("site", {})
     navigation = params.get("navigation", [])
     footer_navigation = params.get("footer_navigation", [])
-    external_links = params.get("external_links", [])
     static_pages = web_pages.get("static_pages", [])
 
     # Convert raw dicts to models
     site = SiteSettings(**site_config) if site_config else SiteSettings()
     nav_items = [NavigationItem(**item) for item in navigation]
-    footer_nav_items = [NavigationItem(**item) for item in footer_navigation]
-    ext_links = [ExternalLink(**item) for item in external_links]
+    footer_sections = [FooterSection(**s) for s in footer_navigation]
 
     pages = []
     for page in static_pages:
@@ -372,8 +377,7 @@ async def get_site_config():
     return SiteConfigResponse(
         site=site,
         navigation=nav_items,
-        footer_navigation=footer_nav_items,
-        external_links=ext_links,
+        footer_navigation=footer_sections,
         static_pages=pages,
         template_dir=params.get("template_dir", "templates/"),
         output_dir=params.get("output_dir", "exports/web"),
@@ -413,10 +417,7 @@ async def update_site_config(update: SiteConfigUpdate):
         item.model_dump(exclude_none=True) for item in update.navigation
     ]
     params["footer_navigation"] = [
-        item.model_dump(exclude_none=True) for item in update.footer_navigation
-    ]
-    params["external_links"] = [
-        item.model_dump(exclude_none=True) for item in update.external_links
+        section.model_dump(exclude_none=True) for section in update.footer_navigation
     ]
 
     if update.template_dir:
@@ -636,12 +637,52 @@ async def list_project_files(folder: str = "files"):
     return FilesResponse(files=files, folder=folder)
 
 
+def _resolve_localized(value: Any, lang: str = "fr") -> Any:
+    """Resolve a localized value: {fr: "X", en: "Y"} -> "X" for lang=fr."""
+    if isinstance(value, dict) and not any(
+        k in value for k in ("name", "url", "logo", "icon")
+    ):
+        return value.get(lang) or next(iter(value.values()), value)
+    return value
+
+
+def _resolve_navigation(items: list, lang: str = "fr") -> list:
+    """Recursively resolve localized strings in navigation items."""
+    resolved = []
+    for item in items:
+        d = dict(item) if isinstance(item, dict) else {"text": str(item)}
+        if "text" in d:
+            d["text"] = _resolve_localized(d["text"], lang)
+        if d.get("children"):
+            d["children"] = _resolve_navigation(d["children"], lang)
+        resolved.append(d)
+    return resolved
+
+
+def _resolve_footer_sections(sections: list, lang: str = "fr") -> list:
+    """Resolve localized strings in footer sections."""
+    resolved = []
+    for section in sections:
+        s = dict(section) if isinstance(section, dict) else {}
+        if "title" in s:
+            s["title"] = _resolve_localized(s["title"], lang)
+        if s.get("links"):
+            s["links"] = [
+                {**link, "text": _resolve_localized(link.get("text", ""), lang)}
+                for link in s["links"]
+            ]
+        resolved.append(s)
+    return resolved
+
+
 def _preprocess_markdown_images(content: str) -> str:
     """
     Preprocess markdown to handle custom image syntax.
 
     Converts:
-    - ![alt|width](src) -> <img src="src" alt="alt" style="width: widthpx">
+    - ![alt|width](src) -> <img src="src" alt="alt" style="max-width: widthpx">
+    - ![alt|center](src) -> <img src="src" alt="alt" style="display:block;margin:auto">
+    - ![alt|width|center](src) -> combined styles
     - files/... paths -> /api/site/files/... for preview
     """
     import re
@@ -650,21 +691,33 @@ def _preprocess_markdown_images(content: str) -> str:
         alt_part = match.group(1)
         src = match.group(2)
 
-        # Parse alt text for width: "alt|300" or just "alt"
-        if "|" in alt_part:
-            parts = alt_part.split("|", 1)
-            alt = parts[0]
-            width = parts[1]
-            style = f' style="width: {width}px; max-width: 100%;"'
-        else:
-            alt = alt_part
-            style = ""
+        # Parse alt text parts: "alt", "alt|300", "alt|center", "alt|300|center"
+        parts = alt_part.split("|")
+        alt = parts[0]
+        img_styles = []
+        align = None
+        for part in parts[1:]:
+            p = part.strip()
+            if re.match(r"^\d+$", p):
+                img_styles.append(f"max-width:{p}px")
+            elif p == "center":
+                align = "center"
+            elif p == "right":
+                align = "right"
 
         # Convert relative paths to API URLs for preview
         if src.startswith("files/"):
             src = f"/api/site/{src}"
 
-        return f'<img src="{src}" alt="{alt}"{style}>'
+        img_style = f' style="{";".join(img_styles)}"' if img_styles else ""
+        img_tag = f'<img src="{src}" alt="{alt}"{img_style}>'
+
+        # Wrap in a flex div for alignment (works with Tailwind's display:block on img)
+        if align == "center":
+            return f'<div style="display:flex;justify-content:center;margin:1rem 0">{img_tag}</div>'
+        elif align == "right":
+            return f'<div style="display:flex;justify-content:flex-end;margin:1rem 0">{img_tag}</div>'
+        return img_tag
 
     # Match markdown images: ![alt](src) or ![alt|width](src)
     pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
@@ -806,9 +859,19 @@ async def preview_template(request: TemplatePreviewRequest):
             "nav_color": "#228b22",
         }
 
-        # Default navigation if not provided
-        navigation = request.navigation or []
-        footer_navigation = request.footer_navigation or []
+        # Resolve localized strings: GUI lang > site lang > fr
+        site_lang = (
+            site_config.get("lang", "fr") if isinstance(site_config, dict) else "fr"
+        )
+        lang = request.gui_lang or site_lang
+        navigation = _resolve_navigation(request.navigation or [], lang)
+        footer_navigation = _resolve_footer_sections(
+            request.footer_navigation or [], lang
+        )
+
+        # Resolve localized title in site config
+        if isinstance(site_config, dict) and "title" in site_config:
+            site_config["title"] = _resolve_localized(site_config["title"], lang)
 
         # Prepare the page context
         page_context = dict(request.context)
@@ -864,15 +927,29 @@ async def preview_template(request: TemplatePreviewRequest):
             else:
                 page_content_html = f"<p><em>Content file not found: {page_context['content_source']}</em></p>"
 
+        # Resolve *_source JSON files (team_source, references_source, etc.)
+        for key in list(page_context.keys()):
+            if (
+                key.endswith("_source")
+                and key != "content_source"
+                and key != "bibtex_source"
+            ):
+                target_key = key[:-7]  # "team_source" → "team"
+                json_path = work_dir / page_context[key]
+                if json_path.is_file():
+                    import json as json_mod
+
+                    data = json_mod.loads(json_path.read_text(encoding="utf-8"))
+                    page_context[target_key] = data
+
         # Build the full context for the template
         context = {
             "site": site_config,
             "navigation": navigation,
             "footer_navigation": footer_navigation,
-            "external_links": [],
             "page": page_context,
             "depth": 0,  # For relative_url filter
-            "output_file": "preview.html",
+            "output_file": request.output_file or "preview.html",
             **page_context,  # Spread page context at top level for templates that expect it
         }
 
@@ -880,9 +957,9 @@ async def preview_template(request: TemplatePreviewRequest):
         if page_content_html:
             context["page_content_html"] = page_content_html
 
-        # Add title from context if present
+        # Add title from context if present (resolve if localized)
         if "title" in page_context:
-            context["title"] = page_context["title"]
+            context["title"] = _resolve_localized(page_context["title"], lang)
 
         # Render the template
         rendered_html = template.render(context)
@@ -890,7 +967,7 @@ async def preview_template(request: TemplatePreviewRequest):
         # Post-process: fix asset URLs for preview
         # Replace relative paths with API paths
 
-        # Project files (images, etc.)
+        # Project files (images, etc.) - src, href, and CSS url()
         rendered_html = rendered_html.replace('src="files/', f'src="{base_url}/files/')
         rendered_html = rendered_html.replace("src='files/", f"src='{base_url}/files/")
         rendered_html = rendered_html.replace(
@@ -899,6 +976,9 @@ async def preview_template(request: TemplatePreviewRequest):
         rendered_html = rendered_html.replace(
             "href='files/", f"href='{base_url}/files/"
         )
+        # CSS background-image: url('files/...')
+        rendered_html = rendered_html.replace("url('files/", f"url('{base_url}/files/")
+        rendered_html = rendered_html.replace('url("files/', f'url("{base_url}/files/')
 
         # Niamoto assets (CSS, JS, fonts) - handle both /assets/ and assets/
         rendered_html = rendered_html.replace(
@@ -1770,6 +1850,10 @@ async def serve_niamoto_assets(filepath: str):
     if "/vendor/" in filepath and file_path.suffix == ".js":
         headers["Cache-Control"] = "public, max-age=31536000, immutable"
 
+    # Fonts need CORS headers for srcdoc iframe preview (origin: null)
+    if extension in (".woff", ".woff2", ".ttf", ".eot"):
+        headers["Access-Control-Allow-Origin"] = "*"
+
     return FileResponse(file_path, media_type=media_type, headers=headers)
 
 
@@ -1846,6 +1930,10 @@ def _parse_bibtex_entry(entry_text: str) -> Optional[Dict[str, Any]]:
         reference["journal"] = fields["journal"]
     elif "booktitle" in fields:
         reference["journal"] = fields["booktitle"]
+    elif "school" in fields:
+        reference["journal"] = fields["school"]
+    elif "institution" in fields:
+        reference["journal"] = fields["institution"]
     elif "publisher" in fields:
         reference["journal"] = fields["publisher"]
 
@@ -1863,6 +1951,13 @@ def _parse_bibtex_entry(entry_text: str) -> Optional[Dict[str, Any]]:
 
     if "url" in fields:
         reference["url"] = fields["url"]
+
+    if "note" in fields:
+        # Append note to journal info for context (e.g., "Master 2", "HDR")
+        if "journal" in reference:
+            reference["journal"] += f" — {fields['note']}"
+        else:
+            reference["journal"] = fields["note"]
 
     return reference
 
@@ -1937,6 +2032,84 @@ async def import_bibtex(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=500, detail=f"Error processing BibTeX file: {str(e)}"
         )
+
+
+def _references_to_bibtex(references: List[Dict[str, Any]]) -> str:
+    """
+    Convert a list of reference dicts to BibTeX format.
+    """
+    # Reverse type mapping
+    type_mapping = {
+        "article": "article",
+        "book": "book",
+        "chapter": "incollection",
+        "thesis": "phdthesis",
+        "report": "techreport",
+        "conference": "inproceedings",
+        "other": "misc",
+    }
+
+    def make_key(ref: Dict[str, Any]) -> str:
+        authors = ref.get("authors", "unknown")
+        first_author = authors.split(",")[0].strip().split()[-1].lower()
+        year = ref.get("year", "0000")
+        title_word = (
+            ref.get("title", "untitled").split()[0].lower()
+            if ref.get("title")
+            else "untitled"
+        )
+        return f"{first_author}{year}{title_word}"
+
+    lines = []
+    for ref in references:
+        bib_type = type_mapping.get(ref.get("type", "other"), "misc")
+        key = make_key(ref)
+
+        lines.append(f"@{bib_type}{{{key},")
+        if ref.get("authors"):
+            # Convert "A, B, C" back to "A and B and C"
+            authors = ref["authors"].replace(", ", " and ")
+            lines.append(f"  author    = {{{authors}}},")
+        if ref.get("title"):
+            lines.append(f"  title     = {{{ref['title']}}},")
+        if ref.get("year"):
+            lines.append(f"  year      = {{{ref['year']}}},")
+        if ref.get("journal"):
+            if bib_type in ("inproceedings", "incollection"):
+                lines.append(f"  booktitle = {{{ref['journal']}}},")
+            elif bib_type in ("phdthesis", "mastersthesis"):
+                lines.append(f"  school    = {{{ref['journal']}}},")
+            else:
+                lines.append(f"  journal   = {{{ref['journal']}}},")
+        if ref.get("volume"):
+            lines.append(f"  volume    = {{{ref['volume']}}},")
+        if ref.get("pages"):
+            lines.append(f"  pages     = {{{ref['pages'].replace('-', '--')}}},")
+        if ref.get("doi"):
+            lines.append(f"  doi       = {{{ref['doi']}}},")
+        if ref.get("url"):
+            lines.append(f"  url       = {{{ref['url']}}},")
+        lines.append("}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+@router.post("/export-bibtex")
+async def export_bibtex(references: List[Dict[str, Any]]):
+    """
+    Export references as a BibTeX file.
+
+    Accepts a list of reference objects and returns a downloadable .bib file.
+    """
+    from fastapi.responses import Response
+
+    bibtex_content = _references_to_bibtex(references)
+    return Response(
+        content=bibtex_content,
+        media_type="application/x-bibtex",
+        headers={"Content-Disposition": 'attachment; filename="references.bib"'},
+    )
 
 
 @router.post("/import-csv", response_model=ImportResponse)
