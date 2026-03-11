@@ -124,28 +124,6 @@ class TestPostPreview:
         assert req.inline is None
 
 
-class TestLegacyRoute:
-    """Tests GET /api/templates/preview/{template_id} (rétrocompatibilité)."""
-
-    def test_legacy_route_works(self, client, mock_engine):
-        """L'ancienne route doit retourner le même résultat."""
-        response = client.get("/api/templates/preview/test_widget")
-        assert response.status_code == 200
-        assert "Preview OK" in response.text
-        assert response.headers.get("etag") == '"test-etag-123"'
-
-    def test_legacy_route_with_params(self, client, mock_engine):
-        response = client.get(
-            "/api/templates/preview/test_widget",
-            params={"group_by": "taxons", "entity_id": "42"},
-        )
-        assert response.status_code == 200
-
-        req = mock_engine.render.call_args[0][0]
-        assert req.group_by == "taxons"
-        assert req.entity_id == "42"
-
-
 class TestEngineUnavailable:
     """Tests quand le moteur n'est pas disponible."""
 
