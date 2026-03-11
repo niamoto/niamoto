@@ -89,6 +89,7 @@ import {
   useFileContent,
   type SiteSettings,
   type NavigationItem,
+  type FooterSection,
   type StaticPage,
   type SiteConfigUpdate,
   type GroupInfo,
@@ -98,6 +99,7 @@ import {
 import { SiteConfigForm } from './SiteConfigForm'
 import { ThemeConfigForm } from './ThemeConfigForm'
 import { NavigationBuilder } from './NavigationBuilder'
+import { FooterSectionsEditor } from './FooterSectionsEditor'
 import { StaticPageEditor } from './StaticPageEditor'
 import { TemplateList } from './TemplateList'
 import { GroupPageViewer } from './GroupPageViewer'
@@ -157,7 +159,7 @@ function isPageInNavigation(pageUrl: string, items: NavigationItem[]): 'direct' 
 
 interface SiteTreeProps {
   navigation: NavigationItem[]
-  footerNavigation: NavigationItem[]
+  footerNavigation: FooterSection[]
   pages: StaticPage[]
   groups: GroupInfo[]
   groupsLoading: boolean
@@ -214,7 +216,7 @@ function SiteTree({
                     const Icon = getTemplateIcon(page.template)
                     const pageUrl = `/${page.output_file}`
                     const inMainNav = isPageInNavigation(pageUrl, navigation)
-                    const inFooterNav = isPageInNavigation(pageUrl, footerNavigation)
+                    const inFooterNav = footerNavigation.some(s => s.links.some(l => l.url === pageUrl))
                     const isLinked = inMainNav || inFooterNav
 
                     return (
@@ -398,7 +400,7 @@ interface PagesOverviewProps {
   staticPages: StaticPage[]
   groups: GroupInfo[]
   navigation: NavigationItem[]
-  footerNavigation: NavigationItem[]
+  footerNavigation: FooterSection[]
   onSelectPage: (pageName: string) => void
   onSelectGroup: (groupName: string) => void
   onAddPage: () => void
@@ -473,7 +475,7 @@ function PagesOverview({
                 const Icon = getTemplateIcon(page.template)
                 const pageUrl = `/${page.output_file}`
                 const inMainNav = isPageInNavigation(pageUrl, navigation)
-                const inFooterNav = isPageInNavigation(pageUrl, footerNavigation)
+                const inFooterNav = footerNavigation.some(s => s.links.some(l => l.url === pageUrl))
                 const isLinked = inMainNav || inFooterNav
                 const templateName = getTemplateName(page.template)
 
@@ -658,7 +660,7 @@ interface SitePreviewProps {
   page: StaticPage | null
   site: SiteSettings
   navigation: NavigationItem[]
-  footerNavigation: NavigationItem[]
+  footerNavigation: FooterSection[]
   device: DeviceSize
   onDeviceChange: (device: DeviceSize) => void
   // For markdown content loaded from file
@@ -670,7 +672,7 @@ interface SitePreviewProps {
 }
 
 function SitePreview({ page, site, navigation, footerNavigation, device, onDeviceChange, fileContent, onLinkClick, onClose }: SitePreviewProps) {
-  const { t } = useTranslation(['site', 'common'])
+  const { t, i18n } = useTranslation(['site', 'common'])
   const previewMutation = useTemplatePreview()
   const [html, setHtml] = useState('')
 
@@ -700,11 +702,12 @@ function SitePreview({ page, site, navigation, footerNavigation, device, onDevic
           url: n.url,
           children: n.children,
         })),
-        footer_navigation: footerNavigation.map(n => ({
-          text: n.text,
-          url: n.url,
-          children: n.children,
+        footer_navigation: footerNavigation.map(s => ({
+          title: s.title,
+          links: s.links,
         })),
+        output_file: page.output_file,
+        gui_lang: i18n.language?.split('-')[0] || 'fr',
       }, {
         onSuccess: (data) => setHtml(data.html),
         onError: (error) => {
@@ -793,7 +796,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   // Local editing state
   const [editedSite, setEditedSite] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS)
   const [editedNavigation, setEditedNavigation] = useState<NavigationItem[]>([])
-  const [editedFooterNavigation, setEditedFooterNavigation] = useState<NavigationItem[]>([])
+  const [editedFooterNavigation, setEditedFooterNavigation] = useState<FooterSection[]>([])
   const [editedPages, setEditedPages] = useState<StaticPage[]>([])
 
   // Delete confirmation dialog state
@@ -904,7 +907,6 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       site: editedSite,
       navigation: editedNavigation,
       footer_navigation: editedFooterNavigation,
-      external_links: siteConfig.external_links || [],  // Keep original, not editable here
       static_pages: editedPages,
       template_dir: siteConfig.template_dir,
       output_dir: siteConfig.output_dir,
@@ -1023,7 +1025,10 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     const newPages = editedPages.filter((p) => p.name !== pageToDelete)
     const pageUrl = `/${pageObj.output_file}`
     const newNavigation = editedNavigation.filter((item) => item.url !== pageUrl)
-    const newFooterNavigation = editedFooterNavigation.filter((item) => item.url !== pageUrl)
+    const newFooterNavigation = editedFooterNavigation.map((section) => ({
+      ...section,
+      links: section.links.filter((link) => link.url !== pageUrl),
+    }))
 
     // Close dialog and clear selection
     setPageToDelete(null)
@@ -1040,7 +1045,6 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         site: editedSite,
         navigation: newNavigation,
         footer_navigation: newFooterNavigation,
-        external_links: siteConfig.external_links || [],
         static_pages: newPages,
         template_dir: siteConfig.template_dir,
         output_dir: siteConfig.output_dir,
@@ -1201,16 +1205,11 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         return (
           <ScrollArea className="h-full">
             <div className="p-6">
-              <NavigationBuilder
-                items={editedFooterNavigation}
+              <FooterSectionsEditor
+                sections={editedFooterNavigation}
                 onChange={setEditedFooterNavigation}
                 staticPages={editedPages}
                 groups={groups}
-                templates={templatesData?.templates ?? []}
-                onCreatePage={handleCreatePageFromNavigation}
-                title={t('builder.footerMenu')}
-                description={t('navigation.footerDescription')}
-                allowSubmenus={false}
               />
             </div>
           </ScrollArea>
@@ -1234,9 +1233,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
             onDelete={() => handleDeletePage(page.name)}
             onBack={() => setSelection(null)}
             navigation={editedNavigation}
-            footerNavigation={editedFooterNavigation}
             onUpdateNavigation={setEditedNavigation}
-            onUpdateFooterNavigation={setEditedFooterNavigation}
           />
         )
 
@@ -1387,7 +1384,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         <ResizableHandle withHandle />
 
         {/* Center Panel - Editor */}
-        <ResizablePanel defaultSize={showPreview ? 45 : 80} minSize={30}>
+        <ResizablePanel defaultSize={showPreview ? 45 : 85} minSize={30}>
           {renderEditor()}
         </ResizablePanel>
 

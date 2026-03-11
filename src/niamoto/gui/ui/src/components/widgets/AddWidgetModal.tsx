@@ -6,7 +6,7 @@
  * - Combined: Semantic groups + manual field selection
  * - Custom: 4-step wizard with YAML preview
  */
-import { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react'
+import { useState, useCallback, useMemo, useEffect, memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Loader2,
@@ -518,7 +518,6 @@ export function AddWidgetModal({
   // Get the suggestion to preview (only when clicked/focused)
   const previewSuggestionId = focusedSuggestion || null
   const previewSuggestion = visibleSuggestions.find((s) => s.template_id === previewSuggestionId)
-  const isMapPreview = previewSuggestion?.category === 'map'
   const isHeavyMapPreview = previewSuggestion
     ? isHeavyMapSuggestion(
         previewSuggestion.template_id,

@@ -9,7 +9,7 @@
  * - Real-time editing
  */
 
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   EditorRoot,
@@ -22,6 +22,7 @@ import {
   Placeholder,
   TaskList,
   TaskItem,
+  TiptapLink,
   Command,
   createSuggestionItems,
   renderItems,
@@ -52,29 +53,176 @@ interface MarkdownEditorProps {
   readOnly?: boolean
 }
 
+// Extract all images from a line (handles multiple images on same line)
+// e.g., "![a](x.png) ![b](y.png)" → [{alt, src}, ...]
+function extractImagesFromLine(line: string): Array<{ altPart: string; src: string }> | null {
+  const regex = /!\[([^\]]*)\]\(([^)]+)\)/g
+  const results: Array<{ altPart: string; src: string }> = []
+  let match
+  while ((match = regex.exec(line)) !== null) {
+    results.push({ altPart: match[1], src: match[2] })
+  }
+  // Only return if the ENTIRE line is images (possibly with spaces between)
+  if (results.length === 0) return null
+  const stripped = line.replace(/!\[[^\]]*\]\([^)]+\)/g, '').trim()
+  if (stripped.length > 0) return null // line has non-image text
+  return results
+}
+
 // Parse a single image markdown syntax
+// Format: ![alt](src) or ![alt|300](src) or ![alt|300|center](src) or ![alt|center](src)
 function parseImageMarkdown(line: string): JSONContent | null {
   const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
   if (!imageMatch) return null
 
   const [, altPart, src] = imageMatch
-  // Check for width in alt text: "alt|300" or just "alt"
+  // Parse alt text parts: "alt", "alt|300", "alt|center", "alt|300|center"
   const altParts = altPart.split('|')
   const alt = altParts[0]
-  const width = altParts[1] ? parseInt(altParts[1], 10) : undefined
+  let width: number | undefined
+  let align: string | undefined
+  for (let i = 1; i < altParts.length; i++) {
+    const part = altParts[i].trim()
+    if (part === 'center' || part === 'right' || part === 'left') {
+      align = part
+    } else if (/^\d+$/.test(part)) {
+      width = parseInt(part, 10)
+    }
+  }
   // Convert relative paths to API URL for display
   const imageSrc = src.startsWith('files/') ? `/api/site/${src}` : src
-  // Use imageResize type to match tiptap-extension-resize-image
+  // Build containerStyle with width + alignment (matches tiptap-extension-resize-image format)
+  const containerParts: string[] = []
+  containerParts.push(`width: ${width ? width + 'px' : '100%'}`)
+  containerParts.push('height: auto')
+  containerParts.push('cursor: pointer')
+  if (align === 'center') containerParts.push('margin: 0 auto')
+  else if (align === 'right') containerParts.push('margin: 0 0 0 auto')
   return {
     type: 'imageResize',
     attrs: {
       src: imageSrc,
       alt,
       title: alt,
-      wrapperStyle: width ? `width: ${width}px` : 'display: flex',
-      containerStyle: null,
+      wrapperStyle: 'display: flex',
+      containerStyle: containerParts.join('; ') + ';',
     },
   }
+}
+
+// Build an imageResize node from extracted alt/src parts
+function buildImageNode(altPart: string, src: string): JSONContent {
+  const altParts = altPart.split('|')
+  const alt = altParts[0]
+  let width: number | undefined
+  let align: string | undefined
+  for (let i = 1; i < altParts.length; i++) {
+    const part = altParts[i].trim()
+    if (part === 'center' || part === 'right' || part === 'left') {
+      align = part
+    } else if (/^\d+$/.test(part)) {
+      width = parseInt(part, 10)
+    }
+  }
+  const imageSrc = src.startsWith('files/') ? `/api/site/${src}` : src
+  const containerParts: string[] = []
+  containerParts.push(`width: ${width ? width + 'px' : '100%'}`)
+  containerParts.push('height: auto')
+  containerParts.push('cursor: pointer')
+  if (align === 'center') containerParts.push('margin: 0 auto')
+  else if (align === 'right') containerParts.push('margin: 0 0 0 auto')
+  return {
+    type: 'imageResize',
+    attrs: {
+      src: imageSrc,
+      alt,
+      title: alt,
+      wrapperStyle: 'display: flex',
+      containerStyle: containerParts.join('; ') + ';',
+    },
+  }
+}
+
+// Parse inline markdown formatting (bold, italic, code, links) into Tiptap text nodes with marks
+function parseInlineContent(text: string): JSONContent[] {
+  if (!text) return []
+
+  const result: JSONContent[] = []
+  let i = 0
+  let plainStart = 0
+
+  const pushPlain = (end: number) => {
+    if (end > plainStart) {
+      result.push({ type: 'text', text: text.slice(plainStart, end) })
+    }
+  }
+
+  while (i < text.length) {
+    // Bold: **text**
+    if (text[i] === '*' && text[i + 1] === '*') {
+      const endIdx = text.indexOf('**', i + 2)
+      if (endIdx !== -1) {
+        pushPlain(i)
+        const inner = text.slice(i + 2, endIdx)
+        result.push({ type: 'text', text: inner, marks: [{ type: 'bold' }] })
+        i = endIdx + 2
+        plainStart = i
+        continue
+      }
+    }
+
+    // Italic: *text* (not preceded by *)
+    if (text[i] === '*' && text[i + 1] !== '*' && (i === 0 || text[i - 1] !== '*')) {
+      const endIdx = text.indexOf('*', i + 1)
+      if (endIdx !== -1 && text[endIdx + 1] !== '*') {
+        pushPlain(i)
+        const inner = text.slice(i + 1, endIdx)
+        result.push({ type: 'text', text: inner, marks: [{ type: 'italic' }] })
+        i = endIdx + 1
+        plainStart = i
+        continue
+      }
+    }
+
+    // Inline code: `text`
+    if (text[i] === '`') {
+      const endIdx = text.indexOf('`', i + 1)
+      if (endIdx !== -1) {
+        pushPlain(i)
+        const inner = text.slice(i + 1, endIdx)
+        result.push({ type: 'text', text: inner, marks: [{ type: 'code' }] })
+        i = endIdx + 1
+        plainStart = i
+        continue
+      }
+    }
+
+    // Link: [text](url)
+    if (text[i] === '[') {
+      const closeBracket = text.indexOf(']', i + 1)
+      if (closeBracket !== -1 && text[closeBracket + 1] === '(') {
+        const closeParen = text.indexOf(')', closeBracket + 2)
+        if (closeParen !== -1) {
+          pushPlain(i)
+          const linkText = text.slice(i + 1, closeBracket)
+          const href = text.slice(closeBracket + 2, closeParen)
+          result.push({
+            type: 'text',
+            text: linkText,
+            marks: [{ type: 'link', attrs: { href, target: '_blank' } }],
+          })
+          i = closeParen + 1
+          plainStart = i
+          continue
+        }
+      }
+    }
+
+    i++
+  }
+
+  pushPlain(i)
+  return result.length > 0 ? result : [{ type: 'text', text }]
 }
 
 // Convert markdown to Tiptap JSON content
@@ -91,7 +239,7 @@ function markdownToContent(markdown: string): JSONContent {
       content.push({
         type: 'heading',
         attrs: { level: 3 },
-        content: [{ type: 'text', text: trimmed.slice(4) }],
+        content: parseInlineContent(trimmed.slice(4)),
       })
       continue
     }
@@ -99,7 +247,7 @@ function markdownToContent(markdown: string): JSONContent {
       content.push({
         type: 'heading',
         attrs: { level: 2 },
-        content: [{ type: 'text', text: trimmed.slice(3) }],
+        content: parseInlineContent(trimmed.slice(3)),
       })
       continue
     }
@@ -107,7 +255,7 @@ function markdownToContent(markdown: string): JSONContent {
       content.push({
         type: 'heading',
         attrs: { level: 1 },
-        content: [{ type: 'text', text: trimmed.slice(2) }],
+        content: parseInlineContent(trimmed.slice(2)),
       })
       continue
     }
@@ -119,7 +267,7 @@ function markdownToContent(markdown: string): JSONContent {
         content: [
           {
             type: 'paragraph',
-            content: [{ type: 'text', text: trimmed.slice(2) }],
+            content: parseInlineContent(trimmed.slice(2)),
           },
         ],
       })
@@ -137,6 +285,20 @@ function markdownToContent(markdown: string): JSONContent {
       continue
     }
 
+    // Markdown table (lines starting with |)
+    if (trimmed.startsWith('|') || trimmed.startsWith('| ')) {
+      const tableLines = trimmed.split('\n')
+      const isTable = tableLines.length >= 2 && tableLines.every((l) => l.trim().startsWith('|'))
+      if (isTable) {
+        content.push({
+          type: 'codeBlock',
+          attrs: { language: 'markdown' },
+          content: [{ type: 'text', text: trimmed }],
+        })
+        continue
+      }
+    }
+
     // Bullet list item
     if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       const items = trimmed.split('\n').filter((l) => l.startsWith('- ') || l.startsWith('* '))
@@ -147,7 +309,7 @@ function markdownToContent(markdown: string): JSONContent {
           content: [
             {
               type: 'paragraph',
-              content: [{ type: 'text', text: item.slice(2) }],
+              content: parseInlineContent(item.slice(2)),
             },
           ],
         })),
@@ -155,32 +317,42 @@ function markdownToContent(markdown: string): JSONContent {
       continue
     }
 
-    // Check if block contains images (single or multiple on separate lines)
+    // Check if block contains images (single, multiple per line, or on separate lines)
     const lines = trimmed.split('\n')
-    const imageLines = lines.filter((l) => l.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)$/))
-
-    if (imageLines.length > 0 && imageLines.length === lines.length) {
-      // All lines are images - parse each one
-      for (const line of lines) {
-        const imageNode = parseImageMarkdown(line.trim())
-        if (imageNode) {
-          content.push(imageNode)
-        }
+    let allImages = true
+    const imageNodes: JSONContent[] = []
+    for (const line of lines) {
+      const lineTrimmed = line.trim()
+      // Single image on line
+      const singleImage = parseImageMarkdown(lineTrimmed)
+      if (singleImage) {
+        imageNodes.push(singleImage)
+        continue
       }
-      continue
+      // Multiple images on same line: ![a](x) ![b](y)
+      const multiImages = extractImagesFromLine(lineTrimmed)
+      if (multiImages) {
+        for (const img of multiImages) {
+          imageNodes.push(buildImageNode(img.altPart, img.src))
+        }
+        continue
+      }
+      // Not an image line
+      allImages = false
+      break
     }
 
-    // Single image on its own
-    const imageNode = parseImageMarkdown(trimmed)
-    if (imageNode) {
-      content.push(imageNode)
+    if (allImages && imageNodes.length > 0) {
+      for (const node of imageNodes) {
+        content.push(node)
+      }
       continue
     }
 
     // Regular paragraph
     content.push({
       type: 'paragraph',
-      content: trimmed ? [{ type: 'text', text: trimmed }] : [],
+      content: trimmed ? parseInlineContent(trimmed) : [],
     })
   }
 
@@ -190,8 +362,8 @@ function markdownToContent(markdown: string): JSONContent {
   }
 }
 
-// Convert Tiptap JSON content to markdown (with optional DOM-based widths)
-function contentToMarkdownWithWidths(content: JSONContent, imageWidths?: Map<string, number>): string {
+// Convert Tiptap JSON content to markdown
+function contentToMarkdownWithWidths(content: JSONContent): string {
   if (!content.content) return ''
 
   const nodes = content.content
@@ -202,7 +374,20 @@ function contentToMarkdownWithWidths(content: JSONContent, imageWidths?: Map<str
     const prevNode = i > 0 ? nodes[i - 1] : null
 
     const getText = (n: JSONContent): string => {
-      if (n.text) return n.text
+      if (n.text) {
+        let text = n.text
+        if (n.marks) {
+          for (const mark of [...n.marks].reverse()) {
+            switch (mark.type) {
+              case 'bold': text = `**${text}**`; break
+              case 'italic': text = `*${text}*`; break
+              case 'code': text = `\`${text}\``; break
+              case 'link': text = `[${text}](${mark.attrs?.href || ''})`; break
+            }
+          }
+        }
+        return text
+      }
       if (n.content) return n.content.map(getText).join('')
       return ''
     }
@@ -252,9 +437,16 @@ function contentToMarkdownWithWidths(content: JSONContent, imageWidths?: Map<str
           .join('\n')
         break
 
-      case 'codeBlock':
-        markdown = '```\n' + getText(node) + '\n```'
+      case 'codeBlock': {
+        const codeText = getText(node)
+        // Markdown tables stored as codeBlock: output raw (no backtick fences)
+        if (codeText.trimStart().startsWith('|') && codeText.includes('|---')) {
+          markdown = codeText
+        } else {
+          markdown = '```\n' + codeText + '\n```'
+        }
         break
+      }
 
       case 'horizontalRule':
         markdown = '---'
@@ -264,19 +456,25 @@ function contentToMarkdownWithWidths(content: JSONContent, imageWidths?: Map<str
       case 'imageResize': {
         const imgSrc = node.attrs?.src || ''
         const imgAlt = node.attrs?.alt || ''
-        // First try to get width from DOM-based map (for resize detection)
-        // Then fallback to wrapperStyle attribute
-        let imgWidth: number | undefined = imageWidths?.get(imgSrc)
-        if (!imgWidth) {
-          const wrapperStyle = node.attrs?.wrapperStyle || ''
-          const widthMatch = wrapperStyle.match(/width:\s*(\d+)px/)
-          imgWidth = widthMatch ? parseInt(widthMatch[1], 10) : undefined
+        const containerStyle = node.attrs?.containerStyle || ''
+        // Read width from containerStyle (the extension stores it there)
+        const widthMatch = containerStyle.match(/width:\s*([0-9.]+)px/)
+        const imgWidth = widthMatch ? Math.round(parseFloat(widthMatch[1])) : undefined
+        // Read alignment from containerStyle
+        // Browser normalizes "margin: 0 auto" to various forms like "margin: 0px auto 0px auto"
+        let imgAlign: string | undefined
+        if (/margin:\s*0(?:px)?\s+auto/.test(containerStyle)) {
+          imgAlign = 'center'
+        } else if (/margin:\s*0(?:px)?\s+0(?:px)?\s+0(?:px)?\s+auto/.test(containerStyle)) {
+          imgAlign = 'right'
         }
         // Convert API URL back to relative path for markdown
         const markdownSrc = imgSrc.replace('/api/site/', '')
-        // Include width in alt if set: ![alt|width](src)
-        const altWithWidth = imgWidth ? `${imgAlt}|${imgWidth}` : imgAlt
-        markdown = `![${altWithWidth}](${markdownSrc})`
+        // Build alt with metadata: ![alt|width|center](src)
+        let altWithMeta = imgAlt
+        if (imgWidth) altWithMeta += `|${imgWidth}`
+        if (imgAlign && imgAlign !== 'left') altWithMeta += `|${imgAlign}`
+        markdown = `![${altWithMeta}](${markdownSrc})`
         break
       }
 
@@ -301,11 +499,6 @@ function contentToMarkdownWithWidths(content: JSONContent, imageWidths?: Map<str
   return results.join('')
 }
 
-// Wrapper for backward compatibility
-function contentToMarkdown(content: JSONContent): string {
-  return contentToMarkdownWithWidths(content)
-}
-
 export function MarkdownEditor({
   initialContent = '',
   onChange,
@@ -326,9 +519,6 @@ export function MarkdownEditor({
 
   // Store editor reference for inserting image after dialog closes
   const editorRef = useRef<any>(null)
-
-  // Ref to the editor container for MutationObserver and DOM reading
-  const editorContainerRef = useRef<HTMLDivElement>(null)
 
   // Store onChange ref to always have latest version in callbacks
   const onChangeRef = useRef(onChange)
@@ -380,11 +570,8 @@ export function MarkdownEditor({
           icon: <ImageIcon size={18} />,
           searchTerms: ['image', 'photo', 'picture', 'img'],
           command: ({ editor, range }: any) => {
-            // Delete the slash command text first (this closes the menu)
             editor.chain().focus().deleteRange(range).run()
-            // Store editor reference for later use (range is now handled)
             editorRef.current = editor
-            // Open the image picker dialog
             setImageDialogOpen(true)
           },
         },
@@ -487,6 +674,12 @@ export function MarkdownEditor({
           },
         },
       }),
+      TiptapLink.configure({
+        HTMLAttributes: {
+          class: 'text-primary underline underline-offset-[3px] hover:text-primary/80 cursor-pointer',
+        },
+        openOnClick: false,
+      }),
       TaskList.configure({
         HTMLAttributes: {
           class: 'not-prose',
@@ -517,98 +710,17 @@ export function MarkdownEditor({
   // Build extensions - exclude slash command in read-only mode
   const editorExtensions = readOnly ? extensions.filter((ext) => ext.name !== 'command') : extensions
 
-  // Helper to read image widths from DOM
-  const getImageWidthsFromDOM = useCallback((): Map<string, number> => {
-    const imageWidths = new Map<string, number>()
-    if (!editorContainerRef.current) return imageWidths
-
-    const imageWrappers = editorContainerRef.current.querySelectorAll('div[draggable="true"]')
-    imageWrappers.forEach((wrapper) => {
-      const innerDiv = wrapper.querySelector('div')
-      const img = wrapper.querySelector('img')
-      if (innerDiv && img) {
-        const style = innerDiv.getAttribute('style') || ''
-        const widthMatch = style.match(/width:\s*(\d+)px/)
-        if (widthMatch) {
-          const src = img.getAttribute('src') || ''
-          imageWidths.set(src, parseInt(widthMatch[1], 10))
-        }
-      }
-    })
-    return imageWidths
+  // Helper to serialize editor content to markdown
+  const serializeToMarkdown = useCallback((editor: any): string => {
+    const json = editor.getJSON()
+    return contentToMarkdownWithWidths(json)
   }, [])
-
-  // Handle content updates
-  const handleUpdate = useCallback(
-    ({ editor }: { editor: any }) => {
-      // Use ref to always have latest onChange callback
-      const currentOnChange = onChangeRef.current
-      if (currentOnChange) {
-        const json = editor.getJSON()
-        // Always read widths from DOM to preserve resize state
-        const imageWidths = getImageWidthsFromDOM()
-        const md = contentToMarkdownWithWidths(json, imageWidths)
-        currentOnChange(md)
-
-        // Track empty state for help overlay
-        setIsEmpty(!md || md.trim() === '')
-      }
-    },
-    [getImageWidthsFromDOM]
-  )
-
-  // MutationObserver to detect image resize changes
-  // tiptap-extension-resize-image modifies DOM style directly without triggering onUpdate
-  useEffect(() => {
-    if (readOnly || !editorContainerRef.current) return
-
-    // Capture element reference at effect creation to ensure proper cleanup
-    const element = editorContainerRef.current
-
-    const observer = new MutationObserver((mutations) => {
-      // Check if any mutation is a style change on an image wrapper
-      const hasImageStyleChange = mutations.some((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-          const target = mutation.target as HTMLElement
-          // Check if it's an image wrapper (div inside the draggable container)
-          return target.parentElement?.hasAttribute('draggable') ||
-                 target.hasAttribute('draggable')
-        }
-        return false
-      })
-
-      if (hasImageStyleChange) {
-        // Trigger onChange after a small delay to let the resize complete
-        setTimeout(() => {
-          const currentOnChange = onChangeRef.current
-          if (currentOnChange && editorRef.current) {
-            // Read widths from DOM since the extension doesn't update node attributes
-            const imageWidths = getImageWidthsFromDOM()
-            const json = editorRef.current.getJSON()
-            const md = contentToMarkdownWithWidths(json, imageWidths)
-            currentOnChange(md)
-          }
-        }, 100)
-      }
-    })
-
-    // Observe the editor container for style changes
-    observer.observe(element, {
-      attributes: true,
-      attributeFilter: ['style'],
-      subtree: true,
-    })
-
-    return () => observer.disconnect()
-  }, [readOnly, getImageWidthsFromDOM])
 
   // Handle image selection from dialog (supports multiple images for gallery)
   const handleImageSelect = useCallback((images: SelectedImage[]) => {
     const editor = editorRef.current
 
     if (editor && images.length > 0) {
-      // Insert all images consecutively (creates gallery effect)
-      // Build content array with consecutive image nodes
       const imageNodes = images.map((image) => {
         const imageSrc = image.path.startsWith('files/') ? `/api/site/${image.path}` : image.path
         return {
@@ -618,28 +730,12 @@ export function MarkdownEditor({
             alt: image.altText,
             title: image.altText,
             wrapperStyle: 'display: flex',
-            containerStyle: null,
+            containerStyle: 'width: 100%; height: auto; cursor: pointer;',
           },
         }
       })
 
-      // Insert all images at once
       editor.chain().focus().insertContent(imageNodes).run()
-
-      // Manually trigger onChange since setImage may not trigger onUpdate
-      // Use ref to always have latest onChange callback
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          const currentOnChange = onChangeRef.current
-          if (currentOnChange) {
-            const json = editor.getJSON()
-            const md = contentToMarkdown(json)
-            currentOnChange(md)
-          }
-        }, 50)
-      })
-
-      // Note: Don't clear editorRef - it's needed for resize detection via MutationObserver
     }
   }, [])
 
@@ -654,19 +750,9 @@ export function MarkdownEditor({
           border-radius: 4px;
         }
 
-        /* ========================================
-           Gallery: consecutive images side-by-side
-           Target the actual DOM structure from tiptap-extension-resize-image:
-           <div style="display: flex" contenteditable="false" draggable="true">
-             <div style="width: Xpx"><img></div>
-           </div>
-           ======================================== */
-
-        /* Image wrapper - inline display for gallery, respect user-defined width */
+        /* Image wrapper - respect alignment styles from the resize extension */
         .ProseMirror > div[draggable="true"] {
-          display: inline-block !important;
-          vertical-align: top;
-          margin: 4px;
+          margin: 4px 0;
           max-width: 100%;
           position: relative;
         }
@@ -698,7 +784,6 @@ export function MarkdownEditor({
         }
       `}</style>
       <div
-        ref={editorContainerRef}
         className={cn(
           'relative w-full rounded-lg border bg-background',
           readOnly ? 'min-h-0' : 'min-h-[300px]',
@@ -734,8 +819,21 @@ export function MarkdownEditor({
             extensions={editorExtensions}
             editable={!readOnly}
             onCreate={({ editor }) => {
-              // Store editor reference for image insertion and resize detection
               editorRef.current = editor
+              // Single listener for ALL document changes (text edits + image resize/alignment)
+              // The extension's dispatchNodeView() uses view.dispatch(tr.setNodeMarkup(...))
+              // which sets transaction.docChanged = true
+              if (!readOnly) {
+                editor.on('transaction', ({ transaction }: { transaction: any }) => {
+                  if (!transaction.docChanged) return
+                  const currentOnChange = onChangeRef.current
+                  if (currentOnChange) {
+                    const md = serializeToMarkdown(editor)
+                    currentOnChange(md)
+                    setIsEmpty(!md || md.trim() === '')
+                  }
+                })
+              }
             }}
             className={cn(
               'relative w-full border-none bg-transparent p-4',
@@ -752,7 +850,6 @@ export function MarkdownEditor({
                 ),
               },
             }}
-            onUpdate={readOnly ? undefined : handleUpdate}
           >
             {/* Slash commands menu - only show in edit mode */}
             {!readOnly && (

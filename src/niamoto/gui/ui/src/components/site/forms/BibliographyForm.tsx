@@ -20,13 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { FileUp } from 'lucide-react'
+import { FileUp, FileDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { RepeatableField } from './RepeatableField'
 import { MarkdownContentField } from './MarkdownContentField'
 import { ExternalizableListField } from './ExternalizableListField'
 import { LocalizedInput, type LocalizedString } from '@/components/ui/localized-input'
-import { useDataContent, useUpdateDataContent, useImportBibtex } from '@/hooks/useSiteConfig'
+import { useDataContent, useUpdateDataContent, useImportBibtex, exportBibtex } from '@/hooks/useSiteConfig'
 
 // Types for bibliography.html context
 interface ReferenceItem {
@@ -215,7 +215,7 @@ export function BibliographyForm({
           description={t('forms.bibliography.referenceCount', { count: localReferences.length })}
         />
 
-        {/* BibTeX Import */}
+        {/* BibTeX Import / Export */}
         <div className="flex items-center gap-2">
           <input
             ref={bibtexInputRef}
@@ -232,6 +232,24 @@ export function BibliographyForm({
           >
             <FileUp className="h-4 w-4 mr-2" />
             {t('forms.common.importBibtex')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                await exportBibtex(localReferences as unknown as Record<string, unknown>[])
+                toast.success(t('forms.common.exportBibtexSuccess'))
+              } catch (error) {
+                toast.error(t('forms.common.exportBibtexError'), {
+                  description: String(error),
+                })
+              }
+            }}
+            disabled={localReferences.length === 0}
+          >
+            <FileDown className="h-4 w-4 mr-2" />
+            {t('forms.common.exportBibtex')}
           </Button>
           <span className="text-xs text-muted-foreground">
             {t('forms.bibliography.referenceCount', { count: localReferences.length })}

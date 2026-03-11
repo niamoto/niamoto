@@ -48,11 +48,15 @@ export interface NavigationItem {
   children?: NavigationItem[]
 }
 
-export interface ExternalLink {
-  name: string
+export interface FooterLink {
+  text: LocalizedString
   url: string
-  icon?: string | null  // Font Awesome class or icon name
-  type?: 'github' | 'twitter' | 'facebook' | 'linkedin' | 'instagram' | 'website' | 'email' | null
+  external?: boolean
+}
+
+export interface FooterSection {
+  title: LocalizedString
+  links: FooterLink[]
 }
 
 export interface StaticPageContext {
@@ -73,8 +77,7 @@ export interface StaticPage {
 export interface SiteConfigResponse {
   site: SiteSettings
   navigation: NavigationItem[]
-  footer_navigation: NavigationItem[]
-  external_links: ExternalLink[]
+  footer_navigation: FooterSection[]
   static_pages: StaticPage[]
   template_dir: string
   output_dir: string
@@ -84,8 +87,7 @@ export interface SiteConfigResponse {
 export interface SiteConfigUpdate {
   site: SiteSettings
   navigation: NavigationItem[]
-  footer_navigation: NavigationItem[]
-  external_links: ExternalLink[]
+  footer_navigation: FooterSection[]
   static_pages: StaticPage[]
   template_dir?: string | null
   output_dir?: string | null
@@ -225,7 +227,9 @@ export interface TemplatePreviewRequest {
   context: Record<string, unknown>
   site?: Record<string, unknown>
   navigation?: Array<{ text: LocalizedString; url?: string; children?: unknown[] }>
-  footer_navigation?: Array<{ text: LocalizedString; url?: string; children?: unknown[] }>
+  footer_navigation?: Array<{ title: LocalizedString; links: Array<{ text: LocalizedString; url: string; external?: boolean }> }>
+  output_file?: string
+  gui_lang?: string
 }
 
 /**
@@ -592,6 +596,30 @@ export function useImportBibtex() {
   return useMutation({
     mutationFn: (file: File) => importBibtex(file),
   })
+}
+
+/**
+ * Export references as a downloadable BibTeX file.
+ */
+export async function exportBibtex(references: Record<string, unknown>[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/export-bibtex`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(references),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new Error(error.detail || 'Export failed')
+  }
+
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'references.bib'
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 /**

@@ -32,6 +32,7 @@ interface SocialLink {
 interface TeamMember {
   name: string
   role: string
+  group?: string
   institution?: string
   photo?: string
   email?: string
@@ -198,8 +199,8 @@ export function TeamForm({
             addLabel={t('forms.team.addMember')}
             renderItem={(item, _index, onItemChange) => (
               <div className="space-y-3">
-                {/* Row 1: Name, Role */}
-                <div className="grid grid-cols-2 gap-2">
+                {/* Row 1: Name, Role, Group */}
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">{t('forms.team.name')}</Label>
                     <Input
@@ -214,6 +215,14 @@ export function TeamForm({
                       value={item.role}
                       onChange={(e) => onItemChange({ ...item, role: e.target.value })}
                       placeholder={t('forms.team.rolePlaceholder')}
+                    />
+                  </div>
+                  <div className="space-y-1 w-40">
+                    <Label className="text-xs">{t('forms.team.group')}</Label>
+                    <Input
+                      value={item.group || ''}
+                      onChange={(e) => onItemChange({ ...item, group: e.target.value })}
+                      placeholder={t('forms.team.groupPlaceholder')}
                     />
                   </div>
                 </div>

@@ -79,7 +79,7 @@ export function buildQueryKey(d: PreviewDescriptor): readonly unknown[] {
     d.entityId ?? '__default',
   ]
   if (d.inline) {
-    return [...base, 'inline', stableHash(d.inline as Record<string, unknown>)] as const
+    return [...base, 'inline', stableHash(d.inline as unknown as Record<string, unknown>)] as const
   }
   return [...base, d.templateId ?? '__default'] as const
 }
