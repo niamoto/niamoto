@@ -1,36 +1,36 @@
-# Guide de developpement de plugins
+# Guide de développement de plugins
 
-Ce guide explique comment creer des plugins pour la plateforme Niamoto. Les plugins permettent d'etendre les fonctionnalites sans modifier le code principal.
+Ce guide explique comment créer des plugins pour la plateforme Niamoto. Les plugins permettent d'étendre les fonctionnalités sans modifier le code principal.
 
-## Table des matieres
+## Table des matières
 
-- [Pre-requis](#pre-requis)
+- [Prérequis](#prérequis)
 - [Structure des fichiers](#structure-des-fichiers)
-- [Creer un plugin Transformer](#creer-un-plugin-transformer)
-  - [Etape 1 : Definir le modele de parametres](#etape-1--definir-le-modele-de-parametres)
-  - [Etape 2 : Definir le modele de configuration](#etape-2--definir-le-modele-de-configuration)
-  - [Etape 3 : Implementer la classe du plugin](#etape-3--implementer-la-classe-du-plugin)
-  - [Etape 4 : Configurer en YAML](#etape-4--configurer-en-yaml)
-- [Modeles de configuration en detail](#modeles-de-configuration-en-detail)
-  - [BasePluginParams — parametres types](#basepluginparams--parametres-types)
+- [Créer un plugin Transformer](#créer-un-plugin-transformer)
+  - [Étape 1 : Définir le modèle de paramètres](#étape-1--définir-le-modèle-de-paramètres)
+  - [Étape 2 : Définir le modèle de configuration](#étape-2--définir-le-modèle-de-configuration)
+  - [Étape 3 : Implémenter la classe du plugin](#étape-3--implémenter-la-classe-du-plugin)
+  - [Étape 4 : Configurer en YAML](#étape-4--configurer-en-yaml)
+- [Modèles de configuration en détail](#modèles-de-configuration-en-détail)
+  - [BasePluginParams — paramètres typés](#basepluginparams--paramètres-typés)
   - [PluginConfig — enveloppe YAML](#pluginconfig--enveloppe-yaml)
   - [param_schema vs config_model](#param_schema-vs-config_model)
 - [Indices GUI (json_schema_extra)](#indices-gui-json_schema_extra)
-- [Sujets avances](#sujets-avances)
-  - [Chaines de plugins](#chaines-de-plugins)
+- [Sujets avancés](#sujets-avancés)
+  - [Chaînes de plugins](#chaînes-de-plugins)
   - [Gestion des erreurs](#gestion-des-erreurs)
   - [Tester un plugin](#tester-un-plugin)
 
-## Pre-requis
+## Prérequis
 
 1. Une installation Niamoto fonctionnelle
 2. Connaissance de Python et Pydantic v2
-3. Familiarite avec les fichiers YAML (`transform.yml`, `export.yml`)
-4. Connaissance des donnees a traiter
+3. Familiarité avec les fichiers YAML (`transform.yml`, `export.yml`)
+4. Connaissance des données à traiter
 
 ## Structure des fichiers
 
-Les plugins personnalises se placent dans le repertoire `plugins/` du projet :
+Les plugins personnalisés se placent dans le répertoire `plugins/` du projet :
 
 ```bash
 project/
@@ -47,11 +47,11 @@ project/
 
 Les plugins internes sont dans `src/niamoto/core/plugins/transformers/`.
 
-## Creer un plugin Transformer
+## Créer un plugin Transformer
 
-### Etape 1 : Definir le modele de parametres
+### Étape 1 : Définir le modèle de paramètres
 
-Le modele de parametres herite de `BasePluginParams` et declare chaque parametre avec un type, une valeur par defaut, une description, et des indices pour le GUI :
+Le modèle de paramètres hérite de `BasePluginParams` et déclare chaque paramètre avec un type, une valeur par défaut, une description, et des indices pour le GUI :
 
 ```python
 # plugins/transformers/threshold_analysis.py
@@ -117,15 +117,15 @@ class ThresholdAnalysisParams(BasePluginParams):
 
 Points importants :
 
-- **`BasePluginParams`** a `extra="allow"` — les champs supplementaires dans le YAML sont acceptes
+- **`BasePluginParams`** a `extra="allow"` — les champs supplémentaires dans le YAML sont acceptés
 - **`Field(...)`** (sans valeur) rend le champ requis
-- **`Field(default=...)`** definit une valeur par defaut
+- **`Field(default=...)`** définit une valeur par défaut
 - **`ge=0`**, **`min_length=2`** etc. ajoutent des contraintes Pydantic natives
-- **`json_schema_extra`** fournit des indices au GUI (voir [section dediee](#indices-gui-json_schema_extra))
+- **`json_schema_extra`** fournit des indices au GUI (voir [section dédiée](#indices-gui-json_schema_extra))
 
-### Etape 2 : Definir le modele de configuration
+### Étape 2 : Définir le modèle de configuration
 
-Le `PluginConfig` est l'enveloppe qui correspond a la structure YAML (`plugin` + `params`) :
+Le `PluginConfig` est l'enveloppe qui correspond à la structure YAML (`plugin` + `params`) :
 
 ```python
 from typing import Dict, Any
@@ -153,9 +153,9 @@ class ThresholdAnalysisConfig(PluginConfig):
         return v
 ```
 
-Le validateur `validate_params` instancie `ThresholdAnalysisParams` pour beneficier de toutes les validations Pydantic avant de stocker les params en dict.
+Le validateur `validate_params` instancie `ThresholdAnalysisParams` pour bénéficier de toutes les validations Pydantic avant de stocker les params en dict.
 
-### Etape 3 : Implementer la classe du plugin
+### Étape 3 : Implémenter la classe du plugin
 
 ```python
 import pandas as pd
@@ -216,12 +216,12 @@ class ThresholdAnalysis(TransformerPlugin):
 Points importants :
 
 - **`config_model`** : valide la structure YAML globale (`plugin` + `params`)
-- **`param_schema`** : expose les champs types au GUI pour generer les formulaires
-- **`output_structure`** : declare la structure de sortie pour le pattern matching
-- **`params.field`** : acces type direct, pas de `params.get("field")` ni de cast manuel
-- Le service se charge de charger les donnees — le transformer est une fonction pure
+- **`param_schema`** : expose les champs typés au GUI pour générer les formulaires
+- **`output_structure`** : déclare la structure de sortie pour le pattern matching
+- **`params.field`** : accès typé direct, pas de `params.get("field")` ni de cast manuel
+- Le service se charge de charger les données — le transformer est une fonction pure
 
-### Etape 4 : Configurer en YAML
+### Étape 4 : Configurer en YAML
 
 ```yaml
 # config/transform.yml
@@ -237,11 +237,11 @@ Points importants :
         units: cm
 ```
 
-## Modeles de configuration en detail
+## Modèles de configuration en détail
 
-### BasePluginParams — parametres types
+### BasePluginParams — paramètres typés
 
-Classe de base pour les parametres de tous les plugins. Herite de `BaseModel` avec `extra="allow"`.
+Classe de base pour les paramètres de tous les plugins. Hérite de `BaseModel` avec `extra="allow"`.
 
 ```python
 from pydantic import BaseModel, ConfigDict
@@ -250,7 +250,7 @@ class BasePluginParams(BaseModel):
     model_config = ConfigDict(extra="allow")
 ```
 
-`extra="allow"` signifie que les champs non declares dans le modele sont acceptes sans erreur. C'est utile pour la retrocompatibilite quand de nouveaux parametres sont ajoutes au YAML.
+`extra="allow"` signifie que les champs non déclarés dans le modèle sont acceptés sans erreur. C'est utile pour la rétrocompatibilité quand de nouveaux paramètres sont ajoutés au YAML.
 
 Pour un plugin strict, surcharger dans la sous-classe :
 
@@ -262,7 +262,7 @@ class StrictParams(BasePluginParams):
 
 ### PluginConfig — enveloppe YAML
 
-Represente la structure YAML complete d'un widget dans `transform.yml` :
+Représente la structure YAML complète d'un widget dans `transform.yml` :
 
 ```python
 class PluginConfig(BaseModel):
@@ -273,40 +273,40 @@ class PluginConfig(BaseModel):
 
 ### param_schema vs config_model
 
-Chaque plugin definit deux attributs de classe :
+Chaque plugin définit deux attributs de classe :
 
-| Attribut | Type | Role |
+| Attribut | Type | Rôle |
 |----------|------|------|
 | `config_model` | `PluginConfig` subclass | Valide la structure YAML (`plugin` + `params` dict) |
-| `param_schema` | `BasePluginParams` subclass | Expose les parametres types avec leur schema JSON |
+| `param_schema` | `BasePluginParams` subclass | Expose les paramètres typés avec leur schéma JSON |
 
 Le GUI utilise `param_schema` pour :
-- Generer les formulaires automatiquement (`param_schema.model_json_schema()`)
-- Detecter les types de champs (texte, nombre, checkbox, select...)
+- Générer les formulaires automatiquement (`param_schema.model_json_schema()`)
+- Détecter les types de champs (texte, nombre, checkbox, select...)
 - Afficher les descriptions et exemples
-- Appliquer les widgets specifiques (`entity-select`, `layer-select`, `tags`...)
+- Appliquer les widgets spécifiques (`entity-select`, `layer-select`, `tags`...)
 
 Le backend utilise `config_model` pour valider le YAML au chargement et `param_schema` pour la validation fine dans `transform()`.
 
 ## Indices GUI (json_schema_extra)
 
-Le `json_schema_extra` de chaque `Field` controle le rendu dans le GUI :
+Le `json_schema_extra` de chaque `Field` contrôle le rendu dans le GUI :
 
 ### Widgets de formulaire
 
 | Valeur `ui:widget` | Composant GUI | Utilisation |
 |---------------------|---------------|-------------|
-| `text` | Champ texte | Titres, labels, unites |
-| `number` | Champ numerique | Bornes, seuils |
-| `checkbox` | Case a cocher | Booleens |
-| `select` | Liste deroulante | Valeurs enum |
-| `entity-select` | Selecteur d'entite | Sources de donnees |
-| `transform-source-select` | Selecteur de source | Sources configurees |
-| `layer-select` | Selecteur de layer | Fichiers raster/vector |
-| `tags` | Liste de tags | Categories, statistiques |
-| `key-value-pairs` | Paires cle-valeur | Mappings |
-| `json` | Editeur JSON | Structures complexes |
-| `array` | Liste editable | Champs repetes |
+| `text` | Champ texte | Titres, labels, unités |
+| `number` | Champ numérique | Bornes, seuils |
+| `checkbox` | Case à cocher | Booléens |
+| `select` | Liste déroulante | Valeurs enum |
+| `entity-select` | Sélecteur d'entité | Sources de données |
+| `transform-source-select` | Sélecteur de source | Sources configurées |
+| `layer-select` | Sélecteur de layer | Fichiers raster/vector |
+| `tags` | Liste de tags | Catégories, statistiques |
+| `key-value-pairs` | Paires clé-valeur | Mappings |
+| `json` | Éditeur JSON | Structures complexes |
+| `array` | Liste éditable | Champs répétés |
 
 ### Autres indices
 
@@ -321,7 +321,7 @@ json_schema_extra={
 }
 ```
 
-### Exemple reel : raster_stats
+### Exemple réel : raster_stats
 
 ```python
 class RasterStatsParams(BasePluginParams):
@@ -348,16 +348,16 @@ class RasterStatsParams(BasePluginParams):
     )
 ```
 
-Le GUI genere automatiquement :
-- Un selecteur de fichier filtre sur `.tif` pour `raster_path`
-- Un champ de tags avec auto-completion pour `stats`
+Le GUI génère automatiquement :
+- Un sélecteur de fichier filtré sur `.tif` pour `raster_path`
+- Un champ de tags avec auto-complétion pour `stats`
 - Un champ texte inline pour `units`
 
-## Sujets avances
+## Sujets avancés
 
-### Chaines de plugins
+### Chaînes de plugins
 
-Pour des analyses complexes, chainage de transformations via `transform_chain` :
+Pour des analyses complexes, chaînage de transformations via `transform_chain` :
 
 ```yaml
 phenology:
@@ -380,11 +380,11 @@ phenology:
         output_key: "phenology_peaks"
 ```
 
-La syntaxe `@step.field` reference la sortie d'une etape precedente.
+La syntaxe `@step.field` référence la sortie d'une étape précédente.
 
 ### Gestion des erreurs
 
-Utiliser les exceptions Niamoto pour des messages coherents :
+Utiliser les exceptions Niamoto pour des messages cohérents :
 
 ```python
 from niamoto.common.exceptions import DataTransformError

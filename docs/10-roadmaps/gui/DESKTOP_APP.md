@@ -43,7 +43,7 @@ Niamoto Desktop is a cross-platform desktop application that wraps the Niamoto w
 
 ### Application Flow
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │          Tauri Desktop App (Rust)           │
 │  ┌───────────────────────────────────────┐  │
@@ -227,7 +227,7 @@ When multiple plugins have the same name:
 
 ### Example
 
-```
+```text
 Project: /Users/user/niamoto-nc/plugins/my_transformer.py (priority 100) ✓
 User:    ~/.niamoto/plugins/my_transformer.py              (priority 50)  ✗
 System:  src/niamoto/core/plugins/my_transformer.py        (priority 10)  ✗
@@ -327,7 +327,7 @@ cargo tauri dev
 
 ### Project Structure
 
-```
+```text
 Niamoto/
 ├── src-tauri/                      # Tauri Rust application
 │   ├── src/
@@ -465,7 +465,7 @@ cargo tauri build
 cargo tauri build --bundles appimage
 
 # Portable executable - no installation needed
-./target/release/bundle/appimage/niamoto_0.7.4_amd64.AppImage
+./target/release/bundle/appimage/niamoto_{version}_amd64.AppImage
 ```
 
 ## Future Enhancements
@@ -481,5 +481,4 @@ cargo tauri build --bundles appimage
 ## References
 
 - [Tauri Documentation](https://tauri.app/v2/)
-- [Niamoto Plugin System](./PLUGINS.md)
 - [Resource Cascade Architecture](./ARCHITECTURE_MULTI_PROJETS.md)

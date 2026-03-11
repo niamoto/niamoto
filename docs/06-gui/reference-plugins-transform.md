@@ -91,7 +91,7 @@ Top N des valeurs les plus fréquentes.
 | `field` | str | _(requis)_ | Champ à classer |
 | `count` | int | `10` | Nombre de résultats (1-100) |
 | `mode` | str | `"direct"` | `direct`, `hierarchical`, `join` |
-| `hierarchy_table` | str | — | Table hiérarchique (mode hierarchical) |
+| `hierarchy_table` | str | — | Table hiérarchique (requis pour les modes `hierarchical` et `join`) |
 | `target_ranks` | Liste | — | Rangs cibles (`family`, `genus`) |
 
 ```yaml
@@ -466,3 +466,5 @@ Le GUI génère automatiquement les formulaires depuis le schéma Pydantic de ch
 | `key-value-pairs` | Paires clé-valeur | Mappings, labels |
 | `json` | Éditeur JSON | Structures complexes |
 | `array` | Liste éditable | Champs répétés |
+
+> **Note :** En plus de `ui:widget`, le contrat de génération des formulaires GUI supporte également des clés `ui_component` pour des composants spécialisés : `field_selector`, `multi_select`, `array_number`, `array_text`. Ces clés peuvent être définies dans le `json_schema_extra` du modèle Pydantic du plugin.

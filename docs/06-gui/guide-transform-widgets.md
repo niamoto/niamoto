@@ -84,7 +84,7 @@ Cliquer sur un widget dans la liste de gauche pour afficher ses détails :
 
 ### Onglet Preview
 
-Apercu en direct du rendu HTML. Utile pour vérifier la configuration avant export.
+Aperçu en direct du rendu HTML. Utile pour vérifier la configuration avant export.
 
 ### Onglet Paramètres
 
@@ -94,7 +94,7 @@ Formulaire généré automatiquement depuis le schéma du plugin :
 |---------------|-------------|---------|
 | Texte | Saisie libre | Titre, labels d'axes |
 | Nombre | Avec bornes min/max | `max_value`, `count` |
-| Case a cocher | Booléen | `include_percentages` |
+| Case à cocher | Booléen | `include_percentages` |
 | Sélecteur de source | Dropdown dynamique | `source: occurrences` |
 | Sélecteur d'entité | Dropdown des entités importées | `source: taxons` |
 | Sélecteur de layer | Fichiers raster/vector dans imports/ | `raster_path: imports/mnt.tif` |
@@ -104,7 +104,7 @@ Formulaire généré automatiquement depuis le schéma du plugin :
 
 ### Onglet YAML
 
-Apercu en lecture seule du YAML qui sera écrit dans `transform.yml` et `export.yml`.
+Aperçu en lecture seule du YAML qui sera écrit dans `transform.yml` et `export.yml`.
 
 ---
 
@@ -128,7 +128,7 @@ elevation_binned_distribution_bar_plot:
 ```
 
 Dans le GUI :
-1. Suggestions > choisir "Distribution de elevation"
+1. Suggestions > choisir "Distribution d'élévation"
 2. Modifier les intervalles (`bins`) via le formulaire
 3. Ajouter des labels d'axes
 
