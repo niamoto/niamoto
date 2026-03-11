@@ -3,7 +3,6 @@
 Endpoints :
   GET  /api/preview/{template_id}             — preview par template_id
   POST /api/preview                           — preview inline (transformer + widget explicites)
-  GET  /api/templates/preview/{template_id}   — alias rétrocompatible (→ supprimer Phase 5)
 """
 
 import logging
@@ -152,30 +151,4 @@ async def post_preview(body: InlinePreviewBody):
     return HTMLResponse(
         content=result.html,
         headers=_build_headers(result.etag),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Legacy : GET /api/templates/preview/{template_id}
-# Rétrocompatible — délègue à get_preview(). À supprimer en Phase 5.
-# ---------------------------------------------------------------------------
-
-
-@router.get("/templates/preview/{template_id}", response_class=HTMLResponse)
-async def legacy_get_preview(
-    template_id: str,
-    request: Request,
-    group_by: str | None = Query(default=None),
-    source: str | None = Query(default=None),
-    entity_id: str | None = Query(default=None),
-    mode: PreviewMode = Query(default="full"),
-):
-    """Alias rétrocompatible — délègue à get_preview(). À supprimer en Phase 5."""
-    return await get_preview(
-        template_id=template_id,
-        request=request,
-        group_by=group_by,
-        source=source,
-        entity_id=entity_id,
-        mode=mode,
     )
