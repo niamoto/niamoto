@@ -378,16 +378,19 @@ a,
   outline-offset: 2px;
 }
 
-/* Remove focus outline from contenteditable/editor areas */
+/* Remove focus outline from contenteditable/editor areas and command palette input */
 [data-platform="macos"] [contenteditable]:focus-visible,
 [data-platform="macos"] .tiptap:focus-visible,
 [data-platform="macos"] .ProseMirror:focus-visible,
+[data-platform="macos"] [data-slot="command-input"]:focus-visible,
 [data-platform="windows"] [contenteditable]:focus-visible,
 [data-platform="windows"] .tiptap:focus-visible,
 [data-platform="windows"] .ProseMirror:focus-visible,
+[data-platform="windows"] [data-slot="command-input"]:focus-visible,
 [data-platform="linux"] [contenteditable]:focus-visible,
 [data-platform="linux"] .tiptap:focus-visible,
-[data-platform="linux"] .ProseMirror:focus-visible {
+[data-platform="linux"] .ProseMirror:focus-visible,
+[data-platform="linux"] [data-slot="command-input"]:focus-visible {
   outline: none;
 }
 
