@@ -16,43 +16,27 @@
     "summary": "Résumé"
   },
   "sidebar": {
-    "sections": {
-      "sources": "Sources",
+    "nav": {
+      "data": "Données",
       "groups": "Groupes",
       "site": "Site",
-      "publish": "Publication",
-      "tools": "Outils",
-      "labs": "Labs"
+      "publish": "Publication"
     },
-    "items": {
-      "dashboard": "Dashboard",
-      "import": "Import",
-      "overview": "Vue d'ensemble",
-      "pages": "Pages",
-      "navigation": "Navigation",
-      "settings": "Paramètres",
-      "build": "Build",
-      "deploy": "Déploiement",
-      "history": "Historique",
-      "dataExplorer": "Data Explorer",
-      "livePreview": "Live Preview",
-      "showcase": "Showcase",
-      "configEditor": "Config Editor",
-      "plugins": "Plugins",
-      "docs": "Documentation",
-      "optionHybrid": "Option A: Hybride",
-      "optionCanvas": "Option B: Canvas",
-      "optionInline": "Option C: Inline"
-    },
-    "badges": {
-      "empty": "Vide",
-      "pages": "{{count}} page",
-      "pages_plural": "{{count}} pages"
-    },
+    "cmdkHint": "Outils & recherche",
     "footer": {
       "settings": "Paramètres",
       "previewSite": "Prévisualiser le site"
     }
+  },
+  "command": {
+    "search": "Rechercher une page ou un outil...",
+    "no_results": "Aucun résultat.",
+    "navigation": "Navigation",
+    "tools": "Outils",
+    "preferences": "Préférences",
+    "light_theme": "Thème clair",
+    "dark_theme": "Thème sombre",
+    "system_theme": "Thème système"
   },
   "actions": {
     "save": "Enregistrer",
