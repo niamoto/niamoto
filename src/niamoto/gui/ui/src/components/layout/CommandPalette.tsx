@@ -11,42 +11,30 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import {
+  Database,
+  Layers,
+  Globe,
+  Rocket,
   Upload,
   Settings,
-  Download,
-  Search,
-  Eye,
-  Wrench,
-  FileText,
-  Home,
   Sun,
   Moon,
-  Globe,
-  Layers
+  Search,
+  Eye,
+  FileText,
+  Puzzle,
+  BookOpen,
 } from 'lucide-react'
-import { useNavigationStore, navigationSections } from '@/stores/navigationStore'
+import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { useTheme } from '@/hooks/use-theme'
 
-// Icon mapping
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  import: Upload,
-  transform: Settings,
-  export: Download,
-  explorer: Search,
-  preview: Eye,
-  settings: Wrench,
-  plugins: Layers,
-  docs: FileText
-}
-
 export function CommandPalette() {
-  const { t, i18n } = useTranslation()
+  const { t, i18n } = useTranslation('common')
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { commandPaletteOpen, setCommandPaletteOpen } = useNavigationStore()
   const [search, setSearch] = useState('')
 
-  // Keyboard shortcut
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
@@ -75,91 +63,105 @@ export function CommandPalette() {
         i18n.changeLanguage(params[0])
         setCommandPaletteOpen(false)
         break
+      case 'preview':
+        window.open('/preview', '_blank')
+        setCommandPaletteOpen(false)
+        break
       default:
         break
     }
   }, [navigate, setTheme, i18n, setCommandPaletteOpen])
 
+  // Icon mapping for nav items
+  const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    data: Database,
+    groups: Layers,
+    site: Globe,
+    publish: Rocket,
+  }
+
   return (
     <CommandDialog open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen}>
       <CommandInput
-        placeholder={t('command.search', 'Type a command or search...')}
+        placeholder={t('command.search', 'Rechercher une page ou un outil...')}
         value={search}
         onValueChange={setSearch}
       />
       <CommandList>
-        <CommandEmpty>{t('command.no_results', 'No results found.')}</CommandEmpty>
+        <CommandEmpty>{t('command.no_results', 'Aucun résultat.')}</CommandEmpty>
 
         {/* Navigation */}
         <CommandGroup heading={t('command.navigation', 'Navigation')}>
-          <CommandItem value="navigate:/" onSelect={handleSelect}>
-            <Home className="mr-2 h-4 w-4" />
-            <span>{t('command.home', 'Home')}</span>
+          {navItems.map((item) => {
+            const Icon = navIconMap[item.id] || Database
+            return (
+              <CommandItem
+                key={item.id}
+                value={`navigate:${item.path}`}
+                keywords={[item.fallbackLabel, item.id]}
+                onSelect={handleSelect}
+              >
+                <Icon className="mr-2 h-4 w-4" />
+                <span>{t(item.labelKey, item.fallbackLabel)}</span>
+              </CommandItem>
+            )
+          })}
+          <CommandItem value="navigate:/sources/import" keywords={['import', 'importer', 'csv']} onSelect={handleSelect}>
+            <Upload className="mr-2 h-4 w-4" />
+            <span>Import</span>
           </CommandItem>
-          {navigationSections.map((section) => (
-            section.items.map((item) => {
-              const ItemIcon = iconMap[item.id] || FileText
-              return (
-                <CommandItem
-                  key={item.id}
-                  value={`navigate:${item.path}`}
-                  onSelect={handleSelect}
-                >
-                  <ItemIcon className="mr-2 h-4 w-4" />
-                  <span>{t(`navigation.${item.id}`, item.label)}</span>
-                  {item.badge && (
-                    <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs">
-                      {item.badge}
-                    </span>
-                  )}
-                </CommandItem>
-              )
-            })
-          ))}
         </CommandGroup>
 
         <CommandSeparator />
 
-        {/* Actions */}
-        <CommandGroup heading={t('command.actions', 'Actions')}>
-          <CommandItem value="action:new-import" disabled>
-            <Upload className="mr-2 h-4 w-4" />
-            <span>{t('command.new_import', 'New Import')}</span>
+        {/* Tools (formerly in sidebar TOOLS section) */}
+        <CommandGroup heading={t('command.tools', 'Outils')}>
+          <CommandItem value="navigate:/tools/explorer" keywords={['explorer', 'sql', 'requête', 'query', 'database']} onSelect={handleSelect}>
+            <Search className="mr-2 h-4 w-4" />
+            <span>Data Explorer</span>
           </CommandItem>
-          <CommandItem value="action:new-transform" disabled>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>{t('command.new_transform', 'New Transform')}</span>
+          <CommandItem value="navigate:/tools/config-editor" keywords={['config', 'yaml', 'configuration', 'import.yml', 'transform.yml', 'export.yml']} onSelect={handleSelect}>
+            <FileText className="mr-2 h-4 w-4" />
+            <span>Config Editor</span>
           </CommandItem>
-          <CommandItem value="action:export-site" disabled>
-            <Download className="mr-2 h-4 w-4" />
-            <span>{t('command.export_site', 'Export Site')}</span>
+          <CommandItem value="navigate:/tools/plugins" keywords={['plugins', 'extensions', 'transformers', 'exporters']} onSelect={handleSelect}>
+            <Puzzle className="mr-2 h-4 w-4" />
+            <span>Plugins</span>
+          </CommandItem>
+          <CommandItem value="navigate:/tools/docs" keywords={['docs', 'documentation', 'api', 'reference']} onSelect={handleSelect}>
+            <BookOpen className="mr-2 h-4 w-4" />
+            <span>Documentation API</span>
+          </CommandItem>
+          <CommandItem value="preview:" keywords={['preview', 'aperçu', 'site', 'visualiser']} onSelect={handleSelect}>
+            <Eye className="mr-2 h-4 w-4" />
+            <span>{t('sidebar.footer.previewSite', 'Aperçu du site')}</span>
           </CommandItem>
         </CommandGroup>
 
         <CommandSeparator />
 
         {/* Preferences */}
-        <CommandGroup heading={t('command.preferences', 'Preferences')}>
+        <CommandGroup heading={t('command.preferences', 'Préférences')}>
           <CommandItem value="theme:light" onSelect={handleSelect}>
             <Sun className="mr-2 h-4 w-4" />
-            <span>{t('command.light_theme', 'Light Theme')}</span>
+            <span>{t('command.light_theme', 'Thème clair')}</span>
           </CommandItem>
           <CommandItem value="theme:dark" onSelect={handleSelect}>
             <Moon className="mr-2 h-4 w-4" />
-            <span>{t('command.dark_theme', 'Dark Theme')}</span>
+            <span>{t('command.dark_theme', 'Thème sombre')}</span>
           </CommandItem>
           <CommandItem value="theme:system" onSelect={handleSelect}>
             <Settings className="mr-2 h-4 w-4" />
-            <span>{t('command.system_theme', 'System Theme')}</span>
+            <span>{t('command.system_theme', 'Thème système')}</span>
           </CommandItem>
           <CommandSeparator className="my-2" />
           <CommandItem value="language:en" onSelect={handleSelect}>
             <Globe className="mr-2 h-4 w-4" />
-            <span>EN</span>
+            <span>English</span>
           </CommandItem>
           <CommandItem value="language:fr" onSelect={handleSelect}>
             <Globe className="mr-2 h-4 w-4" />
-            <span>FR</span>
+            <span>Français</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

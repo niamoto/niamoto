@@ -9,7 +9,6 @@ import './App.css'
 
 // Lazy load pages
 const WelcomeScreen = lazy(() => import('@/pages/welcome'))
-const Showcase = lazy(() => import('@/pages/showcase'))
 
 // Sources pages
 const SourcesPage = lazy(() => import('@/pages/sources'))
@@ -28,7 +27,7 @@ const SiteNavigationPage = lazy(() => import('@/pages/site/navigation'))
 const SiteGeneralPage = lazy(() => import('@/pages/site/general'))
 const SiteAppearancePage = lazy(() => import('@/pages/site/appearance'))
 
-// Tools pages
+// Tools pages (accessible via Cmd+K)
 const DataExplorer = lazy(() => import('@/pages/tools/explorer').then(m => ({ default: m.DataExplorer })))
 const LivePreview = lazy(() => import('@/pages/tools/preview').then(m => ({ default: m.LivePreview })))
 const Settings = lazy(() => import('@/pages/tools/settings').then(m => ({ default: m.Settings })))
@@ -42,20 +41,17 @@ const PublishBuild = lazy(() => import('@/pages/publish/build'))
 const PublishDeploy = lazy(() => import('@/pages/publish/deploy'))
 const PublishHistory = lazy(() => import('@/pages/publish/history'))
 
-// Labs pages - UX mockups
-const LabsIndex = lazy(() => import('@/pages/labs'))
-const MockupWidgetsHybrid = lazy(() => import('@/pages/labs/mockup-widgets-hybrid'))
-const MockupCanvasBuilder = lazy(() => import('@/pages/labs/mockup-canvas-builder'))
-const MockupWidgetsInline = lazy(() => import('@/pages/labs/mockup-widgets-inline'))
+const PageFallback = () => (
+  <div className="flex items-center justify-center h-full">Loading...</div>
+)
 
 // Check if running in Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 
 function App() {
   const { data: projectInfo, refetch: refetchProjectInfo } = useProjectInfo()
-  const [initialized, setInitialized] = useState(!isTauri) // Skip init for web mode
+  const [initialized, setInitialized] = useState(!isTauri)
 
-  // Welcome screen state (only for Tauri mode)
   const {
     showWelcome,
     loading: welcomeLoading,
@@ -71,7 +67,6 @@ function App() {
     updateSettings,
   } = useWelcomeScreen()
 
-  // Initialize project context for Tauri mode (only if not showing welcome)
   useEffect(() => {
     if (!isTauri) return
     if (showWelcome) {
@@ -81,13 +76,11 @@ function App() {
 
     const initializeProject = async () => {
       try {
-        // Tell the FastAPI server to reload project from desktop config
         const response = await fetch('/api/health/reload-project', {
           method: 'POST',
         })
 
         if (response.ok) {
-          // Refetch project info after reload
           await refetchProjectInfo()
         }
       } catch (err) {
@@ -101,7 +94,6 @@ function App() {
   }, [refetchProjectInfo, showWelcome])
 
   useEffect(() => {
-    // Update document title based on project name
     if (projectInfo?.name) {
       document.title = `Niamoto - ${projectInfo.name}`
     } else {
@@ -109,7 +101,6 @@ function App() {
     }
   }, [projectInfo?.name])
 
-  // Show loading while welcome screen is initializing
   if (isTauriMode && welcomeLoading) {
     return (
       <ThemeProvider>
@@ -120,7 +111,6 @@ function App() {
     )
   }
 
-  // Show Welcome Screen in Tauri mode when no project
   if (isTauriMode && showWelcome) {
     return (
       <ThemeProvider>
@@ -147,7 +137,6 @@ function App() {
     )
   }
 
-  // Show loading while initializing in Tauri mode
   if (!initialized) {
     return (
       <ThemeProvider>
@@ -167,148 +156,40 @@ function App() {
             <Route index element={<Navigate to="/sources" replace />} />
 
             {/* Sources - Import & Data */}
-            <Route path="sources" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SourcesPage />
-              </Suspense>
-            } />
-            <Route path="sources/import" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <ImportPage />
-              </Suspense>
-            } />
-            <Route path="sources/dataset/:name" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <DatasetPage />
-              </Suspense>
-            } />
-            <Route path="sources/reference/:name" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <ReferencePage />
-              </Suspense>
-            } />
+            <Route path="sources" element={<Suspense fallback={<PageFallback />}><SourcesPage /></Suspense>} />
+            <Route path="sources/import" element={<Suspense fallback={<PageFallback />}><ImportPage /></Suspense>} />
+            <Route path="sources/dataset/:name" element={<Suspense fallback={<PageFallback />}><DatasetPage /></Suspense>} />
+            <Route path="sources/reference/:name" element={<Suspense fallback={<PageFallback />}><ReferencePage /></Suspense>} />
 
             {/* Groups - Widget configuration */}
-            <Route path="groups" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <GroupsPage />
-              </Suspense>
-            } />
-            <Route path="groups/:name" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <GroupDetailPage />
-              </Suspense>
-            } />
+            <Route path="groups" element={<Suspense fallback={<PageFallback />}><GroupsPage /></Suspense>} />
+            <Route path="groups/:name" element={<Suspense fallback={<PageFallback />}><GroupDetailPage /></Suspense>} />
 
             {/* Site - Static site configuration */}
-            <Route path="site" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SiteIndexPage />
-              </Suspense>
-            } />
-            <Route path="site/pages" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SitePagesPage />
-              </Suspense>
-            } />
-            <Route path="site/navigation" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SiteNavigationPage />
-              </Suspense>
-            } />
-            <Route path="site/general" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SiteGeneralPage />
-              </Suspense>
-            } />
-            <Route path="site/appearance" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <SiteAppearancePage />
-              </Suspense>
-            } />
+            <Route path="site" element={<Suspense fallback={<PageFallback />}><SiteIndexPage /></Suspense>} />
+            <Route path="site/pages" element={<Suspense fallback={<PageFallback />}><SitePagesPage /></Suspense>} />
+            <Route path="site/navigation" element={<Suspense fallback={<PageFallback />}><SiteNavigationPage /></Suspense>} />
+            <Route path="site/general" element={<Suspense fallback={<PageFallback />}><SiteGeneralPage /></Suspense>} />
+            <Route path="site/appearance" element={<Suspense fallback={<PageFallback />}><SiteAppearancePage /></Suspense>} />
 
-            {/* Tools */}
-            <Route path="tools/explorer" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <DataExplorer />
-              </Suspense>
-            } />
-            <Route path="tools/preview" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <LivePreview />
-              </Suspense>
-            } />
-            <Route path="tools/settings" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Settings />
-              </Suspense>
-            } />
-            <Route path="tools/plugins" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Plugins />
-              </Suspense>
-            } />
-            <Route path="tools/docs" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <ApiDocs />
-              </Suspense>
-            } />
-            <Route path="tools/config-editor" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <ConfigEditor />
-              </Suspense>
-            } />
+            {/* Tools (no sidebar entry — accessible via Cmd+K) */}
+            <Route path="tools/explorer" element={<Suspense fallback={<PageFallback />}><DataExplorer /></Suspense>} />
+            <Route path="tools/preview" element={<Suspense fallback={<PageFallback />}><LivePreview /></Suspense>} />
+            <Route path="tools/settings" element={<Suspense fallback={<PageFallback />}><Settings /></Suspense>} />
+            <Route path="tools/plugins" element={<Suspense fallback={<PageFallback />}><Plugins /></Suspense>} />
+            <Route path="tools/docs" element={<Suspense fallback={<PageFallback />}><ApiDocs /></Suspense>} />
+            <Route path="tools/config-editor" element={<Suspense fallback={<PageFallback />}><ConfigEditor /></Suspense>} />
 
             {/* Publish - Build & Deploy */}
-            <Route path="publish" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <PublishOverview />
-              </Suspense>
-            } />
-            <Route path="publish/build" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <PublishBuild />
-              </Suspense>
-            } />
-            <Route path="publish/deploy" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <PublishDeploy />
-              </Suspense>
-            } />
-            <Route path="publish/history" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <PublishHistory />
-              </Suspense>
-            } />
+            <Route path="publish" element={<Suspense fallback={<PageFallback />}><PublishOverview /></Suspense>} />
+            <Route path="publish/build" element={<Suspense fallback={<PageFallback />}><PublishBuild /></Suspense>} />
+            <Route path="publish/deploy" element={<Suspense fallback={<PageFallback />}><PublishDeploy /></Suspense>} />
+            <Route path="publish/history" element={<Suspense fallback={<PageFallback />}><PublishHistory /></Suspense>} />
 
-            {/* Showcase */}
-            <Route path="showcase" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <Showcase />
-              </Suspense>
-            } />
-
-            {/* Labs - UX Mockups */}
-            <Route path="labs" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <LabsIndex />
-              </Suspense>
-            } />
-            <Route path="labs/mockup-widgets-hybrid" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <MockupWidgetsHybrid />
-              </Suspense>
-            } />
-            <Route path="labs/mockup-canvas-builder" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <MockupCanvasBuilder />
-              </Suspense>
-            } />
-            <Route path="labs/mockup-widgets-inline" element={
-              <Suspense fallback={<div className="flex items-center justify-center h-full">Loading...</div>}>
-                <MockupWidgetsInline />
-              </Suspense>
-            } />
+            {/* Catch-all: redirect old routes and 404s */}
+            <Route path="labs/*" element={<Navigate to="/sources" replace />} />
+            <Route path="showcase" element={<Navigate to="/sources" replace />} />
+            <Route path="*" element={<Navigate to="/sources" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

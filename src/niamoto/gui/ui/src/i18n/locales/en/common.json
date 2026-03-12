@@ -16,43 +16,27 @@
     "summary": "Summary"
   },
   "sidebar": {
-    "sections": {
-      "sources": "Sources",
+    "nav": {
+      "data": "Data",
       "groups": "Groups",
       "site": "Site",
-      "publish": "Publish",
-      "tools": "Tools",
-      "labs": "Labs"
+      "publish": "Publish"
     },
-    "items": {
-      "dashboard": "Dashboard",
-      "import": "Import",
-      "overview": "Overview",
-      "pages": "Pages",
-      "navigation": "Navigation",
-      "settings": "Settings",
-      "build": "Build",
-      "deploy": "Deploy",
-      "history": "History",
-      "dataExplorer": "Data Explorer",
-      "livePreview": "Live Preview",
-      "showcase": "Showcase",
-      "configEditor": "Config Editor",
-      "plugins": "Plugins",
-      "docs": "Documentation",
-      "optionHybrid": "Option A: Hybrid",
-      "optionCanvas": "Option B: Canvas",
-      "optionInline": "Option C: Inline"
-    },
-    "badges": {
-      "empty": "Empty",
-      "pages_one": "{{count}} page",
-      "pages_other": "{{count}} pages"
-    },
+    "cmdkHint": "Tools & search",
     "footer": {
       "settings": "Settings",
       "previewSite": "Preview site"
     }
+  },
+  "command": {
+    "search": "Search pages or tools...",
+    "no_results": "No results found.",
+    "navigation": "Navigation",
+    "tools": "Tools",
+    "preferences": "Preferences",
+    "light_theme": "Light Theme",
+    "dark_theme": "Dark Theme",
+    "system_theme": "System Theme"
   },
   "actions": {
     "save": "Save",
