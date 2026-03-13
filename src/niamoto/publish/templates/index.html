@@ -87,7 +87,7 @@
         <div style="max-width: 72rem; margin: 0 auto; padding: 0 1.5rem;">
             <div style="display: grid; grid-template-columns: repeat({{ [page.features|length, 3] | min }}, 1fr); gap: 2rem;">
                 {% for feature in page.features %}
-                <a href="{{ feature.url | relative_url(depth|default(0)) }}" class="feature-card">
+                <a href="{{ feature.url | relative_url(nav_depth|default(depth|default(0))) }}" class="feature-card">
                     <div style="background: #fff; border-radius: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 2rem; text-align: center; border: 1px solid #f3f4f6; transition: all 0.3s;">
                         <div style="display: inline-flex; align-items: center; justify-content: center; width: 4rem; height: 4rem; border-radius: 1rem; background-color: #ecfdf5; margin-bottom: 1.25rem;">
                             <i data-lucide="{{ feature.icon | default('folder') }}" style="width: 2rem; height: 2rem; color: #16a34a;"></i>

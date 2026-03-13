@@ -375,11 +375,11 @@ Cet investissement backend (~2-3h) est le socle pour TOUTES les approches visuel
 
 ### Phase 0 : Nettoyage immédiat (~1h)
 
-- [ ] Supprimer le contenu des 3 mockups Labs actuels
-- [ ] Supprimer Showcase et TOOLS de la sidebar
-- [ ] Déplacer Data Explorer, Config Editor, Plugins, Docs dans la Command Palette
-- [ ] Garder `/labs/*` pour les nouveaux prototypes
-- [ ] Route catch-all 404
+- [x] Supprimer le contenu des 3 mockups Labs actuels
+- [x] Supprimer Showcase et TOOLS de la sidebar
+- [x] Déplacer Data Explorer, Config Editor, Plugins, Docs dans la Command Palette
+- [x] Garder `/labs/*` pour les nouveaux prototypes
+- [x] Route catch-all 404
 
 **Fichiers** : `navigationStore.ts`, `App.tsx`, `CommandPalette.tsx`, `NavigationSidebar.tsx`
 
@@ -389,11 +389,11 @@ Cet investissement backend (~2-3h) est le socle pour TOUTES les approches visuel
 
 Transformer la sidebar actuelle (sections collapsibles avec sous-items) en rail plat.
 
-- [ ] Remplacer les `navigationSections` par un tableau simple de 5-6 items (Home, Données, Groupes, Site, Publication)
-- [ ] Supprimer toute la logique `Collapsible` dans `NavigationSidebar.tsx`
-- [ ] Chaque item = icône + label (mode full) ou icône seule (mode compact)
-- [ ] Highlight de l'item actif basé sur la route (`/sources/*` → Données, `/groups/*` → Groupes, etc.)
-- [ ] Footer : Paramètres + Aperçu site (inchangé)
+- [x] Remplacer les `navigationSections` par un tableau simple de 5-6 items (Home, Données, Groupes, Site, Publication)
+- [x] Supprimer toute la logique `Collapsible` dans `NavigationSidebar.tsx`
+- [x] Chaque item = icône + label (mode full) ou icône seule (mode compact)
+- [x] Highlight de l'item actif basé sur la route (`/sources/*` → Données, `/groups/*` → Groupes, etc.)
+- [x] Footer : Paramètres + Aperçu site (inchangé)
 
 Ce rail plat est le socle pour tous les prototypes.
 
@@ -401,7 +401,7 @@ Ce rail plat est le socle pour tous les prototypes.
 
 ### Phase 1 : Backend fraîcheur (~2-3h)
 
-- [ ] Endpoint `GET /api/pipeline/status` retournant :
+- [x] Endpoint `GET /api/pipeline/status` retournant :
   ```json
   {
     "data": {
@@ -424,8 +424,8 @@ Ce rail plat est le socle pour tous les prototypes.
     "publication": {"status": "stale", "last_deployed": "2026-03-08T10:00:00"}
   }
   ```
-- [ ] Hook React `usePipelineStatus()` qui consomme cet endpoint
-- [ ] Logique de calcul de fraîcheur (comparaison timestamps, config hashes)
+- [x] Hook React `usePipelineStatus()` qui consomme cet endpoint
+- [x] Logique de calcul de fraîcheur (comparaison timestamps, config hashes)
 
 ---
 

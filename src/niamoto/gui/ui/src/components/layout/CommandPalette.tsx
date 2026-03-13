@@ -12,6 +12,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import {
+  Home,
   Database,
   Layers,
   Globe,
@@ -22,7 +23,6 @@ import {
   Moon,
   Monitor,
   Search,
-  Eye,
   FileCode2,
   Puzzle,
   BookOpen,
@@ -33,6 +33,7 @@ import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { useTheme } from '@/hooks/use-theme'
 
 const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  home: Home,
   data: Database,
   groups: Layers,
   site: Globe,
@@ -72,10 +73,6 @@ export function CommandPalette() {
         break
       case 'language':
         i18n.changeLanguage(params[0])
-        setCommandPaletteOpen(false)
-        break
-      case 'preview':
-        window.open('/preview', '_blank')
         setCommandPaletteOpen(false)
         break
       default:
@@ -178,17 +175,6 @@ export function CommandPalette() {
             <div className="flex flex-1 flex-col">
               <span className="font-medium">Documentation API</span>
               <span className="text-xs text-muted-foreground">{t('command.docsDesc', 'Référence des endpoints')}</span>
-            </div>
-          </CommandItem>
-          <CommandItem
-            value="preview:"
-            keywords={['preview', 'aperçu', 'site', 'visualiser', 'ouvrir']}
-            onSelect={handleSelect}
-          >
-            <Eye className="!size-[18px] text-foreground/70" />
-            <div className="flex flex-1 flex-col">
-              <span className="font-medium">{t('sidebar.footer.previewSite', 'Aperçu du site')}</span>
-              <span className="text-xs text-muted-foreground">{t('command.previewDesc', 'Ouvrir dans un nouvel onglet')}</span>
             </div>
           </CommandItem>
         </CommandGroup>

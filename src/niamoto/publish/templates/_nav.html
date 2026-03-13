@@ -1,7 +1,7 @@
 <nav class="bg-nav-bg p-0 fixed w-full top-0 shadow-md z-50 custom-nav">
     <div class="container mx-auto flex flex-wrap items-center justify-between">
         <div class="flex items-center flex-shrink-0 text-white mr-6">
-            <a class="inline-flex items-center py-2 px-4 text-white no-underline" href="{{ '../' * (depth|default(0)) }}index.html">
+            <a class="inline-flex items-center py-2 px-4 text-white no-underline" href="{{ '../' * (nav_depth|default(depth|default(0))) }}index.html">
                 {% if site.logo_header %}
                     <img src="{{ site.logo_header | relative_url(depth|default(0)) }}" alt="Logo" class="h-8 w-auto mr-2 logo-embossed">
                 {% endif %}
@@ -28,7 +28,7 @@
                             <li class="mr-3 relative group">
                                 {% if item.url %}
                                 <a class="nav-link inline-block py-2 px-3 text-white no-underline"
-                                   href="{{ '../' * (depth|default(0)) }}{{ item.url.lstrip('/') }}">
+                                   href="{{ '../' * (nav_depth|default(depth|default(0))) }}{{ item.url.lstrip('/') }}">
                                     {{ item.text }}
                                     <i class="fas fa-chevron-down ml-1 text-xs opacity-70"></i>
                                 </a>
@@ -43,7 +43,7 @@
                                     {% for child in item.children %}
                                         <li>
                                             <a class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-green-600 first:rounded-t-md last:rounded-b-md"
-                                               href="{{ '../' * (depth|default(0)) }}{{ child.url.lstrip('/') if child.url else '#' }}">
+                                               href="{{ '../' * (nav_depth|default(depth|default(0))) }}{{ child.url.lstrip('/') if child.url else '#' }}">
                                                 {{ child.text }}
                                             </a>
                                         </li>
@@ -54,7 +54,7 @@
                             <!-- Simple menu item -->
                             <li class="mr-3">
                                 <a class="nav-link inline-block py-2 px-3 text-white no-underline"
-                                   href="{{ '../' * (depth|default(0)) }}{{ item.url.lstrip('/') if item.url else '#' }}">
+                                   href="{{ '../' * (nav_depth|default(depth|default(0))) }}{{ item.url.lstrip('/') if item.url else '#' }}">
                                     {{ item.text }}
                                 </a>
                             </li>
@@ -63,7 +63,7 @@
                 {% else %}
                     <!-- Default navigation if none provided -->
                     <li class="mr-3">
-                        <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="{{ '../' * (depth|default(0)) }}index.html">
+                        <a class="nav-link inline-block py-2 px-3 text-white no-underline" href="{{ '../' * (nav_depth|default(depth|default(0))) }}index.html">
                             <i class="fas fa-home menu-icon"></i>Accueil
                         </a>
                     </li>

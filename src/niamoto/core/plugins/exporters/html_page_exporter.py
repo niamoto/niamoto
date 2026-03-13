@@ -443,6 +443,14 @@ class HtmlPageExporter(ExporterPlugin):
                     else:
                         return "../" * depth + url[1:]
 
+                # Map project files/ to assets/files/ in the output
+                clean = url.lstrip("/")
+                if clean.startswith("files/"):
+                    clean = "assets/" + clean
+                    if depth == 0:
+                        return clean
+                    return "../" * depth + clean
+
                 # Already relative URL
                 return url
 
@@ -461,7 +469,7 @@ class HtmlPageExporter(ExporterPlugin):
                 logger.warning(f"Could not list available templates: {e}")
 
             # 3. Setup Markdown parser
-            md = MarkdownIt()
+            md = MarkdownIt().enable("table")
             logger.debug("Markdown parser initialized.")
 
             # 4. Copy static assets (default and user-specified) - once at root level
@@ -707,6 +715,24 @@ class HtmlPageExporter(ExporterPlugin):
 
         logger.info("User-specified assets copy process finished.")
 
+        # 3. Copy project 'files/' directory into assets/files/
+        # This directory contains user-uploaded files (logos, images, etc.)
+        # Placed under assets/ so relative_url handles them consistently
+        try:
+            project_files_dir = Path(Config.get_niamoto_home()) / "files"
+        except Exception:
+            project_files_dir = Path.cwd() / "files"
+
+        if project_files_dir.exists() and project_files_dir.is_dir():
+            target_files_dir = output_dir / "assets" / "files"
+            try:
+                shutil.copytree(project_files_dir, target_files_dir, dirs_exist_ok=True)
+                logger.info(
+                    f"Copied project files from {project_files_dir} to {target_files_dir}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to copy project files: {e}", exc_info=True)
+
     @staticmethod
     def _references_to_bibtex(references: List[Dict[str, Any]]) -> str:
         """Convert a list of reference dicts to BibTeX format."""
@@ -934,6 +960,44 @@ class HtmlPageExporter(ExporterPlugin):
 
         return re.sub(r"<img\s[^>]+>", _replace_img, html)
 
+    @staticmethod
+    def _get_nested_value_static(data: dict, path: str) -> Any:
+        """Get value from nested dict using dot notation (e.g. 'general_info.name.value')."""
+        current: Any = data
+        for key in path.split("."):
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+        return current
+
+    @staticmethod
+    def _rewrite_content_paths(html: str, depth: int) -> str:
+        """Rewrite relative paths in markdown-rendered HTML.
+
+        Remaps ``files/`` → ``assets/files/`` and prepends the correct number
+        of ``../`` segments so that images resolve from language subdirectories.
+        """
+        prefix = "../" * depth
+
+        def _fix_src(match: re.Match) -> str:
+            attr = match.group(1)  # src or href
+            path = match.group(2)
+            if path.startswith("files/"):
+                return f'{attr}="{prefix}assets/{path}"'
+            return match.group(0)
+
+        return re.sub(r'(src|href)="(files/[^"]*)"', _fix_src, html)
+
+    @staticmethod
+    def _dedupe_plotly_deps(deps: Set[str]) -> Set[str]:
+        """Remove Plotly core when maps bundle is present (maps is a superset)."""
+        maps = "/assets/js/vendor/plotly/plotly-niamoto-maps.min.js"
+        core = "/assets/js/vendor/plotly/plotly-niamoto-core.min.js"
+        if maps in deps and core in deps:
+            return deps - {core}
+        return deps
+
     def _resolve_content_source(
         self, content_source: str, lang: Optional[str], md: MarkdownIt
     ) -> Optional[str]:
@@ -1047,6 +1111,13 @@ class HtmlPageExporter(ExporterPlugin):
                         page_context["title"], lang
                     )
 
+                # Calculate depth for relative URLs
+                # nav_depth = depth within the language directory (for page-to-page links)
+                # depth = total depth from export root (for assets/files at root)
+                nav_depth = page_config.output_file.count("/")
+                is_multilang = bool(lang and languages and len(languages) > 1)
+                page_depth = nav_depth + (1 if is_multilang else 0)
+
                 # Prepare full context
                 context = {
                     "site": site_context,
@@ -1054,6 +1125,8 @@ class HtmlPageExporter(ExporterPlugin):
                     "footer_navigation": footer_navigation,
                     "page": page_context,
                     "output_file": page_config.output_file,
+                    "depth": page_depth,
+                    "nav_depth": nav_depth,
                     "current_lang": lang,
                     "languages": languages or [],
                     "language_switcher": language_switcher,
@@ -1079,6 +1152,11 @@ class HtmlPageExporter(ExporterPlugin):
                                 md.render(content_markdown)
                             )
 
+                # Rewrite files/ paths in markdown-rendered HTML
+                if page_content_html:
+                    page_content_html = self._rewrite_content_paths(
+                        page_content_html, page_depth
+                    )
                 context["page_content_html"] = page_content_html
 
                 # Handle bibtex_source: load and parse .bib file into references
@@ -1600,7 +1678,11 @@ class HtmlPageExporter(ExporterPlugin):
 
                             # Prepare context and render detail page for this item
                             # Calculate depth based on output pattern
-                            depth = group_config.output_pattern.count("/")
+                            nav_depth = group_config.output_pattern.count("/")
+                            is_multilang = bool(
+                                lang and languages and len(languages) > 1
+                            )
+                            depth = nav_depth + (1 if is_multilang else 0)
 
                             # Build site context with resolved localized strings
                             site_context = self._get_site_context(html_params, lang)
@@ -1633,8 +1715,11 @@ class HtmlPageExporter(ExporterPlugin):
                                 "group_by": group_by_key,
                                 "item": item_data,
                                 "widgets": rendered_widgets,
-                                "dependencies": list(widget_dependencies),
+                                "dependencies": list(
+                                    self._dedupe_plotly_deps(widget_dependencies)
+                                ),
                                 "depth": depth,  # Add depth for relative URLs
+                                "nav_depth": nav_depth,
                                 "current_lang": lang,
                                 "languages": languages or [],
                                 "language_switcher": language_switcher,
@@ -2121,13 +2206,91 @@ class HtmlPageExporter(ExporterPlugin):
             language_switcher: Whether to enable language switcher
         """
         try:
-            # Fetch index data
-            index_data = self._get_group_index_data(repository, table_name, id_column)
+            # Resolve the transform output table which contains rich JSON data
+            # needed by display_fields (e.g., "taxons" has general_info JSON
+            # vs "entity_taxons" with only id/name).
+            index_table = table_name
+            index_id_col = id_column
+            transform_table = group_by_key
+            transform_id_col = f"{group_by_key}_id"
+            if repository.has_table(transform_table) and transform_table != table_name:
+                transform_cols = repository.get_table_columns(transform_table) or []
+                if transform_id_col in transform_cols:
+                    index_table = transform_table
+                    index_id_col = transform_id_col
+                    logger.info(
+                        f"Using transform table '{transform_table}' for index data "
+                        f"(entity table: '{table_name}')"
+                    )
+
+            # Fetch all columns so display_fields can access nested JSON fields
+            try:
+                query = f'SELECT * FROM "{index_table}" ORDER BY "{index_id_col}"'
+                results = repository.fetch_all(query)
+                index_data: Optional[List[Dict[str, Any]]] = (
+                    [dict(row) for row in results] if results else None
+                )
+            except Exception as e:
+                logger.warning(f"Failed to query '{index_table}': {e}")
+                index_data = None
+
+            # Fallback to entity table if transform table failed
+            if not index_data and index_table != table_name:
+                index_data = self._get_group_index_data(
+                    repository, table_name, id_column
+                )
+
             if not index_data:
                 logger.error(
                     f"No index data found for group '{group_by_key}'. Skipping index generation."
                 )
                 return
+
+            # Parse JSON string fields into dicts for nested access
+            import json as json_mod
+
+            for item in index_data:
+                for key, value in list(item.items()):
+                    if isinstance(value, str) and value.strip().startswith("{"):
+                        try:
+                            item[key] = json_mod.loads(value)
+                        except (json_mod.JSONDecodeError, ValueError):
+                            pass
+
+            # Apply server-side filters from index_generator config
+            index_gen_filters = []
+            if (
+                hasattr(group_config, "index_generator")
+                and group_config.index_generator
+            ):
+                cfg = (
+                    group_config.index_generator.model_dump()
+                    if hasattr(group_config.index_generator, "model_dump")
+                    else group_config.index_generator
+                    if isinstance(group_config.index_generator, dict)
+                    else {}
+                )
+                index_gen_filters = cfg.get("filters", [])
+
+            if index_gen_filters:
+                filtered = []
+                for item in index_data:
+                    include = True
+                    for f in index_gen_filters:
+                        val = self._get_nested_value_static(item, f["field"])
+                        op = f.get("operator", "in")
+                        if op == "in" and val not in f.get("values", []):
+                            include = False
+                            break
+                        elif op == "equals" and val != f.get("values", [None])[0]:
+                            include = False
+                            break
+                    if include:
+                        filtered.append(item)
+                logger.info(
+                    f"Filtered index items: {len(index_data)} -> {len(filtered)}"
+                )
+                index_data = filtered
 
             # Use traditional template
             index_template_name = group_config.index_template or "_group_index.html"
@@ -2166,10 +2329,10 @@ class HtmlPageExporter(ExporterPlugin):
             )
             if not name_field and first_item:
                 name_field = next(
-                    (k for k in first_item.keys() if k != id_column), None
+                    (k for k in first_item.keys() if k != index_id_col), None
                 )
             if not name_field:
-                name_field = id_column
+                name_field = index_id_col
 
             default_page_config = {
                 "title": group_by_key.replace("_", " ").title(),
@@ -2209,6 +2372,24 @@ class HtmlPageExporter(ExporterPlugin):
             )
             filters = index_generator_cfg.get("filters", [])
 
+            # Extract display_fields values from nested JSON into flat keys
+            # so the template JS can access item[field.name] directly.
+            if display_fields and normalized_items:
+                processed_items = []
+                for item in normalized_items:
+                    item_id = item.get(index_id_col)
+                    processed = {
+                        index_id_col: str(item_id) if item_id is not None else None
+                    }
+                    for field in display_fields:
+                        source = field.get("source", field["name"])
+                        val = self._get_nested_value_static(item, source)
+                        if val is None and field.get("fallback"):
+                            val = item.get(field["fallback"])
+                        processed[field["name"]] = val
+                    processed_items.append(processed)
+                normalized_items = processed_items
+
             index_context = {
                 "site": site_context,
                 "navigation": navigation,
@@ -2216,7 +2397,7 @@ class HtmlPageExporter(ExporterPlugin):
                 "group_by": group_by_key,
                 "items": normalized_items,
                 "group_config": group_config,
-                "id_column": id_column,
+                "id_column": index_id_col,
                 "current_lang": lang,
                 "languages": languages or [],
                 "language_switcher": language_switcher,
@@ -2224,15 +2405,24 @@ class HtmlPageExporter(ExporterPlugin):
                 "page_config": page_config,
                 "index_config": {
                     "group_by": group_by_key,
+                    "id_column": index_id_col,
                     "page_config": page_config,
                     "display_fields": display_fields,
                     "filters": filters,
                     "views": views,
                 },
                 "items_data": normalized_items,
-                "depth": group_config.output_pattern.count("/")
-                if group_config.output_pattern
-                else 0,
+                "nav_depth": (
+                    group_config.output_pattern.count("/")
+                    if group_config.output_pattern
+                    else 0
+                ),
+                "depth": (
+                    group_config.output_pattern.count("/")
+                    if group_config.output_pattern
+                    else 0
+                )
+                + (1 if lang and languages and len(languages) > 1 else 0),
             }
 
             # Output index file to the specific group directory

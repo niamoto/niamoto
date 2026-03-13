@@ -9,6 +9,7 @@ import { useReferences } from '@/hooks/useReferences'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Layers, ArrowRight } from 'lucide-react'
+import { StalenessBanner } from '@/components/pipeline/StalenessBanner'
 
 export default function GroupsPage() {
   const { t } = useTranslation(['sources', 'common'])
@@ -45,7 +46,9 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div>
+      <StalenessBanner stage="groups" />
+      <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{t('groups.title')}</h1>
         <p className="text-muted-foreground mt-1">
@@ -80,6 +83,7 @@ export default function GroupsPage() {
           </Card>
         ))}
       </div>
+    </div>
     </div>
   )
 }

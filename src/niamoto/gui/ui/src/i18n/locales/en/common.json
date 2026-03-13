@@ -17,6 +17,7 @@
   },
   "sidebar": {
     "nav": {
+      "home": "Home",
       "data": "Data",
       "groups": "Groups",
       "site": "Site",
@@ -37,6 +38,59 @@
     "light_theme": "Light Theme",
     "dark_theme": "Dark Theme",
     "system_theme": "System Theme"
+  },
+  "pipeline": {
+    "never_run": "Not yet run",
+    "running": "Processing...",
+    "data_stale": "Data imported — groups need recalculation",
+    "data_fresh": "Data up to date",
+    "groups_stale": "Stale calculations — data changed since last run",
+    "groups_stale_count": "{{count}} group(s) to recalculate",
+    "groups_fresh": "All groups up to date",
+    "site_stale": "Site not configured",
+    "site_fresh": "Site configured",
+    "publication_stale": "Groups recalculated — site needs rebuild",
+    "publication_fresh": "Site generated and up to date",
+    "action_import": "Import",
+    "action_transform": "Recalculate groups",
+    "action_recalculate": "Recalculate",
+    "action_rebuild": "Rebuild site",
+    "action_deploy": "Deploy",
+    "running_import": "Importing...",
+    "running_transform": "Calculating...",
+    "running_export": "Building...",
+    "cascade": {
+      "title": "Cascade update",
+      "description": "Recalculate {{count}} group(s) → Rebuild site → Publish"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "stale_subtitle": "Updates needed",
+      "fresh_subtitle": "Everything is up to date",
+      "update_all": "Update"
+    },
+    "summary": {
+      "quality": "Quality {{score}}%",
+      "alert": "1 alert",
+      "alerts": "{{count}} alerts",
+      "groups_ratio": "{{fresh}}/{{total}} up to date",
+      "groups_stale_ratio": "{{stale}}/{{total}} to recalculate",
+      "pages": "{{count}} pages",
+      "html_pages": "{{count}} HTML pages",
+      "built_in": "in {{seconds}}s"
+    },
+    "onboarding": {
+      "title": "Welcome to Niamoto",
+      "subtitle": "Follow these steps to set up your ecological data portal.",
+      "step1": "Import your data",
+      "step1_desc": "CSV files, taxonomy, shapefiles",
+      "step2": "Configure groups",
+      "step2_desc": "Choose widgets and statistics to calculate",
+      "step3": "Customize the site",
+      "step3_desc": "Pages, navigation, appearance",
+      "step4": "Publish",
+      "step4_desc": "Build and deploy the website"
+    }
   },
   "actions": {
     "save": "Save",
