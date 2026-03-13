@@ -227,9 +227,9 @@ export function IndexConfigEditor({ groupBy, className }: IndexConfigEditorProps
       {/* Header with save button */}
       <div className="shrink-0 flex items-center justify-between p-4 border-b bg-muted/30">
         <div>
-          <h2 className="text-lg font-semibold">Configuration de l'Index</h2>
+          <h2 className="text-lg font-semibold">Index Configuration</h2>
           <p className="text-sm text-muted-foreground">
-            Configurez la page d'index pour le groupe "{groupBy}"
+            Configure the index page for the group "{groupBy}"
           </p>
         </div>
         <div className="flex items-center gap-2">

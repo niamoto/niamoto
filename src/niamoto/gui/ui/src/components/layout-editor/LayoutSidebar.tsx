@@ -73,7 +73,7 @@ export function LayoutSidebar({ groupBy, navigationWidget }: LayoutSidebarProps)
       {/* Info footer */}
       <div className="px-3 py-2 border-t bg-muted/30 shrink-0">
         <p className="text-xs text-muted-foreground">
-          Référence: <code className="font-mono">{referential}</code>
+          Reference: <code className="font-mono">{referential}</code>
         </p>
       </div>
     </div>

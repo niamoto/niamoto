@@ -78,7 +78,7 @@ export function GroupsModule() {
   // Update breadcrumbs
   useEffect(() => {
     const crumbs: { label: string; path?: string }[] = [
-      { label: t('groups.title', 'Groupes'), path: '/groups' },
+      { label: t('groups.title', 'Groups'), path: '/groups' },
     ]
 
     if (selection.type === 'group') {
@@ -112,16 +112,16 @@ export function GroupsModule() {
           <div className="max-w-md text-center">
             <Layers className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
             <h2 className="text-lg font-medium">
-              {t('groups.noGroups', 'Aucun groupe')}
+              {t('groups.noGroups', 'No groups')}
             </h2>
             <p className="mt-2 text-muted-foreground">
-              {t('groups.noGroupsHint', "Importez des données pour créer des groupes.")}
+              {t('groups.noGroupsHint', "Import data to create groups.")}
             </p>
             <button
               className="mt-4 text-primary hover:underline"
               onClick={() => navigate('/sources/import')}
             >
-              {t('groups.importData', 'Importer des données')}
+              {t('groups.importData', 'Import data')}
             </button>
           </div>
         </div>
@@ -133,9 +133,9 @@ export function GroupsModule() {
       return (
         <div className="space-y-6 p-6">
           <div>
-            <h1 className="text-2xl font-bold">{t('groups.title', 'Groupes')}</h1>
+            <h1 className="text-2xl font-bold">{t('groups.title', 'Groups')}</h1>
             <p className="mt-1 text-muted-foreground">
-              {t('groups.description', 'Configurez les widgets et les sources de données pour chaque groupe.')}
+              {t('groups.description', 'Configure widgets and data sources for each group.')}
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -159,7 +159,7 @@ export function GroupsModule() {
                     <Badge variant="outline">{ref.kind}</Badge>
                     {ref.entity_count !== undefined && (
                       <Badge variant="secondary">
-                        {ref.entity_count} {t('reference.entities', 'entités')}
+                        {ref.entity_count} {t('reference.entities', 'entities')}
                       </Badge>
                     )}
                   </div>
@@ -182,7 +182,7 @@ export function GroupsModule() {
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <h2 className="text-lg font-medium">
-            {t('groups.notFound', 'Groupe introuvable')}
+            {t('groups.notFound', 'Group not found')}
           </h2>
           <p className="mt-1 text-muted-foreground">
             {t('groups.notFoundDesc', "Le groupe « {{name}} » n'existe pas.", {
@@ -193,7 +193,7 @@ export function GroupsModule() {
             className="mt-4 text-primary hover:underline"
             onClick={() => handleSelect({ type: 'overview' })}
           >
-            {t('groups.backToGroups', 'Retour aux groupes')}
+            {t('groups.backToGroups', 'Back to groups')}
           </button>
         </div>
       </div>

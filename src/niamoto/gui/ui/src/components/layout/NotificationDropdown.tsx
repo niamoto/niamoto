@@ -139,7 +139,7 @@ export function NotificationDropdown() {
               onClick={markAllAsRead}
               className="text-xs font-normal text-muted-foreground hover:text-foreground"
             >
-              {t('notifications.mark_all_read', 'Tout marquer comme lu')}
+              {t('notifications.mark_all_read', 'Mark all as read')}
             </button>
           )}
         </DropdownMenuLabel>
@@ -150,7 +150,7 @@ export function NotificationDropdown() {
           <>
             <div className="px-3 py-1.5">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {t('notifications.active_jobs', 'En cours')}
+                {t('notifications.active_jobs', 'Active')}
               </span>
             </div>
             {trackedJobs.map((job) => (
@@ -166,7 +166,7 @@ export function NotificationDropdown() {
             {hasActiveJobs && (
               <div className="px-3 py-1.5">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {t('notifications.recent', 'Récents')}
+                  {t('notifications.recent', 'Recent')}
                 </span>
               </div>
             )}
@@ -184,7 +184,7 @@ export function NotificationDropdown() {
         ) : (
           !hasActiveJobs && (
             <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-              {t('notifications.no_notifications', 'Aucune notification')}
+              {t('notifications.no_notifications', 'No notifications')}
             </div>
           )
         )}

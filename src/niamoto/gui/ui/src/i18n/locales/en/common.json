@@ -37,7 +37,15 @@
     "preferences": "Preferences",
     "light_theme": "Light Theme",
     "dark_theme": "Dark Theme",
-    "system_theme": "System Theme"
+    "system_theme": "System Theme",
+    "importDesc": "Import a data file",
+    "explorerDesc": "SQL queries on your data",
+    "configDesc": "Edit YAML files",
+    "pluginsDesc": "Manage plugins",
+    "docsDesc": "Endpoints reference",
+    "select_hint": "Select",
+    "close_hint": "Close",
+    "navigate_hint": "Navigate"
   },
   "pipeline": {
     "never_run": "Not yet run",
@@ -56,6 +64,7 @@
     "action_recalculate": "Recalculate",
     "action_rebuild": "Rebuild site",
     "action_deploy": "Deploy",
+    "action_configure": "Configure",
     "running_import": "Importing...",
     "running_transform": "Calculating...",
     "running_export": "Building...",
@@ -270,6 +279,51 @@
     "duplicate": "Duplicate",
     "settings": "Settings",
     "previewSite": "Preview site"
+  },
+  "breadcrumb": {
+    "data": "Data",
+    "import": "Import"
+  },
+  "network": {
+    "offline": "Offline",
+    "offline_title": "Offline mode",
+    "enrichment_unavailable": "API enrichment: unavailable",
+    "deploy_unavailable": "Deployment: unavailable",
+    "tiles_unavailable": "Map tiles: unavailable"
+  },
+  "dashboard": {
+    "title": "Data Dashboard",
+    "description": "Overview of quality and completeness of imported data.",
+    "noData": "No data",
+    "noDataHint": "Start by importing your data files.",
+    "importData": "Import data",
+    "import": "Import"
+  },
+  "detail": {
+    "referenceNotFound": "Reference not found",
+    "datasetNotFound": "Dataset not found"
+  },
+  "tree": {
+    "overview": "Overview",
+    "build": "Build",
+    "deploy": "Deploy",
+    "history": "History",
+    "datasets": "Datasets",
+    "references": "References",
+    "groups": "Groups",
+    "import": "Import",
+    "importData": "Import data",
+    "noDatasets": "No imported datasets",
+    "noReferences": "No imported references",
+    "noGroups": "No groups",
+    "noPages": "No pages",
+    "loading": "Loading...",
+    "general": "General",
+    "navigation": "Navigation",
+    "appearance": "Appearance",
+    "mainMenu": "Main menu",
+    "footerMenu": "Footer menu",
+    "settings": "Settings"
   },
   "notifications": {
     "title": "Notifications",

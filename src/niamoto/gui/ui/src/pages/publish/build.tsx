@@ -90,7 +90,7 @@ export default function PublishBuild() {
           setCurrentPhase(phase ?? null)
           const phaseLabel = phase === 'transform'
             ? t('build.phaseTransformLabel', 'Transformations')
-            : t('build.phaseExportLabel', 'Génération du site')
+            : t('build.phaseExportLabel', 'Site generation')
           updateBuild({ progress, message: `${phaseLabel} · ${localizeBackendMessage(message, t)}` })
         }
       )
@@ -126,12 +126,12 @@ export default function PublishBuild() {
           targets
         })
 
-        toast.success(t('build.success', 'Build terminé avec succès !'))
+        toast.success(t('build.success', 'Build completed successfully!'))
       }
     } catch (error) {
       console.error('Build error:', error)
       completeBuild(undefined, String(error))
-      toast.error(t('build.error', 'Erreur lors du build'))
+      toast.error(t('build.error', 'Build error'))
     }
   }
 
@@ -141,7 +141,7 @@ export default function PublishBuild() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">{t('build.title', 'Build')}</h1>
-          <p className="text-muted-foreground">{t('build.description', 'Générez le site statique à partir de vos données')}</p>
+          <p className="text-muted-foreground">{t('build.description', 'Generate the static site from your data')}</p>
         </div>
       </div>
 
@@ -151,11 +151,11 @@ export default function PublishBuild() {
           <CardContent className="pt-6 space-y-2">
             <div className="flex items-center justify-between">
               <Globe className="w-8 h-8 text-purple-500" />
-              <Badge variant="secondary">{t('build.targets.web', 'Site Web')}</Badge>
+              <Badge variant="secondary">{t('build.targets.web', 'Website')}</Badge>
             </div>
-            <h3 className="font-semibold">{t('build.targets.webTitle', 'Site Web Statique')}</h3>
+            <h3 className="font-semibold">{t('build.targets.webTitle', 'Static Website')}</h3>
             <p className="text-xs text-muted-foreground">
-              {t('build.targets.webDescription', 'Pages HTML avec navigation, cartes et visualisations')}
+              {t('build.targets.webDescription', 'HTML pages with navigation, maps and visualizations')}
             </p>
           </CardContent>
         </Card>
@@ -168,7 +168,7 @@ export default function PublishBuild() {
             </div>
             <h3 className="font-semibold">{t('build.targets.apiTitle', 'API JSON Statique')}</h3>
             <p className="text-xs text-muted-foreground">
-              {t('build.targets.apiDescription', 'Endpoints JSON pour chaque entité')}
+              {t('build.targets.apiDescription', 'JSON endpoints for each entity')}
             </p>
           </CardContent>
         </Card>
@@ -190,8 +190,8 @@ export default function PublishBuild() {
       {/* Build Section */}
       <Card>
         <CardHeader>
-          <CardTitle>{t('build.generation', 'Génération du site')}</CardTitle>
-          <CardDescription>{t('build.generationDescription', 'Création du site web statique complet')}</CardDescription>
+          <CardTitle>{t('build.generation', 'Site Generation')}</CardTitle>
+          <CardDescription>{t('build.generationDescription', 'Create the complete static website')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Transform checkbox */}
@@ -203,7 +203,7 @@ export default function PublishBuild() {
                 onCheckedChange={(checked) => setIncludeTransform(checked === true)}
               />
               <Label htmlFor="include-transform" className="text-sm cursor-pointer">
-                {t('build.includeTransform', 'Recalculer les statistiques avant la génération')}
+                {t('build.includeTransform', 'Recompute statistics before generation')}
               </Label>
             </div>
           )}
@@ -236,7 +236,7 @@ export default function PublishBuild() {
               <Alert className="border-green-500/20 bg-green-500/10">
                 <CheckCircle className="w-4 h-4 text-green-500" />
                 <AlertDescription>
-                  {t('build.success', 'Build terminé avec succès !')}
+                  {t('build.success', 'Build completed successfully!')}
                 </AlertDescription>
               </Alert>
 
@@ -246,7 +246,7 @@ export default function PublishBuild() {
                     <div className="text-2xl font-bold text-primary">
                       {totalFilesCounter.value.toLocaleString()}
                     </div>
-                    <p className="text-xs text-muted-foreground">{t('build.metrics.files', 'Fichiers générés')}</p>
+                    <p className="text-xs text-muted-foreground">{t('build.metrics.files', 'Files Generated')}</p>
                   </CardContent>
                 </Card>
                 <Card>
@@ -254,7 +254,7 @@ export default function PublishBuild() {
                     <div className="text-2xl font-bold text-primary">
                       {lastBuild.metrics?.duration}s
                     </div>
-                    <p className="text-xs text-muted-foreground">{t('build.metrics.duration', 'Temps de génération')}</p>
+                    <p className="text-xs text-muted-foreground">{t('build.metrics.duration', 'Generation Time')}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -262,7 +262,7 @@ export default function PublishBuild() {
               {/* Target Breakdown */}
               {lastBuild.metrics?.targets && lastBuild.metrics.targets.length > 0 && (
                 <div className="pt-4 border-t">
-                  <h4 className="text-sm font-medium mb-3">{t('build.metrics.breakdown', 'Détail par cible')}</h4>
+                  <h4 className="text-sm font-medium mb-3">{t('build.metrics.breakdown', 'Breakdown by Target')}</h4>
                   <div className="space-y-2">
                     {lastBuild.metrics.targets.map((target) => (
                       <div key={target.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
@@ -290,7 +290,7 @@ export default function PublishBuild() {
               {exportPath && (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
                   <FolderOpen className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">{t('build.outputPath', 'Répertoire')} :</span>
+                  <span className="text-sm text-muted-foreground">{t('build.outputPath', 'Directory')} :</span>
                   <code className="text-sm">{exportPath}</code>
                 </div>
               )}
@@ -299,11 +299,11 @@ export default function PublishBuild() {
               <div className="flex gap-2 pt-4">
                 <Button onClick={() => window.open(`/preview/${previewLang}/`, '_blank')} className="flex-1">
                   <Globe className="w-4 h-4 mr-2" />
-                  {t('build.preview', 'Voir le site')}
+                  {t('build.preview', 'View site')}
                 </Button>
                 <Button variant="secondary" onClick={() => navigate('/publish/deploy')} className="flex-1">
                   <Send className="w-4 h-4 mr-2" />
-                  {t('build.deploy', 'Déployer')}
+                  {t('build.deploy', 'Deploy')}
                 </Button>
               </div>
             </div>
@@ -316,8 +316,8 @@ export default function PublishBuild() {
               <AlertDescription className="flex items-center justify-between">
                 <span>
                   {lastBuild.error?.includes('Network Error')
-                    ? t('build.errorNetwork', 'Connexion au serveur perdue pendant le build. Relancez la génération.')
-                    : lastBuild.error || t('build.error', 'Erreur lors du build')}
+                    ? t('build.errorNetwork', 'Server connection lost during build. Please retry generation.')
+                    : lastBuild.error || t('build.error', 'Build error')}
                 </span>
                 <Button variant="ghost" size="sm" className="ml-2 h-6 px-2 text-destructive" onClick={clearBuildHistory}>
                   <XCircle className="w-3 h-3" />
@@ -331,7 +331,7 @@ export default function PublishBuild() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Package className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">{t('build.ready', 'Prêt à générer')}</span>
+                <span className="text-sm">{t('build.ready', 'Ready to generate')}</span>
               </div>
             </div>
           )}
@@ -346,17 +346,17 @@ export default function PublishBuild() {
             {isBuilding ? (
               <>
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                {t('build.building', 'Génération en cours...')}
+                {t('build.building', 'Generating...')}
               </>
             ) : lastBuild?.status === 'completed' ? (
               <>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                {t('build.rebuild', 'Regénérer le site')}
+                {t('build.rebuild', 'Regenerate Site')}
               </>
             ) : (
               <>
                 <Send className="w-4 h-4 mr-2" />
-                {t('build.trigger', 'Générer le site')}
+                {t('build.trigger', 'Generate Site')}
               </>
             )}
           </Button>
@@ -369,8 +369,8 @@ export default function PublishBuild() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{t('build.previewTitle', 'Aperçu du site')}</CardTitle>
-                <CardDescription>{t('build.previewDescription', 'Prévisualisation du site généré')}</CardDescription>
+                <CardTitle>{t('build.previewTitle', 'Site Preview')}</CardTitle>
+                <CardDescription>{t('build.previewDescription', 'Preview of the generated site')}</CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={() => window.open(`/preview/${previewLang}/`, '_blank')}>
                 <ExternalLink className="w-4 h-4 mr-2" />
@@ -384,7 +384,7 @@ export default function PublishBuild() {
                 key={lastBuild?.completedAt ?? ''}
                 src={`/preview/${previewLang}/index.html`}
                 className="w-full h-[80vh] border-0"
-                title={t('build.previewTitle', 'Aperçu du site')}
+                title={t('build.previewTitle', 'Site Preview')}
                 sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
               />
             </div>
@@ -422,7 +422,7 @@ function localizeBackendMessage(message: string, t: (key: string, opts?: Record<
     return t('build.progress.transformRunning', { defaultValue: 'Transformations en cours...' })
   }
   if (message === 'export.starting') {
-    return t('build.progress.exportStarting', { defaultValue: 'Génération du site...' })
+    return t('build.progress.exportStarting', { defaultValue: 'Generating site...' })
   }
   // Fallback : message brut (anciens jobs ou messages non structurés)
   return message

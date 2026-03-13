@@ -116,7 +116,7 @@ function StageCard({ icon, title, stage, path, borderColor, iconBgClass, actionL
         )}
 
         {status === 'never_run' && (
-          <p className="text-xs text-muted-foreground">{t('pipeline.never_run', 'Pas encore exécuté')}</p>
+          <p className="text-xs text-muted-foreground">{t('pipeline.never_run', 'Not yet run')}</p>
         )}
 
         {/* Group items detail */}
@@ -193,7 +193,7 @@ function DataSummary({ summary }: { summary: StageSummary | null }) {
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">
-              {t('pipeline.summary.quality', 'Qualité {{score}}%', { score: qualityPercent })}
+              {t('pipeline.summary.quality', 'Quality {{score}}%', { score: qualityPercent })}
             </span>
             {alertCount > 0 && (
               <button
@@ -205,8 +205,8 @@ function DataSummary({ summary }: { summary: StageSummary | null }) {
               >
                 <AlertTriangle className="h-3 w-3" />
                 {alertCount === 1
-                  ? t('pipeline.summary.alert', '1 alerte')
-                  : t('pipeline.summary.alerts', '{{count}} alertes', { count: alertCount })
+                  ? t('pipeline.summary.alert', '1 alert')
+                  : t('pipeline.summary.alerts', '{{count}} alerts', { count: alertCount })
                 }
               </button>
             )}
@@ -242,8 +242,8 @@ function GroupsSummary({ items }: { items: Array<{ name: string; status: Freshne
       allFresh ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400',
     )}>
       {allFresh
-        ? t('pipeline.summary.groups_ratio', '{{fresh}}/{{total}} à jour', { fresh: freshCount, total })
-        : t('pipeline.summary.groups_stale_ratio', '{{stale}}/{{total}} à recalculer', { stale: staleCount, total })
+        ? t('pipeline.summary.groups_ratio', '{{fresh}}/{{total}} up to date', { fresh: freshCount, total })
+        : t('pipeline.summary.groups_stale_ratio', '{{stale}}/{{total}} need recomputing', { stale: staleCount, total })
       }
     </p>
   )
@@ -305,29 +305,29 @@ function OnboardingView() {
   const steps = [
     {
       number: 1,
-      title: t('pipeline.onboarding.step1', 'Importer vos données'),
+      title: t('pipeline.onboarding.step1', 'Import your data'),
       description: t('pipeline.onboarding.step1_desc', 'Fichiers CSV, taxonomie, shapefile'),
       path: '/sources/import',
       icon: <Upload className="h-5 w-5" />,
     },
     {
       number: 2,
-      title: t('pipeline.onboarding.step2', 'Configurer les groupes'),
-      description: t('pipeline.onboarding.step2_desc', 'Choisir les widgets et statistiques à calculer'),
+      title: t('pipeline.onboarding.step2', 'Configure groups'),
+      description: t('pipeline.onboarding.step2_desc', 'Choose widgets and statistics to compute'),
       path: '/groups',
       icon: <Layers className="h-5 w-5" />,
     },
     {
       number: 3,
-      title: t('pipeline.onboarding.step3', 'Personnaliser le site'),
-      description: t('pipeline.onboarding.step3_desc', 'Pages, navigation, apparence'),
+      title: t('pipeline.onboarding.step3', 'Customize the site'),
+      description: t('pipeline.onboarding.step3_desc', 'Pages, navigation, appearance'),
       path: '/site',
       icon: <Globe className="h-5 w-5" />,
     },
     {
       number: 4,
-      title: t('pipeline.onboarding.step4', 'Publier'),
-      description: t('pipeline.onboarding.step4_desc', 'Construire et déployer le site web'),
+      title: t('pipeline.onboarding.step4', 'Publish'),
+      description: t('pipeline.onboarding.step4_desc', 'Build and deploy the website'),
       path: '/publish',
       icon: <Send className="h-5 w-5" />,
     },
@@ -336,9 +336,9 @@ function OnboardingView() {
   return (
     <div className="mx-auto max-w-2xl space-y-8 p-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold">{t('pipeline.onboarding.title', 'Bienvenue sur Niamoto')}</h1>
+        <h1 className="text-2xl font-bold">{t('pipeline.onboarding.title', 'Welcome to Niamoto')}</h1>
         <p className="mt-2 text-muted-foreground">
-          {t('pipeline.onboarding.subtitle', 'Suivez ces étapes pour configurer votre portail de données écologiques.')}
+          {t('pipeline.onboarding.subtitle', 'Follow these steps to set up your ecological data portal.')}
         </p>
       </div>
 
@@ -392,14 +392,14 @@ function DashboardView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t('pipeline.dashboard.title', 'Tableau de bord')}</h1>
+          <h1 className="text-2xl font-bold">{t('pipeline.dashboard.title', 'Dashboard')}</h1>
           {hasStale ? (
             <p className="text-amber-600 dark:text-amber-400">
-              {t('pipeline.dashboard.stale_subtitle', 'Des mises à jour sont nécessaires')}
+              {t('pipeline.dashboard.stale_subtitle', 'Updates are needed')}
             </p>
           ) : (
             <p className="text-green-600 dark:text-green-400">
-              {t('pipeline.dashboard.fresh_subtitle', 'Tout est à jour')}
+              {t('pipeline.dashboard.fresh_subtitle', 'Everything is up to date')}
             </p>
           )}
         </div>
@@ -415,7 +415,7 @@ function DashboardView() {
             }}
           >
             <RefreshCw className="h-4 w-4" />
-            {t('pipeline.dashboard.update_all', 'Mettre à jour')}
+            {t('pipeline.dashboard.update_all', 'Update')}
           </Button>
         )}
       </div>
@@ -427,10 +427,10 @@ function DashboardView() {
             <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div className="flex-1">
               <p className="font-medium text-amber-800 dark:text-amber-300">
-                {t('pipeline.cascade.title', 'Cascade de mises à jour')}
+                {t('pipeline.cascade.title', 'Update cascade')}
               </p>
               <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
-                {t('pipeline.cascade.description', 'Recalculer {{count}} groupe(s) → Reconstruire le site → Publier', { count: staleGroups.length })}
+                {t('pipeline.cascade.description', 'Recalculate {{count}} group(s) → Rebuild site → Publish', { count: staleGroups.length })}
               </p>
             </div>
           </div>
@@ -441,12 +441,12 @@ function DashboardView() {
       <div className="grid gap-4 sm:grid-cols-2">
         <StageCard
           icon={<Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
-          title={t('sidebar.nav.data', 'Données')}
+          title={t('sidebar.nav.data', 'Data')}
           stage={pipeline.data}
           path="/sources"
           borderColor="border-l-blue-500"
           iconBgClass="bg-blue-50 dark:bg-blue-950/40"
-          actionLabel={t('pipeline.action_import', 'Importer')}
+          actionLabel={t('pipeline.action_import', 'Import')}
           onAction={() => navigate('/sources/import')}
         >
           <DataSummary summary={pipeline.data.summary} />
@@ -454,12 +454,12 @@ function DashboardView() {
 
         <StageCard
           icon={<Layers className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
-          title={t('sidebar.nav.groups', 'Groupes')}
+          title={t('sidebar.nav.groups', 'Groups')}
           stage={pipeline.groups}
           path="/groups"
           borderColor="border-l-amber-500"
           iconBgClass="bg-amber-50 dark:bg-amber-950/40"
-          actionLabel={t('pipeline.action_recalculate', 'Recalculer')}
+          actionLabel={t('pipeline.action_recalculate', 'Recalculate')}
           onAction={() => navigate('/groups')}
         >
           <GroupsSummary items={pipeline.groups.items?.map(i => ({ name: i.name, status: i.status })) ?? []} />
@@ -472,7 +472,7 @@ function DashboardView() {
           path="/site"
           borderColor="border-l-emerald-500"
           iconBgClass="bg-emerald-50 dark:bg-emerald-950/40"
-          actionLabel={t('pipeline.action_configure', 'Configurer')}
+          actionLabel={t('pipeline.action_configure', 'Configure')}
           onAction={() => navigate('/site/pages')}
         >
           <SiteSummary summary={pipeline.site.summary} />
@@ -480,12 +480,12 @@ function DashboardView() {
 
         <StageCard
           icon={<Send className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
-          title={t('sidebar.nav.publish', 'Publication')}
+          title={t('sidebar.nav.publish', 'Publish')}
           stage={pipeline.publication}
           path="/publish"
           borderColor="border-l-orange-500"
           iconBgClass="bg-orange-50 dark:bg-orange-950/40"
-          actionLabel={t('pipeline.action_rebuild', 'Reconstruire')}
+          actionLabel={t('pipeline.action_rebuild', 'Rebuild')}
           onAction={() => navigate('/publish/build')}
         >
           <PublicationSummary summary={pipeline.publication.summary} />

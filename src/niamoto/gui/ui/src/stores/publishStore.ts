@@ -107,6 +107,7 @@ interface PublishState {
     platform: T,
     config: PlatformConfig[T]
   ) => void
+  deletePlatformConfig: (platform: DeployPlatform) => void
   setPreferredPlatform: (platform: PublishState['preferredPlatform']) => void
 
   // History management
@@ -269,6 +270,16 @@ export const usePublishStore = create<PublishState>()(
             [platform]: config
           }
         }))
+      },
+
+      deletePlatformConfig: (platform) => {
+        set((state) => {
+          const { [platform]: _, ...rest } = state.platformConfigs
+          return {
+            platformConfigs: rest,
+            preferredPlatform: state.preferredPlatform === platform ? null : state.preferredPlatform,
+          }
+        })
       },
 
       setPreferredPlatform: (platform) => {

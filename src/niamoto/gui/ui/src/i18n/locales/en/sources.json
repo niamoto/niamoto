@@ -226,7 +226,27 @@
     "table": "Table",
     "notFound": "Group not found",
     "notFoundDesc": "Group \"{{name}}\" does not exist.",
-    "backToGroups": "Back to groups"
+    "backToGroups": "Back to groups",
+    "overview": "Overview",
+    "widgets": "Widgets",
+    "index": "Index",
+    "noIndex": "No index configured",
+    "noGroupsConfigured": "No groups configured",
+    "configureInExport": "Configure in export settings",
+    "groupsDefinedInExport": "Groups defined in export configuration"
+  },
+  "tree": {
+    "datasets": "Datasets",
+    "references": "References",
+    "loading": "Loading...",
+    "noDatasets": "No imported datasets",
+    "noReferences": "No imported references",
+    "import": "Import",
+    "importData": "Import data"
+  },
+  "detail": {
+    "datasetNotFound": "Dataset not found",
+    "referenceNotFound": "Reference not found"
   },
   "dashboard": {
     "title": "Data Dashboard",

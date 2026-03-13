@@ -158,9 +158,9 @@ export function BinaryMappingWizard({
       {/* Header */}
       <div className="flex items-center gap-2">
         <Binary className="h-4 w-4 text-emerald-600" />
-        <h3 className="text-sm font-medium">Configuration binaire</h3>
+        <h3 className="text-sm font-medium">Binary configuration</h3>
         <Badge variant="secondary" className="ml-auto">
-          {binaryClassObjects.length} disponibles
+          {binaryClassObjects.length} available
         </Badge>
       </div>
 

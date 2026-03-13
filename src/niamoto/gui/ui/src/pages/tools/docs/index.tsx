@@ -31,73 +31,73 @@ const apiModules: ApiModule[] = [
     name: 'Configuration',
     path: '/api/config',
     icon: <Settings className="w-5 h-5" />,
-    description: 'Gestion des fichiers de configuration YAML (import.yml, transform.yml, export.yml)',
+    description: 'Manage YAML configuration files (import.yml, transform.yml, export.yml)',
     endpoints: 6,
-    examples: ['Lecture/écriture configs', 'Validation', 'Backups et restauration']
+    examples: ['Read/write configs', 'Validation', 'Backups and restore']
   },
   {
     name: 'Plugins',
     path: '/api/plugins',
     icon: <Package className="w-5 h-5" />,
-    description: 'Découverte et introspection des 60+ plugins enregistrés',
+    description: 'Discover and inspect 60+ registered plugins',
     endpoints: 6,
-    examples: ['Liste par type/catégorie', 'Schémas de configuration', 'Vérification compatibilité']
+    examples: ['List by type/category', 'Config schemas', 'Compatibility check']
   },
   {
     name: 'Data Explorer',
     path: '/api/data',
     icon: <Database className="w-5 h-5" />,
-    description: 'Exploration et requêtage des données de la base SQLite',
+    description: 'Explore and query data from the SQLite database',
     endpoints: 4,
-    examples: ['Requêtes SQL personnalisées', 'Inspection colonnes', 'Prévisualisation enrichissements']
+    examples: ['Custom SQL queries', 'Column inspection', 'Enrichment preview']
   },
   {
     name: 'Entities',
     path: '/api/entities',
     icon: <Layers className="w-5 h-5" />,
-    description: 'Accès aux entités (taxons, parcelles, zones) avec leurs widgets et relations',
+    description: 'Access entities (taxa, plots, areas) with their widgets and relations',
     endpoints: 4,
-    examples: ['Liste entités par groupe', 'Détails avec widgets', 'Relations hiérarchiques']
+    examples: ['List entities by group', 'Details with widgets', 'Hierarchical relations']
   },
   {
     name: 'Transform',
     path: '/api/transform',
     icon: <Send className="w-5 h-5" />,
-    description: 'Exécution des transformations de données avec gestion de jobs asynchrones',
+    description: 'Run data transformations with async job management',
     endpoints: 6,
-    examples: ['Lancement transformations', 'Suivi progression', 'Métriques et résultats']
+    examples: ['Launch transforms', 'Track progress', 'Metrics and results']
   },
   {
     name: 'Imports',
     path: '/api/imports',
     icon: <Upload className="w-5 h-5" />,
-    description: 'Import de données depuis CSV, Excel, JSON, GeoJSON, Shapefile',
+    description: 'Import data from CSV, Excel, JSON, GeoJSON, Shapefile',
     endpoints: 9,
-    examples: ['Validation fichiers', 'Détection champs', 'Import avec mapping']
+    examples: ['File validation', 'Field detection', 'Import with mapping']
   },
   {
     name: 'Export',
     path: '/api/export',
     icon: <Download className="w-5 h-5" />,
-    description: 'Génération de sites statiques, API JSON, Darwin Core Archives',
+    description: 'Generate static sites, JSON APIs, Darwin Core Archives',
     endpoints: 7,
-    examples: ['Lancement exports', 'Métriques de génération', 'Configuration cibles']
+    examples: ['Launch exports', 'Generation metrics', 'Target configuration']
   },
   {
     name: 'Bootstrap',
     path: '/api',
     icon: <Send className="w-5 h-5" />,
-    description: 'Analyse de fichiers et génération automatique de configurations',
+    description: 'File analysis and automatic configuration generation',
     endpoints: 5,
-    examples: ['Analyse structure fichiers', 'Génération configs', 'Diagnostic projet']
+    examples: ['File structure analysis', 'Config generation', 'Project diagnostics']
   },
   {
     name: 'Database',
     path: '/api/database',
     icon: <Database className="w-5 h-5" />,
-    description: 'Introspection du schéma de base de données et statistiques',
+    description: 'Database schema introspection and statistics',
     endpoints: 4,
-    examples: ['Schéma complet', 'Aperçu tables', 'Statistiques']
+    examples: ['Full schema', 'Table overview', 'Statistics']
   },
   {
     name: 'Files',

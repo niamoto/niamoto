@@ -67,7 +67,7 @@ export function GroupsTree({
           onClick={() => onSelect({ type: 'overview' })}
         >
           <Layers className="h-4 w-4" />
-          {t('groups.overview', "Vue d'ensemble")}
+          {t('groups.overview', 'Overview')}
         </button>
       </div>
 
@@ -81,7 +81,7 @@ export function GroupsTree({
           <AccordionTrigger className="py-2 text-sm hover:no-underline">
             <span className="flex items-center gap-2">
               <Layers className="h-4 w-4" />
-              {t('groups.title', 'Groupes')}
+              {t('groups.title', 'Groups')}
               {referencesLoading ? (
                 <Loader2 className="ml-auto h-3 w-3 animate-spin" />
               ) : (
@@ -100,7 +100,7 @@ export function GroupsTree({
                 </div>
               ) : references.length === 0 ? (
                 <p className="px-2 py-1.5 text-xs italic text-muted-foreground">
-                  {t('groups.noGroups', 'Aucun groupe')}
+                  {t('groups.noGroups', 'No groups')}
                 </p>
               ) : (
                 references.map((ref, index) => (

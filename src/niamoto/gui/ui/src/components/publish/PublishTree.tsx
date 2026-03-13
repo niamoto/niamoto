@@ -73,7 +73,7 @@ export function PublishTree({
   }[] = [
     {
       type: 'overview',
-      label: t('tree.overview', 'Vue d\'ensemble'),
+      label: t('tree.overview', 'Overview'),
       icon: LayoutDashboard,
     },
     {
@@ -90,7 +90,7 @@ export function PublishTree({
     },
     {
       type: 'history',
-      label: t('tree.history', 'Historique'),
+      label: t('tree.history', 'History'),
       icon: History,
       badge:
         buildCount + deployCount > 0 ? (

@@ -79,6 +79,7 @@
     "trigger": "Déployer",
     "deploying": "Déploiement en cours...",
     "success": "Déploiement réussi !",
+    "propagationDelay": "Le site peut mettre quelques instants à être disponible.",
     "error": "Erreur lors du déploiement",
     "viewSite": "Voir le site",
     "lastDeploy": "Dernier déploiement",
@@ -90,21 +91,65 @@
     "staleWarning": "Le site exporté n'est plus à jour. Les données ont changé depuis le dernier build.",
     "rebuild": "Reconstruire",
     "cancelled": "Déploiement annulé",
+    "offline_warning": "Déploiement indisponible hors connexion.",
     "platforms": {
       "title": "Plateforme de déploiement",
       "description": "Choisissez où déployer votre site",
       "cloudflare": "Cloudflare Workers",
-      "cloudflareDescription": "Déploiement sur le réseau edge mondial de Cloudflare avec HTTPS automatique",
+      "cloudflareDescription": "Réseau edge mondial avec HTTPS automatique. Plan gratuit : 100 000 requêtes/jour.",
+      "cloudflarePrerequisites": "Créez un compte Cloudflare. Récupérez votre Account ID depuis le dashboard.",
+      "cloudflareTokenHint": "Créez un token avec la permission Workers Scripts: Edit. Utilisez le template « Edit Cloudflare Workers ».",
       "github": "GitHub Pages",
-      "githubDescription": "Hébergement gratuit sur GitHub avec déploiement automatique",
+      "githubDescription": "Hébergement gratuit et illimité pour sites statiques. Les fichiers sont poussés sur une branche dédiée (gh-pages) de votre dépôt.",
+      "githubPrerequisites": "Créez un dépôt sur GitHub (peut être vide). Générez un Fine-Grained Token avec les permissions Contents: Read & Write sur ce dépôt.",
+      "githubTokenHint": "Allez dans Settings > Developer settings > Fine-grained tokens. Sélectionnez le dépôt cible et accordez Contents: Read and write.",
       "netlify": "Netlify",
-      "netlifyDescription": "CDN mondial avec déploiement instantané et HTTPS automatique",
+      "netlifyDescription": "CDN mondial avec déploiement instantané, HTTPS automatique et prévisualisations par branche. Plan gratuit généreux.",
+      "netlifyPrerequisites": "Créez un site sur Netlify (ou laissez le déploiement le créer). Générez un Personal Access Token.",
+      "netlifyTokenHint": "User Settings > Applications > Personal access tokens > New access token.",
       "vercel": "Vercel",
-      "vercelDescription": "Déploiement instantané sur le réseau edge de Vercel avec aperçu automatique",
+      "vercelDescription": "Déploiement instantané sur le réseau edge de Vercel avec prévisualisations automatiques. Plan Hobby gratuit.",
+      "vercelPrerequisites": "Créez un compte Vercel. Le projet sera créé automatiquement au premier déploiement.",
+      "vercelTokenHint": "Account Settings > Tokens > Create Token. Scope : Full Account.",
       "render": "Render",
-      "renderDescription": "Sites statiques gratuits avec HTTPS automatique et déploiement continu",
+      "renderDescription": "Sites statiques gratuits avec HTTPS automatique. Deux méthodes : Deploy Hook (simple) ou API Key (avancé).",
+      "renderPrerequisites": "Créez un Static Site sur Render. Utilisez un Deploy Hook pour la méthode la plus simple.",
+      "renderTokenHint": "Account Settings > API Keys. Nécessaire uniquement si vous n'utilisez pas le Deploy Hook.",
       "ssh": "SSH/rsync",
-      "sshDescription": "Déployez sur votre propre serveur via SSH et rsync"
+      "sshDescription": "Déploiement direct sur votre serveur via SSH et rsync. Contrôle total, aucune dépendance à un service tiers.",
+      "sshPrerequisites": "L'accès SSH au serveur doit être configuré. rsync doit être installé côté serveur."
+    },
+    "fields": {
+      "cloudflare": {
+        "accountIdHint": "Visible sur le dashboard Cloudflare, en bas à droite de la page d'accueil de votre domaine, ou dans la barre d'URL.",
+        "apiTokenHint": "Créez un token avec la permission Workers Scripts: Edit. Utilisez le template « Edit Cloudflare Workers ».",
+        "projectNameHint": "Nom unique pour votre site. Sera accessible à projet.pages.dev.",
+        "branchHint": "Optionnel. Crée un alias branche.projet.pages.dev pour le preview."
+      },
+      "github": {
+        "tokenHint": "Allez dans Settings > Developer settings > Fine-grained tokens. Sélectionnez le dépôt cible et accordez Contents: Read and write.",
+        "repoHint": "Format owner/repo. Ex : mon-org/mon-site. Le dépôt doit exister sur GitHub.",
+        "branchHint": "Par défaut : gh-pages. Après le premier déploiement, activez GitHub Pages dans Settings > Pages du dépôt."
+      },
+      "netlify": {
+        "tokenHint": "User Settings > Applications > Personal access tokens > New access token.",
+        "siteIdHint": "Visible dans Site configuration > General > Site ID. Format : abc123-def456-..."
+      },
+      "vercel": {
+        "tokenHint": "Account Settings > Tokens > Create Token. Scope : Full Account.",
+        "projectNameHint": "Le projet sera créé automatiquement s'il n'existe pas. Sera accessible à projet.vercel.app."
+      },
+      "render": {
+        "deployHookUrlHint": "Dashboard > Static Site > Settings > Deploy Hook. Copiez l'URL complète.",
+        "tokenHint": "Account Settings > API Keys. Nécessaire uniquement si vous n'utilisez pas le Deploy Hook.",
+        "serviceIdHint": "Visible dans l'URL du dashboard : dashboard.render.com/static/srv-xxx. Commence par srv-."
+      },
+      "ssh": {
+        "hostHint": "Format : utilisateur@serveur.com ou juste serveur.com (utilisera l'utilisateur courant).",
+        "pathHint": "Chemin absolu du répertoire web sur le serveur. Ex : /var/www/html/mon-site",
+        "portHint": "Par défaut : 22. Modifiez si votre serveur SSH utilise un port différent.",
+        "keyPathHint": "Chemin vers votre clé SSH privée. Par défaut : ~/.ssh/id_ed25519 ou ~/.ssh/id_rsa."
+      }
     },
     "config": {
       "projectName": "Nom du projet",
@@ -128,6 +173,39 @@
     "errors": {
       "projectName": "Veuillez entrer un nom de projet",
       "connection": "Erreur de connexion au serveur"
+    },
+    "dashboard": {
+      "addDeployment": "Ajouter un déploiement",
+      "editConfig": "Modifier la configuration",
+      "viewLogs": "Voir les logs",
+      "deleteConfig": "Supprimer",
+      "deleteConfirmTitle": "Supprimer la configuration",
+      "deleteConfirmDescription": "Voulez-vous supprimer la configuration {{platform}} ? Le site déployé ne sera pas supprimé.",
+      "configSaved": "Configuration sauvegardée",
+      "configDeleted": "Configuration supprimée",
+      "redeploy": "Redéployer",
+      "saveAndDeploy": "Enregistrer et déployer",
+      "save": "Enregistrer",
+      "selectPlatform": "Choisir une plateforme",
+      "configured": "Configuré",
+      "deployed": "Déployé",
+      "failed": "Échoué",
+      "project": "Projet",
+      "lastDeployAt": "Dernier déploiement",
+      "noDeployYet": "Jamais déployé",
+      "emptyTitle": "Aucun déploiement configuré",
+      "emptyDescription": "Configurez une plateforme pour publier votre site en ligne",
+      "unpublish": "Dépublier",
+      "unpublishConfirmTitle": "Dépublier le site",
+      "unpublishConfirmDescription": "Le site {{platform}} sera supprimé de la plateforme. La configuration locale sera conservée.",
+      "unpublishSuccess": "Site dépublié avec succès",
+      "unpublishDelay": "Le site peut rester accessible quelques minutes en raison du cache CDN.",
+      "unpublishNotSupported": "La dépublication n'est pas supportée pour cette plateforme",
+      "healthOnline": "En ligne",
+      "healthOffline": "Hors ligne",
+      "healthChecking": "Vérification...",
+      "checkHealth": "Vérifier le statut",
+      "offline": "Hors ligne"
     }
   },
   "history": {

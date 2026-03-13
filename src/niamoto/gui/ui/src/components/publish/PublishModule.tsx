@@ -71,14 +71,14 @@ export function PublishModule() {
   // Update breadcrumbs when selection changes
   useEffect(() => {
     const labels: Record<PublishSelection['type'], string> = {
-      overview: t('overview.title', 'Vue d\'ensemble'),
+      overview: t('overview.title', 'Overview'),
       build: t('build.title', 'Build'),
       deploy: t('deploy.title', 'Deploy'),
-      history: t('history.title', 'Historique'),
+      history: t('history.title', 'History'),
     }
 
     setBreadcrumbs([
-      { label: t('title', 'Publication'), path: '/publish' },
+      { label: t('title', 'Publish'), path: '/publish' },
       { label: labels[selection.type] },
     ])
   }, [selection.type, setBreadcrumbs, t])

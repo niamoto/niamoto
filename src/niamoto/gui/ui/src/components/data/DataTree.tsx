@@ -88,11 +88,11 @@ export function DataTree({
               <div className="space-y-1 pl-6">
                 {datasetsLoading ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    {t('tree.loading', 'Chargement...')}
+                    {t('tree.loading', 'Loading...')}
                   </p>
                 ) : datasets.length === 0 ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    {t('tree.noDatasets', 'Aucun dataset importé')}
+                    {t('tree.noDatasets', 'No imported datasets')}
                   </p>
                 ) : (
                   datasets.map((dataset) => (
@@ -125,7 +125,7 @@ export function DataTree({
             <AccordionTrigger className="py-2 text-sm hover:no-underline">
               <span className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                {t('tree.references', 'Références')}
+                {t('tree.references', 'References')}
                 {referencesLoading ? (
                   <Loader2 className="ml-auto h-3 w-3 animate-spin" />
                 ) : (
@@ -139,11 +139,11 @@ export function DataTree({
               <div className="space-y-1 pl-6">
                 {referencesLoading ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    {t('tree.loading', 'Chargement...')}
+                    {t('tree.loading', 'Loading...')}
                   </p>
                 ) : references.length === 0 ? (
                   <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
-                    {t('tree.noReferences', 'Aucune référence importée')}
+                    {t('tree.noReferences', 'No imported references')}
                   </p>
                 ) : (
                   references.map((reference) => (
@@ -194,7 +194,7 @@ export function DataTree({
                   onClick={() => onSelect({ type: 'import' })}
                 >
                   <Upload className="mr-2 h-4 w-4" />
-                  {t('tree.importData', 'Importer des données')}
+                  {t('tree.importData', 'Import data')}
                 </Button>
               </div>
             </AccordionContent>
