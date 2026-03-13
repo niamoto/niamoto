@@ -87,15 +87,22 @@
     "noBuild": "You need to generate the site first before deploying.",
     "goToBuild": "Go to Build",
     "cliOnly": "This deployment is currently only available via command line.",
+    "staleWarning": "The exported site is outdated. Data has changed since the last build.",
+    "rebuild": "Rebuild",
+    "cancelled": "Deployment cancelled",
     "platforms": {
       "title": "Deployment Platform",
       "description": "Choose where to deploy your site",
-      "cloudflare": "Cloudflare Pages",
+      "cloudflare": "Cloudflare Workers",
       "cloudflareDescription": "Deploy on Cloudflare's global edge network with automatic HTTPS",
       "github": "GitHub Pages",
       "githubDescription": "Free hosting on GitHub with automatic deployment",
       "netlify": "Netlify",
       "netlifyDescription": "Global CDN with instant deployment and automatic HTTPS",
+      "vercel": "Vercel",
+      "vercelDescription": "Instant deployment on Vercel's edge network with automatic previews",
+      "render": "Render",
+      "renderDescription": "Free static sites with automatic HTTPS and continuous deployment",
       "ssh": "SSH/rsync",
       "sshDescription": "Deploy to your own server via SSH and rsync"
     },
@@ -105,6 +112,18 @@
       "branch": "Branch",
       "branchPlaceholder": "Leave empty for production",
       "branchHint": "Specifying a branch creates an alias (branch.project.pages.dev)"
+    },
+    "credentials": {
+      "title": "Credentials",
+      "saved": "Credential saved to keyring",
+      "saveFailed": "Failed to save credential",
+      "valid": "Token valid",
+      "invalid": "Token invalid or expired",
+      "validate": "Verify",
+      "validateFailed": "Validation failed",
+      "connected": "Connected",
+      "create": "Create token",
+      "saveToKeyring": "Save to keyring"
     },
     "errors": {
       "projectName": "Please enter a project name",

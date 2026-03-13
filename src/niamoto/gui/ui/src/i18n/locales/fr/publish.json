@@ -87,15 +87,22 @@
     "noBuild": "Vous devez d'abord générer le site avant de pouvoir le déployer.",
     "goToBuild": "Aller au Build",
     "cliOnly": "Ce déploiement est disponible uniquement via la ligne de commande pour le moment.",
+    "staleWarning": "Le site exporté n'est plus à jour. Les données ont changé depuis le dernier build.",
+    "rebuild": "Reconstruire",
+    "cancelled": "Déploiement annulé",
     "platforms": {
       "title": "Plateforme de déploiement",
       "description": "Choisissez où déployer votre site",
-      "cloudflare": "Cloudflare Pages",
+      "cloudflare": "Cloudflare Workers",
       "cloudflareDescription": "Déploiement sur le réseau edge mondial de Cloudflare avec HTTPS automatique",
       "github": "GitHub Pages",
       "githubDescription": "Hébergement gratuit sur GitHub avec déploiement automatique",
       "netlify": "Netlify",
       "netlifyDescription": "CDN mondial avec déploiement instantané et HTTPS automatique",
+      "vercel": "Vercel",
+      "vercelDescription": "Déploiement instantané sur le réseau edge de Vercel avec aperçu automatique",
+      "render": "Render",
+      "renderDescription": "Sites statiques gratuits avec HTTPS automatique et déploiement continu",
       "ssh": "SSH/rsync",
       "sshDescription": "Déployez sur votre propre serveur via SSH et rsync"
     },
@@ -105,6 +112,18 @@
       "branch": "Branche",
       "branchPlaceholder": "Laisser vide pour production",
       "branchHint": "Spécifier une branche crée un alias (branche.projet.pages.dev)"
+    },
+    "credentials": {
+      "title": "Identifiants",
+      "saved": "Identifiant sauvegardé dans le trousseau",
+      "saveFailed": "Erreur lors de la sauvegarde de l'identifiant",
+      "valid": "Token valide",
+      "invalid": "Token invalide ou expiré",
+      "validate": "Vérifier",
+      "validateFailed": "Erreur lors de la validation",
+      "connected": "Connecté",
+      "create": "Créer un token",
+      "saveToKeyring": "Sauvegarder dans le trousseau"
     },
     "errors": {
       "projectName": "Veuillez entrer un nom de projet",
