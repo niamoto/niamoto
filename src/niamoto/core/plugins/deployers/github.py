@@ -1,4 +1,4 @@
-"""GitHub Pages deployer using Git Data API (no git binary required)."""
+"""GitHub Pages deployer plugin using Git Data API (no git binary required)."""
 
 import asyncio
 import base64
@@ -8,7 +8,8 @@ from typing import AsyncIterator
 
 import httpx
 
-from .base import BaseDeployer, DeployConfig
+from niamoto.core.plugins.base import DeployerPlugin, register
+from .models import DeployConfig
 from niamoto.core.services.credential import CredentialService
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,8 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://api.github.com"
 
 
-class GitHubDeployer(BaseDeployer):
+@register("github")
+class GitHubDeployer(DeployerPlugin):
     """Deploy static sites to GitHub Pages via the Git Data API."""
 
     platform = "github"
@@ -65,9 +67,9 @@ class GitHubDeployer(BaseDeployer):
             base_url=BASE_URL, headers=headers, timeout=60.0
         ) as client:
             # --- Ensure branch exists ---
-            parent_sha = await self._ensure_branch(client, owner, repo, branch)
+            parent_sha, err = await self._ensure_branch(client, owner, repo, branch)
             if parent_sha is None:
-                yield self.sse_error(f"Failed to initialise branch '{branch}'.")
+                yield self.sse_error(err or f"Failed to initialise branch '{branch}'.")
                 yield self.sse_done()
                 return
 
@@ -199,37 +201,135 @@ class GitHubDeployer(BaseDeployer):
             yield self.sse_url(url)
             yield self.sse_done()
 
+    async def unpublish(self, config: DeployConfig) -> AsyncIterator[str]:
+        """Remove GitHub Pages by deleting the deployment branch."""
+        token = CredentialService.get("github", "token")
+        if not token:
+            yield self.sse_error("No GitHub token configured.")
+            yield self.sse_done()
+            return
+
+        repo_slug = config.extra.get("repo")
+        if not repo_slug or "/" not in repo_slug:
+            yield self.sse_error(f"Invalid repo format: '{repo_slug}'.")
+            yield self.sse_done()
+            return
+
+        owner, repo = repo_slug.split("/", 1)
+        branch = config.extra.get("branch", "gh-pages")
+
+        yield self.sse_log(f"Deleting branch '{branch}' from {owner}/{repo}...")
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "Niamoto-Deploy",
+            "Accept": "application/vnd.github+json",
+        }
+
+        async with httpx.AsyncClient(
+            base_url=BASE_URL, headers=headers, timeout=30.0
+        ) as client:
+            resp = await client.delete(f"/repos/{owner}/{repo}/git/refs/heads/{branch}")
+
+            if resp.status_code == 204:
+                yield self.sse_success(
+                    f"Branch '{branch}' deleted. GitHub Pages will be disabled."
+                )
+            elif resp.status_code == 404:
+                yield self.sse_error(f"Branch '{branch}' not found.")
+            else:
+                yield self.sse_error(
+                    f"Failed to delete branch: HTTP {resp.status_code} — {resp.text[:200]}"
+                )
+
+        yield self.sse_done()
+
     @staticmethod
     async def _ensure_branch(
         client: httpx.AsyncClient, owner: str, repo: str, branch: str
-    ) -> str | None:
-        """Ensure the target branch exists. Returns the tip commit SHA or None on failure.
+    ) -> tuple[str | None, str | None]:
+        """Ensure the target branch exists.
 
-        If the branch does not exist, creates an orphan branch with an empty initial commit.
+        Returns (tip_commit_sha, None) on success, or (None, error_message) on failure.
         """
+        # Check if repo exists first
+        repo_resp = await client.get(f"/repos/{owner}/{repo}")
+        if repo_resp.status_code == 404:
+            return (
+                None,
+                f"Repository '{owner}/{repo}' not found (404). Create it first on GitHub.",
+            )
+        if repo_resp.status_code == 403:
+            return None, f"Access denied to '{owner}/{repo}'. Check token permissions."
+        if repo_resp.status_code != 200:
+            return (
+                None,
+                f"Cannot access repo '{owner}/{repo}': HTTP {repo_resp.status_code}",
+            )
+
+        # Check if repo is empty (no commits yet)
+        repo_data = repo_resp.json()
+        if repo_data.get("size", 0) == 0:
+            # Initialize the repo with a README via the Contents API
+            # (Git Data API doesn't work on empty repos)
+            try:
+                import base64 as b64mod
+
+                init_resp = await client.put(
+                    f"/repos/{owner}/{repo}/contents/README.md",
+                    json={
+                        "message": "Initial commit",
+                        "content": b64mod.b64encode(
+                            f"# {repo}\n\nDeployed with Niamoto.\n".encode()
+                        ).decode("ascii"),
+                    },
+                )
+                init_resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 422:  # 422 = file already exists
+                    detail = exc.response.text[:300]
+                    return None, f"Failed to initialize empty repo: {detail}"
+
         ref_url = f"/repos/{owner}/{repo}/git/refs/heads/{branch}"
 
         # Check if branch already exists
         resp = await client.get(ref_url)
         if resp.status_code == 200:
-            return resp.json()["object"]["sha"]
+            return resp.json()["object"]["sha"], None
 
         # Branch does not exist — create orphan branch
         try:
-            # Create an empty tree
+            # Create a placeholder blob (.nojekyll) — GitHub rejects empty trees
+            blob_resp = await client.post(
+                f"/repos/{owner}/{repo}/git/blobs",
+                json={"content": "", "encoding": "utf-8"},
+            )
+            blob_resp.raise_for_status()
+            blob_sha = blob_resp.json()["sha"]
+
+            # Create a tree with the placeholder file
             tree_resp = await client.post(
                 f"/repos/{owner}/{repo}/git/trees",
-                json={"tree": []},
+                json={
+                    "tree": [
+                        {
+                            "path": ".nojekyll",
+                            "mode": "100644",
+                            "type": "blob",
+                            "sha": blob_sha,
+                        }
+                    ]
+                },
             )
             tree_resp.raise_for_status()
-            empty_tree_sha = tree_resp.json()["sha"]
+            init_tree_sha = tree_resp.json()["sha"]
 
             # Create an initial commit with no parents (orphan)
             commit_resp = await client.post(
                 f"/repos/{owner}/{repo}/git/commits",
                 json={
                     "message": "Initial GitHub Pages commit",
-                    "tree": empty_tree_sha,
+                    "tree": init_tree_sha,
                     "parents": [],
                 },
             )
@@ -243,11 +343,8 @@ class GitHubDeployer(BaseDeployer):
             )
             create_ref_resp.raise_for_status()
 
-            return initial_sha
+            return initial_sha, None
         except httpx.HTTPStatusError as exc:
-            logger.error(
-                "Failed to create orphan branch '%s': %s",
-                branch,
-                exc.response.text[:300],
-            )
-            return None
+            detail = exc.response.text[:300]
+            logger.error("Failed to create orphan branch '%s': %s", branch, detail)
+            return None, f"GitHub API error ({exc.response.status_code}): {detail}"

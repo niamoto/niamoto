@@ -44,6 +44,7 @@ class Config:
             self.imports: Dict[str, Any] = {}
             self.transforms: Any = {}
             self.exports: Any = {}
+            self.deploy: Dict[str, Any] = {}
             self._generic_import_config: Optional[GenericImportConfig] = None
             self._validated_transforms_config: Optional[List[Dict[str, Any]]] = None
 
@@ -93,6 +94,15 @@ class Config:
                     message="Failed to load configuration file",
                     details={"file": file_path, "error": str(e)},
                 )
+
+        # deploy.yml is optional — load if present, otherwise empty dict
+        deploy_path = os.path.join(self.config_dir, "deploy.yml")
+        if os.path.exists(deploy_path):
+            try:
+                with open(deploy_path, "r") as f:
+                    self.deploy = yaml.safe_load(f) or {}
+            except Exception:
+                self.deploy = {}
 
     @staticmethod
     @error_handler(log=True, raise_error=True)
@@ -835,6 +845,16 @@ exports:
                 details={"config": self.config},
             )
         return exports
+
+    @property
+    def get_deploy_config(self) -> Dict[str, Any]:
+        """Get the deploy configuration from deploy.yml (optional).
+
+        Returns:
+            Dict with keys: platform, project_name, branch, extra.
+            Empty dict if deploy.yml does not exist.
+        """
+        return self.deploy or {}
 
     @property
     @error_handler(log=True, raise_error=True)

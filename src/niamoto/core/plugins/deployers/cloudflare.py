@@ -1,4 +1,4 @@
-"""Cloudflare Workers Static Assets deployer.
+"""Cloudflare Workers Static Assets deployer plugin.
 
 Deploys static sites using the Cloudflare Workers Assets Upload API
 (not the deprecated Pages API).
@@ -15,7 +15,8 @@ from typing import AsyncIterator
 
 import httpx
 
-from .base import BaseDeployer, DeployConfig
+from niamoto.core.plugins.base import DeployerPlugin, register
+from .models import DeployConfig
 from niamoto.core.services.credential import CredentialService
 
 logger = logging.getLogger(__name__)
@@ -44,10 +45,41 @@ def _hash_file(path: str) -> str:
     return h.hexdigest()[:32]
 
 
-class CloudflareDeployer(BaseDeployer):
+@register("cloudflare")
+class CloudflareDeployer(DeployerPlugin):
     """Deploy static assets to Cloudflare Workers."""
 
     platform = "cloudflare"
+
+    async def unpublish(self, config: DeployConfig) -> AsyncIterator[str]:
+        """Remove a Cloudflare Worker."""
+        api_token = CredentialService.get("cloudflare", "api-token")
+        account_id = CredentialService.get("cloudflare", "account-id")
+
+        if not api_token or not account_id:
+            yield self.sse_error("Missing Cloudflare credentials.")
+            yield self.sse_done()
+            return
+
+        script_name = config.project_name
+        yield self.sse_log(f"Deleting Worker '{script_name}'...")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.delete(
+                f"{CF_API_BASE}/accounts/{account_id}/workers/scripts/{script_name}",
+                headers={"Authorization": f"Bearer {api_token}"},
+            )
+
+            if resp.status_code == 200:
+                yield self.sse_success(f"Worker '{script_name}' deleted.")
+            elif resp.status_code == 404:
+                yield self.sse_error(f"Worker '{script_name}' not found.")
+            else:
+                yield self.sse_error(
+                    f"Failed to delete Worker: HTTP {resp.status_code} — {resp.text[:200]}"
+                )
+
+        yield self.sse_done()
 
     async def deploy(self, config: DeployConfig) -> AsyncIterator[str]:
         """Deploy files to Cloudflare Workers Static Assets."""

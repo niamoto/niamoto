@@ -52,6 +52,7 @@ CORE_PLUGIN_MODULES = [
     "niamoto.core.plugins.transformers",
     "niamoto.core.plugins.exporters",
     "niamoto.core.plugins.widgets",
+    "niamoto.core.plugins.deployers",
 ]
 
 
@@ -328,7 +329,13 @@ class PluginLoader:
                     )
 
                     # Détecter plugin_type à partir des noms de répertoire
-                    plugin_types = ["transformers", "exporters", "loaders", "widgets"]
+                    plugin_types = [
+                        "transformers",
+                        "exporters",
+                        "loaders",
+                        "widgets",
+                        "deployers",
+                    ]
 
                     if grandparent in plugin_types:
                         # Chemin de type .../transformers/subdir/file.py

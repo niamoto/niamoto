@@ -1,4 +1,4 @@
-"""Render deployer using Deploy Hook or API."""
+"""Render deployer plugin using Deploy Hook or API."""
 
 import asyncio
 import logging
@@ -6,9 +6,9 @@ from typing import AsyncIterator
 
 import httpx
 
+from niamoto.core.plugins.base import DeployerPlugin, register
+from .models import DeployConfig
 from niamoto.core.services.credential import CredentialService
-
-from .base import BaseDeployer, DeployConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +19,44 @@ POLL_INTERVAL = 5  # seconds
 POLL_TIMEOUT = 600  # 10 minutes max
 
 
-class RenderDeployer(BaseDeployer):
+@register("render")
+class RenderDeployer(DeployerPlugin):
     """Deploy to Render via Deploy Hook or API."""
 
     platform = "render"
+
+    async def unpublish(self, config: DeployConfig) -> AsyncIterator[str]:
+        """Suspend a Render service."""
+        token = CredentialService.get("render", "token")
+        if not token:
+            yield self.sse_error("No Render token configured.")
+            yield self.sse_done()
+            return
+
+        service_id = config.extra.get("service_id")
+        if not service_id:
+            yield self.sse_error("No service_id configured.")
+            yield self.sse_done()
+            return
+
+        yield self.sse_log(f"Suspending Render service {service_id}...")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{RENDER_API}/services/{service_id}/suspend",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+            if resp.status_code in (200, 202):
+                yield self.sse_success("Render service suspended.")
+            elif resp.status_code == 404:
+                yield self.sse_error(f"Service '{service_id}' not found.")
+            else:
+                yield self.sse_error(
+                    f"Failed to suspend service: HTTP {resp.status_code} — {resp.text[:200]}"
+                )
+
+        yield self.sse_done()
 
     async def deploy(self, config: DeployConfig) -> AsyncIterator[str]:
         """Deploy to Render and yield SSE log lines."""
