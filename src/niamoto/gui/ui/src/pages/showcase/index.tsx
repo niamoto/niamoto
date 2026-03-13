@@ -165,10 +165,10 @@ export default function ShowcasePage() {
   }, [currentSection])
 
   const sectionTitles = [
-    'Vue d\'ensemble',
+    'Overview',
     'Pipeline',
-    'API & Intégration',
-    'Communauté',
+    'API & Integration',
+    'Community',
     'Perspectives'
   ]
 

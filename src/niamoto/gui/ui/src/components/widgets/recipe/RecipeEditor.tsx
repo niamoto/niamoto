@@ -240,7 +240,7 @@ function organizeParamsByGroups(
 
 // Wizard steps definition
 const WIZARD_STEPS = [
-  { id: 'identity', label: 'Identifiant', icon: Database },
+  { id: 'identity', label: 'Identifier', icon: Database },
   { id: 'source', label: 'Source', icon: FileSpreadsheet },
   { id: 'transform', label: 'Transformation', icon: Columns },
   { id: 'display', label: 'Affichage', icon: Eye },

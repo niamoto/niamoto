@@ -89,7 +89,7 @@ export function DataModule() {
   // Update breadcrumbs based on selection
   useEffect(() => {
     const crumbs: { label: string; path?: string }[] = [
-      { label: t('breadcrumb.data', 'Données'), path: '/sources' },
+      { label: t('common:breadcrumb.data', 'Data'), path: '/sources' },
     ]
 
     switch (selection.type) {
@@ -100,7 +100,7 @@ export function DataModule() {
         crumbs.push({ label: selection.name })
         break
       case 'import':
-        crumbs.push({ label: t('breadcrumb.import', 'Import') })
+        crumbs.push({ label: t('common:breadcrumb.import', 'Import') })
         break
     }
 
@@ -119,7 +119,7 @@ export function DataModule() {
           return (
             <div className="flex items-center justify-center h-full p-6">
               <p className="text-muted-foreground">
-                {t('detail.datasetNotFound', 'Dataset introuvable')}
+                {t('detail.datasetNotFound', 'Dataset not found')}
               </p>
             </div>
           )
@@ -140,7 +140,7 @@ export function DataModule() {
           return (
             <div className="flex items-center justify-center h-full p-6">
               <p className="text-muted-foreground">
-                {t('detail.referenceNotFound', 'Référence introuvable')}
+                {t('detail.referenceNotFound', 'Reference not found')}
               </p>
             </div>
           )
@@ -171,7 +171,7 @@ export function DataModule() {
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
                     <Database className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <CardTitle>{t('dashboard.noData', 'Aucune donnée')}</CardTitle>
+                  <CardTitle>{t('dashboard.noData', 'No data')}</CardTitle>
                   <CardDescription>
                     {t(
                       'dashboard.noDataHint',
@@ -186,7 +186,7 @@ export function DataModule() {
                     className="gap-2"
                   >
                     <Upload className="h-4 w-4" />
-                    {t('dashboard.importData', 'Importer des données')}
+                    {t('dashboard.importData', 'Import data')}
                   </Button>
                 </CardContent>
               </Card>
@@ -200,12 +200,12 @@ export function DataModule() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold">
-                  {t('dashboard.title', 'Tableau de bord des données')}
+                  {t('dashboard.title', 'Data Dashboard')}
                 </h1>
                 <p className="text-muted-foreground">
                   {t(
                     'dashboard.description',
-                    'Vue d\'ensemble de la qualité et de la complétude des données importées.'
+                    'Overview of the quality and completeness of imported data.'
                   )}
                 </p>
               </div>
@@ -215,7 +215,7 @@ export function DataModule() {
                   onClick={() => handleSelect({ type: 'import' })}
                 >
                   <Upload className="mr-2 h-4 w-4" />
-                  {t('dashboard.import', 'Importer')}
+                  {t('dashboard.import', 'Import')}
                 </Button>
               </div>
             </div>

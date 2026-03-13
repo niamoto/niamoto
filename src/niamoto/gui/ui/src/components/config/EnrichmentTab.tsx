@@ -294,13 +294,13 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
         startedAt: new Date().toISOString(),
         meta: { referenceName },
       })
-      toast.success('Enrichissement demarre', {
-        description: `${stats?.pending || 0} entites a traiter`,
+      toast.success('Enrichment started', {
+        description: `${stats?.pending || 0} entities to process`,
       })
     } catch (err: any) {
       console.error('Failed to start job:', err)
-      toast.error('Erreur au demarrage', {
-        description: err.response?.data?.detail || 'Impossible de demarrer le job',
+      toast.error('Start error', {
+        description: err.response?.data?.detail || 'Unable to start job',
       })
     } finally {
       setJobLoading(false)
@@ -314,13 +314,13 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
     try {
       await apiClient.post(`/enrichment/pause/${referenceName}`)
       await loadJobStatus()
-      toast.info('Enrichissement en pause', {
-        description: 'Vous pouvez reprendre a tout moment',
+      toast.info('Enrichment paused', {
+        description: 'You can resume at any time',
       })
     } catch (err: any) {
       console.error('Failed to pause job:', err)
-      toast.error('Erreur', {
-        description: 'Impossible de mettre en pause',
+      toast.error('Error', {
+        description: 'Unable to pause',
       })
     } finally {
       setIsPausing(false)
@@ -334,13 +334,13 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
     try {
       await apiClient.post(`/enrichment/resume/${referenceName}`)
       startPolling()
-      toast.success('Enrichissement repris', {
-        description: 'Le traitement continue',
+      toast.success('Enrichment resumed', {
+        description: 'Processing continues',
       })
     } catch (err: any) {
       console.error('Failed to resume job:', err)
-      toast.error('Erreur', {
-        description: 'Impossible de reprendre',
+      toast.error('Error', {
+        description: 'Unable to resume',
       })
     } finally {
       setIsResuming(false)
@@ -354,13 +354,13 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
       await apiClient.post(`/enrichment/cancel/${referenceName}`)
       await loadJobStatus()
       stopPolling()
-      toast.warning('Enrichissement annule', {
-        description: `${job.processed} entites traitees`,
+      toast.warning('Enrichment cancelled', {
+        description: `${job.processed} entities processed`,
       })
     } catch (err: any) {
       console.error('Failed to cancel job:', err)
-      toast.error('Erreur', {
-        description: 'Impossible d\'annuler',
+      toast.error('Error', {
+        description: 'Unable to cancel',
       })
     }
   }
@@ -938,8 +938,8 @@ export function EnrichmentTab({ referenceName }: EnrichmentTabProps) {
               ) : results.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Aucun resultat disponible</p>
-                  <p className="text-xs">Lancez un enrichissement pour voir les resultats</p>
+                  <p>No results available</p>
+                  <p className="text-xs">Run an enrichment to see results</p>
                 </div>
               ) : (
                 <ScrollArea className="h-64">

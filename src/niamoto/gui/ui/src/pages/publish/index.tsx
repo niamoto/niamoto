@@ -69,7 +69,7 @@ function StaticSitePreview({
       {/* Reuse PreviewFrame header style */}
       <div className="flex items-center justify-between border-b bg-background px-4 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{t('overview.generatedSite', 'Site généré')}</span>
+          <span className="text-sm font-medium">{t('overview.generatedSite', 'Generated site')}</span>
           <span className="text-xs text-muted-foreground">
             {dims.width}x{dims.height} ({Math.round(scale * 100)}%)
           </span>
@@ -80,10 +80,10 @@ function StaticSitePreview({
             <ToggleGroupItem value="tablet" aria-label="Tablet"><Tablet className="h-4 w-4" /></ToggleGroupItem>
             <ToggleGroupItem value="desktop" aria-label="Desktop"><Monitor className="h-4 w-4" /></ToggleGroupItem>
           </ToggleGroup>
-          <Button variant="ghost" size="sm" onClick={() => setIframeKey(k => k + 1)} title={t('common:actions.refresh', 'Rafraîchir')}>
+          <Button variant="ghost" size="sm" onClick={() => setIframeKey(k => k + 1)} title={t('common:actions.refresh', 'Refresh')}>
             <RotateCcw className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} title={t('common:actions.close', 'Fermer')}>
+          <Button variant="ghost" size="sm" onClick={onClose} title={t('common:actions.close', 'Close')}>
             <PanelRightClose className="h-4 w-4" />
           </Button>
         </div>
@@ -232,7 +232,7 @@ export default function PublishOverview() {
   useEffect(() => {
     setBreadcrumbs([
       { label: 'Publish', path: '/publish' },
-      { label: t('overview.title', 'Vue d\'ensemble') }
+      { label: t('overview.title', 'Overview') }
     ])
   }, [setBreadcrumbs, t])
 
@@ -240,13 +240,13 @@ export default function PublishOverview() {
     if (!status) return null
     switch (status) {
       case 'completed':
-        return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {t('status.completed', 'Terminé')}</Badge>
+        return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {t('status.completed', 'Completed')}</Badge>
       case 'failed':
-        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> {t('status.failed', 'Échoué')}</Badge>
+        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> {t('status.failed', 'Failed')}</Badge>
       case 'running':
-        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1 animate-spin" /> {t('status.running', 'En cours')}</Badge>
+        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1 animate-spin" /> {t('status.running', 'Running')}</Badge>
       case 'cancelled':
-        return <Badge variant="outline"><AlertCircle className="w-3 h-3 mr-1" /> {t('status.cancelled', 'Annulé')}</Badge>
+        return <Badge variant="outline"><AlertCircle className="w-3 h-3 mr-1" /> {t('status.cancelled', 'Cancelled')}</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -267,8 +267,8 @@ export default function PublishOverview() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{t('title', 'Publication')}</h1>
-          <p className="text-muted-foreground">{t('description', 'Générez et déployez votre site statique')}</p>
+          <h1 className="text-3xl font-bold">{t('title', 'Publish')}</h1>
+          <p className="text-muted-foreground">{t('description', 'Generate and deploy your static site')}</p>
         </div>
       </div>
 
@@ -280,7 +280,7 @@ export default function PublishOverview() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                {t('overview.lastBuild', 'Dernier Build')}
+                {t('overview.lastBuild', 'Last Build')}
               </CardTitle>
               {getStatusBadge(currentBuild?.status || lastBuild?.status)}
             </div>
@@ -306,7 +306,7 @@ export default function PublishOverview() {
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground">{t('overview.noBuild', 'Aucun build effectué')}</div>
+              <div className="text-sm text-muted-foreground">{t('overview.noBuild', 'No build performed')}</div>
             )}
           </CardContent>
         </Card>
@@ -317,7 +317,7 @@ export default function PublishOverview() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Upload className="w-5 h-5" />
-                {t('overview.lastDeploy', 'Dernier Déploiement')}
+                {t('overview.lastDeploy', 'Last Deployment')}
               </CardTitle>
               {getStatusBadge(currentDeploy?.status || lastDeploy?.status)}
             </div>
@@ -326,7 +326,7 @@ export default function PublishOverview() {
             {isDeploying ? (
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">
-                  {t('deploy.deploying', 'Déploiement en cours sur')} {currentDeploy?.platform}...
+                  {t('deploy.deploying', 'Deploying to')} {currentDeploy?.platform}...
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div className="h-full bg-primary animate-pulse" style={{ width: '60%' }} />
@@ -354,7 +354,7 @@ export default function PublishOverview() {
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground">{t('overview.noDeploy', 'Aucun déploiement effectué')}</div>
+              <div className="text-sm text-muted-foreground">{t('overview.noDeploy', 'No deployment performed')}</div>
             )}
           </CardContent>
         </Card>
@@ -365,7 +365,7 @@ export default function PublishOverview() {
       <Card>
         <CardHeader>
           <CardTitle>{t('overview.quickActions', 'Actions rapides')}</CardTitle>
-          <CardDescription>{t('overview.quickActionsDescription', 'Générez et déployez votre site en quelques clics')}</CardDescription>
+          <CardDescription>{t('overview.quickActionsDescription', 'Generate and deploy your site in a few clicks')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
@@ -375,7 +375,7 @@ export default function PublishOverview() {
               disabled={isBuilding}
             >
               <Package className="w-5 h-5 mr-2" />
-              {isBuilding ? t('build.building', 'Build en cours...') : t('build.trigger', 'Générer le site')}
+              {isBuilding ? t('build.building', 'Building...') : t('build.trigger', 'Generate Site')}
             </Button>
 
             <Button
@@ -385,7 +385,7 @@ export default function PublishOverview() {
               disabled={isDeploying || (!lastBuild && !buildHistory.some(b => b.status === 'completed'))}
             >
               <Send className="w-5 h-5 mr-2" />
-              {isDeploying ? t('deploy.deploying', 'Déploiement...') : t('deploy.trigger', 'Déployer')}
+              {isDeploying ? t('deploy.deploying', 'Deploying...') : t('deploy.trigger', 'Deploy')}
             </Button>
 
             <Button
@@ -394,7 +394,7 @@ export default function PublishOverview() {
               onClick={() => setPreviewOpen(!previewOpen)}
             >
               {previewOpen ? <EyeOff className="w-5 h-5 mr-2" /> : <Eye className="w-5 h-5 mr-2" />}
-              {t('overview.openPreview', 'Aperçu du site')}
+              {t('overview.openPreview', 'Site Preview')}
             </Button>
 
             <Button
@@ -403,7 +403,7 @@ export default function PublishOverview() {
               onClick={() => navigate('/publish/history')}
             >
               <History className="w-5 h-5 mr-2" />
-              {t('history.title', 'Historique')}
+              {t('history.title', 'History')}
             </Button>
           </div>
         </CardContent>
@@ -430,8 +430,8 @@ export default function PublishOverview() {
               onRefresh={loadDynamicPreview}
               onClose={() => setPreviewOpen(false)}
               onLinkClick={handlePreviewLinkClick}
-              title={t('overview.previewDynamic', 'Aperçu dynamique')}
-              emptyMessage={t('overview.noPreview', 'Configurez votre site pour voir l\'aperçu')}
+              title={t('overview.previewDynamic', 'Dynamic preview')}
+              emptyMessage={t('overview.noPreview', 'Configure your site to see the preview')}
               className="h-[600px]"
             />
           )}
@@ -442,7 +442,7 @@ export default function PublishOverview() {
       {(buildHistory.length > 0 || deployHistory.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle>{t('overview.recentActivity', 'Activité récente')}</CardTitle>
+            <CardTitle>{t('overview.recentActivity', 'Recent Activity')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

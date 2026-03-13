@@ -81,17 +81,17 @@ export function TopBar({ className }: TopBarProps) {
               <div className="flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                 <WifiOff className="h-4 w-4" />
                 <span className="hidden text-xs font-medium sm:inline">
-                  {t('network.offline', 'Hors ligne')}
+                  {t('network.offline', 'Offline')}
                 </span>
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-64">
               <div className="space-y-1">
-                <p className="font-medium">{t('network.offline_title', 'Mode hors connexion')}</p>
+                <p className="font-medium">{t('network.offline_title', 'Offline mode')}</p>
                 <ul className="list-inside list-disc text-xs opacity-80">
-                  <li>{t('network.enrichment_unavailable', 'Enrichissement API : indisponible')}</li>
-                  <li>{t('network.deploy_unavailable', 'Publication : indisponible')}</li>
-                  <li>{t('network.tiles_unavailable', 'Tuiles cartographiques : indisponibles')}</li>
+                  <li>{t('network.enrichment_unavailable', 'API enrichment: unavailable')}</li>
+                  <li>{t('network.deploy_unavailable', 'Deployment: unavailable')}</li>
+                  <li>{t('network.tiles_unavailable', 'Map tiles: unavailable')}</li>
                 </ul>
               </div>
             </TooltipContent>

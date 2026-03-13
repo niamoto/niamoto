@@ -155,7 +155,7 @@ export function LivePreview() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              {t('live_preview.responsive_desc', 'Testez votre site sur différentes tailles d\'écran (mobile, tablette, desktop)')}
+              {t('live_preview.responsive_desc', 'Test your site on different screen sizes (mobile, tablet, desktop)')}
             </p>
           </CardContent>
         </Card>
@@ -168,7 +168,7 @@ export function LivePreview() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              {t('live_preview.external_desc', 'Ouvrez le site dans un nouvel onglet pour une navigation complète')}
+              {t('live_preview.external_desc', 'Open the site in a new tab for full navigation')}
             </p>
           </CardContent>
         </Card>

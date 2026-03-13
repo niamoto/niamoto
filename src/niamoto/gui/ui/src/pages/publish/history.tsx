@@ -66,20 +66,20 @@ export default function PublishHistory() {
   useEffect(() => {
     setBreadcrumbs([
       { label: 'Publish', path: '/publish' },
-      { label: t('history.title', 'Historique') }
+      { label: t('history.title', 'History') }
     ])
   }, [setBreadcrumbs, t])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
-        return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {t('status.completed', 'Terminé')}</Badge>
+        return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> {t('status.completed', 'Completed')}</Badge>
       case 'failed':
-        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> {t('status.failed', 'Échoué')}</Badge>
+        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> {t('status.failed', 'Failed')}</Badge>
       case 'running':
-        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" /> {t('status.running', 'En cours')}</Badge>
+        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" /> {t('status.running', 'Running')}</Badge>
       case 'cancelled':
-        return <Badge variant="outline"><AlertCircle className="w-3 h-3 mr-1" /> {t('status.cancelled', 'Annulé')}</Badge>
+        return <Badge variant="outline"><AlertCircle className="w-3 h-3 mr-1" /> {t('status.cancelled', 'Cancelled')}</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -106,10 +106,10 @@ export default function PublishHistory() {
   const handleClearHistory = () => {
     if (showClearDialog === 'builds') {
       clearBuildHistory()
-      toast.success(t('history.clearedBuilds', 'Historique des builds effacé'))
+      toast.success(t('history.clearedBuilds', 'Build history cleared'))
     } else if (showClearDialog === 'deploys') {
       clearDeployHistory()
-      toast.success(t('history.clearedDeploys', 'Historique des déploiements effacé'))
+      toast.success(t('history.clearedDeploys', 'Deployment history cleared'))
     }
     setShowClearDialog(null)
   }
@@ -119,8 +119,8 @@ export default function PublishHistory() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{t('history.title', 'Historique')}</h1>
-          <p className="text-muted-foreground">{t('history.description', 'Consultez l\'historique des builds et déploiements')}</p>
+          <h1 className="text-3xl font-bold">{t('history.title', 'History')}</h1>
+          <p className="text-muted-foreground">{t('history.description', 'View build and deployment history')}</p>
         </div>
       </div>
 
@@ -137,13 +137,13 @@ export default function PublishHistory() {
             <div className="text-2xl font-bold text-green-500">
               {buildHistory.filter(b => b.status === 'completed').length}
             </div>
-            <p className="text-xs text-muted-foreground">{t('history.successfulBuilds', 'Builds réussis')}</p>
+            <p className="text-xs text-muted-foreground">{t('history.successfulBuilds', 'Successful Builds')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <div className="text-2xl font-bold">{deployHistory.length}</div>
-            <p className="text-xs text-muted-foreground">{t('history.totalDeploys', 'Déploiements')}</p>
+            <p className="text-xs text-muted-foreground">{t('history.totalDeploys', 'Deployments')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -151,7 +151,7 @@ export default function PublishHistory() {
             <div className="text-2xl font-bold text-green-500">
               {deployHistory.filter(d => d.status === 'completed').length}
             </div>
-            <p className="text-xs text-muted-foreground">{t('history.successfulDeploys', 'Déploiements réussis')}</p>
+            <p className="text-xs text-muted-foreground">{t('history.successfulDeploys', 'Successful Deployments')}</p>
           </CardContent>
         </Card>
       </div>
@@ -161,7 +161,7 @@ export default function PublishHistory() {
         <TabsList>
           <TabsTrigger value="deploys" className="flex items-center gap-2">
             <Upload className="w-4 h-4" />
-            {t('history.deploys', 'Déploiements')}
+            {t('history.deploys', 'Deployments')}
             <Badge variant="secondary" className="ml-1">{deployHistory.length}</Badge>
           </TabsTrigger>
           <TabsTrigger value="builds" className="flex items-center gap-2">
@@ -176,8 +176,8 @@ export default function PublishHistory() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>{t('history.deploysTitle', 'Historique des déploiements')}</CardTitle>
-                <CardDescription>{t('history.deploysDescription', 'Liste de tous les déploiements effectués')}</CardDescription>
+                <CardTitle>{t('history.deploysTitle', 'Deployment History')}</CardTitle>
+                <CardDescription>{t('history.deploysDescription', 'List of all deployments performed')}</CardDescription>
               </div>
               {deployHistory.length > 0 && (
                 <Button
@@ -193,7 +193,7 @@ export default function PublishHistory() {
             <CardContent>
               {deployHistory.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {t('history.noDeploysYet', 'Aucun déploiement effectué')}
+                  {t('history.noDeploysYet', 'No deployments performed')}
                 </div>
               ) : (
                 <Table>
@@ -235,7 +235,7 @@ export default function PublishHistory() {
                               className="text-primary hover:underline flex items-center gap-1 text-sm"
                             >
                               <Globe className="w-3 h-3" />
-                              {t('deploy.viewSite', 'Voir')}
+                              {t('deploy.viewSite', 'View')}
                             </a>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -253,16 +253,16 @@ export default function PublishHistory() {
                                 <DropdownMenuItem asChild>
                                   <a href={deploy.deploymentUrl} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="w-4 h-4 mr-2" />
-                                    {t('history.openSite', 'Ouvrir le site')}
+                                    {t('history.openSite', 'Open site')}
                                   </a>
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem onClick={() => setSelectedDeploy(deploy)}>
                                 <FileText className="w-4 h-4 mr-2" />
-                                {t('history.viewLogs', 'Voir les logs')}
+                                {t('history.viewLogs', 'View logs')}
                               </DropdownMenuItem>
                               {deploy.status === 'completed' && (
-                                <DropdownMenuItem onClick={() => toast.info(t('history.rollbackSoon', 'Rollback bientôt disponible'))}>
+                                <DropdownMenuItem onClick={() => toast.info(t('history.rollbackSoon', 'Rollback coming soon'))}>
                                   <RotateCcw className="w-4 h-4 mr-2" />
                                   {t('history.rollback', 'Rollback')}
                                 </DropdownMenuItem>
@@ -284,8 +284,8 @@ export default function PublishHistory() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>{t('history.buildsTitle', 'Historique des builds')}</CardTitle>
-                <CardDescription>{t('history.buildsDescription', 'Liste de toutes les générations effectuées')}</CardDescription>
+                <CardTitle>{t('history.buildsTitle', 'Build history')}</CardTitle>
+                <CardDescription>{t('history.buildsDescription', 'List of all builds performed')}</CardDescription>
               </div>
               {buildHistory.length > 0 && (
                 <Button
@@ -301,7 +301,7 @@ export default function PublishHistory() {
             <CardContent>
               {buildHistory.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {t('history.noBuildsYet', 'Aucun build effectué')}
+                  {t('history.noBuildsYet', 'No builds performed')}
                 </div>
               ) : (
                 <Table>
@@ -309,8 +309,8 @@ export default function PublishHistory() {
                     <TableRow>
                       <TableHead>{t('history.date', 'Date')}</TableHead>
                       <TableHead>{t('history.status', 'Statut')}</TableHead>
-                      <TableHead>{t('history.files', 'Fichiers')}</TableHead>
-                      <TableHead>{t('history.duration', 'Durée')}</TableHead>
+                      <TableHead>{t('history.files', 'Files')}</TableHead>
+                      <TableHead>{t('history.duration', 'Duration')}</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -348,7 +348,7 @@ export default function PublishHistory() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setSelectedBuild(build)}>
                                 <FileText className="w-4 h-4 mr-2" />
-                                {t('history.viewDetails', 'Voir les détails')}
+                                {t('history.viewDetails', 'View Details')}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -367,7 +367,7 @@ export default function PublishHistory() {
       <Dialog open={!!selectedBuild} onOpenChange={() => setSelectedBuild(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('history.buildDetails', 'Détails du build')}</DialogTitle>
+            <DialogTitle>{t('history.buildDetails', 'Build Details')}</DialogTitle>
             <DialogDescription>
               {selectedBuild && formatDate(selectedBuild.completedAt || selectedBuild.startedAt)}
             </DialogDescription>
@@ -381,16 +381,16 @@ export default function PublishHistory() {
               {selectedBuild.metrics && (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('history.files', 'Fichiers générés')}</span>
+                    <span className="text-sm text-muted-foreground">{t('history.files', 'Files Generated')}</span>
                     <span className="font-medium">{selectedBuild.metrics.totalFiles.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('history.duration', 'Durée')}</span>
+                    <span className="text-sm text-muted-foreground">{t('history.duration', 'Duration')}</span>
                     <span className="font-medium">{selectedBuild.metrics.duration}s</span>
                   </div>
                   {selectedBuild.metrics.targets.length > 0 && (
                     <div className="pt-4 border-t">
-                      <h4 className="text-sm font-medium mb-2">{t('history.breakdown', 'Détail')}</h4>
+                      <h4 className="text-sm font-medium mb-2">{t('history.breakdown', 'Breakdown')}</h4>
                       <div className="space-y-2">
                         {selectedBuild.metrics.targets.map((target) => (
                           <div key={target.name} className="flex items-center justify-between text-sm">
@@ -405,7 +405,7 @@ export default function PublishHistory() {
               )}
               {selectedBuild.error && (
                 <div className="pt-4 border-t">
-                  <h4 className="text-sm font-medium mb-2 text-destructive">{t('history.error', 'Erreur')}</h4>
+                  <h4 className="text-sm font-medium mb-2 text-destructive">{t('history.error', 'Error')}</h4>
                   <p className="text-sm text-muted-foreground">{selectedBuild.error}</p>
                 </div>
               )}
@@ -418,7 +418,7 @@ export default function PublishHistory() {
       <Dialog open={!!selectedDeploy} onOpenChange={() => setSelectedDeploy(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{t('history.deployLogs', 'Logs du déploiement')}</DialogTitle>
+            <DialogTitle>{t('history.deployLogs', 'Deployment Logs')}</DialogTitle>
             <DialogDescription>
               {selectedDeploy && `${selectedDeploy.platform} - ${selectedDeploy.projectName}`}
             </DialogDescription>
@@ -450,13 +450,13 @@ export default function PublishHistory() {
                       <div key={idx} className="mb-1">{log}</div>
                     ))
                   ) : (
-                    <div className="text-muted-foreground">{t('history.noLogs', 'Aucun log disponible')}</div>
+                    <div className="text-muted-foreground">{t('history.noLogs', 'No logs available')}</div>
                   )}
                 </div>
               </div>
               {selectedDeploy.error && (
                 <div className="pt-4 border-t">
-                  <h4 className="text-sm font-medium mb-2 text-destructive">{t('history.error', 'Erreur')}</h4>
+                  <h4 className="text-sm font-medium mb-2 text-destructive">{t('history.error', 'Error')}</h4>
                   <p className="text-sm text-muted-foreground">{selectedDeploy.error}</p>
                 </div>
               )}
@@ -472,13 +472,13 @@ export default function PublishHistory() {
             <DialogTitle>{t('history.confirmClear', 'Confirmer la suppression')}</DialogTitle>
             <DialogDescription>
               {showClearDialog === 'builds'
-                ? t('history.confirmClearBuilds', 'Êtes-vous sûr de vouloir effacer l\'historique des builds ? Cette action est irréversible.')
-                : t('history.confirmClearDeploys', 'Êtes-vous sûr de vouloir effacer l\'historique des déploiements ? Cette action est irréversible.')}
+                ? t('history.confirmClearBuilds', 'Are you sure you want to clear build history? This action cannot be undone.')
+                : t('history.confirmClearDeploys', 'Are you sure you want to clear deployment history? This action cannot be undone.')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowClearDialog(null)}>
-              {t('cancel', 'Annuler')}
+              {t('cancel', 'Cancel')}
             </Button>
             <Button variant="destructive" onClick={handleClearHistory}>
               <Trash2 className="w-4 h-4 mr-2" />

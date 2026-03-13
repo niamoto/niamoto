@@ -37,7 +37,15 @@
     "preferences": "Préférences",
     "light_theme": "Thème clair",
     "dark_theme": "Thème sombre",
-    "system_theme": "Thème système"
+    "system_theme": "Thème système",
+    "importDesc": "Importer un fichier de données",
+    "explorerDesc": "Requêtes SQL sur vos données",
+    "configDesc": "Éditer les fichiers YAML",
+    "pluginsDesc": "Gérer les plugins",
+    "docsDesc": "Référence des endpoints",
+    "select_hint": "Sélectionner",
+    "close_hint": "Fermer",
+    "navigate_hint": "Naviguer"
   },
   "pipeline": {
     "never_run": "Pas encore exécuté",
@@ -56,6 +64,7 @@
     "action_recalculate": "Recalculer",
     "action_rebuild": "Reconstruire le site",
     "action_deploy": "Déployer",
+    "action_configure": "Configurer",
     "running_import": "Import en cours...",
     "running_transform": "Calcul en cours...",
     "running_export": "Construction en cours...",
@@ -268,6 +277,51 @@
     "duplicate": "Dupliquer",
     "settings": "Paramètres",
     "previewSite": "Prévisualiser le site"
+  },
+  "breadcrumb": {
+    "data": "Données",
+    "import": "Import"
+  },
+  "network": {
+    "offline": "Hors ligne",
+    "offline_title": "Mode hors connexion",
+    "enrichment_unavailable": "Enrichissement API : indisponible",
+    "deploy_unavailable": "Publication : indisponible",
+    "tiles_unavailable": "Tuiles cartographiques : indisponibles"
+  },
+  "dashboard": {
+    "title": "Tableau de bord des données",
+    "description": "Vue d'ensemble de la qualité et de la complétude des données importées.",
+    "noData": "Aucune donnée",
+    "noDataHint": "Commencez par importer vos fichiers de données.",
+    "importData": "Importer des données",
+    "import": "Importer"
+  },
+  "detail": {
+    "referenceNotFound": "Référence introuvable",
+    "datasetNotFound": "Dataset introuvable"
+  },
+  "tree": {
+    "overview": "Vue d'ensemble",
+    "build": "Build",
+    "deploy": "Déploiement",
+    "history": "Historique",
+    "datasets": "Datasets",
+    "references": "Références",
+    "groups": "Groupes",
+    "import": "Import",
+    "importData": "Importer des données",
+    "noDatasets": "Aucun dataset importé",
+    "noReferences": "Aucune référence importée",
+    "noGroups": "Aucun groupe",
+    "noPages": "Aucune page",
+    "loading": "Chargement...",
+    "general": "Général",
+    "navigation": "Navigation",
+    "appearance": "Apparence",
+    "mainMenu": "Menu principal",
+    "footerMenu": "Menu pied de page",
+    "settings": "Paramètres"
   },
   "notifications": {
     "title": "Notifications",

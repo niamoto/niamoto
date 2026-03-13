@@ -64,7 +64,7 @@ export function TableBrowser({
     if (is404) {
       return (
         <div className="py-4 text-center text-sm text-muted-foreground">
-          Table non disponible — lancez un import pour créer les données.
+          Table not available — run an import to create the data.
         </div>
       )
     }

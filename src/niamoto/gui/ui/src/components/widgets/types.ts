@@ -69,10 +69,10 @@ export const CATEGORY_INFO: Record<WidgetCategory, { label: string; color: strin
 
 // Source display info
 export const SOURCE_INFO: Record<string, { label: string; description: string }> = {
-  auto: { label: 'Auto-détecté', description: 'Correspondance automatique avec vos colonnes' },
-  template: { label: 'Template', description: 'Template métier recommandé' },
-  generic: { label: 'Générique', description: 'Suggestion basée sur le type de données' },
-  class_object: { label: 'CSV pré-calculé', description: 'Données pré-calculées importées' },
+  auto: { label: 'Auto-detected', description: 'Automatic matching with your columns' },
+  template: { label: 'Template', description: 'Recommended business template' },
+  generic: { label: 'Generic', description: 'Suggestion based on data type' },
+  class_object: { label: 'Pre-computed CSV', description: 'Pre-computed imported data' },
 }
 
 // Plugin descriptions for user-friendly display
@@ -86,71 +86,71 @@ export const PLUGIN_INFO: Record<string, PluginInfo> = {
   // Navigation widget
   hierarchical_nav_widget: {
     label: 'Navigation',
-    description: 'Navigation hiérarchique ou liste pour la référence',
+    description: 'Hierarchical or list navigation for the reference',
   },
   // Transformers
   top_ranking: {
     label: 'Top X',
-    description: 'Affiche les valeurs les plus fréquentes',
+    description: 'Shows the most frequent values',
     getDetailedLabel: (config) => `Top ${config.count || 10}`,
   },
   categorical_distribution: {
-    label: 'Toutes les catégories',
-    description: 'Affiche la répartition de toutes les valeurs',
+    label: 'All categories',
+    description: 'Shows the distribution of all values',
   },
   binned_distribution: {
     label: 'Distribution',
-    description: 'Répartition par classes de valeurs',
+    description: 'Distribution by value classes',
   },
   statistical_summary: {
-    label: 'Statistiques',
-    description: 'Moyenne, min, max et autres statistiques',
+    label: 'Statistics',
+    description: 'Mean, min, max and other statistics',
   },
   binary_counter: {
-    label: 'Oui/Non',
-    description: 'Comptage binaire (vrai/faux)',
+    label: 'Yes/No',
+    description: 'Binary count (true/false)',
   },
   geospatial_extractor: {
-    label: 'Géolocalisation',
-    description: 'Extraction des coordonnées géographiques',
+    label: 'Geolocation',
+    description: 'Geographic coordinates extraction',
   },
   field_aggregator: {
-    label: 'Agrégation',
-    description: 'Agrégation de champs multiples',
+    label: 'Aggregation',
+    description: 'Multi-field aggregation',
   },
   time_series_analysis: {
-    label: 'Série temporelle',
-    description: 'Analyse de données temporelles',
+    label: 'Time series',
+    description: 'Temporal data analysis',
   },
   // Class object extractors
   class_object_series_extractor: {
-    label: 'Données pré-calculées',
-    description: 'Extraction depuis fichier CSV importé',
+    label: 'Pre-computed data',
+    description: 'Extraction from imported CSV file',
   },
   categories_extractor: {
-    label: 'Catégories CSV',
-    description: 'Extraction de catégories pré-calculées',
+    label: 'CSV categories',
+    description: 'Pre-computed category extraction',
   },
   // Widgets
   bar_plot: {
-    label: 'Graphique barres',
-    description: 'Graphique à barres horizontales ou verticales',
+    label: 'Bar chart',
+    description: 'Horizontal or vertical bar chart',
   },
   donut_chart: {
-    label: 'Graphique donut',
-    description: 'Graphique circulaire avec trou central',
+    label: 'Donut chart',
+    description: 'Circular chart with center hole',
   },
   radial_gauge: {
-    label: 'Jauge',
-    description: 'Indicateur circulaire de valeur',
+    label: 'Gauge',
+    description: 'Circular value indicator',
   },
   interactive_map: {
-    label: 'Carte interactive',
-    description: 'Carte avec marqueurs géolocalisés',
+    label: 'Interactive map',
+    description: 'Map with geolocated markers',
   },
   info_grid: {
-    label: 'Grille info',
-    description: 'Grille de valeurs informatives',
+    label: 'Info grid',
+    description: 'Grid of informative values',
   },
 }
 

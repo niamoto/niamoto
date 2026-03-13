@@ -68,13 +68,13 @@ export function FilePickerField({
       const result = await uploadMutation.mutateAsync({ file, folder })
       await refetch()
       onChange(result.path)
-      toast.success('Fichier uploade', {
+      toast.success('File uploaded', {
         description: result.filename,
       })
       setOpen(false)
     } catch (err) {
-      toast.error('Erreur upload', {
-        description: err instanceof Error ? err.message : 'Echec de l\'upload',
+      toast.error('Upload error', {
+        description: err instanceof Error ? err.message : 'Upload failed',
       })
     }
     e.target.value = ''

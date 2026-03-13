@@ -33,35 +33,35 @@ const stageConfig: Record<PipelineStage, {
 }> = {
   data: {
     staleKey: 'pipeline.data_stale',
-    staleFallback: 'Données importées — groupes à recalculer',
+    staleFallback: 'Data imported — groups need recomputing',
     freshKey: 'pipeline.data_fresh',
-    freshFallback: 'Données à jour',
+    freshFallback: 'Data up to date',
     actionKey: 'pipeline.action_transform',
-    actionFallback: 'Recalculer les groupes',
+    actionFallback: 'Recompute groups',
   },
   groups: {
     staleKey: 'pipeline.groups_stale',
-    staleFallback: 'Calculs périmés — données modifiées depuis le dernier calcul',
+    staleFallback: 'Stale calculations — data changed since last computation',
     freshKey: 'pipeline.groups_fresh',
-    freshFallback: 'Tous les groupes sont à jour',
+    freshFallback: 'All groups are up to date',
     actionKey: 'pipeline.action_recalculate',
-    actionFallback: 'Recalculer',
+    actionFallback: 'Recompute',
   },
   site: {
     staleKey: 'pipeline.site_stale',
-    staleFallback: 'Site non configuré',
+    staleFallback: 'Site not configured',
     freshKey: 'pipeline.site_fresh',
-    freshFallback: 'Site configuré',
+    freshFallback: 'Site configured',
     actionKey: 'pipeline.action_configure',
-    actionFallback: 'Configurer',
+    actionFallback: 'Configure',
   },
   publication: {
     staleKey: 'pipeline.publication_stale',
-    staleFallback: 'Groupes recalculés — site à reconstruire',
+    staleFallback: 'Groups recomputed — site needs rebuilding',
     freshKey: 'pipeline.publication_fresh',
-    freshFallback: 'Site généré et à jour',
+    freshFallback: 'Site generated and up to date',
     actionKey: 'pipeline.action_rebuild',
-    actionFallback: 'Reconstruire le site',
+    actionFallback: 'Rebuild site',
   },
 }
 
@@ -102,13 +102,13 @@ export function StalenessBanner({ stage, onAction, actionLabel, className }: Sta
   // Build message
   let message: string
   if (isRunning) {
-    message = t('pipeline.running', 'Traitement en cours...')
+    message = t('pipeline.running', 'Processing...')
   } else if (isFresh) {
     message = t(config.freshKey, config.freshFallback)
   } else {
     message = t(config.staleKey, config.staleFallback)
     if (stage === 'groups' && staleCount > 0) {
-      message = t('pipeline.groups_stale_count', '{{count}} groupe(s) à recalculer', { count: staleCount })
+      message = t('pipeline.groups_stale_count', '{{count}} group(s) need recomputing', { count: staleCount })
     }
   }
 

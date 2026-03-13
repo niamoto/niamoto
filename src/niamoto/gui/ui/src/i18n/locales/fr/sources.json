@@ -226,7 +226,27 @@
     "table": "Table",
     "notFound": "Groupe non trouvé",
     "notFoundDesc": "Le groupe \"{{name}}\" n'existe pas.",
-    "backToGroups": "Retour aux groupes"
+    "backToGroups": "Retour aux groupes",
+    "overview": "Vue d'ensemble",
+    "widgets": "Widgets",
+    "index": "Index",
+    "noIndex": "Aucun index configuré",
+    "noGroupsConfigured": "Aucun groupe configuré",
+    "configureInExport": "Configurer dans les paramètres d'export",
+    "groupsDefinedInExport": "Groupes définis dans la configuration d'export"
+  },
+  "tree": {
+    "datasets": "Jeux de données",
+    "references": "Références",
+    "loading": "Chargement...",
+    "noDatasets": "Aucun jeu de données importé",
+    "noReferences": "Aucune référence importée",
+    "import": "Importer",
+    "importData": "Importer des données"
+  },
+  "detail": {
+    "datasetNotFound": "Jeu de données introuvable",
+    "referenceNotFound": "Référence introuvable"
   },
   "dashboard": {
     "title": "Dashboard des données",

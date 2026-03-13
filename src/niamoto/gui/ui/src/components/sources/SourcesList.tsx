@@ -55,7 +55,7 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
   if (sources.length === 0) {
     return (
       <div className="flex min-h-[60px] items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/25 p-3">
-        <p className="text-sm text-muted-foreground">{t('noSources', 'Aucune source configuree')}</p>
+        <p className="text-sm text-muted-foreground">{t('noSources', 'No sources configured')}</p>
       </div>
     )
   }
@@ -88,7 +88,7 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {t('referenceData', 'Donnees de reference')}
+                    {t('referenceData', 'Reference data')}
                   </p>
                 </div>
 
@@ -96,7 +96,7 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-8 gap-1">
                       <span className="text-xs text-muted-foreground">
-                        {source.columns.length} {t('fields', 'champs')}
+                        {source.columns.length} {t('fields', 'fields')}
                       </span>
                       <ChevronDown className={`h-4 w-4 transition-transform ${expandedSource === source.name ? 'rotate-180' : ''}`} />
                     </Button>
@@ -107,7 +107,7 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
               <CollapsibleContent>
                 {source.columns && source.columns.length > 0 && (
                   <div className="mt-3 pt-3 border-t">
-                    <p className="text-xs text-muted-foreground mb-2">{t('availableFields', 'Champs disponibles')}:</p>
+                    <p className="text-xs text-muted-foreground mb-2">{t('availableFields', 'Available fields')}:</p>
                     <div className="flex flex-wrap gap-1">
                       {source.columns.map((col) => (
                         <Badge key={col} variant="outline" className="text-xs font-mono">
@@ -157,7 +157,7 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
                   disabled={isRemoving}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {t('delete', 'Supprimer')}
+                  {t('delete', 'Delete')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -169,18 +169,18 @@ export function SourcesList({ sources, onRemove, isRemoving }: SourcesListProps)
       <AlertDialog open={!!sourceToDelete} onOpenChange={() => setSourceToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('deleteConfirmTitle', 'Supprimer la source ?')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteConfirmTitle', 'Delete source?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('deleteConfirmDescription', 'Cette action supprimera la configuration de la source "{{name}}". Le fichier CSV ne sera pas supprime.', { name: sourceToDelete })}
+              {t('deleteConfirmDescription', 'This will remove the source "{{name}}" configuration. The CSV file will not be deleted.', { name: sourceToDelete })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel', 'Annuler')}</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel', 'Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {t('delete', 'Supprimer')}
+              {t('delete', 'Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

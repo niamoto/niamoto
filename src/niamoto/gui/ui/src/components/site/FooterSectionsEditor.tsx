@@ -299,7 +299,7 @@ function FooterLinkItem({ link, availablePages, onUpdate, onRemove }: FooterLink
             {availablePages.filter((p) => p.type === 'group').length > 0 && (
               <div className="border-t p-2">
                 <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                  Groupes
+                  Groups
                 </p>
                 {availablePages
                   .filter((p) => p.type === 'group')

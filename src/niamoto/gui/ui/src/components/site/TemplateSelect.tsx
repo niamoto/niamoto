@@ -35,9 +35,9 @@ import {
 type TemplateCategory = 'landing' | 'content' | 'project' | 'reference'
 
 const CATEGORY_INFO: Record<TemplateCategory, { label: string; order: number }> = {
-  landing: { label: 'Accueil', order: 0 },
-  content: { label: 'Contenu', order: 1 },
-  project: { label: 'Projet', order: 2 },
+  landing: { label: 'Landing', order: 0 },
+  content: { label: 'Content', order: 1 },
+  project: { label: 'Project', order: 2 },
   reference: { label: 'Reference', order: 3 },
 }
 

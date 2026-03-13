@@ -88,7 +88,7 @@ export function CommandPalette() {
       className="max-w-[540px]"
     >
       <CommandInput
-        placeholder={t('command.search', 'Rechercher une page ou un outil...')}
+        placeholder={t('command.search', 'Search for a page or tool...')}
         value={search}
         onValueChange={setSearch}
       />
@@ -96,7 +96,7 @@ export function CommandPalette() {
         <CommandEmpty>
           <div className="flex flex-col items-center gap-2 py-4">
             <Search className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">{t('command.no_results', 'Aucun résultat.')}</p>
+            <p className="text-sm text-muted-foreground">{t('command.no_results', 'No results.')}</p>
           </div>
         </CommandEmpty>
 
@@ -124,7 +124,7 @@ export function CommandPalette() {
             <Upload className="!size-[18px] text-foreground/70" />
             <div className="flex flex-col">
               <span className="font-medium">Import</span>
-              <span className="text-xs text-muted-foreground">{t('command.importDesc', 'Importer un fichier de données')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.importDesc', 'Import a data file')}</span>
             </div>
           </CommandItem>
         </CommandGroup>
@@ -141,7 +141,7 @@ export function CommandPalette() {
             <Search className="!size-[18px] text-foreground/70" />
             <div className="flex flex-1 flex-col">
               <span className="font-medium">Data Explorer</span>
-              <span className="text-xs text-muted-foreground">{t('command.explorerDesc', 'Requêtes SQL sur vos données')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.explorerDesc', 'SQL queries on your data')}</span>
             </div>
           </CommandItem>
           <CommandItem
@@ -152,7 +152,7 @@ export function CommandPalette() {
             <FileCode2 className="!size-[18px] text-foreground/70" />
             <div className="flex flex-1 flex-col">
               <span className="font-medium">Config Editor</span>
-              <span className="text-xs text-muted-foreground">{t('command.configDesc', 'Éditer les fichiers YAML')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.configDesc', 'Edit YAML files')}</span>
             </div>
           </CommandItem>
           <CommandItem
@@ -174,7 +174,7 @@ export function CommandPalette() {
             <BookOpen className="!size-[18px] text-foreground/70" />
             <div className="flex flex-1 flex-col">
               <span className="font-medium">Documentation API</span>
-              <span className="text-xs text-muted-foreground">{t('command.docsDesc', 'Référence des endpoints')}</span>
+              <span className="text-xs text-muted-foreground">{t('command.docsDesc', 'Endpoints reference')}</span>
             </div>
           </CommandItem>
         </CommandGroup>
@@ -182,18 +182,18 @@ export function CommandPalette() {
         <CommandSeparator />
 
         {/* Preferences */}
-        <CommandGroup heading={t('command.preferences', 'Préférences')}>
+        <CommandGroup heading={t('command.preferences', 'Preferences')}>
           <CommandItem value="theme:light" keywords={['light', 'clair', 'thème']} onSelect={handleSelect}>
             <Sun className="!size-[18px] text-foreground/70" />
-            <span>{t('command.light_theme', 'Thème clair')}</span>
+            <span>{t('command.light_theme', 'Light theme')}</span>
           </CommandItem>
           <CommandItem value="theme:dark" keywords={['dark', 'sombre', 'thème']} onSelect={handleSelect}>
             <Moon className="!size-[18px] text-foreground/70" />
-            <span>{t('command.dark_theme', 'Thème sombre')}</span>
+            <span>{t('command.dark_theme', 'Dark theme')}</span>
           </CommandItem>
           <CommandItem value="theme:system" keywords={['system', 'système', 'auto', 'thème']} onSelect={handleSelect}>
             <Monitor className="!size-[18px] text-foreground/70" />
-            <span>{t('command.system_theme', 'Thème système')}</span>
+            <span>{t('command.system_theme', 'System theme')}</span>
           </CommandItem>
           <CommandSeparator className="my-1" />
           <CommandItem value="language:fr" keywords={['français', 'french', 'langue']} onSelect={handleSelect}>
@@ -213,7 +213,7 @@ export function CommandPalette() {
             onSelect={handleSelect}
           >
             <Settings className="!size-[18px] text-foreground/70" />
-            <span>{t('sidebar.footer.settings', 'Paramètres')}</span>
+            <span>{t('sidebar.footer.settings', 'Settings')}</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>
@@ -226,7 +226,7 @@ export function CommandPalette() {
         </span>
         <span className="flex items-center gap-1">
           <CornerDownLeft className="h-3 w-3" />
-          {t('command.select_hint', 'Sélectionner')}
+          {t('command.select_hint', 'Select')}
         </span>
         <span className="ml-auto opacity-60">
           esc {t('command.close_hint', 'fermer')}
