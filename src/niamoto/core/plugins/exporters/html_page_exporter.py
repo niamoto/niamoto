@@ -287,7 +287,7 @@ class HtmlPageExporter(ExporterPlugin):
 <html>
 <head>
     <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0; url=/{default_lang}/">
+    <meta http-equiv="refresh" content="0; url={default_lang}/">
     <script>
         // Detect browser language and redirect
         (function() {{
@@ -296,16 +296,16 @@ class HtmlPageExporter(ExporterPlugin):
             var shortLang = browserLang.split('-')[0].toLowerCase();
 
             if (supportedLangs.indexOf(shortLang) !== -1) {{
-                window.location.href = '/' + shortLang + '/';
+                window.location.href = shortLang + '/';
             }} else {{
-                window.location.href = '/{default_lang}/';
+                window.location.href = '{default_lang}/';
             }}
         }})();
     </script>
     <title>Redirecting...</title>
 </head>
 <body>
-    <p>Redirecting to <a href="/{default_lang}/">default language</a>...</p>
+    <p>Redirecting to <a href="{default_lang}/">default language</a>...</p>
 </body>
 </html>"""
 

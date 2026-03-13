@@ -1,5 +1,6 @@
-"""Netlify deployer using ZIP upload API."""
+"""Netlify deployer plugin using ZIP upload API."""
 
+import asyncio
 import io
 import logging
 import os
@@ -8,7 +9,8 @@ from typing import AsyncIterator
 
 import httpx
 
-from .base import BaseDeployer, DeployConfig
+from niamoto.core.plugins.base import DeployerPlugin, register
+from .models import DeployConfig
 from niamoto.core.services.credential import CredentialService
 
 logger = logging.getLogger(__name__)
@@ -16,10 +18,45 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://api.netlify.com"
 
 
-class NetlifyDeployer(BaseDeployer):
+@register("netlify")
+class NetlifyDeployer(DeployerPlugin):
     """Deploy static sites to Netlify via ZIP upload."""
 
     platform = "netlify"
+
+    async def unpublish(self, config: DeployConfig) -> AsyncIterator[str]:
+        """Remove a Netlify site."""
+        token = CredentialService.get("netlify", "token")
+        if not token:
+            yield self.sse_error("No Netlify token configured.")
+            yield self.sse_done()
+            return
+
+        site_id = config.extra.get("site_id")
+        if not site_id:
+            yield self.sse_error("Missing 'site_id' in configuration.")
+            yield self.sse_done()
+            return
+
+        yield self.sse_log(f"Deleting Netlify site {site_id}...")
+
+        async with httpx.AsyncClient(
+            base_url=BASE_URL,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30.0,
+        ) as client:
+            resp = await client.delete(f"/api/v1/sites/{site_id}")
+
+            if resp.status_code == 204:
+                yield self.sse_success("Netlify site deleted.")
+            elif resp.status_code == 404:
+                yield self.sse_error(f"Site '{site_id}' not found.")
+            else:
+                yield self.sse_error(
+                    f"Failed to delete site: HTTP {resp.status_code} — {resp.text[:200]}"
+                )
+
+        yield self.sse_done()
 
     async def deploy(self, config: DeployConfig) -> AsyncIterator[str]:
         """Deploy files to Netlify.
@@ -136,13 +173,7 @@ class NetlifyDeployer(BaseDeployer):
         max_attempts: int = 60,
         interval: float = 3.0,
     ) -> dict | None:
-        """Poll the deploy status until it reaches a terminal state.
-
-        Returns the deploy data dict when state is 'ready' or 'error',
-        or None if we exhaust all attempts.
-        """
-        import asyncio
-
+        """Poll the deploy status until it reaches a terminal state."""
         for _ in range(max_attempts):
             try:
                 resp = await client.get(f"/api/v1/deploys/{deploy_id}")

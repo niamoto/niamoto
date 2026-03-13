@@ -1,16 +1,18 @@
-"""SSH/rsync deployer using subprocess."""
+"""SSH/rsync deployer plugin using subprocess."""
 
 import asyncio
 import logging
 import shutil
 from typing import AsyncIterator
 
-from .base import BaseDeployer, DeployConfig
+from niamoto.core.plugins.base import DeployerPlugin, register
+from .models import DeployConfig
 
 logger = logging.getLogger(__name__)
 
 
-class SSHDeployer(BaseDeployer):
+@register("ssh")
+class SSHDeployer(DeployerPlugin):
     """Deploy static sites via rsync over SSH."""
 
     platform = "ssh"

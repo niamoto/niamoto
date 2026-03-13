@@ -1,4 +1,4 @@
-"""Vercel deployer using the Deployments API."""
+"""Vercel deployer plugin using the Deployments API."""
 
 import asyncio
 import hashlib
@@ -9,19 +9,48 @@ from typing import AsyncIterator
 
 import httpx
 
+from niamoto.core.plugins.base import DeployerPlugin, register
+from .models import DeployConfig
 from niamoto.core.services.credential import CredentialService
-
-from .base import BaseDeployer, DeployConfig
 
 logger = logging.getLogger(__name__)
 
 VERCEL_API = "https://api.vercel.com"
 
 
-class VercelDeployer(BaseDeployer):
+@register("vercel")
+class VercelDeployer(DeployerPlugin):
     """Deploy static sites to Vercel via the Deployments API."""
 
     platform = "vercel"
+
+    async def unpublish(self, config: DeployConfig) -> AsyncIterator[str]:
+        """Remove a Vercel project."""
+        token = CredentialService.get("vercel", "token")
+        if not token:
+            yield self.sse_error("No Vercel token configured.")
+            yield self.sse_done()
+            return
+
+        project_name = config.project_name
+        yield self.sse_log(f"Deleting Vercel project '{project_name}'...")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.delete(
+                f"{VERCEL_API}/v9/projects/{project_name}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+            if resp.status_code == 204:
+                yield self.sse_success(f"Vercel project '{project_name}' deleted.")
+            elif resp.status_code == 404:
+                yield self.sse_error(f"Project '{project_name}' not found.")
+            else:
+                yield self.sse_error(
+                    f"Failed to delete project: HTTP {resp.status_code} — {resp.text[:200]}"
+                )
+
+        yield self.sse_done()
 
     async def deploy(self, config: DeployConfig) -> AsyncIterator[str]:
         """Deploy files to Vercel and yield SSE log lines."""
