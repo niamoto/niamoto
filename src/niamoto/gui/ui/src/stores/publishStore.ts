@@ -18,10 +18,12 @@ export interface BuildJob {
 }
 
 // Deploy job types
+export type DeployPlatform = 'cloudflare' | 'github' | 'netlify' | 'vercel' | 'render' | 'ssh'
+
 export interface DeployJob {
   id: string
   status: 'pending' | 'running' | 'completed' | 'failed'
-  platform: 'cloudflare' | 'github' | 'netlify' | 'ssh'
+  platform: DeployPlatform
   projectName: string
   branch?: string
   logs: string[]
@@ -49,6 +51,15 @@ export interface NetlifyConfig {
   siteId: string
 }
 
+export interface VercelConfig {
+  projectName: string
+}
+
+export interface RenderConfig {
+  serviceId?: string
+  deployHookUrl?: string
+}
+
 export interface SshConfig {
   host: string
   path: string
@@ -60,6 +71,8 @@ export interface PlatformConfig {
   cloudflare?: CloudflareConfig
   github?: GithubConfig
   netlify?: NetlifyConfig
+  vercel?: VercelConfig
+  render?: RenderConfig
   ssh?: SshConfig
 }
 
@@ -74,7 +87,7 @@ interface PublishState {
 
   // Platform configurations (persisted)
   platformConfigs: PlatformConfig
-  preferredPlatform: 'cloudflare' | 'github' | 'netlify' | 'ssh' | null
+  preferredPlatform: DeployPlatform | null
 
   // Build actions
   startBuild: () => BuildJob
@@ -83,7 +96,7 @@ interface PublishState {
   cancelBuild: () => void
 
   // Deploy actions
-  startDeploy: (platform: DeployJob['platform'], projectName: string, branch?: string) => DeployJob
+  startDeploy: (platform: DeployPlatform, projectName: string, branch?: string) => DeployJob
   appendDeployLog: (log: string) => void
   setDeploymentUrl: (url: string) => void
   completeDeploy: (error?: string) => void
@@ -101,6 +114,9 @@ interface PublishState {
   clearDeployHistory: () => void
   getLastSuccessfulBuild: () => BuildJob | null
   getLastSuccessfulDeploy: () => DeployJob | null
+
+  // Cleanup
+  cleanupOrphanDeploys: () => void
 }
 
 // Generate unique ID
@@ -269,6 +285,25 @@ export const usePublishStore = create<PublishState>()(
 
       getLastSuccessfulDeploy: () => {
         return get().deployHistory.find(d => d.status === 'completed') || null
+      },
+
+      cleanupOrphanDeploys: () => {
+        set((state) => {
+          // If there's a "running" deploy with no active connection, mark as failed
+          if (state.currentDeploy?.status === 'running') {
+            const orphaned: DeployJob = {
+              ...state.currentDeploy,
+              status: 'failed',
+              completedAt: new Date().toISOString(),
+              error: 'Interrupted by application restart',
+            }
+            return {
+              currentDeploy: null,
+              deployHistory: [orphaned, ...state.deployHistory].slice(0, 50),
+            }
+          }
+          return state
+        })
       },
     }),
     {

@@ -110,6 +110,12 @@ iniconfig==2.0.0
     # via pytest
 ipython==8.32.0
     # via niamoto (pyproject.toml)
+jaraco-classes==3.4.0
+    # via keyring
+jaraco-context==6.1.1
+    # via keyring
+jaraco-functools==4.4.0
+    # via keyring
 jedi==0.19.2
     # via ipython
 jinja2==3.1.5
@@ -119,6 +125,8 @@ jinja2==3.1.5
     #   sphinx
 joblib==1.5.2
     # via scikit-learn
+keyring==25.7.0
+    # via niamoto (pyproject.toml)
 markdown==3.10
     # via niamoto (pyproject.toml)
 markdown-it-py==3.0.0
@@ -135,6 +143,10 @@ mdit-py-plugins==0.4.2
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
+more-itertools==10.8.0
+    # via
+    #   jaraco-classes
+    #   jaraco-functools
 mypy==1.18.2
     # via
     #   niamoto (pyproject.toml)
