@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  Rocket,
+  Send,
   Cloud,
   Server,
   CheckCircle,
@@ -244,7 +244,7 @@ export default function PublishDeploy() {
                   disabled={!cloudflareProject.trim() || isOffline}
                   title={isOffline ? t('deploy.offline_tooltip', 'Connexion internet requise pour le déploiement') : undefined}
                 >
-                  <Rocket className="w-4 h-4 mr-2" />
+                  <Send className="w-4 h-4 mr-2" />
                   {isDeploying ? t('deploy.deploying', 'Déploiement en cours...') : t('deploy.trigger', 'Déployer sur Cloudflare')}
                 </Button>
               </div>

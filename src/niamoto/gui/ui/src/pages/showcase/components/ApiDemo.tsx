@@ -8,7 +8,7 @@ import {
   Zap,
   Globe,
   Database,
-  Rocket,
+  Send,
   ExternalLink,
   Copy,
   CheckCircle
@@ -284,7 +284,7 @@ export function ApiDemo({}: ApiDemoProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Rocket className="w-5 h-5 text-purple-500" />
+                <Send className="w-5 h-5 text-purple-500" />
                 <h4 className="font-semibold">Automatisation CI/CD</h4>
               </div>
               <p className="text-sm text-muted-foreground">

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   Settings,
-  Menu,
+  PanelLeft,
   Command,
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
@@ -61,7 +61,7 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
           onClick={toggleSidebar}
           className={cn('h-8 w-8', isCompact && 'mx-auto')}
         >
-          <Menu className="h-4 w-4" />
+          <PanelLeft className="h-4 w-4" />
         </Button>
       </div>
 

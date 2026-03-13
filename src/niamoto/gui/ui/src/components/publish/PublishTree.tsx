@@ -10,7 +10,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Package, Rocket, History } from 'lucide-react'
+import { LayoutDashboard, Package, Send, History } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 // ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ export function PublishTree({
     {
       type: 'deploy',
       label: t('tree.deploy', 'Deploy'),
-      icon: Rocket,
+      icon: Send,
       badge: <StatusDot status={lastDeployStatus} />,
     },
     {

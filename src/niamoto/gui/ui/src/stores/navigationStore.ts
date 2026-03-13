@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { LucideIcon } from 'lucide-react'
-import { Home, Database, Layers, Globe, Rocket } from 'lucide-react'
+import { Home, Database, Layers, Globe, Send } from 'lucide-react'
 
 // --- Flat navigation items (new) ---
 
@@ -51,7 +51,7 @@ export const navItems: NavItem[] = [
     id: 'publish',
     labelKey: 'sidebar.nav.publish',
     fallbackLabel: 'Publication',
-    icon: Rocket,
+    icon: Send,
     path: '/publish',
     matchPrefix: '/publish',
   },
