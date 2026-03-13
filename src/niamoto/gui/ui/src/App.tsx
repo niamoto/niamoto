@@ -11,15 +11,10 @@ import './App.css'
 const WelcomeScreen = lazy(() => import('@/pages/welcome'))
 const ProjectHub = lazy(() => import('@/pages/home'))
 
-// Sources pages
-const SourcesPage = lazy(() => import('@/pages/sources'))
-const ImportPage = lazy(() => import('@/pages/sources/import'))
-const DatasetPage = lazy(() => import('@/pages/sources/dataset/[name]'))
-const ReferencePage = lazy(() => import('@/pages/sources/reference/[name]'))
-
-// Groups pages
-const GroupsPage = lazy(() => import('@/pages/groups'))
-const GroupDetailPage = lazy(() => import('@/pages/groups/[name]'))
+// Module components (not lazy — they manage their own content)
+import { DataModule } from '@/components/data'
+import { GroupsModule } from '@/components/groups'
+import { PublishModule } from '@/components/publish'
 
 // Site pages
 const SiteIndexPage = lazy(() => import('@/pages/site'))
@@ -36,11 +31,7 @@ const Plugins = lazy(() => import('@/pages/tools/plugins').then(m => ({ default:
 const ApiDocs = lazy(() => import('@/pages/tools/docs/index').then(m => ({ default: m.ApiDocs })))
 const ConfigEditor = lazy(() => import('@/pages/tools/config-editor').then(m => ({ default: m.ConfigEditor })))
 
-// Publish pages
-const PublishOverview = lazy(() => import('@/pages/publish'))
-const PublishBuild = lazy(() => import('@/pages/publish/build'))
-const PublishDeploy = lazy(() => import('@/pages/publish/deploy'))
-const PublishHistory = lazy(() => import('@/pages/publish/history'))
+// Publish pages (used by PublishModule internally)
 
 const PageFallback = () => (
   <div className="flex items-center justify-center h-full">Loading...</div>
@@ -156,15 +147,11 @@ function App() {
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Suspense fallback={<PageFallback />}><ProjectHub /></Suspense>} />
 
-            {/* Sources - Import & Data */}
-            <Route path="sources" element={<Suspense fallback={<PageFallback />}><SourcesPage /></Suspense>} />
-            <Route path="sources/import" element={<Suspense fallback={<PageFallback />}><ImportPage /></Suspense>} />
-            <Route path="sources/dataset/:name" element={<Suspense fallback={<PageFallback />}><DatasetPage /></Suspense>} />
-            <Route path="sources/reference/:name" element={<Suspense fallback={<PageFallback />}><ReferencePage /></Suspense>} />
+            {/* Sources - Import & Data (sidebar module) */}
+            <Route path="sources/*" element={<DataModule />} />
 
-            {/* Groups - Widget configuration */}
-            <Route path="groups" element={<Suspense fallback={<PageFallback />}><GroupsPage /></Suspense>} />
-            <Route path="groups/:name" element={<Suspense fallback={<PageFallback />}><GroupDetailPage /></Suspense>} />
+            {/* Groups - Widget configuration (sidebar module) */}
+            <Route path="groups/*" element={<GroupsModule />} />
 
             {/* Site - Static site configuration */}
             <Route path="site" element={<Suspense fallback={<PageFallback />}><SiteIndexPage /></Suspense>} />
@@ -181,11 +168,8 @@ function App() {
             <Route path="tools/docs" element={<Suspense fallback={<PageFallback />}><ApiDocs /></Suspense>} />
             <Route path="tools/config-editor" element={<Suspense fallback={<PageFallback />}><ConfigEditor /></Suspense>} />
 
-            {/* Publish - Build & Deploy */}
-            <Route path="publish" element={<Suspense fallback={<PageFallback />}><PublishOverview /></Suspense>} />
-            <Route path="publish/build" element={<Suspense fallback={<PageFallback />}><PublishBuild /></Suspense>} />
-            <Route path="publish/deploy" element={<Suspense fallback={<PageFallback />}><PublishDeploy /></Suspense>} />
-            <Route path="publish/history" element={<Suspense fallback={<PageFallback />}><PublishHistory /></Suspense>} />
+            {/* Publish - Build & Deploy (sidebar module) */}
+            <Route path="publish/*" element={<PublishModule />} />
 
             {/* Catch-all: redirect old routes and 404s */}
             <Route path="labs/*" element={<Navigate to="/" replace />} />
