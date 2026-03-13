@@ -17,6 +17,7 @@
   },
   "sidebar": {
     "nav": {
+      "home": "Accueil",
       "data": "Données",
       "groups": "Groupes",
       "site": "Site",
@@ -37,6 +38,59 @@
     "light_theme": "Thème clair",
     "dark_theme": "Thème sombre",
     "system_theme": "Thème système"
+  },
+  "pipeline": {
+    "never_run": "Pas encore exécuté",
+    "running": "Traitement en cours...",
+    "data_stale": "Données importées — groupes à recalculer",
+    "data_fresh": "Données à jour",
+    "groups_stale": "Calculs périmés — données modifiées depuis le dernier calcul",
+    "groups_stale_count": "{{count}} groupe(s) à recalculer",
+    "groups_fresh": "Tous les groupes sont à jour",
+    "site_stale": "Site non configuré",
+    "site_fresh": "Site configuré",
+    "publication_stale": "Groupes recalculés — site à reconstruire",
+    "publication_fresh": "Site généré et à jour",
+    "action_import": "Importer",
+    "action_transform": "Recalculer les groupes",
+    "action_recalculate": "Recalculer",
+    "action_rebuild": "Reconstruire le site",
+    "action_deploy": "Déployer",
+    "running_import": "Import en cours...",
+    "running_transform": "Calcul en cours...",
+    "running_export": "Construction en cours...",
+    "cascade": {
+      "title": "Cascade de mises à jour",
+      "description": "Recalculer {{count}} groupe(s) → Reconstruire le site → Publier"
+    },
+    "dashboard": {
+      "title": "Tableau de bord",
+      "stale_subtitle": "Des mises à jour sont nécessaires",
+      "fresh_subtitle": "Tout est à jour",
+      "update_all": "Mettre à jour"
+    },
+    "summary": {
+      "quality": "Qualité {{score}}%",
+      "alert": "1 alerte",
+      "alerts": "{{count}} alertes",
+      "groups_ratio": "{{fresh}}/{{total}} à jour",
+      "groups_stale_ratio": "{{stale}}/{{total}} à recalculer",
+      "pages": "{{count}} pages",
+      "html_pages": "{{count}} pages HTML",
+      "built_in": "en {{seconds}}s"
+    },
+    "onboarding": {
+      "title": "Bienvenue sur Niamoto",
+      "subtitle": "Suivez ces étapes pour configurer votre portail de données écologiques.",
+      "step1": "Importer vos données",
+      "step1_desc": "Fichiers CSV, taxonomie, shapefile",
+      "step2": "Configurer les groupes",
+      "step2_desc": "Choisir les widgets et statistiques à calculer",
+      "step3": "Personnaliser le site",
+      "step3_desc": "Pages, navigation, apparence",
+      "step4": "Publier",
+      "step4_desc": "Construire et déployer le site web"
+    }
   },
   "actions": {
     "save": "Enregistrer",

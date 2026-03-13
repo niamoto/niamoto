@@ -169,9 +169,8 @@ async def execute_export_background(
                 total = update.get("total") or 1
                 ratio = min(max(processed / total, 0.0), 1.0)
                 pct = int(ratio * 50)  # Transform = 0-50%
-                message = (
-                    f"transform:{update.get('group', '')}:{update.get('widget', '')}"
-                )
+                item_label = update.get("item_label", "")
+                message = f"transform:{update.get('group', '')}:{update.get('widget', '')}:{item_label}"
                 job_store.update_progress(job_id, pct, message, phase="transform")
 
             await asyncio.to_thread(

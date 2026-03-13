@@ -24,6 +24,24 @@ import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
+// Shim localStorage/sessionStorage for sandboxed iframes (no allow-same-origin)
+const STORAGE_SHIM = `<script>
+try { window.localStorage; } catch(e) {
+  var s={};var h={getItem:function(k){return s[k]||null},setItem:function(k,v){s[k]=String(v)},removeItem:function(k){delete s[k]},clear:function(){s={}},get length(){return Object.keys(s).length},key:function(i){return Object.keys(s)[i]||null}};
+  Object.defineProperty(window,'localStorage',{value:h});
+  Object.defineProperty(window,'sessionStorage',{value:h});
+}
+</script>`
+
+function patchHtmlForSandbox(html: string): string {
+  // Inject storage shim right after <head> so it runs before any other script
+  const headIndex = html.indexOf('<head>')
+  if (headIndex !== -1) {
+    return html.slice(0, headIndex + 6) + STORAGE_SHIM + html.slice(headIndex + 6)
+  }
+  return STORAGE_SHIM + html
+}
+
 export type DeviceSize = 'mobile' | 'tablet' | 'desktop'
 
 // Device dimensions (real viewport sizes)
@@ -208,7 +226,7 @@ export function PreviewFrame({
               }}
             >
               <iframe
-                srcDoc={html}
+                srcDoc={patchHtmlForSandbox(html)}
                 className="w-full h-full border-0"
                 title="Preview"
                 sandbox="allow-scripts"

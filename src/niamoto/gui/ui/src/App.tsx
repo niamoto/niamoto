@@ -9,6 +9,7 @@ import './App.css'
 
 // Lazy load pages
 const WelcomeScreen = lazy(() => import('@/pages/welcome'))
+const ProjectHub = lazy(() => import('@/pages/home'))
 
 // Sources pages
 const SourcesPage = lazy(() => import('@/pages/sources'))
@@ -153,7 +154,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/sources" replace />} />
+            <Route index element={<Suspense fallback={<PageFallback />}><ProjectHub /></Suspense>} />
 
             {/* Sources - Import & Data */}
             <Route path="sources" element={<Suspense fallback={<PageFallback />}><SourcesPage /></Suspense>} />
@@ -187,9 +188,9 @@ function App() {
             <Route path="publish/history" element={<Suspense fallback={<PageFallback />}><PublishHistory /></Suspense>} />
 
             {/* Catch-all: redirect old routes and 404s */}
-            <Route path="labs/*" element={<Navigate to="/sources" replace />} />
-            <Route path="showcase" element={<Navigate to="/sources" replace />} />
-            <Route path="*" element={<Navigate to="/sources" replace />} />
+            <Route path="labs/*" element={<Navigate to="/" replace />} />
+            <Route path="showcase" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

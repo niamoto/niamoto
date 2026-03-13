@@ -29,9 +29,10 @@ import { apiClient } from '@/lib/api/client'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
 
 export default function PublishBuild() {
-  const { t } = useTranslation('publish')
+  const { t, i18n } = useTranslation('publish')
   const navigate = useNavigate()
   const { setBreadcrumbs } = useNavigationStore()
+  const previewLang = i18n.language?.split('-')[0] || 'fr'
 
   const {
     currentBuild,
@@ -39,6 +40,7 @@ export default function PublishBuild() {
     startBuild,
     updateBuild,
     completeBuild,
+    clearBuildHistory,
   } = usePublishStore()
 
   const isBuilding = usePublishStore(selectIsBuilding)
@@ -213,10 +215,10 @@ export default function PublishBuild() {
               {includeTransform && (
                 <div className="flex gap-4 text-xs text-muted-foreground">
                   <span className={currentPhase === 'transform' ? 'font-semibold text-foreground' : ''}>
-                    {t('build.phaseTransform', 'Phase 1/2 : Transformations')} {currentPhase === 'transform' ? '⏳' : currentPhase === 'export' ? '✓' : ''}
+                    {t('build.phaseTransform', 'Phase 1/2 : Transformations')} {currentPhase === 'transform' ? '...' : currentPhase === 'export' ? '—' : ''}
                   </span>
                   <span className={currentPhase === 'export' ? 'font-semibold text-foreground' : ''}>
-                    {t('build.phaseExport', 'Phase 2/2 : Export')} {currentPhase === 'export' ? '⏳' : ''}
+                    {t('build.phaseExport', 'Phase 2/2 : Export')} {currentPhase === 'export' ? '...' : ''}
                   </span>
                 </div>
               )}
@@ -295,7 +297,7 @@ export default function PublishBuild() {
 
               {/* Actions */}
               <div className="flex gap-2 pt-4">
-                <Button onClick={() => window.open('/preview', '_blank')} className="flex-1">
+                <Button onClick={() => window.open(`/preview/${previewLang}/`, '_blank')} className="flex-1">
                   <Globe className="w-4 h-4 mr-2" />
                   {t('build.preview', 'Voir le site')}
                 </Button>
@@ -311,8 +313,15 @@ export default function PublishBuild() {
           {!isBuilding && lastBuild?.status === 'failed' && (
             <Alert variant="destructive">
               <XCircle className="w-4 h-4" />
-              <AlertDescription>
-                {lastBuild.error || t('build.error', 'Erreur lors du build')}
+              <AlertDescription className="flex items-center justify-between">
+                <span>
+                  {lastBuild.error?.includes('Network Error')
+                    ? t('build.errorNetwork', 'Connexion au serveur perdue pendant le build. Relancez la génération.')
+                    : lastBuild.error || t('build.error', 'Erreur lors du build')}
+                </span>
+                <Button variant="ghost" size="sm" className="ml-2 h-6 px-2 text-destructive" onClick={clearBuildHistory}>
+                  <XCircle className="w-3 h-3" />
+                </Button>
               </AlertDescription>
             </Alert>
           )}
@@ -363,7 +372,7 @@ export default function PublishBuild() {
                 <CardTitle>{t('build.previewTitle', 'Aperçu du site')}</CardTitle>
                 <CardDescription>{t('build.previewDescription', 'Prévisualisation du site généré')}</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => window.open('/preview', '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => window.open(`/preview/${previewLang}/`, '_blank')}>
                 <ExternalLink className="w-4 h-4 mr-2" />
                 {t('build.openNewTab', 'Nouvel onglet')}
               </Button>
@@ -372,8 +381,9 @@ export default function PublishBuild() {
           <CardContent>
             <div className="rounded-lg border overflow-hidden">
               <iframe
-                src="/preview/index.html"
-                className="w-full h-[500px] border-0"
+                key={lastBuild?.completedAt ?? ''}
+                src={`/preview/${previewLang}/index.html`}
+                className="w-full h-[80vh] border-0"
                 title={t('build.previewTitle', 'Aperçu du site')}
                 sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
               />
@@ -392,7 +402,13 @@ export default function PublishBuild() {
 function localizeBackendMessage(message: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   if (message.startsWith('transform:')) {
     const parts = message.split(':')
-    return t('build.progress.transform', { group: parts[1] || '', widget: parts[2] || '', defaultValue: `Transform · ${parts[1]} · ${parts[2]}` })
+    const group = (parts[1] || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    const widget = (parts[2] || '').replace(/_/g, ' ')
+    const item = parts[3] || ''
+    if (item) {
+      return t('build.progress.transformItem', { group, widget, item, defaultValue: `${group} · ${item} · ${widget}` })
+    }
+    return t('build.progress.transform', { group, widget, defaultValue: `${group} · ${widget}` })
   }
   if (message.startsWith('export.generating:')) {
     const pct = message.split(':')[1] || ''

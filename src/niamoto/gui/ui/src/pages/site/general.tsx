@@ -7,7 +7,7 @@ import { SitePanel } from '@/components/panels/SitePanel'
 
 export default function SiteGeneralPage() {
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full overflow-hidden">
       <SitePanel subSection="general" />
     </div>
   )

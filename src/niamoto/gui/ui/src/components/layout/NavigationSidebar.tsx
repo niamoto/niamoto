@@ -3,8 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   Settings,
-  Eye,
-  ExternalLink,
   Menu,
   Command,
 } from 'lucide-react'
@@ -32,6 +30,8 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
   const isCompact = sidebarMode === 'compact'
 
   const isActive = (matchPrefix: string) => {
+    // Home ("/") must be exact match to avoid highlighting on every route
+    if (matchPrefix === '/') return location.pathname === '/'
     return location.pathname === matchPrefix || location.pathname.startsWith(matchPrefix + '/')
   }
 
@@ -122,15 +122,6 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
               <Settings className="h-4 w-4" />
               {t('sidebar.footer.settings')}
             </NavLink>
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-              onClick={() => window.open('/preview', '_blank')}
-            >
-              <Eye className="h-4 w-4" />
-              {t('sidebar.footer.previewSite')}
-              <ExternalLink className="ml-auto h-3 w-3 opacity-50" />
-            </Button>
           </>
         ) : (
           <>
@@ -147,15 +138,6 @@ export function NavigationSidebar({ className }: NavigationSidebarProps) {
             >
               <Settings className="h-4 w-4" />
             </NavLink>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="mx-auto flex"
-              title={t('sidebar.footer.previewSite')}
-              onClick={() => window.open('/preview', '_blank')}
-            >
-              <Eye className="h-4 w-4" />
-            </Button>
             <Button
               variant="ghost"
               size="icon"

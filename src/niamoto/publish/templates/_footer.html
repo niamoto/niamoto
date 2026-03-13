@@ -27,7 +27,7 @@
 
             {# Logo + title column #}
             <div style="min-width: 180px;">
-                <a href="{{ '../' * (depth|default(0)) }}index.html" class="no-underline" style="display: inline-flex; align-items: center; gap: 0.75rem;">
+                <a href="{{ '../' * (nav_depth|default(depth|default(0))) }}index.html" class="no-underline" style="display: inline-flex; align-items: center; gap: 0.75rem;">
                     {% if site.logo_footer %}
                     <img src="{{ site.logo_footer | relative_url(depth|default(0)) }}" alt="Logo"
                          class="logo-embossed" style="height: 36px; width: auto; background: #fff; border-radius: 6px; padding: 4px;">
@@ -48,7 +48,7 @@
                 <ul style="list-style: none; margin: 0; padding: 0;">
                     {% for link in section.links %}
                     <li style="margin-bottom: 0.375rem;">
-                        <a href="{{ link.url | relative_url(depth|default(0)) if not link.external else link.url }}"
+                        <a href="{{ link.url | relative_url(nav_depth|default(depth|default(0))) if not link.external else link.url }}"
                            class="no-underline transition-colors"
                            style="font-size: 0.8125rem; color: rgba(255,255,255,0.6);"
                            onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.6)'"
@@ -65,7 +65,7 @@
         {% else %}
         {# No footer sections — simple centered logo #}
         <div style="text-align: center; margin-bottom: 1.5rem;">
-            <a href="{{ '../' * (depth|default(0)) }}index.html" class="no-underline" style="display: inline-flex; align-items: center; gap: 0.75rem;">
+            <a href="{{ '../' * (nav_depth|default(depth|default(0))) }}index.html" class="no-underline" style="display: inline-flex; align-items: center; gap: 0.75rem;">
                 {% if site.logo_footer %}
                 <img src="{{ site.logo_footer | relative_url(depth|default(0)) }}" alt="Logo"
                      class="logo-embossed" style="height: 36px; width: auto; background: #fff; border-radius: 6px; padding: 4px;">

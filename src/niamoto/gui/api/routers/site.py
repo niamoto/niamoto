@@ -1053,6 +1053,7 @@ class GroupIndexPreviewRequest(BaseModel):
 
     site: Optional[Dict[str, Any]] = None
     navigation: Optional[List[Dict[str, Any]]] = None
+    gui_lang: Optional[str] = None
 
 
 def _generate_mock_items(
@@ -1245,11 +1246,18 @@ async def preview_group_index(
                 },
             )
 
-        # Navigation
+        # Resolve language
+        site_lang = (
+            site_config.get("lang", "fr") if isinstance(site_config, dict) else "fr"
+        )
+        lang = (request.gui_lang if request else None) or site_lang
+
+        # Navigation — resolve localized strings
         navigation = request.navigation if request and request.navigation else []
         if not navigation:
             params = web_pages.get("params", {})
             navigation = params.get("navigation", [])
+        navigation = _resolve_navigation(navigation, lang)
 
         # Build index_config for the template
         display_fields = index_gen.get("display_fields", [])
@@ -1288,6 +1296,18 @@ async def preview_group_index(
         )
 
         # Fix asset URLs for preview
+        # Project files (images, logo, etc.)
+        rendered_html = rendered_html.replace('src="files/', f'src="{base_url}/files/')
+        rendered_html = rendered_html.replace("src='files/", f"src='{base_url}/files/")
+        rendered_html = rendered_html.replace(
+            'href="files/', f'href="{base_url}/files/'
+        )
+        rendered_html = rendered_html.replace(
+            "href='files/", f"href='{base_url}/files/"
+        )
+        rendered_html = rendered_html.replace("url('files/", f"url('{base_url}/files/")
+        rendered_html = rendered_html.replace('url("files/', f'url("{base_url}/files/')
+        # Niamoto assets (CSS, JS, fonts)
         rendered_html = rendered_html.replace(
             'href="/assets/', f'href="{base_url}/assets/'
         )

@@ -46,7 +46,7 @@
                             <ul class="space-y-1">
                                 {% for item in section.items %}
                                 <li>
-                                    <a href="{{ item.url | relative_url(depth|default(0)) }}"
+                                    <a href="{{ item.url | relative_url(nav_depth|default(depth|default(0))) }}"
                                        class="nav-link block px-3 py-2 text-sm rounded-lg transition-colors
                                               {% if item.active %}bg-green-50 text-green-700 font-medium{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
                                         {{ item.title }}
@@ -76,7 +76,7 @@
                 <!-- Breadcrumb -->
                 <nav class="text-sm mb-8">
                     <ol class="flex items-center space-x-2">
-                        <li><a href="{{ 'index.html' | relative_url(depth|default(0)) }}" class="text-gray-500 hover:text-green-600">Accueil</a></li>
+                        <li><a href="{{ 'index.html' | relative_url(nav_depth|default(depth|default(0))) }}" class="text-gray-500 hover:text-green-600">Accueil</a></li>
                         <li><span class="text-gray-400">/</span></li>
                         <li><span class="text-gray-800">{{ title }}</span></li>
                     </ol>
@@ -103,7 +103,7 @@
                 <!-- Pagination -->
                 <nav class="mt-8 flex justify-between items-center">
                     {% if prev_page %}
-                    <a href="{{ prev_page.url | relative_url(depth|default(0)) }}"
+                    <a href="{{ prev_page.url | relative_url(nav_depth|default(depth|default(0))) }}"
                        class="flex items-center text-green-600 hover:text-green-800">
                         <i class="fas fa-arrow-left mr-2"></i>
                         <div>
@@ -116,7 +116,7 @@
                     {% endif %}
 
                     {% if next_page %}
-                    <a href="{{ next_page.url | relative_url(depth|default(0)) }}"
+                    <a href="{{ next_page.url | relative_url(nav_depth|default(depth|default(0))) }}"
                        class="flex items-center text-right text-green-600 hover:text-green-800">
                         <div>
                             <div class="text-xs text-gray-500">Suivant</div>

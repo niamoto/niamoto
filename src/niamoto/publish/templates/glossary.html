@@ -107,7 +107,7 @@
 
         <!-- Back -->
         <div class="mt-8">
-            <a href="{{ 'index.html' | relative_url(depth|default(0)) }}"
+            <a href="{{ 'index.html' | relative_url(nav_depth|default(depth|default(0))) }}"
                class="inline-flex items-center text-green-600 hover:text-green-800">
                 <i class="fas fa-arrow-left mr-2"></i>
                 Retour a l'accueil

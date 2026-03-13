@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { LucideIcon } from 'lucide-react'
-import { Database, Layers, Globe, Rocket } from 'lucide-react'
+import { Home, Database, Layers, Globe, Rocket } from 'lucide-react'
 
 // --- Flat navigation items (new) ---
 
@@ -15,6 +15,14 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
+  {
+    id: 'home',
+    labelKey: 'sidebar.nav.home',
+    fallbackLabel: 'Accueil',
+    icon: Home,
+    path: '/',
+    matchPrefix: '/',  // Exact match (handled specially in sidebar)
+  },
   {
     id: 'data',
     labelKey: 'sidebar.nav.data',
@@ -52,6 +60,7 @@ export const navItems: NavItem[] = [
 // --- Route labels for breadcrumbs ---
 
 export const routeLabels: Record<string, string> = {
+  '/': 'Accueil',
   '/sources': 'Données',
   '/sources/import': 'Import',
   '/sources/dataset': 'Dataset',

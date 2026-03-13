@@ -376,6 +376,7 @@ export function useTemplatePreview() {
 export interface GroupIndexPreviewRequest {
   site?: Record<string, unknown>
   navigation?: Array<{ text: string; url?: string; children?: unknown[] }>
+  gui_lang?: string
 }
 
 /**

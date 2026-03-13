@@ -786,7 +786,7 @@ interface SiteBuilderProps {
 }
 
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
-  const { t } = useTranslation(['site', 'common'])
+  const { t, i18n } = useTranslation(['site', 'common'])
   // Data fetching
   const { data: siteConfig, isLoading, error, refetch } = useSiteConfig()
   const { data: groupsData, isLoading: groupsLoading } = useGroups()
@@ -855,7 +855,18 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
   const loadGroupIndexPreview = () => {
     if (selection?.type === 'group' && groupHasIndex && selection.id) {
       groupIndexPreviewMutation.mutate(
-        { groupName: selection.id },
+        {
+          groupName: selection.id,
+          request: {
+            site: editedSite as Record<string, unknown>,
+            navigation: editedNavigation.map(n => ({
+              text: n.text as string,
+              url: n.url,
+              children: n.children,
+            })),
+            gui_lang: i18n.language?.split('-')[0] || 'fr',
+          },
+        },
         {
           onSuccess: (data) => setGroupIndexHtml(data.html),
           onError: (error) => {
@@ -1366,25 +1377,27 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
       </div>
 
       {/* Main Content */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Left Panel - Tree */}
-        <ResizablePanel defaultSize={15} minSize={12} maxSize={25}>
-          <SiteTree
-            navigation={editedNavigation}
-            footerNavigation={editedFooterNavigation}
-            pages={editedPages}
-            groups={groups}
-            groupsLoading={groupsLoading}
-            selection={selection}
-            onSelect={setSelection}
-            onAddPage={handleAddPage}
-          />
+      <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
+        {/* Left Panel - Tree (sticky, own scroll) */}
+        <ResizablePanel id="tree" order={0} defaultSize={15} minSize={12} maxSize={25}>
+          <ScrollArea className="h-full">
+            <SiteTree
+              navigation={editedNavigation}
+              footerNavigation={editedFooterNavigation}
+              pages={editedPages}
+              groups={groups}
+              groupsLoading={groupsLoading}
+              selection={selection}
+              onSelect={setSelection}
+              onAddPage={handleAddPage}
+            />
+          </ScrollArea>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
-        {/* Center Panel - Editor */}
-        <ResizablePanel defaultSize={showPreview ? 45 : 85} minSize={30}>
+        {/* Center Panel - Editor (scrolls independently) */}
+        <ResizablePanel id="editor" order={1} defaultSize={showPreview ? 50 : 85} minSize={30} className="overflow-hidden">
           {renderEditor()}
         </ResizablePanel>
 
@@ -1392,7 +1405,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
         {showPreview && (
           <>
             <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={35} minSize={20} maxSize={50}>
+            <ResizablePanel id="preview" order={2} defaultSize={35} minSize={20} maxSize={50}>
               {selection?.type === 'group' ? (
                 <GroupIndexPreviewPanel
                   html={groupIndexHtml}

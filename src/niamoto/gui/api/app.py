@@ -31,6 +31,7 @@ from .routers import (
     layout,
     recipes,
     preview,
+    pipeline,
 )
 from .context import get_working_directory
 from .services.job_file_store import JobFileStore
@@ -104,6 +105,7 @@ def create_app() -> FastAPI:
     app.include_router(sources.router, prefix="/api")  # Pre-calculated sources API
     app.include_router(layout.router, prefix="/api")  # Layout editor API
     app.include_router(recipes.router, prefix="/api")  # Widget recipes API
+    app.include_router(pipeline.router, prefix="/api/pipeline", tags=["pipeline"])
 
     # Initialiser le JobFileStore et détecter les jobs orphelins
     logger = logging.getLogger(__name__)

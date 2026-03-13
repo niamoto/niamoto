@@ -625,3 +625,32 @@ html {
         background: color-mix(in srgb, var(--color-primary, #228b22) 30%, transparent);
     }
 }
+
+/* Markdown content tables */
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.875rem;
+}
+
+.markdown-content thead th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    text-align: left;
+    padding: 0.625rem 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.markdown-content tbody td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.markdown-content tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.markdown-content table strong {
+    color: #111827;
+}

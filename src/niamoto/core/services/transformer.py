@@ -279,6 +279,11 @@ class TransformerService:
             widgets_config = group_config.get("widgets_data", {})
             group_by_name = group_config.get("group_by", "unknown")
 
+            # Pre-load id→name mapping for progress display
+            id_name_map: Dict[int, str] = {}
+            if progress_callback:
+                id_name_map = self._load_group_names(group_config, group_ids)
+
             # Calculate the total number of operations
             total_ops = len(group_ids) * len(widgets_config)
 
@@ -417,6 +422,7 @@ class TransformerService:
                             {
                                 "group": group_by_name,
                                 "widget": widget_name,
+                                "item_label": id_name_map.get(group_id, str(group_id)),
                                 "processed": None,
                                 "total": None,
                             }
@@ -471,6 +477,11 @@ class TransformerService:
             group_ids = self._get_group_ids(group_config)
             widgets_config = group_config.get("widgets_data", {})
             group_by_name = group_config.get("group_by", "unknown")
+
+            # Pre-load id→name mapping for progress display
+            id_name_map_simple: Dict[int, str] = {}
+            if progress_callback:
+                id_name_map_simple = self._load_group_names(group_config, group_ids)
 
             # Create or update the table
             self._create_group_table(group_by_name, widgets_config, recreate_table)
@@ -587,6 +598,9 @@ class TransformerService:
                             {
                                 "group": group_by_name,
                                 "widget": widget_name,
+                                "item_label": id_name_map_simple.get(
+                                    group_id, str(group_id)
+                                ),
                                 "processed": processed_ops,
                                 "total": total_ops,
                             }
@@ -742,6 +756,51 @@ class TransformerService:
                     f"Missing required relation fields in source '{source_name}'",
                     details={"required": ["plugin", "key"]},
                 )
+
+    def _load_group_names(
+        self, group_config: Dict[str, Any], group_ids: List[int]
+    ) -> Dict[int, str]:
+        """Load a mapping of group_id → display name for progress messages."""
+        if not group_ids:
+            return {}
+        try:
+            sources = group_config.get("sources", [])
+            if not sources:
+                return {}
+            grouping_table = sources[0]["grouping"]
+            resolved_table = self._resolve_table_name(grouping_table)
+
+            # Find the best name column
+            columns = self.db.get_table_columns(resolved_table) or []
+            name_col = None
+            for candidate in ["name", "full_name", "label", "title"]:
+                if candidate in columns:
+                    name_col = candidate
+                    break
+            if not name_col:
+                # Try *_name pattern
+                for col in columns:
+                    if col.endswith("_name"):
+                        name_col = col
+                        break
+            if not name_col:
+                return {}
+
+            id_field = "id"
+            try:
+                metadata = self.entity_registry.get(grouping_table)
+                id_field = metadata.config.get("schema", {}).get("id_field", "id")
+            except (Exception,):
+                pass
+
+            qt = str(quoted_name(resolved_table, quote=True))
+            qi = str(quoted_name(id_field, quote=True))
+            qn = str(quoted_name(name_col, quote=True))
+            rows = self.db.fetch_all(f"SELECT {qi}, {qn} FROM {qt}")
+            return {row[id_field]: row[name_col] for row in rows} if rows else {}
+        except Exception as e:
+            logger.debug("Could not load group names: %s", e)
+            return {}
 
     def _get_group_ids(self, group_config: Dict[str, Any]) -> List[int]:
         """Get all group IDs to process."""
