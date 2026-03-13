@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-  Rocket,
+  Send,
   Package,
   Upload,
   History,
@@ -384,7 +384,7 @@ export default function PublishOverview() {
               onClick={() => navigate('/publish/deploy')}
               disabled={isDeploying || (!lastBuild && !buildHistory.some(b => b.status === 'completed'))}
             >
-              <Rocket className="w-5 h-5 mr-2" />
+              <Send className="w-5 h-5 mr-2" />
               {isDeploying ? t('deploy.deploying', 'Déploiement...') : t('deploy.trigger', 'Déployer')}
             </Button>
 

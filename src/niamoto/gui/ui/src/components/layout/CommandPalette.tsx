@@ -16,7 +16,7 @@ import {
   Database,
   Layers,
   Globe,
-  Rocket,
+  Send,
   Upload,
   Settings,
   Sun,
@@ -37,7 +37,7 @@ const navIconMap: Record<string, React.ComponentType<{ className?: string }>> = 
   data: Database,
   groups: Layers,
   site: Globe,
-  publish: Rocket,
+  publish: Send,
 }
 
 export function CommandPalette() {

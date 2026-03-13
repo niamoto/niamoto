@@ -23,7 +23,7 @@ import {
   Database,
   Layers,
   Globe,
-  Rocket,
+  Send,
   ArrowRight,
   CheckCircle2,
   AlertTriangle,
@@ -329,7 +329,7 @@ function OnboardingView() {
       title: t('pipeline.onboarding.step4', 'Publier'),
       description: t('pipeline.onboarding.step4_desc', 'Construire et déployer le site web'),
       path: '/publish',
-      icon: <Rocket className="h-5 w-5" />,
+      icon: <Send className="h-5 w-5" />,
     },
   ]
 
@@ -479,7 +479,7 @@ function DashboardView() {
         </StageCard>
 
         <StageCard
-          icon={<Rocket className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
+          icon={<Send className="h-5 w-5 text-orange-600 dark:text-orange-400" />}
           title={t('sidebar.nav.publish', 'Publication')}
           stage={pipeline.publication}
           path="/publish"

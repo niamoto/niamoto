@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
-  Rocket,
+  Send,
   Package,
   CheckCircle,
   XCircle,
@@ -302,7 +302,7 @@ export default function PublishBuild() {
                   {t('build.preview', 'Voir le site')}
                 </Button>
                 <Button variant="secondary" onClick={() => navigate('/publish/deploy')} className="flex-1">
-                  <Rocket className="w-4 h-4 mr-2" />
+                  <Send className="w-4 h-4 mr-2" />
                   {t('build.deploy', 'Déployer')}
                 </Button>
               </div>
@@ -355,7 +355,7 @@ export default function PublishBuild() {
               </>
             ) : (
               <>
-                <Rocket className="w-4 h-4 mr-2" />
+                <Send className="w-4 h-4 mr-2" />
                 {t('build.trigger', 'Générer le site')}
               </>
             )}

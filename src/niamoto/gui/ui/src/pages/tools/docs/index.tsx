@@ -10,7 +10,7 @@ import {
   Layers,
   Upload,
   Download,
-  Rocket,
+  Send,
   Code,
   BookOpen,
   ChevronDown,
@@ -62,7 +62,7 @@ const apiModules: ApiModule[] = [
   {
     name: 'Transform',
     path: '/api/transform',
-    icon: <Rocket className="w-5 h-5" />,
+    icon: <Send className="w-5 h-5" />,
     description: 'Exécution des transformations de données avec gestion de jobs asynchrones',
     endpoints: 6,
     examples: ['Lancement transformations', 'Suivi progression', 'Métriques et résultats']
@@ -86,7 +86,7 @@ const apiModules: ApiModule[] = [
   {
     name: 'Bootstrap',
     path: '/api',
-    icon: <Rocket className="w-5 h-5" />,
+    icon: <Send className="w-5 h-5" />,
     description: 'Analyse de fichiers et génération automatique de configurations',
     endpoints: 5,
     examples: ['Analyse structure fichiers', 'Génération configs', 'Diagnostic projet']
