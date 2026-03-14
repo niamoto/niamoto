@@ -43,7 +43,11 @@ class RasterStatsParams(BasePluginParams):
     raster_path: str = Field(
         ...,
         description="Path to the raster file",
-        json_schema_extra={"ui:widget": "file"},
+        json_schema_extra={
+            "ui:widget": "layer-select",
+            "ui:accept": "raster",
+            "ui:placeholder": "Select a raster layer...",
+        },
     )
 
     shape_field: str = Field(

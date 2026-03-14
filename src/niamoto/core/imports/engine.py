@@ -16,7 +16,7 @@ import logging
 
 import pandas as pd
 import geopandas as gpd
-from sqlalchemy.sql import quoted_name
+from sqlalchemy.sql import quoted_name, text
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseQueryError
@@ -26,6 +26,8 @@ from niamoto.core.imports.config_models import (
     HierarchyConfig,
     MultiFeatureSource,
 )
+from niamoto.core.imports.data_analyzer import DataAnalyzer
+from niamoto.core.imports.transformer_suggester import TransformerSuggester
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,8 @@ class GenericImporter:
     def __init__(self, db: Database, registry: EntityRegistry) -> None:
         self.db = db
         self.registry = registry
+        self.data_analyzer = DataAnalyzer()
+        self.transformer_suggester = TransformerSuggester()
 
     def import_from_csv(
         self,
@@ -91,8 +95,8 @@ class GenericImporter:
             )
             self.db.execute_sql(alter_sql)
 
-            # Read minimal dataframe just for metadata extraction
-            df = self._read_csv(csv_path, nrows=100)
+            # Read full dataframe for analysis (needed for accurate profiling)
+            df = self._read_csv(csv_path)
             # Add extra_data to df for metadata purposes (column exists in DB now)
             df["extra_data"] = None
         else:
@@ -110,12 +114,34 @@ class GenericImporter:
 
             df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
 
+        # Convert WKT geometry columns to native GEOMETRY for spatial queries
+        self._convert_wkt_columns_to_geometry(table_name, df.columns.tolist())
+
+        # Analyze dataset for transformer suggestions
+        semantic_profile = None
+        try:
+            semantic_profile = self._analyze_for_transformers(
+                df=df,
+                csv_path=csv_path,
+                entity_name=entity_name,
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate transformer suggestions for '{entity_name}': {e}",
+                exc_info=True,
+            )
+
         metadata = self._build_metadata(
             df,
             primary_key=primary_key,
             source_path=str(csv_path),
             extra_config=extra_config,
         )
+
+        # Add semantic profile to metadata
+        if semantic_profile:
+            metadata["semantic_profile"] = semantic_profile
+
         self.registry.register_entity(
             name=entity_name,
             kind=kind,
@@ -125,8 +151,6 @@ class GenericImporter:
 
         # Get actual row count from the table (not from the sample df for DuckDB)
         if self.db.is_duckdb:
-            import pandas as pd
-
             count_df = pd.read_sql(
                 f"SELECT COUNT(*) as count FROM {quoted_table}", self.db.engine
             )
@@ -368,6 +392,9 @@ class GenericImporter:
         primary_key = id_field or "id"
         df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
 
+        # Convert WKT location to native GEOMETRY for spatial queries
+        self._add_native_geometry_column(table_name, "location", "geometry")
+
         # Build metadata
         metadata = self._build_metadata(
             df,
@@ -393,6 +420,66 @@ class GenericImporter:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
+    # WKT column patterns to detect and convert to native GEOMETRY
+    WKT_COLUMN_PATTERNS = ["geo_pt", "geo", "wkt", "geometry", "geom", "the_geom"]
+
+    def _convert_wkt_columns_to_geometry(self, table_name: str, columns: list) -> None:
+        """Detect WKT columns and convert them to native GEOMETRY.
+
+        Args:
+            table_name: Name of the table
+            columns: List of column names to check
+        """
+        for col in columns:
+            col_lower = col.lower()
+            # Check if column name matches WKT patterns
+            for pattern in self.WKT_COLUMN_PATTERNS:
+                if col_lower == pattern or col_lower.startswith(f"{pattern}_"):
+                    # Create geometry column name (geo_pt -> geo_pt_geom)
+                    geom_col = f"{col}_geom"
+                    self._add_native_geometry_column(table_name, col, geom_col)
+                    break
+
+    def _add_native_geometry_column(
+        self, table_name: str, wkt_column: str, geometry_column: str
+    ) -> None:
+        """Add a native GEOMETRY column converted from WKT text.
+
+        This enables fast spatial queries with proper index support.
+
+        Args:
+            table_name: Name of the table
+            wkt_column: Name of the column containing WKT text
+            geometry_column: Name of the new GEOMETRY column to create
+        """
+        try:
+            with self.db.engine.connect() as conn:
+                # Add GEOMETRY column
+                conn.execute(
+                    text(
+                        f"ALTER TABLE {table_name} ADD COLUMN {geometry_column} GEOMETRY"
+                    )
+                )
+
+                # Populate from WKT (only for non-null values)
+                conn.execute(
+                    text(
+                        f"""
+                        UPDATE {table_name}
+                        SET {geometry_column} = ST_GeomFromText({wkt_column})
+                        WHERE {wkt_column} IS NOT NULL
+                    """
+                    )
+                )
+
+                conn.commit()
+                logger.info(
+                    f"Added native GEOMETRY column '{geometry_column}' to {table_name}"
+                )
+        except Exception as e:
+            # Don't fail the import if geometry conversion fails
+            logger.warning(f"Could not add native geometry column to {table_name}: {e}")
+
     def _resolve_entity_name(self, table_name: str) -> str:
         """Return the logical entity name for a physical table name."""
 
@@ -484,6 +571,88 @@ class GenericImporter:
             metadata.update(extra_config)
 
         return metadata
+
+    def _analyze_for_transformers(
+        self,
+        df: pd.DataFrame,
+        csv_path: Path,
+        entity_name: str,
+    ) -> Dict[str, object]:
+        """
+        Analyze dataset and generate transformer suggestions.
+
+        Args:
+            df: DataFrame with the data
+            csv_path: Path to the CSV file (for profiler)
+            entity_name: Name of the entity
+
+        Returns:
+            Dictionary with semantic profile including transformer suggestions
+        """
+        from niamoto.core.imports.profiler import DataProfiler
+
+        logger.info(f"Analyzing dataset '{entity_name}' for transformer suggestions...")
+
+        # 1. Profile with DataProfiler (existing component)
+        profiler = DataProfiler(ml_detector=None)
+        dataset_profile = profiler.profile(csv_path)
+
+        # 2. Enrich each column with DataAnalyzer
+        enriched_profiles = []
+        for col_profile in dataset_profile.columns:
+            if col_profile.name in df.columns:
+                try:
+                    enriched = self.data_analyzer.enrich_profile(
+                        col_profile, df[col_profile.name]
+                    )
+                    enriched_profiles.append(enriched)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to enrich profile for column '{col_profile.name}': {e}"
+                    )
+                    continue
+
+        # 3. Generate transformer suggestions
+        suggestions = self.transformer_suggester.suggest_for_dataset(
+            enriched_profiles, entity_name
+        )
+
+        # 4. Build semantic profile structure
+        semantic_profile = {
+            "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            "columns": [
+                {
+                    "name": ep.name,
+                    "data_category": ep.data_category.value,
+                    "field_purpose": ep.field_purpose.value,
+                    "cardinality": ep.cardinality,
+                    "null_ratio": ep.null_ratio,
+                    "suggested_bins": ep.suggested_bins,
+                    "suggested_labels": ep.suggested_labels,
+                    "value_range": ep.value_range,
+                }
+                for ep in enriched_profiles
+            ],
+            "transformer_suggestions": {
+                col_name: [
+                    {
+                        "transformer": s.transformer_name,
+                        "confidence": s.confidence,
+                        "reason": s.reason,
+                        "config": s.pre_filled_config,
+                    }
+                    for s in suggestions_list
+                ]
+                for col_name, suggestions_list in suggestions.items()
+            },
+        }
+
+        logger.info(
+            f"Generated suggestions for {len(suggestions)} columns "
+            f"({sum(len(s) for s in suggestions.values())} total suggestions)"
+        )
+
+        return semantic_profile
 
     @staticmethod
     def _dtype_to_string(dtype: pd.api.types.ExtensionDtype) -> str:

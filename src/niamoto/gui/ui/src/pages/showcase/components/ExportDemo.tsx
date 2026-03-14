@@ -7,13 +7,13 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useShowcaseStore } from '@/stores/showcaseStore'
-import { usePipelineStore } from '@/stores/pipelineStore'
+import { useShowcaseStore } from '../showcaseStore'
+import { usePipelineStore } from '../pipelineStore'
 import { useProgressiveCounter } from '@/hooks/useProgressiveCounter'
 import {
   Globe,
   FileCode,
-  Rocket,
+  Send,
   CheckCircle,
   Database,
   FileJson,
@@ -499,7 +499,7 @@ export function ExportDemo({}: ExportDemoProps) {
                 <span className="text-sm">Prêt à exporter</span>
               </div>
               <Button onClick={runExport} disabled={exporting}>
-                <Rocket className="w-4 h-4 mr-2" />
+                <Send className="w-4 h-4 mr-2" />
                 Générer le site
               </Button>
             </div>
@@ -770,7 +770,7 @@ export function ExportDemo({}: ExportDemoProps) {
                       }}
                       disabled={!exportStarted || exportProgress !== 100}
                     >
-                      <Rocket className="w-4 h-4 mr-2" />
+                      <Send className="w-4 h-4 mr-2" />
                       Déployer maintenant
                     </Button>
                     <Button variant="outline" className="w-full" asChild>
@@ -850,7 +850,7 @@ export function ExportDemo({}: ExportDemoProps) {
             {/* Additional Info */}
             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
               <div className="flex items-start gap-3">
-                <Rocket className="w-5 h-5 text-blue-500 mt-0.5" />
+                <Send className="w-5 h-5 text-blue-500 mt-0.5" />
                 <div className="space-y-2">
                   <h4 className="font-semibold text-sm">Publication automatisée</h4>
                   <p className="text-xs text-muted-foreground">
@@ -924,7 +924,7 @@ export function ExportDemo({}: ExportDemoProps) {
                   disabled={!projectName.trim() || deploying}
                   className="w-full"
                 >
-                  <Rocket className="w-4 h-4 mr-2" />
+                  <Send className="w-4 h-4 mr-2" />
                   Lancer le déploiement
                 </Button>
               </div>

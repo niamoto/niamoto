@@ -15,6 +15,92 @@
     "aggregations": "Aggregations",
     "summary": "Summary"
   },
+  "sidebar": {
+    "nav": {
+      "home": "Home",
+      "data": "Data",
+      "groups": "Groups",
+      "site": "Site",
+      "publish": "Publish"
+    },
+    "cmdkHint": "Tools & search",
+    "footer": {
+      "settings": "Settings",
+      "previewSite": "Preview site"
+    }
+  },
+  "command": {
+    "search": "Search pages or tools...",
+    "no_results": "No results found.",
+    "navigation": "Navigation",
+    "tools": "Tools",
+    "preferences": "Preferences",
+    "light_theme": "Light Theme",
+    "dark_theme": "Dark Theme",
+    "system_theme": "System Theme",
+    "importDesc": "Import a data file",
+    "explorerDesc": "SQL queries on your data",
+    "configDesc": "Edit YAML files",
+    "pluginsDesc": "Manage plugins",
+    "docsDesc": "Endpoints reference",
+    "select_hint": "Select",
+    "close_hint": "Close",
+    "navigate_hint": "Navigate"
+  },
+  "pipeline": {
+    "never_run": "Not yet run",
+    "running": "Processing...",
+    "data_stale": "Data imported — groups need recalculation",
+    "data_fresh": "Data up to date",
+    "groups_stale": "Stale calculations — data changed since last run",
+    "groups_stale_count": "{{count}} group(s) to recalculate",
+    "groups_fresh": "All groups up to date",
+    "site_stale": "Site not configured",
+    "site_fresh": "Site configured",
+    "publication_stale": "Groups recalculated — site needs rebuild",
+    "publication_fresh": "Site generated and up to date",
+    "action_import": "Import",
+    "action_transform": "Recalculate groups",
+    "action_recalculate": "Recalculate",
+    "action_rebuild": "Rebuild site",
+    "action_deploy": "Deploy",
+    "action_configure": "Configure",
+    "running_import": "Importing...",
+    "running_transform": "Calculating...",
+    "running_export": "Building...",
+    "cascade": {
+      "title": "Cascade update",
+      "description": "Recalculate {{count}} group(s) → Rebuild site → Publish"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "stale_subtitle": "Updates needed",
+      "fresh_subtitle": "Everything is up to date",
+      "update_all": "Update"
+    },
+    "summary": {
+      "quality": "Quality {{score}}%",
+      "alert": "1 alert",
+      "alerts": "{{count}} alerts",
+      "groups_ratio": "{{fresh}}/{{total}} up to date",
+      "groups_stale_ratio": "{{stale}}/{{total}} to recalculate",
+      "pages": "{{count}} pages",
+      "html_pages": "{{count}} HTML pages",
+      "built_in": "in {{seconds}}s"
+    },
+    "onboarding": {
+      "title": "Welcome to Niamoto",
+      "subtitle": "Follow these steps to set up your ecological data portal.",
+      "step1": "Import your data",
+      "step1_desc": "CSV files, taxonomy, shapefiles",
+      "step2": "Configure groups",
+      "step2_desc": "Choose widgets and statistics to calculate",
+      "step3": "Customize the site",
+      "step3_desc": "Pages, navigation, appearance",
+      "step4": "Publish",
+      "step4_desc": "Build and deploy the website"
+    }
+  },
   "actions": {
     "save": "Save",
     "cancel": "Cancel",
@@ -41,7 +127,11 @@
     "goTo": "Go to",
     "retry": "Retry",
     "start": "Start",
-    "addNew": "Add"
+    "addNew": "Add",
+    "hidePreview": "Hide preview",
+    "duplicate": "Duplicate",
+    "preview": "Preview",
+    "refresh": "Refresh"
   },
   "status": {
     "loading": "Loading...",
@@ -54,7 +144,14 @@
     "failed": "Failed",
     "pending": "Pending",
     "inProgress": "In progress",
-    "testing": "Testing..."
+    "testing": "Testing...",
+    "selected": "Selected",
+    "deleting": "Deleting...",
+    "saving": "Saving...",
+    "registering": "Registering...",
+    "noFieldsAvailable": "No fields available",
+    "unsavedChanges": "unsaved",
+    "saved": "saved"
   },
   "validation": {
     "required": "This field is required",
@@ -101,6 +198,19 @@
     "fr": "Français",
     "en": "English"
   },
+  "i18n": {
+    "enableMultilingual": "Enable multilingual content",
+    "multilingual": "Multilingual",
+    "simplify": "Simplify",
+    "simplifyDescription": "Remove translations and keep only one value",
+    "languageSwitcher": "Language switcher",
+    "defaultLanguage": "Default language",
+    "availableLanguages": "Available languages",
+    "addLanguage": "Add language",
+    "removeLanguage": "Remove language",
+    "contentLanguages": "Content languages",
+    "generateForLanguages": "Generate for these languages"
+  },
   "messages": {
     "noData": "No data to display",
     "allMapped": "All fields mapped",
@@ -115,6 +225,134 @@
     "suggested": "(suggested)",
     "optional": "(optional)",
     "example": "e.g., {{example}}",
-    "or": "or"
+    "or": "or",
+    "notFound": "Not found",
+    "navigatingTo": "Navigating to \"{{name}}\"",
+    "pageNotFound": "Page not found: {{href}}"
+  },
+  "dialogs": {
+    "deleteConfirm": "Delete {{item}}?",
+    "deleteConfirmDescription": "This will delete <strong>\"{{item}}\"</strong> from the configuration.",
+    "cannotUndo": "This action cannot be undone.",
+    "replaceExisting": "Replace existing configuration?"
+  },
+  "placeholders": {
+    "search": "Search...",
+    "selectOption": "Select...",
+    "enterValue": "Enter value...",
+    "autoDetect": "Auto-detect"
+  },
+  "labels": {
+    "title": "Title",
+    "description": "Description",
+    "name": "Name",
+    "source": "Source",
+    "field": "Field",
+    "type": "Type",
+    "value": "Value",
+    "settings": "Settings",
+    "preview": "Preview"
+  },
+  "empty": {
+    "noItems": "No items",
+    "noData": "No data available",
+    "clickToAdd": "Click \"{{button}}\" to get started."
+  },
+  "responsive": {
+    "mobile": "Mobile",
+    "tablet": "Tablet",
+    "desktop": "Desktop"
+  },
+  "display": {
+    "grid": "Grid",
+    "list": "List",
+    "hierarchical": "Hierarchical"
+  },
+  "aria": {
+    "close": "Close",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "duplicate": "Duplicate",
+    "settings": "Settings",
+    "previewSite": "Preview site"
+  },
+  "breadcrumb": {
+    "data": "Data",
+    "import": "Import"
+  },
+  "network": {
+    "offline": "Offline",
+    "offline_title": "Offline mode",
+    "enrichment_unavailable": "API enrichment: unavailable",
+    "deploy_unavailable": "Deployment: unavailable",
+    "tiles_unavailable": "Map tiles: unavailable"
+  },
+  "dashboard": {
+    "title": "Data Dashboard",
+    "description": "Overview of quality and completeness of imported data.",
+    "noData": "No data",
+    "noDataHint": "Start by importing your data files.",
+    "importData": "Import data",
+    "import": "Import"
+  },
+  "detail": {
+    "referenceNotFound": "Reference not found",
+    "datasetNotFound": "Dataset not found"
+  },
+  "tree": {
+    "overview": "Overview",
+    "build": "Build",
+    "deploy": "Deploy",
+    "history": "History",
+    "datasets": "Datasets",
+    "references": "References",
+    "groups": "Groups",
+    "import": "Import",
+    "importData": "Import data",
+    "noDatasets": "No imported datasets",
+    "noReferences": "No imported references",
+    "noGroups": "No groups",
+    "noPages": "No pages",
+    "loading": "Loading...",
+    "general": "General",
+    "navigation": "Navigation",
+    "appearance": "Appearance",
+    "mainMenu": "Main menu",
+    "footerMenu": "Footer menu",
+    "settings": "Settings"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "active_jobs": "Active",
+    "recent": "Recent",
+    "no_notifications": "No notifications",
+    "mark_all_read": "Mark all as read",
+    "clear_all": "Clear",
+    "timeAgo": {
+      "justNow": "just now",
+      "minutesAgo": "{{count}} min ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    },
+    "jobTypes": {
+      "import": "Import",
+      "enrichment": "Enrichment",
+      "transform": "Transform",
+      "export": "Export"
+    }
+  },
+  "diagnostic": {
+    "loadingDiagnostic": "Loading diagnostic information...",
+    "diagnosticError": "Diagnostic error",
+    "workingDirectory": "Working directory",
+    "database": "Database",
+    "notFound": "Not found",
+    "tables": "Tables",
+    "moreOthers": "+{{count}} others",
+    "configFiles": "Configuration files"
   }
 }

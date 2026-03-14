@@ -1,112 +1,141 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { LucideIcon } from 'lucide-react'
+import { Home, Database, Layers, Globe, Send } from 'lucide-react'
 
-interface NavigationSection {
+// --- Flat navigation items (new) ---
+
+export interface NavItem {
   id: string
-  label: string
-  icon?: string
-  items: NavigationItem[]
-  defaultOpen?: boolean
+  labelKey: string       // i18n key in common:sidebar.nav.*
+  fallbackLabel: string  // Fallback if i18n not loaded
+  icon: LucideIcon
+  path: string           // Default navigation target
+  matchPrefix: string    // Route prefix for active state (e.g., '/sources')
 }
 
-interface NavigationItem {
-  id: string
-  label: string
-  path: string
-  icon?: string
-  badge?: string | number
-}
-
-interface NavigationState {
-  // Sidebar state
-  sidebarExpanded: boolean
-  sidebarMode: 'full' | 'compact' | 'hidden'
-  expandedSections: string[]
-
-  // Actions
-  toggleSidebar: () => void
-  setSidebarMode: (mode: 'full' | 'compact' | 'hidden') => void
-  toggleSection: (sectionId: string) => void
-  expandSection: (sectionId: string) => void
-  collapseSection: (sectionId: string) => void
-
-  // Command palette
-  commandPaletteOpen: boolean
-  setCommandPaletteOpen: (open: boolean) => void
-
-  // Breadcrumb
-  breadcrumbs: { label: string; path?: string }[]
-  setBreadcrumbs: (breadcrumbs: { label: string; path?: string }[]) => void
-}
-
-// Navigation structure definition
-export const navigationSections: NavigationSection[] = [
+export const navItems: NavItem[] = [
   {
     id: 'home',
-    label: 'Home',
-    defaultOpen: true,
-    items: [
-      { id: 'showcase', label: 'Niamoto Flow', path: '/showcase' }
-    ]
-  },
-  {
-    id: 'setup',
-    label: 'Setup',
-    defaultOpen: false,
-    items: [
-      { id: 'import', label: 'Import Data', path: '/setup/import' },
-      { id: 'transform', label: 'Transform', path: '/setup/transform' },
-      { id: 'export', label: 'Export Site', path: '/setup/export' }
-    ]
+    labelKey: 'sidebar.nav.home',
+    fallbackLabel: 'Home',
+    icon: Home,
+    path: '/',
+    matchPrefix: '/',  // Exact match (handled specially in sidebar)
   },
   {
     id: 'data',
-    label: 'Data',
-    defaultOpen: false,
-    items: [
-      { id: 'explorer', label: 'Data Explorer', path: '/data/explorer' },
-      { id: 'preview', label: 'Live Preview', path: '/data/preview' }
-    ]
+    labelKey: 'sidebar.nav.data',
+    fallbackLabel: 'Data',
+    icon: Database,
+    path: '/sources',
+    matchPrefix: '/sources',
   },
   {
-    id: 'tools',
-    label: 'Tools',
-    defaultOpen: false,
-    items: [
-      { id: 'settings', label: 'Settings', path: '/tools/settings' },
-      { id: 'config-editor', label: 'Config Editor', path: '/tools/config-editor' },
-      { id: 'plugins', label: 'Plugins', path: '/tools/plugins' },
-      { id: 'docs', label: 'API Documentation', path: '/tools/docs' }
-    ]
+    id: 'groups',
+    labelKey: 'sidebar.nav.groups',
+    fallbackLabel: 'Groups',
+    icon: Layers,
+    path: '/groups',
+    matchPrefix: '/groups',
   },
   {
-    id: 'labs',
-    label: 'Labs',
-    defaultOpen: false,
-    items: [
-      { id: 'pipeline-editor', label: 'Flow Editor', path: '/setup/pipeline' },
-      { id: 'bootstrap', label: 'Bootstrap', path: '/setup/bootstrap' },
-      { id: 'demo-entity', label: 'Entity-Centric', path: '/demos/entity-centric' },
-      { id: 'demo-pipeline', label: 'Pipeline Visual', path: '/demos/pipeline-visual' },
-      { id: 'demo-wizard', label: 'Wizard & Forms', path: '/demos/wizard-form'},
-      { id: 'demo-goal-driven', label: 'Goal-Driven Builder', path: '/demos/goal-driven'}
-    ]
-  }
+    id: 'site',
+    labelKey: 'sidebar.nav.site',
+    fallbackLabel: 'Site',
+    icon: Globe,
+    path: '/site',
+    matchPrefix: '/site',
+  },
+  {
+    id: 'publish',
+    labelKey: 'sidebar.nav.publish',
+    fallbackLabel: 'Publish',
+    icon: Send,
+    path: '/publish',
+    matchPrefix: '/publish',
+  },
 ]
+
+// --- Route labels for breadcrumbs ---
+
+export const routeLabels: Record<string, string> = {
+  '/': 'Home',
+  '/sources': 'Data',
+  '/sources/import': 'Import',
+  '/sources/dataset': 'Dataset',
+  '/sources/reference': 'Reference',
+  '/groups': 'Groups',
+  '/site': 'Site',
+  '/site/pages': 'Pages',
+  '/site/navigation': 'Navigation',
+  '/site/general': 'Settings',
+  '/site/appearance': 'Appearance',
+  '/publish': 'Publish',
+  '/publish/build': 'Build',
+  '/publish/deploy': 'Deploy',
+  '/publish/history': 'History',
+  '/tools/explorer': 'Data Explorer',
+  '/tools/preview': 'Preview',
+  '/tools/settings': 'Settings',
+  '/tools/plugins': 'Plugins',
+  '/tools/docs': 'Documentation',
+  '/tools/config-editor': 'Config Editor',
+}
+
+// --- Legacy export (kept for backward compat during migration) ---
+
+export interface NavigationSection {
+  id: string
+  label: string
+  icon?: string
+  badge?: { type: 'status' | 'count'; value: string | number }
+  items: NavigationItem[]
+  defaultOpen?: boolean
+  dynamic?: boolean
+}
+
+export interface NavigationItem {
+  id: string
+  label: string
+  path?: string
+  panel?: string
+  icon?: string
+  badge?: string | number
+  action?: string
+}
+
+/** @deprecated Use navItems instead. Kept for breadcrumb transition. */
+export const navigationSections: NavigationSection[] = []
+
+// --- Store ---
+
+interface NavigationState {
+  sidebarExpanded: boolean
+  sidebarMode: 'full' | 'compact' | 'hidden'
+
+  toggleSidebar: () => void
+  setSidebarMode: (mode: 'full' | 'compact' | 'hidden') => void
+
+  commandPaletteOpen: boolean
+  setCommandPaletteOpen: (open: boolean) => void
+
+  breadcrumbs: { label: string; path?: string }[]
+  setBreadcrumbs: (breadcrumbs: { label: string; path?: string }[]) => void
+
+  activePanel: string | null
+  setActivePanel: (panel: string | null) => void
+}
 
 export const useNavigationStore = create<NavigationState>()(
   persist(
     (set) => ({
-      // Initial state
       sidebarExpanded: true,
       sidebarMode: 'full',
-      expandedSections: navigationSections
-        .filter(s => s.defaultOpen)
-        .map(s => s.id),
       commandPaletteOpen: false,
       breadcrumbs: [],
+      activePanel: null,
 
-      // Sidebar actions
       toggleSidebar: () => set((state) => ({
         sidebarExpanded: !state.sidebarExpanded,
         sidebarMode: !state.sidebarExpanded ? 'full' : 'compact'
@@ -117,40 +146,25 @@ export const useNavigationStore = create<NavigationState>()(
         sidebarExpanded: mode === 'full'
       }),
 
-      // Section actions
-      toggleSection: (sectionId) => set((state) => ({
-        expandedSections: state.expandedSections.includes(sectionId)
-          ? state.expandedSections.filter(id => id !== sectionId)
-          : [...state.expandedSections, sectionId]
-      })),
-
-      expandSection: (sectionId) => set((state) => ({
-        expandedSections: state.expandedSections.includes(sectionId)
-          ? state.expandedSections
-          : [...state.expandedSections, sectionId]
-      })),
-
-      collapseSection: (sectionId) => set((state) => ({
-        expandedSections: state.expandedSections.filter(id => id !== sectionId)
-      })),
-
-      // Command palette
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-
-      // Breadcrumbs
-      setBreadcrumbs: (breadcrumbs) => set({ breadcrumbs })
+      setBreadcrumbs: (breadcrumbs) => set({ breadcrumbs }),
+      setActivePanel: (panel) => set({ activePanel: panel })
     }),
     {
       name: 'navigation-storage',
+      version: 2,
+      migrate: (persisted: unknown) => {
+        // Clean up old section-based state from v1
+        const old = persisted as Record<string, unknown>
+        return { sidebarMode: old.sidebarMode ?? 'full' } as unknown as NavigationState
+      },
       partialize: (state) => ({
         sidebarMode: state.sidebarMode,
-        expandedSections: state.expandedSections
-      })
+      } as unknown as NavigationState)
     }
   )
 )
 
-// Helper hook for responsive sidebar
 export const useResponsiveSidebar = () => {
   const { setSidebarMode } = useNavigationStore()
 

@@ -13,9 +13,28 @@ from niamoto.common.exceptions import DataTransformError
 class CategoryMappingDetail(BaseModel):
     """Details for mapping a class object to categories."""
 
-    class_object: str = Field(..., description="Class object name to extract from data")
+    model_config = ConfigDict(
+        json_schema_extra={
+            "ui:order": ["class_object", "mapping"],
+        }
+    )
+
+    class_object: str = Field(
+        ...,
+        description="Class object name to extract from data",
+        json_schema_extra={
+            "ui:placeholder": "e.g., holdridge_forest, substrate_type",
+            "ui:help": "Must match a class_object value in the source data",
+        },
+    )
     mapping: Dict[str, str] = Field(
-        ..., description="Mapping from subcategory names to class names"
+        ...,
+        description="Mapping from subcategory names to class names",
+        json_schema_extra={
+            "ui:widget": "key-value-pairs",
+            "ui:placeholder": "Output name → Source class name",
+            "ui:help": "Map output keys to source class_name values (e.g., 'sec' → 'Sec')",
+        },
     )
 
 
@@ -47,7 +66,10 @@ class CategoriesMapperParams(BasePluginParams):
     categories: Dict[str, CategoryMappingDetail] = Field(
         ...,
         description="Categories with their class object mappings",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:add_button_text": "Add category",
+            "ui:help": "Each category maps a class_object to output subcategories",
+        },
     )
 
     source: Optional[str] = Field(

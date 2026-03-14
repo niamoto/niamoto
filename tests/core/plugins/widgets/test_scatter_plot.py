@@ -154,7 +154,8 @@ class TestScatterPlotWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         # Accept either successful rendering or statsmodels error
         if "<p class='error'>" in result:
-            self.assertIn("No module named 'statsmodels'", result)
+            self.assertIn("No module named", result)
+            self.assertIn("statsmodels", result)
         else:
             self.assertIn("plotly-graph-div", result)
 

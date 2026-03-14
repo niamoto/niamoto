@@ -5,9 +5,10 @@ The Database class offers methods to establish a connection, get new sessions,
 add instances to the database, and close sessions.
 """
 
-from typing import TypeVar, Any, Optional, List, Dict
+from typing import TypeVar, Any, Optional, List, Dict, Set
 import warnings
-from sqlalchemy import create_engine, exc, text, inspect
+import time
+from sqlalchemy import create_engine, event, exc, text, inspect
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import scoped_session, sessionmaker, Session
@@ -101,12 +102,20 @@ class Database:
                         logger.info(f"Opening DuckDB in read-only mode: {db_path}")
                     self.engine = create_engine(self.connection_string, **engine_kwargs)
 
+                    # Register event listener to load spatial extension on every connection
+                    # This is necessary because NullPool creates new connections each time
+                    event.listen(
+                        self.engine, "connect", Database._load_duckdb_spatial_extension
+                    )
+
             connection_str = str(self.connection_string)
             self.is_duckdb = connection_str.startswith("duckdb")
             self.is_sqlite = connection_str.startswith("sqlite")
 
             self.session_factory = sessionmaker(bind=self.engine)
             self.session = scoped_session(self.session_factory)
+            self._table_names_cache: Optional[Set[str]] = None
+            self._table_names_cache_ts: float = 0.0
 
             # Apply engine-specific optimizations
             if optimize and self.is_sqlite:
@@ -194,6 +203,26 @@ class Database:
                 logger.debug("DuckDB initialization skipped (database locked)")
             else:
                 logger.warning(f"DuckDB initialization warning: {e}")
+
+    @staticmethod
+    def _load_duckdb_spatial_extension(dbapi_connection, connection_record) -> None:
+        """Event listener to load spatial extension on each new DuckDB connection.
+
+        This is called automatically by SQLAlchemy's event system when a new
+        connection is created. With NullPool, every connect() creates a fresh
+        connection, so we must load the extension each time.
+
+        Args:
+            dbapi_connection: The raw DBAPI connection (duckdb.Connection)
+            connection_record: SQLAlchemy connection record (unused)
+        """
+        try:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("LOAD spatial")
+            cursor.close()
+        except Exception as e:
+            # Log but don't fail - some operations don't need spatial
+            logger.debug(f"Could not load spatial extension: {e}")
 
     def _create_missing_indexes(self) -> None:
         """
@@ -419,8 +448,25 @@ class Database:
         Returns:
             bool: True if the table exists, False otherwise.
         """
-        inspector = inspect(self.engine)
-        return table_name in inspector.get_table_names()
+        return table_name in self._get_table_names_cached()
+
+    def _get_table_names_cached(self, max_age_seconds: float = 2.0) -> Set[str]:
+        """Return cached table names, refreshing periodically."""
+        now = time.monotonic()
+        should_refresh = (
+            self._table_names_cache is None
+            or (now - self._table_names_cache_ts) > max_age_seconds
+        )
+        if should_refresh:
+            inspector = inspect(self.engine)
+            self._table_names_cache = set(inspector.get_table_names())
+            self._table_names_cache_ts = now
+        return self._table_names_cache
+
+    def invalidate_table_names_cache(self) -> None:
+        """Invalidate cached table names (call after DDL operations)."""
+        self._table_names_cache = None
+        self._table_names_cache_ts = 0.0
 
     @error_handler(log=True, raise_error=True)
     def get_new_session(self) -> scoped_session[Session]:

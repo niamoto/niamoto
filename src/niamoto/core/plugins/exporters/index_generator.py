@@ -248,6 +248,11 @@ class IndexGeneratorPlugin(ExporterPlugin):
             context = {
                 "site": html_params.site.model_dump() if html_params.site else {},
                 "navigation": html_params.navigation if html_params.navigation else [],
+                "footer_navigation": [
+                    s.model_dump() for s in html_params.footer_navigation
+                ]
+                if html_params.footer_navigation
+                else [],
                 "group_by": group_by,
                 "index_config": index_config,
                 "items_data": items_data,

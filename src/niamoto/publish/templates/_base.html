@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ site.lang | default('en') }}">
+<html lang="{{ current_lang | default(site.lang) | default('en') }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -35,6 +35,65 @@
         {% endif %}
     {% endfor %}
     {% block styles %}{% endblock %}
+
+    <!-- Theme CSS Variables from site config -->
+    <style>
+        :root {
+            /* Colors from site configuration */
+            --color-primary: {{ site.primary_color | default('#228b22') }};
+            --color-secondary: {{ site.secondary_color | default('#4caf50') }};
+            --color-nav-bg: {{ site.nav_color | default('#228b22') }};
+            --color-background: {{ site.background_color | default('#f9fafb') }};
+            --color-text: {{ site.text_color | default('#111827') }};
+            --color-link: {{ site.link_color | default('#228b22') }};
+            --color-footer-bg: {{ site.footer_bg_color | default('#1f2937') }};
+
+            /* Border radius */
+            {% set radius_map = {'none': '0px', 'small': '4px', 'medium': '8px', 'large': '12px', 'full': '9999px'} %}
+            {% set base_radius = radius_map.get(site.border_radius | default('medium'), '8px') %}
+            --border-radius: {{ base_radius }};
+            --border-radius-sm: {{ (base_radius | replace('px', '') | int // 2) }}px;
+            --border-radius-lg: {{ (base_radius | replace('px', '') | int * 2) }}px;
+
+            /* Font family */
+            {% set font_map = {
+                'system': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                'serif': 'Georgia, Cambria, "Times New Roman", Times, serif',
+                'mono': 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                'inter': '"Inter", system-ui, sans-serif',
+                'roboto': '"Roboto", system-ui, sans-serif'
+            } %}
+            --font-family: {{ font_map[site.font_family | default('system')] | default('system-ui, sans-serif') }};
+        }
+
+        /* Apply theme colors */
+        body {
+            background-color: var(--color-background);
+            color: var(--color-text);
+            font-family: var(--font-family);
+        }
+
+        a:not(.nav-link):not(.btn):not([class*="text-white"]) {
+            color: var(--color-link);
+        }
+
+        a:not(.nav-link):not(.btn):not([class*="text-white"]):hover {
+            color: var(--color-primary);
+        }
+
+        /* Override Tailwind bg-nav-bg */
+        .bg-nav-bg {
+            background-color: var(--color-nav-bg) !important;
+        }
+
+        /* Widget header gradient control */
+        {% if site.widget_header_gradient is defined and not site.widget_header_gradient %}
+        .widget-header-modern {
+            background: var(--color-primary) !important;
+            animation: none !important;
+        }
+        {% endif %}
+    </style>
 
     <style>
         .loader-container {
@@ -84,6 +143,7 @@
     {% include '_nav.html' %}
 
     <!-- Main Content -->
+    {% block main_wrapper %}
     <div class="flex flex-col lg:flex-row pt-8">
         {% block sidebar %}
         {% endblock %}
@@ -93,9 +153,17 @@
             {% endblock %}
         </div>
     </div>
+    {% endblock %}
 
     <!-- Include footer - will use user's _footer.html if available, otherwise fallback to default -->
     {% include '_footer.html' %}
+
+    <!-- Lucide Icons -->
+    <script src="{{ '/assets/js/vendor/lucide/0.577.0_lucide.min.js' | relative_url(depth|default(0)) }}"></script>
+    <script>document.addEventListener('DOMContentLoaded',function(){if(window.lucide)lucide.createIcons();});</script>
+
+    <!-- Shim Node.js 'global' for Plotly bundle (uses global.matchMedia) -->
+    <script>if(typeof global==="undefined"){var global=globalThis;}</script>
 
     <!-- Block for JavaScript dependencies -->
     {% for js_file in js_dependencies %}

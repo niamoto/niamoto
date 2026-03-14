@@ -75,6 +75,14 @@ class CategoricalDistribution(TransformerPlugin):
 
     config_model = CategoricalDistributionConfig
 
+    # Output structure for pattern matching
+    output_structure = {
+        "categories": "list",
+        "counts": "list",
+        "labels": "list",
+        "percentages": "list",
+    }
+
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
 
@@ -150,21 +158,16 @@ class CategoricalDistribution(TransformerPlugin):
             raise
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform data according to configuration."""
+        """Transform data according to configuration.
+
+        Note: The service layer is responsible for loading the correct data source.
+        This transformer is a pure function that only transforms the provided data.
+        """
         try:
             validated_config = self.validate_config(config)
             params = self._validate_params(validated_config["params"])
 
-            # Get source data if different from occurrences
-            if params.source != "occurrences":
-                result = self.db.execute_select(f"""
-                    SELECT * FROM {params.source}
-                """)
-                data = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-
+            # Service has already loaded the correct source - just use the data
             # Get field data
             if params.field is not None:
                 field_data = data[params.field]
@@ -200,8 +203,31 @@ class CategoricalDistribution(TransformerPlugin):
                 categories = sorted(field_data.unique())
 
             # Calculate counts for each category
+            # Handle type mismatches: YAML may store numbers as strings
+            # (e.g. '3.0') while the data column contains numeric values.
             value_counts = field_data.value_counts()
-            counts = [int(value_counts.get(cat, 0)) for cat in categories]
+
+            def _count_for(cat: Any) -> int:
+                c = value_counts.get(cat, None)
+                if c is not None:
+                    return int(c)
+                # Try numeric conversion for string categories
+                if isinstance(cat, str):
+                    for convert in (int, float):
+                        try:
+                            c = value_counts.get(convert(cat), None)
+                            if c is not None:
+                                return int(c)
+                        except (ValueError, TypeError):
+                            pass
+                # Try string conversion for numeric categories
+                else:
+                    c = value_counts.get(str(cat), None)
+                    if c is not None:
+                        return int(c)
+                return 0
+
+            counts = [_count_for(cat) for cat in categories]
 
             result = {
                 "categories": categories,

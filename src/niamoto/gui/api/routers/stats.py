@@ -1,0 +1,2437 @@
+"""Import statistics API endpoints for post-import dashboard."""
+
+import csv
+import io
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import inspect, text
+import yaml
+
+from niamoto.common.table_resolver import (
+    resolve_dataset_table_name,
+    resolve_entity_table_name,
+    resolve_reference_table_name,
+)
+from ..utils.database import open_database
+from ..context import get_working_directory
+from .database import get_database_path
+
+router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Response Models
+# =============================================================================
+
+
+class EntitySummary(BaseModel):
+    """Summary for a single entity."""
+
+    name: str
+    entity_type: str  # 'dataset', 'reference', 'layer'
+    row_count: int
+    column_count: int
+    columns: List[str]
+    quality_score: float  # 0-1, based on completeness
+
+
+class ImportSummary(BaseModel):
+    """Global import summary."""
+
+    total_entities: int
+    total_rows: int
+    entities: List[EntitySummary]
+    alerts: List[Dict[str, Any]]
+    quality_score: float  # Average across entities
+
+
+class ColumnCompleteness(BaseModel):
+    """Completeness info for a column."""
+
+    column: str
+    type: str
+    total_count: int
+    null_count: int
+    non_null_count: int
+    completeness: float  # 0-1
+    unique_count: int
+
+
+class EntityCompleteness(BaseModel):
+    """Completeness data for an entity."""
+
+    entity: str
+    columns: List[ColumnCompleteness]
+    overall_completeness: float
+
+
+class SpatialStats(BaseModel):
+    """Spatial distribution statistics."""
+
+    total_points: int
+    with_coordinates: int
+    without_coordinates: int
+    bounding_box: Optional[Dict[str, float]]  # min_x, min_y, max_x, max_y
+    points_outside_bounds: int
+    coordinate_columns: Dict[str, str]  # x_col, y_col
+
+
+class TaxonomyLevel(BaseModel):
+    """Statistics for a taxonomy level."""
+
+    level: str
+    count: int
+    orphan_count: int
+
+
+class TaxonomyConsistency(BaseModel):
+    """Taxonomy consistency analysis."""
+
+    total_taxa: int
+    levels: List[TaxonomyLevel]
+    orphan_records: List[Dict[str, Any]]
+    duplicate_names: List[Dict[str, Any]]
+    hierarchy_depth: int
+
+
+class HistogramBin(BaseModel):
+    """A bin in a histogram."""
+
+    bin_start: float
+    bin_end: float
+    count: int
+    is_outlier_zone: bool = False
+
+
+class ColumnValidation(BaseModel):
+    """Validation statistics for a numeric column."""
+
+    column: str
+    min_value: Optional[float]
+    max_value: Optional[float]
+    mean_value: Optional[float]
+    median_value: Optional[float]
+    std_dev: Optional[float]
+    outlier_count: int
+    outliers: List[Dict[str, Any]]  # Sample of outlier records
+    # New fields for enhanced outlier analysis
+    lower_bound: Optional[float] = None  # Threshold below which values are outliers
+    upper_bound: Optional[float] = None  # Threshold above which values are outliers
+    outliers_low_count: int = 0  # Count of outliers below lower_bound
+    outliers_high_count: int = 0  # Count of outliers above upper_bound
+    histogram: Optional[List[HistogramBin]] = None  # Distribution histogram
+
+
+class EntityValidation(BaseModel):
+    """Validation data for an entity."""
+
+    entity: str
+    columns: List[ColumnValidation]
+
+
+class ShapeInfo(BaseModel):
+    """Information about an available shape table."""
+
+    table_name: str
+    display_name: str
+    shape_count: int
+    has_geometry: bool
+    shape_types: List[str]
+
+
+class GeoCoverage(BaseModel):
+    """Geographic coverage analysis (quick overview)."""
+
+    total_occurrences: int
+    occurrences_with_geo: int
+    geo_column: Optional[str]
+    available_shapes: List[ShapeInfo]
+    ready_for_analysis: bool
+
+
+class ShapeCoverageDetail(BaseModel):
+    """Coverage detail for a single shape type."""
+
+    shape_type: str
+    shape_table: str
+    total_shapes: int
+    occurrences_covered: int
+    coverage_percent: float
+
+
+class SpatialAnalysisResult(BaseModel):
+    """Full spatial analysis result (computed on demand)."""
+
+    total_occurrences: int
+    occurrences_with_geo: int
+    occurrences_without_geo: int
+    shape_coverage: List[ShapeCoverageDetail]
+    analysis_time_seconds: float
+    geo_column: Optional[str]
+    status: str  # 'success', 'no_geo_column', 'no_shapes', 'error'
+    message: Optional[str] = None
+
+
+class ShapeOccurrenceCount(BaseModel):
+    """Occurrence count for a single shape."""
+
+    shape_id: str
+    shape_name: str
+    shape_type: str
+    occurrence_count: int
+    percent_of_total: float
+
+
+class ShapeDistributionResult(BaseModel):
+    """Distribution of occurrences by individual shape."""
+
+    total_occurrences_with_geo: int
+    shapes: List[ShapeOccurrenceCount]
+    analysis_time_seconds: float
+    status: str
+    message: Optional[str] = None
+
+
+class ValidationRule(BaseModel):
+    """A single validation rule."""
+
+    rule_type: str  # 'outlier', 'bounds', 'required'
+    target: str  # Entity or column
+    method: str  # 'iqr', 'zscore', 'percentile', 'manual'
+    params: Dict[str, Any]
+
+
+class ValidationRules(BaseModel):
+    """Collection of validation rules."""
+
+    rules: List[ValidationRule]
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+
+def classify_table_type(table_name: str) -> str:
+    """Classify a table as dataset, reference, or layer (fallback heuristics)."""
+    table_lower = table_name.lower()
+
+    # Layers (metadata)
+    if any(layer in table_lower for layer in ["layer", "raster", "vector", "dem"]):
+        return "layer"
+
+    # Conservative fallback: treat unknown business tables as dataset.
+    return "dataset"
+
+
+def calculate_quality_score(completeness_values: List[float]) -> float:
+    """Calculate quality score from completeness values."""
+    if not completeness_values:
+        return 1.0
+    return sum(completeness_values) / len(completeness_values)
+
+
+def detect_coordinate_columns(columns: List[str]) -> Dict[str, str]:
+    """Detect coordinate columns from column names."""
+    result = {}
+    x_patterns = ["x", "lon", "longitude", "lng", "coord_x", "geo_x"]
+    y_patterns = ["y", "lat", "latitude", "coord_y", "geo_y"]
+    # WKT geometry columns
+    wkt_patterns = ["geo_pt", "geo", "geom", "geometry", "wkt", "location"]
+
+    columns_lower = [c.lower() for c in columns]
+
+    # First check for WKT columns
+    for i, col_lower in enumerate(columns_lower):
+        for pattern in wkt_patterns:
+            if pattern == col_lower or col_lower.startswith(pattern):
+                result["wkt_col"] = columns[i]
+                break
+        if "wkt_col" in result:
+            break
+
+    # Then check for x/y columns
+    for i, col_lower in enumerate(columns_lower):
+        for pattern in x_patterns:
+            if pattern == col_lower or col_lower.startswith(pattern):
+                result["x_col"] = columns[i]
+                break
+        for pattern in y_patterns:
+            if pattern == col_lower or col_lower.startswith(pattern):
+                result["y_col"] = columns[i]
+                break
+
+    return result
+
+
+def find_table_by_pattern(table_names: List[str], pattern: str) -> Optional[str]:
+    """Find a table matching a pattern (handles dataset_*, entity_* prefixes)."""
+    resolved = resolve_entity_table_name(table_names, pattern)
+    if resolved:
+        return resolved
+
+    pattern_lower = pattern.lower()
+
+    # Partial match
+    for t in table_names:
+        if pattern_lower in t.lower():
+            return t
+
+    return None
+
+
+def _load_import_entities_config() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Load datasets/references definitions from import.yml when available."""
+    try:
+        work_dir = get_working_directory()
+        if not work_dir:
+            return {}, {}
+
+        import_path = Path(work_dir) / "config" / "import.yml"
+        if not import_path.exists():
+            return {}, {}
+
+        with open(import_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+        entities = config.get("entities", {}) or {}
+        datasets = entities.get("datasets", {}) or {}
+        references = entities.get("references", {}) or {}
+
+        if not isinstance(datasets, dict):
+            datasets = {}
+        if not isinstance(references, dict):
+            references = {}
+
+        return datasets, references
+    except Exception as exc:
+        logger.debug("Failed to load entities from import.yml: %s", exc)
+        return {}, {}
+
+
+def _resolve_physical_table_name(
+    table_names: List[str], logical_name: Optional[str]
+) -> Optional[str]:
+    """Resolve logical entity name to an existing physical table."""
+    return resolve_entity_table_name(table_names, logical_name)
+
+
+def _resolve_occurrence_table(
+    table_names: List[str], occurrence_entity: str, datasets: Dict[str, Any]
+) -> Optional[str]:
+    """Resolve occurrence dataset table from explicit query param, then config."""
+    # 1) Explicit entity/table requested by caller.
+    resolved = resolve_dataset_table_name(table_names, occurrence_entity)
+    if resolved:
+        return resolved
+
+    # 2) Preferred dataset from import config.
+    preferred_dataset = None
+    if occurrence_entity in datasets:
+        preferred_dataset = occurrence_entity
+    elif "occurrences" in datasets:
+        preferred_dataset = "occurrences"
+    elif datasets:
+        preferred_dataset = next(iter(datasets))
+
+    resolved = resolve_dataset_table_name(table_names, preferred_dataset)
+    if resolved:
+        return resolved
+
+    # 3) Last-resort fuzzy match for backward compatibility.
+    for table in table_names:
+        if occurrence_entity.lower() in table.lower():
+            return table
+    return None
+
+
+def _resolve_entity_table(
+    table_names: List[str],
+    entity_name: str,
+    datasets: Dict[str, Any],
+    references: Dict[str, Any],
+) -> Optional[str]:
+    """Resolve any dataset/reference logical name to a physical table."""
+    if entity_name in references:
+        resolved = resolve_reference_table_name(table_names, entity_name)
+        if resolved:
+            return resolved
+    if entity_name in datasets:
+        resolved = resolve_dataset_table_name(table_names, entity_name)
+        if resolved:
+            return resolved
+
+    resolved = resolve_entity_table_name(table_names, entity_name)
+    if resolved:
+        return resolved
+
+    # Special case: default occurrence entity with project-specific dataset naming.
+    if entity_name == "occurrences":
+        resolved = _resolve_occurrence_table(table_names, entity_name, datasets)
+        if resolved:
+            return resolved
+
+    # Backward-compatible fuzzy fallback.
+    return find_table_by_pattern(table_names, entity_name)
+
+
+def _build_entity_type_map(
+    table_names: List[str], datasets: Dict[str, Any], references: Dict[str, Any]
+) -> Dict[str, str]:
+    """Build table->entity_type mapping from config metadata."""
+    type_map: Dict[str, str] = {}
+
+    for dataset_name in datasets:
+        table = resolve_dataset_table_name(table_names, dataset_name)
+        if table:
+            type_map[table] = "dataset"
+
+    for ref_name in references:
+        table = resolve_reference_table_name(table_names, ref_name)
+        if table:
+            type_map[table] = "reference"
+
+    return type_map
+
+
+def _resolve_taxonomy_table_name(
+    table_names: List[str], references: Dict[str, Any], requested: str
+) -> Optional[str]:
+    """Resolve taxonomy reference table from explicit request/config metadata."""
+    # 1) Explicit reference name from query.
+    resolved = resolve_reference_table_name(table_names, requested)
+    if resolved:
+        return resolved
+
+    # 2) If requested matches a configured reference, use it.
+    if requested in references:
+        resolved = resolve_reference_table_name(table_names, requested)
+        if resolved:
+            return resolved
+
+    # 3) Prefer first hierarchical reference from config.
+    for ref_name, ref_cfg in references.items():
+        if isinstance(ref_cfg, dict) and ref_cfg.get("kind") == "hierarchical":
+            resolved = resolve_reference_table_name(table_names, ref_name)
+            if resolved:
+                return resolved
+
+    # 4) Fallback to legacy fuzzy match for compatibility with older DBs.
+    return find_table_by_pattern(table_names, requested)
+
+
+def _find_geometry_column(
+    columns_info: List[Dict[str, Any]],
+) -> Tuple[Optional[str], bool]:
+    """Detect geometry column and whether it's native GEOMETRY/BYTEA."""
+    native_patterns = ["_geom", "geometry", "the_geom", "wkb_geometry"]
+    wkt_patterns = ["geo_pt", "geo", "geom", "location", "wkt"]
+
+    wkt_candidate = None
+    for col in columns_info:
+        col_name = col["name"].lower()
+        col_type = str(col.get("type", "")).upper()
+
+        if "GEOMETRY" in col_type or "BYTEA" in col_type:
+            if any(col_name.endswith(p) or col_name == p for p in native_patterns):
+                return col["name"], True
+        elif wkt_candidate is None and any(p in col_name for p in wkt_patterns):
+            wkt_candidate = col["name"]
+
+    return wkt_candidate, False
+
+
+def _pick_first_existing(
+    columns_by_lower: Dict[str, str], candidates: List[Optional[str]]
+) -> Optional[str]:
+    """Return first candidate column that exists in table columns."""
+    for candidate in candidates:
+        if not candidate:
+            continue
+        resolved = columns_by_lower.get(str(candidate).lower())
+        if resolved:
+            return resolved
+    return None
+
+
+def _resolve_spatial_reference_tables(
+    table_names: List[str],
+    inspector: Any,
+    references: Dict[str, Any],
+    occurrence_table: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Resolve spatial reference tables from config first, then fallback by geometry."""
+    spatial_tables: List[Dict[str, Any]] = []
+    seen_tables: set[str] = set()
+
+    # Config-first resolution: explicit spatial references from import.yml.
+    for ref_name, ref_cfg in references.items():
+        if not isinstance(ref_cfg, dict):
+            continue
+
+        connector = ref_cfg.get("connector", {}) or {}
+        is_spatial = (
+            ref_cfg.get("kind") == "spatial"
+            or connector.get("type") == "file_multi_feature"
+        )
+        if not is_spatial:
+            continue
+
+        table_name = resolve_reference_table_name(table_names, ref_name)
+        if not table_name or table_name in seen_tables:
+            continue
+        seen_tables.add(table_name)
+
+        columns_info = inspector.get_columns(table_name)
+        geo_column, is_native = _find_geometry_column(columns_info)
+        column_names = [col["name"] for col in columns_info]
+        columns_by_lower = {c.lower(): c for c in column_names}
+        schema = (
+            ref_cfg.get("schema", {}) if isinstance(ref_cfg.get("schema"), dict) else {}
+        )
+
+        id_column = _pick_first_existing(
+            columns_by_lower,
+            [
+                schema.get("id_field"),
+                "id",
+                f"{ref_name}_id",
+                f"id_{ref_name.rstrip('s')}",
+            ],
+        ) or (column_names[0] if column_names else None)
+
+        name_column = (
+            _pick_first_existing(
+                columns_by_lower,
+                [
+                    "name",
+                    "full_name",
+                    "label",
+                    "title",
+                    ref_name.rstrip("s"),
+                    id_column,
+                ],
+            )
+            or id_column
+        )
+
+        type_column = _pick_first_existing(
+            columns_by_lower,
+            ["shape_type", "type", "entity_type", "category", "group"],
+        )
+
+        spatial_tables.append(
+            {
+                "reference_name": ref_name,
+                "table_name": table_name,
+                "display_name": (
+                    ref_cfg.get("description") or ref_name.replace("_", " ").title()
+                ),
+                "has_geometry": bool(geo_column),
+                "geo_column": geo_column,
+                "is_native": is_native,
+                "id_column": id_column,
+                "name_column": name_column,
+                "type_column": type_column,
+            }
+        )
+
+    # Fallback resolution for projects without/partial import.yml metadata.
+    if not spatial_tables:
+        for table_name in table_names:
+            if table_name in seen_tables:
+                continue
+            if occurrence_table and table_name == occurrence_table:
+                continue
+            if table_name.startswith("_") or table_name.startswith("sqlite"):
+                continue
+
+            columns_info = inspector.get_columns(table_name)
+            geo_column, is_native = _find_geometry_column(columns_info)
+            if not geo_column:
+                continue
+
+            column_names = [col["name"] for col in columns_info]
+            columns_by_lower = {c.lower(): c for c in column_names}
+            id_column = (
+                _pick_first_existing(columns_by_lower, ["id"]) or column_names[0]
+            )
+            name_column = _pick_first_existing(
+                columns_by_lower, ["name", "full_name", "label", "title", id_column]
+            )
+            type_column = _pick_first_existing(
+                columns_by_lower,
+                ["shape_type", "type", "entity_type", "category", "group"],
+            )
+
+            spatial_tables.append(
+                {
+                    "reference_name": table_name,
+                    "table_name": table_name,
+                    "display_name": table_name.replace("_", " ").title(),
+                    "has_geometry": True,
+                    "geo_column": geo_column,
+                    "is_native": is_native,
+                    "id_column": id_column,
+                    "name_column": name_column,
+                    "type_column": type_column,
+                }
+            )
+
+    return spatial_tables
+
+
+# =============================================================================
+# Endpoints
+# =============================================================================
+
+
+@router.get("/summary", response_model=ImportSummary)
+async def get_import_summary():
+    """
+    Get global import summary with stats per entity.
+
+    Returns count per entity, quality scores, and priority alerts.
+    """
+    db_path = get_database_path()
+    if not db_path:
+        return ImportSummary(
+            total_entities=0,
+            total_rows=0,
+            entities=[],
+            alerts=[],
+            quality_score=1.0,
+        )
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+
+            table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
+            entity_type_map = _build_entity_type_map(table_names, datasets, references)
+            entities = []
+            total_rows = 0
+            alerts = []
+            quality_scores = []
+
+            with db.engine.connect() as conn:
+                for table_name in table_names:
+                    # Skip internal tables
+                    if table_name.startswith("_") or table_name.startswith("sqlite"):
+                        continue
+
+                    quoted_table = preparer.quote(table_name)
+
+                    # Get row count
+                    result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
+                    row_count = result.scalar() or 0
+                    total_rows += row_count
+
+                    # Get columns
+                    columns_info = inspector.get_columns(table_name)
+                    column_names = [c["name"] for c in columns_info]
+
+                    # Calculate completeness for quality score
+                    completeness_values = []
+                    for col in column_names:
+                        quoted_col = preparer.quote(col)
+                        try:
+                            result = conn.execute(
+                                text(
+                                    f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_col} IS NOT NULL"
+                                )
+                            )
+                            non_null = result.scalar() or 0
+                            if row_count > 0:
+                                completeness_values.append(non_null / row_count)
+                        except Exception as exc:
+                            logger.debug(
+                                "Completeness query failed for %s.%s: %s",
+                                table_name,
+                                col,
+                                exc,
+                            )
+
+                    quality_score = calculate_quality_score(completeness_values)
+                    quality_scores.append(quality_score)
+
+                    entity_type = entity_type_map.get(
+                        table_name, classify_table_type(table_name)
+                    )
+
+                    entities.append(
+                        EntitySummary(
+                            name=table_name,
+                            entity_type=entity_type,
+                            row_count=row_count,
+                            column_count=len(column_names),
+                            columns=column_names,
+                            quality_score=quality_score,
+                        )
+                    )
+
+                    # Generate alerts
+                    if row_count == 0:
+                        alerts.append(
+                            {
+                                "level": "warning",
+                                "entity": table_name,
+                                "message": f"Table '{table_name}' is empty",
+                            }
+                        )
+                    if quality_score < 0.5:
+                        alerts.append(
+                            {
+                                "level": "warning",
+                                "entity": table_name,
+                                "message": f"Low data quality ({quality_score:.0%}) in '{table_name}'",
+                            }
+                        )
+
+            overall_quality = (
+                calculate_quality_score(quality_scores) if quality_scores else 1.0
+            )
+
+            return ImportSummary(
+                total_entities=len(entities),
+                total_rows=total_rows,
+                entities=entities,
+                alerts=alerts,
+                quality_score=overall_quality,
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting import summary: {str(e)}"
+        )
+
+
+@router.get("/completeness/{entity}", response_model=EntityCompleteness)
+async def get_completeness(entity: str):
+    """
+    Get completeness statistics per column for an entity.
+
+    Returns % non-null, unique counts, and detected types.
+    """
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+
+            if entity not in inspector.get_table_names():
+                raise HTTPException(
+                    status_code=404, detail=f"Entity '{entity}' not found"
+                )
+
+            quoted_table = preparer.quote(entity)
+
+            # Get total count
+            with db.engine.connect() as conn:
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
+                total_count = result.scalar() or 0
+
+            columns_info = inspector.get_columns(entity)
+            column_stats = []
+
+            with db.engine.connect() as conn:
+                for col in columns_info:
+                    col_name = col["name"]
+                    col_type = str(col.get("type", "UNKNOWN"))
+                    quoted_col = preparer.quote(col_name)
+
+                    # Null count
+                    result = conn.execute(
+                        text(
+                            f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_col} IS NULL"
+                        )
+                    )
+                    null_count = result.scalar() or 0
+                    non_null_count = total_count - null_count
+
+                    # Unique count
+                    result = conn.execute(
+                        text(f"SELECT COUNT(DISTINCT {quoted_col}) FROM {quoted_table}")
+                    )
+                    unique_count = result.scalar() or 0
+
+                    completeness = (
+                        non_null_count / total_count if total_count > 0 else 1.0
+                    )
+
+                    column_stats.append(
+                        ColumnCompleteness(
+                            column=col_name,
+                            type=col_type,
+                            total_count=total_count,
+                            null_count=null_count,
+                            non_null_count=non_null_count,
+                            completeness=completeness,
+                            unique_count=unique_count,
+                        )
+                    )
+
+            overall = (
+                sum(c.completeness for c in column_stats) / len(column_stats)
+                if column_stats
+                else 1.0
+            )
+
+            return EntityCompleteness(
+                entity=entity, columns=column_stats, overall_completeness=overall
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting completeness: {str(e)}"
+        )
+
+
+@router.get("/spatial", response_model=SpatialStats)
+async def get_spatial_stats(
+    entity: str = Query(default="occurrences", description="Entity with spatial data"),
+    x_column: Optional[str] = Query(default=None, description="X/Longitude column"),
+    y_column: Optional[str] = Query(default=None, description="Y/Latitude column"),
+):
+    """
+    Get spatial distribution statistics.
+
+    Returns bounding box, points without coordinates, and out-of-bounds count.
+    Handles both x/y columns and WKT geometry columns (geo_pt, geo, etc.)
+    """
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+
+            datasets, references = _load_import_entities_config()
+            # Resolve table from config metadata first.
+            table_names = inspector.get_table_names() or []
+            target_table = _resolve_entity_table(
+                table_names, entity, datasets, references
+            )
+
+            if not target_table:
+                return SpatialStats(
+                    total_points=0,
+                    with_coordinates=0,
+                    without_coordinates=0,
+                    bounding_box=None,
+                    points_outside_bounds=0,
+                    coordinate_columns={},
+                )
+
+            quoted_table = preparer.quote(target_table)
+            columns_info = inspector.get_columns(target_table)
+            column_names = [c["name"] for c in columns_info]
+
+            # Detect or use provided coordinate columns
+            coord_cols = detect_coordinate_columns(column_names)
+            if x_column:
+                coord_cols["x_col"] = x_column
+            if y_column:
+                coord_cols["y_col"] = y_column
+
+            with db.engine.connect() as conn:
+                # Total count
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
+                total = result.scalar() or 0
+
+                # Check if we have WKT column
+                if "wkt_col" in coord_cols:
+                    wkt_col = preparer.quote(coord_cols["wkt_col"])
+
+                    # With coordinates (WKT not null and not empty)
+                    result = conn.execute(
+                        text(
+                            f"""
+                            SELECT COUNT(*) FROM {quoted_table}
+                            WHERE {wkt_col} IS NOT NULL AND {wkt_col} != ''
+                        """
+                        )
+                    )
+                    with_coords = result.scalar() or 0
+
+                    # Extract bounding box from WKT using regex
+                    # WKT format: POINT (x y) or POINT(x y)
+                    try:
+                        result = conn.execute(
+                            text(
+                                f"""
+                                SELECT
+                                    MIN(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\(([\\d.-]+)', 1) AS DOUBLE)),
+                                    MIN(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\([\\d.-]+\\s+([\\d.-]+)', 1) AS DOUBLE)),
+                                    MAX(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\(([\\d.-]+)', 1) AS DOUBLE)),
+                                    MAX(CAST(regexp_extract({wkt_col}, 'POINT\\s*\\([\\d.-]+\\s+([\\d.-]+)', 1) AS DOUBLE))
+                                FROM {quoted_table}
+                                WHERE {wkt_col} IS NOT NULL AND {wkt_col} LIKE 'POINT%'
+                            """
+                            )
+                        )
+                        row = result.fetchone()
+                        bbox = None
+                        if row and row[0] is not None:
+                            bbox = {
+                                "min_x": float(row[0]),
+                                "min_y": float(row[1]),
+                                "max_x": float(row[2]),
+                                "max_y": float(row[3]),
+                            }
+                    except Exception as exc:
+                        logger.debug(
+                            "Failed to compute WKT bounding box for table '%s': %s",
+                            target_table,
+                            exc,
+                        )
+                        bbox = None
+
+                    return SpatialStats(
+                        total_points=total,
+                        with_coordinates=with_coords,
+                        without_coordinates=total - with_coords,
+                        bounding_box=bbox,
+                        points_outside_bounds=0,
+                        coordinate_columns=coord_cols,
+                    )
+
+                # Fall back to x/y columns
+                if "x_col" not in coord_cols or "y_col" not in coord_cols:
+                    return SpatialStats(
+                        total_points=total,
+                        with_coordinates=0,
+                        without_coordinates=total,
+                        bounding_box=None,
+                        points_outside_bounds=0,
+                        coordinate_columns=coord_cols,
+                    )
+
+                x_col = preparer.quote(coord_cols["x_col"])
+                y_col = preparer.quote(coord_cols["y_col"])
+
+                # With coordinates
+                result = conn.execute(
+                    text(
+                        f"""
+                    SELECT COUNT(*) FROM {quoted_table}
+                    WHERE {x_col} IS NOT NULL AND {y_col} IS NOT NULL
+                """
+                    )
+                )
+                with_coords = result.scalar() or 0
+
+                # Bounding box
+                result = conn.execute(
+                    text(
+                        f"""
+                    SELECT
+                        MIN({x_col}), MIN({y_col}),
+                        MAX({x_col}), MAX({y_col})
+                    FROM {quoted_table}
+                    WHERE {x_col} IS NOT NULL AND {y_col} IS NOT NULL
+                """
+                    )
+                )
+                row = result.fetchone()
+                bbox = None
+                if row and row[0] is not None:
+                    bbox = {
+                        "min_x": float(row[0]),
+                        "min_y": float(row[1]),
+                        "max_x": float(row[2]),
+                        "max_y": float(row[3]),
+                    }
+
+            return SpatialStats(
+                total_points=total,
+                with_coordinates=with_coords,
+                without_coordinates=total - with_coords,
+                bounding_box=bbox,
+                points_outside_bounds=0,
+                coordinate_columns=coord_cols,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting spatial stats: {str(e)}"
+        )
+
+
+@router.get("/taxonomy-consistency", response_model=TaxonomyConsistency)
+async def get_taxonomy_consistency(
+    entity: str = Query(default="taxons", description="Taxonomy reference name"),
+):
+    """
+    Get taxonomy consistency analysis.
+
+    Returns hierarchy levels, orphan records, and duplicate detection.
+    Supports both:
+    - Niamoto hierarchical structure (rank_name column)
+    - Flat structure with separate columns (family, genus, species)
+    """
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+            _, references = _load_import_entities_config()
+
+            # Find taxonomy table
+            table_names = inspector.get_table_names() or []
+            target_table = _resolve_taxonomy_table_name(table_names, references, entity)
+
+            if not target_table:
+                return TaxonomyConsistency(
+                    total_taxa=0,
+                    levels=[],
+                    orphan_records=[],
+                    duplicate_names=[],
+                    hierarchy_depth=0,
+                )
+
+            quoted_table = preparer.quote(target_table)
+            columns_info = inspector.get_columns(target_table)
+            column_names = [c["name"].lower() for c in columns_info]
+
+            with db.engine.connect() as conn:
+                # Total count
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
+                total = result.scalar() or 0
+
+                levels = []
+
+                # Strategy 1: Check for Niamoto hierarchical structure (rank_name column)
+                if "rank_name" in column_names:
+                    # Get hierarchy levels from rank_name column
+                    result = conn.execute(
+                        text(
+                            f"""
+                            SELECT rank_name, COUNT(*) as cnt
+                            FROM {quoted_table}
+                            WHERE rank_name IS NOT NULL
+                            GROUP BY rank_name
+                            ORDER BY MIN(level)
+                        """
+                        )
+                    )
+                    # Fetch all rows before executing any other query (DuckDB closes cursor on new query)
+                    all_rows = result.fetchall()
+
+                    for row in all_rows:
+                        rank_name = row[0]
+                        count = row[1]
+                        # Count orphans (records without parent when they should have one)
+                        orphan_count = 0
+                        if "parent_id" in column_names and "level" in column_names:
+                            orphan_result = conn.execute(
+                                text(
+                                    f"""
+                                    SELECT COUNT(*) FROM {quoted_table}
+                                    WHERE rank_name = :rank_name
+                                    AND level > 0
+                                    AND parent_id IS NULL
+                                """
+                                ),
+                                {"rank_name": rank_name},
+                            )
+                            orphan_count = orphan_result.scalar() or 0
+
+                        levels.append(
+                            TaxonomyLevel(
+                                level=rank_name, count=count, orphan_count=orphan_count
+                            )
+                        )
+                else:
+                    # Strategy 2: Detect hierarchy from separate columns
+                    rank_patterns = [
+                        "kingdom",
+                        "phylum",
+                        "class",
+                        "order",
+                        "family",
+                        "genus",
+                        "species",
+                    ]
+                    for pattern in rank_patterns:
+                        for col in columns_info:
+                            if pattern in col["name"].lower():
+                                quoted_col = preparer.quote(col["name"])
+                                result = conn.execute(
+                                    text(
+                                        f"SELECT COUNT(DISTINCT {quoted_col}) FROM {quoted_table} WHERE {quoted_col} IS NOT NULL"
+                                    )
+                                )
+                                count = result.scalar() or 0
+                                if count > 0:
+                                    levels.append(
+                                        TaxonomyLevel(
+                                            level=pattern, count=count, orphan_count=0
+                                        )
+                                    )
+                                break
+
+                # Check for duplicates in name/full_name column
+                name_col = None
+                for col in columns_info:
+                    col_name_lower = col["name"].lower()
+                    if col_name_lower in ["full_name", "rank_value", "name"]:
+                        name_col = col["name"]
+                        break
+
+                duplicates = []
+                if name_col:
+                    quoted_name = preparer.quote(name_col)
+                    result = conn.execute(
+                        text(
+                            f"""
+                            SELECT {quoted_name}, COUNT(*) as cnt
+                            FROM {quoted_table}
+                            WHERE {quoted_name} IS NOT NULL
+                            GROUP BY {quoted_name}
+                            HAVING COUNT(*) > 1
+                            LIMIT 10
+                        """
+                        )
+                    )
+                    for row in result:
+                        duplicates.append({"name": row[0], "count": row[1]})
+
+            return TaxonomyConsistency(
+                total_taxa=total,
+                levels=levels,
+                orphan_records=[],
+                duplicate_names=duplicates,
+                hierarchy_depth=len(levels),
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting taxonomy consistency: {str(e)}"
+        )
+
+
+@router.get("/value-validation/{entity}", response_model=EntityValidation)
+async def get_value_validation(
+    entity: str,
+    columns: Optional[str] = Query(
+        default=None, description="Comma-separated list of columns to validate"
+    ),
+    method: str = Query(
+        default="iqr", description="Outlier detection method: iqr, zscore, percentile"
+    ),
+    threshold: float = Query(
+        default=1.5, description="Threshold for outlier detection"
+    ),
+):
+    """
+    Get validation statistics for numeric columns.
+
+    Returns min/max/median/outliers per column with configurable detection.
+    """
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+
+            if entity not in inspector.get_table_names():
+                raise HTTPException(
+                    status_code=404, detail=f"Entity '{entity}' not found"
+                )
+
+            quoted_table = preparer.quote(entity)
+            columns_info = inspector.get_columns(entity)
+
+            # Filter to numeric columns
+            numeric_types = ["INTEGER", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "REAL"]
+            target_columns = []
+
+            if columns:
+                requested = [c.strip() for c in columns.split(",")]
+                for col in columns_info:
+                    if col["name"] in requested:
+                        target_columns.append(col)
+            else:
+                for col in columns_info:
+                    col_type = str(col.get("type", "")).upper()
+                    if any(nt in col_type for nt in numeric_types):
+                        target_columns.append(col)
+
+            validations = []
+
+            with db.engine.connect() as conn:
+                for col in target_columns:
+                    col_name = col["name"]
+                    quoted_col = preparer.quote(col_name)
+
+                    # Basic stats
+                    result = conn.execute(
+                        text(
+                            f"""
+                        SELECT
+                            MIN({quoted_col}),
+                            MAX({quoted_col}),
+                            AVG({quoted_col})
+                        FROM {quoted_table}
+                        WHERE {quoted_col} IS NOT NULL
+                    """
+                        )
+                    )
+                    row = result.fetchone()
+
+                    if row and row[0] is not None:
+                        min_val = float(row[0]) if row[0] is not None else None
+                        max_val = float(row[1]) if row[1] is not None else None
+                        mean_val = float(row[2]) if row[2] is not None else None
+
+                        # Median (approximate for DuckDB)
+                        try:
+                            result = conn.execute(
+                                text(
+                                    f"SELECT MEDIAN({quoted_col}) FROM {quoted_table} WHERE {quoted_col} IS NOT NULL"
+                                )
+                            )
+                            median_val = result.scalar()
+                            median_val = float(median_val) if median_val else None
+                        except Exception as exc:
+                            logger.debug(
+                                "Median computation failed for %s.%s: %s",
+                                entity,
+                                col_name,
+                                exc,
+                            )
+                            median_val = None
+
+                        # Outlier detection - initialize variables
+                        outliers = []
+                        outlier_count = 0
+                        lower_bound = None
+                        upper_bound = None
+                        outliers_low_count = 0
+                        outliers_high_count = 0
+                        histogram_bins: List[HistogramBin] = []
+
+                        # Prepare safe columns list (exclude BYTEA for JSON serialization)
+                        safe_columns = [
+                            c["name"]
+                            for c in columns_info
+                            if "BYTEA" not in str(c.get("type", "")).upper()
+                        ]
+
+                        if method == "iqr":
+                            try:
+                                result = conn.execute(
+                                    text(
+                                        f"""
+                                    SELECT
+                                        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY {quoted_col}),
+                                        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY {quoted_col})
+                                    FROM {quoted_table}
+                                    WHERE {quoted_col} IS NOT NULL
+                                """
+                                    )
+                                )
+                                q_row = result.fetchone()
+                                if q_row and q_row[0] is not None:
+                                    q1, q3 = float(q_row[0]), float(q_row[1])
+                                    iqr = q3 - q1
+                                    lower_bound = q1 - threshold * iqr
+                                    upper_bound = q3 + threshold * iqr
+
+                                    # Count outliers (total, low, high)
+                                    result = conn.execute(
+                                        text(
+                                            f"""
+                                        SELECT
+                                            COUNT(*) FILTER (WHERE {quoted_col} < {lower_bound}),
+                                            COUNT(*) FILTER (WHERE {quoted_col} > {upper_bound})
+                                        FROM {quoted_table}
+                                        WHERE {quoted_col} IS NOT NULL
+                                    """
+                                        )
+                                    )
+                                    count_row = result.fetchone()
+                                    outliers_low_count = count_row[0] or 0
+                                    outliers_high_count = count_row[1] or 0
+                                    outlier_count = (
+                                        outliers_low_count + outliers_high_count
+                                    )
+
+                                    # Get sample outliers with the analyzed column first
+                                    # Reorder columns to put analyzed column first
+                                    cols_ordered = [col_name] + [
+                                        c for c in safe_columns if c != col_name
+                                    ]
+                                    cols_ordered_sql = ", ".join(
+                                        preparer.quote(c) for c in cols_ordered[:10]
+                                    )
+                                    result = conn.execute(
+                                        text(
+                                            f"""
+                                        SELECT {cols_ordered_sql} FROM {quoted_table}
+                                        WHERE {quoted_col} IS NOT NULL
+                                        AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                                        ORDER BY ABS({quoted_col} - {(lower_bound + upper_bound) / 2}) DESC
+                                        LIMIT 5
+                                    """
+                                        )
+                                    )
+                                    for out_row in result:
+                                        outliers.append(dict(out_row._mapping))
+
+                                    # Generate histogram (20 bins)
+                                    if (
+                                        min_val is not None
+                                        and max_val is not None
+                                        and max_val > min_val
+                                    ):
+                                        num_bins = 20
+                                        bin_width = (max_val - min_val) / num_bins
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT
+                                                FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                COUNT(*) as cnt
+                                            FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                            GROUP BY bin_idx
+                                            ORDER BY bin_idx
+                                        """
+                                            )
+                                        )
+                                        bin_counts = {
+                                            int(r[0]): int(r[1])
+                                            for r in result
+                                            if r[0] is not None
+                                        }
+                                        for i in range(num_bins):
+                                            bin_start = min_val + i * bin_width
+                                            bin_end = min_val + (i + 1) * bin_width
+                                            is_outlier = (
+                                                bin_start < lower_bound
+                                                or bin_end > upper_bound
+                                            )
+                                            histogram_bins.append(
+                                                HistogramBin(
+                                                    bin_start=round(bin_start, 2),
+                                                    bin_end=round(bin_end, 2),
+                                                    count=bin_counts.get(i, 0),
+                                                    is_outlier_zone=is_outlier,
+                                                )
+                                            )
+                            except Exception as exc:
+                                logger.warning(
+                                    "IQR outlier analysis failed for %s.%s: %s",
+                                    entity,
+                                    col_name,
+                                    exc,
+                                )
+
+                        elif method == "zscore":
+                            # Z-score: outlier if |z| > threshold (z = (x - mean) / std)
+                            # Default threshold: 3 (99.7% of data)
+                            try:
+                                result = conn.execute(
+                                    text(
+                                        f"""
+                                    SELECT AVG({quoted_col}), STDDEV({quoted_col})
+                                    FROM {quoted_table}
+                                    WHERE {quoted_col} IS NOT NULL
+                                """
+                                    )
+                                )
+                                stats_row = result.fetchone()
+                                if (
+                                    stats_row
+                                    and stats_row[0] is not None
+                                    and stats_row[1] is not None
+                                ):
+                                    mean = float(stats_row[0])
+                                    std = float(stats_row[1])
+
+                                    if std > 0:
+                                        lower_bound = mean - threshold * std
+                                        upper_bound = mean + threshold * std
+
+                                        # Count outliers (total, low, high)
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT
+                                                COUNT(*) FILTER (WHERE {quoted_col} < {lower_bound}),
+                                                COUNT(*) FILTER (WHERE {quoted_col} > {upper_bound})
+                                            FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                        """
+                                            )
+                                        )
+                                        count_row = result.fetchone()
+                                        outliers_low_count = count_row[0] or 0
+                                        outliers_high_count = count_row[1] or 0
+                                        outlier_count = (
+                                            outliers_low_count + outliers_high_count
+                                        )
+
+                                        # Get sample outliers with analyzed column first
+                                        cols_ordered = [col_name] + [
+                                            c for c in safe_columns if c != col_name
+                                        ]
+                                        cols_ordered_sql = ", ".join(
+                                            preparer.quote(c) for c in cols_ordered[:10]
+                                        )
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT {cols_ordered_sql} FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                            AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                                            ORDER BY ABS({quoted_col} - {mean}) DESC
+                                            LIMIT 5
+                                        """
+                                            )
+                                        )
+                                        for out_row in result:
+                                            outliers.append(dict(out_row._mapping))
+
+                                        # Generate histogram (20 bins)
+                                        if (
+                                            min_val is not None
+                                            and max_val is not None
+                                            and max_val > min_val
+                                        ):
+                                            num_bins = 20
+                                            bin_width = (max_val - min_val) / num_bins
+                                            result = conn.execute(
+                                                text(
+                                                    f"""
+                                                SELECT
+                                                    FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                    COUNT(*) as cnt
+                                                FROM {quoted_table}
+                                                WHERE {quoted_col} IS NOT NULL
+                                                GROUP BY bin_idx
+                                                ORDER BY bin_idx
+                                            """
+                                                )
+                                            )
+                                            bin_counts = {
+                                                int(r[0]): int(r[1])
+                                                for r in result
+                                                if r[0] is not None
+                                            }
+                                            for i in range(num_bins):
+                                                bin_start = min_val + i * bin_width
+                                                bin_end = min_val + (i + 1) * bin_width
+                                                is_outlier = (
+                                                    bin_start < lower_bound
+                                                    or bin_end > upper_bound
+                                                )
+                                                histogram_bins.append(
+                                                    HistogramBin(
+                                                        bin_start=round(bin_start, 2),
+                                                        bin_end=round(bin_end, 2),
+                                                        count=bin_counts.get(i, 0),
+                                                        is_outlier_zone=is_outlier,
+                                                    )
+                                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    "Z-score outlier analysis failed for %s.%s: %s",
+                                    entity,
+                                    col_name,
+                                    exc,
+                                )
+
+                        elif method == "percentile":
+                            # Percentile: outlier if value < P(threshold) or > P(100-threshold)
+                            # Default threshold: 5 (excludes bottom 5% and top 5%)
+                            try:
+                                lower_pct = threshold / 100.0
+                                upper_pct = 1.0 - lower_pct
+
+                                result = conn.execute(
+                                    text(
+                                        f"""
+                                    SELECT
+                                        PERCENTILE_CONT({lower_pct}) WITHIN GROUP (ORDER BY {quoted_col}),
+                                        PERCENTILE_CONT({upper_pct}) WITHIN GROUP (ORDER BY {quoted_col})
+                                    FROM {quoted_table}
+                                    WHERE {quoted_col} IS NOT NULL
+                                """
+                                    )
+                                )
+                                pct_row = result.fetchone()
+                                if pct_row and pct_row[0] is not None:
+                                    lower_bound = float(pct_row[0])
+                                    upper_bound = float(pct_row[1])
+
+                                    # Count outliers (total, low, high)
+                                    result = conn.execute(
+                                        text(
+                                            f"""
+                                        SELECT
+                                            COUNT(*) FILTER (WHERE {quoted_col} < {lower_bound}),
+                                            COUNT(*) FILTER (WHERE {quoted_col} > {upper_bound})
+                                        FROM {quoted_table}
+                                        WHERE {quoted_col} IS NOT NULL
+                                    """
+                                        )
+                                    )
+                                    count_row = result.fetchone()
+                                    outliers_low_count = count_row[0] or 0
+                                    outliers_high_count = count_row[1] or 0
+                                    outlier_count = (
+                                        outliers_low_count + outliers_high_count
+                                    )
+
+                                    # Get sample outliers with analyzed column first
+                                    cols_ordered = [col_name] + [
+                                        c for c in safe_columns if c != col_name
+                                    ]
+                                    cols_ordered_sql = ", ".join(
+                                        preparer.quote(c) for c in cols_ordered[:10]
+                                    )
+                                    result = conn.execute(
+                                        text(
+                                            f"""
+                                        SELECT {cols_ordered_sql} FROM {quoted_table}
+                                        WHERE {quoted_col} IS NOT NULL
+                                        AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                                        ORDER BY ABS({quoted_col} - {(lower_bound + upper_bound) / 2}) DESC
+                                        LIMIT 5
+                                    """
+                                        )
+                                    )
+                                    for out_row in result:
+                                        outliers.append(dict(out_row._mapping))
+
+                                    # Generate histogram (20 bins)
+                                    if (
+                                        min_val is not None
+                                        and max_val is not None
+                                        and max_val > min_val
+                                    ):
+                                        num_bins = 20
+                                        bin_width = (max_val - min_val) / num_bins
+                                        result = conn.execute(
+                                            text(
+                                                f"""
+                                            SELECT
+                                                FLOOR(({quoted_col} - {min_val}) / {bin_width}) as bin_idx,
+                                                COUNT(*) as cnt
+                                            FROM {quoted_table}
+                                            WHERE {quoted_col} IS NOT NULL
+                                            GROUP BY bin_idx
+                                            ORDER BY bin_idx
+                                        """
+                                            )
+                                        )
+                                        bin_counts = {
+                                            int(r[0]): int(r[1])
+                                            for r in result
+                                            if r[0] is not None
+                                        }
+                                        for i in range(num_bins):
+                                            bin_start = min_val + i * bin_width
+                                            bin_end = min_val + (i + 1) * bin_width
+                                            is_outlier = (
+                                                bin_start < lower_bound
+                                                or bin_end > upper_bound
+                                            )
+                                            histogram_bins.append(
+                                                HistogramBin(
+                                                    bin_start=round(bin_start, 2),
+                                                    bin_end=round(bin_end, 2),
+                                                    count=bin_counts.get(i, 0),
+                                                    is_outlier_zone=is_outlier,
+                                                )
+                                            )
+                            except Exception as exc:
+                                logger.warning(
+                                    "Percentile outlier analysis failed for %s.%s: %s",
+                                    entity,
+                                    col_name,
+                                    exc,
+                                )
+
+                        validations.append(
+                            ColumnValidation(
+                                column=col_name,
+                                min_value=min_val,
+                                max_value=max_val,
+                                mean_value=mean_val,
+                                median_value=median_val,
+                                std_dev=None,
+                                outlier_count=outlier_count,
+                                outliers=outliers[:5],
+                                lower_bound=round(lower_bound, 4)
+                                if lower_bound is not None
+                                else None,
+                                upper_bound=round(upper_bound, 4)
+                                if upper_bound is not None
+                                else None,
+                                outliers_low_count=outliers_low_count,
+                                outliers_high_count=outliers_high_count,
+                                histogram=histogram_bins if histogram_bins else None,
+                            )
+                        )
+                    else:
+                        validations.append(
+                            ColumnValidation(
+                                column=col_name,
+                                min_value=None,
+                                max_value=None,
+                                mean_value=None,
+                                median_value=None,
+                                std_dev=None,
+                                outlier_count=0,
+                                outliers=[],
+                            )
+                        )
+
+            return EntityValidation(entity=entity, columns=validations)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error validating values: {str(e)}"
+        )
+
+
+@router.get("/value-validation/{entity}/export-outliers")
+async def export_outliers_csv(
+    entity: str,
+    column: str = Query(..., description="Column to analyze for outliers"),
+    method: str = Query(
+        default="iqr", description="Detection method: iqr, zscore, percentile"
+    ),
+    threshold: float = Query(default=1.5, description="Detection threshold"),
+):
+    """
+    Export all outliers for a specific column as CSV.
+
+    Returns a CSV file with all records that are detected as outliers
+    according to the specified method and threshold.
+    """
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+
+            if entity not in inspector.get_table_names():
+                raise HTTPException(
+                    status_code=404, detail=f"Entity '{entity}' not found"
+                )
+
+            columns_info = inspector.get_columns(entity)
+            col_names = [c["name"] for c in columns_info]
+
+            if column not in col_names:
+                raise HTTPException(
+                    status_code=404, detail=f"Column '{column}' not found in {entity}"
+                )
+
+            quoted_table = preparer.quote(entity)
+            quoted_col = preparer.quote(column)
+
+            # Prepare safe columns (exclude BYTEA)
+            safe_columns = [
+                c["name"]
+                for c in columns_info
+                if "BYTEA" not in str(c.get("type", "")).upper()
+            ]
+
+            with db.engine.connect() as conn:
+                # Calculate bounds based on method
+                lower_bound = None
+                upper_bound = None
+
+                if method == "iqr":
+                    result = conn.execute(
+                        text(
+                            f"""
+                        SELECT
+                            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY {quoted_col}),
+                            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY {quoted_col})
+                        FROM {quoted_table}
+                        WHERE {quoted_col} IS NOT NULL
+                    """
+                        )
+                    )
+                    q_row = result.fetchone()
+                    if q_row and q_row[0] is not None:
+                        q1, q3 = float(q_row[0]), float(q_row[1])
+                        iqr = q3 - q1
+                        lower_bound = q1 - threshold * iqr
+                        upper_bound = q3 + threshold * iqr
+
+                elif method == "zscore":
+                    result = conn.execute(
+                        text(
+                            f"""
+                        SELECT AVG({quoted_col}), STDDEV({quoted_col})
+                        FROM {quoted_table}
+                        WHERE {quoted_col} IS NOT NULL
+                    """
+                        )
+                    )
+                    stats_row = result.fetchone()
+                    if stats_row and stats_row[0] is not None and stats_row[1]:
+                        mean = float(stats_row[0])
+                        std = float(stats_row[1])
+                        if std > 0:
+                            lower_bound = mean - threshold * std
+                            upper_bound = mean + threshold * std
+
+                elif method == "percentile":
+                    lower_pct = threshold / 100.0
+                    upper_pct = 1.0 - lower_pct
+                    result = conn.execute(
+                        text(
+                            f"""
+                        SELECT
+                            PERCENTILE_CONT({lower_pct}) WITHIN GROUP (ORDER BY {quoted_col}),
+                            PERCENTILE_CONT({upper_pct}) WITHIN GROUP (ORDER BY {quoted_col})
+                        FROM {quoted_table}
+                        WHERE {quoted_col} IS NOT NULL
+                    """
+                        )
+                    )
+                    pct_row = result.fetchone()
+                    if pct_row and pct_row[0] is not None:
+                        lower_bound = float(pct_row[0])
+                        upper_bound = float(pct_row[1])
+
+                if lower_bound is None or upper_bound is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Could not calculate outlier bounds for this column",
+                    )
+
+                # Fetch all outliers
+                cols_ordered = [column] + [c for c in safe_columns if c != column]
+                cols_ordered_sql = ", ".join(preparer.quote(c) for c in cols_ordered)
+
+                result = conn.execute(
+                    text(
+                        f"""
+                    SELECT {cols_ordered_sql} FROM {quoted_table}
+                    WHERE {quoted_col} IS NOT NULL
+                    AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
+                    ORDER BY {quoted_col}
+                """
+                    )
+                )
+
+                # Generate CSV
+                output = io.StringIO()
+                writer = csv.writer(output)
+
+                # Write header
+                writer.writerow(cols_ordered)
+
+                # Write data
+                for row in result:
+                    writer.writerow(row)
+
+                output.seek(0)
+
+                filename = f"{entity}_{column}_outliers_{method}.csv"
+                return StreamingResponse(
+                    iter([output.getvalue()]),
+                    media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={filename}"},
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error exporting outliers: {str(e)}"
+        )
+
+
+@router.get("/geo-coverage", response_model=GeoCoverage)
+async def get_geo_coverage(
+    occurrence_entity: str = Query(
+        default="occurrences", description="Occurrences entity"
+    ),
+):
+    """
+    Get geographic coverage overview.
+
+    Returns info about occurrences and available shapes for spatial analysis.
+    """
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+            table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
+
+            # Resolve occurrence table from explicit param/config.
+            occ_table = _resolve_occurrence_table(
+                table_names, occurrence_entity, datasets
+            )
+
+            if not occ_table:
+                return GeoCoverage(
+                    total_occurrences=0,
+                    occurrences_with_geo=0,
+                    geo_column=None,
+                    available_shapes=[],
+                    ready_for_analysis=False,
+                )
+
+            quoted_occ = preparer.quote(occ_table)
+
+            # Get total occurrences
+            with db.engine.connect() as conn:
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_occ}"))
+                total = result.scalar() or 0
+
+            # Find geo column in occurrences
+            columns_info = inspector.get_columns(occ_table)
+            geo_column, _ = _find_geometry_column(columns_info)
+
+            # Count occurrences with geometry
+            occ_with_geo = 0
+            if geo_column:
+                quoted_geo = preparer.quote(geo_column)
+                with db.engine.connect() as conn:
+                    result = conn.execute(
+                        text(
+                            f"SELECT COUNT(*) FROM {quoted_occ} WHERE {quoted_geo} IS NOT NULL"
+                        )
+                    )
+                    occ_with_geo = result.scalar() or 0
+
+            # Resolve spatial references from config (kind=spatial), fallback to geometry scan.
+            spatial_tables = _resolve_spatial_reference_tables(
+                table_names, inspector, references, occurrence_table=occ_table
+            )
+            available_shapes = []
+
+            for ref in spatial_tables:
+                table_name = ref["table_name"]
+                quoted_t = preparer.quote(table_name)
+                has_geo = ref.get("has_geometry", False)
+                type_column = ref.get("type_column")
+
+                # Get row count and distinct shape types (if available)
+                shape_count = 0
+                shape_types: List[str] = []
+                with db.engine.connect() as conn:
+                    result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_t}"))
+                    shape_count = result.scalar() or 0
+
+                    if type_column:
+                        quoted_type = preparer.quote(type_column)
+                        try:
+                            result = conn.execute(
+                                text(
+                                    f"""
+                                    SELECT DISTINCT CAST({quoted_type} AS VARCHAR)
+                                    FROM {quoted_t}
+                                    WHERE {quoted_type} IS NOT NULL
+                                      AND CAST({quoted_type} AS VARCHAR) != ''
+                                    LIMIT 10
+                                """
+                                )
+                            )
+                            shape_types = [
+                                row[0] for row in result.fetchall() if row[0]
+                            ]
+                        except Exception as exc:
+                            logger.debug(
+                                "Failed to fetch shape types for table '%s': %s",
+                                table_name,
+                                exc,
+                            )
+                            shape_types = []
+
+                available_shapes.append(
+                    ShapeInfo(
+                        table_name=table_name,
+                        display_name=ref.get("display_name", table_name),
+                        shape_count=shape_count,
+                        has_geometry=has_geo,
+                        shape_types=shape_types,
+                    )
+                )
+
+            ready = bool(
+                geo_column
+                and occ_with_geo > 0
+                and any(s.has_geometry for s in available_shapes)
+            )
+
+            return GeoCoverage(
+                total_occurrences=total,
+                occurrences_with_geo=occ_with_geo,
+                geo_column=geo_column,
+                available_shapes=available_shapes,
+                ready_for_analysis=ready,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting geo coverage: {str(e)}"
+        )
+
+
+@router.post("/geo-coverage/analyze", response_model=SpatialAnalysisResult)
+async def analyze_spatial_coverage(
+    occurrence_entity: str = Query(
+        default="occurrences", description="Occurrences entity"
+    ),
+):
+    """
+    Run full spatial analysis (on demand).
+
+    Detects geo column in occurrences and checks coverage against all shape tables
+    using spatial intersection queries. This can be slow with many occurrences.
+    """
+    import time
+
+    start_time = time.time()
+
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+            table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
+
+            # Resolve occurrence table from explicit param/config.
+            occ_table = _resolve_occurrence_table(
+                table_names, occurrence_entity, datasets
+            )
+
+            if not occ_table:
+                return SpatialAnalysisResult(
+                    total_occurrences=0,
+                    occurrences_with_geo=0,
+                    occurrences_without_geo=0,
+                    shape_coverage=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    geo_column=None,
+                    status="error",
+                    message=f"Occurrence table '{occurrence_entity}' not found",
+                )
+
+            # Find geo column in occurrences.
+            columns_info = inspector.get_columns(occ_table)
+            geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
+
+            if not geo_column:
+                return SpatialAnalysisResult(
+                    total_occurrences=0,
+                    occurrences_with_geo=0,
+                    occurrences_without_geo=0,
+                    shape_coverage=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    geo_column=None,
+                    status="no_geo_column",
+                    message=f"No geometry column found in '{occ_table}'",
+                )
+
+            quoted_occ = preparer.quote(occ_table)
+            quoted_geo = preparer.quote(geo_column)
+
+            spatial_tables = _resolve_spatial_reference_tables(
+                table_names, inspector, references, occurrence_table=occ_table
+            )
+            shape_tables = [s for s in spatial_tables if s.get("has_geometry")]
+            shape_tables_without_geo = [
+                s.get("table_name", "")
+                for s in spatial_tables
+                if not s.get("has_geometry")
+            ]
+
+            if not shape_tables:
+                # No shape tables with geometry found
+                with db.engine.connect() as conn:
+                    result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_occ}"))
+                    total = result.scalar() or 0
+
+                    result = conn.execute(
+                        text(
+                            f"SELECT COUNT(*) FROM {quoted_occ} WHERE {quoted_geo} IS NOT NULL"
+                        )
+                    )
+                    with_geo = result.scalar() or 0
+
+                if shape_tables_without_geo:
+                    msg = f"Shape tables found ({', '.join(shape_tables_without_geo)}) but they have no geometry column. Import shapes with geometry to analyze coverage."
+                else:
+                    msg = "No shape tables found. Import shapes to analyze coverage."
+
+                return SpatialAnalysisResult(
+                    total_occurrences=total,
+                    occurrences_with_geo=with_geo,
+                    occurrences_without_geo=total - with_geo,
+                    shape_coverage=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    geo_column=geo_column,
+                    status="no_shapes",
+                    message=msg,
+                )
+
+            # Run spatial analysis
+            shape_coverage = []
+
+            with db.engine.connect() as conn:
+                # Get occurrence counts
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_occ}"))
+                total_occ = result.scalar() or 0
+
+                result = conn.execute(
+                    text(
+                        f"SELECT COUNT(*) FROM {quoted_occ} WHERE {quoted_geo} IS NOT NULL"
+                    )
+                )
+                with_geo = result.scalar() or 0
+
+                # For each shape table, count occurrences that intersect
+                for shape_meta in shape_tables:
+                    shape_table = shape_meta["table_name"]
+                    shape_geo_col = shape_meta["geo_column"]
+                    shape_is_native = shape_meta["is_native"]
+                    quoted_shape = preparer.quote(shape_table)
+                    quoted_shape_geo = preparer.quote(shape_geo_col)
+
+                    # Count total shapes
+                    result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_shape}"))
+                    total_shapes = result.scalar() or 0
+
+                    if total_shapes == 0:
+                        continue
+
+                    # Build geometry expressions based on column types
+                    # Native GEOMETRY columns can be used directly
+                    # WKT text columns need ST_GeomFromText conversion
+                    if occ_geo_is_native:
+                        occ_geom_expr = f"o.{quoted_geo}"
+                    else:
+                        occ_geom_expr = f"ST_GeomFromText(o.{quoted_geo})"
+
+                    if shape_is_native:
+                        shape_geom_expr = f"s.{quoted_shape_geo}"
+                    else:
+                        shape_geom_expr = f"ST_GeomFromText(s.{quoted_shape_geo})"
+
+                    # Count occurrences covered by any shape
+                    # Using ST_Intersects for DuckDB spatial
+                    try:
+                        # Load spatial extension for this connection
+                        conn.execute(text("LOAD spatial"))
+
+                        # Use COUNT(*) instead of COUNT(DISTINCT rowid) for DuckDB
+                        result = conn.execute(
+                            text(
+                                f"""
+                                SELECT COUNT(*)
+                                FROM {quoted_occ} o
+                                WHERE o.{quoted_geo} IS NOT NULL
+                                AND EXISTS (
+                                    SELECT 1 FROM {quoted_shape} s
+                                    WHERE s.{quoted_shape_geo} IS NOT NULL
+                                    AND ST_Intersects({occ_geom_expr}, {shape_geom_expr})
+                                )
+                            """
+                            )
+                        )
+                        covered = result.scalar() or 0
+                    except Exception as exc:
+                        logger.debug(
+                            "ST_Intersects failed for shape table '%s': %s",
+                            shape_table,
+                            exc,
+                        )
+                        # Fallback: try with ST_Contains
+                        try:
+                            result = conn.execute(
+                                text(
+                                    f"""
+                                    SELECT COUNT(*)
+                                    FROM {quoted_occ} o
+                                    WHERE o.{quoted_geo} IS NOT NULL
+                                    AND EXISTS (
+                                        SELECT 1 FROM {quoted_shape} s
+                                        WHERE s.{quoted_shape_geo} IS NOT NULL
+                                        AND ST_Contains({shape_geom_expr}, {occ_geom_expr})
+                                    )
+                                """
+                                )
+                            )
+                            covered = result.scalar() or 0
+                        except Exception as exc:
+                            logger.debug(
+                                "ST_Contains fallback failed for shape table '%s': %s",
+                                shape_table,
+                                exc,
+                            )
+                            # Spatial functions not available or query failed
+                            covered = 0
+
+                    coverage_pct = (covered / with_geo * 100) if with_geo > 0 else 0
+
+                    shape_coverage.append(
+                        ShapeCoverageDetail(
+                            shape_type=shape_meta.get("display_name", shape_table),
+                            shape_table=shape_table,
+                            total_shapes=total_shapes,
+                            occurrences_covered=covered,
+                            coverage_percent=round(coverage_pct, 1),
+                        )
+                    )
+
+            return SpatialAnalysisResult(
+                total_occurrences=total_occ,
+                occurrences_with_geo=with_geo,
+                occurrences_without_geo=total_occ - with_geo,
+                shape_coverage=shape_coverage,
+                analysis_time_seconds=round(time.time() - start_time, 2),
+                geo_column=geo_column,
+                status="success",
+                message=None,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        return SpatialAnalysisResult(
+            total_occurrences=0,
+            occurrences_with_geo=0,
+            occurrences_without_geo=0,
+            shape_coverage=[],
+            analysis_time_seconds=0,
+            geo_column=None,
+            status="error",
+            message=str(e),
+        )
+
+
+@router.post("/geo-coverage/distribution", response_model=ShapeDistributionResult)
+async def get_shape_distribution(
+    occurrence_entity: str = Query(
+        default="occurrences", description="Occurrences entity"
+    ),
+):
+    """
+    Get distribution of occurrences by individual shape.
+
+    Returns the count of occurrences that fall within each shape polygon.
+    This is computed on demand and may take some time for large datasets.
+    """
+    import time
+
+    start_time = time.time()
+
+    db_path = get_database_path()
+    if not db_path:
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        with open_database(db_path) as db:
+            inspector = inspect(db.engine)
+            preparer = db.engine.dialect.identifier_preparer
+            table_names = inspector.get_table_names() or []
+            datasets, references = _load_import_entities_config()
+
+            # Resolve occurrence table from explicit param/config.
+            occ_table = _resolve_occurrence_table(
+                table_names, occurrence_entity, datasets
+            )
+
+            if not occ_table:
+                return ShapeDistributionResult(
+                    total_occurrences_with_geo=0,
+                    shapes=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    status="error",
+                    message=f"Occurrence table '{occurrence_entity}' not found",
+                )
+
+            # Find geo column in occurrences.
+            columns_info = inspector.get_columns(occ_table)
+            geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
+
+            if not geo_column:
+                return ShapeDistributionResult(
+                    total_occurrences_with_geo=0,
+                    shapes=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    status="no_geo_column",
+                    message=f"No geometry column found in '{occ_table}'",
+                )
+
+            spatial_tables = _resolve_spatial_reference_tables(
+                table_names, inspector, references, occurrence_table=occ_table
+            )
+            shape_candidates = [s for s in spatial_tables if s.get("has_geometry")]
+
+            if not shape_candidates:
+                return ShapeDistributionResult(
+                    total_occurrences_with_geo=0,
+                    shapes=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    status="no_shapes",
+                    message="No shape table with geometry found",
+                )
+
+            # Deterministic choice: first configured spatial reference.
+            shape_meta = shape_candidates[0]
+            shape_table = shape_meta["table_name"]
+            shape_geo_col = shape_meta["geo_column"]
+            shape_is_native = shape_meta["is_native"]
+
+            # Resolve id/name/type columns dynamically (no hardcoded `id`/`name`).
+            shape_columns = [c["name"] for c in inspector.get_columns(shape_table)]
+            shape_cols_by_lower = {c.lower(): c for c in shape_columns}
+            shape_id_col = shape_meta.get("id_column") or _pick_first_existing(
+                shape_cols_by_lower, ["id", "name"]
+            )
+            shape_name_col = shape_meta.get("name_column") or _pick_first_existing(
+                shape_cols_by_lower, ["name", "label", "title", shape_id_col]
+            )
+            shape_type_col = shape_meta.get("type_column")
+
+            if not shape_id_col:
+                return ShapeDistributionResult(
+                    total_occurrences_with_geo=0,
+                    shapes=[],
+                    analysis_time_seconds=time.time() - start_time,
+                    status="error",
+                    message=f"Unable to resolve an identifier column for '{shape_table}'",
+                )
+
+            if not shape_name_col:
+                shape_name_col = shape_id_col
+
+            quoted_occ = preparer.quote(occ_table)
+            quoted_geo = preparer.quote(geo_column)
+            quoted_shape = preparer.quote(shape_table)
+            quoted_shape_geo = preparer.quote(shape_geo_col)
+            quoted_shape_id = preparer.quote(shape_id_col)
+            quoted_shape_name = preparer.quote(shape_name_col)
+            quoted_shape_type = (
+                preparer.quote(shape_type_col) if shape_type_col else None
+            )
+
+            # Build geometry expressions
+            if occ_geo_is_native:
+                occ_geom_expr = f"o.{quoted_geo}"
+            else:
+                occ_geom_expr = f"ST_GeomFromText(o.{quoted_geo})"
+
+            if shape_is_native:
+                shape_geom_expr = f"s.{quoted_shape_geo}"
+            else:
+                shape_geom_expr = f"ST_GeomFromText(s.{quoted_shape_geo})"
+
+            with db.engine.connect() as conn:
+                # Load spatial extension
+                conn.execute(text("LOAD spatial"))
+
+                # Get total occurrences with geometry
+                result = conn.execute(
+                    text(
+                        f"SELECT COUNT(*) FROM {quoted_occ} WHERE {quoted_geo} IS NOT NULL"
+                    )
+                )
+                total_with_geo = result.scalar() or 0
+
+                # Get occurrence count per shape
+                # Using a lateral join approach for performance
+                shape_type_expr = (
+                    f"COALESCE(CAST(s.{quoted_shape_type} AS VARCHAR), 'unknown')"
+                    if quoted_shape_type
+                    else "'unknown'"
+                )
+                result = conn.execute(
+                    text(
+                        f"""
+                        SELECT
+                            CAST(s.{quoted_shape_id} AS VARCHAR) as shape_id,
+                            CAST(s.{quoted_shape_name} AS VARCHAR) as shape_name,
+                            {shape_type_expr} as shape_type,
+                            SUM(CASE WHEN o.{quoted_geo} IS NOT NULL THEN 1 ELSE 0 END) as occurrence_count
+                        FROM {quoted_shape} s
+                        LEFT JOIN {quoted_occ} o
+                            ON o.{quoted_geo} IS NOT NULL
+                            AND s.{quoted_shape_geo} IS NOT NULL
+                            AND ST_Intersects({occ_geom_expr}, {shape_geom_expr})
+                        WHERE s.{quoted_shape_geo} IS NOT NULL
+                        GROUP BY 1, 2, 3
+                        ORDER BY occurrence_count DESC
+                    """
+                    )
+                )
+                rows = result.fetchall()
+
+                shapes = []
+                for row in rows:
+                    count = row[3] or 0
+                    pct = (count / total_with_geo * 100) if total_with_geo > 0 else 0
+                    shapes.append(
+                        ShapeOccurrenceCount(
+                            shape_id=str(row[0]),
+                            shape_name=row[1] or f"Shape {row[0]}",
+                            shape_type=row[2] or "unknown",
+                            occurrence_count=count,
+                            percent_of_total=round(pct, 2),
+                        )
+                    )
+
+            return ShapeDistributionResult(
+                total_occurrences_with_geo=total_with_geo,
+                shapes=shapes,
+                analysis_time_seconds=round(time.time() - start_time, 2),
+                status="success",
+                message=None,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        return ShapeDistributionResult(
+            total_occurrences_with_geo=0,
+            shapes=[],
+            analysis_time_seconds=0,
+            status="error",
+            message=str(e),
+        )
+
+
+@router.get("/validation/rules", response_model=ValidationRules)
+async def get_validation_rules():
+    """
+    Get configured validation rules.
+
+    Returns rules from config/validation.yml if it exists.
+    """
+    import yaml
+
+    work_dir = get_working_directory()
+    rules_path = work_dir / "config" / "validation.yml"
+
+    if not rules_path.exists():
+        # Return defaults
+        return ValidationRules(
+            rules=[
+                ValidationRule(
+                    rule_type="outlier",
+                    target="*",
+                    method="iqr",
+                    params={"threshold": 1.5},
+                ),
+                ValidationRule(
+                    rule_type="bounds",
+                    target="coordinates",
+                    method="auto",
+                    params={"margin": 0.1},
+                ),
+            ]
+        )
+
+    try:
+        with open(rules_path, "r") as f:
+            config = yaml.safe_load(f) or {}
+
+        rules = []
+        for rule_data in config.get("rules", []):
+            rules.append(
+                ValidationRule(
+                    rule_type=rule_data.get("type", "outlier"),
+                    target=rule_data.get("target", "*"),
+                    method=rule_data.get("method", "iqr"),
+                    params=rule_data.get("params", {}),
+                )
+            )
+
+        return ValidationRules(rules=rules)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error reading validation rules: {str(e)}"
+        )
+
+
+@router.put("/validation/rules", response_model=ValidationRules)
+async def update_validation_rules(rules: ValidationRules):
+    """
+    Save validation rules to config/validation.yml.
+    """
+    import yaml
+
+    work_dir = get_working_directory()
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    rules_path = config_dir / "validation.yml"
+
+    try:
+        rules_data = {
+            "rules": [
+                {
+                    "type": r.rule_type,
+                    "target": r.target,
+                    "method": r.method,
+                    "params": r.params,
+                }
+                for r in rules.rules
+            ]
+        }
+
+        with open(rules_path, "w") as f:
+            yaml.safe_dump(rules_data, f, default_flow_style=False)
+
+        return rules
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error saving validation rules: {str(e)}"
+        )

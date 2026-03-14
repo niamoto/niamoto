@@ -15,15 +15,50 @@ from niamoto.common.exceptions import DataTransformError
 
 
 class GroupConfig(BaseModel):
-    """Configuration for a binary/ternary group"""
+    """Configuration for a binary/ternary group.
 
-    label: str = Field(..., description="Label for this distribution group")
-    field: str = Field(..., description="Field name to match in class_object column")
+    Each group represents a binary (2 classes) or ternary (3 classes) distribution
+    extracted from class_object data.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "ui:order": ["label", "field", "classes", "class_mapping"],
+        }
+    )
+
+    label: str = Field(
+        ...,
+        description="Label for this distribution group (used as output key)",
+        json_schema_extra={
+            "ui:placeholder": "e.g., forest_cover, land_use",
+        },
+    )
+    field: str = Field(
+        ...,
+        description="Field name to match in class_object column",
+        json_schema_extra={
+            "ui:placeholder": "e.g., cover_forest, substrate_type",
+            "ui:help": "Must match a class_object value in the source data",
+        },
+    )
     classes: List[str] = Field(
-        default=["forest", "non_forest"], description="List of output class names"
+        default=["forest", "non_forest"],
+        description="List of output class names",
+        json_schema_extra={
+            "ui:widget": "tags",
+            "ui:placeholder": "Add class name...",
+            "ui:help": "Define the output class names (e.g., forest, non_forest)",
+        },
     )
     class_mapping: Optional[Dict[str, str]] = Field(
-        default=None, description="Mapping from input class names to output class names"
+        default=None,
+        description="Mapping from input class names to output class names",
+        json_schema_extra={
+            "ui:widget": "key-value-pairs",
+            "ui:placeholder": "Input → Output mapping",
+            "ui:help": "Map source values to output classes (e.g., 'Forêt' → 'forest')",
+        },
     )
 
 
@@ -65,7 +100,10 @@ class ClassObjectBinaryParams(BasePluginParams):
         default_factory=list,
         min_length=1,
         description="List of group configurations for binary/ternary distributions",
-        json_schema_extra={"ui:widget": "json"},
+        json_schema_extra={
+            "ui:add_button_text": "Add group",
+            "ui:help": "Each group extracts a binary/ternary distribution from the source",
+        },
     )
 
     @field_validator("groups")

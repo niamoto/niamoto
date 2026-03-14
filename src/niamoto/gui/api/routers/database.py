@@ -1,16 +1,18 @@
 """Database introspection API endpoints."""
 
+import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import inspect, text
 
-from niamoto.common.exceptions import DatabaseQueryError
 from ..utils.database import open_database
 from ..context import get_working_directory
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ColumnInfo(BaseModel):
@@ -111,7 +113,7 @@ async def get_database_schema():
         return DatabaseSchema(tables=[], views=[], total_size=None)
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -154,9 +156,12 @@ async def get_database_schema():
                 # Get row count
                 try:
                     quoted_table = preparer.quote(table_name)
-                    result = db.execute_sql(f"SELECT COUNT(*) FROM {quoted_table}")
-                    row_count = result.scalar() if result is not None else 0
-                except DatabaseQueryError:
+                    with db.engine.connect() as conn:
+                        result = conn.execute(
+                            text(f"SELECT COUNT(*) FROM {quoted_table}")
+                        )
+                        row_count = result.scalar() or 0
+                except Exception:
                     row_count = 0
 
                 # Get indexes
@@ -194,9 +199,12 @@ async def get_database_schema():
 
                     try:
                         quoted_view = preparer.quote(view_name)
-                        result = db.execute_sql(f"SELECT COUNT(*) FROM {quoted_view}")
-                        row_count = result.scalar() if result is not None else 0
-                    except DatabaseQueryError:
+                        with db.engine.connect() as conn:
+                            result = conn.execute(
+                                text(f"SELECT COUNT(*) FROM {quoted_view}")
+                            )
+                            row_count = result.scalar() or 0
+                    except Exception:
                         row_count = 0
 
                     view_info = TableInfo(
@@ -207,7 +215,10 @@ async def get_database_schema():
                         is_view=True,
                     )
                     views.append(view_info)
-                except Exception:
+                except Exception as exc:
+                    logger.debug(
+                        "Skipping view '%s' in schema introspection: %s", view_name, exc
+                    )
                     continue
 
             total_size = db_path.stat().st_size if db_path.exists() else None
@@ -244,7 +255,7 @@ async def get_table_preview(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -313,7 +324,7 @@ async def get_table_stats(table_name: str):
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             inspector = inspect(db.engine)
             preparer = db.engine.dialect.identifier_preparer
 
@@ -389,9 +400,15 @@ async def execute_query(
     Note: Only SELECT queries are allowed for safety
     """
     # Basic safety check - only allow SELECT queries
-    query_lower = query.strip().lower()
-    if not query_lower.startswith("select"):
+    query_clean = query.strip().rstrip(";")
+    query_lower = query_clean.lower()
+    if not (query_lower.startswith("select") or query_lower.startswith("with")):
         raise HTTPException(status_code=400, detail="Only SELECT queries are allowed")
+
+    if any(token in query_lower for token in (";", "--", "/*", "*/")):
+        raise HTTPException(
+            status_code=400, detail="Multiple statements are not allowed"
+        )
 
     # Block potentially dangerous keywords
     dangerous_keywords = [
@@ -414,28 +431,30 @@ async def execute_query(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             with db.engine.connect() as conn:
-                if "limit" not in query_lower:
-                    query_to_run = f"{query} LIMIT {limit}"
+                params: Dict[str, Any] = {}
+                if not re.search(r"\blimit\b", query_lower):
+                    query_to_run = f"{query_clean} LIMIT :_limit"
+                    params["_limit"] = max(1, int(limit))
                 else:
-                    query_to_run = query
+                    query_to_run = query_clean
 
-            result = conn.execute(text(query_to_run))
-            columns = list(result.keys())
-            rows = []
+                result = conn.execute(text(query_to_run), params)
+                columns = list(result.keys())
+                rows = []
 
-            for row in result:
-                row_dict = {}
-                for i, col in enumerate(columns):
-                    value = row[i]
-                    if isinstance(value, bytes):
-                        try:
-                            value = value.decode("utf-8")
-                        except UnicodeDecodeError:
-                            value = f"<binary:{len(value)}bytes>"
-                    row_dict[col] = value
-                rows.append(row_dict)
+                for row in result:
+                    row_dict = {}
+                    for i, col in enumerate(columns):
+                        value = row[i]
+                        if isinstance(value, bytes):
+                            try:
+                                value = value.decode("utf-8")
+                            except UnicodeDecodeError:
+                                value = f"<binary:{len(value)}bytes>"
+                        row_dict[col] = value
+                    rows.append(row_dict)
 
         return {"columns": columns, "rows": rows, "row_count": len(rows)}
 

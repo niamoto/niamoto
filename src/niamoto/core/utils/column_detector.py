@@ -111,6 +111,10 @@ class ColumnDetector:
         "scientific_name",
         "taxaname",
         "taxon_name",
+        "plot",  # Ecological plot/site name
+        "site",
+        "locality",
+        "station",
     ]
 
     # Patterns for date columns
@@ -648,9 +652,15 @@ class ColumnDetector:
                     # Exact match with source column
                     if target_col_lower == source_col_lower:
                         score = 100
-                    # Match with keyword
+                    # Exact match with keyword (e.g., "plot" == "plot")
+                    elif target_col_lower == keyword:
+                        score = 90
+                    # Keyword is prefix (e.g., "plot_name" starts with "plot")
+                    elif target_col_lower.startswith(keyword + "_"):
+                        score = 85
+                    # Match with keyword (partial, e.g., "id_plot" contains "plot")
                     elif keyword in target_col_lower:
-                        score = 80
+                        score = 70
                     # Match with entity name
                     elif target_entity_lower in target_col_lower:
                         score = 60
@@ -667,16 +677,41 @@ class ColumnDetector:
                         candidates.append((target_col, score))
 
                 if candidates:
-                    # Take highest scoring candidate
-                    candidates.sort(key=lambda x: x[1], reverse=True)
-                    best_target_col = candidates[0][0]
+                    # If we have sample data, validate ALL candidates and pick the best
+                    if source_sample and target_sample:
+                        validated_candidates = []
+                        for target_col, name_score in candidates:
+                            confidence = cls._calculate_relationship_confidence(
+                                source_col, target_col, source_sample, target_sample
+                            )
+                            if confidence > 0.3:
+                                # Combine name score with data confidence
+                                # Data confidence is more important (weight: 0.7)
+                                combined_score = (
+                                    name_score / 100
+                                ) * 0.3 + confidence * 0.7
+                                validated_candidates.append(
+                                    (target_col, confidence, combined_score)
+                                )
 
-                    # Validate with data if available
-                    confidence = cls._calculate_relationship_confidence(
-                        source_col, best_target_col, source_sample, target_sample
-                    )
+                        if validated_candidates:
+                            # Sort by combined score (data validation weighted higher)
+                            validated_candidates.sort(key=lambda x: x[2], reverse=True)
+                            best_target_col, best_confidence, _ = validated_candidates[
+                                0
+                            ]
+                            return {
+                                "source_field": source_col,
+                                "target_field": best_target_col,
+                                "confidence": best_confidence,
+                                "match_type": "semantic_context",
+                            }
+                    else:
+                        # No sample data, use name-based scoring only
+                        candidates.sort(key=lambda x: x[1], reverse=True)
+                        best_target_col = candidates[0][0]
+                        confidence = 0.5  # Base confidence without data validation
 
-                    if confidence > 0.3:
                         return {
                             "source_field": source_col,
                             "target_field": best_target_col,

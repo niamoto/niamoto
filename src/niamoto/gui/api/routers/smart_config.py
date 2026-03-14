@@ -39,6 +39,7 @@ class AutoConfigureResponse(BaseModel):
 
     success: bool
     entities: Dict[str, Any]
+    detected_columns: Dict[str, List[str]] = {}  # Entity name -> columns
     confidence: float
     warnings: List[str] = []
 
@@ -575,7 +576,10 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
                         referenced_by[entity_name].append(
                             {
                                 "from": other_name,
-                                "field": best_rel["source_field"],
+                                "field": best_rel["source_field"],  # FK in source
+                                "target_field": best_rel[
+                                    "target_field"
+                                ],  # Match in target
                                 "confidence": best_rel["confidence"],
                             }
                         )
@@ -641,8 +645,10 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
                     filepath, analysis, csv_analyses
                 )
             elif entity_type == "reference":
+                # Pass relation info if this reference is linked to other entities
+                relation_info = referenced_by.get(entity_name)
                 references[entity_name] = _build_simple_reference_config(
-                    filepath, analysis
+                    filepath, analysis, relation_info
                 )
             elif entity_type == "dataset":
                 datasets_to_create[entity_name] = (filepath, analysis)
@@ -746,9 +752,16 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
         if metadata:
             result_entities["metadata"] = metadata
 
+        # Build detected_columns mapping for form dropdowns
+        detected_columns: Dict[str, List[str]] = {}
+        for filepath, analysis in csv_analyses.items():
+            entity_name = Path(filepath).stem
+            detected_columns[entity_name] = analysis.get("columns", [])
+
         return AutoConfigureResponse(
             success=True,
             entities=result_entities,
+            detected_columns=detected_columns,
             confidence=overall_confidence,
             warnings=warnings,
         )
@@ -849,18 +862,26 @@ def _build_hierarchy_reference_config(
 
 
 def _build_simple_reference_config(
-    filepath: str, analysis: Dict[str, Any]
+    filepath: str,
+    analysis: Dict[str, Any],
+    relation_info: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Build configuration for a simple reference (e.g., plots, sites).
 
     Args:
         filepath: Path to file
         analysis: Analysis results
+        relation_info: Optional list of relationship info from referenced_by
+                      Each entry has: from (source entity), field (FK column), confidence
 
     Returns:
         Reference configuration
     """
     id_column = analysis["id_columns"][0] if analysis["id_columns"] else "id"
+
+    # Detect the name column for this reference (for FK matching)
+    name_columns = analysis.get("name_columns", [])
+    name_column = name_columns[0] if name_columns else None
 
     config = {
         "connector": {
@@ -882,6 +903,21 @@ def _build_simple_reference_config(
                 "type": "geometry",
             }
         )
+
+    # Add relation info if detected (how this reference links to occurrences)
+    if relation_info:
+        # Find the best relation (highest confidence from occurrences)
+        best_relation = max(relation_info, key=lambda r: r.get("confidence", 0))
+
+        # Use the detected target_field as reference_key
+        # This is the column in this reference that matches the FK values
+        reference_key = best_relation.get("target_field") or name_column or id_column
+
+        config["relation"] = {
+            "dataset": best_relation["from"],  # e.g., "occurrences"
+            "foreign_key": best_relation["field"],  # e.g., "plot_name"
+            "reference_key": reference_key,  # e.g., "plot" (from relationship detection)
+        }
 
     return config
 

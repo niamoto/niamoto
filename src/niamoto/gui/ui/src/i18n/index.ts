@@ -13,6 +13,18 @@ import frExport from './locales/fr/export.json';
 import enExport from './locales/en/export.json';
 import frVisualize from './locales/fr/visualize.json';
 import enVisualize from './locales/en/visualize.json';
+import frSite from './locales/fr/site.json';
+import enSite from './locales/en/site.json';
+import frWidgets from './locales/fr/widgets.json';
+import enWidgets from './locales/en/widgets.json';
+import frSources from './locales/fr/sources.json';
+import enSources from './locales/en/sources.json';
+import frIndexConfig from './locales/fr/indexConfig.json';
+import enIndexConfig from './locales/en/indexConfig.json';
+import frTools from './locales/fr/tools.json';
+import enTools from './locales/en/tools.json';
+import frPublish from './locales/fr/publish.json';
+import enPublish from './locales/en/publish.json';
 
 const resources = {
   fr: {
@@ -21,6 +33,12 @@ const resources = {
     transform: frTransform,
     export: frExport,
     visualize: frVisualize,
+    site: frSite,
+    widgets: frWidgets,
+    sources: frSources,
+    indexConfig: frIndexConfig,
+    tools: frTools,
+    publish: frPublish,
   },
   en: {
     common: enCommon,
@@ -28,6 +46,12 @@ const resources = {
     transform: enTransform,
     export: enExport,
     visualize: enVisualize,
+    site: enSite,
+    widgets: enWidgets,
+    sources: enSources,
+    indexConfig: enIndexConfig,
+    tools: enTools,
+    publish: enPublish,
   },
 };
 
@@ -37,7 +61,7 @@ i18n
   .init({
     resources,
     defaultNS: 'common',
-    ns: ['common', 'import', 'transform', 'export', 'visualize'],
+    ns: ['common', 'import', 'transform', 'export', 'visualize', 'site', 'widgets', 'sources', 'indexConfig', 'tools', 'publish'],
     fallbackLng: 'fr',
     debug: false,
 

@@ -4,7 +4,7 @@ import { PipelineSection } from './PipelineSection'
 import { ImportDemo } from './ImportDemo'
 import { TransformDemo } from './TransformDemo'
 import { ExportDemo } from './ExportDemo'
-import { usePipelineStore } from '@/stores/pipelineStore'
+import { usePipelineStore } from '../pipelineStore'
 import {
   Workflow,
   FileInput,

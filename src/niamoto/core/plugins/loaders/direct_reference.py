@@ -6,6 +6,7 @@ from typing import Dict, Any, Literal, Optional
 from pydantic import Field, ConfigDict
 
 import pandas as pd
+from sqlalchemy import text
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import LoaderPlugin, PluginType, register
@@ -38,6 +39,11 @@ class DirectReferenceParams(BasePluginParams):
     key: str = Field(
         ...,
         description="Foreign key field in main table",
+        json_schema_extra={"ui:widget": "field-select"},
+    )
+    ref_key: Optional[str] = Field(
+        default=None,
+        description="Matching field in reference table (used when key types differ from group_id)",
         json_schema_extra={"ui:widget": "field-select"},
     )
 
@@ -152,12 +158,37 @@ class DirectReferenceLoader(LoaderPlugin):
             )
 
         try:
-            query = f"""
-                SELECT m.*
-                FROM {physical_main} m
-                WHERE m.{key_field} = :id
-            """
-            return pd.read_sql(query, self.db.engine, params={"id": group_id})
+            ref_key = params.ref_key
+            if ref_key:
+                # Determine the entity's ID field from registry metadata
+                ref_id_field = "id"
+                # Use logical name if available (before physical resolution)
+                logical_grouping = (
+                    getattr(params, "logical_grouping", None) or ref_table
+                )
+                try:
+                    metadata = self.registry.get(logical_grouping)
+                    ref_id_field = metadata.config.get("schema", {}).get(
+                        "id_field", "id"
+                    )
+                except (DatabaseQueryError, AttributeError, KeyError):
+                    pass
+
+                # JOIN data table with reference table to match via ref_key
+                query = text(f"""
+                    SELECT m.*
+                    FROM {physical_main} m
+                    JOIN {physical_ref} r ON m.{key_field} = r."{ref_key}"
+                    WHERE r."{ref_id_field}" = :id
+                """)
+                return pd.read_sql(query, self.db.engine, params={"id": group_id})
+            else:
+                query = text(f"""
+                    SELECT m.*
+                    FROM {physical_main} m
+                    WHERE m.{key_field} = :id
+                """)
+                return pd.read_sql(query, self.db.engine, params={"id": group_id})
 
         except Exception as e:
             raise DatabaseError(f"Error executing query: {str(e)}") from e

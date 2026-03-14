@@ -3,6 +3,7 @@ import { apiClient } from './client'
 export interface TransformRequest {
   config_path?: string
   transformations?: string[]
+  group_by?: string
 }
 
 export interface TransformResponse {
@@ -17,6 +18,8 @@ export interface TransformStatus {
   status: string
   progress: number
   message: string
+  phase?: string | null
+  group_by?: string | null
   started_at: string
   completed_at?: string | null
   result?: {
@@ -103,6 +106,22 @@ export async function getTransformMetrics(): Promise<{
   job_id?: string
 }> {
   const response = await apiClient.get('/transform/metrics')
+  return response.data
+}
+
+/**
+ * Get the currently active transform job (running or recently completed)
+ */
+export async function getActiveTransformJob(): Promise<TransformStatus | null> {
+  const response = await apiClient.get('/transform/active')
+  return response.data
+}
+
+/**
+ * Get the last completed transform for a specific group
+ */
+export async function getLastTransformRun(groupBy: string): Promise<TransformStatus | null> {
+  const response = await apiClient.get(`/transform/last-run/${encodeURIComponent(groupBy)}`)
   return response.data
 }
 

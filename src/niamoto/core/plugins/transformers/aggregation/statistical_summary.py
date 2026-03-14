@@ -54,6 +54,7 @@ class StatisticalSummaryParams(BasePluginParams):
         json_schema_extra={
             "examples": ["m", "cm", "kg", "°C", "%"],
             "ui_component": "text",
+            "ui:quick_edit": True,
         },
     )
 
@@ -61,7 +62,11 @@ class StatisticalSummaryParams(BasePluginParams):
         default=100,
         description="Maximum value for scaling/display purposes. Will be overridden if data maximum is higher.",
         ge=0,
-        json_schema_extra={"ui_component": "number", "ui_step": 1},
+        json_schema_extra={
+            "ui_component": "number",
+            "ui_step": 1,
+            "ui:quick_edit": True,
+        },
     )
 
 
@@ -94,6 +99,18 @@ class StatisticalSummary(TransformerPlugin):
     """Plugin for calculating statistical summaries"""
 
     config_model = StatisticalSummaryConfig
+    param_schema = StatisticalSummaryParams  # For exposing params with UI hints
+
+    # Output structure for pattern matching
+    output_structure = {
+        "min": "float",
+        "mean": "float",
+        "max": "float",
+        "median": "float",
+        "std": "float",
+        "units": "str",
+        "max_value": "float",
+    }
 
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
@@ -133,25 +150,18 @@ class StatisticalSummary(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform data according to configuration."""
+        """Transform data according to configuration.
+
+        Note: The service layer is responsible for loading the correct data source.
+        This transformer is a pure function that only transforms the provided data.
+        """
         try:
             # Validate config and get typed parameters
             validated_config = self.config_model(**config)
             # Convert to typed params for easier access
             params = StatisticalSummaryParams(**validated_config.params)
 
-            # Get source data if different from occurrences
-            if params.source != "occurrences":
-                # Resolve logical entity name to physical table name
-                table_name = self._resolve_table_name(params.source)
-                result = self.db.execute_select(f"""
-                    SELECT * FROM {table_name}
-                """)
-                data = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-
+            # Service has already loaded the correct source - just use the data
             # Get field data
             field_data = data[params.field]
 

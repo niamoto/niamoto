@@ -18,6 +18,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+!scripts/build/
 develop-eggs/
 dist/
 # But keep the GUI dist directory structure for CI/CD

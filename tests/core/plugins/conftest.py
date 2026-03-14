@@ -79,10 +79,30 @@ def plugin_loader():
 
 @pytest.fixture(scope="function")
 def clear_registry():
-    """Clear the plugin registry before and after the test."""
+    """Clear the plugin registry for the test, then restore original state."""
+    saved_plugins = {pt: dict(d) for pt, d in PluginRegistry._plugins.items()}
+    saved_metadata = dict(PluginRegistry._metadata)
     PluginRegistry.clear()
     yield
-    PluginRegistry.clear()
+    # Restaurer l'état original au lieu de laisser le registre vide
+    for pt in PluginRegistry._plugins:
+        PluginRegistry._plugins[pt] = saved_plugins.get(pt, {})
+    PluginRegistry._metadata.update(saved_metadata)
+
+
+@pytest.fixture(autouse=True, scope="class")
+def _restore_plugin_registry_per_class():
+    """Restaure le PluginRegistry après chaque classe de tests.
+
+    Scope=class pour capturer l'état AVANT les setUpClass() qui
+    appellent PluginRegistry.clear(), et restaurer après tearDownClass().
+    """
+    snapshot_plugins = {pt: dict(d) for pt, d in PluginRegistry._plugins.items()}
+    snapshot_metadata = dict(PluginRegistry._metadata)
+    yield
+    for pt in PluginRegistry._plugins:
+        PluginRegistry._plugins[pt] = snapshot_plugins.get(pt, {})
+    PluginRegistry._metadata = snapshot_metadata
 
 
 @pytest.fixture(scope="session")

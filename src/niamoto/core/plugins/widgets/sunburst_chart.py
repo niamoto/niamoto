@@ -1,5 +1,6 @@
 # src/niamoto/core/plugins/widgets/sunburst_chart.py
 
+import html
 import logging
 import plotly.graph_objects as go
 from pydantic import Field, ConfigDict
@@ -265,4 +266,4 @@ class SunburstChartWidget(WidgetPlugin):
 
         except Exception as e:
             logger.error(f"Failed to generate Sunburst chart: {e}", exc_info=True)
-            return f"<p class='error'>Error generating Sunburst chart: {e}</p>"
+            return f"<p class='error'>Error generating Sunburst chart: {html.escape(str(e))}</p>"

@@ -90,6 +90,15 @@ class BinaryCounter(TransformerPlugin):
 
     config_model = BinaryCounterConfig
 
+    # Output structure for pattern matching (dynamic keys based on labels)
+    # Structure example: {"um": int, "num": int, "um_percent": float, "num_percent": float}
+    output_structure = {
+        "um": "int",
+        "num": "int",
+        "um_percent": "float",
+        "num_percent": "float",
+    }
+
     def __init__(self, db, registry=None):
         """Initialize with database and optional EntityRegistry.
 
@@ -125,23 +134,17 @@ class BinaryCounter(TransformerPlugin):
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def transform(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform data according to configuration."""
+        """Transform data according to configuration.
+
+        Note: The service layer is responsible for loading the correct data source.
+        This transformer is a pure function that only transforms the provided data.
+        """
         try:
             # Validate configuration
             validated_config = self.validate_config(config)
             params = validated_config.params
 
-            # Get source data if different from occurrences
-            if params.source != "occurrences":
-                # Resolve logical entity name to physical table name
-                table_name = self._resolve_table_name(params.source)
-                sql_query = f"SELECT * FROM {table_name}"
-                result = self.db.execute_select(sql_query)
-                data = pd.DataFrame(
-                    result.fetchall(),
-                    columns=[desc[0] for desc in result.cursor.description],
-                )
-
+            # Service has already loaded the correct source - just use the data
             true_count = 0
             false_count = 0
             total_count = 0
@@ -150,15 +153,25 @@ class BinaryCounter(TransformerPlugin):
             if not data.empty and params.field:
                 field_data = data.get(params.field)
                 if field_data is not None and not field_data.empty:
-                    # Filter out any values that are not 0 or 1
-                    valid_mask = (field_data == 0) | (field_data == 1)
-                    field_data = field_data[valid_mask]
+                    # Drop null values first
+                    field_data = field_data.dropna()
 
                     if not field_data.empty:
-                        # Count values (1 = true, 0 = false)
-                        true_count = len(field_data[field_data == 1])
-                        false_count = len(field_data[field_data == 0])
-                        total_count = true_count + false_count
+                        # Handle both boolean (True/False) and numeric (0/1) values
+                        # First check if data is boolean type
+                        if field_data.dtype == bool:
+                            true_count = int(field_data.sum())
+                            false_count = len(field_data) - true_count
+                            total_count = true_count + false_count
+                        else:
+                            # For numeric data, only count strict 0/1 values
+                            # Filter to only valid binary values (0 or 1)
+                            valid_mask = (field_data == 0) | (field_data == 1)
+                            binary_data = field_data[valid_mask]
+                            if not binary_data.empty:
+                                true_count = int((binary_data == 1).sum())
+                                false_count = int((binary_data == 0).sum())
+                                total_count = true_count + false_count
 
             # Prepare result
             result = {

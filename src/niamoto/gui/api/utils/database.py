@@ -25,7 +25,7 @@ def open_database(
         Database instance
 
     Example:
-        with open_database(db_path, read_only=True) as db:
+        with open_database(db_path) as db:
             result = db.execute_sql("SELECT * FROM table")
         # Connections automatically closed here
     """

@@ -13,11 +13,12 @@ within the detail pages.
 """
 
 import logging
+import re
 import shutil
 import json
 import pandas as pd
 from pathlib import Path
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Dict, List, Set, Optional, Tuple
 import importlib.resources
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape, ChoiceLoader
@@ -29,6 +30,8 @@ from niamoto.common.database import Database
 from niamoto.common.exceptions import ConfigurationError, ProcessError
 from niamoto.common.config import Config
 from niamoto.common.utils.emoji import emoji
+from niamoto.common.i18n import I18nResolver
+from niamoto.common.table_resolver import resolve_entity_table, resolve_reference_table
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, WidgetPlugin, register
 from niamoto.core.plugins.models import (
     TargetConfig,
@@ -64,6 +67,10 @@ class HtmlPageExporter(ExporterPlugin):
             "output_path": None,
         }
 
+        # I18n resolver (initialized during export)
+        self._i18n_resolver: Optional[I18nResolver] = None
+        self._current_lang: Optional[str] = None
+
     def _get_nested_data(
         self, data_dict: Dict[str, Any], key_path: str
     ) -> Optional[Any]:
@@ -81,6 +88,232 @@ class HtmlPageExporter(ExporterPlugin):
                 return None  # Tried to access key on non-dict
         return current_data
 
+    def _resolve_registry_entity(
+        self, entity_name: str
+    ) -> Tuple[Optional[str], Dict[str, Any]]:
+        """Resolve an entity through registry metadata when available."""
+        if not self.registry:
+            return None, {}
+
+        try:
+            entity_meta = self.registry.get(entity_name)
+            table_name = getattr(entity_meta, "table_name", None)
+            if table_name and self.db.has_table(table_name):
+                config = getattr(entity_meta, "config", {}) or {}
+                if isinstance(config, dict):
+                    return table_name, config
+                return table_name, {}
+        except Exception:
+            pass
+
+        return None, {}
+
+    def _resolve_group_table_and_id(
+        self, group_by_key: str, navigation_entity: Optional[str] = None
+    ) -> Tuple[str, str]:
+        """Resolve group table and identifier column from registry/config/conventions."""
+        table_name, entity_config = self._resolve_registry_entity(group_by_key)
+        if not table_name and navigation_entity and navigation_entity != group_by_key:
+            table_name, entity_config = self._resolve_registry_entity(navigation_entity)
+
+        if not table_name:
+            table_name = resolve_entity_table(
+                self.db,
+                group_by_key,
+                registry=self.registry,
+                kind="reference",
+            )
+            if (
+                not table_name
+                and navigation_entity
+                and navigation_entity != group_by_key
+            ):
+                table_name = resolve_entity_table(
+                    self.db,
+                    navigation_entity,
+                    registry=self.registry,
+                    kind="reference",
+                )
+            if not table_name:
+                table_name = group_by_key
+
+        id_column = f"{group_by_key}_id"
+        try:
+            table_columns = self.db.get_table_columns(table_name) or []
+        except Exception:
+            return table_name, id_column
+
+        if not table_columns:
+            return table_name, id_column
+
+        schema_cfg = (
+            entity_config.get("schema", {}) if isinstance(entity_config, dict) else {}
+        )
+        schema_id = schema_cfg.get("id_field") if isinstance(schema_cfg, dict) else None
+
+        id_candidates: List[str] = []
+        if schema_id:
+            id_candidates.append(schema_id)
+        id_candidates.extend([f"{group_by_key}_id", f"id_{group_by_key}", "id"])
+        id_candidates.extend([c for c in table_columns if c.endswith("_id")])
+
+        resolved_id = next((c for c in id_candidates if c in table_columns), None)
+        if resolved_id:
+            return table_name, resolved_id
+        return table_name, id_column
+
+    def _resolve_reference_table_name(self, entity_name: str) -> str:
+        """Resolve reference table with registry-first strategy and safe fallback."""
+        table_name, _ = self._resolve_registry_entity(entity_name)
+        if table_name:
+            return table_name
+
+        return resolve_reference_table(self.db, entity_name) or f"entity_{entity_name}"
+
+    def _resolve_localized(self, value: Any, lang: Optional[str] = None) -> Any:
+        """
+        Resolve a potentially localized value for the current language.
+
+        Args:
+            value: Value that may be a localized dict or simple value
+            lang: Target language (uses current lang if not specified)
+
+        Returns:
+            Resolved value for the target language
+        """
+        if self._i18n_resolver is None:
+            return (
+                value
+                if not isinstance(value, dict)
+                else next(iter(value.values()), value)
+            )
+
+        target_lang = lang or self._current_lang
+        return self._i18n_resolver.resolve(value, target_lang)
+
+    def _resolve_navigation(
+        self, navigation: List[Any], lang: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Resolve localized strings in navigation items.
+
+        Args:
+            navigation: List of NavigationItem objects or dicts
+            lang: Target language
+
+        Returns:
+            List of navigation dicts with resolved strings
+        """
+        resolved = []
+        for item in navigation:
+            if hasattr(item, "model_dump"):
+                item_dict = item.model_dump()
+            else:
+                item_dict = (
+                    dict(item) if isinstance(item, dict) else {"text": str(item)}
+                )
+
+            # Resolve text
+            if "text" in item_dict:
+                item_dict["text"] = self._resolve_localized(item_dict["text"], lang)
+
+            # Recursively resolve children
+            if "children" in item_dict and item_dict["children"]:
+                item_dict["children"] = self._resolve_navigation(
+                    item_dict["children"], lang
+                )
+
+            resolved.append(item_dict)
+        return resolved
+
+    def _resolve_footer_sections(
+        self, sections: List[Any], lang: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Resolve localized strings in footer sections."""
+        resolved = []
+        for section in sections:
+            if hasattr(section, "model_dump"):
+                s = section.model_dump()
+            else:
+                s = dict(section) if isinstance(section, dict) else {}
+
+            if "title" in s:
+                s["title"] = self._resolve_localized(s["title"], lang)
+
+            if "links" in s and s["links"]:
+                for link in s["links"]:
+                    if "text" in link:
+                        link["text"] = self._resolve_localized(link["text"], lang)
+
+            resolved.append(s)
+        return resolved
+
+    def _get_site_context(
+        self, html_params: HtmlExporterParams, lang: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Build site context with resolved localized strings.
+
+        Args:
+            html_params: HTML exporter parameters
+            lang: Target language
+
+        Returns:
+            Site context dict with resolved strings
+        """
+        site_dict = html_params.site.model_dump() if html_params.site else {}
+
+        # Resolve localized title
+        if "title" in site_dict:
+            site_dict["title"] = self._resolve_localized(site_dict["title"], lang)
+
+        # Add current language info
+        site_dict["current_lang"] = lang or site_dict.get("lang", "en")
+
+        return site_dict
+
+    def _generate_language_redirect(
+        self, output_dir: Path, default_lang: str, languages: List[str]
+    ) -> None:
+        """
+        Generate a redirect page at the root that redirects to the default language.
+
+        Args:
+            output_dir: Base output directory
+            default_lang: Default language to redirect to
+            languages: List of available languages
+        """
+        redirect_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url={default_lang}/">
+    <script>
+        // Detect browser language and redirect
+        (function() {{
+            var supportedLangs = {json.dumps(languages)};
+            var browserLang = navigator.language || navigator.userLanguage;
+            var shortLang = browserLang.split('-')[0].toLowerCase();
+
+            if (supportedLangs.indexOf(shortLang) !== -1) {{
+                window.location.href = shortLang + '/';
+            }} else {{
+                window.location.href = '{default_lang}/';
+            }}
+        }})();
+    </script>
+    <title>Redirecting...</title>
+</head>
+<body>
+    <p>Redirecting to <a href="{default_lang}/">default language</a>...</p>
+</body>
+</html>"""
+
+        redirect_path = output_dir / "index.html"
+        redirect_path.write_text(redirect_html, encoding="utf-8")
+        self.stats["total_files_generated"] += 1
+        logger.info(f"Generated language redirect page: {redirect_path}")
+
     def export(
         self,
         target_config: TargetConfig,
@@ -89,6 +322,10 @@ class HtmlPageExporter(ExporterPlugin):
     ) -> None:
         """
         Executes the HTML export process.
+
+        Supports multi-language generation when site.languages is configured with
+        multiple languages. In that case, generates separate directories for each
+        language (e.g., /fr/, /en/) and a redirect page at the root.
 
         Args:
             target_config: The validated configuration for this HTML export target.
@@ -114,6 +351,24 @@ class HtmlPageExporter(ExporterPlugin):
 
             # Store output path for summary display
             self.stats["output_path"] = str(output_dir.resolve())
+
+            # Initialize I18n resolver
+            default_lang = html_params.site.lang if html_params.site else "en"
+            languages = (
+                html_params.site.languages
+                if html_params.site and html_params.site.languages
+                else [default_lang]
+            )
+            self._i18n_resolver = I18nResolver(
+                default_lang=default_lang, available_languages=languages
+            )
+
+            # Determine if multi-language generation is enabled
+            # Multi-lang is enabled if there's more than one language
+            multi_lang_enabled = len(languages) > 1
+            language_switcher = (
+                html_params.site.language_switcher if html_params.site else False
+            )
 
             # --- Modified Directory Clearing Logic ---
             if (
@@ -188,6 +443,14 @@ class HtmlPageExporter(ExporterPlugin):
                     else:
                         return "../" * depth + url[1:]
 
+                # Map project files/ to assets/files/ in the output
+                clean = url.lstrip("/")
+                if clean.startswith("files/"):
+                    clean = "assets/" + clean
+                    if depth == 0:
+                        return clean
+                    return "../" * depth + clean
+
                 # Already relative URL
                 return url
 
@@ -206,29 +469,77 @@ class HtmlPageExporter(ExporterPlugin):
                 logger.warning(f"Could not list available templates: {e}")
 
             # 3. Setup Markdown parser
-            md = MarkdownIt()
+            md = MarkdownIt().enable("table")
             logger.debug("Markdown parser initialized.")
 
-            # 4. Copy static assets (default and user-specified)
+            # 4. Copy static assets (default and user-specified) - once at root level
             self._copy_static_assets(html_params, output_dir)
 
-            # 5. Process static pages defined in the target config
-            logger.info(
-                f"Processing {len(target_config.static_pages)} static page configurations..."
-            )
-            self._process_static_pages(
-                target_config.static_pages, jinja_env, html_params, output_dir, md
-            )
+            # 5. Generate content for each language
+            if multi_lang_enabled:
+                logger.info(f"Multi-language export enabled for languages: {languages}")
 
-            # 6. Process data groups (index and detail pages)
-            self._process_groups(
-                target_config.groups,
-                jinja_env,
-                html_params,
-                output_dir,
-                repository,
-                group_filter,
-            )
+                # Generate content for each language in its subdirectory
+                for lang in languages:
+                    self._current_lang = lang
+                    lang_output_dir = output_dir / lang
+
+                    # Create language directory
+                    lang_output_dir.mkdir(parents=True, exist_ok=True)
+                    logger.info(f"Generating content for language: {lang}")
+
+                    # Reset navigation cache for each language
+                    self._navigation_js_generated = set()
+
+                    # Process static pages for this language
+                    self._process_static_pages(
+                        target_config.static_pages,
+                        jinja_env,
+                        html_params,
+                        lang_output_dir,
+                        md,
+                        lang=lang,
+                        languages=languages,
+                        language_switcher=language_switcher,
+                    )
+
+                    # Process data groups for this language
+                    self._process_groups(
+                        target_config.groups,
+                        jinja_env,
+                        html_params,
+                        lang_output_dir,
+                        repository,
+                        group_filter,
+                        lang=lang,
+                        languages=languages,
+                        language_switcher=language_switcher,
+                    )
+
+                # Generate root redirect page
+                self._generate_language_redirect(output_dir, default_lang, languages)
+
+            else:
+                # Single language mode (backward compatible)
+                self._current_lang = default_lang
+
+                # Process static pages
+                logger.info(
+                    f"Processing {len(target_config.static_pages)} static page configurations..."
+                )
+                self._process_static_pages(
+                    target_config.static_pages, jinja_env, html_params, output_dir, md
+                )
+
+                # Process data groups
+                self._process_groups(
+                    target_config.groups,
+                    jinja_env,
+                    html_params,
+                    output_dir,
+                    repository,
+                    group_filter,
+                )
 
             # Mark completion time
             self.stats["end_time"] = datetime.now()
@@ -404,6 +715,336 @@ class HtmlPageExporter(ExporterPlugin):
 
         logger.info("User-specified assets copy process finished.")
 
+        # 3. Copy project 'files/' directory into assets/files/
+        # This directory contains user-uploaded files (logos, images, etc.)
+        # Placed under assets/ so relative_url handles them consistently
+        try:
+            project_files_dir = Path(Config.get_niamoto_home()) / "files"
+        except Exception:
+            project_files_dir = Path.cwd() / "files"
+
+        if project_files_dir.exists() and project_files_dir.is_dir():
+            target_files_dir = output_dir / "assets" / "files"
+            try:
+                shutil.copytree(project_files_dir, target_files_dir, dirs_exist_ok=True)
+                logger.info(
+                    f"Copied project files from {project_files_dir} to {target_files_dir}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to copy project files: {e}", exc_info=True)
+
+    @staticmethod
+    def _references_to_bibtex(references: List[Dict[str, Any]]) -> str:
+        """Convert a list of reference dicts to BibTeX format."""
+        type_mapping = {
+            "article": "article",
+            "book": "book",
+            "chapter": "incollection",
+            "thesis": "phdthesis",
+            "report": "techreport",
+            "conference": "inproceedings",
+            "other": "misc",
+        }
+
+        lines = []
+        for ref in references:
+            bib_type = type_mapping.get(ref.get("type", "other"), "misc")
+            authors = ref.get("authors", "unknown")
+            first_author = authors.split(",")[0].strip().split()[-1].lower()
+            year = ref.get("year", "0000")
+            title_word = ref.get("title", "untitled").split()[0].lower()
+            key = f"{first_author}{year}{title_word}"
+
+            lines.append(f"@{bib_type}{{{key},")
+            if ref.get("authors"):
+                bib_authors = ref["authors"].replace(", ", " and ")
+                lines.append(f"  author    = {{{bib_authors}}},")
+            if ref.get("title"):
+                lines.append(f"  title     = {{{ref['title']}}},")
+            if ref.get("year"):
+                lines.append(f"  year      = {{{ref['year']}}},")
+            if ref.get("journal"):
+                if bib_type in ("inproceedings", "incollection"):
+                    lines.append(f"  booktitle = {{{ref['journal']}}},")
+                elif bib_type == "phdthesis":
+                    lines.append(f"  school    = {{{ref['journal']}}},")
+                else:
+                    lines.append(f"  journal   = {{{ref['journal']}}},")
+            if ref.get("volume"):
+                lines.append(f"  volume    = {{{ref['volume']}}},")
+            if ref.get("pages"):
+                lines.append(f"  pages     = {{{ref['pages'].replace('-', '--')}}},")
+            if ref.get("doi"):
+                lines.append(f"  doi       = {{{ref['doi']}}},")
+            if ref.get("url"):
+                lines.append(f"  url       = {{{ref['url']}}},")
+            lines.append("}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _load_bibtex_references(self, bibtex_source: str) -> List[Dict[str, Any]]:
+        """
+        Load and parse a BibTeX file into a list of reference dicts.
+
+        Args:
+            bibtex_source: Path to the .bib file (relative or absolute)
+
+        Returns:
+            List of reference dicts with keys: type, title, authors, year,
+            journal, volume, pages, doi, url
+        """
+        import re
+
+        bib_path = Path(bibtex_source)
+        if not bib_path.is_file():
+            logger.warning(f"BibTeX file not found: {bib_path}")
+            return []
+
+        try:
+            text = bib_path.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.error(f"Error reading BibTeX file '{bib_path}': {e}")
+            return []
+
+        # Type mapping
+        type_mapping = {
+            "article": "article",
+            "book": "book",
+            "inbook": "chapter",
+            "incollection": "chapter",
+            "phdthesis": "thesis",
+            "mastersthesis": "thesis",
+            "techreport": "report",
+            "inproceedings": "conference",
+            "conference": "conference",
+            "misc": "other",
+            "unpublished": "other",
+        }
+
+        field_pattern = re.compile(
+            r"(\w+)\s*=\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}"
+            r"|\"([^\"]*)\"|(\d+))",
+            re.IGNORECASE,
+        )
+
+        references = []
+        entry_starts = [m.start() for m in re.finditer(r"@\w+\s*\{", text)]
+
+        for start in entry_starts:
+            # Find matching closing brace
+            brace_count = 0
+            end = start
+            in_entry = False
+            for j, char in enumerate(text[start:], start):
+                if char == "{":
+                    brace_count += 1
+                    in_entry = True
+                elif char == "}":
+                    brace_count -= 1
+                    if in_entry and brace_count == 0:
+                        end = j + 1
+                        break
+
+            entry_text = text[start:end]
+
+            # Extract entry type
+            entry_match = re.match(
+                r"@(\w+)\s*\{\s*([^,]+)\s*,", entry_text, re.IGNORECASE
+            )
+            if not entry_match:
+                continue
+
+            entry_type = entry_match.group(1).lower()
+            ref_type = type_mapping.get(entry_type, "other")
+
+            # Extract fields
+            fields = {}
+            for match in field_pattern.finditer(entry_text):
+                field_name = match.group(1).lower()
+                field_value = match.group(2) or match.group(3) or match.group(4) or ""
+                fields[field_name] = re.sub(r"\s+", " ", field_value.strip())
+
+            title = fields.get("title", "")
+            if not title:
+                continue
+
+            ref = {
+                "type": ref_type,
+                "title": title,
+                "authors": fields.get("author", "").replace(" and ", ", "),
+                "year": fields.get("year", ""),
+            }
+
+            # Journal / venue
+            for venue_field in (
+                "journal",
+                "booktitle",
+                "school",
+                "institution",
+                "publisher",
+            ):
+                if venue_field in fields:
+                    ref["journal"] = fields[venue_field]
+                    break
+
+            if "volume" in fields:
+                vol = fields["volume"]
+                if "number" in fields:
+                    vol += f"({fields['number']})"
+                ref["volume"] = vol
+
+            if "pages" in fields:
+                ref["pages"] = fields["pages"].replace("--", "-")
+            if "doi" in fields:
+                ref["doi"] = fields["doi"]
+            if "url" in fields:
+                ref["url"] = fields["url"]
+
+            # Append note for extra context
+            if "note" in fields:
+                if "journal" in ref:
+                    ref["journal"] += f" — {fields['note']}"
+                else:
+                    ref["journal"] = fields["note"]
+
+            references.append(ref)
+
+        # Sort by year descending, then by authors
+        references.sort(
+            key=lambda r: (-int(r.get("year") or "0"), r.get("authors", ""))
+        )
+        return references
+
+    @staticmethod
+    def _postprocess_markdown_html(html: str) -> str:
+        """Post-process markdown-rendered HTML to handle image metadata in alt text.
+
+        Transforms ![alt|300|center](src) rendered as <img alt="alt|300|center">
+        into properly styled <img> with width and alignment.
+        """
+
+        def _replace_img(match: re.Match) -> str:
+            full = match.group(0)
+            alt_match = re.search(r'alt="([^"]*)"', full)
+            if not alt_match:
+                return full
+            alt_raw = alt_match.group(1)
+            parts = alt_raw.split("|")
+            if len(parts) < 2:
+                return full
+            clean_alt = parts[0]
+            img_styles: list[str] = []
+            alignment = None
+            for part in parts[1:]:
+                p = part.strip()
+                if re.match(r"^\d+$", p):
+                    img_styles.append(f"max-width:{p}px")
+                elif p == "center":
+                    alignment = "center"
+                elif p == "right":
+                    alignment = "right"
+            result = full.replace(f'alt="{alt_raw}"', f'alt="{clean_alt}"')
+            if img_styles:
+                style_str = ";".join(img_styles)
+                if 'style="' in result:
+                    result = result.replace('style="', f'style="{style_str};')
+                else:
+                    result = result.replace("<img ", f'<img style="{style_str}" ')
+            # Wrap in flex div for alignment (works with Tailwind's display:block on img)
+            if alignment == "center":
+                return f'<div style="display:flex;justify-content:center;margin:1rem 0">{result}</div>'
+            elif alignment == "right":
+                return f'<div style="display:flex;justify-content:flex-end;margin:1rem 0">{result}</div>'
+            return result
+
+        return re.sub(r"<img\s[^>]+>", _replace_img, html)
+
+    @staticmethod
+    def _get_nested_value_static(data: dict, path: str) -> Any:
+        """Get value from nested dict using dot notation (e.g. 'general_info.name.value')."""
+        current: Any = data
+        for key in path.split("."):
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+        return current
+
+    @staticmethod
+    def _rewrite_content_paths(html: str, depth: int) -> str:
+        """Rewrite relative paths in markdown-rendered HTML.
+
+        Remaps ``files/`` → ``assets/files/`` and prepends the correct number
+        of ``../`` segments so that images resolve from language subdirectories.
+        """
+        prefix = "../" * depth
+
+        def _fix_src(match: re.Match) -> str:
+            attr = match.group(1)  # src or href
+            path = match.group(2)
+            if path.startswith("files/"):
+                return f'{attr}="{prefix}assets/{path}"'
+            return match.group(0)
+
+        return re.sub(r'(src|href)="(files/[^"]*)"', _fix_src, html)
+
+    @staticmethod
+    def _dedupe_plotly_deps(deps: Set[str]) -> Set[str]:
+        """Remove Plotly core when maps bundle is present (maps is a superset)."""
+        maps = "/assets/js/vendor/plotly/plotly-niamoto-maps.min.js"
+        core = "/assets/js/vendor/plotly/plotly-niamoto-core.min.js"
+        if maps in deps and core in deps:
+            return deps - {core}
+        return deps
+
+    def _resolve_content_source(
+        self, content_source: str, lang: Optional[str], md: MarkdownIt
+    ) -> Optional[str]:
+        """
+        Resolve a content source path, supporting language-specific files.
+
+        For a content_source like "pages/about", tries in order:
+        1. pages/about.{lang}.md (e.g., pages/about.fr.md)
+        2. pages/about.md (fallback)
+        3. The literal path if it's a direct file reference
+
+        Args:
+            content_source: Base path or file path
+            lang: Target language code
+            md: Markdown parser
+
+        Returns:
+            Rendered HTML content or None if not found
+        """
+        content_path = Path(content_source)
+
+        # If it's already a file with extension, try it directly
+        if content_path.suffix:
+            paths_to_try = [content_path]
+        else:
+            # Try language-specific file first, then generic
+            paths_to_try = []
+            if lang:
+                paths_to_try.append(Path(f"{content_source}.{lang}.md"))
+            paths_to_try.append(Path(f"{content_source}.md"))
+
+        for path in paths_to_try:
+            if path.is_file():
+                try:
+                    content_raw = path.read_text(encoding="utf-8")
+                    if path.suffix.lower() in [".md", ".markdown"]:
+                        return self._postprocess_markdown_html(md.render(content_raw))
+                    return content_raw
+                except Exception as read_err:
+                    logger.error(f"Error reading content file '{path}': {read_err}")
+                    return f"<p><em>Error loading content from {path}.</em></p>"
+
+        logger.warning(
+            f"Content source file not found for any tried paths: {paths_to_try}"
+        )
+        return f"<p><em>Content file not found: {content_source}</em></p>"
+
     def _process_static_pages(
         self,
         static_pages: List[StaticPageConfig],
@@ -411,8 +1052,23 @@ class HtmlPageExporter(ExporterPlugin):
         html_params: HtmlExporterParams,
         output_dir: Path,
         md: MarkdownIt,
+        lang: Optional[str] = None,
+        languages: Optional[List[str]] = None,
+        language_switcher: bool = False,
     ) -> None:
-        """Processes each static page configuration."""
+        """
+        Processes each static page configuration.
+
+        Args:
+            static_pages: List of static page configurations
+            jinja_env: Jinja2 environment
+            html_params: HTML export parameters
+            output_dir: Output directory
+            md: Markdown parser
+            lang: Current language code (for multi-language mode)
+            languages: List of all supported languages
+            language_switcher: Whether to enable language switcher
+        """
         logger.info(f"Processing {len(static_pages)} static pages...")
         if not static_pages:
             return
@@ -422,68 +1078,132 @@ class HtmlPageExporter(ExporterPlugin):
                 f"Processing static page: '{page_config.name}' -> {page_config.output_file}"
             )
             try:
-                template_name = page_config.template or "static_page.html"
+                template_name = page_config.template or "page.html"
                 template = jinja_env.get_template(template_name)
 
-                # Prepare context
-                context = {
-                    "site": html_params.site.model_dump() if html_params.site else {},
-                    "navigation": html_params.navigation
-                    if html_params.navigation
+                # Build site context with resolved localized strings
+                site_context = self._get_site_context(html_params, lang)
+
+                # Add i18n info to site context
+                if lang:
+                    site_context["current_lang"] = lang
+                if languages:
+                    site_context["languages"] = languages
+                site_context["language_switcher"] = language_switcher
+
+                # Resolve navigation with localized strings
+                navigation = self._resolve_navigation(
+                    html_params.navigation if html_params.navigation else [], lang
+                )
+                footer_navigation = self._resolve_footer_sections(
+                    html_params.footer_navigation
+                    if html_params.footer_navigation
                     else [],
-                    "page": page_config.context.model_dump()
-                    if page_config.context
-                    else {},
+                    lang,
+                )
+
+                # Build page context with resolved localized strings
+                page_context = (
+                    page_config.context.model_dump() if page_config.context else {}
+                )
+                if "title" in page_context:
+                    page_context["title"] = self._resolve_localized(
+                        page_context["title"], lang
+                    )
+
+                # Calculate depth for relative URLs
+                # nav_depth = depth within the language directory (for page-to-page links)
+                # depth = total depth from export root (for assets/files at root)
+                nav_depth = page_config.output_file.count("/")
+                is_multilang = bool(lang and languages and len(languages) > 1)
+                page_depth = nav_depth + (1 if is_multilang else 0)
+
+                # Prepare full context
+                context = {
+                    "site": site_context,
+                    "navigation": navigation,
+                    "footer_navigation": footer_navigation,
+                    "page": page_context,
                     "output_file": page_config.output_file,
+                    "depth": page_depth,
+                    "nav_depth": nav_depth,
+                    "current_lang": lang,
+                    "languages": languages or [],
+                    "language_switcher": language_switcher,
                 }
 
-                # Handle content source or markdown
-                page_content_html = None  # Initialize content variable
+                # Handle content source (external markdown file) or inline markdown
+                page_content_html = None
                 if page_config.context:
-                    if page_config.context.content_markdown:
-                        # Render Markdown content
-                        try:
-                            page_content_html = md.render(
-                                page_config.context.content_markdown
-                            )
-                        except Exception as md_err:
-                            logger.error(
-                                f"Error rendering markdown for static page '{page_config.name}': {md_err}"
-                            )
-                            page_content_html = (
-                                "<p><em>Error rendering Markdown content.</em></p>"
-                            )
-                    elif page_config.context.content_source:
-                        # Load content from file
-                        # Assume content_source is relative to project/config or absolute
-                        # A better approach might involve resolving paths relative to the config file location.
-                        content_path = Path(page_config.context.content_source)
-                        if content_path.is_file():
-                            try:
-                                content_raw = content_path.read_text(encoding="utf-8")
-                                # Check extension to decide if it needs markdown processing
-                                if content_path.suffix.lower() in [
-                                    ".md",
-                                    ".markdown",
-                                ]:
-                                    page_content_html = md.render(content_raw)
-                                else:
-                                    # Assume it's already HTML or text to be included directly
-                                    page_content_html = content_raw  # Might need |safe in template if HTML
-                            except Exception as read_err:
-                                logger.error(
-                                    f"Error reading content file '{content_path}' for static page '{page_config.name}': {read_err}"
-                                )
-                                page_content_html = f"<p><em>Error loading content from {content_path}.</em></p>"
-                        else:
-                            logger.warning(
-                                f"Content source file not found for static page '{page_config.name}': {content_path}"
-                            )
-                            page_content_html = f"<p><em>Content file not found: {content_path}</em></p>"
+                    content_source = page_config.context.content_source
 
-                context["page_content_html"] = (
-                    page_content_html  # Pass rendered/loaded HTML to context
-                )
+                    if content_source:
+                        # Load content from file with language support
+                        page_content_html = self._resolve_content_source(
+                            content_source, lang, md
+                        )
+                    elif hasattr(page_config.context, "content_markdown"):
+                        # Handle inline markdown content
+                        content_markdown = getattr(
+                            page_config.context, "content_markdown", None
+                        )
+                        if content_markdown:
+                            page_content_html = self._postprocess_markdown_html(
+                                md.render(content_markdown)
+                            )
+
+                # Rewrite files/ paths in markdown-rendered HTML
+                if page_content_html:
+                    page_content_html = self._rewrite_content_paths(
+                        page_content_html, page_depth
+                    )
+                context["page_content_html"] = page_content_html
+
+                # Handle bibtex_source: load and parse .bib file into references
+                if page_context.get("bibtex_source"):
+                    bibtex_refs = self._load_bibtex_references(
+                        page_context["bibtex_source"]
+                    )
+                    if bibtex_refs:
+                        context["references"] = bibtex_refs
+                        # Also make available in page context
+                        page_context["references"] = bibtex_refs
+                        logger.debug(
+                            f"Loaded {len(bibtex_refs)} references from BibTeX"
+                        )
+
+                # Resolve *_source JSON files (team_source, references_source, etc.)
+                for key in list(page_context.keys()):
+                    if (
+                        key.endswith("_source")
+                        and key != "content_source"
+                        and key != "bibtex_source"
+                    ):
+                        target_key = key[:-7]  # "team_source" → "team"
+                        json_path = Path(page_context[key])
+                        if json_path.is_file():
+                            import json as json_mod
+
+                            data = json_mod.loads(json_path.read_text(encoding="utf-8"))
+                            page_context[target_key] = data
+                            context[target_key] = data
+                            logger.debug(
+                                f"Loaded {len(data)} items from {json_path} into '{target_key}'"
+                            )
+
+                # Pass top-level context keys for bibliography/team templates
+                for key in (
+                    "title",
+                    "introduction",
+                    "references",
+                    "categories",
+                    "team",
+                    "partners",
+                    "funders",
+                    "resources",
+                ):
+                    if key in page_context and key not in context:
+                        context[key] = page_context[key]
 
                 # Determine the template to use
                 template_name = (
@@ -503,6 +1223,18 @@ class HtmlPageExporter(ExporterPlugin):
                 output_file_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(output_file_path, "w", encoding="utf-8") as f:
                     f.write(rendered_html)
+
+                # Generate .bib file alongside bibliography pages
+                if context.get("references") and page_config.template in (
+                    "bibliography.html",
+                ):
+                    bib_path = output_file_path.parent / "references.bib"
+                    bib_content = self._references_to_bibtex(context["references"])
+                    bib_path.write_text(bib_content, encoding="utf-8")
+                    self.stats["total_files_generated"] += 1
+                    logger.debug(
+                        f"Generated BibTeX: {bib_path} ({len(context['references'])} refs)"
+                    )
                 self.stats["total_files_generated"] += 1
                 logger.debug(f"Rendered static page: {output_file_path}")
 
@@ -523,8 +1255,24 @@ class HtmlPageExporter(ExporterPlugin):
         output_dir: Path,
         repository: Database,
         group_filter: Optional[str] = None,
+        lang: Optional[str] = None,
+        languages: Optional[List[str]] = None,
+        language_switcher: bool = False,
     ) -> None:
-        """Processes each data group to generate index and detail pages."""
+        """
+        Processes each data group to generate index and detail pages.
+
+        Args:
+            groups: List of group configurations
+            jinja_env: Jinja2 environment
+            html_params: HTML export parameters
+            output_dir: Output directory
+            repository: Database instance
+            group_filter: Optional filter to select specific groups
+            lang: Current language code (for multi-language mode)
+            languages: List of all supported languages
+            language_switcher: Whether to enable language switcher
+        """
         logger.info(f"Processing {len(groups)} data groups...")
         if not groups:
             return
@@ -541,8 +1289,9 @@ class HtmlPageExporter(ExporterPlugin):
 
             group_by_key = group_config.group_by
             logger.info(f"Processing group: '{group_by_key}'")
-            id_column = f"{group_by_key}_id"
-            table_name = group_by_key
+            table_name, id_column = self._resolve_group_table_and_id(
+                group_by_key, group_config.navigation_entity
+            )
 
             # Generate navigation JS file for this group (only once)
             self._generate_navigation_js(group_config, output_dir)
@@ -636,6 +1385,9 @@ class HtmlPageExporter(ExporterPlugin):
                         html_params,
                         output_dir,
                         group_output_dir,
+                        lang=lang,
+                        languages=languages,
+                        language_switcher=language_switcher,
                     )
             else:
                 # Use traditional index generation
@@ -652,20 +1404,48 @@ class HtmlPageExporter(ExporterPlugin):
                     html_params,
                     output_dir,
                     group_output_dir,
+                    lang=lang,
+                    languages=languages,
+                    language_switcher=language_switcher,
                 )
 
             # --- End Render Index Page ---
 
             # --- Render Detail Pages ---
-            # Get index data for detail pages (needed for both traditional and new method)
+            # Resolve the transform output table for detail data (widget columns).
+            # The transform stores its output in a table named after the group (e.g., "taxons"),
+            # while the entity table (e.g., "entity_taxons") only has raw entity fields.
+            detail_table_name = table_name
+            detail_id_column = id_column
+            transform_table = group_by_key
+            transform_id_col = f"{group_by_key}_id"
+            if repository.has_table(transform_table) and transform_table != table_name:
+                transform_cols = repository.get_table_columns(transform_table) or []
+                if transform_id_col in transform_cols:
+                    detail_table_name = transform_table
+                    detail_id_column = transform_id_col
+                    logger.info(
+                        f"Using transform output table '{transform_table}' for detail data "
+                        f"(entity table: '{table_name}')"
+                    )
+
+            # Get index data: try entity table first, fallback to transform table
             index_data = self._get_group_index_data(repository, table_name, id_column)
+            if not index_data and detail_table_name != table_name:
+                logger.info(
+                    f"No index data from entity table '{table_name}', "
+                    f"trying transform table '{detail_table_name}'"
+                )
+                index_data = self._get_group_index_data(
+                    repository, detail_table_name, detail_id_column
+                )
             if not index_data:
                 logger.info(
                     f"No items found for group '{group_by_key}', skipping detail pages."
                 )
                 continue
 
-            detail_template_name = group_config.page_template or "group_detail.html"
+            detail_template_name = group_config.page_template or "_group_detail.html"
 
             # Outer try for the entire detail page generation process for this group
             try:
@@ -705,9 +1485,9 @@ class HtmlPageExporter(ExporterPlugin):
 
                         # Inner try for processing a single item
                         try:
-                            # Get item data
+                            # Get item data from transform output table (has widget columns)
                             item_data = self._get_item_detail_data(
-                                repository, table_name, id_column, item_id
+                                repository, detail_table_name, detail_id_column, item_id
                             )
                             if not item_data:
                                 # Warning already logged in _get_item_detail_data
@@ -717,8 +1497,16 @@ class HtmlPageExporter(ExporterPlugin):
                             rendered_widgets: Dict[str, str] = {}
                             widget_dependencies: Set[str] = set()
 
+                            # Sort widgets by layout.order before processing
+                            sorted_widgets = sorted(
+                                enumerate(group_config.widgets),
+                                key=lambda x: (
+                                    x[1].layout.order if x[1].layout else x[0]
+                                ),
+                            )
+
                             # Process widgets for this item
-                            for i, widget_config in enumerate(group_config.widgets):
+                            for i, widget_config in sorted_widgets:
                                 # Create a unique key combining plugin type, data source, and index
                                 widget_key = f"{widget_config.plugin}_{widget_config.data_source}_{i}"  # Unique key per widget instance
 
@@ -890,22 +1678,51 @@ class HtmlPageExporter(ExporterPlugin):
 
                             # Prepare context and render detail page for this item
                             # Calculate depth based on output pattern
-                            depth = group_config.output_pattern.count("/")
+                            nav_depth = group_config.output_pattern.count("/")
+                            is_multilang = bool(
+                                lang and languages and len(languages) > 1
+                            )
+                            depth = nav_depth + (1 if is_multilang else 0)
 
-                            detail_context = {
-                                "site": html_params.site.model_dump()
-                                if html_params.site
-                                else {},
-                                "navigation": html_params.navigation
+                            # Build site context with resolved localized strings
+                            site_context = self._get_site_context(html_params, lang)
+                            if lang:
+                                site_context["current_lang"] = lang
+                            if languages:
+                                site_context["languages"] = languages
+                            site_context["language_switcher"] = language_switcher
+
+                            # Resolve navigation with localized strings
+                            navigation = self._resolve_navigation(
+                                html_params.navigation
                                 if html_params.navigation
                                 else [],
+                                lang,
+                            )
+                            footer_navigation = self._resolve_footer_sections(
+                                html_params.footer_navigation
+                                if html_params.footer_navigation
+                                else [],
+                                lang,
+                            )
+
+                            detail_context = {
+                                "site": site_context,
+                                "navigation": navigation,
+                                "footer_navigation": footer_navigation,
                                 "id_column": id_column,
                                 "group_config": group_config,
                                 "group_by": group_by_key,
                                 "item": item_data,
                                 "widgets": rendered_widgets,
-                                "dependencies": list(widget_dependencies),
+                                "dependencies": list(
+                                    self._dedupe_plotly_deps(widget_dependencies)
+                                ),
                                 "depth": depth,  # Add depth for relative URLs
+                                "nav_depth": nav_depth,
+                                "current_lang": lang,
+                                "languages": languages or [],
+                                "language_switcher": language_switcher,
                             }
                             rendered_detail_html = detail_template.render(
                                 detail_context
@@ -1118,10 +1935,6 @@ class HtmlPageExporter(ExporterPlugin):
                 # Add any custom fields that might be needed
                 if "shape_type_field" in params:
                     required_fields.add(params["shape_type_field"])
-                # Also add shape_type if we're dealing with shapes
-                ref_data = params.get("referential_data", "")
-                if ref_data in ("shape_ref", "shapes"):
-                    required_fields.add("shape_type")
 
         # If no hierarchical widgets found, use default minimal set
         if not required_fields:
@@ -1149,19 +1962,7 @@ class HtmlPageExporter(ExporterPlugin):
         # Use navigation_entity if specified, otherwise fall back to group_by
         entity_name = group_config.navigation_entity or group_by_key
 
-        # Resolve the entity table via the registry when available
-        if self.registry:
-            try:
-                reference_table = self.registry.get(entity_name).table_name
-            except Exception as exc:  # pragma: no cover - defensive logging
-                logger.debug(
-                    "Failed to resolve entity '%s' from registry (%s); falling back to conventional name",
-                    entity_name,
-                    exc,
-                )
-                reference_table = f"entity_{entity_name}"
-        else:
-            reference_table = f"entity_{entity_name}"
+        reference_table = self._resolve_reference_table_name(entity_name)
 
         # Extract required fields from hierarchical navigation widgets
         required_fields = self._extract_navigation_fields(group_config)
@@ -1383,6 +2184,9 @@ class HtmlPageExporter(ExporterPlugin):
         html_params,
         output_dir: Path,
         group_output_dir: Path,
+        lang: Optional[str] = None,
+        languages: Optional[List[str]] = None,
+        language_switcher: bool = False,
     ) -> None:
         """
         Generate index page using the traditional method (for backward compatibility).
@@ -1397,29 +2201,228 @@ class HtmlPageExporter(ExporterPlugin):
             html_params: HTML exporter parameters
             output_dir: Base output directory
             group_output_dir: Group-specific output directory
+            lang: Current language code (for multi-language mode)
+            languages: List of all supported languages
+            language_switcher: Whether to enable language switcher
         """
         try:
-            # Fetch index data
-            index_data = self._get_group_index_data(repository, table_name, id_column)
+            # Resolve the transform output table which contains rich JSON data
+            # needed by display_fields (e.g., "taxons" has general_info JSON
+            # vs "entity_taxons" with only id/name).
+            index_table = table_name
+            index_id_col = id_column
+            transform_table = group_by_key
+            transform_id_col = f"{group_by_key}_id"
+            if repository.has_table(transform_table) and transform_table != table_name:
+                transform_cols = repository.get_table_columns(transform_table) or []
+                if transform_id_col in transform_cols:
+                    index_table = transform_table
+                    index_id_col = transform_id_col
+                    logger.info(
+                        f"Using transform table '{transform_table}' for index data "
+                        f"(entity table: '{table_name}')"
+                    )
+
+            # Fetch all columns so display_fields can access nested JSON fields
+            try:
+                query = f'SELECT * FROM "{index_table}" ORDER BY "{index_id_col}"'
+                results = repository.fetch_all(query)
+                index_data: Optional[List[Dict[str, Any]]] = (
+                    [dict(row) for row in results] if results else None
+                )
+            except Exception as e:
+                logger.warning(f"Failed to query '{index_table}': {e}")
+                index_data = None
+
+            # Fallback to entity table if transform table failed
+            if not index_data and index_table != table_name:
+                index_data = self._get_group_index_data(
+                    repository, table_name, id_column
+                )
+
             if not index_data:
                 logger.error(
                     f"No index data found for group '{group_by_key}'. Skipping index generation."
                 )
                 return
 
+            # Parse JSON string fields into dicts for nested access
+            import json as json_mod
+
+            for item in index_data:
+                for key, value in list(item.items()):
+                    if isinstance(value, str) and value.strip().startswith("{"):
+                        try:
+                            item[key] = json_mod.loads(value)
+                        except (json_mod.JSONDecodeError, ValueError):
+                            pass
+
+            # Apply server-side filters from index_generator config
+            index_gen_filters = []
+            if (
+                hasattr(group_config, "index_generator")
+                and group_config.index_generator
+            ):
+                cfg = (
+                    group_config.index_generator.model_dump()
+                    if hasattr(group_config.index_generator, "model_dump")
+                    else group_config.index_generator
+                    if isinstance(group_config.index_generator, dict)
+                    else {}
+                )
+                index_gen_filters = cfg.get("filters", [])
+
+            if index_gen_filters:
+                filtered = []
+                for item in index_data:
+                    include = True
+                    for f in index_gen_filters:
+                        val = self._get_nested_value_static(item, f["field"])
+                        op = f.get("operator", "in")
+                        if op == "in" and val not in f.get("values", []):
+                            include = False
+                            break
+                        elif op == "equals" and val != f.get("values", [None])[0]:
+                            include = False
+                            break
+                    if include:
+                        filtered.append(item)
+                logger.info(
+                    f"Filtered index items: {len(index_data)} -> {len(filtered)}"
+                )
+                index_data = filtered
+
             # Use traditional template
-            index_template_name = group_config.index_template or "group_index.html"
+            index_template_name = group_config.index_template or "_group_index.html"
 
             index_template = jinja_env.get_template(index_template_name)
             logger.debug(f"Rendering traditional index template: {index_template_name}")
 
+            # Build site context with resolved localized strings
+            site_context = self._get_site_context(html_params, lang)
+            if lang:
+                site_context["current_lang"] = lang
+            if languages:
+                site_context["languages"] = languages
+            site_context["language_switcher"] = language_switcher
+
+            # Resolve navigation with localized strings
+            navigation = self._resolve_navigation(
+                html_params.navigation if html_params.navigation else [], lang
+            )
+            footer_navigation = self._resolve_footer_sections(
+                html_params.footer_navigation if html_params.footer_navigation else [],
+                lang,
+            )
+
+            # Convert DB rows to plain dicts (RowMapping is not JSON-serializable).
+            normalized_items = [
+                dict(item) if not isinstance(item, dict) else item
+                for item in index_data
+            ]
+
+            # Build resilient defaults for legacy/traditional index rendering.
+            first_item = normalized_items[0] if normalized_items else {}
+            preferred_name_fields = ["name", "full_name", "label", "title"]
+            name_field = next(
+                (f for f in preferred_name_fields if f in first_item), None
+            )
+            if not name_field and first_item:
+                name_field = next(
+                    (k for k in first_item.keys() if k != index_id_col), None
+                )
+            if not name_field:
+                name_field = index_id_col
+
+            default_page_config = {
+                "title": group_by_key.replace("_", " ").title(),
+                "description": "",
+                "items_per_page": 24,
+            }
+
+            index_generator_cfg = {}
+            if (
+                hasattr(group_config, "index_generator")
+                and group_config.index_generator
+            ):
+                if hasattr(group_config.index_generator, "model_dump"):
+                    index_generator_cfg = group_config.index_generator.model_dump()
+                elif isinstance(group_config.index_generator, dict):
+                    index_generator_cfg = group_config.index_generator
+
+            page_config = index_generator_cfg.get("page_config", default_page_config)
+            display_fields = index_generator_cfg.get(
+                "display_fields",
+                [
+                    {
+                        "name": name_field,
+                        "source": name_field,
+                        "type": "text",
+                        "label": str(name_field).replace("_", " ").title(),
+                        "searchable": True,
+                    }
+                ],
+            )
+            views = index_generator_cfg.get(
+                "views",
+                [
+                    {"type": "grid", "default": True},
+                    {"type": "list", "default": False},
+                ],
+            )
+            filters = index_generator_cfg.get("filters", [])
+
+            # Extract display_fields values from nested JSON into flat keys
+            # so the template JS can access item[field.name] directly.
+            if display_fields and normalized_items:
+                processed_items = []
+                for item in normalized_items:
+                    item_id = item.get(index_id_col)
+                    processed = {
+                        index_id_col: str(item_id) if item_id is not None else None
+                    }
+                    for field in display_fields:
+                        source = field.get("source", field["name"])
+                        val = self._get_nested_value_static(item, source)
+                        if val is None and field.get("fallback"):
+                            val = item.get(field["fallback"])
+                        processed[field["name"]] = val
+                    processed_items.append(processed)
+                normalized_items = processed_items
+
             index_context = {
-                "site": html_params.site,
-                "navigation": html_params.navigation,
+                "site": site_context,
+                "navigation": navigation,
+                "footer_navigation": footer_navigation,
                 "group_by": group_by_key,
-                "items": index_data,
+                "items": normalized_items,
                 "group_config": group_config,
-                "id_column": id_column,
+                "id_column": index_id_col,
+                "current_lang": lang,
+                "languages": languages or [],
+                "language_switcher": language_switcher,
+                # Backward-compatible variables expected by _group_index.html
+                "page_config": page_config,
+                "index_config": {
+                    "group_by": group_by_key,
+                    "id_column": index_id_col,
+                    "page_config": page_config,
+                    "display_fields": display_fields,
+                    "filters": filters,
+                    "views": views,
+                },
+                "items_data": normalized_items,
+                "nav_depth": (
+                    group_config.output_pattern.count("/")
+                    if group_config.output_pattern
+                    else 0
+                ),
+                "depth": (
+                    group_config.output_pattern.count("/")
+                    if group_config.output_pattern
+                    else 0
+                )
+                + (1 if lang and languages and len(languages) > 1 else 0),
             }
 
             # Output index file to the specific group directory

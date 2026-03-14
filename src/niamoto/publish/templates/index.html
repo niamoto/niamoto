@@ -1,0 +1,148 @@
+{% extends "_base.html" %}
+{#
+    Template: index.html
+    Description: Page d'accueil style portail avec hero plein écran, partenaires, contenu et features
+    Variables (via page.*):
+        - page.title: Titre principal du site
+        - page.subtitle: Sous-titre/description
+        - page.hero_image: Image de fond de la section hero (optionnel)
+        - page.partners: Liste de partenaires [{name, logo, url}] (optionnel)
+        - page.stats: Liste de statistiques [{label, value, icon}]
+        - page.features: Liste de fonctionnalites [{title, description, icon, url}] (optionnel)
+        - page_content_html: Contenu markdown converti en HTML
+#}
+
+{% block title %}{{ page.title | default(site.title) | default('Accueil') }}{% endblock %}
+
+{% block main_wrapper %}
+<div class="index-page">
+    <!-- Hero Section - Full viewport -->
+    <section class="text-white relative{% if not page.hero_image %} bg-gradient-to-br from-green-700 to-green-900{% endif %}"
+             style="min-height: 100vh; {% if page.hero_image %}background-image: url('{{ page.hero_image | relative_url(depth|default(0)) }}'); background-size: cover; background-position: center;{% endif %}">
+        {% if page.hero_image %}<div class="absolute inset-0" style="background-color: rgba(0,0,0,0.15);"></div>{% endif %}
+        <div class="absolute inset-0 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 text-center z-10">
+            <h1 style="font-family: 'Arial Black', sans-serif; font-size: 3.5rem; text-transform: uppercase; letter-spacing: 3px; text-shadow: 3px 3px 8px rgba(0,0,0,0.7); margin-bottom: 1rem;">
+                {{ page.title | default(site.title) | default('Bienvenue') }}
+            </h1>
+            {% if page.subtitle %}
+            <p style="font-size: 1.5rem; text-shadow: 2px 2px 6px rgba(0,0,0,0.7); max-width: 48rem; line-height: 1.6;">
+                {{ page.subtitle }}
+            </p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Partners Section -->
+    {% set partners = page.partners or site.partners %}
+    {% if partners %}
+    <section style="padding: 2.5rem 0; background-color: #fff; border-bottom: 1px solid #e5e7eb;">
+        <div style="max-width: 72rem; margin: 0 auto; padding: 0 1.5rem;">
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2rem;">
+                {% for partner in partners %}
+                <a href="{{ partner.url | default('#') }}" target="_blank" rel="noopener noreferrer" title="{{ partner.name }}">
+                    <img src="{{ partner.logo | relative_url(depth|default(0)) }}"
+                         alt="{{ partner.name }}"
+                         style="height: 50px; width: auto; opacity: 0.8; transition: opacity 0.2s;"
+                         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Stats Section -->
+    {% if page.stats %}
+    <section style="padding: 3rem 0; background-color: #f9fafb;">
+        <div style="max-width: 64rem; margin: 0 auto; padding: 0 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; background: #fff; border-radius: 1rem; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+                {% for stat in page.stats %}
+                <div style="text-align: center; padding: 2rem 1rem;{{ ' border-left: 1px solid #f3f4f6;' if not loop.first }}">
+                    <div style="display: inline-flex; align-items: center; justify-content: center; width: 3rem; height: 3rem; border-radius: 50%; background-color: #ecfdf5; margin-bottom: 0.75rem;">
+                        <i data-lucide="{{ stat.icon | default('bar-chart') }}" style="width: 1.5rem; height: 1.5rem; color: #16a34a;"></i>
+                    </div>
+                    <div style="font-size: 1.75rem; font-weight: 700; color: #111827;">{{ stat.value }}</div>
+                    <div style="font-size: 0.875rem; color: #6b7280; margin-top: 0.25rem;">{{ stat.label }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Content Section -->
+    {% if page_content_html %}
+    <section style="padding: 4rem 0;">
+        <div style="max-width: 56rem; margin: 0 auto; padding: 0 1.5rem;">
+            <div class="markdown-content prose prose-lg prose-green" style="max-width: none;">
+                {{ page_content_html | safe }}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Features Section (optional) -->
+    {% if page.features %}
+    <section style="padding: 4rem 0; background-color: #f9fafb;">
+        <div style="max-width: 72rem; margin: 0 auto; padding: 0 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat({{ [page.features|length, 3] | min }}, 1fr); gap: 2rem;">
+                {% for feature in page.features %}
+                <a href="{{ feature.url | relative_url(nav_depth|default(depth|default(0))) }}" class="feature-card">
+                    <div style="background: #fff; border-radius: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 2rem; text-align: center; border: 1px solid #f3f4f6; transition: all 0.3s;">
+                        <div style="display: inline-flex; align-items: center; justify-content: center; width: 4rem; height: 4rem; border-radius: 1rem; background-color: #ecfdf5; margin-bottom: 1.25rem;">
+                            <i data-lucide="{{ feature.icon | default('folder') }}" style="width: 2rem; height: 2rem; color: #16a34a;"></i>
+                        </div>
+                        <h3 style="font-size: 1.25rem; font-weight: 600; color: #111827; margin-bottom: 0.5rem;">{{ feature.title }}</h3>
+                        <p style="color: #6b7280; line-height: 1.6;">{{ feature.description }}</p>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+</div>
+
+<style>
+    .feature-card {
+        text-decoration: none;
+        display: block;
+        transition: transform 0.2s;
+    }
+    .feature-card:hover {
+        transform: translateY(-4px);
+    }
+    .feature-card:hover > div {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        border-color: #86efac;
+    }
+    .prose h2 { font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-top: 2.5rem; margin-bottom: 1rem; }
+    .prose h3 { font-size: 1.25rem; font-weight: 600; color: #374151; margin-top: 2rem; margin-bottom: 0.75rem; }
+    .prose p { color: #4b5563; line-height: 1.75; margin-bottom: 1.25rem; }
+    .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; color: #4b5563; }
+    .prose li { margin-bottom: 0.5rem; line-height: 1.75; }
+    .prose a { color: #059669; text-decoration: underline; text-underline-offset: 2px; }
+    .prose a:hover { color: #065f46; }
+    .prose img { border-radius: 0.75rem; margin: 2rem auto; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+    /* Images côte à côte : tout <p> contenant plusieurs <img> devient une galerie */
+    .prose p:has(img + img) {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1.5rem;
+        align-items: flex-end;
+    }
+    .prose p:has(img + img) img {
+        margin: 0;
+        max-height: 200px;
+        width: auto;
+        flex-shrink: 0;
+    }
+    .prose strong { color: #1f2937; }
+    .prose em { color: #6b7280; }
+    .prose blockquote { border-left: 4px solid #059669; padding-left: 1rem; color: #6b7280; font-style: italic; }
+    .prose table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
+    .prose th { background: #f9fafb; padding: 0.75rem 1rem; text-align: left; font-weight: 600; border-bottom: 2px solid #e5e7eb; }
+    .prose td { padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; }
+</style>
+{% endblock main_wrapper %}

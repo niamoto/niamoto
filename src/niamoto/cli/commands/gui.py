@@ -39,10 +39,14 @@ def gui(port: int, host: str, no_browser: bool, reload: bool):
     )
 
     # Set the working directory for the GUI context
+    import os
     from pathlib import Path
     from niamoto.gui.api.context import set_working_directory
 
-    set_working_directory(Path.cwd())
+    # Use NIAMOTO_HOME if set, otherwise use current working directory
+    niamoto_home = os.environ.get("NIAMOTO_HOME")
+    work_dir = Path(niamoto_home) if niamoto_home else Path.cwd()
+    set_working_directory(work_dir)
 
     # Create the app
     app = create_app()

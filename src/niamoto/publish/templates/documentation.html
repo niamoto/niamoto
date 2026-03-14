@@ -1,0 +1,215 @@
+{% extends "_base.html" %}
+{#
+    Template: documentation.html
+    Description: Documentation technique avec navigation laterale multi-niveaux
+    Variables:
+        - title: Titre de la documentation
+        - version: Version de la documentation
+        - nav_sections: Sections de navigation [{title, items: [{title, url, active}]}]
+        - page_content_html: Contenu markdown converti en HTML
+        - prev_page: Page precedente {title, url}
+        - next_page: Page suivante {title, url}
+#}
+
+{% block title %}{{ title | default('Documentation') }} - {{ site.title | default('Niamoto') }}{% endblock %}
+
+{% block content %}
+<div class="documentation-page min-h-screen bg-gray-50">
+    <div class="flex">
+        <!-- Sidebar Navigation -->
+        <aside class="w-72 bg-white border-r border-gray-200 min-h-screen fixed left-0 top-16 overflow-y-auto pb-20 hidden lg:block">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-bold text-gray-800">Documentation</h2>
+                    {% if version %}
+                    <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">v{{ version }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- Search -->
+                <div class="mb-6">
+                    <div class="relative">
+                        <input type="text" id="doc-search" placeholder="Rechercher..."
+                               class="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="doc-nav space-y-4">
+                    {% if nav_sections %}
+                        {% for section in nav_sections %}
+                        <div class="nav-section">
+                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                                {{ section.title }}
+                            </h3>
+                            <ul class="space-y-1">
+                                {% for item in section.items %}
+                                <li>
+                                    <a href="{{ item.url | relative_url(nav_depth|default(depth|default(0))) }}"
+                                       class="nav-link block px-3 py-2 text-sm rounded-lg transition-colors
+                                              {% if item.active %}bg-green-50 text-green-700 font-medium{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
+                                        {{ item.title }}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <!-- Default sections placeholder -->
+                        <div id="generated-nav" class="space-y-2"></div>
+                    {% endif %}
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Mobile Navigation Toggle -->
+        <button id="mobile-nav-toggle"
+                class="lg:hidden fixed bottom-4 right-4 z-50 bg-green-600 text-white p-4 rounded-full shadow-lg">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-72">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <!-- Breadcrumb -->
+                <nav class="text-sm mb-8">
+                    <ol class="flex items-center space-x-2">
+                        <li><a href="{{ 'index.html' | relative_url(nav_depth|default(depth|default(0))) }}" class="text-gray-500 hover:text-green-600">Accueil</a></li>
+                        <li><span class="text-gray-400">/</span></li>
+                        <li><span class="text-gray-800">{{ title }}</span></li>
+                    </ol>
+                </nav>
+
+                <!-- Page Title -->
+                <header class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">{{ title }}</h1>
+                </header>
+
+                <!-- Content -->
+                <article class="bg-white rounded-lg shadow-sm border border-gray-100 p-8 lg:p-12">
+                    {% if page_content_html %}
+                    <div id="doc-content" class="documentation-content">
+                        {{ page_content_html | safe }}
+                    </div>
+                    {% else %}
+                    <p class="text-gray-500 italic text-center py-8">
+                        (Aucun contenu disponible)
+                    </p>
+                    {% endif %}
+                </article>
+
+                <!-- Pagination -->
+                <nav class="mt-8 flex justify-between items-center">
+                    {% if prev_page %}
+                    <a href="{{ prev_page.url | relative_url(nav_depth|default(depth|default(0))) }}"
+                       class="flex items-center text-green-600 hover:text-green-800">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        <div>
+                            <div class="text-xs text-gray-500">Precedent</div>
+                            <div class="font-medium">{{ prev_page.title }}</div>
+                        </div>
+                    </a>
+                    {% else %}
+                    <div></div>
+                    {% endif %}
+
+                    {% if next_page %}
+                    <a href="{{ next_page.url | relative_url(nav_depth|default(depth|default(0))) }}"
+                       class="flex items-center text-right text-green-600 hover:text-green-800">
+                        <div>
+                            <div class="text-xs text-gray-500">Suivant</div>
+                            <div class="font-medium">{{ next_page.title }}</div>
+                        </div>
+                        <i class="fas fa-arrow-right ml-2"></i>
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+        </main>
+    </div>
+</div>
+
+<style>
+    .documentation-content h1 { font-size: 2rem; font-weight: 700; color: #1f2937; margin: 2rem 0 1rem; }
+    .documentation-content h2 { font-size: 1.5rem; font-weight: 600; color: #1f2937; margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .documentation-content h3 { font-size: 1.25rem; font-weight: 600; color: #374151; margin: 2rem 0 0.75rem; }
+    .documentation-content h4 { font-size: 1.1rem; font-weight: 500; color: #4b5563; margin: 1.5rem 0 0.5rem; }
+    .documentation-content p { color: #4b5563; margin-bottom: 1rem; line-height: 1.75; }
+    .documentation-content ul, .documentation-content ol { margin: 1rem 0 1rem 1.5rem; color: #4b5563; }
+    .documentation-content ul { list-style-type: disc; }
+    .documentation-content ol { list-style-type: decimal; }
+    .documentation-content li { margin-bottom: 0.5rem; line-height: 1.6; }
+    .documentation-content code {
+        background-color: #f3f4f6;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        color: #dc2626;
+    }
+    .documentation-content pre {
+        background-color: #1e293b;
+        color: #e2e8f0;
+        padding: 1.25rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        font-size: 0.875rem;
+        line-height: 1.6;
+    }
+    .documentation-content pre code { background: none; padding: 0; color: inherit; }
+    .documentation-content a { color: #059669; text-decoration: underline; }
+    .documentation-content a:hover { color: #047857; }
+    .documentation-content blockquote {
+        border-left: 4px solid #fbbf24;
+        background-color: #fffbeb;
+        padding: 1rem 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 0 0.5rem 0.5rem 0;
+    }
+    .documentation-content blockquote p { margin-bottom: 0; color: #92400e; }
+    .documentation-content table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.9rem; }
+    .documentation-content th, .documentation-content td { border: 1px solid #e5e7eb; padding: 0.75rem; text-align: left; }
+    .documentation-content th { background-color: #f9fafb; font-weight: 600; }
+    /* Admonitions */
+    .documentation-content .note, .documentation-content .warning, .documentation-content .tip {
+        padding: 1rem 1.5rem;
+        border-radius: 0.5rem;
+        margin: 1.5rem 0;
+    }
+    .documentation-content .note { background-color: #eff6ff; border-left: 4px solid #3b82f6; }
+    .documentation-content .warning { background-color: #fef3c7; border-left: 4px solid #f59e0b; }
+    .documentation-content .tip { background-color: #f0fdf4; border-left: 4px solid #10b981; }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Mobile navigation toggle
+    document.getElementById('mobile-nav-toggle')?.addEventListener('click', function() {
+        const sidebar = document.querySelector('aside');
+        sidebar.classList.toggle('hidden');
+        sidebar.classList.toggle('fixed');
+        sidebar.classList.toggle('inset-0');
+        sidebar.classList.toggle('z-40');
+    });
+
+    // Generate navigation from headings if no nav_sections provided
+    document.addEventListener('DOMContentLoaded', function() {
+        const content = document.getElementById('doc-content');
+        const navContainer = document.getElementById('generated-nav');
+        if (!content || !navContainer) return;
+
+        const headings = content.querySelectorAll('h2');
+        headings.forEach((heading, index) => {
+            if (!heading.id) heading.id = 'section-' + index;
+            const link = document.createElement('a');
+            link.href = '#' + heading.id;
+            link.textContent = heading.textContent;
+            link.className = 'block px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg';
+            navContainer.appendChild(link);
+        });
+    });
+</script>
+{% endblock %}

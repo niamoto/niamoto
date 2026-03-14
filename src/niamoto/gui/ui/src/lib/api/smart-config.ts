@@ -99,6 +99,8 @@ export interface AutoConfigureResponse {
       }>
     }
   }
+  /** Detected columns per entity name */
+  detected_columns?: Record<string, string[]>
   confidence: number
   warnings: string[]
 }
