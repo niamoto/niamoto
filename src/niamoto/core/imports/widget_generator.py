@@ -179,6 +179,10 @@ class WidgetGenerator:
             if profile.data_category is None:
                 continue
 
+            # Skip columns that are 100% NULL
+            if profile.null_ratio is not None and profile.null_ratio >= 1.0:
+                continue
+
             suggestions = self._generate_for_column(profile, source_table)
             all_suggestions.extend(suggestions)
 
@@ -435,6 +439,11 @@ class WidgetGenerator:
                 "x_axis": "label",
                 "y_axis": "count",
                 "orientation": "h",
+            }
+        elif transformer_name == "scatter_analysis" and widget_name == "scatter_plot":
+            return {
+                "x_axis": profile.name if profile else "x",
+                "y_axis": "y",
             }
 
         # Default empty config for unknown combinations
