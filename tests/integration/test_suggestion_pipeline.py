@@ -116,6 +116,10 @@ DATASETS_EXTENDED = {
         "path": FIXTURES / "inventory.geojson",
         "expect_min_suggestions": 1,
     },
+    "xlsx_mixed": {
+        "path": FIXTURES / "mixed_types.xlsx",
+        "expect_min_suggestions": 1,
+    },
 }
 
 # Combine all datasets
