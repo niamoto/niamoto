@@ -894,8 +894,8 @@ Ces items sont **hors scope** du plan actuel mais documentés pour référence :
 
 ### Phase 1 — Blockers ingestion GBIF
 - [x] Le profiler passe le DataFrame existant au lieu de recharger le fichier
-- [x] TSV et `.txt` supportés dans le profiler (parité I/O partielle — auto_detector et API restent à faire)
-- [x] Fallback encoding UTF-8 → latin-1 dans le profiler
+- [x] TSV et `.txt` supportés dans profiler, engine, auto_detector ET API (parité I/O complète)
+- [x] Fallback encoding UTF-8 → latin-1 dans profiler ET engine
 - [x] Sampling à 50k lignes avec `total_count` via `profile_dataframe(df, path, total_count=len(df))`
 - [x] Aucune régression sur les tests existants (2386 passed)
 
@@ -904,7 +904,7 @@ Ces items sont **hors scope** du plan actuel mais documentés pour référence :
 - [x] Contrat `binary_counter → donut_chart` mis à jour avec clés génériques
 - [x] Le bug "um" substring est corrigé
 - [x] Labels depuis les données, pas hardcodés NC
-- [x] Labels français → anglais dans `widget_generator.py` (surface partielle — widget_utils.py et suggestion_service.py restent à faire)
+- [x] Labels français → anglais (complet : widget_generator, widget_utils, suggestion_service, class_object_suggester, template_suggester, multi_field_detector, class_object_rendering)
 - [x] Les colonnes 100% NULL ne génèrent pas de suggestions
 - [x] NUMERIC_DISCRETE aligné entre TransformerSuggester et WidgetGenerator
 - [x] `scatter_plot` a `compatible_structures` + mapping config dans `_generate_widget_config()`
@@ -927,18 +927,18 @@ Ces items sont **hors scope** du plan actuel mais documentés pour référence :
 - [x] CSV adversarial : pas de crash (colonnes NULL, latin-1, mixed types, headers non-ASCII)
 - [ ] Chaque profil contient `schema_version`, `profiling_status`, `column_diagnostics` (testé dans Phase 0, pas dans intégration)
 
-### Phase 4+ — Corpus étendu (optionnel)
-- [ ] Checklist taxonomique : fonctionne sans colonnes spatiales
-- [ ] Inventaire custom (headers FR) : suggestions raisonnables malgré noms non-DwC
-- [ ] GeoJSON : propriétés extraites et profilées
-- [ ] XLSX : types mixtes gérés sans crash
+### Phase 4+ — Corpus étendu
+- [x] Checklist taxonomique : fonctionne sans colonnes spatiales
+- [x] Inventaire custom (headers FR) : suggestions raisonnables malgré noms non-DwC
+- [x] GeoJSON : propriétés extraites et profilées
+- [ ] XLSX : types mixtes gérés sans crash (openpyxl non installé — fixture non générée)
 
 ### Robustesse (transversale)
 - [x] La pipeline ne plante pas sur des colonnes 100% NULL
 - [x] La pipeline gère des noms de colonnes non-ASCII (accents — adversarial.csv)
 - [x] La pipeline gère des CSV avec >50 colonnes (schéma DwC — gbif_terrestrial 18 cols)
 - [x] La pipeline gère des plages numériques hors forêt tropicale (profondeur marine — gbif_marine)
-- [ ] La pipeline produit des suggestions même sans colonnes spatiales (pas testé — nécessite checklist fixture)
+- [x] La pipeline produit des suggestions même sans colonnes spatiales (checklist fixture)
 
 ---
 
