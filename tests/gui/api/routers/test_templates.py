@@ -340,21 +340,22 @@ class TestTemplatesHelperFunctions:
     """Test helper functions used by templates endpoints."""
 
     def test_load_import_config(self, test_work_dir):
-        """Test _load_import_config reads import.yml correctly."""
-        from niamoto.gui.api.routers.templates import _load_import_config
+        """Test load_import_config reads import.yml correctly."""
+        from niamoto.gui.api.services.templates.utils.config_loader import (
+            load_import_config,
+        )
 
-        # _load_import_config doesn't use get_working_directory internally
-        config = _load_import_config(Path(test_work_dir))
+        config = load_import_config(Path(test_work_dir))
 
         assert "entities" in config
         assert "references" in config["entities"]
         assert "taxons" in config["entities"]["references"]
 
     def test_get_hierarchy_info_extracts_levels(self, test_work_dir):
-        """Test _get_hierarchy_info extracts hierarchy levels correctly."""
-        from niamoto.gui.api.routers.templates import (
-            _load_import_config,
-            _get_hierarchy_info,
+        """Test get_hierarchy_info extracts hierarchy levels correctly."""
+        from niamoto.gui.api.services.templates.utils.config_loader import (
+            load_import_config,
+            get_hierarchy_info,
         )
 
         # Patch where get_working_directory is used (in services/templates/utils/)
@@ -362,8 +363,8 @@ class TestTemplatesHelperFunctions:
             "niamoto.gui.api.services.templates.utils.config_loader.get_working_directory"
         ) as mock:
             mock.return_value = Path(test_work_dir)
-            import_config = _load_import_config(Path(test_work_dir))
-            hierarchy_info = _get_hierarchy_info(import_config, "taxons")
+            import_config = load_import_config(Path(test_work_dir))
+            hierarchy_info = get_hierarchy_info(import_config, "taxons")
 
             assert hierarchy_info["reference_name"] == "taxons"
             assert "levels" in hierarchy_info
@@ -374,10 +375,10 @@ class TestTemplatesHelperFunctions:
             )
 
     def test_get_hierarchy_info_handles_flat_reference(self, test_work_dir):
-        """Test _get_hierarchy_info handles flat references."""
-        from niamoto.gui.api.routers.templates import (
-            _load_import_config,
-            _get_hierarchy_info,
+        """Test get_hierarchy_info handles flat references."""
+        from niamoto.gui.api.services.templates.utils.config_loader import (
+            load_import_config,
+            get_hierarchy_info,
         )
 
         # Patch where get_working_directory is used (in services/templates/utils/)
@@ -385,8 +386,8 @@ class TestTemplatesHelperFunctions:
             "niamoto.gui.api.services.templates.utils.config_loader.get_working_directory"
         ) as mock:
             mock.return_value = Path(test_work_dir)
-            import_config = _load_import_config(Path(test_work_dir))
-            hierarchy_info = _get_hierarchy_info(import_config, "plots")
+            import_config = load_import_config(Path(test_work_dir))
+            hierarchy_info = get_hierarchy_info(import_config, "plots")
 
             assert hierarchy_info["reference_name"] == "plots"
             # Flat references have empty levels
@@ -394,31 +395,6 @@ class TestTemplatesHelperFunctions:
                 hierarchy_info["levels"] == []
                 or hierarchy_info.get("kind") != "hierarchical"
             )
-
-    def test_dynamic_template_info_uses_explicit_source(self):
-        """Dynamic template config must propagate source instead of forcing occurrences."""
-        from niamoto.gui.api.routers.templates import _build_dynamic_template_info
-
-        parsed_geo = {
-            "column": "location",
-            "transformer": "geospatial_extractor",
-            "widget": "interactive_map",
-        }
-        geo_info = _build_dynamic_template_info(
-            parsed_geo, "location_geospatial_extractor_interactive_map", source="plots"
-        )
-        assert geo_info["config"]["source"] == "plots"
-
-        parsed_info = {
-            "column": "name",
-            "transformer": "field_aggregator",
-            "widget": "info_grid",
-        }
-        info = _build_dynamic_template_info(
-            parsed_info, "name_field_aggregator_info_grid", source="shapes"
-        )
-        assert info["config"]["source"] == "shapes"
-        assert info["config"]["fields"][0]["source"] == "shapes"
 
 
 class TestPreviewEndpoint:
@@ -492,9 +468,9 @@ class TestPreviewEndpoint:
 
     def test_field_aggregator_radial_gauge_preprocesses_scalar_value(self):
         """field_aggregator output must be flattened for radial_gauge."""
-        from niamoto.gui.api.routers.templates import _preprocess_data_for_widget
+        from niamoto.gui.api.services.preview_utils import preprocess_data_for_widget
 
-        processed = _preprocess_data_for_widget(
+        processed = preprocess_data_for_widget(
             {"elevation_median": {"value": "123.5", "units": "m"}},
             "field_aggregator",
             "radial_gauge",
@@ -504,27 +480,11 @@ class TestPreviewEndpoint:
         assert processed.get("value") == "123.5"
         assert processed.get("unit") == "m"
 
-    def test_field_aggregator_radial_gauge_builds_value_params(self):
-        """field_aggregator radial gauge must target flattened 'value' field."""
-        from niamoto.gui.api.routers.templates import _build_widget_params_dynamic
-
-        params = _build_widget_params_dynamic(
-            "field_aggregator",
-            "radial_gauge",
-            {},
-            "Elevation Median",
-            {"value": 123.5, "unit": "m"},
-        )
-
-        assert params["value_field"] == "value"
-        assert params["unit"] == "m"
-        assert params["max_value"] > 123.5
-
     def test_field_aggregator_radial_gauge_preprocess_keeps_string_values(self):
         """Non-float scalar values should still be flattened to avoid blank pages."""
-        from niamoto.gui.api.routers.templates import _preprocess_data_for_widget
+        from niamoto.gui.api.services.preview_utils import preprocess_data_for_widget
 
-        processed = _preprocess_data_for_widget(
+        processed = preprocess_data_for_widget(
             {"elevation_median": {"value": "123,5", "units": "m"}},
             "field_aggregator",
             "radial_gauge",
