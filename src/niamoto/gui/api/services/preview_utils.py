@@ -151,6 +151,20 @@ def preprocess_data_for_widget(data: Any, transformer: str, widget: str) -> Any:
                 result["percentages"] = percentages
             return result
 
+    # statistical_summary → radial_gauge: extract the stat to display as value.
+    # statistical_summary returns {min, mean, max, units, max_value}.
+    # radial_gauge needs {value, unit, max_value, min, max}.
+    if transformer == "statistical_summary" and widget == "radial_gauge":
+        stat = data.get("mean", data.get("max"))
+        if stat is not None:
+            return {
+                "value": stat,
+                "unit": data.get("units", ""),
+                "max_value": data.get("max_value", data.get("max")),
+                "min": data.get("min"),
+                "max": data.get("max"),
+            }
+
     # field_aggregator / class_object_field_aggregator → radial_gauge:
     # flatten nested payload to a simple {value, unit} dict.
     if (
