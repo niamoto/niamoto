@@ -144,24 +144,42 @@ class DataProfiler:
                 logger.debug(f"Could not load default ML detector: {e}")
 
     def profile(self, file_path: Path) -> DatasetProfile:
-        """Generate complete profile of a dataset."""
+        """Generate complete profile of a dataset by loading from file."""
         # Load data
         data = self._load_data(file_path)
 
         if data is None:
             raise ValueError(f"Could not load data from {file_path}")
 
+        return self.profile_dataframe(data, file_path)
+
+    def profile_dataframe(
+        self,
+        df: pd.DataFrame,
+        file_path: Path,
+        total_count: Optional[int] = None,
+    ) -> DatasetProfile:
+        """Generate complete profile from an already-loaded DataFrame.
+
+        Avoids redundant file I/O when the DataFrame is already in memory.
+
+        Args:
+            df: DataFrame to profile
+            file_path: Original file path (for name suggestion and metadata)
+            total_count: Actual row count if df is a sample (e.g. from DuckDB COUNT).
+                        If None, uses len(df).
+        """
         # Store file path in data attributes for detection
-        data.attrs["file_path"] = file_path
+        df.attrs["file_path"] = file_path
 
         # Profile columns
         columns = []
-        for col_name in data.columns:
-            col_profile = self._profile_column(data[col_name], col_name)
+        for col_name in df.columns:
+            col_profile = self._profile_column(df[col_name], col_name)
             columns.append(col_profile)
 
         # Detect dataset type based on column profiles
-        dataset_type = self._detect_dataset_type(columns, data)
+        dataset_type = self._detect_dataset_type(columns, df)
 
         # Suggest entity name
         suggested_name = self._suggest_entity_name(file_path, dataset_type)
@@ -174,12 +192,12 @@ class DataProfiler:
 
         # Check for geometry if geopandas
         geometry_type = None
-        if hasattr(data, "geometry"):
-            geometry_type = self._detect_geometry_type(data)
+        if hasattr(df, "geometry"):
+            geometry_type = self._detect_geometry_type(df)
 
         return DatasetProfile(
             file_path=file_path,
-            record_count=len(data),
+            record_count=total_count if total_count is not None else len(df),
             columns=columns,
             detected_type=dataset_type,
             suggested_name=suggested_name,
@@ -189,26 +207,58 @@ class DataProfiler:
         )
 
     def _load_data(self, file_path: Path) -> Optional[pd.DataFrame]:
-        """Load data from various file formats."""
+        """Load data from various file formats.
+
+        Supports CSV, TSV, TXT (with delimiter sniffing), GeoJSON, SHP, GPKG, XLSX.
+        Falls back to latin-1 encoding on UnicodeDecodeError.
+        """
         file_str = str(file_path)
+        suffix = file_path.suffix.lower()
 
         try:
-            if file_path.suffix.lower() == ".csv":
-                return pd.read_csv(file_str, low_memory=False)
-            elif file_path.suffix.lower() in [".geojson", ".json"]:
+            if suffix in (".csv", ".tsv", ".txt"):
+                return self._load_csv_like(file_str)
+            elif suffix in (".geojson", ".json"):
                 if HAS_GEOPANDAS:
                     return gpd.read_file(file_str)
                 else:
                     return pd.read_json(file_str)
-            elif file_path.suffix.lower() in [".shp", ".gpkg"]:
+            elif suffix in (".shp", ".gpkg"):
                 if HAS_GEOPANDAS:
                     return gpd.read_file(file_str)
-            elif file_path.suffix.lower() in [".xlsx", ".xls"]:
+            elif suffix in (".xlsx", ".xls"):
                 return pd.read_excel(file_str)
         except Exception as e:
-            print(f"Error loading {file_path}: {e}")
+            logger.warning(f"Error loading {file_path}: {e}")
 
         return None
+
+    def _load_csv_like(self, file_path: str) -> pd.DataFrame:
+        """Load CSV/TSV/TXT with delimiter sniffing and encoding fallback."""
+        import csv as csv_module
+
+        # Sniff delimiter from first 8KB
+        sep = ","
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                sample = f.read(8192)
+                dialect = csv_module.Sniffer().sniff(sample, delimiters=",\t;|")
+                sep = dialect.delimiter
+        except Exception:
+            # If sniffing fails, try tab (common for GBIF), then comma
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    first_line = f.readline()
+                    if "\t" in first_line:
+                        sep = "\t"
+            except Exception:
+                pass
+
+        # Try UTF-8 first, fallback to latin-1
+        try:
+            return pd.read_csv(file_path, sep=sep, low_memory=False)
+        except UnicodeDecodeError:
+            return pd.read_csv(file_path, sep=sep, low_memory=False, encoding="latin-1")
 
     def _profile_column(self, series: pd.Series, col_name: str) -> ColumnProfile:
         """Profile a single column."""
