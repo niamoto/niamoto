@@ -931,7 +931,7 @@ Ces items sont **hors scope** du plan actuel mais documentés pour référence :
 - [x] Checklist taxonomique : fonctionne sans colonnes spatiales
 - [x] Inventaire custom (headers FR) : suggestions raisonnables malgré noms non-DwC
 - [x] GeoJSON : propriétés extraites et profilées
-- [ ] XLSX : types mixtes gérés sans crash (openpyxl non installé — fixture non générée)
+- [x] XLSX : types mixtes gérés sans crash
 
 ### Robustesse (transversale)
 - [x] La pipeline ne plante pas sur des colonnes 100% NULL
